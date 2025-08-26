@@ -1,0 +1,35 @@
+*** Begin Patch
+*** Add File: src/services/firebase.ts
++import { getApps, initializeApp } from "firebase/app";
++import { getAuth } from "firebase/auth";
++import { getFirestore } from "firebase/firestore";
++import { getStorage } from "firebase/storage";
++import firebaseConfig from "../config/firebaseConfig";
++
++// Инициализируем Firebase один раз на всё приложение
++const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
++
++export const auth = getAuth(app);
++export const db = getFirestore(app);
++export const storage = getStorage(app);
++export default app;
++
+*** End Patch
+*** Begin Patch
+*** Update File: App.tsx
+@@
+-import { StatusBar } from 'expo-status-bar';
+-import { StyleSheet, Text, View } from 'react-native';
+-
+-// Firebase
+-import { initializeApp } from 'firebase/app';
+-import firebaseConfig from './src/config/firebaseConfig';
+-
+-// Инициализация Firebase (один раз за всё приложение)
+-initializeApp(firebaseConfig);
++import { StatusBar } from 'expo-status-bar';
++import { StyleSheet, Text, View } from 'react-native';
++// Подключаем готовый сервис (внутри уже есть initializeApp)
++import { auth } from './src/services/firebase';
+*** End Patch
+
