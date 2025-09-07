@@ -1,21 +1,23 @@
-// Безопасная заглушка для Firebase.
-// Ключи берём из .env (см. .env.example). Без них проект не упадёт, но Firebase не подключится.
+// src/config/firebaseConfig.ts
+import { initializeApp, getApps } from "firebase/app";
+import { getAuth } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
+import { getStorage } from "firebase/storage";
 
-export const firebaseConfig = {
-  apiKey: process.env.FIREBASE_API_KEY ?? "",
-  authDomain: process.env.FIREBASE_AUTH_DOMAIN ?? "",
-  projectId: process.env.FIREBASE_PROJECT_ID ?? "",
-  storageBucket: process.env.FIREBASE_STORAGE_BUCKET ?? "",
-  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID ?? "",
-  appId: process.env.FIREBASE_APP_ID ?? "",
-  measurementId: process.env.FIREBASE_MEASUREMENT_ID ?? "",
+// !!! Здесь — твои реальные ключи (оставь как есть у тебя)
+const firebaseConfig = {
+  apiKey: "AIzaSyDNkUOnpsJwLWseM7v27-sRqD3pUlPS_C0",
+  authDomain: "amoria-951c4.firebaseapp.com",
+  projectId: "amoria-951c4",
+  storageBucket: "amoria-951c4.firebasestorage.app",
+  messagingSenderId: "26536622150",
+  appId: "1:26536622150:web:21a451508f005825907247"
 };
 
-if (!firebaseConfig.apiKey) {
-  console.warn(
-    "[firebase] Empty config. Add keys to .env (see .env.example) or fill firebaseConfig.ts"
-  );
-}
+// Инициализируем один раз
+export const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 
-export default firebaseConfig;
-
+// Экспорт сервисов
+export const auth = getAuth(app);
+export const db = getFirestore(app);
+export const storage = getStorage(app);
