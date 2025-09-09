@@ -1,0 +1,30 @@
+diff --git a/.gitignore b/.gitignore
+index 1234567..89abcde 100644
+--- a/.gitignore
++++ b/.gitignore
+@@
+ # OS / IDE
+ .DS_Store
+ Thumbs.db
+ .idea/
+ .vscode/
+ *.swp
++
++# Local helper files (not for repo)
++er.name
++upload_to_github*.bat
+diff --git a/README.md b/README.md
+index 1234567..89abcde 100644
+--- a/README.md
++++ b/README.md
+@@
+-Add your Firebase config in `src/services/firebase.ts`.
++Add your Firebase config in `src/config/firebaseConfig.ts`.
++
++⚠️ Real keys are stored in `.env` (see `.env.example`).
+diff --git a/er.name b/er.name
+deleted file mode 100644
+index e69de29..0000000
+diff --git "a/upload_to_github — копия.bat" "b/upload_to_github — копия.bat"
+deleted file mode 100644
+index e69de29..0000000
