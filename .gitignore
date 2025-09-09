@@ -47,3 +47,6 @@ android/app/build/
 # Misc
 coverage/
 *.iml
+New Text Document*.txt
+er.name
+upload_to_github*.bat
