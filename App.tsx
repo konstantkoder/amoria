@@ -1,47 +1,20 @@
-import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import React from "react";
+import { SafeAreaView, Text, StyleSheet } from "react-native";
+import { StatusBar } from "expo-status-bar";
 
-import { NavigationContainer } from '@react-navigation/native';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
-
-import { onAuthStateChanged, User } from 'firebase/auth';
-import { auth } from './src/config/firebaseConfig'; // <= ВАЖНО: правильный путь
-
-// твои экраны
-import LoginScreen from './src/screens/LoginScreen';
-import HomeScreen from './src/screens/HomeScreen';
-
-const Stack = createNativeStackNavigator();
+// просто импортнём, чтобы инициализация случилась один раз
+import "./src/config/firebaseConfig";
 
 export default function App() {
-  const [initializing, setInitializing] = useState(true);
-  const [user, setUser] = useState<User | null>(null);
-
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (u) => {
-      setUser(u);
-      if (initializing) setInitializing(false);
-    });
-    return unsubscribe;
-  }, [initializing]);
-
-  if (initializing) {
-    return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-        <ActivityIndicator />
-      </View>
-    );
-  }
-
   return (
-    <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {user ? (
-          <Stack.Screen name="Home" component={HomeScreen} />
-        ) : (
-          <Stack.Screen name="Login" component={LoginScreen} />
-        )}
-      </Stack.Navigator>
-    </NavigationContainer>
+    <SafeAreaView style={styles.container}>
+      <Text style={styles.title}>Amoria ready 🚀</Text>
+      <StatusBar style="auto" />
+    </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  container: { flex: 1, alignItems: "center", justifyContent: "center" },
+  title: { fontSize: 20, fontWeight: "600" }
+});

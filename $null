@@ -1,0 +1,142 @@
+npm warn ERESOLVE overriding peer dependency
+npm warn While resolving: amoria@0.1.0
+npm warn Found: react@18.2.0
+npm warn node_modules/react
+npm warn   peer react@"*" from @react-navigation/core@6.4.17
+npm warn   node_modules/@react-navigation/core
+npm warn     @react-navigation/core@"^6.4.17" from @react-navigation/native@6.1.18
+npm warn     node_modules/@react-navigation/native
+npm warn   18 more (@react-navigation/elements, ...)
+npm warn
+npm warn Could not resolve dependency:
+npm warn peer react@"^18.2.0" from react-native@0.75.3
+npm warn node_modules/react-native
+npm warn   peer react-native@"*" from @react-navigation/elements@1.3.31
+npm warn   node_modules/@react-navigation/elements
+npm warn   15 more (@react-navigation/native, ...)
+npm warn ERESOLVE overriding peer dependency
+npm warn While resolving: amoria@0.1.0
+npm warn Found: react@18.2.0
+npm warn node_modules/react
+npm warn   peer react@"*" from @react-navigation/core@6.4.17
+npm warn   node_modules/@react-navigation/core
+npm warn     @react-navigation/core@"^6.4.17" from @react-navigation/native@6.1.18
+npm warn     node_modules/@react-navigation/native
+npm warn   18 more (@react-navigation/elements, ...)
+npm warn
+npm warn Could not resolve dependency:
+npm warn peer react@"^18.2.0" from react-native@0.75.3
+npm warn node_modules/react-native
+npm warn   peer react-native@"*" from @react-navigation/elements@1.3.31
+npm warn   node_modules/@react-navigation/elements
+npm warn   15 more (@react-navigation/native, ...)
+npm warn ERESOLVE overriding peer dependency
+npm warn While resolving: amoria@0.1.0
+npm warn Found: react@18.2.0
+npm warn node_modules/react
+npm warn   peer react@"*" from @react-navigation/core@6.4.17
+npm warn   node_modules/@react-navigation/core
+npm warn     @react-navigation/core@"^6.4.17" from @react-navigation/native@6.1.18
+npm warn     node_modules/@react-navigation/native
+npm warn   18 more (@react-navigation/elements, ...)
+npm warn
+npm warn Could not resolve dependency:
+npm warn peer react@"^18.2.0" from react-native@0.75.3
+npm warn node_modules/react-native
+npm warn   peer react-native@"*" from @react-navigation/elements@1.3.31
+npm warn   node_modules/@react-navigation/elements
+npm warn   15 more (@react-navigation/native, ...)
+npm warn ERESOLVE overriding peer dependency
+npm warn While resolving: amoria@0.1.0
+npm warn Found: react@18.2.0
+npm warn node_modules/react
+npm warn   peer react@"*" from @react-navigation/core@6.4.17
+npm warn   node_modules/@react-navigation/core
+npm warn     @react-navigation/core@"^6.4.17" from @react-navigation/native@6.1.18
+npm warn     node_modules/@react-navigation/native
+npm warn   18 more (@react-navigation/elements, ...)
+npm warn
+npm warn Could not resolve dependency:
+npm warn peer react@"^18.2.0" from react-native@0.75.3
+npm warn node_modules/react-native
+npm warn   peer react-native@"*" from @react-navigation/elements@1.3.31
+npm warn   node_modules/@react-navigation/elements
+npm warn   15 more (@react-navigation/native, ...)
+npm warn ERESOLVE overriding peer dependency
+npm warn While resolving: amoria@0.1.0
+npm warn Found: react@18.2.0
+npm warn node_modules/react
+npm warn   peer react@"*" from @react-navigation/core@6.4.17
+npm warn   node_modules/@react-navigation/core
+npm warn     @react-navigation/core@"^6.4.17" from @react-navigation/native@6.1.18
+npm warn     node_modules/@react-navigation/native
+npm warn   18 more (@react-navigation/elements, ...)
+npm warn
+npm warn Could not resolve dependency:
+npm warn peer react@"^18.2.0" from react-native@0.75.3
+npm warn node_modules/react-native
+npm warn   peer react-native@"*" from @react-navigation/elements@1.3.31
+npm warn   node_modules/@react-navigation/elements
+npm warn   15 more (@react-navigation/native, ...)
+npm warn ERESOLVE overriding peer dependency
+npm error code ERESOLVE
+npm error ERESOLVE could not resolve
+npm error
+npm error While resolving: react-native@0.79.5
+npm error Found: @types/react@18.2.79
+npm error node_modules/@types/react
+npm error   peerOptional @types/react@"^19.0.0" from @react-native/virtualized-lists@0.79.5
+npm error   node_modules/react-native/node_modules/@react-native/virtualized-lists
+npm error     @react-native/virtualized-lists@"0.79.5" from react-native@0.79.5
+npm error     node_modules/react-native
+npm error       react-native@"0.79.5" from the root project
+npm error       18 more (@react-navigation/native, ...)
+npm error
+npm error Could not resolve dependency:
+npm error peerOptional @types/react@"^19.0.0" from react-native@0.79.5
+npm error node_modules/react-native
+npm error   react-native@"0.79.5" from the root project
+npm error   peer react-native@"*" from @react-navigation/native@6.1.18
+npm error   node_modules/@react-navigation/native
+npm error     peer @react-navigation/native@"^6.0.0" from @react-navigation/elements@1.3.31
+npm error     node_modules/@react-navigation/elements
+npm error       @react-navigation/elements@"^1.3.31" from @react-navigation/native-stack@6.11.0
+npm error       node_modules/@react-navigation/native-stack
+npm error     2 more (@react-navigation/native-stack, the root project)
+npm error   17 more (@react-navigation/native-stack, expo, ...)
+npm error
+npm error Conflicting peer dependency: @types/react@19.1.13
+npm error node_modules/@types/react
+npm error   peerOptional @types/react@"^19.0.0" from react-native@0.79.5
+npm error   node_modules/react-native
+npm error     react-native@"0.79.5" from the root project
+npm error     peer react-native@"*" from @react-navigation/native@6.1.18
+npm error     node_modules/@react-navigation/native
+npm error       peer @react-navigation/native@"^6.0.0" from @react-navigation/elements@1.3.31
+npm error       node_modules/@react-navigation/elements
+npm error         @react-navigation/elements@"^1.3.31" from @react-navigation/native-stack@6.11.0
+npm error         node_modules/@react-navigation/native-stack
+npm error       2 more (@react-navigation/native-stack, the root project)
+npm error     17 more (@react-navigation/native-stack, expo, ...)
+npm error
+npm error Fix the upstream dependency conflict, or retry
+npm error this command with --force or --legacy-peer-deps
+npm error to accept an incorrect (and potentially broken) dependency resolution.
+npm error
+npm error
+npm error For a full report see:
+npm error C:\Users\barracuda\AppData\Roaming\npm-cache\_logs\2025-09-20T14_53_39_694Z-eresolve-report.txt
+npm error A complete log of this run can be found in: C:\Users\barracuda\AppData\Roaming\npm-cache\_logs\2025-09-20T14_53_39_694Z-debug-0.log
+[31mError: npm install --save expo-assettaskkill node.exe exited with non-zero code: 1[39m
+[90mError: npm install --save expo-assettaskkill node.exe exited with non-zero code: 1[39m
+[90m    at ChildProcess.completionListener (C:\Dev\Amoria\node_modules\@expo\spawn-async\build\spawnAsync.js:42:23)[39m
+[90m    at Object.onceWrapper (node:events:639:26)[39m
+[90m    at ChildProcess.emit (node:events:524:28)[39m
+[90m    at cp.emit (C:\Dev\Amoria\node_modules\cross-spawn\lib\enoent.js:34:29)[39m
+[90m    at maybeClose (node:internal/child_process:1104:16)[39m
+[90m    at ChildProcess._handle.onexit (node:internal/child_process:304:5)[39m
+[90m    ...[39m
+[90m    at spawnAsync (C:\Dev\Amoria\node_modules\@expo\spawn-async\build\spawnAsync.js:7:23)[39m
+[90m    at NpmPackageManager.runAsync (C:\Dev\Amoria\node_modules\@expo\package-manager\build\node\BasePackageManager.js:41:42)[39m
+[90m    at C:\Dev\Amoria\node_modules\@expo\package-manager\build\node\NpmPackageManager.js:37:20[39m
+[90m    at C:\Dev\Amoria\node_modules\@expo\package-manager\build\utils\spawn.js:14:34[39m

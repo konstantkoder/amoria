@@ -2,17 +2,14 @@
   "compilerOptions": {
     "target": "ES2020",
     "module": "ESNext",
-    "jsx": "react",
+    "lib": ["ES2020", "DOM"],
+    "jsx": "react-native",
     "strict": true,
-    "noEmit": true,
-    "moduleResolution": "Node",
+    "esModuleInterop": true,
     "skipLibCheck": true,
-    "resolveJsonModule": true,
-    "allowSyntheticDefaultImports": true,
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["src/*"]
-    }
+    "forceConsistentCasingInFileNames": true,
+    "baseUrl": "./src",
+    "types": ["node"]
   },
-  "exclude": ["node_modules", "babel.config.js", "metro.config.js"]
+  "include": ["src", "src/types"]
 }
