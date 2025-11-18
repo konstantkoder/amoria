@@ -1,0 +1,32 @@
+﻿src/screens/EditProfileScreen.tsx(3,22): error TS2305: Module '"@/services/firebase"' has no exported member 'getUserProfile'.
+src/screens/EditProfileScreen.tsx(3,38): error TS2305: Module '"@/services/firebase"' has no exported member 'updateUserFields'.
+src/screens/PhotoManagerScreen.tsx(4,22): error TS2305: Module '"@/services/firebase"' has no exported member 'getUserProfile'.
+src/screens/PhotoManagerScreen.tsx(4,38): error TS2305: Module '"@/services/firebase"' has no exported member 'updateUserPhotos'.
+src/screens/QuestionScreen.tsx(5,10): error TS2305: Module '"@/services/firebase"' has no exported member 'isFirebaseConfigured'.
+src/screens/QuestionScreen.tsx(5,32): error TS2305: Module '"@/services/firebase"' has no exported member 'db'.
+src/screens/RandomChatScreen.tsx(3,22): error TS2305: Module '"@/services/firebase"' has no exported member 'isFirebaseConfigured'.
+src/screens/RandomChatScreen.tsx(3,44): error TS2305: Module '"@/services/firebase"' has no exported member 'db'.
+src/screens/SwipeScreen.tsx(38,16): error TS2345: Argument of type 'SwipeCandidate[] | CardUser[]' is not assignable to parameter of type 'SetStateAction<CardUser[]>'.
+  Type 'SwipeCandidate[]' is not assignable to type 'SetStateAction<CardUser[]>'.
+    Type 'SwipeCandidate[]' is not assignable to type 'CardUser[]'.
+      Type 'SwipeCandidate' is not assignable to type 'CardUser'.
+        Property 'name' is optional in type 'SwipeCandidate' but required in type 'CardUser'.
+src/screens/SwipeScreen.tsx(150,37): error TS2345: Argument of type '() => { transform: ({ translateX: number; translateY?: undefined; rotate?: undefined; } | { translateY: number; translateX?: undefined; rotate?: undefined; } | { rotate: string; translateX?: undefined; translateY?: undefined; })[]; }' is not assignable to parameter of type '() => DefaultStyle'.
+  Type '{ transform: ({ translateX: number; translateY?: undefined; rotate?: undefined; } | { translateY: number; translateX?: undefined; rotate?: undefined; } | { rotate: string; translateX?: undefined; translateY?: undefined; })[]; }' is not assignable to type 'DefaultStyle'.
+    Type '{ transform: ({ translateX: number; translateY?: undefined; rotate?: undefined; } | { translateY: number; translateX?: undefined; rotate?: undefined; } | { rotate: string; translateX?: undefined; translateY?: undefined; })[]; }' is not assignable to type 'ImageStyle'.
+      Types of property 'transform' are incompatible.
+        Type '({ translateX: number; translateY?: undefined; rotate?: undefined; } | { translateY: number; translateX?: undefined; rotate?: undefined; } | { rotate: string; translateX?: undefined; translateY?: undefined; })[]' is not assignable to type 'string | readonly (({ scale: AnimatableNumericValue; } & { perspective?: never; rotate?: never; rotateX?: never; rotateY?: never; rotateZ?: never; scaleX?: never; scaleY?: never; ... 4 more ...; matrix?: never; }) | ... 11 more ... | ({ ...; } & { ...; }))[]'.
+          Type '({ translateX: number; translateY?: undefined; rotate?: undefined; } | { translateY: number; translateX?: undefined; rotate?: undefined; } | { rotate: string; translateX?: undefined; translateY?: undefined; })[]' is not assignable to type 'readonly (({ scale: AnimatableNumericValue; } & { perspective?: never; rotate?: never; rotateX?: never; rotateY?: never; rotateZ?: never; scaleX?: never; scaleY?: never; translateX?: never; translateY?: never; skewX?: never; skewY?: never; matrix?: never; }) | ... 11 more ... | ({ ...; } & { ...; }))[]'.
+            Type '{ translateX: number; translateY?: undefined; rotate?: undefined; } | { translateY: number; translateX?: undefined; rotate?: undefined; } | { rotate: string; translateX?: undefined; translateY?: undefined; }' is not assignable to type '({ scale: AnimatableNumericValue; } & { perspective?: never; rotate?: never; rotateX?: never; rotateY?: never; rotateZ?: never; scaleX?: never; scaleY?: never; translateX?: never; translateY?: never; skewX?: never; skewY?: never; matrix?: never; }) | ... 11 more ... | ({ ...; } & { ...; })'.
+              Type '{ translateX: number; translateY?: undefined; rotate?: undefined; }' is not assignable to type '({ scale: AnimatableNumericValue; } & { perspective?: never; rotate?: never; rotateX?: never; rotateY?: never; rotateZ?: never; scaleX?: never; scaleY?: never; translateX?: never; translateY?: never; skewX?: never; skewY?: never; matrix?: never; }) | ... 11 more ... | ({ ...; } & { ...; })'.
+                Type '{ translateX: number; translateY?: undefined; rotate?: undefined; }' is not assignable to type '{ matrix: AnimatableNumericValue[]; } & { scale?: never; perspective?: never; rotate?: never; rotateX?: never; rotateY?: never; rotateZ?: never; scaleX?: never; scaleY?: never; translateX?: never; translateY?: never; skewX?: never; skewY?: never; }'.
+                  Property 'matrix' is missing in type '{ translateX: number; translateY?: undefined; rotate?: undefined; }' but required in type '{ matrix: AnimatableNumericValue[]; }'.
+src/services/nearby.ts(2,10): error TS2305: Module '"@/services/firebase"' has no exported member 'db'.
+src/services/nearby.ts(4,10): error TS2305: Module '"@/services/firebase"' has no exported member 'isFirebaseConfigured'.
+src/services/notifications.ts(2,25): error TS2307: Cannot find module 'expo-device' or its corresponding type declarations.
+src/services/notifications.ts(8,35): error TS2322: Type 'Promise<{ shouldShowAlert: true; shouldPlaySound: false; shouldSetBadge: false; }>' is not assignable to type 'Promise<NotificationBehavior>'.
+  Type '{ shouldShowAlert: true; shouldPlaySound: false; shouldSetBadge: false; }' is missing the following properties from type 'NotificationBehavior': shouldShowBanner, shouldShowList
+src/services/social.ts(1,10): error TS2305: Module '"@/services/firebase"' has no exported member 'db'.
+src/services/social.ts(1,14): error TS2305: Module '"@/services/firebase"' has no exported member 'isFirebaseConfigured'.
+src/services/storage.ts(1,10): error TS2305: Module '"@/services/firebase"' has no exported member 'storage'.
+src/services/storage.ts(1,19): error TS2305: Module '"@/services/firebase"' has no exported member 'isFirebaseConfigured'.

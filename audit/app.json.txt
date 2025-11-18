@@ -1,0 +1,37 @@
+﻿{
+  "expo": {
+    "name": "Amoria",
+    "slug": "amoria",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "platforms": ["ios", "android", "web"],
+    "jsEngine": "hermes",
+    "plugins": [
+      "expo-notifications"
+    ],
+    "ios": {
+      "usesAppleSignIn": false,
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "РњС‹ РёСЃРїРѕР»СЊР·СѓРµРј РіРµРѕР»РѕРєР°С†РёСЋ, С‡С‚РѕР±С‹ РїРѕРєР°Р·С‹РІР°С‚СЊ Р»СЋРґРµР№ СЂСЏРґРѕРј.",
+        "NSPhotoLibraryUsageDescription": "РќСѓР¶РµРЅ РґРѕСЃС‚СѓРї Рє С„РѕС‚РѕР±РёР±Р»РёРѕС‚РµРєРµ РґР»СЏ РІС‹Р±РѕСЂР° С„РѕС‚РѕРіСЂР°С„РёР№.",
+        "NSPhotoLibraryAddUsageDescription": "РќСѓР¶РµРЅ РґРѕСЃС‚СѓРї РґР»СЏ СЃРѕС…СЂР°РЅРµРЅРёСЏ С„РѕС‚Рѕ РІ Р±РёР±Р»РёРѕС‚РµРєСѓ."
+      }
+    },
+    "android": {
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "NOTIFICATIONS"
+      ],
+      "notification": {
+        "icon": "./assets/notification-icon.png",
+        "color": "#6d28d9",
+        "channel": "default"
+      }
+    }
+  }
+}
+

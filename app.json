@@ -3,13 +3,34 @@
     "name": "Amoria",
     "slug": "amoria",
     "version": "1.0.0",
-    "sdkVersion": "53.0.0",
     "orientation": "portrait",
-    "platforms": [
-      "ios",
-      "android",
-      "web"
+    "platforms": ["ios", "android", "web"],
+    "jsEngine": "hermes",
+    "plugins": [
+      "expo-notifications"
     ],
-    "jsEngine": "hermes"
+    "ios": {
+      "usesAppleSignIn": false,
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Мы используем геолокацию, чтобы показывать людей рядом.",
+        "NSPhotoLibraryUsageDescription": "Нужен доступ к фотобиблиотеке для выбора фотографий.",
+        "NSPhotoLibraryAddUsageDescription": "Нужен доступ для сохранения фото в библиотеку."
+      }
+    },
+    "android": {
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "NOTIFICATIONS"
+      ],
+      "notification": {
+        "icon": "./assets/notification-icon.png",
+        "color": "#6d28d9",
+        "channel": "default"
+      }
+    }
   }
 }

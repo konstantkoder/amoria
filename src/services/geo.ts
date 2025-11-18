@@ -1,9 +1,9 @@
-import * as Location from 'expo-location';
-import { geohashForLocation, geohashQueryBounds } from 'geofire-common';
+import * as Location from "expo-location";
+import { geohashForLocation, geohashQueryBounds } from "geofire-common";
 
 export async function askLocationPermission() {
   const { status } = await Location.requestForegroundPermissionsAsync();
-  if (status !== 'granted') throw new Error('Permission denied');
+  if (status !== "granted") throw new Error("Permission denied");
 }
 
 export async function getCurrentPosition() {

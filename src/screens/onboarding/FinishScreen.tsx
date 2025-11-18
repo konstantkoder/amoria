@@ -1,46 +1,62 @@
-import React, { useEffect } from 'react';
-import { View, Text, Button, Alert } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ensureAuth, saveUserProfile } from '@/services/firebase';
-import { getCurrentPosition, makeGeo } from '@/services/geo';
-import { theme } from '@/theme/theme';
+import React, { useState } from "react";
+import { View, Text, ActivityIndicator, TouchableOpacity } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-export default function FinishScreen({ route, navigation }: any) {
-  const data = route.params || {};
+export default function FinishScreen({ navigation }: any) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  async function persist() {
-    const uid = await ensureAuth();
-    let geo: any = undefined;
+  async function onFinish() {
+    if (busy) return;
+    setError(null);
+    setBusy(true);
     try {
-      const pos = await getCurrentPosition();
-      geo = makeGeo(pos.lat, pos.lng);
-    } catch (e) {
-      // no location, profile without geo
+      // гарантируем, что флаг действительно записан
+      await AsyncStorage.setItem("onboarded", "1");
+      // переключаем родительский стек, где MainTabs уже зарегистрирован
+      navigation.getParent()?.navigate("MainTabs");
+    } catch (e: any) {
+      setError(e?.message ?? "Unknown error");
+    } finally {
+      setBusy(false);
     }
-    const profile = {
-      uid,
-      displayName: data.displayName || 'User',
-      birthdate: data.birthdate || '1990-01-01',
-      gender: data.gender || 'other',
-      interests: String(data.interests || '').split(',').map((s:string)=>s.trim()).filter(Boolean),
-      photos: [],
-      mood: data.mood,
-      goal: data.goal,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      geo
-    };
-    await saveUserProfile(uid, profile);
-    await AsyncStorage.setItem('onboarded', '1');
-    Alert.alert('Готово', 'Профиль сохранён.');
-    navigation.reset({ index: 0, routes: [{ name: 'MainTabs' }] });
   }
 
   return (
-    <View style={{ flex:1, alignItems:'center', justifyContent:'center', backgroundColor: theme.colors.bg, padding:24 }}>
-      <Text style={{ fontSize:22, fontWeight:'700', marginBottom:12 }}>Финальный шаг</Text>
-      <Text style={{ textAlign:'center', marginBottom:24 }}>Сохраняем профиль и переходим к людям рядом.</Text>
-      <Button title="Завершить" onPress={persist} />
+    <View
+      style={{
+        flex: 1,
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 24,
+      }}
+    >
+      <Text style={{ fontSize: 26, fontWeight: "800", marginBottom: 8 }}>
+        Финальный шаг
+      </Text>
+      <Text style={{ textAlign: "center", marginBottom: 16 }}>
+        Сохраняем профиль и переходим к «Табы → Люди рядом».
+      </Text>
+      {busy ? (
+        <ActivityIndicator />
+      ) : (
+        <TouchableOpacity
+          onPress={onFinish}
+          style={{
+            backgroundColor: "#1E90FF",
+            paddingHorizontal: 24,
+            paddingVertical: 12,
+            borderRadius: 10,
+          }}
+        >
+          <Text style={{ color: "#fff", fontWeight: "700" }}>ЗАВЕРШИТЬ</Text>
+        </TouchableOpacity>
+      )}
+      {!!error && (
+        <Text style={{ color: "red", marginTop: 12, textAlign: "center" }}>
+          {error}
+        </Text>
+      )}
     </View>
   );
 }

@@ -1,0 +1,39 @@
+
+# 2025-10-20 18:11:25.440997
++Y
+
+# 2025-10-20 18:12:07.043464
++"Create a complete Flask web application called Amoria with the following structure:
++- requirements.txt with Flask==3.0.0 and necessary dependencies
++- app.py with a basic Flask application and homepage route
++- templates/home.html with a professional design
++- static/css/style.css for styling
++- Proper error handling and project organization"
++
+
+# 2025-10-20 18:12:44.975061
++Y
+
+# 2025-10-21 18:04:25.634621
++y
+
+# 2025-10-21 18:04:25.724442
++Отвечай на русском языке. Когда предлагаешь изменения, добавляй короткие русские пояснения к патчам.
+
+# 2025-10-21 18:04:25.725443
++Отвечай на русском языке. Когда предлагаешь изменения, добавляй короткие русские пояснения к патчам.
+
+# 2025-10-21 19:16:08.588319
++Добавь скрипт запуска, опиши в README
+
+# 2025-10-21 19:17:10.201571
++y
+
+# 2025-10-21 19:17:14.673644
++Y
+
+# 2025-10-21 19:18:32.110359
++YY
+
+# 2025-10-21 19:19:13.638982
++можеш говорить на руском с сомной

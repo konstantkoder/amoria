@@ -1,0 +1,21 @@
+﻿// babel.config.js
+module.exports = function (api) {
+  api.cache(true);
+  return {
+    presets: ['babel-preset-expo'],
+    plugins: [
+      [
+        'module-resolver',
+        {
+          // alias @ -> src (РѕСЃС‚Р°РІР»СЏРµРј, РµСЃР»Рё СѓР¶Рµ Р±С‹Р» РїРѕРґРєР»СЋС‡С‘РЅ)
+          root: ['./'],
+          alias: { '@': './src' },
+          extensions: ['.ts', '.tsx', '.js', '.jsx', '.json'],
+        },
+      ],
+      // Р”РћР›Р–Р•Рќ Р±С‹С‚СЊ РїРѕСЃР»РµРґРЅРёРј
+      'react-native-reanimated/plugin',
+    ],
+  };
+};
+

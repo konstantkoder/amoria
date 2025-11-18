@@ -1,0 +1,10 @@
+2025-11-08 09:33:58Z  === diagnostics start ===
+2025-11-08 09:33:58Z  ENV: .env found at .\.env
+2025-11-08 09:33:58Z  ENV: all required Firebase keys are present
+2025-11-08 09:33:58Z  .gitignore: contains .env  ✅
+2025-11-08 09:33:58Z  firebaseConfig.ts: uses env vars (process.env)  ✅
+2025-11-08 09:33:58Z  babel: module-resolver plugin present  ✅
+2025-11-08 09:33:58Z  babel: reanimated plugin present (must be last)  ✅
+2025-11-08 09:33:58Z  node: not found
+2025-11-08 09:33:58Z  npm:  
+2025-11-08 09:33:58Z  === diagnostics done ===
