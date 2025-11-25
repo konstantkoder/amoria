@@ -47,6 +47,21 @@ export default function ProfileScreen({ navigation }: any) {
         onPress={() => navigation.navigate("Legal")}
       />
       <View style={{ height: 16 }} />
+      <TouchableOpacity
+        onPress={() =>
+          navigation.navigate("DM", { peerId: "demo-peer", peerName: "Demo" })
+        }
+        style={{
+          backgroundColor: theme.colors.primary,
+          paddingVertical: 14,
+          borderRadius: 12,
+          marginBottom: 12,
+        }}
+      >
+        <Text style={{ color: "#fff", textAlign: "center", fontWeight: "800" }}>
+          ОТПРАВИТЬ СООБЩЕНИЕ
+        </Text>
+      </TouchableOpacity>
       <Button title="Удалить аккаунт" color="#d11" onPress={deleteAccount} />
       {/* DEV: тест локальных уведомлений */}
       {__DEV__ && (

@@ -1,8 +1,6 @@
 import * as Notifications from "expo-notifications";
-import * as Device from "expo-device";
-import { Platform } from "react-native";
-import { db, auth } from "@/config/firebaseConfig";
-import { doc, setDoc } from "firebase/firestore";
+// expo-notifications удалены из Expo Go (SDK 53) для удалённых пушей,
+// поэтому оставляем только локальные уведомления и заглушку регистрации.
 
 // Глобальный обработчик — уведомления тихие, без всплывашек в фоне
 Notifications.setNotificationHandler({
@@ -10,50 +8,16 @@ Notifications.setNotificationHandler({
     shouldShowAlert: true,
     shouldPlaySound: false,
     shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
   }),
 });
 
 export async function registerForPushNotificationsAsync() {
-  try {
-    if (!Device.isDevice) {
-      // Expo Go/эмуляторы зачастую не выдают токен — не считаем это ошибкой
-      return null;
-    }
-
-    const { status: existingStatus } =
-      await Notifications.getPermissionsAsync();
-    let finalStatus = existingStatus;
-    if (existingStatus !== "granted") {
-      const { status } = await Notifications.requestPermissionsAsync();
-      finalStatus = status;
-    }
-
-    if (finalStatus !== "granted") {
-      return null;
-    }
-
-    if (Platform.OS === "android") {
-      await Notifications.setNotificationChannelAsync("default", {
-        name: "default",
-        importance: Notifications.AndroidImportance.DEFAULT,
-      });
-    }
-
-    const token = (await Notifications.getExpoPushTokenAsync()).data;
-    const uid = auth.currentUser?.uid;
-    if (uid) {
-      await setDoc(
-        doc(db, "profiles", uid),
-        { expoPushToken: token },
-        { merge: true },
-      );
-    }
-
-    return token;
-  } catch (e) {
-    console.warn("[notifications] register error:", e);
-    return null;
-  }
+  console.log(
+    "[notifications] Disabled in Expo Go dev build (SDK 53). No push token requested.",
+  );
+  return null;
 }
 
 type LocalNotificationPayload = { title: string; body?: string };

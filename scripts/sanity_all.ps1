@@ -33,7 +33,7 @@ Write-Host '== Sanity: AppNavigator tabs & icons =='
 Invoke-OrSkip -Path "src/navigation/AppNavigator.tsx" -Description "AppNavigator" -Block {
     $nav = Get-Content "src/navigation/AppNavigator.tsx" -Raw
     if ($nav -notmatch '@expo/vector-icons') { throw 'AppNavigator: @expo/vector-icons Ionicons not imported' }
-    $tabNames = @('Swipe','Nearby','Matches','Question','RandomChat','Profile')
+    $tabNames = @('Feed','Nearby','Adults18','Question','RandomChat','Profile')
     foreach($n in $tabNames){
         if ($nav -notmatch "name=`"$n`"") { throw "Tab $n is not registered" }
     }

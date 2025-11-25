@@ -1,254 +1,455 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   View,
-  FlatList,
   Text,
-  TouchableOpacity,
-  StyleSheet,
   ActivityIndicator,
-  Alert,
+  FlatList,
+  TouchableOpacity,
+  RefreshControl,
 } from "react-native";
-import { askLocationPermission, getCurrentPosition } from "@/services/geo";
-import { fetchNearbyUsers } from "@/services/nearby";
-import { ensureAuth, reportUser, blockUser } from "@/services/firebase";
-import { theme } from "@/theme/theme";
-import {
-  getAdultOk,
-  getFlirtEnabled,
-  setFlirtEnabled,
-} from "@/services/moderation";
+import * as Location from "expo-location";
 
-const ranges = [2000, 5000, 10000]; // метры
-const intents = ["dating", "friends", "network"] as const;
-type Intent = (typeof intents)[number];
+import { theme } from "../theme/theme";
+import type { UserProfile, Goal, Mood } from "../models/User";
+import { fetchNearbyUsers } from "../services/nearby";
+import { getUserProfile } from "../services/user";
+import UserCard from "../components/UserCard";
+import { DEMO_USERS } from "../services/demoUsers";
 
-function Chip({
-  label,
-  active,
-  onPress,
-}: {
-  label: string;
-  active: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <TouchableOpacity onPress={onPress} style={[s.chip, active && s.chipOn]}>
-      <Text style={[s.chipTxt, active && s.chipTxtOn]}>{label}</Text>
-    </TouchableOpacity>
-  );
-}
+type GoalFilter = Goal | "all";
+type MoodFilter = Mood | "all";
+
+const GOAL_FILTERS: { value: GoalFilter; label: string }[] = [
+  { value: "all", label: "Все цели" },
+  { value: "dating", label: "Знакомства" },
+  { value: "friends", label: "Дружба" },
+  { value: "chat", label: "Чат" },
+  { value: "long_term", label: "Серьёзно" },
+  { value: "short_term", label: "Лёгкие" },
+  { value: "casual", label: "Casual" },
+  { value: "sex", label: "18+ только секс" },
+];
+
+const MOOD_FILTERS: { value: MoodFilter; label: string }[] = [
+  { value: "all", label: "Любое" },
+  { value: "happy", label: "Весёлое" },
+  { value: "chill", label: "Спокойное" },
+  { value: "active", label: "В движении" },
+  { value: "serious", label: "Серьёзное" },
+  { value: "party", label: "Тусовка" },
+];
+
+const RADIUS_OPTIONS = [5, 10, 25];
 
 export default function NearbyScreen() {
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+
+  const [rawUsers, setRawUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
-  const [uid, setUid] = useState<string>("");
-  const [pos, setPos] = useState<{ lat: number; lng: number } | null>(null);
-  const [radius, setRadius] = useState<number>(10000);
-  const [filters, setFilters] = useState<Record<Intent, boolean>>({
-    dating: true,
-    friends: true,
-    network: true,
-  });
-  const [flirtOnly, setFlirtOnly] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  async function load(lat: number, lng: number) {
-    setLoading(true);
+  const [radiusKm, setRadiusKm] = useState<number>(10);
+  const [selectedGoal, setSelectedGoal] = useState<GoalFilter>("all");
+  const [selectedMood, setSelectedMood] = useState<MoodFilter>("all");
+
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(
+    null
+  );
+
+  const loadProfile = useCallback(async () => {
     try {
-      const data = await fetchNearbyUsers(lat, lng, radius);
-      setDataRaw(data);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  // сырые данные и отфильтрованные
-  const [dataRaw, setDataRaw] = useState<any[]>([]);
-  const selectedIntents = useMemo(
-    () => intents.filter((i) => filters[i]),
-    [filters],
-  );
-  const data = useMemo(
-    () =>
-      dataRaw.filter(
-        (u) =>
-          selectedIntents.includes(u.goal as Intent) &&
-          (!flirtOnly || !!u.flirtEnabled),
-      ),
-    [dataRaw, selectedIntents, flirtOnly],
-  );
-
-  useEffect(() => {
-    (async () => {
-      const id = await ensureAuth();
-      setUid(id);
-      const localFlirt = await getFlirtEnabled();
-      setFlirtOnly(localFlirt);
-      try {
-        await askLocationPermission();
-      } catch {}
-      try {
-        const { lat, lng } = await getCurrentPosition();
-        setPos({ lat, lng });
-        await load(lat, lng);
-      } catch {
-        // fallback: Загреб
-        const lat = 45.815,
-          lng = 15.9819;
-        setPos({ lat, lng });
-        await load(lat, lng);
+      const profile = await getUserProfile();
+      if (profile) {
+        setCurrentUser(profile);
       }
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    } catch (e) {
+      console.warn("NearbyScreen: failed to load profile", e);
+    }
   }, []);
 
+  const loadLocationAndUsers = useCallback(
+    async (opts?: { hardRefresh?: boolean }) => {
+      const hardRefresh = opts?.hardRefresh ?? false;
+      try {
+        if (!hardRefresh) {
+          setLoading(true);
+        } else {
+          setRefreshing(true);
+        }
+        setError(null);
+
+        let lat = coords?.lat;
+        let lng = coords?.lng;
+
+        if (!lat || !lng) {
+          // Запрашиваем разрешение на геолокацию
+          const { status } = await Location.requestForegroundPermissionsAsync();
+          if (status === "granted") {
+            const loc = await Location.getCurrentPositionAsync({});
+            lat = loc.coords.latitude;
+            lng = loc.coords.longitude;
+          } else {
+            // Если пользователь не дал разрешение — используем пример: центр Загреба
+            lat = 45.815;
+            lng = 15.9819;
+          }
+          setCoords({ lat, lng });
+        }
+
+        if (lat == null || lng == null) {
+          throw new Error("Нет координат для поиска людей рядом");
+        }
+
+        const nearby = await fetchNearbyUsers(lat, lng, radiusKm);
+        setRawUsers(nearby);
+      } catch (e: any) {
+        console.warn("NearbyScreen: load error", e);
+        setError(
+          e?.message ||
+            "Не удалось загрузить людей рядом. Попробуй обновить позже."
+        );
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [coords, radiusKm]
+  );
+
   useEffect(() => {
-    if (pos) load(pos.lat, pos.lng);
-  }, [radius, filters, pos]);
+    loadProfile();
+  }, [loadProfile]);
 
-  function toggleIntent(i: Intent) {
-    setFilters((v) => ({ ...v, [i]: !v[i] }));
-  }
+  // Первый запуск + изменение радиуса
+  useEffect(() => {
+    loadLocationAndUsers();
+  }, [loadLocationAndUsers, radiusKm]);
 
-  async function onReport(u: any) {
-    await reportUser(uid, u.id, "inappropriate");
-    Alert.alert("Спасибо", "Жалоба отправлена");
-  }
-  async function onBlock(u: any) {
-    await blockUser(uid, u.id);
-    Alert.alert("Готово", "Пользователь заблокирован");
-  }
+  const onRefresh = useCallback(() => {
+    loadLocationAndUsers({ hardRefresh: true });
+  }, [loadLocationAndUsers]);
 
-  async function toggleFlirt() {
-    const adult = await getAdultOk();
-    if (!adult) {
-      Alert.alert("18+", "Подтвердите возраст в Профиль → Флирт 18+");
-      return;
+  // Флаг: показывать ли 18+ цели (casual/sex)
+  const allowAdult =
+    !!currentUser?.allowAdultMode ||
+    currentUser?.goal === "casual" ||
+    currentUser?.goal === "sex";
+
+  // Если из Firebase никого нет — используем DEMO_USERS
+  const sourceUsers: UserProfile[] =
+    rawUsers && rawUsers.length > 0 ? rawUsers : DEMO_USERS;
+
+  const filteredUsers = sourceUsers.filter((u) => {
+    if (!u.uid) return false;
+
+    // не показываем самого себя (для реальных пользователей)
+    if (currentUser && u.uid === currentUser.uid) return false;
+
+    // если у нас выключен 18+ и обычные цели — прячем тех, у кого цель 18+
+    if (
+      !allowAdult &&
+      (u.goal === "casual" || u.goal === "sex")
+    ) {
+      return false;
     }
-    const next = !flirtOnly;
-    setFlirtOnly(next);
-    await setFlirtEnabled(next);
+
+    if (selectedGoal !== "all" && u.goal !== selectedGoal) {
+      return false;
+    }
+
+    if (selectedMood !== "all" && u.mood !== selectedMood) {
+      return false;
+    }
+
+    return true;
+  });
+
+  const renderUser = ({ item }: { item: UserProfile }) => {
+    return (
+      <View
+        style={{
+          marginBottom: 16,
+          borderRadius: theme.shapes.card,
+          overflow: "hidden",
+          backgroundColor: theme.colors.card,
+        }}
+      >
+        <View style={{ height: 320 }}>
+          <UserCard user={item} />
+        </View>
+      </View>
+    );
+  };
+
+  if (loading && !refreshing && sourceUsers.length === 0) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: theme.colors.background,
+          alignItems: "center",
+          justifyContent: "center",
+          paddingHorizontal: 24,
+        }}
+      >
+        <ActivityIndicator color={theme.colors.primary} />
+        <Text
+          style={{
+            marginTop: 12,
+            color: theme.colors.subtext,
+            textAlign: "center",
+          }}
+        >
+          Ищем людей поблизости…
+        </Text>
+      </View>
+    );
   }
 
   return (
-    <View style={s.wrap}>
-      <View style={s.headerRow}>
-        <Text style={s.h1}>Люди рядом</Text>
-        <TouchableOpacity
-          onPress={toggleFlirt}
-          style={[
-            s.flirtPill,
-            { backgroundColor: flirtOnly ? theme.colors.primary : "#eee" },
-          ]}
+    <View
+      style={{
+        flex: 1,
+        backgroundColor: theme.colors.background,
+      }}
+    >
+      {/* Заголовок / фильтры */}
+      <View
+        style={{
+          paddingHorizontal: theme.spacing,
+          paddingTop: theme.spacing,
+          paddingBottom: 8,
+        }}
+      >
+        <Text
+          style={{
+            fontSize: 22,
+            fontWeight: "800",
+            color: theme.colors.text,
+            marginBottom: 8,
+          }}
+        >
+          Люди рядом
+        </Text>
+
+        {currentUser && (
+          <Text
+            style={{
+              color: theme.colors.subtext,
+              fontSize: 12,
+              marginBottom: 4,
+            }}
+          >
+            Твоя цель:{" "}
+            <Text style={{ color: theme.colors.text }}>
+              {currentUser.goal ?? "не указана"}
+            </Text>{" "}
+            • 18+:{" "}
+            <Text style={{ color: theme.colors.text }}>
+              {currentUser.allowAdultMode ? "включён" : "выключен"}
+            </Text>
+          </Text>
+        )}
+
+        {error && (
+          <Text
+            style={{
+              color: theme.colors.danger,
+              fontSize: 12,
+              marginBottom: 8,
+            }}
+          >
+            {error}
+          </Text>
+        )}
+
+        {/* Радиус */}
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            marginBottom: 8,
+          }}
         >
           <Text
-            style={{ color: flirtOnly ? "#fff" : "#333", fontWeight: "700" }}
+            style={{
+              color: theme.colors.subtext,
+              fontSize: 12,
+              marginRight: 8,
+            }}
           >
-            Флирт 18+
+            Радиус:
           </Text>
-        </TouchableOpacity>
-      </View>
-      <View style={s.row}>
-        {ranges.map((r) => (
-          <Chip
-            key={r}
-            label={r / 1000 + " км"}
-            active={radius === r}
-            onPress={() => setRadius(r)}
-          />
-        ))}
-      </View>
-      <View style={s.row}>
-        {intents.map((i) => (
-          <Chip
-            key={i}
-            label={i}
-            active={filters[i]}
-            onPress={() => toggleIntent(i)}
-          />
-        ))}
+          {RADIUS_OPTIONS.map((r) => {
+            const active = radiusKm === r;
+            return (
+              <TouchableOpacity
+                key={r}
+                onPress={() => setRadiusKm(r)}
+                style={{
+                  paddingHorizontal: 10,
+                  paddingVertical: 4,
+                  borderRadius: theme.shapes.pill,
+                  marginRight: 6,
+                  backgroundColor: active
+                    ? theme.colors.primary
+                    : theme.colors.pillBg,
+                }}
+              >
+                <Text
+                  style={{
+                    color: active ? "#FFFFFF" : theme.colors.pillText,
+                    fontSize: 12,
+                    fontWeight: "600",
+                  }}
+                >
+                  {r} км
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {/* Фильтр по цели */}
+        <View
+          style={{
+            flexDirection: "row",
+            flexWrap: "wrap",
+            marginBottom: 6,
+          }}
+        >
+          {GOAL_FILTERS.map((g) => {
+            const active = selectedGoal === g.value;
+            return (
+              <TouchableOpacity
+                key={g.value}
+                onPress={() => setSelectedGoal(g.value)}
+                style={{
+                  paddingHorizontal: 10,
+                  paddingVertical: 4,
+                  borderRadius: theme.shapes.pill,
+                  marginRight: 6,
+                  marginBottom: 6,
+                  backgroundColor: active
+                    ? theme.colors.primary
+                    : theme.colors.pillBg,
+                }}
+              >
+                <Text
+                  style={{
+                    color: active ? "#FFFFFF" : theme.colors.pillText,
+                    fontSize: 11,
+                    fontWeight: "600",
+                  }}
+                >
+                  {g.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {/* Фильтр по настроению */}
+        <View
+          style={{
+            flexDirection: "row",
+            flexWrap: "wrap",
+            marginBottom: 4,
+          }}
+        >
+          {MOOD_FILTERS.map((m) => {
+            const active = selectedMood === m.value;
+            return (
+              <TouchableOpacity
+                key={m.value}
+                onPress={() => setSelectedMood(m.value)}
+                style={{
+                  paddingHorizontal: 10,
+                  paddingVertical: 4,
+                  borderRadius: theme.shapes.pill,
+                  marginRight: 6,
+                  marginBottom: 6,
+                  backgroundColor: active
+                    ? theme.colors.accent
+                    : theme.colors.pillBg,
+                }}
+              >
+                <Text
+                  style={{
+                    color: active ? "#FFFFFF" : theme.colors.pillText,
+                    fontSize: 11,
+                    fontWeight: "600",
+                  }}
+                >
+                  {m.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {!allowAdult && (
+          <Text
+            style={{
+              color: theme.colors.muted,
+              fontSize: 11,
+              marginTop: 2,
+            }}
+          >
+            18+ цели (casual/sex) скрыты — включи 18+ режим в профиле, чтобы их
+            видеть.
+          </Text>
+        )}
       </View>
 
-      {loading ? (
-        <View style={s.center}>
-          <ActivityIndicator />
-        </View>
-      ) : (
-        <FlatList
-          contentContainerStyle={{ paddingVertical: 12, gap: 12 }}
-          data={data}
-          keyExtractor={(x) => x.id}
-          renderItem={({ item }) => (
-            <View style={s.card}>
-              <Text style={s.title}>
-                {item.name} • {Math.round(item.distance / 100) / 10} км
+      {/* Список пользователей */}
+      <FlatList
+        data={filteredUsers}
+        keyExtractor={(item) => item.uid}
+        renderItem={renderUser}
+        contentContainerStyle={{
+          paddingHorizontal: theme.spacing,
+          paddingBottom: theme.spacing * 2,
+        }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={theme.colors.primary}
+          />
+        }
+        ListEmptyComponent={
+          !loading ? (
+            <View
+              style={{
+                paddingVertical: 40,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Text
+                style={{
+                  color: theme.colors.subtext,
+                  textAlign: "center",
+                  marginBottom: 4,
+                }}
+              >
+                Пока никого рядом не видно.
               </Text>
-              <Text style={s.sub}>
-                {item.goal} • {item.mood || "—"}
+              <Text
+                style={{
+                  color: theme.colors.muted,
+                  fontSize: 12,
+                  textAlign: "center",
+                }}
+              >
+                Попробуй увеличить радиус, изменить фильтры или зайти чуть позже.
               </Text>
-              <View style={s.actions}>
-                <TouchableOpacity
-                  onPress={() => onReport(item)}
-                  style={[s.actionBtn, { borderColor: "#d33" }]}
-                >
-                  <Text style={s.actionTxt}>Пожаловаться</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => onBlock(item)}
-                  style={[s.actionBtn, { borderColor: "#888" }]}
-                >
-                  <Text style={s.actionTxt}>Блок</Text>
-                </TouchableOpacity>
-              </View>
             </View>
-          )}
-          ListEmptyComponent={
-            <Text style={s.sub}>Нет результатов для выбранных фильтров</Text>
-          }
-        />
-      )}
+          ) : null
+        }
+      />
     </View>
   );
 }
-
-const s = StyleSheet.create({
-  wrap: { flex: 1, backgroundColor: theme.colors.bg, padding: 16 },
-  headerRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  h1: { fontSize: 22, fontWeight: "800", color: theme.colors.text },
-  flirtPill: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999 },
-  row: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 8 },
-  chip: {
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  chipOn: {
-    backgroundColor: theme.colors.primary,
-    borderColor: theme.colors.primary,
-  },
-  chipTxt: { color: "#333", fontWeight: "700", textTransform: "capitalize" },
-  chipTxtOn: { color: "#fff" },
-  center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  card: {
-    backgroundColor: theme.colors.card,
-    borderRadius: 12,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: "#eee",
-  },
-  title: { color: theme.colors.text, fontWeight: "800" },
-  sub: { color: "#666", marginTop: 4 },
-  actions: { flexDirection: "row", gap: 8, marginTop: 10 },
-  actionBtn: {
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-  },
-  actionTxt: { color: "#222", fontWeight: "700" },
-});

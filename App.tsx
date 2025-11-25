@@ -1,25 +1,50 @@
-import 'react-native-gesture-handler';
-import 'react-native-reanimated';
-import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, View } from 'react-native';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { NavigationContainer } from '@react-navigation/native';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { onAuthStateChanged, User } from 'firebase/auth';
-import { auth } from '@/config/firebaseConfig';
+import "react-native-gesture-handler";
+import "react-native-reanimated";
 
-import LoginScreen from '@/screens/LoginScreen';
-import AppNavigator from '@/navigation/AppNavigator';
+import React, { useEffect, useState } from "react";
+import { ActivityIndicator, LogBox } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import {
+  DefaultTheme,
+  NavigationContainer,
+  createNavigationContainerRef,
+} from "@react-navigation/native";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { onAuthStateChanged, User } from "firebase/auth";
+
+import { auth } from "@/config/firebaseConfig";
+import LoginScreen from "@/screens/LoginScreen";
+import AppNavigator from "@/navigation/AppNavigator";
+import { theme } from "@/theme/theme";
+
+LogBox.ignoreLogs([
+  "expo-notifications: Android Push notifications (remote notifications) functionality provided by expo-notifications was removed from Expo Go with the release of SDK 53.",
+  "`expo-notifications` functionality is not fully supported in Expo Go",
+  "Looks like you have nested a 'NavigationContainer' inside another.",
+]);
 
 const Stack = createNativeStackNavigator();
+const navigationRef = createNavigationContainerRef();
+
+const navTheme = {
+  ...DefaultTheme,
+  colors: {
+    ...DefaultTheme.colors,
+    background: theme.colors.background,
+    card: theme.colors.background,
+    text: theme.colors.text,
+    border: "rgba(255,255,255,0.08)",
+    primary: theme.colors.primary,
+  },
+};
 
 export default function App() {
-  const [initializing, setInitializing] = useState(true);
   const [user, setUser] = useState<User | null>(null);
+  const [initializing, setInitializing] = useState(true);
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (u) => {
-      setUser(u);
+    const unsub = onAuthStateChanged(auth, (firebaseUser) => {
+      setUser(firebaseUser);
       if (initializing) setInitializing(false);
     });
     return unsub;
@@ -27,17 +52,23 @@ export default function App() {
 
   if (initializing) {
     return (
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <ActivityIndicator />
-        </View>
+      <GestureHandlerRootView
+        style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
+      >
+        <ActivityIndicator color={theme.colors.primary} />
       </GestureHandlerRootView>
     );
   }
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <NavigationContainer>
+      <NavigationContainer
+        ref={navigationRef}
+        theme={navTheme}
+        onReady={() => {
+          (globalThis as any).__NAV = navigationRef;
+        }}
+      >
         <Stack.Navigator screenOptions={{ headerShown: false }}>
           {user ? (
             <Stack.Screen name="Root" component={AppNavigator} />
