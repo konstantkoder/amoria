@@ -9,7 +9,7 @@ import {
 import * as Location from "expo-location";
 import Swiper from "react-native-deck-swiper";
 
-import { theme } from "../theme/theme";
+import { theme } from "@/theme";
 import type { UserProfile, Goal } from "../models/User";
 import { fetchNearbyUsers } from "../services/nearby";
 import { getUserProfile } from "../services/user";

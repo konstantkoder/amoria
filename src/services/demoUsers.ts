@@ -1,6 +1,13 @@
 import { UserProfile } from "../models/User";
 
-export const DEMO_USERS: UserProfile[] = [
+export type DemoUser = Partial<UserProfile> & {
+  age?: number;
+  distanceKm?: number;
+  bio?: string;
+  name?: string;
+};
+
+export const DEMO_USERS: DemoUser[] = [
   {
     uid: "demo_anna",
     displayName: "Анна, 28",
@@ -12,6 +19,8 @@ export const DEMO_USERS: UserProfile[] = [
     createdAt: Date.now(),
     updatedAt: Date.now(),
     geo: { lat: 45.812, lng: 15.975, geohash: "u2yh…" },
+    hasVoiceIntro: true,
+    voiceIntroDurationSec: 7,
   },
   {
     uid: "demo_maria",
@@ -24,6 +33,8 @@ export const DEMO_USERS: UserProfile[] = [
     createdAt: Date.now(),
     updatedAt: Date.now(),
     geo: { lat: 45.817, lng: 15.985, geohash: "u2yh…" },
+    hasVoiceIntro: true,
+    voiceIntroDurationSec: 9,
   },
   {
     uid: "demo_olga",
@@ -72,5 +83,7 @@ export const DEMO_USERS: UserProfile[] = [
     createdAt: Date.now(),
     updatedAt: Date.now(),
     geo: { lat: 45.816, lng: 15.982, geohash: "u2yh…" },
+    hasVoiceIntro: true,
+    voiceIntroDurationSec: 12,
   },
 ];

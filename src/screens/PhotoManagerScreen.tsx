@@ -7,7 +7,7 @@ import {
   updateUserPhotos,
 } from "@/services/firebase";
 import { uploadImage } from "@/services/storage";
-import { theme } from "@/theme/theme";
+import { theme } from "@/theme";
 
 export default function PhotoManagerScreen() {
   const [uid, setUid] = useState("");

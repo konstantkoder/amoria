@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { View, Text, TextInput, Button } from "react-native";
-import { theme } from "@/theme/theme";
+import { theme } from "@/theme";
 
 export default function ProfileFormScreen({ navigation }: any) {
   const [displayName, setDisplayName] = useState("");

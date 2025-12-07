@@ -1,110 +1,75 @@
 import React, { useEffect, useState } from "react";
+import { ScrollView, StyleSheet, Text, TextInput, View, Button } from "react-native";
 import {
-  Alert,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-  Button,
-} from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { doc, getDoc, setDoc } from "firebase/firestore";
-
-import { db, isFirebaseConfigured, ensureAuth } from "../services/firebase";
-import { getDailyQuestionId, QUESTIONS } from "../services/questions";
-import { theme } from "../theme/theme";
-
-const STORAGE_PREFIX = "answer_";
+  QUESTIONS,
+  getDailyQuestionId,
+  loadQuestionOfTheDayAnswer,
+  saveQuestionOfTheDayAnswer,
+} from "@/services/questions";
+import { theme } from "@/theme";
 
 const QuestionScreen: React.FC = () => {
-  const [questionId, setQuestionId] = useState<string>("");
   const [questionText, setQuestionText] = useState<string>("");
-  const [answer, setAnswer] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [answer, setAnswer] = useState<string>("");
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const id = getDailyQuestionId();
-    setQuestionId(id);
-
-    const q = QUESTIONS.find((q) => q.id === id);
+    const q = QUESTIONS.find((item) => item.id === id);
     setQuestionText(q ? q.text : "Вопрос дня");
 
-    loadAnswer(id).catch((e) => {
-      console.warn("QuestionScreen load error", e);
-    });
+    (async () => {
+      setIsLoading(true);
+      setErrorMessage(null);
+
+      try {
+        const saved = await loadQuestionOfTheDayAnswer();
+        if (saved) {
+          setAnswer(saved);
+          setIsSaved(true);
+        }
+      } catch (err) {
+        console.warn(
+          "[QuestionScreen] Failed to load question of the day answer",
+          err,
+        );
+        setErrorMessage("Не удалось загрузить ответ.");
+      } finally {
+        setIsLoading(false);
+      }
+    })();
   }, []);
 
-  async function loadAnswer(id: string) {
-    try {
-      setLoading(true);
-      setError(null);
-
-      if (isFirebaseConfigured()) {
-        const uid = await ensureAuth();
-        const ref = doc(db, "answers", `${uid}_${id}`);
-        const snap = await getDoc(ref);
-
-        if (snap.exists()) {
-          const data = snap.data() as any;
-          if (data?.answer) {
-            setAnswer(data.answer);
-            return;
-          }
-        }
-      } else {
-        const stored = await AsyncStorage.getItem(`${STORAGE_PREFIX}${id}`);
-        if (stored) {
-          setAnswer(stored);
-          return;
-        }
-      }
-    } catch (e: any) {
-      console.warn("QuestionScreen load error", e);
-      setError(e?.message ?? "Ошибка загрузки ответа");
-    } finally {
-      setLoading(false);
+  const handleSave = async () => {
+    const trimmed = answer.trim();
+    if (!trimmed) {
+      return;
     }
-  }
 
-  async function handleSave() {
-    try {
-      setSaving(true);
-      setError(null);
-
-      const trimmed = answer.trim();
-      if (!trimmed) {
-        Alert.alert("Ответ пустой", "Напиши что-нибудь в ответ на вопрос дня.");
-        return;
-      }
-
-      if (isFirebaseConfigured()) {
-        const uid = await ensureAuth();
-        const ref = doc(db, "answers", `${uid}_${questionId}`);
-        await setDoc(ref, {
-          uid,
-          questionId,
-          answer: trimmed,
-          updatedAt: Date.now(),
-        });
-      } else {
-        await AsyncStorage.setItem(
-          `${STORAGE_PREFIX}${questionId}`,
-          trimmed
-        );
-      }
-
-      Alert.alert("Сохранено", "Твой ответ на вопрос дня сохранён.");
-    } catch (e: any) {
-      console.warn("QuestionScreen save error", e);
-      setError(e?.message ?? "Ошибка сохранения");
-      Alert.alert("Ошибка", "Не удалось сохранить ответ. Попробуй ещё раз.");
-    } finally {
-      setSaving(false);
+    if (isSaving) {
+      return;
     }
-  }
+
+    setIsSaving(true);
+    setErrorMessage(null);
+
+    try {
+      await saveQuestionOfTheDayAnswer(trimmed);
+      setIsSaved(true);
+    } catch (err) {
+      console.error(
+        "[QuestionScreen] Failed to save question of the day answer",
+        err,
+      );
+      setErrorMessage("Не удалось сохранить ответ. Попробуй ещё раз.");
+      setIsSaved(false);
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
     <ScrollView
@@ -113,7 +78,7 @@ const QuestionScreen: React.FC = () => {
     >
       <Text style={styles.title}>Вопрос дня</Text>
 
-      {error && <Text style={styles.error}>{error}</Text>}
+      {errorMessage && <Text style={styles.error}>{errorMessage}</Text>}
 
       <Text style={styles.question}>{questionText}</Text>
 
@@ -123,15 +88,18 @@ const QuestionScreen: React.FC = () => {
         placeholder="Твой ответ..."
         placeholderTextColor="#9CA3AF"
         value={answer}
-        onChangeText={setAnswer}
-        editable={!saving}
+        onChangeText={(text) => {
+          setAnswer(text);
+          setIsSaved(false);
+        }}
+        editable={!isSaving && !isLoading}
       />
 
       <View style={styles.buttonWrapper}>
         <Button
-          title={saving ? "Сохраняю..." : "Сохранить"}
+          title={isSaving ? "СОХРАНЯЮ..." : isSaved ? "СОХРАНЕНО" : "СОХРАНИТЬ"}
           onPress={handleSave}
-          disabled={saving || loading}
+          disabled={isSaving || isLoading || !answer.trim()}
         />
       </View>
     </ScrollView>

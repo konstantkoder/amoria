@@ -17,7 +17,7 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { db } from "@/config/firebaseConfig";
-import { theme } from "@/theme/theme";
+import { theme } from "@/theme";
 
 export default function DMChatScreen() {
   const route = useRoute<any>();

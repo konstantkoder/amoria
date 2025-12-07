@@ -16,7 +16,7 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { db } from "@/config/firebaseConfig";
-import { theme } from "@/theme/theme";
+import { theme } from "@/theme";
 
 type Msg = { id: string; text: string };
 

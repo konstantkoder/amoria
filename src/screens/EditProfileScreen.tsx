@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
   Alert,
 } from "react-native";
-import { theme } from "../theme/theme";
+import { theme } from "@/theme";
 import type { Goal, Mood, UserProfile } from "../models/User";
 import { getUserProfile, updateUserFields } from "../services/user";
 

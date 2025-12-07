@@ -37,6 +37,8 @@ export interface UserProfile {
   allowAdultMode?: boolean;  // включён ли 18+ / casual режим
   mysteryMode?: boolean;     // включён ли режим "фото позже"
   voiceIntroUrl?: string;    // URL голосового интро
+  hasVoiceIntro?: boolean;   // есть ли голосовое интро
+  voiceIntroDurationSec?: number; // длительность голосового интро, сек
   lastActive?: number;       // timestamp последней активности
   greenFlags?: string[];     // что ок
   redFlags?: string[];       // что не ок

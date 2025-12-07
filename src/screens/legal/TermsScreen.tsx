@@ -1,6 +1,6 @@
 import React from "react";
 import { ScrollView, Text } from "react-native";
-import { theme } from "@/theme/theme";
+import { theme } from "@/theme";
 export default function TermsScreen() {
   return (
     <ScrollView

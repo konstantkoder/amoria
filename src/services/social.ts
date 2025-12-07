@@ -1,4 +1,4 @@
-import { db, isFirebaseConfigured } from "@/services/firebase";
+import { db, isFirebaseConfigured } from "@/config/firebaseConfig";
 import {
   collection,
   addDoc,
@@ -26,14 +26,19 @@ export async function likeUser(fromUid: string, toUid: string) {
     }
     return await checkMatchLocal(fromUid, toUid);
   }
-  await addDoc(collection(db, "likes"), {
+  const database = db;
+  if (!database) {
+    throw new Error("Firebase Firestore is not initialized");
+  }
+
+  await addDoc(collection(database, "likes"), {
     from: fromUid,
     to: toUid,
     createdAt: Date.now(),
   });
   // Check reciprocal like
   const q = query(
-    collection(db, "likes"),
+    collection(database, "likes"),
     where("from", "==", toUid),
     where("to", "==", fromUid),
   );
@@ -41,7 +46,7 @@ export async function likeUser(fromUid: string, toUid: string) {
   if (!snap.empty) {
     // create match
     const id = sortedId(fromUid, toUid);
-    await setDoc(doc(db, "matches", id), {
+    await setDoc(doc(database, "matches", id), {
       id,
       users: [fromUid, toUid],
       createdAt: Date.now(),

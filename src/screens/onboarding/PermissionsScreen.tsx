@@ -1,7 +1,7 @@
 import React from "react";
 import { View, Text, Button, Alert } from "react-native";
 import { askLocationPermission } from "@/services/geo";
-import { theme } from "@/theme/theme";
+import { theme } from "@/theme";
 
 export default function PermissionsScreen({ navigation }: any) {
   async function request() {

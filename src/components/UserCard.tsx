@@ -1,14 +1,19 @@
 import React from "react";
-import { View, Text, Image } from "react-native";
-import { theme, getMoodTheme } from "../theme/theme";
-import type { UserProfile, Mood, Goal } from "../models/User";
+import { View, Text, Image, TouchableOpacity } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { theme, getMoodTheme } from "@/theme";
+import { DemoUser } from "@/services/demoUsers";
+import { getIcebreakerForUser } from "@/services/icebreakers";
+import type { Mood, Goal } from "../models/User";
 
 type Props = {
-  user: Partial<UserProfile> & { age?: number; distanceKm?: number };
+  user: DemoUser & { age?: number; distanceKm?: number };
   variant?: "feed" | "nearby" | "deck" | string;
   showDistance?: boolean;
   showGoal?: boolean;
   showMood?: boolean;
+  onPress?: (user: DemoUser) => void;
+  onPressVoiceIntro?: (user: DemoUser) => void;
 };
 
 function formatMood(mood?: Mood): string {
@@ -59,8 +64,16 @@ export function UserCard({
   showDistance = false,
   showGoal = true,
   showMood = true,
+  onPress,
+  onPressVoiceIntro,
 }: Props) {
   const moodTheme = getMoodTheme(user.mood ?? null);
+  const icebreaker = getIcebreakerForUser({
+    goal: user.goal,
+    mood: user.mood,
+    interests: user.interests ?? [],
+    displayName: user.displayName ?? "",
+  });
 
   const name = user.displayName || "Пользователь";
   const about = user.about || "Пока без описания…";
@@ -77,18 +90,35 @@ export function UserCard({
   const photo = showPhoto ? (user.photos![0] as string) : undefined;
   const initial = name[0]?.toUpperCase?.() ?? "U";
   const isAdult = isAdultGoal(user.goal ?? null);
+  const hasVoiceIntro = !!(user.hasVoiceIntro || user.voiceIntroDurationSec);
+  const introSeconds = Math.max(
+    1,
+    Math.round(user.voiceIntroDurationSec ?? 8)
+  );
+  const introDuration =
+    introSeconds >= 60
+      ? `${Math.floor(introSeconds / 60)}:${(introSeconds % 60)
+          .toString()
+          .padStart(2, "0")}`
+      : `0:${introSeconds.toString().padStart(2, "0")}`;
+  const voiceIntroLabel = `Голосовое интро ~${introDuration}${
+    isAdult ? " (18+)" : ""
+  }`;
+  const Container =
+    (onPress ? TouchableOpacity : View) as React.ComponentType<any>;
 
   return (
-    <View
+    <Container
       style={{
         backgroundColor: theme.colors.card,
         borderRadius: theme.shapes.card,
         padding: theme.spacing,
         width: "100%",
-        height: "100%",
         borderWidth: 1,
         borderColor: moodTheme.glow,
       }}
+      activeOpacity={onPress ? 0.9 : undefined}
+      onPress={onPress ? () => onPress(user) : undefined}
     >
       {/* Фото / превью */}
       <View
@@ -224,6 +254,69 @@ export function UserCard({
         </Text>
       )}
 
+      {icebreaker && (
+        <View
+          style={{
+            marginTop: 8,
+            padding: 8,
+            borderRadius: 12,
+            backgroundColor: "rgba(148, 163, 184, 0.15)",
+          }}
+        >
+          <Text
+            style={{
+              fontSize: 12,
+              color: theme.colors.muted,
+              marginBottom: 2,
+            }}
+          >
+            💬 Идея для первого сообщения:
+          </Text>
+          <Text
+            style={{
+              fontSize: 13,
+              color: theme.colors.text,
+            }}
+          >
+            {icebreaker}
+          </Text>
+        </View>
+      )}
+
+      {hasVoiceIntro ? (
+        <TouchableOpacity
+          activeOpacity={0.85}
+          onPress={() => onPressVoiceIntro?.(user)}
+          style={{ marginTop: 8 }}
+        >
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              paddingHorizontal: 12,
+              paddingVertical: 8,
+              borderRadius: 999,
+              backgroundColor: "rgba(15, 23, 42, 0.7)",
+            }}
+          >
+            <Ionicons
+              name="mic-outline"
+              size={14}
+              color={theme.colors.subtext}
+              style={{ marginRight: 6 }}
+            />
+            <Text
+              style={{
+                fontSize: 12,
+                color: theme.colors.subtext,
+              }}
+            >
+              {voiceIntroLabel}
+            </Text>
+          </View>
+        </TouchableOpacity>
+      ) : null}
+
       {/* Бэйджи цели, настроения и тайны */}
       <View
         style={{
@@ -301,7 +394,7 @@ export function UserCard({
           </View>
         )}
       </View>
-    </View>
+    </Container>
   );
 }
 

@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { View, Text, Button, Switch, Linking, Alert } from "react-native";
-import { theme } from "@/theme/theme";
+import { theme } from "@/theme";
 
 export default function ConsentsScreen({ navigation }: any) {
   const [tos, setTos] = useState(false);

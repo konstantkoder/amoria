@@ -1,7 +1,7 @@
 import React from "react";
 import { View, Text, ScrollView, Button } from "react-native";
 import { PrivacyRU, PrivacyEN, PrivacyHR } from "@/legal/policies";
-import { theme } from "@/theme/theme";
+import { theme } from "@/theme";
 
 export default function LegalScreen({ navigation }: any) {
   return (

@@ -1,19 +1,89 @@
-import React, { useEffect } from "react";
-import { View, Text, Button, Alert, TouchableOpacity } from "react-native";
+import React, { useEffect, useState } from "react";
+import { View, Text, Button, Alert, TouchableOpacity, Switch } from "react-native";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ensureAuth, deleteUserCompletely } from "@/services/firebase";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { doc, setDoc } from "firebase/firestore";
 import { db } from "@/config/firebaseConfig";
-import { theme } from "@/theme/theme";
+import { theme } from "@/theme";
 import {
   registerForPushNotificationsAsync,
   sendLocalNotification,
 } from "@/services/notifications";
+import {
+  loadAdultModeEnabled,
+  setAdultModeEnabled,
+} from "@/services/adultMode";
+import type { ProfileStackParamList } from "@/navigation/AppNavigator";
 
-export default function ProfileScreen({ navigation }: any) {
+type ProfileNav = NativeStackNavigationProp<
+  ProfileStackParamList & Record<string, object | undefined>,
+  "ProfileMain"
+>;
+
+export default function ProfileScreen() {
+  const navigation = useNavigation<ProfileNav>();
+  const [adultModeEnabled, setAdultModeEnabledState] = useState(false);
+  const [adultModeLoading, setAdultModeLoading] = useState(true);
+
   useEffect(() => {
     registerForPushNotificationsAsync().catch(() => {});
   }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    (async () => {
+      const enabled = await loadAdultModeEnabled();
+      if (isMounted) {
+        setAdultModeEnabledState(enabled);
+        setAdultModeLoading(false);
+      }
+    })();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const handleToggleAdultMode = () => {
+    if (adultModeLoading) return;
+
+    if (!adultModeEnabled) {
+      // включаем 18+ — сначала предупреждение
+      Alert.alert(
+        "18+ режим",
+        "В 18+ режиме появляются цели casual/sex и более откровенные анкеты. Подтверждая, вы заявляете, что вам 18 лет и вы согласны видеть такой контент.",
+        [
+          { text: "Отмена", style: "cancel" },
+          {
+            text: "Включить",
+            style: "destructive",
+            onPress: async () => {
+              setAdultModeEnabledState(true);
+              await setAdultModeEnabled(true);
+            },
+          },
+        ]
+      );
+    } else {
+      // выключаем 18+
+      Alert.alert(
+        "Выключить 18+ режим?",
+        "Взрослые цели (casual/sex) будут скрыты, часть анкет пропадёт из выдачи.",
+        [
+          { text: "Отмена", style: "cancel" },
+          {
+            text: "Выключить",
+            style: "default",
+            onPress: async () => {
+              setAdultModeEnabledState(false);
+              await setAdultModeEnabled(false);
+            },
+          },
+        ]
+      );
+    }
+  };
 
   async function deleteAccount() {
     const uid = await ensureAuth();
@@ -63,6 +133,50 @@ export default function ProfileScreen({ navigation }: any) {
         </Text>
       </TouchableOpacity>
       <Button title="Удалить аккаунт" color="#d11" onPress={deleteAccount} />
+      <View
+        style={{
+          marginTop: 24,
+          padding: 16,
+          borderRadius: 16,
+          backgroundColor: theme.colors.card,
+        }}
+      >
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
+          <View style={{ flex: 1, paddingRight: 12 }}>
+            <Text
+              style={{
+                color: theme.colors.text,
+                fontSize: 16,
+                fontWeight: "700",
+                marginBottom: 4,
+              }}
+            >
+              18+ режим
+            </Text>
+            <Text
+              style={{
+                color: theme.colors.subtext ?? "#A1A1AA",
+                fontSize: 13,
+              }}
+            >
+              Показывать цели casual/sex и более откровенные анкеты. Доступно
+              только для пользователей 18+.
+            </Text>
+          </View>
+
+          <Switch
+            value={adultModeEnabled}
+            onValueChange={handleToggleAdultMode}
+            disabled={adultModeLoading}
+          />
+        </View>
+      </View>
       {/* DEV: тест локальных уведомлений */}
       {__DEV__ && (
         <View style={{ marginTop: 16 }}>

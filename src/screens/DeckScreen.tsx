@@ -11,7 +11,7 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ensureAuth, sendSpark } from "@/services/firebase";
 import { fetchNearbyUsers } from "@/services/nearby";
-import { theme } from "@/theme/theme";
+import { theme } from "@/theme";
 import {
   getAdultOk,
   getFlirtEnabled,

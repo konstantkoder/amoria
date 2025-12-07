@@ -4,42 +4,70 @@ import {
   Text,
   ActivityIndicator,
   FlatList,
-  TouchableOpacity,
   RefreshControl,
+  Alert,
 } from "react-native";
 import * as Location from "expo-location";
 
-import { theme } from "../theme/theme";
+import PillToggleRow from "@/components/PillToggleRow";
+import { theme } from "@/theme";
 import type { UserProfile, Goal, Mood } from "../models/User";
 import { fetchNearbyUsers } from "../services/nearby";
 import { getUserProfile } from "../services/user";
 import UserCard from "../components/UserCard";
-import { DEMO_USERS } from "../services/demoUsers";
+import { DEMO_USERS, type DemoUser } from "../services/demoUsers";
+import { loadAdultModeEnabled } from "../services/adultMode";
+import VoiceIntroModal from "@/components/VoiceIntroModal";
 
-type GoalFilter = Goal | "all";
-type MoodFilter = Mood | "all";
+type RadiusFilter = "5" | "10" | "25";
+type NearbyGoalFilter =
+  | "all"
+  | "dating"
+  | "friends"
+  | "chat"
+  | "serious"
+  | "light"
+  | "casual"
+  | "sex18";
+type NearbyMoodFilter =
+  | "any"
+  | "fun"
+  | "calm"
+  | "moving"
+  | "serious"
+  | "party";
 
-const GOAL_FILTERS: { value: GoalFilter; label: string }[] = [
-  { value: "all", label: "Все цели" },
-  { value: "dating", label: "Знакомства" },
-  { value: "friends", label: "Дружба" },
-  { value: "chat", label: "Чат" },
-  { value: "long_term", label: "Серьёзно" },
-  { value: "short_term", label: "Лёгкие" },
-  { value: "casual", label: "Casual" },
-  { value: "sex", label: "18+ только секс" },
-];
+const ADULT_GOALS: Goal[] = ["casual", "sex"];
 
-const MOOD_FILTERS: { value: MoodFilter; label: string }[] = [
-  { value: "all", label: "Любое" },
-  { value: "happy", label: "Весёлое" },
-  { value: "chill", label: "Спокойное" },
-  { value: "active", label: "В движении" },
-  { value: "serious", label: "Серьёзное" },
-  { value: "party", label: "Тусовка" },
-];
+const mapGoalFilter = (filter: NearbyGoalFilter): Goal | null => {
+  switch (filter) {
+    case "all":
+      return null;
+    case "serious":
+      return "long_term";
+    case "light":
+      return "short_term";
+    case "sex18":
+      return "sex";
+    default:
+      return filter;
+  }
+};
 
-const RADIUS_OPTIONS = [5, 10, 25];
+const mapMoodFilter = (filter: NearbyMoodFilter): Mood | null => {
+  switch (filter) {
+    case "any":
+      return null;
+    case "fun":
+      return "happy";
+    case "calm":
+      return "chill";
+    case "moving":
+      return "active";
+    default:
+      return filter;
+  }
+};
 
 export default function NearbyScreen() {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
@@ -49,9 +77,13 @@ export default function NearbyScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [radiusKm, setRadiusKm] = useState<number>(10);
-  const [selectedGoal, setSelectedGoal] = useState<GoalFilter>("all");
-  const [selectedMood, setSelectedMood] = useState<MoodFilter>("all");
+  const [radiusFilter, setRadiusFilter] = useState<RadiusFilter>("10");
+  const [nearbyGoalFilter, setNearbyGoalFilter] =
+    useState<NearbyGoalFilter>("all");
+  const [nearbyMoodFilter, setNearbyMoodFilter] =
+    useState<NearbyMoodFilter>("any");
+  const [adultModeEnabled, setAdultModeEnabled] = useState(false);
+  const [voiceIntroUser, setVoiceIntroUser] = useState<UserProfile | null>(null);
 
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(
     null
@@ -71,6 +103,7 @@ export default function NearbyScreen() {
   const loadLocationAndUsers = useCallback(
     async (opts?: { hardRefresh?: boolean }) => {
       const hardRefresh = opts?.hardRefresh ?? false;
+      const radiusKm = Number(radiusFilter);
       try {
         if (!hardRefresh) {
           setLoading(true);
@@ -114,31 +147,48 @@ export default function NearbyScreen() {
         setRefreshing(false);
       }
     },
-    [coords, radiusKm]
+    [coords, radiusFilter]
   );
 
   useEffect(() => {
     loadProfile();
   }, [loadProfile]);
 
+  useEffect(() => {
+    let isMounted = true;
+    (async () => {
+      const enabled = await loadAdultModeEnabled();
+      if (isMounted) {
+        setAdultModeEnabled(enabled);
+      }
+    })();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   // Первый запуск + изменение радиуса
   useEffect(() => {
     loadLocationAndUsers();
-  }, [loadLocationAndUsers, radiusKm]);
+  }, [loadLocationAndUsers]);
 
   const onRefresh = useCallback(() => {
     loadLocationAndUsers({ hardRefresh: true });
   }, [loadLocationAndUsers]);
 
   // Флаг: показывать ли 18+ цели (casual/sex)
-  const allowAdult =
-    !!currentUser?.allowAdultMode ||
-    currentUser?.goal === "casual" ||
-    currentUser?.goal === "sex";
+  const allowAdult = adultModeEnabled;
 
   // Если из Firebase никого нет — используем DEMO_USERS
   const sourceUsers: UserProfile[] =
     rawUsers && rawUsers.length > 0 ? rawUsers : DEMO_USERS;
+
+  const goalValue = mapGoalFilter(nearbyGoalFilter);
+  const moodValue = mapMoodFilter(nearbyMoodFilter);
+  const effectiveGoal =
+    !adultModeEnabled && goalValue && ADULT_GOALS.includes(goalValue)
+      ? null
+      : goalValue;
 
   const filteredUsers = sourceUsers.filter((u) => {
     if (!u.uid) return false;
@@ -147,23 +197,62 @@ export default function NearbyScreen() {
     if (currentUser && u.uid === currentUser.uid) return false;
 
     // если у нас выключен 18+ и обычные цели — прячем тех, у кого цель 18+
-    if (
-      !allowAdult &&
-      (u.goal === "casual" || u.goal === "sex")
-    ) {
+    if (!allowAdult && (u.goal === "casual" || u.goal === "sex")) {
       return false;
     }
 
-    if (selectedGoal !== "all" && u.goal !== selectedGoal) {
+    if (effectiveGoal && u.goal !== effectiveGoal) {
       return false;
     }
 
-    if (selectedMood !== "all" && u.mood !== selectedMood) {
+    if (moodValue && u.mood !== moodValue) {
       return false;
     }
 
     return true;
   });
+
+  const radiusOptions = [
+    { id: "5", label: "5 км" },
+    { id: "10", label: "10 км" },
+    { id: "25", label: "25 км" },
+  ];
+
+  const goalOptions = [
+    { id: "all", label: "Все цели" },
+    { id: "dating", label: "Знакомства" },
+    { id: "friends", label: "Дружба" },
+    { id: "chat", label: "Чат" },
+    { id: "serious", label: "Серьёзно" },
+    { id: "light", label: "Лёгкие" },
+    { id: "casual", label: "Casual" },
+    { id: "sex18", label: "18+ только секс", badge: "18+" },
+  ].filter(
+    (option) => allowAdult || (option.id !== "casual" && option.id !== "sex18")
+  );
+
+  const handleOpenNearbyUser = (user: DemoUser) => {
+    const subtitle =
+      user.bio ??
+      user.about ??
+      "Человек рядом. В полной версии можно будет открыть профиль и начать чат.";
+    const title = user.displayName ?? user.name ?? "Профиль";
+    const ageSuffix = user.age ? `, ${user.age}` : "";
+
+    Alert.alert(
+      `${title}${ageSuffix}`,
+      `${subtitle}\n\nСейчас это демо-режим. В релизе здесь появится полноценный экран анкеты.`,
+      [{ text: "OK" }]
+    );
+  };
+
+  const handleOpenVoiceIntro = (user: UserProfile) => {
+    setVoiceIntroUser(user);
+  };
+
+  const handleCloseVoiceIntro = () => {
+    setVoiceIntroUser(null);
+  };
 
   const renderUser = ({ item }: { item: UserProfile }) => {
     return (
@@ -176,7 +265,13 @@ export default function NearbyScreen() {
         }}
       >
         <View style={{ height: 320 }}>
-          <UserCard user={item} />
+          <UserCard
+            user={item}
+            showDistance
+            showGoal
+            onPress={handleOpenNearbyUser}
+            onPressVoiceIntro={handleOpenVoiceIntro}
+          />
         </View>
       </View>
     );
@@ -247,7 +342,7 @@ export default function NearbyScreen() {
             </Text>{" "}
             • 18+:{" "}
             <Text style={{ color: theme.colors.text }}>
-              {currentUser.allowAdultMode ? "включён" : "выключен"}
+              {adultModeEnabled ? "включён" : "выключен"}
             </Text>
           </Text>
         )}
@@ -264,130 +359,33 @@ export default function NearbyScreen() {
           </Text>
         )}
 
-        {/* Радиус */}
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            marginBottom: 8,
-          }}
-        >
-          <Text
-            style={{
-              color: theme.colors.subtext,
-              fontSize: 12,
-              marginRight: 8,
-            }}
-          >
-            Радиус:
-          </Text>
-          {RADIUS_OPTIONS.map((r) => {
-            const active = radiusKm === r;
-            return (
-              <TouchableOpacity
-                key={r}
-                onPress={() => setRadiusKm(r)}
-                style={{
-                  paddingHorizontal: 10,
-                  paddingVertical: 4,
-                  borderRadius: theme.shapes.pill,
-                  marginRight: 6,
-                  backgroundColor: active
-                    ? theme.colors.primary
-                    : theme.colors.pillBg,
-                }}
-              >
-                <Text
-                  style={{
-                    color: active ? "#FFFFFF" : theme.colors.pillText,
-                    fontSize: 12,
-                    fontWeight: "600",
-                  }}
-                >
-                  {r} км
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+        <PillToggleRow
+          title="Радиус"
+          options={radiusOptions}
+          selectedId={radiusFilter}
+          onChange={(id) => setRadiusFilter(id as RadiusFilter)}
+        />
 
-        {/* Фильтр по цели */}
-        <View
-          style={{
-            flexDirection: "row",
-            flexWrap: "wrap",
-            marginBottom: 6,
-          }}
-        >
-          {GOAL_FILTERS.map((g) => {
-            const active = selectedGoal === g.value;
-            return (
-              <TouchableOpacity
-                key={g.value}
-                onPress={() => setSelectedGoal(g.value)}
-                style={{
-                  paddingHorizontal: 10,
-                  paddingVertical: 4,
-                  borderRadius: theme.shapes.pill,
-                  marginRight: 6,
-                  marginBottom: 6,
-                  backgroundColor: active
-                    ? theme.colors.primary
-                    : theme.colors.pillBg,
-                }}
-              >
-                <Text
-                  style={{
-                    color: active ? "#FFFFFF" : theme.colors.pillText,
-                    fontSize: 11,
-                    fontWeight: "600",
-                  }}
-                >
-                  {g.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+        <PillToggleRow
+          title="Цели"
+          options={goalOptions}
+          selectedId={nearbyGoalFilter}
+          onChange={(id) => setNearbyGoalFilter(id as NearbyGoalFilter)}
+        />
 
-        {/* Фильтр по настроению */}
-        <View
-          style={{
-            flexDirection: "row",
-            flexWrap: "wrap",
-            marginBottom: 4,
-          }}
-        >
-          {MOOD_FILTERS.map((m) => {
-            const active = selectedMood === m.value;
-            return (
-              <TouchableOpacity
-                key={m.value}
-                onPress={() => setSelectedMood(m.value)}
-                style={{
-                  paddingHorizontal: 10,
-                  paddingVertical: 4,
-                  borderRadius: theme.shapes.pill,
-                  marginRight: 6,
-                  marginBottom: 6,
-                  backgroundColor: active
-                    ? theme.colors.accent
-                    : theme.colors.pillBg,
-                }}
-              >
-                <Text
-                  style={{
-                    color: active ? "#FFFFFF" : theme.colors.pillText,
-                    fontSize: 11,
-                    fontWeight: "600",
-                  }}
-                >
-                  {m.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+        <PillToggleRow
+          title="Настроение"
+          options={[
+            { id: "any", label: "Любое" },
+            { id: "fun", label: "Весёлое" },
+            { id: "calm", label: "Спокойное" },
+            { id: "moving", label: "В движении" },
+            { id: "serious", label: "Серьёзное" },
+            { id: "party", label: "Тусовка" },
+          ]}
+          selectedId={nearbyMoodFilter}
+          onChange={(id) => setNearbyMoodFilter(id as NearbyMoodFilter)}
+        />
 
         {!allowAdult && (
           <Text
@@ -397,8 +395,8 @@ export default function NearbyScreen() {
               marginTop: 2,
             }}
           >
-            18+ цели (casual/sex) скрыты — включи 18+ режим в профиле, чтобы их
-            видеть.
+            18+ цели скрыты — включи 18+ режим в профиле, чтобы видеть Casual и
+            «18+ только секс».
           </Text>
         )}
       </View>
@@ -449,6 +447,12 @@ export default function NearbyScreen() {
             </View>
           ) : null
         }
+      />
+      <VoiceIntroModal
+        visible={!!voiceIntroUser}
+        onClose={handleCloseVoiceIntro}
+        userName={voiceIntroUser?.displayName ?? voiceIntroUser?.name}
+        durationSeconds={voiceIntroUser?.voiceIntroDurationSec ?? 8}
       />
     </View>
   );

@@ -1,4 +1,4 @@
-import { storage, isFirebaseConfigured } from "@/services/firebase";
+import { storage, isFirebaseConfigured } from "@/config/firebaseConfig";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
@@ -12,10 +12,15 @@ export async function uploadImage(uid: string, uri: string) {
     await AsyncStorage.setItem(key, JSON.stringify(arr));
     return uri;
   }
+  const bucket = storage;
+  if (!bucket) {
+    throw new Error("Firebase Storage is not initialized");
+  }
+
   const resp = await fetch(uri);
   const blob = await resp.blob();
   const id = Date.now() + "_" + Math.random().toString(36).slice(2, 8);
-  const r = ref(storage, `users/${uid}/${id}.jpg`);
+  const r = ref(bucket, `users/${uid}/${id}.jpg`);
   await uploadBytes(r, blob);
   const url = await getDownloadURL(r);
   return url;

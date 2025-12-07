@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text, Button } from "react-native";
-import { theme } from "@/theme/theme";
+import { theme } from "@/theme";
 
 export default function WelcomeScreen({ navigation }: any) {
   return (
