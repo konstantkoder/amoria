@@ -13,6 +13,7 @@ import EditProfileScreen from "@/screens/EditProfileScreen";
 import PhotoManagerScreen from "@/screens/PhotoManagerScreen";
 import FlirtSettingsScreen from "@/screens/settings/FlirtSettingsScreen";
 import RoomsScreen from "@/screens/RoomsScreen";
+import InboxScreen from "@/screens/InboxScreen";
 
 import { theme } from "@/theme";
 
@@ -75,22 +76,44 @@ export default function AppNavigator() {
       })}
     >
       <Tab.Screen name="Feed" component={FeedScreen} options={{ title: "Лента" }} />
+
+      <Tab.Screen
+        name="Nearby"
+        component={NearbyScreen}
+        options={{
+          title: "Объявления",
+          tabBarLabel: "Объявления",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="megaphone-outline" size={size} color={color} />
+          ),
+        }}
+      />
+
       <Tab.Screen
         name="Now"
         component={NowScreen}
         options={{ title: "Сейчас", tabBarLabel: "СЕЙЧАС" }}
       />
+
       <Tab.Screen
-        name="Nearby"
-        component={NearbyScreen}
-        options={{ title: "Рядом" }}
+        name="Inbox"
+        component={InboxScreen}
+        options={{
+          title: "Чаты",
+          tabBarLabel: "Чаты",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="chatbubbles-outline" size={size} color={color} />
+          ),
+        }}
       />
+
       <Tab.Screen
         name="Rooms"
         component={RoomsScreen}
         options={{ title: "Комнаты" }}
       />
-      {/* Hidden tab: keep route for Question but remove tab button */}
+
+      {/* Question — скрытая вкладка, без кнопки в таб-баре */}
       <Tab.Screen
         name="Question"
         component={QuestionScreen}
@@ -98,6 +121,7 @@ export default function AppNavigator() {
           tabBarButton: () => null,
         }}
       />
+
       {/* Профиль — скрытая вкладка, без кнопки в таб-баре */}
       <Tab.Screen
         name="Profile"

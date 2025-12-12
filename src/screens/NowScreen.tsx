@@ -1,771 +1,603 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  ScrollView,
+  FlatList,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Location from "expo-location";
 import { Ionicons } from "@expo/vector-icons";
 
-import {
-  DEMO_NOW_REQUESTS,
-  DemoNowGoal,
-  DemoNowMood,
-  DemoNowRequest,
-} from "@/data/demoNowRequests";
-import PillToggleRow from "@/components/PillToggleRow";
 import { theme } from "@/theme";
+import { auth, db, isFirebaseConfigured } from "@/config/firebaseConfig";
+import {
+  NowMood,
+  NowPost,
+  createNowPost,
+  makeRegion,
+  subscribeNowPosts,
+} from "@/services/now";
+import { makeNickname } from "@/services/rooms";
+import ScreenBackground from "@/components/ScreenBackground";
 
-type NowGoalFilter =
-  | "all"
-  | "dating"
-  | "friends"
-  | "chat"
-  | "longterm"
-  | "today"
-  | "flirt";
-type NowMoodFilter =
-  | "any"
-  | "calm"
-  | "happy"
-  | "active"
-  | "serious"
-  | "party";
+type Pos = { lat: number; lng: number; accuracy?: number | null };
 
-type NowFilterState = {
-  goal: NowGoalFilter;
-  mood: NowMoodFilter;
-  adultsOnly: boolean;
-};
+type RadiusOption = number | null; // null = без ограничения
 
-const NOW_FILTER_STORAGE_KEY = "amoria.now.filter.v1";
-const NOW_DISMISSED_STORAGE_KEY = "amoria.now.dismissed.v1";
+const RADIUS_OPTIONS: RadiusOption[] = [5, 10, 25, 50, 100, null];
 
-function formatGoal(goal: DemoNowGoal): string {
-  switch (goal) {
-    case "dating":
-      return "Знакомства";
-    case "friends":
-      return "Друзья";
-    case "chat":
-      return "Чат";
-    case "long_term":
-      return "Надолго";
-    case "short_term":
-      return "На сегодня";
-    case "casual":
-      return "Флирт / 18+";
-    default:
-      return "Разное";
-  }
+const MOOD_META: { key: NowMood; label: string; emoji: string }[] = [
+  { key: "chill", label: "Просто посидеть", emoji: "😌" },
+  { key: "talk", label: "Поговорить", emoji: "💬" },
+  { key: "drink", label: "Выпить кофе/дринк", emoji: "🥤" },
+  { key: "walk", label: "Прогуляться", emoji: "🚶" },
+  { key: "fun", label: "Развлечься", emoji: "🎉" },
+  { key: "other", label: "Другое", emoji: "✨" },
+];
+
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <Text
+      style={{
+        color: "#E5E7EB",
+        fontSize: 18,
+        fontWeight: "800",
+        marginBottom: 10,
+      }}
+    >
+      {children}
+    </Text>
+  );
 }
 
-function formatMood(mood: DemoNowMood): string {
-  switch (mood) {
-    case "chill":
-      return "Спокойное";
-    case "happy":
-      return "Радостное";
-    case "active":
-      return "Активное";
-    case "serious":
-      return "Серьёзное";
-    case "party":
-      return "Вечеринка";
-    default:
-      return "Любое";
-  }
+function formatAgo(ts: number) {
+  if (!ts) return "";
+  const diff = Date.now() - ts;
+  const sec = Math.floor(diff / 1000);
+  if (sec < 60) return "только что";
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min} мин`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `${h} ч`;
+  const d = Math.floor(h / 24);
+  return `${d} дн`;
 }
 
-const normalizeStoredGoal = (value: unknown): NowGoalFilter | undefined => {
-  switch (value) {
-    case "all":
-    case "dating":
-    case "friends":
-    case "chat":
-    case "longterm":
-    case "today":
-    case "flirt":
-      return value;
-    case "long_term":
-      return "longterm";
-    case "short_term":
-      return "today";
-    case "casual":
-      return "flirt";
-    default:
-      return undefined;
-  }
-};
+function distanceKm(pos: Pos | null, item: { lat?: number; lng?: number }): number | null {
+  if (!pos || item.lat == null || item.lng == null) return null;
 
-const normalizeStoredMood = (value: unknown): NowMoodFilter | undefined => {
-  switch (value) {
-    case "any":
-      return "any";
-    case "happy":
-    case "active":
-    case "serious":
-    case "party":
-      return value;
-    case "calm":
-      return "calm";
-    case "chill":
-      return "calm";
-    case "all":
-      return "any";
-    default:
-      return undefined;
-  }
-};
+  const R = 6371; // км
+  const dLat = ((item.lat - pos.lat) * Math.PI) / 180;
+  const dLng = ((item.lng - pos.lng) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((pos.lat * Math.PI) / 180) *
+      Math.cos((item.lat * Math.PI) / 180) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const d = R * c;
+  return Math.round(d * 10) / 10;
+}
 
-const goalFilterToGoal = (filter: NowGoalFilter): DemoNowGoal | null => {
-  switch (filter) {
-    case "all":
-      return null;
-    case "longterm":
-      return "long_term";
-    case "today":
-      return "short_term";
-    case "flirt":
-      return "casual";
-    default:
-      return filter;
-  }
-};
-
-const moodFilterToMood = (filter: NowMoodFilter): DemoNowMood | null => {
-  switch (filter) {
-    case "any":
-      return null;
-    case "calm":
-      return "chill";
-    default:
-      return filter;
-  }
-};
-
-const NowScreen: React.FC = () => {
+export default function NowScreen() {
   const insets = useSafeAreaInsets();
+  const user = auth?.currentUser ?? null;
 
-  const [filter, setFilter] = useState<NowFilterState>({
-    goal: "all",
-    mood: "any",
-    adultsOnly: true,
-  });
+  const [pos, setPos] = useState<Pos | null>(null);
+  const [posError, setPosError] = useState<string | null>(null);
+  const [posLoading, setPosLoading] = useState(false);
 
-  const [dismissedIds, setDismissedIds] = useState<string[]>([]);
-  const [isPrefsLoading, setIsPrefsLoading] = useState(true);
-  const [isSavingPrefs, setIsSavingPrefs] = useState(false);
+  const [region, setRegion] = useState<string | null>(null);
+  const [posts, setPosts] = useState<NowPost[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    const loadPrefs = async () => {
-      try {
-        const [filterJson, dismissedJson] = await Promise.all([
-          AsyncStorage.getItem(NOW_FILTER_STORAGE_KEY),
-          AsyncStorage.getItem(NOW_DISMISSED_STORAGE_KEY),
-        ]);
+  const [mood, setMood] = useState<NowMood>("chill");
+  const [message, setMessage] = useState(""); // <-- текст сообщения
+  const [composerKey, setComposerKey] = useState(0);
+  const [sending, setSending] = useState(false);
 
-        if (filterJson) {
-          try {
-            const parsed = JSON.parse(filterJson) as Partial<NowFilterState>;
-            setFilter((prev) => ({
-              goal: normalizeStoredGoal(parsed.goal) ?? prev.goal,
-              mood: normalizeStoredMood(parsed.mood) ?? prev.mood,
-              adultsOnly:
-                typeof parsed.adultsOnly === "boolean"
-                  ? parsed.adultsOnly
-                  : prev.adultsOnly,
-            }));
-          } catch {
-            // ignore corrupted data
-          }
-        }
+  const [radiusKm, setRadiusKm] = useState<RadiusOption>(25);
 
-        if (dismissedJson) {
-          try {
-            const parsed = JSON.parse(dismissedJson) as string[];
-            if (Array.isArray(parsed)) {
-              setDismissedIds(parsed);
-            }
-          } catch {
-            // ignore corrupted data
-          }
-        }
-      } finally {
-        setIsPrefsLoading(false);
+  const nickname = useMemo(() => {
+    if (!user?.uid) return "Аноним";
+    return makeNickname(user.uid);
+  }, [user?.uid]);
+
+  const ensurePosition = useCallback(async () => {
+    setPosError(null);
+    setPosLoading(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        throw new Error("Нужен доступ к геолокации (в настройках телефона).");
       }
-    };
 
-    loadPrefs();
+      const current = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+
+      const nextPos: Pos = {
+        lat: current.coords.latitude,
+        lng: current.coords.longitude,
+        accuracy: current.coords.accuracy,
+      };
+      setPos(nextPos);
+      setRegion(makeRegion(nextPos.lat, nextPos.lng));
+    } catch (e: any) {
+      setPos(null);
+      setRegion(null);
+      setPosError(e?.message ?? "Не удалось получить геолокацию.");
+    } finally {
+      setPosLoading(false);
+    }
   }, []);
 
-  const persistFilter = async (next: NowFilterState) => {
-    setIsSavingPrefs(true);
-    try {
-      await AsyncStorage.setItem(NOW_FILTER_STORAGE_KEY, JSON.stringify(next));
-    } finally {
-      setIsSavingPrefs(false);
-    }
-  };
+  useEffect(() => {
+    ensurePosition();
+  }, [ensurePosition]);
 
-  const persistDismissed = async (nextDismissed: string[]) => {
-    try {
-      await AsyncStorage.setItem(
-        NOW_DISMISSED_STORAGE_KEY,
-        JSON.stringify(nextDismissed)
-      );
-    } catch {
-      // non-critical
-    }
-  };
+  useEffect(() => {
+    if (!region || !db || !isFirebaseConfigured()) return;
 
-  const handleGoalChange = (goalId: string) => {
-    const goal = goalId as NowGoalFilter;
-    const next: NowFilterState = { ...filter, goal };
-    setFilter(next);
-    void persistFilter(next);
-  };
-
-  const handleMoodChange = (moodId: string) => {
-    const mood = moodId as NowMoodFilter;
-    const next: NowFilterState = { ...filter, mood };
-    setFilter(next);
-    void persistFilter(next);
-  };
-
-  const handleAdultsToggle = () => {
-    const next: NowFilterState = { ...filter, adultsOnly: !filter.adultsOnly };
-    setFilter(next);
-    void persistFilter(next);
-  };
-
-  const handleDismiss = (id: string) => {
-    const next = dismissedIds.includes(id)
-      ? dismissedIds
-      : [...dismissedIds, id];
-    setDismissedIds(next);
-    void persistDismissed(next);
-  };
-
-  const handleResetFilters = () => {
-    const next: NowFilterState = {
-      goal: "all",
-      mood: "any",
-      adultsOnly: true,
-    };
-    setFilter(next);
-    setDismissedIds([]);
-    void Promise.all([
-      persistFilter(next),
-      AsyncStorage.removeItem(NOW_DISMISSED_STORAGE_KEY),
-    ]);
-  };
-
-  const handlePressCreateNow = () => {
-    Alert.alert(
-      "Пока демо-режим",
-      'В полной версии здесь можно будет публиковать свои "Я сейчас хочу..." запросы с радиусом и временем действия, а также сразу переходить к чату.',
-      [{ text: "ОК" }]
-    );
-  };
-
-  const handlePressReply = (request: DemoNowRequest) => {
-    Alert.alert(
-      "Пока демо-режим",
-      `В полной версии ты бы сейчас писал(а) ${request.userName} первое сообщение.\n\nНапример:\n«Привет, я как раз тоже рядом. Давай встретимся?»`,
-      [{ text: "Понятно" }]
-    );
-  };
-
-  const filteredRequests = useMemo(() => {
-    const goalValue = goalFilterToGoal(filter.goal);
-    const moodValue = moodFilterToMood(filter.mood);
-
-    return DEMO_NOW_REQUESTS.filter((req) => {
-      if (dismissedIds.includes(req.id)) return false;
-
-      if (filter.adultsOnly && !req.is18Plus) return false;
-
-      if (goalValue && req.goal !== goalValue) return false;
-
-      if (moodValue && req.mood !== moodValue) return false;
-
-      return true;
+    setLoading(true);
+    const unsub = subscribeNowPosts(db, region, (list) => {
+      setPosts(list);
+      setLoading(false);
     });
-  }, [dismissedIds, filter]);
 
-  const hasCustomFilter =
-    filter.goal !== "all" ||
-    filter.mood !== "any" ||
-    !filter.adultsOnly ||
-    dismissedIds.length > 0;
+    return () => unsub?.();
+  }, [region]);
 
-  const foundCount = filteredRequests.length;
+  const onSend = async () => {
+    if (!user) {
+      Alert.alert(
+        "Нужен вход",
+        "Чтобы писать в разделе “Сейчас”, сначала войди или зарегистрируйся."
+      );
+      return;
+    }
 
-  return (
-    <SafeAreaView
-      style={{ flex: 1, backgroundColor: theme.colors.background }}
-      edges={["top", "left", "right"]}
+    if (!db || !isFirebaseConfigured()) {
+      Alert.alert(
+        "Firebase не подключён",
+        "Раздел “Сейчас” работает через Firebase. Проверь .env и перезапусти Expo."
+      );
+      return;
+    }
+
+    const trimmed = message.trim();
+    if (!trimmed) {
+      Alert.alert("Пустой текст", "Напиши хотя бы одну фразу.");
+      return;
+    }
+
+    if (!pos) {
+      Alert.alert(
+        "Нет локации",
+        "Не удалось получить координаты. Попробуй обновить местоположение."
+      );
+      return;
+    }
+
+    try {
+      setSending(true);
+
+      await createNowPost(db, {
+        uid: user.uid,
+        nickname,
+        text: trimmed,
+        mood,
+        lat: pos.lat,
+        lng: pos.lng,
+      });
+
+      // clear composer
+      setMessage("");
+      setComposerKey((k) => k + 1);
+    } catch (e: any) {
+      Alert.alert(
+        "Ошибка",
+        e?.message ?? "Не удалось отправить сообщение, попробуй ещё раз."
+      );
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const visiblePosts = useMemo(() => {
+    return posts.filter((p) => {
+      const dist = distanceKm(pos, p);
+      if (radiusKm == null || dist == null) return true;
+      return dist <= radiusKm;
+    });
+  }, [posts, pos, radiusKm]);
+
+  const renderMoodChips = () => (
+    <View
+      style={{
+        flexDirection: "row",
+        flexWrap: "wrap",
+        gap: 8,
+        marginTop: 6,
+      }}
     >
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={{
-          paddingHorizontal: 16,
-          paddingBottom: 24 + insets.bottom,
+      {MOOD_META.map((m) => {
+        const active = m.key === mood;
+        return (
+          <TouchableOpacity
+            key={m.key}
+            onPress={() => setMood(m.key)}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              paddingHorizontal: 10,
+              paddingVertical: 6,
+              borderRadius: 999,
+              backgroundColor: active
+                ? "rgba(52,211,153,0.18)"
+                : "rgba(15,23,42,0.95)",
+              borderWidth: 1,
+              borderColor: active
+                ? "rgba(52,211,153,0.9)"
+                : "rgba(75,85,99,0.8)",
+            }}
+          >
+            <Text style={{ fontSize: 14, marginRight: 4 }}>{m.emoji}</Text>
+            <Text
+              style={{
+                color: active ? "#A7F3D0" : "#E5E7EB",
+                fontSize: 12,
+                fontWeight: active ? "800" : "500",
+              }}
+            >
+              {m.label}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+
+  const renderRadiusChips = () => (
+    <View
+      style={{
+        flexDirection: "row",
+        flexWrap: "wrap",
+        gap: 8,
+        marginTop: 6,
+        marginBottom: 8,
+      }}
+    >
+      {RADIUS_OPTIONS.map((option, idx) => {
+        const active = radiusKm === option;
+        const label = option == null ? "Все" : `${option} км`;
+
+        return (
+          <TouchableOpacity
+            key={idx}
+            onPress={() => setRadiusKm(option)}
+            style={{
+              paddingHorizontal: 10,
+              paddingVertical: 6,
+              borderRadius: 999,
+              borderWidth: 1,
+              borderColor: active
+                ? "rgba(251,191,36,1)"
+                : "rgba(75,85,99,0.8)",
+              backgroundColor: active
+                ? "rgba(251,191,36,0.18)"
+                : "rgba(15,23,42,0.95)",
+            }}
+          >
+            <Text
+              style={{
+                color: active ? "#FBBF24" : "#E5E7EB",
+                fontSize: 12,
+                fontWeight: active ? "800" : "500",
+              }}
+            >
+              {label}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+
+  const renderComposer = () => (
+    <View
+      style={{
+        borderRadius: 18,
+        padding: 14,
+        backgroundColor: "rgba(15,23,42,0.96)",
+        borderWidth: 1,
+        borderColor: "rgba(75,85,99,0.9)",
+        marginBottom: 14,
+      }}
+    >
+      <Text
+        style={{
+          color: "#E5E7EB",
+          fontSize: 15,
+          fontWeight: "800",
+          marginBottom: 4,
         }}
       >
-        {/* Заголовок */}
-        <View style={{ marginBottom: 16, marginTop: 8 }}>
-          <Text
-            style={{
-              fontSize: 28,
-              fontWeight: "800",
-              color: theme.colors.text,
-              marginBottom: 4,
-            }}
-          >
-            Сейчас
-          </Text>
-          <Text
-            style={{
-              fontSize: 14,
-              color: theme.colors.subtext,
-            }}
-          >
-            Люди рядом пишут, чего они хотят прямо сейчас. Фильтруй по цели,
-            настроению и 18+.
-          </Text>
+        Что ты хочешь сейчас?
+      </Text>
+      <Text
+        style={{
+          color: "#9CA3AF",
+          fontSize: 12,
+          marginBottom: 6,
+        }}
+      >
+        Сообщения видят люди в твоём районе. Радиус можно поменять ниже — от 5 км до 100 км.
+      </Text>
+
+      {renderMoodChips()}
+
+      <TextInput
+        key={`now-composer-${composerKey}`}
+        value={message}
+        onChangeText={setMessage}
+        placeholder="Напиши, что у тебя на уме прямо сейчас…"
+        placeholderTextColor="#6B7280"
+        multiline
+        style={{
+          marginTop: 10,
+          borderRadius: 12,
+          borderWidth: 1,
+          borderColor: "rgba(75,85,99,0.9)",
+          backgroundColor: "rgba(15,23,42,0.96)",
+          paddingHorizontal: 10,
+          paddingVertical: 8,
+          color: "#E5E7EB",
+          fontSize: 14,
+          height: 80,
+          textAlignVertical: "top",
+        }}
+      />
+
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          marginTop: 10,
+        }}
+      >
+        <View style={{ flex: 1 }}>
+          {posLoading ? (
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              <ActivityIndicator size="small" color={theme.colors.primary} />
+              <Text style={{ color: "#9CA3AF", fontSize: 12 }}>
+                Обновляем местоположение…
+              </Text>
+            </View>
+          ) : pos ? (
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              <Ionicons name="location-outline" size={16} color="#A7F3D0" />
+              <Text style={{ color: "#9CA3AF", fontSize: 12 }}>
+                Локация готова (точность ~
+                {Math.round(pos.accuracy ?? 0)} м)
+              </Text>
+            </View>
+          ) : (
+            <TouchableOpacity
+              onPress={ensurePosition}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              <Ionicons
+                name="location-off-outline"
+                size={16}
+                color="#F97373"
+              />
+              <Text
+                style={{
+                  color: "#FCA5A5",
+                  fontSize: 12,
+                  textDecorationLine: "underline",
+                }}
+              >
+                Включить геолокацию для “Сейчас”
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
 
-        {/* Кнопка "Я сейчас хочу..." */}
         <TouchableOpacity
-          onPress={handlePressCreateNow}
-          activeOpacity={0.9}
+          onPress={onSend}
+          disabled={sending}
           style={{
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "center",
-            paddingVertical: 14,
-            borderRadius: 999,
-            backgroundColor: theme.colors.accent,
-            marginBottom: 16,
+            paddingHorizontal: 14,
+            paddingVertical: 8,
+            borderRadius: 12,
+            backgroundColor: sending
+              ? "rgba(55,65,81,0.9)"
+              : theme.colors.primary,
           }}
         >
-          <Ionicons
-            name="flash-outline"
-            size={20}
-            color={theme.colors.background}
-            style={{ marginRight: 8 }}
-          />
           <Text
             style={{
-              color: theme.colors.background,
-              fontSize: 16,
-              fontWeight: "700",
+              color: "white",
+              fontSize: 13,
+              fontWeight: "800",
             }}
           >
-            Я сейчас хочу...
+            Отправить
           </Text>
         </TouchableOpacity>
+      </View>
+    </View>
+  );
 
-        {/* Фильтры */}
-        <PillToggleRow
-          title="Цель сейчас"
-          options={[
-            { id: "all", label: "Все" },
-            { id: "dating", label: "Знакомства" },
-            { id: "friends", label: "Друзья" },
-            { id: "chat", label: "Чат" },
-            { id: "longterm", label: "Надолго" },
-            { id: "today", label: "На сегодня" },
-            { id: "flirt", label: "Флирт" },
-          ]}
-          selectedId={filter.goal}
-          onChange={handleGoalChange}
-        />
+  const renderPostItem = ({ item }: { item: NowPost }) => {
+    const moodMeta = MOOD_META.find((m) => m.key === item.mood) ?? MOOD_META[0];
+    const dist = distanceKm(pos, item);
 
-        <PillToggleRow
-          title="Настроение"
-          options={[
-            { id: "any", label: "Все" },
-            { id: "calm", label: "Спокойно" },
-            { id: "happy", label: "Радостно" },
-            { id: "active", label: "Активно" },
-            { id: "serious", label: "Серьёзно" },
-            { id: "party", label: "Вечеринка" },
-          ]}
-          selectedId={filter.mood}
-          onChange={handleMoodChange}
-        />
-
-        {/* 18+ + найдено + сброс */}
+    return (
+      <View
+        style={{
+          borderRadius: 16,
+          padding: 12,
+          marginBottom: 10,
+          backgroundColor: "rgba(15,23,42,0.96)",
+          borderWidth: 1,
+          borderColor: "rgba(55,65,81,0.9)",
+        }}
+      >
         <View
           style={{
             flexDirection: "row",
             alignItems: "center",
-            justifyContent: "space-between",
-            marginBottom: 12,
+            marginBottom: 4,
           }}
         >
-          <TouchableOpacity
-            onPress={handleAdultsToggle}
-            activeOpacity={0.8}
-            style={{ flexDirection: "row", alignItems: "center" }}
-          >
-            <View
-              style={{
-                width: 20,
-                height: 20,
-                borderRadius: 4,
-                borderWidth: 1.5,
-                borderColor: filter.adultsOnly
-                  ? theme.colors.accent
-                  : "rgba(148, 163, 184, 0.8)",
-                marginRight: 8,
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: filter.adultsOnly
-                  ? theme.colors.accent
-                  : "transparent",
-              }}
-            >
-              {filter.adultsOnly && (
-                <Ionicons
-                  name="checkmark-sharp"
-                  size={14}
-                  color={theme.colors.background}
-                />
-              )}
-            </View>
-            <Text
-              style={{
-                fontSize: 14,
-                color: theme.colors.text,
-              }}
-            >
-              Показывать только 18+
-            </Text>
-          </TouchableOpacity>
-
-          <View style={{ flexDirection: "row", alignItems: "center" }}>
-            <Text
-              style={{
-                fontSize: 14,
-                color: theme.colors.subtext,
-                marginRight: 12,
-              }}
-            >
-              Найдено: {foundCount}
-            </Text>
-
-            {hasCustomFilter && (
-              <TouchableOpacity
-                onPress={handleResetFilters}
-                activeOpacity={0.8}
-                style={{
-                  paddingHorizontal: 10,
-                  paddingVertical: 6,
-                  borderRadius: 999,
-                  borderWidth: 1,
-                  borderColor: "rgba(148,163,184,0.6)",
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: 12,
-                    fontWeight: "600",
-                    color: theme.colors.subtext,
-                  }}
-                >
-                  Сбросить
-                </Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
-
-        {/* Статус загрузки настроек */}
-        {isPrefsLoading && (
-          <View
+          <Text
             style={{
-              paddingVertical: 24,
-              alignItems: "center",
-              justifyContent: "center",
+              color: "#E5E7EB",
+              fontSize: 14,
+              fontWeight: "700",
+              flex: 1,
             }}
           >
-            <ActivityIndicator color={theme.colors.accent} />
-            <Text
-              style={{
-                marginTop: 8,
-                fontSize: 13,
-                color: theme.colors.subtext,
-              }}
-            >
-              Загружаем твои фильтры...
-            </Text>
-          </View>
-        )}
+            {moodMeta.emoji} {item.nickname}
+          </Text>
+          <Text
+            style={{
+              color: "#9CA3AF",
+              fontSize: 11,
+            }}
+          >
+            {formatAgo(item.createdAt)}
+            {dist != null ? ` • ~${dist} км` : ""}
+          </Text>
+        </View>
+        <Text
+          style={{
+            color: "#9CA3AF",
+            fontSize: 12,
+            marginBottom: 4,
+          }}
+        >
+          {moodMeta.label}
+        </Text>
+        <Text
+          style={{
+            color: "#D1D5DB",
+            fontSize: 13,
+          }}
+        >
+          {item.text}
+        </Text>
+      </View>
+    );
+  };
 
-        {/* Плашка про сохранение */}
-        {!isPrefsLoading && isSavingPrefs && (
+  return (
+    <ScreenBackground>
+      <SafeAreaView
+        style={{ flex: 1, backgroundColor: "transparent" }}
+      >
+        <View
+          style={{
+            flex: 1,
+            paddingHorizontal: 16,
+            paddingTop: 8,
+            paddingBottom: insets.bottom + 8,
+          }}
+        >
+          <SectionTitle>Сейчас</SectionTitle>
+
+          {renderComposer()}
+
           <View
             style={{
-              marginBottom: 8,
-              paddingVertical: 6,
-              paddingHorizontal: 10,
-              borderRadius: 999,
-              backgroundColor: "rgba(56,189,248,0.08)",
-              alignSelf: "flex-start",
               flexDirection: "row",
               alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: 2,
             }}
           >
-            <Ionicons
-              name="cloud-done-outline"
-              size={14}
-              color={theme.colors.subtext}
-              style={{ marginRight: 6 }}
-            />
             <Text
               style={{
+                color: "#E5E7EB",
+                fontSize: 15,
+                fontWeight: "800",
+              }}
+            >
+              Люди рядом прямо сейчас
+            </Text>
+            <Text
+              style={{
+                color: "#9CA3AF",
                 fontSize: 11,
-                color: theme.colors.subtext,
               }}
             >
-              Фильтры сохранены
+              Радиус:{" "}
+              {radiusKm == null ? "все расстояния" : `до ~${radiusKm} км`}
             </Text>
           </View>
-        )}
 
-        {/* Список запросов / пустое состояние */}
-        {foundCount === 0 && !isPrefsLoading ? (
-          <View
-            style={{
-              marginTop: 24,
-              padding: 16,
-              borderRadius: 20,
-              backgroundColor: theme.colors.card,
-            }}
-          >
-            <Text
+          {renderRadiusChips()}
+
+          {loading ? (
+            <View
               style={{
-                fontSize: 16,
-                fontWeight: "700",
-                color: theme.colors.text,
-                marginBottom: 4,
+                flex: 1,
+                alignItems: "center",
+                justifyContent: "center",
               }}
             >
-              Сейчас тихо
-            </Text>
-            <Text
-              style={{
-                fontSize: 14,
-                color: theme.colors.subtext,
-                marginBottom: 8,
+              <ActivityIndicator color={theme.colors.primary} />
+            </View>
+          ) : (
+            <FlatList
+              data={visiblePosts}
+              keyExtractor={(x) => x.id}
+              renderItem={renderPostItem}
+              contentContainerStyle={{
+                paddingTop: 4,
+                paddingBottom: 16,
               }}
-            >
-              По выбранным фильтрам пока нет запросов. Попробуй сменить
-              настроение или цель, либо загляни позже.
-            </Text>
-          </View>
-        ) : (
-          filteredRequests.map((req) => {
-            const ageText = req.age ? `, ${req.age}` : "";
-
-            return (
-              <View
-                key={req.id}
-                style={{
-                  marginTop: 12,
-                  padding: 16,
-                  borderRadius: 24,
-                  backgroundColor: theme.colors.card,
-                }}
-              >
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    marginBottom: 4,
-                  }}
-                >
+              ListEmptyComponent={
+                <View style={{ paddingTop: 16 }}>
                   <Text
                     style={{
-                      fontSize: 18,
-                      fontWeight: "800",
-                      color: theme.colors.text,
-                      marginRight: 8,
+                      color: "#9CA3AF",
+                      fontSize: 13,
                     }}
                   >
-                    {req.userName}
-                    {ageText}
+                    Пока никто поблизости не написал, что хочет сделать
+                    прямо сейчас. Начни первым.
                   </Text>
-
-                  {req.is18Plus && (
-                    <View
-                      style={{
-                        paddingHorizontal: 8,
-                        paddingVertical: 3,
-                        borderRadius: 999,
-                        backgroundColor: "rgba(248,113,113,0.18)",
-                      }}
-                    >
-                      <Text
-                        style={{
-                          fontSize: 11,
-                          fontWeight: "700",
-                          color: "#fecaca",
-                        }}
-                      >
-                        18+
-                      </Text>
-                    </View>
-                  )}
                 </View>
-
-                <Text
-                  style={{
-                    fontSize: 13,
-                    color: theme.colors.subtext,
-                    marginBottom: 8,
-                  }}
-                >
-                  ~{req.distanceKm.toFixed(1)} км · {req.minutesAgo} мин назад
-                </Text>
-
-                <Text
-                  style={{
-                    fontSize: 15,
-                    color: theme.colors.text,
-                    marginBottom: 12,
-                  }}
-                >
-                  {req.text}
-                </Text>
-
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    marginBottom: 14,
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <View
-                    style={{
-                      paddingHorizontal: 10,
-                      paddingVertical: 6,
-                      borderRadius: 999,
-                      backgroundColor: "rgba(148,163,184,0.18)",
-                      marginRight: 8,
-                      marginBottom: 6,
-                    }}
-                  >
-                    <Text
-                      style={{
-                        fontSize: 12,
-                        fontWeight: "600",
-                        color: theme.colors.subtext,
-                      }}
-                    >
-                      {formatGoal(req.goal)}
-                    </Text>
-                  </View>
-
-                  <View
-                    style={{
-                      paddingHorizontal: 10,
-                      paddingVertical: 6,
-                      borderRadius: 999,
-                      backgroundColor: "rgba(52,211,153,0.16)",
-                      marginBottom: 6,
-                    }}
-                  >
-                    <Text
-                      style={{
-                        fontSize: 12,
-                        fontWeight: "600",
-                        color: "#bbf7d0",
-                      }}
-                    >
-                      Настроение: {formatMood(req.mood).toLowerCase()}
-                    </Text>
-                  </View>
-                </View>
-
-                <View
-                  style={{
-                    flexDirection: "row",
-                    justifyContent: "space-between",
-                  }}
-                >
-                  <TouchableOpacity
-                    onPress={() => handleDismiss(req.id)}
-                    activeOpacity={0.85}
-                    style={{
-                      flex: 1,
-                      marginRight: 8,
-                      paddingVertical: 12,
-                      borderRadius: 999,
-                      borderWidth: 1,
-                      borderColor: "rgba(148,163,184,0.6)",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <Text
-                      style={{
-                        fontSize: 14,
-                        fontWeight: "600",
-                        color: theme.colors.subtext,
-                      }}
-                    >
-                      Неинтересно
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    onPress={() => handlePressReply(req)}
-                    activeOpacity={0.9}
-                    style={{
-                      flex: 1,
-                      marginLeft: 8,
-                      paddingVertical: 12,
-                      borderRadius: 999,
-                      backgroundColor: theme.colors.accent,
-                      flexDirection: "row",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <Ionicons
-                      name="chatbubble-ellipses-outline"
-                      size={18}
-                      color={theme.colors.background}
-                      style={{ marginRight: 6 }}
-                    />
-                    <Text
-                      style={{
-                        fontSize: 14,
-                        fontWeight: "700",
-                        color: theme.colors.background,
-                      }}
-                    >
-                      Ответить
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            );
-          })
-        )}
-      </ScrollView>
-    </SafeAreaView>
+              }
+            />
+          )}
+        </View>
+      </SafeAreaView>
+    </ScreenBackground>
   );
-};
-
-export default NowScreen;
+}

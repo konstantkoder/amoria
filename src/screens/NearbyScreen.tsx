@@ -1,459 +1,717 @@
-import React, { useCallback, useEffect, useState } from "react";
+// FILE: src/screens/NearbyScreen.tsx
+import React, { useEffect, useMemo, useState } from "react";
 import {
-  View,
-  Text,
   ActivityIndicator,
-  FlatList,
-  RefreshControl,
   Alert,
+  FlatList,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import * as Location from "expo-location";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
 
-import PillToggleRow from "@/components/PillToggleRow";
 import { theme } from "@/theme";
-import type { UserProfile, Goal, Mood } from "../models/User";
-import { fetchNearbyUsers } from "../services/nearby";
-import { getUserProfile } from "../services/user";
-import UserCard from "../components/UserCard";
-import { DEMO_USERS, type DemoUser } from "../services/demoUsers";
-import { loadAdultModeEnabled } from "../services/adultMode";
-import VoiceIntroModal from "@/components/VoiceIntroModal";
+import { auth, db, isFirebaseConfigured } from "@/config/firebaseConfig";
+import {
+  AdCategory,
+  AdFilters,
+  AVAILABLE_COUNTRIES,
+  PersonalAd,
+  createPersonalAd,
+  getAdCategoryMeta,
+  getDefaultCountry,
+  subscribePersonalAds,
+} from "@/services/ads";
+import ScreenBackground from "@/components/ScreenBackground";
 
-type RadiusFilter = "5" | "10" | "25";
-type NearbyGoalFilter =
-  | "all"
-  | "dating"
-  | "friends"
-  | "chat"
-  | "serious"
-  | "light"
-  | "casual"
-  | "sex18";
-type NearbyMoodFilter =
-  | "any"
-  | "fun"
-  | "calm"
-  | "moving"
-  | "serious"
-  | "party";
-
-const ADULT_GOALS: Goal[] = ["casual", "sex"];
-
-const mapGoalFilter = (filter: NearbyGoalFilter): Goal | null => {
-  switch (filter) {
-    case "all":
-      return null;
-    case "serious":
-      return "long_term";
-    case "light":
-      return "short_term";
-    case "sex18":
-      return "sex";
-    default:
-      return filter;
-  }
+type ComposeState = {
+  title: string;
+  text: string;
+  category: AdCategory;
 };
 
-const mapMoodFilter = (filter: NearbyMoodFilter): Mood | null => {
-  switch (filter) {
-    case "any":
-      return null;
-    case "fun":
-      return "happy";
-    case "calm":
-      return "chill";
-    case "moving":
-      return "active";
-    default:
-      return filter;
-  }
-};
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <Text
+      style={{
+        color: "#E5E7EB",
+        fontSize: 18,
+        fontWeight: "800",
+        marginBottom: 10,
+      }}
+    >
+      {children}
+    </Text>
+  );
+}
+
+function formatAgo(ts: number) {
+  if (!ts) return "";
+  const diff = Date.now() - ts;
+  const sec = Math.floor(diff / 1000);
+  if (sec < 60) return "только что";
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min} мин`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `${h} ч`;
+  const d = Math.floor(h / 24);
+  return `${d} дн`;
+}
 
 export default function NearbyScreen() {
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const insets = useSafeAreaInsets();
+  const user = auth?.currentUser ?? null;
 
-  const [rawUsers, setRawUsers] = useState<UserProfile[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const [radiusFilter, setRadiusFilter] = useState<RadiusFilter>("10");
-  const [nearbyGoalFilter, setNearbyGoalFilter] =
-    useState<NearbyGoalFilter>("all");
-  const [nearbyMoodFilter, setNearbyMoodFilter] =
-    useState<NearbyMoodFilter>("any");
-  const [adultModeEnabled, setAdultModeEnabled] = useState(false);
-  const [voiceIntroUser, setVoiceIntroUser] = useState<UserProfile | null>(null);
-
-  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(
-    null
+  const defaultCountry = useMemo(() => getDefaultCountry(), []);
+  const [countryCode, setCountryCode] = useState(defaultCountry.code);
+  const [city, setCity] = useState<string | undefined>(
+    defaultCountry.cities[0]
   );
 
-  const loadProfile = useCallback(async () => {
-    try {
-      const profile = await getUserProfile();
-      if (profile) {
-        setCurrentUser(profile);
-      }
-    } catch (e) {
-      console.warn("NearbyScreen: failed to load profile", e);
-    }
-  }, []);
-
-  const loadLocationAndUsers = useCallback(
-    async (opts?: { hardRefresh?: boolean }) => {
-      const hardRefresh = opts?.hardRefresh ?? false;
-      const radiusKm = Number(radiusFilter);
-      try {
-        if (!hardRefresh) {
-          setLoading(true);
-        } else {
-          setRefreshing(true);
-        }
-        setError(null);
-
-        let lat = coords?.lat;
-        let lng = coords?.lng;
-
-        if (!lat || !lng) {
-          // Запрашиваем разрешение на геолокацию
-          const { status } = await Location.requestForegroundPermissionsAsync();
-          if (status === "granted") {
-            const loc = await Location.getCurrentPositionAsync({});
-            lat = loc.coords.latitude;
-            lng = loc.coords.longitude;
-          } else {
-            // Если пользователь не дал разрешение — используем пример: центр Загреба
-            lat = 45.815;
-            lng = 15.9819;
-          }
-          setCoords({ lat, lng });
-        }
-
-        if (lat == null || lng == null) {
-          throw new Error("Нет координат для поиска людей рядом");
-        }
-
-        const nearby = await fetchNearbyUsers(lat, lng, radiusKm);
-        setRawUsers(nearby);
-      } catch (e: any) {
-        console.warn("NearbyScreen: load error", e);
-        setError(
-          e?.message ||
-            "Не удалось загрузить людей рядом. Попробуй обновить позже."
-        );
-      } finally {
-        setLoading(false);
-        setRefreshing(false);
-      }
-    },
-    [coords, radiusFilter]
-  );
-
-  useEffect(() => {
-    loadProfile();
-  }, [loadProfile]);
-
-  useEffect(() => {
-    let isMounted = true;
-    (async () => {
-      const enabled = await loadAdultModeEnabled();
-      if (isMounted) {
-        setAdultModeEnabled(enabled);
-      }
-    })();
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  // Первый запуск + изменение радиуса
-  useEffect(() => {
-    loadLocationAndUsers();
-  }, [loadLocationAndUsers]);
-
-  const onRefresh = useCallback(() => {
-    loadLocationAndUsers({ hardRefresh: true });
-  }, [loadLocationAndUsers]);
-
-  // Флаг: показывать ли 18+ цели (casual/sex)
-  const allowAdult = adultModeEnabled;
-
-  // Если из Firebase никого нет — используем DEMO_USERS
-  const sourceUsers: UserProfile[] =
-    rawUsers && rawUsers.length > 0 ? rawUsers : DEMO_USERS;
-
-  const goalValue = mapGoalFilter(nearbyGoalFilter);
-  const moodValue = mapMoodFilter(nearbyMoodFilter);
-  const effectiveGoal =
-    !adultModeEnabled && goalValue && ADULT_GOALS.includes(goalValue)
-      ? null
-      : goalValue;
-
-  const filteredUsers = sourceUsers.filter((u) => {
-    if (!u.uid) return false;
-
-    // не показываем самого себя (для реальных пользователей)
-    if (currentUser && u.uid === currentUser.uid) return false;
-
-    // если у нас выключен 18+ и обычные цели — прячем тех, у кого цель 18+
-    if (!allowAdult && (u.goal === "casual" || u.goal === "sex")) {
-      return false;
-    }
-
-    if (effectiveGoal && u.goal !== effectiveGoal) {
-      return false;
-    }
-
-    if (moodValue && u.mood !== moodValue) {
-      return false;
-    }
-
-    return true;
+  const [filters, setFilters] = useState<AdFilters>({
+    category: "ALL",
+    countryCode: defaultCountry.code,
+    city: defaultCountry.cities[0],
   });
 
-  const radiusOptions = [
-    { id: "5", label: "5 км" },
-    { id: "10", label: "10 км" },
-    { id: "25", label: "25 км" },
-  ];
+  const [ads, setAds] = useState<PersonalAd[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [composeOpen, setComposeOpen] = useState(false);
+  const [compose, setCompose] = useState<ComposeState>({
+    title: "",
+    text: "",
+    category: "F4M",
+  });
 
-  const goalOptions = [
-    { id: "all", label: "Все цели" },
-    { id: "dating", label: "Знакомства" },
-    { id: "friends", label: "Дружба" },
-    { id: "chat", label: "Чат" },
-    { id: "serious", label: "Серьёзно" },
-    { id: "light", label: "Лёгкие" },
-    { id: "casual", label: "Casual" },
-    { id: "sex18", label: "18+ только секс", badge: "18+" },
-  ].filter(
-    (option) => allowAdult || (option.id !== "casual" && option.id !== "sex18")
+  useEffect(() => {
+    if (!isFirebaseConfigured() || !db) return;
+
+    setLoading(true);
+    const unsub = subscribePersonalAds(db, filters, (list) => {
+      setAds(list);
+      setLoading(false);
+    });
+
+    return () => unsub?.();
+  }, [filters]);
+
+  const selectedCountry = useMemo(
+    () => AVAILABLE_COUNTRIES.find((c) => c.code === countryCode),
+    [countryCode]
   );
 
-  const handleOpenNearbyUser = (user: DemoUser) => {
-    const subtitle =
-      user.bio ??
-      user.about ??
-      "Человек рядом. В полной версии можно будет открыть профиль и начать чат.";
-    const title = user.displayName ?? user.name ?? "Профиль";
-    const ageSuffix = user.age ? `, ${user.age}` : "";
+  const canPost = !!user && isFirebaseConfigured() && !!db;
 
-    Alert.alert(
-      `${title}${ageSuffix}`,
-      `${subtitle}\n\nСейчас это демо-режим. В релизе здесь появится полноценный экран анкеты.`,
-      [{ text: "OK" }]
-    );
+  const onChangeFilterCategory = (cat: AdCategory) => {
+    setFilters((prev) => ({ ...prev, category: cat }));
   };
 
-  const handleOpenVoiceIntro = (user: UserProfile) => {
-    setVoiceIntroUser(user);
+  const onChangeCountry = (code: string) => {
+    setCountryCode(code);
+    const conf = AVAILABLE_COUNTRIES.find((c) => c.code === code);
+    const firstCity = conf?.cities[0];
+    setCity(firstCity);
+    setFilters((prev) => ({
+      ...prev,
+      countryCode: code,
+      city: firstCity,
+    }));
   };
 
-  const handleCloseVoiceIntro = () => {
-    setVoiceIntroUser(null);
+  const onChangeCity = (value: string) => {
+    setCity(value);
+    setFilters((prev) => ({
+      ...prev,
+      city: value,
+    }));
   };
 
-  const renderUser = ({ item }: { item: UserProfile }) => {
+  const onToggleCompose = () => {
+    if (!canPost) {
+      Alert.alert(
+        "Вход нужен",
+        "Чтобы создавать анкеты, сначала войди или зарегистрируйся."
+      );
+      return;
+    }
+    setComposeOpen((v) => !v);
+  };
+
+  const onPublish = async () => {
+    if (!canPost || !user || !db) return;
+
+    const trimmedTitle = compose.title.trim();
+    const trimmedText = compose.text.trim();
+    if (!trimmedTitle || !trimmedText) {
+      Alert.alert("Заполни анкету", "Нужны и заголовок, и текст.");
+      return;
+    }
+
+    const country =
+      AVAILABLE_COUNTRIES.find((c) => c.code === countryCode) ??
+      defaultCountry;
+    const cityValue = city ?? country.cities[0];
+
+    try {
+      await createPersonalAd(db, {
+        authorUid: user.uid,
+        title: trimmedTitle,
+        text: trimmedText,
+        category:
+          (compose.category === "ALL" ? "Other" : compose.category) || "Other",
+        countryCode: country.code,
+        countryName: country.name,
+        city: cityValue,
+      });
+      setCompose({ title: "", text: "", category: compose.category });
+      setComposeOpen(false);
+    } catch (e: any) {
+      Alert.alert(
+        "Ошибка",
+        e?.message ?? "Не удалось опубликовать анкету, попробуй позже."
+      );
+    }
+  };
+
+  const renderCategoryFilters = () => {
+    const cats: AdCategory[] = ["ALL", "F4M", "M4F", "M4M", "F4F", "Other"];
+
     return (
       <View
         style={{
-          marginBottom: 16,
-          borderRadius: theme.shapes.card,
-          overflow: "hidden",
-          backgroundColor: theme.colors.card,
+          flexDirection: "row",
+          flexWrap: "wrap",
+          gap: 8,
+          marginBottom: 8,
         }}
       >
-        <View style={{ height: 320 }}>
-          <UserCard
-            user={item}
-            showDistance
-            showGoal
-            onPress={handleOpenNearbyUser}
-            onPressVoiceIntro={handleOpenVoiceIntro}
-          />
+        {cats.map((cat) => {
+          const meta = getAdCategoryMeta(cat);
+          const active = filters.category === cat;
+          return (
+            <TouchableOpacity
+              key={cat}
+              onPress={() => onChangeFilterCategory(cat)}
+              style={{
+                paddingHorizontal: 10,
+                paddingVertical: 6,
+                borderRadius: 999,
+                borderWidth: 1,
+                borderColor: active
+                  ? "rgba(251,191,36,1)"
+                  : "rgba(156,163,175,0.6)",
+                backgroundColor: active
+                  ? "rgba(251,191,36,0.16)"
+                  : "rgba(15,23,42,0.9)",
+              }}
+            >
+              <Text
+                style={{
+                  color: active ? "#FBBF24" : "#E5E7EB",
+                  fontSize: 12,
+                  fontWeight: active ? "800" : "500",
+                }}
+              >
+                {meta.short}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    );
+  };
+
+  const renderLocationFilters = () => {
+    const currentCountry = selectedCountry ?? defaultCountry;
+
+    return (
+      <View style={{ gap: 8 }}>
+        <Text style={{ color: "#9CA3AF", fontSize: 12, marginBottom: 2 }}>
+          Страна и город для объявлений
+        </Text>
+
+        <View
+          style={{
+            flexDirection: "row",
+            gap: 8,
+          }}
+        >
+          {/* Страна */}
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: "#6B7280", fontSize: 11, marginBottom: 4 }}>
+              Страна
+            </Text>
+            <View
+              style={{
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: "rgba(156,163,175,0.6)",
+                backgroundColor: "rgba(15,23,42,0.9)",
+                paddingHorizontal: 10,
+                paddingVertical: 8,
+              }}
+            >
+              {AVAILABLE_COUNTRIES.map((c) => {
+                const active = c.code === countryCode;
+                return (
+                  <TouchableOpacity
+                    key={c.code}
+                    onPress={() => onChangeCountry(c.code)}
+                    style={{
+                      paddingVertical: 4,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: active ? "#FBBF24" : "#E5E7EB",
+                        fontSize: 13,
+                        fontWeight: active ? "700" : "500",
+                      }}
+                    >
+                      {c.name}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+
+          {/* Город */}
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: "#6B7280", fontSize: 11, marginBottom: 4 }}>
+              Город
+            </Text>
+            <View
+              style={{
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: "rgba(156,163,175,0.6)",
+                backgroundColor: "rgba(15,23,42,0.9)",
+                paddingHorizontal: 10,
+                paddingVertical: 8,
+              }}
+            >
+              {currentCountry.cities.map((cityName) => {
+                const active = cityName === city;
+                return (
+                  <TouchableOpacity
+                    key={cityName}
+                    onPress={() => onChangeCity(cityName)}
+                    style={{
+                      paddingVertical: 4,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: active ? "#FBBF24" : "#E5E7EB",
+                        fontSize: 13,
+                        fontWeight: active ? "700" : "500",
+                      }}
+                    >
+                      {cityName}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
         </View>
       </View>
     );
   };
 
-  if (loading && !refreshing && sourceUsers.length === 0) {
+  const renderCompose = () => {
+    if (!composeOpen) return null;
+
     return (
       <View
         style={{
-          flex: 1,
-          backgroundColor: theme.colors.background,
-          alignItems: "center",
-          justifyContent: "center",
-          paddingHorizontal: 24,
-        }}
-      >
-        <ActivityIndicator color={theme.colors.primary} />
-        <Text
-          style={{
-            marginTop: 12,
-            color: theme.colors.subtext,
-            textAlign: "center",
-          }}
-        >
-          Ищем людей поблизости…
-        </Text>
-      </View>
-    );
-  }
-
-  return (
-    <View
-      style={{
-        flex: 1,
-        backgroundColor: theme.colors.background,
-      }}
-    >
-      {/* Заголовок / фильтры */}
-      <View
-        style={{
-          paddingHorizontal: theme.spacing,
-          paddingTop: theme.spacing,
-          paddingBottom: 8,
+          marginTop: 16,
+          padding: 12,
+          borderRadius: 16,
+          backgroundColor: "rgba(15,23,42,0.96)",
+          borderWidth: 1,
+          borderColor: "rgba(251,191,36,0.4)",
         }}
       >
         <Text
           style={{
-            fontSize: 22,
+            color: "#FBBF24",
+            fontSize: 14,
             fontWeight: "800",
-            color: theme.colors.text,
             marginBottom: 8,
           }}
         >
-          Люди рядом
+          Новая анкета
         </Text>
 
-        {currentUser && (
-          <Text
+        {/* Категория */}
+        <Text
+          style={{ color: "#9CA3AF", fontSize: 12, marginBottom: 4 }}
+        >
+          Кого ты ищешь
+        </Text>
+        <View
+          style={{
+            flexDirection: "row",
+            flexWrap: "wrap",
+            gap: 6,
+            marginBottom: 8,
+          }}
+        >
+          {["F4M", "M4F", "M4M", "F4F", "Other"].map((cat) => {
+            const meta = getAdCategoryMeta(cat as AdCategory);
+            const active = compose.category === cat;
+            return (
+              <TouchableOpacity
+                key={cat}
+                onPress={() =>
+                  setCompose((prev) => ({ ...prev, category: cat as AdCategory }))
+                }
+                style={{
+                  paddingHorizontal: 9,
+                  paddingVertical: 5,
+                  borderRadius: 999,
+                  borderWidth: 1,
+                  borderColor: active
+                    ? "rgba(251,191,36,1)"
+                    : "rgba(156,163,175,0.6)",
+                  backgroundColor: active
+                    ? "rgba(251,191,36,0.18)"
+                    : "rgba(15,23,42,0.9)",
+                }}
+              >
+                <Text
+                  style={{
+                    color: active ? "#FBBF24" : "#E5E7EB",
+                    fontSize: 11,
+                    fontWeight: active ? "700" : "500",
+                  }}
+                >
+                  {meta.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {/* Заголовок */}
+        <TextInput
+          value={compose.title}
+          onChangeText={(v) =>
+            setCompose((prev) => ({ ...prev, title: v }))
+          }
+          placeholder="Короткий заголовок…"
+          placeholderTextColor="#6B7280"
+          style={{
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: "rgba(156,163,175,0.6)",
+            backgroundColor: "rgba(15,23,42,0.9)",
+            paddingHorizontal: 10,
+            paddingVertical: 8,
+            color: "#E5E7EB",
+            fontSize: 14,
+            marginBottom: 8,
+          }}
+        />
+
+        {/* Текст */}
+        <TextInput
+          value={compose.text}
+          onChangeText={(v) =>
+            setCompose((prev) => ({ ...prev, text: v }))
+          }
+          placeholder="Расскажи пару фраз о себе и о том, кого ищешь…"
+          placeholderTextColor="#6B7280"
+          multiline
+          style={{
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: "rgba(156,163,175,0.6)",
+            backgroundColor: "rgba(15,23,42,0.9)",
+            paddingHorizontal: 10,
+            paddingVertical: 8,
+            color: "#E5E7EB",
+            fontSize: 14,
+            height: 90,
+            textAlignVertical: "top",
+            marginBottom: 10,
+          }}
+        />
+
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "flex-end",
+            gap: 10,
+          }}
+        >
+          <TouchableOpacity
+            onPress={() => setComposeOpen(false)}
             style={{
-              color: theme.colors.subtext,
-              fontSize: 12,
-              marginBottom: 4,
+              paddingHorizontal: 10,
+              paddingVertical: 7,
+              borderRadius: 10,
+              borderWidth: 1,
+              borderColor: "rgba(156,163,175,0.7)",
             }}
           >
-            Твоя цель:{" "}
-            <Text style={{ color: theme.colors.text }}>
-              {currentUser.goal ?? "не указана"}
-            </Text>{" "}
-            • 18+:{" "}
-            <Text style={{ color: theme.colors.text }}>
-              {adultModeEnabled ? "включён" : "выключен"}
+            <Text
+              style={{ color: "#E5E7EB", fontSize: 13, fontWeight: "600" }}
+            >
+              Отмена
             </Text>
-          </Text>
-        )}
+          </TouchableOpacity>
 
-        {error && (
-          <Text
+          <TouchableOpacity
+            onPress={onPublish}
             style={{
-              color: theme.colors.danger,
-              fontSize: 12,
-              marginBottom: 8,
+              paddingHorizontal: 14,
+              paddingVertical: 8,
+              borderRadius: 12,
+              backgroundColor: theme.colors.primary,
             }}
           >
-            {error}
-          </Text>
-        )}
-
-        <PillToggleRow
-          title="Радиус"
-          options={radiusOptions}
-          selectedId={radiusFilter}
-          onChange={(id) => setRadiusFilter(id as RadiusFilter)}
-        />
-
-        <PillToggleRow
-          title="Цели"
-          options={goalOptions}
-          selectedId={nearbyGoalFilter}
-          onChange={(id) => setNearbyGoalFilter(id as NearbyGoalFilter)}
-        />
-
-        <PillToggleRow
-          title="Настроение"
-          options={[
-            { id: "any", label: "Любое" },
-            { id: "fun", label: "Весёлое" },
-            { id: "calm", label: "Спокойное" },
-            { id: "moving", label: "В движении" },
-            { id: "serious", label: "Серьёзное" },
-            { id: "party", label: "Тусовка" },
-          ]}
-          selectedId={nearbyMoodFilter}
-          onChange={(id) => setNearbyMoodFilter(id as NearbyMoodFilter)}
-        />
-
-        {!allowAdult && (
-          <Text
-            style={{
-              color: theme.colors.muted,
-              fontSize: 11,
-              marginTop: 2,
-            }}
-          >
-            18+ цели скрыты — включи 18+ режим в профиле, чтобы видеть Casual и
-            «18+ только секс».
-          </Text>
-        )}
+            <Text
+              style={{ color: "white", fontSize: 13, fontWeight: "800" }}
+            >
+              Опубликовать
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
+    );
+  };
 
-      {/* Список пользователей */}
-      <FlatList
-        data={filteredUsers}
-        keyExtractor={(item) => item.uid}
-        renderItem={renderUser}
-        contentContainerStyle={{
-          paddingHorizontal: theme.spacing,
-          paddingBottom: theme.spacing * 2,
+  const renderAdItem = ({ item }: { item: PersonalAd }) => {
+    const catMeta = getAdCategoryMeta(item.category);
+
+    return (
+      <View
+        style={{
+          borderRadius: 16,
+          padding: 12,
+          marginBottom: 10,
+          backgroundColor: "rgba(15,23,42,0.96)",
+          borderWidth: 1,
+          borderColor: "rgba(55,65,81,0.9)",
         }}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={theme.colors.primary}
-          />
-        }
-        ListEmptyComponent={
-          !loading ? (
-            <View
+      >
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            marginBottom: 4,
+          }}
+        >
+          <Text
+            style={{
+              color: "#F9FAFB",
+              fontSize: 15,
+              fontWeight: "800",
+              flex: 1,
+            }}
+          >
+            {item.title || "Без названия"}
+          </Text>
+          <Text
+            style={{
+              color: "#9CA3AF",
+              fontSize: 11,
+            }}
+          >
+            {formatAgo(item.createdAt)}
+          </Text>
+        </View>
+
+        <Text
+          style={{
+            color: "#9CA3AF",
+            fontSize: 12,
+            marginBottom: 4,
+          }}
+        >
+          {catMeta.label}
+        </Text>
+
+        <Text
+          style={{
+            color: "#D1D5DB",
+            fontSize: 13,
+            marginBottom: 8,
+          }}
+          numberOfLines={4}
+        >
+          {item.text}
+        </Text>
+
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
+          <Text
+            style={{
+              color: "#9CA3AF",
+              fontSize: 12,
+            }}
+          >
+            {item.countryName}, {item.city}
+          </Text>
+
+          <TouchableOpacity
+            onPress={() =>
+              Alert.alert(
+                "Сообщение",
+                "Чат по анкете будет подключён к общему чату Amoria на следующем шаге."
+              )
+            }
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              paddingHorizontal: 10,
+              paddingVertical: 6,
+              borderRadius: 999,
+              backgroundColor: "rgba(251,191,36,0.16)",
+              borderWidth: 1,
+              borderColor: "rgba(251,191,36,0.7)",
+            }}
+          >
+            <Ionicons
+              name="chatbubble-ellipses-outline"
+              size={14}
+              color="#FBBF24"
+            />
+            <Text
               style={{
-                paddingVertical: 40,
-                alignItems: "center",
-                justifyContent: "center",
+                color: "#FBBF24",
+                fontSize: 12,
+                fontWeight: "700",
+                marginLeft: 4,
               }}
             >
-              <Text
-                style={{
-                  color: theme.colors.subtext,
-                  textAlign: "center",
-                  marginBottom: 4,
-                }}
-              >
-                Пока никого рядом не видно.
-              </Text>
-              <Text
-                style={{
-                  color: theme.colors.muted,
-                  fontSize: 12,
-                  textAlign: "center",
-                }}
-              >
-                Попробуй увеличить радиус, изменить фильтры или зайти чуть позже.
-              </Text>
-            </View>
-          ) : null
-        }
-      />
-      <VoiceIntroModal
-        visible={!!voiceIntroUser}
-        onClose={handleCloseVoiceIntro}
-        userName={voiceIntroUser?.displayName ?? voiceIntroUser?.name}
-        durationSeconds={voiceIntroUser?.voiceIntroDurationSec ?? 8}
-      />
-    </View>
+              Написать
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  };
+
+  return (
+    <ScreenBackground>
+      <SafeAreaView
+        style={{ flex: 1, backgroundColor: "transparent" }}
+      >
+      <View
+        style={{
+          flex: 1,
+          paddingTop: 8,
+          paddingHorizontal: 16,
+          paddingBottom: insets.bottom + 8,
+        }}
+      >
+          <SectionTitle>Объявления</SectionTitle>
+
+        <Text
+          style={{
+            color: "#9CA3AF",
+            fontSize: 13,
+            marginBottom: 10,
+          }}
+        >
+          Здесь люди оставляют личные объявлении о знакомстве.{"\n"}Ты
+          выбираешь страну, город и формат поиска.
+        </Text>
+
+        {renderCategoryFilters()}
+        {renderLocationFilters()}
+
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            marginTop: 12,
+            marginBottom: 4,
+          }}
+        >
+          <Text
+            style={{
+              color: "#E5E7EB",
+              fontSize: 15,
+              fontWeight: "800",
+              flex: 1,
+            }}
+          >
+            Объявления
+          </Text>
+
+          <TouchableOpacity
+            onPress={onToggleCompose}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              paddingHorizontal: 10,
+              paddingVertical: 6,
+              borderRadius: 999,
+              backgroundColor: "rgba(79,70,229,0.18)",
+              borderWidth: 1,
+              borderColor: "rgba(129,140,248,0.7)",
+            }}
+          >
+            <Ionicons name="add-circle-outline" size={16} color="#A5B4FC" />
+            <Text
+              style={{
+                color: "#E5E7EB",
+                fontSize: 12,
+                fontWeight: "700",
+                marginLeft: 4,
+              }}
+            >
+              Новая анкета
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {composeOpen && renderCompose()}
+
+        {loading ? (
+          <View
+            style={{
+              flex: 1,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <ActivityIndicator color={theme.colors.primary} />
+          </View>
+        ) : (
+          <FlatList
+            data={ads}
+            keyExtractor={(x) => x.id}
+            renderItem={renderAdItem}
+            contentContainerStyle={{
+              paddingTop: 8,
+              paddingBottom: 16,
+            }}
+            ListEmptyComponent={
+              <View style={{ paddingTop: 20 }}>
+                <Text style={{ color: "#9CA3AF", fontSize: 13 }}>
+                  Пока объявлений нет. Стань первым — создай анкету в своём
+                  городе.
+                </Text>
+              </View>
+            }
+          />
+        )}
+      </View>
+      </SafeAreaView>
+    </ScreenBackground>
   );
 }

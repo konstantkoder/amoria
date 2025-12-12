@@ -1,890 +1,718 @@
-import React, { useEffect, useRef, useState } from "react";
+// FILE: src/screens/RoomsScreen.tsx
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  TextInput,
+  ActivityIndicator,
+  Alert,
+  FlatList,
   KeyboardAvoidingView,
   Platform,
-  Animated,
-  Easing,
-  Alert,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import * as Location from "expo-location";
+import MapView, { Circle, Marker } from "react-native-maps";
+
 import { theme } from "@/theme";
+import { auth, db, isFirebaseConfigured } from "@/config/firebaseConfig";
+import ScreenBackground from "@/components/ScreenBackground";
+import {
+  RoomDoc,
+  RoomKind,
+  RoomMember,
+  RoomMessage,
+  ROOM_KIND_ORDER,
+  getRoomMeta,
+  makeNickname,
+  openOrCreateGeoRoom,
+  sendRoomMessage,
+  subscribeRoomMembers,
+  subscribeRoomMessages,
+  touchRoomMember,
+} from "@/services/rooms";
 
-type RoomCategory = "office" | "bar" | "cafe";
+type Stage = "choose" | "chat";
 
-type Room = {
-  id: string;
-  title: string;
-  description: string;
-  distanceKm: number;
-  activeCount: number;
-  category: RoomCategory;
+type Pos = {
+  lat: number;
+  lng: number;
+  accuracy?: number | null;
 };
 
-type RoomMessage = {
-  id: string;
-  author: "you" | "other";
-  text: string;
-  createdAt: string;
-  reactions?: { like?: number; laugh?: number; fire?: number };
-  voiceIntro?: string; // псевдо-голосовое интро ("~0:07" и т.п.)
-  type?: "voice-demo";
+type LatLng = {
+  latitude: number;
+  longitude: number;
 };
 
-const demoRooms: Room[] = [
-  {
-    id: "office",
-    title: "Офис рядом",
-    description: "Чат для сотрудников и соседних фрилансеров",
-    distanceKm: 0.3,
-    activeCount: 5,
-    category: "office",
-  },
-  {
-    id: "bar",
-    title: "Бар на углу",
-    description: "Бар сегодня шумный, но уютный 🍻",
-    distanceKm: 0.7,
-    activeCount: 8,
-    category: "bar",
-  },
-  {
-    id: "cafe",
-    title: "Кофейня на площади",
-    description: "Идеально для тихого общения и первых встреч",
-    distanceKm: 1.2,
-    activeCount: 3,
-    category: "cafe",
-  },
-];
-
-const demoMessagesByRoom: Record<string, RoomMessage[]> = {
-  office: [
-    {
-      id: "m1",
-      author: "other",
-      text: "Кто идёт за кофе в ближайшие 10 минут? ☕",
-      createdAt: "10 мин назад",
-      reactions: { like: 2 },
-      voiceIntro: "~0:07",
-    },
-    {
-      id: "m2",
-      author: "other",
-      text: "Если что, я на 3 этаже, у окна.",
-      createdAt: "8 мин назад",
-    },
-  ],
-  bar: [
-    {
-      id: "m3",
-      author: "other",
-      text: "Бар сегодня очень живой. Кто рядом и хочет присоединиться? 🍹",
-      createdAt: "5 мин назад",
-      reactions: { fire: 3, laugh: 1 },
-    },
-  ],
-  cafe: [
-    {
-      id: "m4",
-      author: "other",
-      text: "Сижу в углу у розетки. Можно подсесть, если нужно поработать вместе.",
-      createdAt: "15 мин назад",
-      voiceIntro: "~0:05",
-    },
-  ],
-};
-
-const demoParticipantsByRoom: Record<string, string[]> = {
-  office: ["Анна", "Макс", "Лена", "Ты"],
-  bar: ["Игорь", "Катя", "Сергей", "Ты"],
-  cafe: ["Мария", "Олег", "Ты"],
-};
-
-const quickPhrasesByRoom: Record<string, string[]> = {
-  office: [
-    "Кто идёт за кофе?",
-    "Есть желающие пообедать вместе?",
-    "Нужен совет по проекту 👀",
-  ],
-  bar: [
-    "Кто уже в баре?",
-    "Заказываю первый раунд 🍻",
-    "Где сидите? Не могу найти 🙈",
-  ],
-  cafe: [
-    "Кто в кофейне сейчас?",
-    "Можно подсесть к кому-то?",
-    "Кто за совместный фокус-час? ☕",
-  ],
-};
-
-function getRoomIconName(category: RoomCategory): keyof typeof Ionicons.glyphMap {
-  switch (category) {
-    case "office":
-      return "briefcase-outline";
-    case "bar":
-      return "wine-outline";
-    case "cafe":
-    default:
-      return "cafe-outline";
-  }
+function formatAgo(ts: number) {
+  const diff = Date.now() - ts;
+  if (diff < 15_000) return "сейчас";
+  const sec = Math.floor(diff / 1000);
+  if (sec < 60) return `${sec}с`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}м`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `${h}ч`;
+  const d = Math.floor(h / 24);
+  return `${d}д`;
 }
 
-// --- Компонент пузыря сообщения с реакциями и reply-свайпом ---
-
-function MessageBubble({
-  message,
-  onReact,
-  onReply,
-}: {
-  message: RoomMessage;
-  onReact: (id: string, type: keyof NonNullable<RoomMessage["reactions"]>) => void;
-  onReply: (id: string, text: string) => void;
-}) {
-  const isYou = message.author === "you";
-  const slide = new Animated.Value(0);
-
-  const triggerSwipe = () => {
-    Animated.timing(slide, {
-      toValue: 1,
-      duration: 180,
-      easing: Easing.ease,
-      useNativeDriver: true,
-    }).start(() => {
-      onReply(message.id, message.text);
-      slide.setValue(0);
-    });
-  };
-
+function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
-    <TouchableOpacity
-      activeOpacity={0.8}
-      onLongPress={triggerSwipe}
+    <Text
       style={{
-        alignSelf: isYou ? "flex-end" : "flex-start",
-        maxWidth: "80%",
+        color: "#E5E7EB",
+        fontSize: 18,
+        fontWeight: "800",
         marginBottom: 10,
       }}
     >
-      <Animated.View
-        style={{
-          transform: [
-            {
-              translateX: slide.interpolate({
-                inputRange: [0, 1],
-                outputRange: [0, isYou ? -30 : 30],
-              }),
-            },
-          ],
-        }}
-      >
+      {children}
+    </Text>
+  );
+}
+
+function offsetPosition(base: Pos, eastM: number, northM: number): LatLng {
+  const latOffset = northM / 111_320; // метры в градусы широты
+  const lngOffset =
+    eastM / (111_320 * Math.cos((base.lat * Math.PI) / 180));
+  return {
+    latitude: base.lat + latOffset,
+    longitude: base.lng + lngOffset,
+  };
+}
+
+function getRoomMarkerCoord(base: Pos, kind: RoomKind): LatLng {
+  switch (kind) {
+    case "work":
+      return offsetPosition(base, 0, 200);
+    case "bar":
+      return offsetPosition(base, 180, 80);
+    case "cafe":
+      return offsetPosition(base, -180, 80);
+    case "gym":
+      return offsetPosition(base, 150, -80);
+    case "park":
+      return offsetPosition(base, -200, -40);
+    case "home":
+      return offsetPosition(base, 0, -200);
+    default:
+      return offsetPosition(base, 0, 150);
+  }
+}
+
+export default function RoomsScreen() {
+  const insets = useSafeAreaInsets();
+
+  const uid = auth?.currentUser?.uid ?? null;
+  const nickname = useMemo(
+    () => (uid ? makeNickname(uid) : "Аноним"),
+    [uid]
+  );
+
+  const [stage, setStage] = useState<Stage>("choose");
+  const [pos, setPos] = useState<Pos | null>(null);
+  const [posError, setPosError] = useState<string | null>(null);
+  const [posLoading, setPosLoading] = useState(false);
+
+  const [room, setRoom] = useState<RoomDoc | null>(null);
+  const [messages, setMessages] = useState<RoomMessage[]>([]);
+  const [members, setMembers] = useState<RoomMember[]>([]);
+  const [text, setText] = useState("");
+
+  const listRef = useRef<FlatList<RoomMessage>>(null);
+
+  const activeMembers = useMemo(() => {
+    const cutoff = Date.now() - 2 * 60 * 1000; // 2 минуты
+    const uniq = new Map<string, RoomMember>();
+    for (const m of members) {
+      if (m.lastSeen >= cutoff) uniq.set(m.uid, m);
+    }
+    return Array.from(uniq.values());
+  }, [members]);
+
+  const ensurePosition = useCallback(async () => {
+    setPosError(null);
+    setPosLoading(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        throw new Error("Нужен доступ к геолокации (в настройках телефона).");
+      }
+
+      const current = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+
+      setPos({
+        lat: current.coords.latitude,
+        lng: current.coords.longitude,
+        accuracy: current.coords.accuracy,
+      });
+    } catch (e: any) {
+      setPos(null);
+      setPosError(e?.message ?? "Не удалось получить геолокацию.");
+    } finally {
+      setPosLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    ensurePosition();
+  }, [ensurePosition]);
+
+  const enterRoom = useCallback(
+    async (kind: RoomKind) => {
+      if (!uid) {
+        Alert.alert(
+          "Нужен вход",
+          "Сначала войди/зарегистрируйся, чтобы писать в комнатах."
+        );
+        return;
+      }
+      if (!isFirebaseConfigured() || !db) {
+        Alert.alert(
+          "Firebase не подключён",
+          "Комнаты работают через Firebase (Firestore). Проверь .env и перезапусти Expo."
+        );
+        return;
+      }
+      if (!pos) {
+        await ensurePosition();
+      }
+      const p = pos ?? null;
+      if (!p) return;
+
+      try {
+        const next = await openOrCreateGeoRoom(db, kind, p.lat, p.lng);
+        setRoom(next);
+        setStage("chat");
+      } catch (e: any) {
+        Alert.alert("Ошибка", e?.message ?? "Не удалось открыть комнату.");
+      }
+    },
+    [uid, pos, ensurePosition]
+  );
+
+  useEffect(() => {
+    if (!room || !db) return;
+
+    const unsubMsgs = subscribeRoomMessages(db, room.id, (msgs) =>
+      setMessages(msgs)
+    );
+    const unsubMembers = subscribeRoomMembers(db, room.id, (list) =>
+      setMembers(list)
+    );
+
+    return () => {
+      unsubMsgs?.();
+      unsubMembers?.();
+    };
+  }, [room, db]);
+
+  useEffect(() => {
+    if (!room || !db || !uid) return;
+
+    let cancelled = false;
+
+    async function tick() {
+      try {
+        if (cancelled) return;
+        await touchRoomMember(db, room.id, uid, nickname);
+      } catch {
+        // ignore
+      }
+    }
+
+    tick();
+    const t = setInterval(tick, 20_000);
+    return () => {
+      cancelled = true;
+      clearInterval(t);
+    };
+  }, [room, uid, nickname, db]);
+
+  const onSend = useCallback(async () => {
+    if (!room || !db || !uid) return;
+    const value = text.trim();
+    if (!value) return;
+
+    try {
+      setText("");
+      await sendRoomMessage(db, room.id, uid, nickname, value);
+      requestAnimationFrame(() =>
+        listRef.current?.scrollToOffset({ offset: 0, animated: true })
+      );
+    } catch (e: any) {
+      Alert.alert("Ошибка", e?.message ?? "Не удалось отправить сообщение.");
+    }
+  }, [room, db, text, uid, nickname]);
+
+  const leaveRoom = useCallback(() => {
+    setRoom(null);
+    setMessages([]);
+    setMembers([]);
+    setText("");
+    setStage("choose");
+  }, []);
+
+  const renderChoose = () => (
+    <View style={{ flex: 1 }}>
+      <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
+        <SectionTitle>Комнаты рядом</SectionTitle>
+
         <View
           style={{
-            backgroundColor: isYou ? theme.colors.accent : theme.colors.card,
-            padding: 10,
             borderRadius: 18,
-            borderBottomRightRadius: isYou ? 4 : 18,
-            borderBottomLeftRadius: isYou ? 18 : 4,
+            padding: 14,
+            backgroundColor: "rgba(255,255,255,0.06)",
+            borderWidth: 1,
+            borderColor: "rgba(255,255,255,0.08)",
+            marginBottom: 14,
           }}
         >
           <Text
             style={{
-              color: isYou ? "#0B0B10" : theme.colors.text,
+              color: "#E5E7EB",
               fontSize: 14,
+              lineHeight: 20,
             }}
           >
-            {message.text}
+            Здесь чат <Text style={{ fontWeight: "800" }}>без фото</Text>,
+            привязанный к месту.{"\n"}Ты можешь быть на работе или в баре — и
+            общаться только с теми, кто рядом.
           </Text>
 
-          {message.voiceIntro && (
+          <View style={{ height: 10 }} />
+
+          {posLoading ? (
             <View
-              style={{
-                marginTop: 6,
-                flexDirection: "row",
-                alignItems: "center",
-              }}
+              style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
             >
-              <Ionicons
-                name="mic-outline"
-                size={14}
-                color={isYou ? "#0B0B10" : theme.colors.muted}
-              />
-              <Text
+              <ActivityIndicator color={theme.colors.primary} />
+              <Text style={{ color: "#A3A3A3" }}>Получаем геолокацию…</Text>
+            </View>
+          ) : pos ? (
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
+            >
+              <Ionicons name="location-outline" size={18} color="#E5E7EB" />
+              <Text style={{ color: "#E5E7EB", fontSize: 13 }}>
+                Локация готова (точность ~
+                {Math.round(pos.accuracy ?? 0)}м)
+              </Text>
+              <View style={{ flex: 1 }} />
+              <TouchableOpacity onPress={ensurePosition} style={{ padding: 6 }}>
+                <Ionicons
+                  name="refresh"
+                  size={18}
+                  color={theme.colors.accent}
+                />
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View>
+              <Text style={{ color: "#FCA5A5", fontSize: 13 }}>
+                {posError ?? "Нет доступа к геолокации."}
+              </Text>
+              <View style={{ height: 8 }} />
+              <TouchableOpacity
+                onPress={ensurePosition}
                 style={{
-                  color: isYou ? "#0B0B10" : theme.colors.muted,
-                  fontSize: 12,
-                  marginLeft: 4,
+                  alignSelf: "flex-start",
+                  paddingHorizontal: 12,
+                  paddingVertical: 8,
+                  borderRadius: 12,
+                  backgroundColor: theme.colors.primary,
                 }}
               >
-                Голосовое интро {message.voiceIntro}
-              </Text>
+                <Text style={{ color: "white", fontWeight: "800" }}>
+                  Включить геолокацию
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      </View>
+
+      <View style={{ flex: 1, paddingHorizontal: 16 }}>
+        <View
+          style={{
+            borderRadius: 22,
+            overflow: "hidden",
+            borderWidth: 1,
+            borderColor: "rgba(255,255,255,0.12)",
+            backgroundColor: "rgba(15,23,42,0.96)",
+          }}
+        >
+          {pos ? (
+            <MapView
+              style={{ height: 260, width: "100%" }}
+              initialRegion={{
+                latitude: pos.lat,
+                longitude: pos.lng,
+                latitudeDelta: 0.004,
+                longitudeDelta: 0.004,
+              }}
+              mapType="standard"
+              showsUserLocation
+              showsMyLocationButton={false}
+            >
+              <Circle
+                center={{
+                  latitude: pos.lat,
+                  longitude: pos.lng,
+                }}
+                radius={140}
+                strokeColor="rgba(249,115,22,0.9)"
+                fillColor="rgba(249,115,22,0.18)"
+              />
+
+              {ROOM_KIND_ORDER.map((kind) => {
+                const meta = getRoomMeta(kind);
+                const coord = getRoomMarkerCoord(pos, kind);
+                return (
+                  <Marker
+                    key={kind}
+                    coordinate={coord}
+                    onPress={() => enterRoom(kind)}
+                    anchor={{ x: 0.5, y: 1 }}
+                  >
+                    <View
+                      style={{
+                        backgroundColor: "rgba(15,23,42,0.96)",
+                        borderRadius: 18,
+                        paddingHorizontal: 8,
+                        paddingVertical: 6,
+                        borderWidth: 1,
+                        borderColor: "rgba(251,146,60,0.9)",
+                        shadowColor: "#000000",
+                        shadowOpacity: 0.35,
+                        shadowRadius: 4,
+                        shadowOffset: { width: 0, height: 2 },
+                        elevation: 4,
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 18,
+                          color: "#F9FAFB",
+                        }}
+                      >
+                        {meta.emoji}
+                      </Text>
+                    </View>
+                  </Marker>
+                );
+              })}
+            </MapView>
+          ) : (
+            <View
+              style={{
+                height: 260,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              {posLoading ? (
+                <ActivityIndicator color={theme.colors.primary} />
+              ) : (
+                <>
+                  <Text
+                    style={{
+                      color: "#E5E7EB",
+                      fontSize: 14,
+                      textAlign: "center",
+                      marginBottom: 8,
+                    }}
+                  >
+                    Включи геолокацию, чтобы показать карту комнат рядом.
+                  </Text>
+                  <TouchableOpacity
+                    onPress={ensurePosition}
+                    style={{
+                      paddingHorizontal: 14,
+                      paddingVertical: 8,
+                      borderRadius: 14,
+                      backgroundColor: theme.colors.primary,
+                    }}
+                  >
+                    <Text style={{ color: "white", fontWeight: "800" }}>
+                      Обновить локацию
+                    </Text>
+                  </TouchableOpacity>
+                </>
+              )}
             </View>
           )}
         </View>
 
-        <View
-          style={{
-            flexDirection: "row",
-            justifyContent: isYou ? "flex-end" : "flex-start",
-            marginTop: 2,
-            alignItems: "center",
-          }}
-        >
-          <Text
-            style={{
-              color: theme.colors.muted,
-              fontSize: 11,
-              marginRight: 8,
-            }}
-          >
-            {message.createdAt}
-          </Text>
+        <View style={{ paddingTop: 16 }}>
+          <SectionTitle>Выбери место</SectionTitle>
 
-          <TouchableOpacity onPress={() => onReact(message.id, "like")}>
-            <Text style={{ fontSize: 13, marginRight: 4 }}>👍</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => onReact(message.id, "laugh")}>
-            <Text style={{ fontSize: 13, marginRight: 4 }}>😂</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => onReact(message.id, "fire")}>
-            <Text style={{ fontSize: 13 }}>🔥</Text>
-          </TouchableOpacity>
-        </View>
-
-        {message.reactions && (
           <View
             style={{
               flexDirection: "row",
-              marginTop: 4,
-              marginLeft: isYou ? 0 : 6,
+              flexWrap: "wrap",
+              gap: 10,
             }}
           >
-            {Object.entries(message.reactions)
-              .filter(([_, count]) => count && count > 0)
-              .map(([emoji, count]) => (
-                <Text
-                  key={emoji}
+            {ROOM_KIND_ORDER.map((kind) => {
+              const meta = getRoomMeta(kind);
+              return (
+                <TouchableOpacity
+                  key={kind}
+                  activeOpacity={0.85}
+                  onPress={() => enterRoom(kind)}
                   style={{
-                    marginRight: 6,
-                    fontSize: 12,
-                    color: theme.colors.subtext,
-                  }}
-                >
-                  {emoji === "like"
-                    ? "👍"
-                    : emoji === "laugh"
-                    ? "😂"
-                    : "🔥"}{" "}
-                  {count}
-                </Text>
-              ))}
-          </View>
-        )}
-      </Animated.View>
-    </TouchableOpacity>
-  );
-}
-
-// --- Основной экран комнат ---
-
-export default function RoomsScreen() {
-  const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
-  const [messages, setMessages] = useState<RoomMessage[]>([]);
-  const [input, setInput] = useState("");
-  const [replyText, setReplyText] = useState<string | null>(null);
-  const [isRecordingDemo, setIsRecordingDemo] = useState(false);
-  const [recordingSeconds, setRecordingSeconds] = useState(0);
-  const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
-
-  const handleOpenRoom = (room: Room) => {
-    if (recordingTimerRef.current) {
-      clearInterval(recordingTimerRef.current);
-      recordingTimerRef.current = null;
-    }
-    setSelectedRoom(room);
-    setMessages(demoMessagesByRoom[room.id] ?? []);
-    setReplyText(null);
-    setInput("");
-    setIsRecordingDemo(false);
-    setRecordingSeconds(0);
-  };
-
-  const handleReact = (
-    id: string,
-    type: keyof NonNullable<RoomMessage["reactions"]>
-  ) => {
-    setMessages((prev) =>
-      prev.map((m) =>
-        m.id === id
-          ? {
-              ...m,
-              reactions: {
-                ...m.reactions,
-                [type]: (m.reactions?.[type] || 0) + 1,
-              },
-            }
-          : m
-      )
-    );
-  };
-
-  const handleReply = (id: string, text: string) => {
-    setReplyText(text);
-  };
-
-  const handleSend = () => {
-    if (!input.trim()) return;
-
-    const baseText = input.trim();
-    const finalText = replyText
-      ? `↪ ${replyText.slice(0, 80)}\n${baseText}`
-      : baseText;
-
-    const newMessage: RoomMessage = {
-      id: String(Date.now()),
-      author: "you",
-      text: finalText,
-      createdAt: "только что",
-    };
-
-    setMessages((prev) => [...prev, newMessage]);
-    setInput("");
-    setReplyText(null);
-  };
-
-  const startDemoRecording = () => {
-    if (isRecordingDemo) return;
-    setIsRecordingDemo(true);
-    setRecordingSeconds(0);
-
-    if (recordingTimerRef.current) {
-      clearInterval(recordingTimerRef.current);
-    }
-
-    recordingTimerRef.current = setInterval(() => {
-      setRecordingSeconds((prev) => {
-        const next = prev + 1;
-        return next > 20 ? 20 : next;
-      });
-    }, 1000);
-  };
-
-  const stopDemoRecordingAndSend = () => {
-    if (!isRecordingDemo) return;
-
-    if (recordingTimerRef.current) {
-      clearInterval(recordingTimerRef.current);
-      recordingTimerRef.current = null;
-    }
-
-    setIsRecordingDemo(false);
-
-    const secs = recordingSeconds < 3 ? 3 : recordingSeconds;
-    const padded = secs < 10 ? `0${secs}` : `${secs}`;
-    const durationLabel = `~0:${padded}`;
-    const voiceText = `Голосовое сообщение ${durationLabel} (демо)`;
-    const finalText = replyText
-      ? `↪ ${replyText.slice(0, 80)}\n${voiceText}`
-      : voiceText;
-
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: `demo-voice-${Date.now()}`,
-        type: "voice-demo",
-        author: "you",
-        text: finalText,
-        createdAt: "только что",
-        voiceIntro: durationLabel,
-      },
-    ]);
-
-    setReplyText(null);
-    setRecordingSeconds(0);
-  };
-
-  const handleMicPress = () => {
-    if (!isRecordingDemo) {
-      startDemoRecording();
-    } else {
-      stopDemoRecordingAndSend();
-    }
-  };
-
-  useEffect(() => {
-    return () => {
-      if (recordingTimerRef.current) {
-        clearInterval(recordingTimerRef.current);
-      }
-    };
-  }, []);
-
-  const handleShowInfo = () => {
-    if (!selectedRoom) return;
-
-    Alert.alert(
-      selectedRoom.title,
-      `Это демо-чат для комнаты "${selectedRoom.title}".\n\n` +
-        "В полной версии здесь можно будет:\n" +
-        "• видеть людей, которые сейчас в этой локации;\n" +
-        "• договариваться о встречах прямо в чате;\n" +
-        "• отправлять реальные голосовые и фото.\n\n" +
-        "Пока всё локально и безопасно — можно просто поиграться с интерфейсом. 🙂",
-      [{ text: "Понятно", style: "default" }]
-    );
-  };
-
-  const handlePickQuickPhrase = (phrase: string) => {
-    // подставляем фразу в инпут, но не отправляем сразу
-    if (input.trim().length === 0) {
-      setInput(phrase);
-    } else {
-      setInput((prev) => prev + (prev.endsWith(" ") ? "" : " ") + phrase);
-    }
-  };
-
-  // --- Экран списка комнат ---
-
-  if (!selectedRoom) {
-    return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
-        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 32 }}>
-          <Text
-            style={{
-              color: theme.colors.text,
-              fontSize: 28,
-              fontWeight: "800",
-              marginBottom: 8,
-            }}
-          >
-            Комнаты
-          </Text>
-          <Text
-            style={{
-              color: theme.colors.subtext,
-              fontSize: 14,
-              marginBottom: 24,
-            }}
-          >
-            Общие чаты для офисов, баров, кофеен и ивентов поблизости. Выбери
-            комнату, чтобы открыть демо-чат.
-          </Text>
-
-          {demoRooms.map((r) => (
-            <TouchableOpacity
-              key={r.id}
-              activeOpacity={0.9}
-              onPress={() => handleOpenRoom(r)}
-              style={{
-                backgroundColor: theme.colors.card,
-                borderRadius: 22,
-                padding: 16,
-                marginBottom: 16,
-                flexDirection: "row",
-                alignItems: "center",
-              }}
-            >
-              <Ionicons
-                name={getRoomIconName(r.category)}
-                size={26}
-                color={theme.colors.accent}
-                style={{ marginRight: 12 }}
-              />
-              <View style={{ flex: 1 }}>
-                <Text
-                  style={{
-                    color: theme.colors.text,
-                    fontSize: 16,
-                    fontWeight: "700",
-                  }}
-                >
-                  {r.title}
-                </Text>
-                <Text
-                  style={{
-                    color: theme.colors.subtext,
-                    fontSize: 13,
-                    marginTop: 2,
-                    marginBottom: 6,
-                  }}
-                >
-                  {r.description}
-                </Text>
-                <View style={{ flexDirection: "row", alignItems: "center" }}>
-                  <Ionicons
-                    name="location-outline"
-                    size={13}
-                    color={theme.colors.muted}
-                    style={{ marginRight: 4 }}
-                  />
-                  <Text
-                    style={{
-                      color: theme.colors.muted,
-                      fontSize: 12,
-                      marginRight: 8,
-                    }}
-                  >
-                    ~{r.distanceKm.toFixed(1)} км
-                  </Text>
-                  <View
-                    style={{
-                      height: 4,
-                      width: 4,
-                      borderRadius: 2,
-                      backgroundColor: "#22c55e",
-                      marginRight: 4,
-                    }}
-                  />
-                  <Text
-                    style={{
-                      color: theme.colors.muted,
-                      fontSize: 12,
-                    }}
-                  >
-                    Сейчас в чате: {r.activeCount}
-                  </Text>
-                </View>
-              </View>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </SafeAreaView>
-    );
-  }
-
-  // --- Экран конкретной комнаты ---
-
-  const participants = demoParticipantsByRoom[selectedRoom.id] ?? ["Ты"];
-  const quickPhrases = quickPhrasesByRoom[selectedRoom.id] ?? [];
-
-  return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
-      {/* Хидер комнаты */}
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          paddingHorizontal: 12,
-          paddingVertical: 10,
-          borderBottomWidth: 1,
-          borderBottomColor: "rgba(255,255,255,0.08)",
-        }}
-      >
-        <TouchableOpacity onPress={() => setSelectedRoom(null)}>
-          <Ionicons name="chevron-back" size={22} color={theme.colors.text} />
-        </TouchableOpacity>
-
-        <View style={{ flex: 1, marginLeft: 8 }}>
-          <Text
-            style={{
-              color: theme.colors.text,
-              fontSize: 18,
-              fontWeight: "700",
-            }}
-          >
-            {selectedRoom.title}
-          </Text>
-          <View style={{ flexDirection: "row", alignItems: "center", marginTop: 2 }}>
-            <Ionicons
-              name="location-outline"
-              size={12}
-              color={theme.colors.muted}
-              style={{ marginRight: 4 }}
-            />
-            <Text
-              style={{
-                color: theme.colors.muted,
-                fontSize: 11,
-                marginRight: 8,
-              }}
-            >
-              ~{selectedRoom.distanceKm.toFixed(1)} км
-            </Text>
-            <View
-              style={{
-                height: 4,
-                width: 4,
-                borderRadius: 2,
-                backgroundColor: "#22c55e",
-                marginRight: 4,
-              }}
-            />
-            <Text
-              style={{
-                color: theme.colors.muted,
-                fontSize: 11,
-              }}
-            >
-              В чате: {selectedRoom.activeCount}
-            </Text>
-          </View>
-        </View>
-
-        <TouchableOpacity onPress={handleShowInfo}>
-          <Ionicons name="information-circle-outline" size={22} color={theme.colors.text} />
-        </TouchableOpacity>
-      </View>
-
-      {/* Участники */}
-      <View
-        style={{
-          paddingHorizontal: 12,
-          paddingVertical: 8,
-          borderBottomWidth: 1,
-          borderBottomColor: "rgba(255,255,255,0.06)",
-          backgroundColor: "rgba(15,23,42,0.8)",
-        }}
-      >
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          {participants.map((name, index) => {
-            const initial = name === "Ты" ? "Ты" : name.charAt(0).toUpperCase();
-            const isYou = name === "Ты";
-
-            return (
-              <View
-                key={`${name}-${index}`}
-                style={{
-                  marginRight: 12,
-                  alignItems: "center",
-                }}
-              >
-                <View
-                  style={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: 16,
-                    backgroundColor: isYou ? theme.colors.accent : theme.colors.card,
+                    flexDirection: "row",
                     alignItems: "center",
-                    justifyContent: "center",
+                    paddingHorizontal: 12,
+                    paddingVertical: 8,
+                    borderRadius: 999,
+                    backgroundColor: "rgba(255,255,255,0.05)",
+                    borderWidth: 1,
+                    borderColor: "rgba(255,255,255,0.10)",
                   }}
                 >
+                  <Text style={{ fontSize: 18, marginRight: 6 }}>
+                    {meta.emoji}
+                  </Text>
                   <Text
                     style={{
-                      color: isYou ? "#0B0B10" : theme.colors.text,
-                      fontSize: 14,
+                      color: "#E5E7EB",
+                      fontSize: 13,
                       fontWeight: "700",
                     }}
                   >
-                    {initial}
-                  </Text>
-                </View>
-                <Text
-                  style={{
-                    color: theme.colors.muted,
-                    fontSize: 11,
-                    marginTop: 4,
-                  }}
-                >
-                  {isYou ? "Ты" : name.split(" ")[0]}
-                </Text>
-              </View>
-            );
-          })}
-        </ScrollView>
-      </View>
-
-      {/* Основной чат + быстрые фразы и инпут */}
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
-        <ScrollView
-          contentContainerStyle={{
-            padding: 16,
-            paddingBottom: 24,
-          }}
-        >
-          {messages.map((m) => (
-            <MessageBubble
-              key={m.id}
-              message={m}
-              onReact={handleReact}
-              onReply={handleReply}
-            />
-          ))}
-        </ScrollView>
-
-        {/* Быстрые фразы */}
-        {quickPhrases.length > 0 && (
-          <View
-            style={{
-              paddingVertical: 8,
-              paddingHorizontal: 12,
-              borderTopWidth: 1,
-              borderTopColor: "rgba(255,255,255,0.06)",
-              backgroundColor: "rgba(15,23,42,0.9)",
-            }}
-          >
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {quickPhrases.map((phrase) => (
-                <TouchableOpacity
-                  key={phrase}
-                  onPress={() => handlePickQuickPhrase(phrase)}
-                  style={{
-                    paddingHorizontal: 12,
-                    paddingVertical: 6,
-                    borderRadius: 16,
-                    backgroundColor: "rgba(148,163,184,0.2)",
-                    marginRight: 8,
-                  }}
-                >
-                  <Text
-                    style={{
-                      color: theme.colors.text,
-                      fontSize: 12,
-                    }}
-                  >
-                    {phrase}
+                    {meta.label}
                   </Text>
                 </TouchableOpacity>
-              ))}
-            </ScrollView>
+              );
+            })}
           </View>
-        )}
 
-        {isRecordingDemo && (
-          <View
+          <View style={{ height: 14 }} />
+          <Text
             style={{
-              paddingHorizontal: 12,
-              paddingTop: 6,
-              paddingBottom: 2,
+              color: "#71717A",
+              fontSize: 12,
+              lineHeight: 16,
+              marginBottom: 16,
             }}
           >
-            <Text
-              style={{
-                color: theme.colors.muted,
-                fontSize: 12,
-              }}
-            >
-              Идёт демо-запись голосового… 0:
-              {recordingSeconds.toString().padStart(2, "0")}
-            </Text>
-          </View>
-        )}
+            Комната создаётся автоматически по геохэшу места. Чтобы попасть в
+            одну и ту же комнату, людям нужно находиться рядом.
+          </Text>
+        </View>
+      </View>
+    </View>
+  );
 
-        {/* Поле ввода сообщения */}
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            padding: 10,
-            backgroundColor: theme.colors.surface,
-            borderTopWidth: 1,
-            borderTopColor: "rgba(255,255,255,0.08)",
-          }}
-        >
-          {/* Кнопка псевдо-голосового интро */}
-          <TouchableOpacity
-            onPress={handleMicPress}
+  const renderChatHeader = () => {
+    if (!room) return null;
+    return (
+      <View
+        style={{
+          paddingHorizontal: 16,
+          paddingTop: 10,
+          paddingBottom: 10,
+          borderBottomWidth: 1,
+          borderBottomColor: "rgba(255,255,255,0.08)",
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 10,
+        }}
+      >
+        <TouchableOpacity onPress={leaveRoom} style={{ padding: 6 }}>
+          <Ionicons name="arrow-back" size={20} color="#E5E7EB" />
+        </TouchableOpacity>
+
+        <View style={{ flex: 1 }}>
+          <Text
             style={{
-              width: 40,
-              height: 40,
-              borderRadius: 20,
-              alignItems: "center",
-              justifyContent: "center",
-              marginRight: 8,
-              backgroundColor: isRecordingDemo
-                ? theme.colors.accent
-                : "rgba(15,23,42,0.9)",
-              borderWidth: isRecordingDemo ? 1 : 0,
-              borderColor: isRecordingDemo ? "rgba(249,115,22,0.7)" : "transparent",
+              color: "#E5E7EB",
+              fontSize: 16,
+              fontWeight: "900",
             }}
           >
-            <Ionicons
-              name={isRecordingDemo ? "mic" : "mic-outline"}
-              size={18}
-              color={isRecordingDemo ? theme.colors.background : theme.colors.muted}
-            />
-          </TouchableOpacity>
-
-          <TextInput
-            placeholder="Напиши сообщение..."
-            placeholderTextColor={theme.colors.muted}
-            value={input}
-            onChangeText={setInput}
+            {room.title}
+          </Text>
+          <Text
             style={{
-              flex: 1,
-              backgroundColor: theme.colors.card,
-              borderRadius: 20,
-              paddingHorizontal: 14,
-              paddingVertical: 8,
-              color: theme.colors.text,
-              fontSize: 14,
-              marginRight: 8,
-            }}
-          />
-
-          <TouchableOpacity
-            onPress={handleSend}
-            disabled={!input.trim()}
-            style={{
-              width: 40,
-              height: 40,
-              borderRadius: 20,
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: input.trim()
-                ? theme.colors.accent
-                : "rgba(148,163,184,0.3)",
+              color: "#A3A3A3",
+              fontSize: 12,
+              marginTop: 2,
             }}
           >
-            <Ionicons
-              name="send"
-              size={18}
-              color={input.trim() ? "#0B0B10" : theme.colors.background}
-            />
-          </TouchableOpacity>
+            Участников рядом: {activeMembers.length} • ты: {nickname}
+          </Text>
         </View>
 
-        {/* Строка с reply-инфо */}
-        {replyText && (
+        <TouchableOpacity
+          onPress={ensurePosition}
+          style={{
+            paddingHorizontal: 10,
+            paddingVertical: 8,
+            borderRadius: 12,
+            backgroundColor: "rgba(255,255,255,0.06)",
+            borderWidth: 1,
+            borderColor: "rgba(255,255,255,0.08)",
+          }}
+        >
+          <Ionicons
+            name="navigate-outline"
+            size={18}
+            color={theme.colors.accent}
+          />
+        </TouchableOpacity>
+      </View>
+    );
+  };
+
+  const renderMessage = ({ item }: { item: RoomMessage }) => {
+    const isMe = item.uid === uid;
+    return (
+      <View
+        style={{
+          alignSelf: isMe ? "flex-end" : "flex-start",
+          maxWidth: "82%",
+          marginBottom: 10,
+        }}
+      >
+        <Text
+          style={{
+            color: "#A3A3A3",
+            fontSize: 11,
+            marginBottom: 4,
+            textAlign: isMe ? "right" : "left",
+          }}
+        >
+          {isMe ? "ты" : item.nickname} • {formatAgo(item.createdAt)}
+        </Text>
+
+        <View
+          style={{
+            paddingHorizontal: 12,
+            paddingVertical: 10,
+            borderRadius: 16,
+            backgroundColor: isMe
+              ? "rgba(109,40,217,0.35)"
+              : "rgba(255,255,255,0.07)",
+            borderWidth: 1,
+            borderColor: isMe
+              ? "rgba(167,139,250,0.35)"
+              : "rgba(255,255,255,0.08)",
+          }}
+        >
+          <Text
+            style={{ color: "#E5E7EB", fontSize: 14, lineHeight: 20 }}
+          >
+            {item.text}
+          </Text>
+        </View>
+      </View>
+    );
+  };
+
+  const renderChat = () => (
+    <View style={{ flex: 1 }}>
+      {renderChatHeader()}
+
+      <FlatList
+        ref={listRef}
+        data={messages}
+        keyExtractor={(x) => x.id}
+        renderItem={renderMessage}
+        contentContainerStyle={{ padding: 16, paddingBottom: 120 }}
+        inverted
+        ListEmptyComponent={
+          <View style={{ paddingTop: 20 }}>
+            <Text style={{ color: "#A3A3A3" }}>
+              Пока пусто. Напиши первым — тебя увидят только рядом находящиеся
+              люди.
+            </Text>
+          </View>
+        }
+      />
+
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <View
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            bottom: 0,
+            paddingBottom: insets.bottom + 10,
+            paddingTop: 10,
+            paddingHorizontal: 12,
+            backgroundColor: "rgba(5,8,22,0.92)",
+            borderTopWidth: 1,
+            borderTopColor: "rgba(255,255,255,0.08)",
+            flexDirection: "row",
+            alignItems: "flex-end",
+            gap: 10,
+          }}
+        >
           <View
             style={{
-              position: "absolute",
-              bottom: 60,
-              left: 12,
-              right: 12,
-              paddingHorizontal: 12,
-              paddingVertical: 6,
-              borderRadius: 12,
-              backgroundColor: "rgba(15,23,42,0.95)",
+              flex: 1,
+              borderRadius: 16,
               borderWidth: 1,
-              borderColor: "rgba(148,163,184,0.4)",
+              borderColor: "rgba(255,255,255,0.10)",
+              backgroundColor: "rgba(255,255,255,0.06)",
+              paddingHorizontal: 12,
+              paddingVertical: 10,
             }}
           >
-            <View style={{ flexDirection: "row", alignItems: "center" }}>
-              <Ionicons
-                name="return-up-forward-outline"
-                size={14}
-                color={theme.colors.muted}
-                style={{ marginRight: 6 }}
-              />
-              <Text
-                style={{
-                  color: theme.colors.subtext,
-                  fontSize: 12,
-                  flex: 1,
-                }}
-              >
-                Ответ на: {replyText.slice(0, 80)}...
-              </Text>
-              <TouchableOpacity onPress={() => setReplyText(null)}>
-                <Ionicons
-                  name="close"
-                  size={14}
-                  color={theme.colors.muted}
-                />
-              </TouchableOpacity>
-            </View>
+            <TextInput
+              value={text}
+              onChangeText={setText}
+              placeholder="Сообщение…"
+              placeholderTextColor="#6B7280"
+              multiline
+              style={{
+                color: "#E5E7EB",
+                fontSize: 14,
+                minHeight: 20,
+                maxHeight: 110,
+              }}
+            />
           </View>
-        )}
+
+          <TouchableOpacity
+            onPress={onSend}
+            activeOpacity={0.85}
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 14,
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: theme.colors.primary,
+            }}
+          >
+            <Ionicons name="send" size={18} color="white" />
+          </TouchableOpacity>
+        </View>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
+  );
+
+  return (
+    <ScreenBackground>
+      <SafeAreaView
+        style={{ flex: 1, backgroundColor: "transparent" }}
+      >
+        {stage === "choose" ? renderChoose() : renderChat()}
+      </SafeAreaView>
+    </ScreenBackground>
   );
 }
