@@ -11,14 +11,15 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import MapView, { Circle, Marker } from "react-native-maps";
+import { useNavigation } from "@react-navigation/native";
 
 import { theme } from "@/theme";
 import { auth, db, isFirebaseConfigured } from "@/config/firebaseConfig";
-import ScreenBackground from "@/components/ScreenBackground";
+import ScreenShell from "@/components/ScreenShell";
 import {
   RoomDoc,
   RoomKind,
@@ -106,6 +107,7 @@ function getRoomMarkerCoord(base: Pos, kind: RoomKind): LatLng {
 
 export default function RoomsScreen() {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation<any>();
 
   const uid = auth?.currentUser?.uid ?? null;
   const nickname = useMemo(
@@ -263,6 +265,42 @@ export default function RoomsScreen() {
     <View style={{ flex: 1 }}>
       <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
         <SectionTitle>Комнаты рядом</SectionTitle>
+
+        <View
+          style={{
+            flexDirection: "row",
+            flexWrap: "wrap",
+            gap: 10,
+            marginBottom: 12,
+          }}
+        >
+          <TouchableOpacity
+            activeOpacity={0.9}
+            onPress={() => navigation.navigate("VideoChat" as never)}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              paddingHorizontal: 12,
+              paddingVertical: 8,
+              borderRadius: 999,
+              backgroundColor: "rgba(255,255,255,0.08)",
+              borderWidth: 1,
+              borderColor: "rgba(255,255,255,0.10)",
+            }}
+          >
+            <Ionicons name="videocam-outline" size={16} color="#E5E7EB" />
+            <Text
+              style={{
+                color: "#E5E7EB",
+                fontSize: 13,
+                fontWeight: "700",
+                marginLeft: 6,
+              }}
+            >
+              Видеочат
+            </Text>
+          </TouchableOpacity>
+        </View>
 
         <View
           style={{
@@ -529,10 +567,6 @@ export default function RoomsScreen() {
           gap: 10,
         }}
       >
-        <TouchableOpacity onPress={leaveRoom} style={{ padding: 6 }}>
-          <Ionicons name="arrow-back" size={20} color="#E5E7EB" />
-        </TouchableOpacity>
-
         <View style={{ flex: 1 }}>
           <Text
             style={{
@@ -706,13 +740,16 @@ export default function RoomsScreen() {
     </View>
   );
 
+  const headerTitle = stage === "chat" ? room?.title ?? "Комната" : "Комнаты";
+
   return (
-    <ScreenBackground>
-      <SafeAreaView
-        style={{ flex: 1, backgroundColor: "transparent" }}
-      >
-        {stage === "choose" ? renderChoose() : renderChat()}
-      </SafeAreaView>
-    </ScreenBackground>
+    <ScreenShell
+      title={headerTitle}
+      background="nightCity"
+      showBack={stage === "chat"}
+      onBack={stage === "chat" ? leaveRoom : undefined}
+    >
+      {stage === "choose" ? renderChoose() : renderChat()}
+    </ScreenShell>
   );
 }

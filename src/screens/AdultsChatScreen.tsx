@@ -17,6 +17,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/config/firebaseConfig";
 import { theme } from "@/theme";
+import ScreenShell from "@/components/ScreenShell";
 
 type Msg = { id: string; text: string };
 
@@ -49,51 +50,56 @@ export default function AdultsChatScreen() {
 
   if (!accepted) {
     return (
-      <View style={styles.gate}>
-        <Text style={styles.title}>Чат 18+</Text>
-        <Text style={styles.copy}>
-          Входя, вы подтверждаете совершеннолетие и соблюдение правил сообщества.
-        </Text>
-        <TouchableOpacity
-          onPress={() => setAccepted(true)}
-          style={styles.accept}
-        >
-          <Text style={styles.acceptTxt}>СОГЛАСЕН(А), ВОЙТИ</Text>
-        </TouchableOpacity>
-      </View>
+      <ScreenShell title="Чат 18+" background="nightCity">
+        <View style={styles.gate}>
+          <Text style={styles.title}>Чат 18+</Text>
+          <Text style={styles.copy}>
+            Входя, вы подтверждаете совершеннолетие и соблюдение правил сообщества.
+          </Text>
+          <TouchableOpacity
+            onPress={() => setAccepted(true)}
+            style={styles.accept}
+          >
+            <Text style={styles.acceptTxt}>СОГЛАСЕН(А), ВОЙТИ</Text>
+          </TouchableOpacity>
+        </View>
+      </ScreenShell>
     );
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
-      <FlatList
-        inverted
-        data={msgs}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={{ padding: 16 }}
-        renderItem={({ item }) => (
-          <View style={styles.msg}>
-            <Text>{item.text}</Text>
-          </View>
-        )}
-      />
-      <View style={styles.inputRow}>
-        <TextInput
-          value={text}
-          onChangeText={setText}
-          placeholder="Сообщение…"
-          style={styles.input}
+    <ScreenShell title="Чат 18+" background="nightCity">
+      <View style={styles.chat}>
+        <FlatList
+          inverted
+          data={msgs}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={{ padding: 16 }}
+          renderItem={({ item }) => (
+            <View style={styles.msg}>
+              <Text>{item.text}</Text>
+            </View>
+          )}
         />
-        <TouchableOpacity onPress={send} style={styles.sendBtn}>
-          <Text style={styles.sendTxt}>Отпр.</Text>
-        </TouchableOpacity>
+        <View style={styles.inputRow}>
+          <TextInput
+            value={text}
+            onChangeText={setText}
+            placeholder="Сообщение…"
+            style={styles.input}
+          />
+          <TouchableOpacity onPress={send} style={styles.sendBtn}>
+            <Text style={styles.sendTxt}>Отпр.</Text>
+          </TouchableOpacity>
+        </View>
       </View>
-    </View>
+    </ScreenShell>
   );
 }
 
 const styles = StyleSheet.create({
-  gate: { flex: 1, backgroundColor: theme.colors.bg, padding: 16, justifyContent: "center" },
+  gate: { flex: 1, padding: 16, justifyContent: "center" },
+  chat: { flex: 1 },
   title: { fontSize: 26, fontWeight: "800", marginBottom: 12, color: theme.colors.text },
   copy: { color: theme.colors.subtext, marginBottom: 16 },
   accept: {

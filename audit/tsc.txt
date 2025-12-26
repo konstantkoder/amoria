@@ -4,8 +4,6 @@ src/screens/PhotoManagerScreen.tsx(4,22): error TS2305: Module '"@/services/fire
 src/screens/PhotoManagerScreen.tsx(4,38): error TS2305: Module '"@/services/firebase"' has no exported member 'updateUserPhotos'.
 src/screens/QuestionScreen.tsx(5,10): error TS2305: Module '"@/services/firebase"' has no exported member 'isFirebaseConfigured'.
 src/screens/QuestionScreen.tsx(5,32): error TS2305: Module '"@/services/firebase"' has no exported member 'db'.
-src/screens/RandomChatScreen.tsx(3,22): error TS2305: Module '"@/services/firebase"' has no exported member 'isFirebaseConfigured'.
-src/screens/RandomChatScreen.tsx(3,44): error TS2305: Module '"@/services/firebase"' has no exported member 'db'.
 src/screens/SwipeScreen.tsx(38,16): error TS2345: Argument of type 'SwipeCandidate[] | CardUser[]' is not assignable to parameter of type 'SetStateAction<CardUser[]>'.
   Type 'SwipeCandidate[]' is not assignable to type 'SetStateAction<CardUser[]>'.
     Type 'SwipeCandidate[]' is not assignable to type 'CardUser[]'.

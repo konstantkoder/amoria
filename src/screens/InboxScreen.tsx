@@ -1,26 +1,48 @@
 // FILE: src/screens/InboxScreen.tsx
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { View, Text } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
 import { theme } from "@/theme";
-import ScreenBackground from "@/components/ScreenBackground";
+import ScreenShell from "@/components/ScreenShell";
+import { getLikes } from "@/services/likes";
 
 export default function InboxScreen() {
   const insets = useSafeAreaInsets();
+  const [likesCount, setLikesCount] = useState(0);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const ids = await getLikes();
+        if (alive) setLikesCount(ids.length);
+      } catch {
+        // ignore
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   return (
-    <ScreenBackground>
-      <SafeAreaView
-        style={{ flex: 1, backgroundColor: "transparent" }}
+    <ScreenShell title="Чаты" background="smoke">
+      <View
+        style={{
+          flex: 1,
+          paddingHorizontal: 16,
+          paddingTop: 8,
+          paddingBottom: insets.bottom + 8,
+        }}
       >
         <View
           style={{
-            flex: 1,
-            paddingHorizontal: 16,
-            paddingTop: 8,
-            paddingBottom: insets.bottom + 8,
+            flexDirection: "row",
+            alignItems: "baseline",
+            justifyContent: "space-between",
+            marginBottom: 8,
           }}
         >
           <Text
@@ -28,40 +50,42 @@ export default function InboxScreen() {
               color: "#E5E7EB",
               fontSize: 18,
               fontWeight: "800",
-              marginBottom: 8,
             }}
           >
             Чаты
           </Text>
 
-          <View
+          <Text style={{ color: "#9CA3AF", fontSize: 12 }}>
+            Лайкнутые: {likesCount}
+          </Text>
+        </View>
+
+        <View
+          style={{
+            flex: 1,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Ionicons
+            name="chatbubbles-outline"
+            size={40}
+            color={theme.colors.primary}
+          />
+          <Text
             style={{
-              flex: 1,
-              alignItems: "center",
-              justifyContent: "center",
+              color: "#9CA3AF",
+              fontSize: 13,
+              textAlign: "center",
+              marginTop: 8,
             }}
           >
-            <Ionicons
-              name="chatbubbles-outline"
-              size={40}
-              color={theme.colors.primary}
-            />
-            <Text
-              style={{
-                color: "#9CA3AF",
-                fontSize: 13,
-                textAlign: "center",
-                marginTop: 8,
-              }}
-            >
-              Здесь будут собраны все твои переписки.\n
-              Позже мы свяжём этот экран с матчами и сообщениями из ленты,
-              анкет и “Сейчас”.
-            </Text>
-          </View>
+            Здесь будут собраны все твои переписки.\n
+            Позже мы свяжём этот экран с матчами и сообщениями из ленты,
+            анкет и “Сейчас”.
+          </Text>
         </View>
-      </SafeAreaView>
-    </ScreenBackground>
+      </View>
+    </ScreenShell>
   );
 }
-

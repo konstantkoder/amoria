@@ -1,30 +1,46 @@
-// FILE: src/components/ScreenBackground.tsx
 import React from "react";
-import { StyleSheet } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
+import BackgroundWrapper from "@/components/BackgroundWrapper";
+import type { BackgroundKey } from "@/assets/backgrounds";
+
+export type ScreenBackgroundVariant =
+  | "default"
+  | "hearts"
+  | "smoke"
+  | "nightCity"
+  | "softDarkGradient";
 
 type Props = {
+  variant?: ScreenBackgroundVariant;
+  /** optional: if you want a bit darker readability; default 0 (OFF) */
+  overlayOpacity?: number;
+  /** optional: blur background a bit */
+  blurRadius?: number;
   children: React.ReactNode;
 };
 
-export default function ScreenBackground({ children }: Props) {
+const variantToBackground: Record<ScreenBackgroundVariant, BackgroundKey> = {
+  default: "softDarkGradient",
+  softDarkGradient: "softDarkGradient",
+  hearts: "hearts",
+  smoke: "smoke",
+  nightCity: "nightCity",
+};
+
+export default function ScreenBackground({
+  variant = "default",
+  overlayOpacity = 0,
+  blurRadius = 0,
+  children,
+}: Props) {
+  const background = variantToBackground[variant] ?? "softDarkGradient";
+
   return (
-    <LinearGradient
-      // мягкий тёмный градиент: сверху чуть светлее, снизу темнее
-      colors={["#020617", "#02091b", "#020b27"]}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={styles.root}
+    <BackgroundWrapper
+      background={background}
+      overlayOpacity={overlayOpacity}
+      blurRadius={blurRadius}
     >
       {children}
-    </LinearGradient>
+    </BackgroundWrapper>
   );
 }
-
-const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: "#020617",
-  },
-});
-

@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import FeedScreen from "@/screens/FeedScreen";
 import NearbyScreen from "@/screens/NearbyScreen";
 import NowScreen from "@/screens/NowScreen";
+import VideoChatScreen from "@/screens/VideoChatScreen";
 import QuestionScreen from "@/screens/QuestionScreen";
 import ProfileScreen from "@/screens/ProfileScreen";
 import EditProfileScreen from "@/screens/EditProfileScreen";
@@ -61,14 +62,13 @@ export default function AppNavigator() {
           paddingTop: 6,
         },
         tabBarLabelStyle: { fontSize: 12, fontWeight: "600" },
-        // ГЛОБАЛЬНЫЙ ФОН ДЛЯ ВСЕХ СКРИНОВ
-        contentStyle: { backgroundColor: theme.colors.background },
         tabBarIcon: ({ color, size }) => {
           const map: Record<string, keyof typeof Ionicons.glyphMap> = {
             Feed: "reader-outline",
             Now: "flash-outline",
             Nearby: "location-outline",
             Rooms: "home-outline",
+            Inbox: "chatbubbles-outline",
           };
           const name = map[route.name] ?? "ellipse-outline";
           return <Ionicons name={name} size={size} color={color} />;
@@ -111,6 +111,15 @@ export default function AppNavigator() {
         name="Rooms"
         component={RoomsScreen}
         options={{ title: "Комнаты" }}
+      />
+
+      <Tab.Screen
+        name="VideoChat"
+        component={VideoChatScreen}
+        options={{
+          tabBarButton: () => null,
+          headerShown: false,
+        }}
       />
 
       {/* Question — скрытая вкладка, без кнопки в таб-баре */}

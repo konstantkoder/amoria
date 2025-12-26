@@ -81,7 +81,6 @@ src\screens\NearbyScreen.tsx
 src\screens\PhotoManagerScreen.tsx
 src\screens\ProfileScreen.tsx
 src\screens\QuestionScreen.tsx
-src\screens\RandomChatScreen.tsx
 src\screens\SwipeScreen.tsx
 src\screens\legal\LegalScreen.tsx
 src\screens\legal\TermsScreen.tsx

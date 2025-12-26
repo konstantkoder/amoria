@@ -1,3 +1,4 @@
+// FILE: src/screens/NowScreen.tsx
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -8,7 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Location from "expo-location";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -22,7 +23,7 @@ import {
   subscribeNowPosts,
 } from "@/services/now";
 import { makeNickname } from "@/services/rooms";
-import ScreenBackground from "@/components/ScreenBackground";
+import ScreenShell from "@/components/ScreenShell";
 
 type Pos = { lat: number; lng: number; accuracy?: number | null };
 
@@ -97,8 +98,7 @@ export default function NowScreen() {
   const [loading, setLoading] = useState(false);
 
   const [mood, setMood] = useState<NowMood>("chill");
-  const [message, setMessage] = useState(""); // <-- текст сообщения
-  const [composerKey, setComposerKey] = useState(0);
+  const [message, setMessage] = useState(""); // текст сообщения
   const [sending, setSending] = useState(false);
 
   const [radiusKm, setRadiusKm] = useState<RadiusOption>(25);
@@ -184,6 +184,13 @@ export default function NowScreen() {
       return;
     }
 
+    // Сохраняем предыдущий текст, чтобы вернуть его при ошибке
+    const previousMessage = message;
+
+    // *** КЛЮЧЕВОЙ МОМЕНТ ***
+    // Очищаем поле СРАЗУ, ещё до Firestore.
+    setMessage("");
+
     try {
       setSending(true);
 
@@ -195,11 +202,10 @@ export default function NowScreen() {
         lat: pos.lat,
         lng: pos.lng,
       });
-
-      // clear composer
-      setMessage("");
-      setComposerKey((k) => k + 1);
+      // если сюда дошли — всё ок, поле уже пустое
     } catch (e: any) {
+      // Если ошибка — вернём текст обратно, чтобы пользователь не потерял его
+      setMessage(previousMessage);
       Alert.alert(
         "Ошибка",
         e?.message ?? "Не удалось отправить сообщение, попробуй ещё раз."
@@ -343,7 +349,6 @@ export default function NowScreen() {
       {renderMoodChips()}
 
       <TextInput
-        key={`now-composer-${composerKey}`}
         value={message}
         onChangeText={setMessage}
         placeholder="Напиши, что у тебя на уме прямо сейчас…"
@@ -363,6 +368,17 @@ export default function NowScreen() {
           textAlignVertical: "top",
         }}
       />
+
+      {/* временный дебаг — можно потом убрать */}
+      <Text
+        style={{
+          marginTop: 4,
+          color: "#9CA3AF",
+          fontSize: 11,
+        }}
+      >
+        debug: message = [{message}]
+      </Text>
 
       <View
         style={{
@@ -408,11 +424,8 @@ export default function NowScreen() {
                 gap: 6,
               }}
             >
-              <Ionicons
-                name="location-off-outline"
-                size={16}
-                color="#F97373"
-              />
+              {/* здесь пока оставил иконку как есть, позже заменим на валидную */}
+              <Ionicons name="location-outline" size={16} color="#F97373" />
               <Text
                 style={{
                   color: "#FCA5A5",
@@ -516,88 +529,82 @@ export default function NowScreen() {
   };
 
   return (
-    <ScreenBackground>
-      <SafeAreaView
-        style={{ flex: 1, backgroundColor: "transparent" }}
+    <ScreenShell title="Сейчас" background="hearts">
+      <View
+        style={{
+          flex: 1,
+          paddingHorizontal: 16,
+          paddingTop: 8,
+          paddingBottom: insets.bottom + 8,
+        }}
       >
+        <SectionTitle>Сейчас</SectionTitle>
+
+        {renderComposer()}
+
         <View
           style={{
-            flex: 1,
-            paddingHorizontal: 16,
-            paddingTop: 8,
-            paddingBottom: insets.bottom + 8,
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: 2,
           }}
         >
-          <SectionTitle>Сейчас</SectionTitle>
-
-          {renderComposer()}
-
-          <View
+          <Text
             style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-              marginBottom: 2,
+              color: "#E5E7EB",
+              fontSize: 15,
+              fontWeight: "800",
             }}
           >
-            <Text
-              style={{
-                color: "#E5E7EB",
-                fontSize: 15,
-                fontWeight: "800",
-              }}
-            >
-              Люди рядом прямо сейчас
-            </Text>
-            <Text
-              style={{
-                color: "#9CA3AF",
-                fontSize: 11,
-              }}
-            >
-              Радиус:{" "}
-              {radiusKm == null ? "все расстояния" : `до ~${radiusKm} км`}
-            </Text>
-          </View>
-
-          {renderRadiusChips()}
-
-          {loading ? (
-            <View
-              style={{
-                flex: 1,
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <ActivityIndicator color={theme.colors.primary} />
-            </View>
-          ) : (
-            <FlatList
-              data={visiblePosts}
-              keyExtractor={(x) => x.id}
-              renderItem={renderPostItem}
-              contentContainerStyle={{
-                paddingTop: 4,
-                paddingBottom: 16,
-              }}
-              ListEmptyComponent={
-                <View style={{ paddingTop: 16 }}>
-                  <Text
-                    style={{
-                      color: "#9CA3AF",
-                      fontSize: 13,
-                    }}
-                  >
-                    Пока никто поблизости не написал, что хочет сделать
-                    прямо сейчас. Начни первым.
-                  </Text>
-                </View>
-              }
-            />
-          )}
+            Люди рядом прямо сейчас
+          </Text>
+          <Text
+            style={{
+              color: "#9CA3AF",
+              fontSize: 11,
+            }}
+          >
+            Радиус: {radiusKm == null ? "все расстояния" : `до ~${radiusKm} км`}
+          </Text>
         </View>
-      </SafeAreaView>
-    </ScreenBackground>
+
+        {renderRadiusChips()}
+
+        {loading ? (
+          <View
+            style={{
+              flex: 1,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <ActivityIndicator color={theme.colors.primary} />
+          </View>
+        ) : (
+          <FlatList
+            data={visiblePosts}
+            keyExtractor={(x) => x.id}
+            renderItem={renderPostItem}
+            contentContainerStyle={{
+              paddingTop: 4,
+              paddingBottom: 16,
+            }}
+            ListEmptyComponent={
+              <View style={{ paddingTop: 16 }}>
+                <Text
+                  style={{
+                    color: "#9CA3AF",
+                    fontSize: 13,
+                  }}
+                >
+                  Пока никто поблизости не написал, что хочет сделать прямо сейчас. Начни первым.
+                </Text>
+              </View>
+            }
+          />
+        )}
+      </View>
+    </ScreenShell>
   );
 }

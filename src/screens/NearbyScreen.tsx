@@ -9,7 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
 import { theme } from "@/theme";
@@ -24,7 +24,7 @@ import {
   getDefaultCountry,
   subscribePersonalAds,
 } from "@/services/ads";
-import ScreenBackground from "@/components/ScreenBackground";
+import ScreenShell from "@/components/ScreenShell";
 
 type ComposeState = {
   title: string;
@@ -605,10 +605,7 @@ export default function NearbyScreen() {
   };
 
   return (
-    <ScreenBackground>
-      <SafeAreaView
-        style={{ flex: 1, backgroundColor: "transparent" }}
-      >
+    <ScreenShell title="Объявления" background="smoke">
       <View
         style={{
           flex: 1,
@@ -617,7 +614,7 @@ export default function NearbyScreen() {
           paddingBottom: insets.bottom + 8,
         }}
       >
-          <SectionTitle>Объявления</SectionTitle>
+        <SectionTitle>Объявления</SectionTitle>
 
         <Text
           style={{
@@ -711,7 +708,6 @@ export default function NearbyScreen() {
           />
         )}
       </View>
-      </SafeAreaView>
-    </ScreenBackground>
+    </ScreenShell>
   );
 }

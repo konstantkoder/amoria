@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { ScrollView, View, Text, Alert, TouchableOpacity } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
 
 import UserCard from "@/components/UserCard";
 import { DEMO_USERS, type DemoUser } from "@/services/demoUsers";
@@ -9,10 +9,20 @@ import { QUESTIONS, getDailyQuestionId } from "@/services/questions";
 import { loadAdultModeEnabled } from "@/services/adultMode";
 import { theme } from "@/theme";
 import VoiceIntroModal from "@/components/VoiceIntroModal";
+import ScreenShell from "@/components/ScreenShell";
+import { addDislike, addLike, getDislikes, getLikes } from "@/services/likes";
+
+const getStableUserId = (user: DemoUser, index: number) => {
+  const fallback = `${user.displayName ?? user.name ?? "user"}-${user.age ?? "na"}-${index}`;
+  return user.uid ?? (user as { id?: string }).id ?? fallback;
+};
 
 export default function FeedScreen() {
   const [adultModeEnabled, setAdultModeEnabled] = useState(false);
   const [voiceIntroUser, setVoiceIntroUser] = useState<DemoUser | null>(null);
+  const [likedIds, setLikedIds] = useState<string[]>([]);
+  const [likedCount, setLikedCount] = useState(0);
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
   const questionText = useMemo(() => {
     const qid = getDailyQuestionId();
     const q = QUESTIONS.find((item) => item.id === qid);
@@ -23,9 +33,16 @@ export default function FeedScreen() {
     return DEMO_USERS.slice(0, 5);
   }, []);
 
-  const insets = useSafeAreaInsets();
-  const navigation = useNavigation<any>();
+  const visibleUsers = useMemo(() => {
+    return previewUsers
+      .map((user, index) => ({
+        user,
+        stableId: getStableUserId(user, index),
+      }))
+      .filter((item) => !dismissedIds.has(item.stableId));
+  }, [previewUsers, dismissedIds]);
 
+  const insets = useSafeAreaInsets();
   useEffect(() => {
     let isMounted = true;
     (async () => {
@@ -36,6 +53,29 @@ export default function FeedScreen() {
     })();
     return () => {
       isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    const load = async () => {
+      try {
+        const [likes, dislikes] = await Promise.all([
+          getLikes(),
+          getDislikes(),
+        ]);
+        if (alive) {
+          setLikedIds(likes);
+          setLikedCount(likes.length);
+          setDismissedIds(new Set(dislikes));
+        }
+      } catch {
+        // ignore
+      }
+    };
+    load();
+    return () => {
+      alive = false;
     };
   }, []);
 
@@ -62,8 +102,43 @@ export default function FeedScreen() {
     setVoiceIntroUser(null);
   };
 
+  const onLike = async (user: DemoUser) => {
+    try {
+      if (user.uid) {
+        const next = await addLike(user.uid);
+        setLikedIds(next);
+        setLikedCount(next.length);
+      } else {
+        setLikedCount((prev) => prev + 1);
+      }
+    } catch {
+      // ignore
+    }
+    Alert.alert("Лайк", "Лайк сохранён (demo). Позже тут будет чат/матч.");
+  };
+
+  const onDislike = async (user: DemoUser, stableId: string) => {
+    setDismissedIds((prev) => {
+      const next = new Set(prev);
+      next.add(stableId);
+      return next;
+    });
+    if (!user.uid) return;
+    try {
+      const next = await addDislike(user.uid);
+      setDismissedIds(new Set(next));
+    } catch {
+      // ignore
+    }
+  };
+
+  const isLiked = (user: DemoUser) => {
+    if (!user.uid) return false;
+    return likedIds.includes(user.uid);
+  };
+
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
+    <ScreenShell title="AMORIA" background="hearts">
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{
@@ -71,50 +146,6 @@ export default function FeedScreen() {
           paddingBottom: 32 + insets.bottom,
         }}
       >
-        {/* Верхняя шапка: логотип + профиль */}
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "space-between",
-            marginBottom: 16,
-          }}
-        >
-          <Text
-            style={{
-              color: theme.colors.text,
-              fontSize: 20,
-              fontWeight: "800",
-            }}
-          >
-            AMORIA
-          </Text>
-
-          <TouchableOpacity
-            activeOpacity={0.9}
-            onPress={() => navigation.navigate("Profile" as never)}
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              paddingHorizontal: 10,
-              paddingVertical: 6,
-              borderRadius: 999,
-              backgroundColor: "rgba(148, 163, 184, 0.18)",
-            }}
-          >
-            <Text style={{ fontSize: 16, marginRight: 6 }}>👤</Text>
-            <Text
-              style={{
-                color: theme.colors.text,
-                fontSize: 13,
-                fontWeight: "600",
-              }}
-            >
-              Профиль
-            </Text>
-          </TouchableOpacity>
-        </View>
-
         {/* Карточка "Вопрос дня" */}
         <View
           style={{
@@ -154,16 +185,27 @@ export default function FeedScreen() {
         </View>
 
         {/* Блок "Рядом с тобой" */}
-        <Text
+        <View
           style={{
-            color: theme.colors.text,
-            fontSize: 18,
-            fontWeight: "600",
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
             marginBottom: 12,
           }}
         >
-          Рядом с тобой
-        </Text>
+          <Text
+            style={{
+              color: theme.colors.text,
+              fontSize: 18,
+              fontWeight: "600",
+            }}
+          >
+            Рядом с тобой
+          </Text>
+          <Text style={{ color: "#9CA3AF", fontSize: 12, fontWeight: "600" }}>
+            Лайкнутые: {likedCount}
+          </Text>
+        </View>
 
         {!adultModeEnabled && (
           <Text
@@ -178,7 +220,7 @@ export default function FeedScreen() {
           </Text>
         )}
 
-        {previewUsers.length === 0 && (
+        {visibleUsers.length === 0 && (
           <Text
             style={{
               color: theme.colors.muted,
@@ -189,13 +231,59 @@ export default function FeedScreen() {
           </Text>
         )}
 
-        {previewUsers.map((user) => (
-          <View key={user.uid} style={{ marginBottom: 16, height: 320 }}>
-            <UserCard
-              user={user}
-              onPress={handleOpenUser}
-              onPressVoiceIntro={handleOpenVoiceIntro}
-            />
+        {visibleUsers.map(({ user, stableId }) => (
+          <View key={stableId} style={{ marginBottom: 18 }}>
+            <View style={{ height: 320 }}>
+              <UserCard
+                user={user}
+                onPress={handleOpenUser}
+                onPressVoiceIntro={handleOpenVoiceIntro}
+              />
+            </View>
+
+            <View
+              style={{
+                flexDirection: "row",
+                gap: 10,
+                marginTop: 10,
+              }}
+            >
+              <TouchableOpacity
+                activeOpacity={0.9}
+                onPress={() => onDislike(user, stableId)}
+                style={{
+                  flex: 1,
+                  height: 46,
+                  borderRadius: 16,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: "rgba(148, 163, 184, 0.14)",
+                  borderWidth: 1,
+                  borderColor: "rgba(255,255,255,0.08)",
+                }}
+              >
+                <Ionicons name="close" size={22} color="#fff" />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                activeOpacity={0.9}
+                onPress={() => onLike(user)}
+                style={{
+                  flex: 1,
+                  height: 46,
+                  borderRadius: 16,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: isLiked(user)
+                    ? "rgba(34, 197, 94, 0.22)"
+                    : "rgba(236, 72, 153, 0.22)",
+                  borderWidth: 1,
+                  borderColor: "rgba(255,255,255,0.10)",
+                }}
+              >
+                <Ionicons name="checkmark" size={22} color="#fff" />
+              </TouchableOpacity>
+            </View>
           </View>
         ))}
       </ScrollView>
@@ -205,6 +293,6 @@ export default function FeedScreen() {
         userName={voiceIntroUser?.displayName ?? voiceIntroUser?.name}
         durationSeconds={voiceIntroUser?.voiceIntroDurationSec ?? 8}
       />
-    </SafeAreaView>
+    </ScreenShell>
   );
 }

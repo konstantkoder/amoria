@@ -18,6 +18,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/config/firebaseConfig";
 import { theme } from "@/theme";
+import ScreenShell from "@/components/ScreenShell";
 
 export default function DMChatScreen() {
   const route = useRoute<any>();
@@ -52,10 +53,11 @@ export default function DMChatScreen() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
-      <View style={styles.header}>
-        <Text style={styles.headerTxt}>Диалог с {peerName}</Text>
-      </View>
+    <ScreenShell
+      title={`Диалог с ${peerName}`}
+      background="nightCity"
+      showBack
+    >
       <FlatList
         inverted
         data={msgs}
@@ -78,13 +80,11 @@ export default function DMChatScreen() {
           <Text style={styles.sendTxt}>Отпр.</Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </ScreenShell>
   );
 }
 
 const styles = StyleSheet.create({
-  header: { padding: 16 },
-  headerTxt: { fontSize: 20, fontWeight: "800", color: theme.colors.text },
   msg: {
     backgroundColor: "#fff",
     borderRadius: 12,

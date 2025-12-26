@@ -12,6 +12,7 @@ import { orderBy, query, onSnapshot } from "firebase/firestore";
 import { useRoute } from "@react-navigation/native";
 import { auth } from "@/config/firebaseConfig";
 import { messagesRef, sendMessage } from "@/services/swipe";
+import ScreenShell from "@/components/ScreenShell";
 
 type Message = {
   id: string;
@@ -44,56 +45,58 @@ export default function ChatScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1, padding: 12 }}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
-      <FlatList
-        data={messages}
-        inverted
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <View
+    <ScreenShell title="Чат" background="nightCity" showBack>
+      <KeyboardAvoidingView
+        style={{ flex: 1, padding: 12 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <FlatList
+          data={messages}
+          inverted
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (
+            <View
+              style={{
+                alignSelf: item.author === me ? "flex-end" : "flex-start",
+                backgroundColor: item.author === me ? "#c7d2fe" : "#e5e7eb",
+                borderRadius: 12,
+                padding: 10,
+                marginVertical: 4,
+                maxWidth: "80%",
+              }}
+            >
+              <Text>{item.text}</Text>
+            </View>
+          )}
+        />
+        <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
+          <TextInput
+            value={text}
+            onChangeText={setText}
+            placeholder="Сообщение…"
             style={{
-              alignSelf: item.author === me ? "flex-end" : "flex-start",
-              backgroundColor: item.author === me ? "#c7d2fe" : "#e5e7eb",
-              borderRadius: 12,
-              padding: 10,
-              marginVertical: 4,
-              maxWidth: "80%",
+              flex: 1,
+              backgroundColor: "#fff",
+              borderRadius: 10,
+              paddingHorizontal: 12,
+              height: 44,
+            }}
+          />
+          <TouchableOpacity
+            onPress={onSend}
+            style={{
+              backgroundColor: "#6d28d9",
+              height: 44,
+              borderRadius: 10,
+              paddingHorizontal: 16,
+              alignItems: "center",
+              justifyContent: "center",
             }}
           >
-            <Text>{item.text}</Text>
-          </View>
-        )}
-      />
-      <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
-        <TextInput
-          value={text}
-          onChangeText={setText}
-          placeholder="Сообщение…"
-          style={{
-            flex: 1,
-            backgroundColor: "#fff",
-            borderRadius: 10,
-            paddingHorizontal: 12,
-            height: 44,
-          }}
-        />
-        <TouchableOpacity
-          onPress={onSend}
-          style={{
-            backgroundColor: "#6d28d9",
-            height: 44,
-            borderRadius: 10,
-            paddingHorizontal: 16,
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <Text style={{ color: "#fff", fontWeight: "700" }}>Отпр.</Text>
-        </TouchableOpacity>
-      </View>
-    </KeyboardAvoidingView>
+            <Text style={{ color: "#fff", fontWeight: "700" }}>Отпр.</Text>
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
+    </ScreenShell>
   );
 }

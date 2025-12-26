@@ -10,7 +10,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import NearbyScreen from '@/screens/NearbyScreen';
 import ProfileScreen from '@/screens/ProfileScreen';
 import QuestionScreen from '@/screens/QuestionScreen';
-import RandomChatScreen from '@/screens/RandomChatScreen';
 import MatchesScreen from '@/screens/MatchesScreen';
 import ChatScreen from '@/screens/ChatScreen';
 import DeckScreen from '@/screens/DeckScreen';
@@ -54,7 +53,6 @@ function MainTabs(){
       <Tab.Screen name="Nearby" component={NearbyScreen} />
       <Tab.Screen name="Matches" component={MatchesScreen} />
       <Tab.Screen name="Question" component={QuestionScreen} />
-      <Tab.Screen name="Dialogs" component={RandomChatScreen} />
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>
   );
