@@ -22,7 +22,7 @@
     "@react-navigation/bottom-tabs": "^6.6.0",
     "@react-navigation/native": "^6.1.18",
     "@react-navigation/native-stack": "^6.11.0",
-    "expo": "~54.0.22",
+    "expo": "~54.0.30",
     "expo-constants": "~18.0.10",
     "expo-device": "~8.0.9",
     "expo-image-picker": "~17.0.8",
