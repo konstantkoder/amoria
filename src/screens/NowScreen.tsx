@@ -529,7 +529,11 @@ export default function NowScreen() {
   };
 
   return (
-    <ScreenShell title="Сейчас" background="hearts">
+    <ScreenShell
+      title="Сейчас"
+      background="hearts"
+      debugTint={false}
+    >
       <View
         style={{
           flex: 1,

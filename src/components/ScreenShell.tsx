@@ -2,7 +2,7 @@ import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
+import { DrawerActions, useNavigation } from "@react-navigation/native";
 
 import ScreenBackground, {
   type ScreenBackgroundVariant,
@@ -12,6 +12,9 @@ import MenuButton from "@/components/MenuButton";
 type Props = {
   title?: string;
   background?: ScreenBackgroundVariant;
+  overlayOpacity?: number;
+  blurRadius?: number;
+  debugTint?: boolean;
   showBack?: boolean;
   onBack?: () => void;
   children: React.ReactNode;
@@ -20,6 +23,9 @@ type Props = {
 export default function ScreenShell({
   title,
   background = "default",
+  overlayOpacity,
+  blurRadius,
+  debugTint = false,
   showBack,
   onBack,
   children,
@@ -27,21 +33,30 @@ export default function ScreenShell({
   const navigation = useNavigation<any>();
 
   const handleBack = () => {
-    if (onBack) {
-      onBack();
-      return;
-    }
-    if (navigation.canGoBack()) {
-      navigation.goBack();
-    }
+    if (onBack) return onBack();
+    if (navigation.canGoBack()) navigation.goBack();
   };
 
   const handleMenu = () => {
-    navigation.navigate("Profile" as never);
+    const parent = navigation.getParent?.();
+    if (parent && typeof (parent as any).openDrawer === "function") {
+      (parent as any).openDrawer();
+      return;
+    }
+    if (typeof (navigation as any).openDrawer === "function") {
+      (navigation as any).openDrawer();
+      return;
+    }
+    navigation.dispatch(DrawerActions.openDrawer());
   };
 
   return (
-    <ScreenBackground variant={background}>
+    <ScreenBackground
+      variant={background}
+      overlayOpacity={overlayOpacity}
+      blurRadius={blurRadius}
+      debugTint={debugTint}
+    >
       <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
         <View style={styles.header}>
           <View style={styles.headerSide}>

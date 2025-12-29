@@ -15,6 +15,9 @@ import { onAuthStateChanged, User } from "firebase/auth";
 import { auth } from "@/config/firebaseConfig";
 import LoginScreen from "@/screens/LoginScreen";
 import AppNavigator from "@/navigation/AppNavigator";
+import DMChatScreen from "@/screens/DMChatScreen";
+import LegalScreen from "@/screens/legal/LegalScreen";
+import { LocaleProvider } from "@/contexts/LocaleContext";
 import { theme } from "@/theme/theme";
 
 LogBox.ignoreLogs([
@@ -62,21 +65,27 @@ export default function App() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <NavigationContainer
-        ref={navigationRef}
-        theme={navTheme}
-        onReady={() => {
-          (globalThis as any).__NAV = navigationRef;
-        }}
-      >
-        <Stack.Navigator screenOptions={{ headerShown: false }}>
-          {user ? (
-            <Stack.Screen name="Root" component={AppNavigator} />
-          ) : (
-            <Stack.Screen name="Login" component={LoginScreen} />
-          )}
-        </Stack.Navigator>
-      </NavigationContainer>
+      <LocaleProvider>
+        <NavigationContainer
+          ref={navigationRef}
+          theme={navTheme}
+          onReady={() => {
+            (globalThis as any).__NAV = navigationRef;
+          }}
+        >
+          <Stack.Navigator screenOptions={{ headerShown: false }}>
+            {user ? (
+              <>
+                <Stack.Screen name="Root" component={AppNavigator} />
+                <Stack.Screen name="DM" component={DMChatScreen} />
+                <Stack.Screen name="Legal" component={LegalScreen} />
+              </>
+            ) : (
+              <Stack.Screen name="Login" component={LoginScreen} />
+            )}
+          </Stack.Navigator>
+        </NavigationContainer>
+      </LocaleProvider>
     </GestureHandlerRootView>
   );
 }

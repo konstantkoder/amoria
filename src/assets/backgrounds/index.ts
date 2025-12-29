@@ -1,8 +1,12 @@
-export const backgrounds = {
+export type BackgroundKey =
+  | "hearts"
+  | "smoke"
+  | "nightCity"
+  | "menu";
+
+export const backgrounds: Record<BackgroundKey, any> = {
   hearts: require("./hearts.png"),
   smoke: require("./smoke.png"),
-  nightCity: require("./night_city.png"),
-  softDarkGradient: require("./liquid.png"),
-} as const;
-
-export type BackgroundKey = keyof typeof backgrounds;
+  nightCity: require("./rooms_neon.jpg"),
+  menu: require("./menu_glass.jpg"),
+};

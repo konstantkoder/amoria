@@ -1,5 +1,6 @@
 import React from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { createDrawerNavigator } from "@react-navigation/drawer";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -17,6 +18,7 @@ import RoomsScreen from "@/screens/RoomsScreen";
 import InboxScreen from "@/screens/InboxScreen";
 
 import { theme } from "@/theme";
+import AppDrawerContent from "@/navigation/AppDrawerContent";
 
 export type ProfileStackParamList = {
   ProfileMain: undefined;
@@ -27,6 +29,7 @@ export type ProfileStackParamList = {
 
 const Tab = createBottomTabNavigator();
 const ProfileStack = createNativeStackNavigator<ProfileStackParamList>();
+const Drawer = createDrawerNavigator();
 
 function ProfileStackNavigator() {
   return (
@@ -45,7 +48,7 @@ function ProfileStackNavigator() {
   );
 }
 
-export default function AppNavigator() {
+function MainTabs() {
   const insets = useSafeAreaInsets();
 
   return (
@@ -130,16 +133,23 @@ export default function AppNavigator() {
           tabBarButton: () => null,
         }}
       />
-
-      {/* Профиль — скрытая вкладка, без кнопки в таб-баре */}
-      <Tab.Screen
-        name="Profile"
-        component={ProfileStackNavigator}
-        options={{
-          headerShown: false,
-          tabBarButton: () => null,
-        }}
-      />
     </Tab.Navigator>
+  );
+}
+
+export default function AppNavigator() {
+  return (
+    <Drawer.Navigator
+      screenOptions={{
+        headerShown: false,
+        drawerType: "slide",
+        overlayColor: "transparent",
+        drawerStyle: { backgroundColor: "transparent", width: 300 },
+      }}
+      drawerContent={(props) => <AppDrawerContent {...props} />}
+    >
+      <Drawer.Screen name="Tabs" component={MainTabs} />
+      <Drawer.Screen name="Profile" component={ProfileStackNavigator} />
+    </Drawer.Navigator>
   );
 }

@@ -605,7 +605,11 @@ export default function NearbyScreen() {
   };
 
   return (
-    <ScreenShell title="Объявления" background="smoke">
+    <ScreenShell
+      title="Объявления"
+      background="smoke"
+      debugTint={false}
+    >
       <View
         style={{
           flex: 1,

@@ -50,7 +50,11 @@ export default function AdultsChatScreen() {
 
   if (!accepted) {
     return (
-      <ScreenShell title="Чат 18+" background="nightCity">
+      <ScreenShell
+        title="Чат 18+"
+        background="nightCity"
+        debugTint={false}
+      >
         <View style={styles.gate}>
           <Text style={styles.title}>Чат 18+</Text>
           <Text style={styles.copy}>
@@ -68,7 +72,11 @@ export default function AdultsChatScreen() {
   }
 
   return (
-    <ScreenShell title="Чат 18+" background="nightCity">
+    <ScreenShell
+      title="Чат 18+"
+      background="nightCity"
+      debugTint={false}
+    >
       <View style={styles.chat}>
         <FlatList
           inverted

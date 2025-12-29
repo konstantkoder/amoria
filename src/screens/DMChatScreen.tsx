@@ -56,6 +56,7 @@ export default function DMChatScreen() {
     <ScreenShell
       title={`Диалог с ${peerName}`}
       background="nightCity"
+      debugTint={false}
       showBack
     >
       <FlatList

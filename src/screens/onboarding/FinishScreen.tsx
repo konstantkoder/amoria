@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { View, Text, ActivityIndicator, TouchableOpacity } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import ScreenBackground from "@/components/ScreenBackground";
 
 export default function FinishScreen({ navigation }: any) {
   const [busy, setBusy] = useState(false);
@@ -23,40 +24,43 @@ export default function FinishScreen({ navigation }: any) {
   }
 
   return (
-    <View
-      style={{
-        flex: 1,
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 24,
-      }}
-    >
-      <Text style={{ fontSize: 26, fontWeight: "800", marginBottom: 8 }}>
-        Финальный шаг
-      </Text>
-      <Text style={{ textAlign: "center", marginBottom: 16 }}>
-        Сохраняем профиль и переходим к «Табы → Люди рядом».
-      </Text>
-      {busy ? (
-        <ActivityIndicator />
-      ) : (
-        <TouchableOpacity
-          onPress={onFinish}
-          style={{
-            backgroundColor: "#1E90FF",
-            paddingHorizontal: 24,
-            paddingVertical: 12,
-            borderRadius: 10,
-          }}
-        >
-          <Text style={{ color: "#fff", fontWeight: "700" }}>ЗАВЕРШИТЬ</Text>
-        </TouchableOpacity>
-      )}
-      {!!error && (
-        <Text style={{ color: "red", marginTop: 12, textAlign: "center" }}>
-          {error}
+    <ScreenBackground variant="hearts" overlayOpacity={0.15} blurRadius={0}>
+      <View
+        style={{
+          flex: 1,
+          alignItems: "center",
+          justifyContent: "center",
+          padding: 24,
+          backgroundColor: "transparent",
+        }}
+      >
+        <Text style={{ fontSize: 26, fontWeight: "800", marginBottom: 8 }}>
+          Финальный шаг
         </Text>
-      )}
-    </View>
+        <Text style={{ textAlign: "center", marginBottom: 16 }}>
+          Сохраняем профиль и переходим к «Табы → Люди рядом».
+        </Text>
+        {busy ? (
+          <ActivityIndicator />
+        ) : (
+          <TouchableOpacity
+            onPress={onFinish}
+            style={{
+              backgroundColor: "#1E90FF",
+              paddingHorizontal: 24,
+              paddingVertical: 12,
+              borderRadius: 10,
+            }}
+          >
+            <Text style={{ color: "#fff", fontWeight: "700" }}>ЗАВЕРШИТЬ</Text>
+          </TouchableOpacity>
+        )}
+        {!!error && (
+          <Text style={{ color: "red", marginTop: 12, textAlign: "center" }}>
+            {error}
+          </Text>
+        )}
+      </View>
+    </ScreenBackground>
   );
 }

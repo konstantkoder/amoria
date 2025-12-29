@@ -6,7 +6,12 @@ import { theme } from "@/theme";
 
 export default function VideoChatScreen() {
   return (
-    <ScreenShell title="Видеочат" background="nightCity" showBack>
+    <ScreenShell
+      title="Видеочат"
+      background="nightCity"
+      debugTint={false}
+      showBack
+    >
       <View style={styles.container}>
         <Text style={styles.message}>Видеочат скоро будет доступен</Text>
       </View>

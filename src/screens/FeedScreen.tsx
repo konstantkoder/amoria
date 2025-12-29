@@ -12,10 +12,8 @@ import VoiceIntroModal from "@/components/VoiceIntroModal";
 import ScreenShell from "@/components/ScreenShell";
 import { addDislike, addLike, getDislikes, getLikes } from "@/services/likes";
 
-const getStableUserId = (user: DemoUser, index: number) => {
-  const fallback = `${user.displayName ?? user.name ?? "user"}-${user.age ?? "na"}-${index}`;
-  return user.uid ?? (user as { id?: string }).id ?? fallback;
-};
+const getStableUserId = (user: DemoUser) =>
+  (user as { id?: string }).id ?? user.uid ?? "";
 
 export default function FeedScreen() {
   const [adultModeEnabled, setAdultModeEnabled] = useState(false);
@@ -35,11 +33,11 @@ export default function FeedScreen() {
 
   const visibleUsers = useMemo(() => {
     return previewUsers
-      .map((user, index) => ({
+      .map((user) => ({
         user,
-        stableId: getStableUserId(user, index),
+        userId: getStableUserId(user),
       }))
-      .filter((item) => !dismissedIds.has(item.stableId));
+      .filter((item) => !dismissedIds.has(item.userId));
   }, [previewUsers, dismissedIds]);
 
   const insets = useSafeAreaInsets();
@@ -67,7 +65,7 @@ export default function FeedScreen() {
         if (alive) {
           setLikedIds(likes);
           setLikedCount(likes.length);
-          setDismissedIds(new Set(dislikes));
+          setDismissedIds((prev) => new Set([...prev, ...likes, ...dislikes]));
         }
       } catch {
         // ignore
@@ -102,12 +100,25 @@ export default function FeedScreen() {
     setVoiceIntroUser(null);
   };
 
-  const onLike = async (user: DemoUser) => {
+  const dismissUser = (userId: string) => {
+    if (!userId) return;
+    setDismissedIds((prev) => {
+      const next = new Set(prev);
+      next.add(userId);
+      return next;
+    });
+  };
+
+  const onLike = async (user: DemoUser, userId: string) => {
+    const resolvedId = userId || getStableUserId(user);
+    dismissUser(resolvedId);
     try {
-      if (user.uid) {
-        const next = await addLike(user.uid);
+      if (resolvedId) {
+        // TODO: Wire real match+chat flow via services/social.ts or services/swipe.ts.
+        const next = await addLike(resolvedId);
         setLikedIds(next);
         setLikedCount(next.length);
+        setDismissedIds((prev) => new Set([...prev, ...next]));
       } else {
         setLikedCount((prev) => prev + 1);
       }
@@ -117,28 +128,26 @@ export default function FeedScreen() {
     Alert.alert("Лайк", "Лайк сохранён (demo). Позже тут будет чат/матч.");
   };
 
-  const onDislike = async (user: DemoUser, stableId: string) => {
-    setDismissedIds((prev) => {
-      const next = new Set(prev);
-      next.add(stableId);
-      return next;
-    });
-    if (!user.uid) return;
+  const onDislike = async (user: DemoUser, userId: string) => {
+    const resolvedId = userId || getStableUserId(user);
+    dismissUser(resolvedId);
+    if (!resolvedId) return;
     try {
-      const next = await addDislike(user.uid);
-      setDismissedIds(new Set(next));
+      const next = await addDislike(resolvedId);
+      setDismissedIds((prev) => new Set([...prev, ...next]));
     } catch {
       // ignore
     }
   };
 
-  const isLiked = (user: DemoUser) => {
-    if (!user.uid) return false;
-    return likedIds.includes(user.uid);
-  };
+  const isLiked = (userId: string) => likedIds.includes(userId);
 
   return (
-    <ScreenShell title="AMORIA" background="hearts">
+    <ScreenShell
+      title="AMORIA"
+      background="hearts"
+      debugTint={false}
+    >
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{
@@ -231,8 +240,8 @@ export default function FeedScreen() {
           </Text>
         )}
 
-        {visibleUsers.map(({ user, stableId }) => (
-          <View key={stableId} style={{ marginBottom: 18 }}>
+        {visibleUsers.map(({ user, userId }) => (
+          <View key={userId} style={{ marginBottom: 18 }}>
             <View style={{ height: 320 }}>
               <UserCard
                 user={user}
@@ -250,7 +259,7 @@ export default function FeedScreen() {
             >
               <TouchableOpacity
                 activeOpacity={0.9}
-                onPress={() => onDislike(user, stableId)}
+                onPress={() => onDislike(user, userId)}
                 style={{
                   flex: 1,
                   height: 46,
@@ -267,14 +276,14 @@ export default function FeedScreen() {
 
               <TouchableOpacity
                 activeOpacity={0.9}
-                onPress={() => onLike(user)}
+                onPress={() => onLike(user, userId)}
                 style={{
                   flex: 1,
                   height: 46,
                   borderRadius: 16,
                   alignItems: "center",
                   justifyContent: "center",
-                  backgroundColor: isLiked(user)
+                backgroundColor: isLiked(userId)
                     ? "rgba(34, 197, 94, 0.22)"
                     : "rgba(236, 72, 153, 0.22)",
                   borderWidth: 1,

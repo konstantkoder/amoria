@@ -8,12 +8,10 @@ import {
 } from "react-native";
 
 import { backgrounds, type BackgroundKey } from "@/assets/backgrounds";
-import { theme } from "@/theme";
 
 type Props = {
   background: BackgroundKey;
   blurRadius?: number;
-  /** 0..1, default 0 (OFF) */
   overlayOpacity?: number;
   overlayColor?: string;
   style?: StyleProp<ViewStyle>;
@@ -32,6 +30,7 @@ export default function BackgroundWrapper({
   const safeOpacity = Math.min(Math.max(overlayOpacity ?? 0, 0), 1);
   const overlayValue =
     overlayColor ?? `rgba(0,0,0,${safeOpacity.toFixed(2)})`;
+  const shouldRenderOverlay = safeOpacity > 0;
 
   return (
     <ImageBackground
@@ -40,11 +39,8 @@ export default function BackgroundWrapper({
       resizeMode="cover"
       blurRadius={blurRadius}
     >
-      {safeOpacity > 0 ? (
-        <View
-          pointerEvents="none"
-          style={[styles.overlay, { backgroundColor: overlayValue }]}
-        />
+      {shouldRenderOverlay ? (
+        <View style={[styles.overlay, { backgroundColor: overlayValue }]} />
       ) : null}
       {children}
     </ImageBackground>
@@ -52,6 +48,7 @@ export default function BackgroundWrapper({
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.colors.background },
+  // DO NOT paint a solid backgroundColor here — it can visually "eat" your image.
+  root: { flex: 1 },
   overlay: { ...StyleSheet.absoluteFillObject },
 });

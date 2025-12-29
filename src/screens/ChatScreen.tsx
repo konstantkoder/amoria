@@ -45,7 +45,12 @@ export default function ChatScreen() {
   };
 
   return (
-    <ScreenShell title="Чат" background="nightCity" showBack>
+    <ScreenShell
+      title="Чат"
+      background="nightCity"
+      debugTint={false}
+      showBack
+    >
       <KeyboardAvoidingView
         style={{ flex: 1, padding: 12 }}
         behavior={Platform.OS === "ios" ? "padding" : undefined}

@@ -268,42 +268,6 @@ export default function RoomsScreen() {
 
         <View
           style={{
-            flexDirection: "row",
-            flexWrap: "wrap",
-            gap: 10,
-            marginBottom: 12,
-          }}
-        >
-          <TouchableOpacity
-            activeOpacity={0.9}
-            onPress={() => navigation.navigate("VideoChat" as never)}
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              paddingHorizontal: 12,
-              paddingVertical: 8,
-              borderRadius: 999,
-              backgroundColor: "rgba(255,255,255,0.08)",
-              borderWidth: 1,
-              borderColor: "rgba(255,255,255,0.10)",
-            }}
-          >
-            <Ionicons name="videocam-outline" size={16} color="#E5E7EB" />
-            <Text
-              style={{
-                color: "#E5E7EB",
-                fontSize: 13,
-                fontWeight: "700",
-                marginLeft: 6,
-              }}
-            >
-              Видеочат
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        <View
-          style={{
             borderRadius: 18,
             padding: 14,
             backgroundColor: "rgba(255,255,255,0.06)",
@@ -656,6 +620,8 @@ export default function RoomsScreen() {
 
   const renderChat = () => (
     <View style={{ flex: 1 }}>
+      <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
+      </View>
       {renderChatHeader()}
 
       <FlatList
@@ -746,6 +712,7 @@ export default function RoomsScreen() {
     <ScreenShell
       title={headerTitle}
       background="nightCity"
+      debugTint={false}
       showBack={stage === "chat"}
       onBack={stage === "chat" ? leaveRoom : undefined}
     >

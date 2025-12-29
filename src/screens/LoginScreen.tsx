@@ -12,10 +12,13 @@ import {
   createUserWithEmailAndPassword,
 } from "firebase/auth";
 import { auth } from "@/config/firebaseConfig";
+import ScreenBackground from "@/components/ScreenBackground";
+import { useLocale } from "@/contexts/LocaleContext";
 
 export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const { locale, setLocale } = useLocale();
 
   const login = async () => {
     try {
@@ -37,33 +40,72 @@ export default function LoginScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Вход</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Email"
-        keyboardType="email-address"
-        autoCapitalize="none"
-        value={email}
-        onChangeText={setEmail}
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="Пароль"
-        secureTextEntry
-        value={password}
-        onChangeText={setPassword}
-      />
-      <TouchableOpacity style={styles.button} onPress={login}>
-        <Text style={styles.buttonText}>Войти</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={[styles.button, { marginTop: 8 }]}
-        onPress={register}
-      >
-        <Text style={styles.buttonText}>Зарегистрироваться</Text>
-      </TouchableOpacity>
-    </View>
+    <ScreenBackground variant="hearts" overlayOpacity={0.15} blurRadius={0}>
+      <View style={[styles.container, { backgroundColor: "transparent" }]}>
+        <Text style={styles.title}>Вход</Text>
+        <View style={styles.languageBlock}>
+          <Text style={styles.languageLabel}>Язык / Language</Text>
+          <View style={styles.languageRow}>
+            <TouchableOpacity
+              onPress={() => setLocale("ru")}
+              style={[
+                styles.languageButton,
+                locale === "ru" ? styles.languageButtonActive : null,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.languageText,
+                  locale === "ru" ? styles.languageTextActive : null,
+                ]}
+              >
+                Русский
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setLocale("en")}
+              style={[
+                styles.languageButton,
+                locale === "en" ? styles.languageButtonActive : null,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.languageText,
+                  locale === "en" ? styles.languageTextActive : null,
+                ]}
+              >
+                English
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+        <TextInput
+          style={styles.input}
+          placeholder="Email"
+          keyboardType="email-address"
+          autoCapitalize="none"
+          value={email}
+          onChangeText={setEmail}
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="Пароль"
+          secureTextEntry
+          value={password}
+          onChangeText={setPassword}
+        />
+        <TouchableOpacity style={styles.button} onPress={login}>
+          <Text style={styles.buttonText}>Войти</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.button, { marginTop: 8 }]}
+          onPress={register}
+        >
+          <Text style={styles.buttonText}>Зарегистрироваться</Text>
+        </TouchableOpacity>
+      </View>
+    </ScreenBackground>
   );
 }
 
@@ -88,4 +130,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   buttonText: { fontSize: 16, fontWeight: "600" },
+  languageBlock: { marginBottom: 12 },
+  languageLabel: { fontSize: 13, fontWeight: "600", marginBottom: 6 },
+  languageRow: { flexDirection: "row", gap: 8 },
+  languageButton: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: "center",
+  },
+  languageButtonActive: { backgroundColor: "rgba(0,0,0,0.08)" },
+  languageText: { fontSize: 13, fontWeight: "700" },
+  languageTextActive: { color: "#111" },
 });

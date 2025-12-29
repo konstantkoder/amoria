@@ -28,7 +28,11 @@ export default function InboxScreen() {
   }, []);
 
   return (
-    <ScreenShell title="Чаты" background="smoke">
+    <ScreenShell
+      title="Чаты"
+      background="smoke"
+      debugTint={false}
+    >
       <View
         style={{
           flex: 1,
