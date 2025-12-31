@@ -1,7 +1,6 @@
 import React from "react";
 import { StyleSheet, View, Text } from "react-native";
-import BackgroundWrapper from "@/components/BackgroundWrapper";
-import { type BackgroundKey } from "@/assets/backgrounds";
+import BackgroundWrapper, { type BackgroundKey } from "@/components/BackgroundWrapper";
 
 export type ScreenBackgroundVariant =
   | "default"

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -15,14 +15,50 @@ import { auth } from "@/config/firebaseConfig";
 import ScreenBackground from "@/components/ScreenBackground";
 import { useLocale } from "@/contexts/LocaleContext";
 
-export default function LoginScreen() {
+type LoginScreenProps = {
+  onAuthStart?: () => void;
+  authError?: string | null;
+};
+
+const EMAIL_RE = /^\S+@\S+\.\S+$/;
+
+export default function LoginScreen({
+  onAuthStart,
+  authError,
+}: LoginScreenProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const { locale, setLocale } = useLocale();
+  const firebaseAvailable = Boolean(auth);
+  const fallbackMessage = useMemo(() => {
+    if (authError) return authError;
+    if (!firebaseAvailable) {
+      return "Firebase не настроен. Вход временно недоступен.";
+    }
+    return null;
+  }, [authError, firebaseAvailable]);
 
   const login = async () => {
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
+      Alert.alert("Вход", "Введите email.");
+      return;
+    }
+    if (!EMAIL_RE.test(trimmedEmail)) {
+      Alert.alert("Вход", "Проверь формат email.");
+      return;
+    }
+    if (!password) {
+      Alert.alert("Вход", "Введите пароль.");
+      return;
+    }
+    if (!auth) {
+      Alert.alert("Вход", "Firebase не настроен. Вход недоступен.");
+      return;
+    }
+    onAuthStart?.();
     try {
-      await signInWithEmailAndPassword(auth, email.trim(), password);
+      await signInWithEmailAndPassword(auth, trimmedEmail, password);
     } catch (e: any) {
       console.error(e);
       Alert.alert("Вход", e?.message ?? "Ошибка входа");
@@ -30,8 +66,26 @@ export default function LoginScreen() {
   };
 
   const register = async () => {
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
+      Alert.alert("Регистрация", "Введите email.");
+      return;
+    }
+    if (!EMAIL_RE.test(trimmedEmail)) {
+      Alert.alert("Регистрация", "Проверь формат email.");
+      return;
+    }
+    if (!password) {
+      Alert.alert("Регистрация", "Введите пароль.");
+      return;
+    }
+    if (!auth) {
+      Alert.alert("Регистрация", "Firebase не настроен. Регистрация недоступна.");
+      return;
+    }
+    onAuthStart?.();
     try {
-      await createUserWithEmailAndPassword(auth, email.trim(), password);
+      await createUserWithEmailAndPassword(auth, trimmedEmail, password);
       Alert.alert("Регистрация", "Успешно!");
     } catch (e: any) {
       console.error(e);
@@ -43,6 +97,9 @@ export default function LoginScreen() {
     <ScreenBackground variant="hearts" overlayOpacity={0.15} blurRadius={0}>
       <View style={[styles.container, { backgroundColor: "transparent" }]}>
         <Text style={styles.title}>Вход</Text>
+        {fallbackMessage ? (
+          <Text style={styles.errorText}>{fallbackMessage}</Text>
+        ) : null}
         <View style={styles.languageBlock}>
           <Text style={styles.languageLabel}>Язык / Language</Text>
           <View style={styles.languageRow}>
@@ -121,6 +178,13 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginBottom: 12,
     textAlign: "center",
+  },
+  errorText: {
+    color: "#B91C1C",
+    fontSize: 13,
+    fontWeight: "600",
+    textAlign: "center",
+    marginBottom: 10,
   },
   input: { borderWidth: 1, borderRadius: 8, padding: 12, marginVertical: 6 },
   button: {

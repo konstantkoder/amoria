@@ -7,7 +7,9 @@ import {
   ViewStyle,
 } from "react-native";
 
-import { backgrounds, type BackgroundKey } from "@/assets/backgrounds";
+import { backgrounds, type BackgroundKey } from "../assets/backgrounds";
+
+export type { BackgroundKey };
 
 type Props = {
   background: BackgroundKey;

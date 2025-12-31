@@ -43,15 +43,34 @@ const navTheme = {
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
-  const [initializing, setInitializing] = useState(true);
+  const [initializing, setInitializing] = useState(false);
+  const [authEnabled, setAuthEnabled] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (firebaseUser) => {
-      setUser(firebaseUser);
-      if (initializing) setInitializing(false);
-    });
+    if (!authEnabled || !auth) {
+      setInitializing(false);
+      return;
+    }
+
+    setInitializing(true);
+    setAuthError(null);
+
+    const unsub = onAuthStateChanged(
+      auth,
+      (firebaseUser) => {
+        setUser(firebaseUser);
+        setInitializing(false);
+      },
+      (error) => {
+        console.error("[auth] onAuthStateChanged failed", error);
+        setUser(null);
+        setAuthError(error?.message ?? "Ошибка авторизации");
+        setInitializing(false);
+      }
+    );
     return unsub;
-  }, [initializing]);
+  }, [authEnabled]);
 
   if (initializing) {
     return (
@@ -81,7 +100,14 @@ export default function App() {
                 <Stack.Screen name="Legal" component={LegalScreen} />
               </>
             ) : (
-              <Stack.Screen name="Login" component={LoginScreen} />
+              <Stack.Screen name="Login">
+                {() => (
+                  <LoginScreen
+                    onAuthStart={() => setAuthEnabled(true)}
+                    authError={authError}
+                  />
+                )}
+              </Stack.Screen>
             )}
           </Stack.Navigator>
         </NavigationContainer>
