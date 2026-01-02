@@ -72,7 +72,7 @@ const hasCoords = (lat?: number, lng?: number) =>
 
 /** Вернём пачку кандидатов, исключая себя/заблокированных/уже свайпнутых */
 export async function fetchCandidates(max = 10): Promise<SwipeCandidate[]> {
-  const me = auth.currentUser?.uid;
+  const me = auth?.currentUser?.uid;
   if (!me) return [];
 
   const likedSnap = await getDocs(collection(db, "likes", me, "outgoing"));
@@ -136,7 +136,7 @@ export async function fetchCandidates(max = 10): Promise<SwipeCandidate[]> {
 }
 
 export async function passUser(targetUid: string) {
-  const me = auth.currentUser?.uid;
+  const me = auth?.currentUser?.uid;
   if (!me || !targetUid) return;
   await setDoc(
     doc(db, "passes", me, "outgoing", targetUid),
@@ -148,7 +148,7 @@ export async function passUser(targetUid: string) {
 }
 
 export async function likeUser(targetUid: string): Promise<LikeResult> {
-  const me = auth.currentUser?.uid;
+  const me = auth?.currentUser?.uid;
   if (!me || !targetUid) return { matched: false, chatId: null, quotaLeft: 0 };
 
   const { ref, data } = await getOrInitQuota(me);
@@ -215,7 +215,7 @@ export async function likeUser(targetUid: string): Promise<LikeResult> {
 }
 
 export async function superLikeUser(targetUid: string): Promise<LikeResult> {
-  const me = auth.currentUser?.uid;
+  const me = auth?.currentUser?.uid;
   if (!me || !targetUid) return { matched: false, chatId: null, quotaLeft: 0 };
 
   const { ref, data } = await getOrInitQuota(me);
@@ -297,7 +297,7 @@ export function messagesRef(chatId: string) {
 }
 
 export async function sendMessage(chatId: string, text: string) {
-  const me = auth.currentUser?.uid;
+  const me = auth?.currentUser?.uid;
   if (!me || !text.trim()) return;
   const clean = text.trim();
   await addDoc(messagesRef(chatId), {

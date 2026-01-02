@@ -139,6 +139,7 @@ function MainTabs() {
 
 export default function AppNavigator() {
   return (
+    // TEMP: Drawer navigator is created here; no legacy implementation prop is used.
     <Drawer.Navigator
       screenOptions={{
         headerShown: false,

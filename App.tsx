@@ -12,13 +12,15 @@ import {
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { onAuthStateChanged, User } from "firebase/auth";
 
-import { auth } from "@/config/firebaseConfig";
+import { auth, isFirebaseConfigured } from "@/config/firebaseConfig";
 import LoginScreen from "@/screens/LoginScreen";
 import AppNavigator from "@/navigation/AppNavigator";
 import DMChatScreen from "@/screens/DMChatScreen";
 import LegalScreen from "@/screens/legal/LegalScreen";
 import { LocaleProvider } from "@/contexts/LocaleContext";
 import { theme } from "@/theme/theme";
+import ErrorBoundary from "@/components/ErrorBoundary";
+import DebugOverlay from "@/components/DebugOverlay";
 
 LogBox.ignoreLogs([
   "expo-notifications: Android Push notifications (remote notifications) functionality provided by expo-notifications was removed from Expo Go with the release of SDK 53.",
@@ -46,6 +48,7 @@ export default function App() {
   const [initializing, setInitializing] = useState(false);
   const [authEnabled, setAuthEnabled] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [lastError, setLastError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authEnabled || !auth) {
@@ -85,32 +88,42 @@ export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <LocaleProvider>
-        <NavigationContainer
-          ref={navigationRef}
-          theme={navTheme}
-          onReady={() => {
-            (globalThis as any).__NAV = navigationRef;
-          }}
+        <ErrorBoundary
+          onError={(error) =>
+            setLastError(error?.message ?? "Unknown error")
+          }
         >
-          <Stack.Navigator screenOptions={{ headerShown: false }}>
-            {user ? (
-              <>
-                <Stack.Screen name="Root" component={AppNavigator} />
-                <Stack.Screen name="DM" component={DMChatScreen} />
-                <Stack.Screen name="Legal" component={LegalScreen} />
-              </>
-            ) : (
-              <Stack.Screen name="Login">
-                {() => (
-                  <LoginScreen
-                    onAuthStart={() => setAuthEnabled(true)}
-                    authError={authError}
-                  />
-                )}
-              </Stack.Screen>
-            )}
-          </Stack.Navigator>
-        </NavigationContainer>
+          <NavigationContainer
+            ref={navigationRef}
+            theme={navTheme}
+            onReady={() => {
+              (globalThis as any).__NAV = navigationRef;
+            }}
+          >
+            <Stack.Navigator screenOptions={{ headerShown: false }}>
+              {user ? (
+                <>
+                  <Stack.Screen name="Root" component={AppNavigator} />
+                  <Stack.Screen name="DM" component={DMChatScreen} />
+                  <Stack.Screen name="Legal" component={LegalScreen} />
+                </>
+              ) : (
+                <Stack.Screen name="Login">
+                  {() => (
+                    <LoginScreen
+                      onAuthStart={() => setAuthEnabled(true)}
+                      authError={authError}
+                    />
+                  )}
+                </Stack.Screen>
+              )}
+            </Stack.Navigator>
+          </NavigationContainer>
+        </ErrorBoundary>
+        <DebugOverlay
+          firebaseConfigured={isFirebaseConfigured()}
+          lastError={lastError}
+        />
       </LocaleProvider>
     </GestureHandlerRootView>
   );

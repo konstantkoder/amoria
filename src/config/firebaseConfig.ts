@@ -23,7 +23,7 @@ const firebaseConfig = {
 
 // Простая проверка: настроен ли Firebase
 export function isFirebaseConfigured(): boolean {
-  return Boolean(firebaseConfig.apiKey && firebaseConfig.projectId && firebaseConfig.appId);
+  return Boolean(process.env.EXPO_PUBLIC_FIREBASE_API_KEY);
 }
 
 let app: FirebaseApp | null = null;

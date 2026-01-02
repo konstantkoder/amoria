@@ -4,10 +4,14 @@ import { signOut } from "firebase/auth";
 import { auth } from "@/config/firebaseConfig";
 
 export default function HomeScreen() {
-  const user = auth.currentUser;
+  const user = auth?.currentUser;
 
   const logout = useCallback(async () => {
     try {
+      if (!auth) {
+        Alert.alert("Выход", "Firebase не настроен. Выход недоступен.");
+        return;
+      }
       await signOut(auth);
     } catch (e) {
       console.error(e);

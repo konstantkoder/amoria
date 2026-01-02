@@ -67,16 +67,16 @@ export default function AppDrawerContent({
         if (!alive) return;
         const name =
           profile?.displayName ??
-          auth.currentUser?.displayName ??
+          auth?.currentUser?.displayName ??
           "Профиль";
         const photo =
-          profile?.photos?.[0] ?? auth.currentUser?.photoURL ?? null;
+          profile?.photos?.[0] ?? auth?.currentUser?.photoURL ?? null;
         setProfileName(name);
         setAvatarUri(photo || null);
       } catch {
         if (!alive) return;
-        setProfileName(auth.currentUser?.displayName ?? "Профиль");
-        setAvatarUri(auth.currentUser?.photoURL ?? null);
+        setProfileName(auth?.currentUser?.displayName ?? "Профиль");
+        setAvatarUri(auth?.currentUser?.photoURL ?? null);
       }
     })();
     return () => {

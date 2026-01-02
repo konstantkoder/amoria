@@ -23,7 +23,7 @@ type Message = {
 export default function ChatScreen() {
   const { params } = useRoute<any>();
   const chatId = params?.chatId as string;
-  const me = auth.currentUser?.uid;
+  const me = auth?.currentUser?.uid;
   const [text, setText] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
 

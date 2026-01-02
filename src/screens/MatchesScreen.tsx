@@ -10,7 +10,7 @@ type MatchRow = {
 };
 
 export default function MatchesScreen() {
-  const me = auth.currentUser?.uid;
+  const me = auth?.currentUser?.uid;
   const navigation = useNavigation<any>();
   const [rows, setRows] = useState<MatchRow[]>([]);
 

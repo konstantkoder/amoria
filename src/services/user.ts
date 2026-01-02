@@ -4,7 +4,7 @@ import { doc, getDoc, setDoc } from "firebase/firestore";
 import { ensureAuth } from "./firebase";
 
 export async function getCurrentUser() {
-  const uid = auth.currentUser?.uid;
+  const uid = auth?.currentUser?.uid;
   if (!uid) throw new Error("Not signed in");
   const ref = doc(db, "users", uid);
   const snap = await getDoc(ref);
@@ -12,14 +12,14 @@ export async function getCurrentUser() {
 }
 
 export async function updateMySettings(patch: Record<string, any>) {
-  const uid = auth.currentUser?.uid;
+  const uid = auth?.currentUser?.uid;
   if (!uid) throw new Error("Not signed in");
   const ref = doc(db, "users", uid);
   await setDoc(ref, patch, { merge: true });
 }
 
 export async function getUserProfile(): Promise<UserProfile | null> {
-  const uid = auth.currentUser?.uid ?? (await ensureAuth());
+  const uid = auth?.currentUser?.uid ?? (await ensureAuth());
   if (!uid) return null;
   const ref = doc(db, "users", uid);
   const snap = await getDoc(ref);
@@ -30,7 +30,7 @@ export async function getUserProfile(): Promise<UserProfile | null> {
 export async function updateUserFields(
   fields: Partial<UserProfile>,
 ): Promise<void> {
-  const uid = auth.currentUser?.uid ?? (await ensureAuth());
+  const uid = auth?.currentUser?.uid ?? (await ensureAuth());
   const ref = doc(db, "users", uid);
   await setDoc(
     ref,

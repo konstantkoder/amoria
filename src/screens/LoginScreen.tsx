@@ -11,8 +11,7 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
 } from "firebase/auth";
-import { auth } from "@/config/firebaseConfig";
-import ScreenBackground from "@/components/ScreenBackground";
+import { auth, isFirebaseConfigured } from "@/config/firebaseConfig";
 import { useLocale } from "@/contexts/LocaleContext";
 
 type LoginScreenProps = {
@@ -29,14 +28,15 @@ export default function LoginScreen({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const { locale, setLocale } = useLocale();
-  const firebaseAvailable = Boolean(auth);
+  const firebaseConfigured = isFirebaseConfigured();
   const fallbackMessage = useMemo(() => {
     if (authError) return authError;
-    if (!firebaseAvailable) {
-      return "Firebase не настроен. Вход временно недоступен.";
+    if (!firebaseConfigured) {
+      return "Firebase не настроен. Вход недоступен.";
     }
     return null;
-  }, [authError, firebaseAvailable]);
+  }, [authError, firebaseConfigured]);
+  const authDisabled = !firebaseConfigured;
 
   const login = async () => {
     const trimmedEmail = email.trim();
@@ -86,16 +86,22 @@ export default function LoginScreen({
     onAuthStart?.();
     try {
       await createUserWithEmailAndPassword(auth, trimmedEmail, password);
-      Alert.alert("Регистрация", "Успешно!");
     } catch (e: any) {
       console.error(e);
+      if (e?.code === "auth/email-already-in-use") {
+        Alert.alert(
+          "Регистрация",
+          "Этот email уже зарегистрирован. Попробуйте войти.",
+        );
+        return;
+      }
       Alert.alert("Регистрация", e?.message ?? "Ошибка регистрации");
     }
   };
 
   return (
-    <ScreenBackground variant="hearts" overlayOpacity={0.15} blurRadius={0}>
-      <View style={[styles.container, { backgroundColor: "transparent" }]}>
+    <View style={styles.screen}>
+      <View style={styles.container}>
         <Text style={styles.title}>Вход</Text>
         {fallbackMessage ? (
           <Text style={styles.errorText}>{fallbackMessage}</Text>
@@ -140,6 +146,7 @@ export default function LoginScreen({
         <TextInput
           style={styles.input}
           placeholder="Email"
+          placeholderTextColor="#6B7280"
           keyboardType="email-address"
           autoCapitalize="none"
           value={email}
@@ -148,25 +155,39 @@ export default function LoginScreen({
         <TextInput
           style={styles.input}
           placeholder="Пароль"
+          placeholderTextColor="#6B7280"
           secureTextEntry
           value={password}
           onChangeText={setPassword}
         />
-        <TouchableOpacity style={styles.button} onPress={login}>
+        <TouchableOpacity
+          style={[styles.button, authDisabled ? styles.buttonDisabled : null]}
+          onPress={login}
+          disabled={authDisabled}
+        >
           <Text style={styles.buttonText}>Войти</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.button, { marginTop: 8 }]}
+          style={[
+            styles.button,
+            { marginTop: 8 },
+            authDisabled ? styles.buttonDisabled : null,
+          ]}
           onPress={register}
+          disabled={authDisabled}
         >
           <Text style={styles.buttonText}>Зарегистрироваться</Text>
         </TouchableOpacity>
       </View>
-    </ScreenBackground>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
+  },
   container: {
     flex: 1,
     padding: 24,
@@ -178,6 +199,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginBottom: 12,
     textAlign: "center",
+    color: "#000000",
   },
   errorText: {
     color: "#B91C1C",
@@ -186,16 +208,32 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginBottom: 10,
   },
-  input: { borderWidth: 1, borderRadius: 8, padding: 12, marginVertical: 6 },
+  input: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    marginVertical: 6,
+    borderColor: "#111827",
+    color: "#000000",
+    backgroundColor: "#FFFFFF",
+  },
   button: {
     borderWidth: 1,
     borderRadius: 10,
     padding: 12,
     alignItems: "center",
+    borderColor: "#111827",
+    backgroundColor: "#FFFFFF",
   },
-  buttonText: { fontSize: 16, fontWeight: "600" },
+  buttonDisabled: { opacity: 0.55 },
+  buttonText: { fontSize: 16, fontWeight: "600", color: "#000000" },
   languageBlock: { marginBottom: 12 },
-  languageLabel: { fontSize: 13, fontWeight: "600", marginBottom: 6 },
+  languageLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    marginBottom: 6,
+    color: "#000000",
+  },
   languageRow: { flexDirection: "row", gap: 8 },
   languageButton: {
     flex: 1,
@@ -203,8 +241,10 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
     alignItems: "center",
+    borderColor: "#111827",
+    backgroundColor: "#FFFFFF",
   },
-  languageButtonActive: { backgroundColor: "rgba(0,0,0,0.08)" },
-  languageText: { fontSize: 13, fontWeight: "700" },
-  languageTextActive: { color: "#111" },
+  languageButtonActive: { backgroundColor: "#E5E7EB" },
+  languageText: { fontSize: 13, fontWeight: "700", color: "#000000" },
+  languageTextActive: { color: "#000000" },
 });
