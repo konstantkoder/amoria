@@ -14,9 +14,6 @@ Notifications.setNotificationHandler({
 });
 
 export async function registerForPushNotificationsAsync() {
-  console.log(
-    "[notifications] Disabled in Expo Go dev build (SDK 53). No push token requested.",
-  );
   return null;
 }
 
@@ -34,8 +31,8 @@ export async function sendLocalNotification(
       content,
       trigger: null,
     });
-  } catch (e) {
-    console.warn("[notifications] local send error:", e);
+  } catch {
+    return;
   }
 }
 

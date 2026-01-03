@@ -98,8 +98,7 @@ export default function EditProfileScreen() {
         setMood(profile.mood ?? "happy");
         setAllowAdultMode(profile.allowAdultMode ?? false);
         setMysteryMode(profile.mysteryMode ?? false);
-      } catch (e) {
-        console.warn("EditProfileScreen load error", e);
+      } catch {
         Alert.alert("Ошибка", "Не удалось загрузить профиль.");
       } finally {
         setLoading(false);
@@ -128,8 +127,7 @@ export default function EditProfileScreen() {
       });
 
       Alert.alert("Готово", "Профиль обновлён.");
-    } catch (e) {
-      console.warn("EditProfileScreen save error", e);
+    } catch {
       Alert.alert("Ошибка", "Не удалось сохранить изменения.");
     } finally {
       setSaving(false);

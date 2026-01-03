@@ -8,8 +8,7 @@ export async function loadAdultModeEnabled(): Promise<boolean> {
     if (raw === "1") return true;
     if (raw === "0") return false;
     return false;
-  } catch (e) {
-    console.warn("[adultMode] load error", e);
+  } catch {
     return false;
   }
 }
@@ -17,7 +16,7 @@ export async function loadAdultModeEnabled(): Promise<boolean> {
 export async function setAdultModeEnabled(enabled: boolean): Promise<void> {
   try {
     await AsyncStorage.setItem(STORAGE_KEY, enabled ? "1" : "0");
-  } catch (e) {
-    console.warn("[adultMode] save error", e);
+  } catch {
+    return;
   }
 }

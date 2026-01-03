@@ -51,14 +51,16 @@ export default function PhotoManagerScreen() {
   }
 
   return (
-    <View style={{ flex: 1, padding: 16, backgroundColor: theme.colors.bg }}>
+    <View
+      style={{ flex: 1, padding: 16, backgroundColor: theme.colors.background }}
+    >
       <Text style={{ fontSize: 22, fontWeight: "700", marginBottom: 12 }}>
         Мои фото
       </Text>
       <Button title="Добавить фото" onPress={addPhoto} />
       <FlatList
         data={photos}
-        keyExtractor={(item, idx) => idx.toString()}
+        keyExtractor={(item, idx) => `${item}-${idx}`}
         numColumns={2}
         renderItem={({ item, index }) => (
           <View

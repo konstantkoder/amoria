@@ -23,8 +23,7 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
   if (!raw) return null;
   try {
     return JSON.parse(raw) as UserProfile;
-  } catch (e) {
-    console.warn("[firebase demo] Failed to parse profile", e);
+  } catch {
     return null;
   }
 }
@@ -57,17 +56,28 @@ export async function deleteUserCompletely(uid: string): Promise<void> {
   // uid оставляем, чтобы не плодить новые аккаунты каждый запуск
 }
 
-// Жалоба/бан — в демо только логируем, без реального бэкенда
+// Жалоба/бан — в демо без реального бэкенда
 export async function reportUser(
   uid: string,
   targetId: string,
   reason: string
 ): Promise<void> {
-  console.log("[firebase demo] reportUser", { uid, targetId, reason });
+  void uid;
+  void targetId;
+  void reason;
 }
 
 export async function blockUser(uid: string, targetId: string): Promise<void> {
-  console.log("[firebase demo] blockUser", { uid, targetId });
+  void uid;
+  void targetId;
+}
+
+export async function setAdultConsent(enabled: boolean): Promise<void> {
+  void enabled;
+}
+
+export async function setFlirtEnabledRemote(enabled: boolean): Promise<void> {
+  void enabled;
 }
 
 export { app, auth, db, storage, isFirebaseConfigured } from "../config/firebaseConfig";

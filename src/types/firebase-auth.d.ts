@@ -2,6 +2,8 @@ declare module "firebase/auth" {
   export interface User {
     uid: string;
     email: string | null;
+    displayName: string | null;
+    photoURL: string | null;
   }
 
   export interface UserCredential {
@@ -18,6 +20,7 @@ declare module "firebase/auth" {
   export function onAuthStateChanged(
     auth: Auth,
     nextOrObserver: (user: User | null) => void,
+    error?: (error: Error) => void,
   ): () => void;
   export function signInWithEmailAndPassword(
     auth: Auth,

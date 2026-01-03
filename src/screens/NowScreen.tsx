@@ -90,7 +90,6 @@ export default function NowScreen() {
   const user = auth?.currentUser ?? null;
 
   const [pos, setPos] = useState<Pos | null>(null);
-  const [posError, setPosError] = useState<string | null>(null);
   const [posLoading, setPosLoading] = useState(false);
 
   const [region, setRegion] = useState<string | null>(null);
@@ -109,7 +108,6 @@ export default function NowScreen() {
   }, [user?.uid]);
 
   const ensurePosition = useCallback(async () => {
-    setPosError(null);
     setPosLoading(true);
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
@@ -131,7 +129,6 @@ export default function NowScreen() {
     } catch (e: any) {
       setPos(null);
       setRegion(null);
-      setPosError(e?.message ?? "Не удалось получить геолокацию.");
     } finally {
       setPosLoading(false);
     }

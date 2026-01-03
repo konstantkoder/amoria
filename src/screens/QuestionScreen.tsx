@@ -31,11 +31,7 @@ const QuestionScreen: React.FC = () => {
           setAnswer(saved);
           setIsSaved(true);
         }
-      } catch (err) {
-        console.warn(
-          "[QuestionScreen] Failed to load question of the day answer",
-          err,
-        );
+      } catch {
         setErrorMessage("Не удалось загрузить ответ.");
       } finally {
         setIsLoading(false);

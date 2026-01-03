@@ -15,7 +15,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import MapView, { Circle, Marker } from "react-native-maps";
-import { useNavigation } from "@react-navigation/native";
 
 import { theme } from "@/theme";
 import { auth, db, isFirebaseConfigured } from "@/config/firebaseConfig";
@@ -107,8 +106,6 @@ function getRoomMarkerCoord(base: Pos, kind: RoomKind): LatLng {
 
 export default function RoomsScreen() {
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation<any>();
-
   const uid = auth?.currentUser?.uid ?? null;
   const nickname = useMemo(
     () => (uid ? makeNickname(uid) : "Аноним"),

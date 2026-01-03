@@ -1,12 +1,16 @@
 import React from "react";
-import { View, Text, ScrollView, Button } from "react-native";
+import { Text, ScrollView, Button } from "react-native";
 import { PrivacyRU, PrivacyEN, PrivacyHR } from "@/legal/policies";
 import { theme } from "@/theme";
 
 export default function LegalScreen({ navigation }: any) {
   return (
     <ScrollView
-      style={{ flex: 1, backgroundColor: theme.colors.bg, padding: 16 }}
+      style={{
+        flex: 1,
+        backgroundColor: theme.colors.background,
+        padding: 16,
+      }}
     >
       <Text style={{ fontSize: 24, fontWeight: "700", marginBottom: 12 }}>
         Политика конфиденциальности

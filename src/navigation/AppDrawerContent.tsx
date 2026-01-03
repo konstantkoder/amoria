@@ -141,16 +141,16 @@ export default function AppDrawerContent({
   };
 
   const openProfile = () => {
-    navigation.navigate("Profile" as never);
+    (navigation as any).navigate("Profile");
     navigation.closeDrawer();
   };
 
   const navigateRoot = (routeName: string, params?: Record<string, any>) => {
     const root = navigation.getParent();
     if (root) {
-      root.navigate(routeName as never, params as never);
+      (root as any).navigate(routeName, params);
     } else {
-      navigation.navigate(routeName as never, params as never);
+      (navigation as any).navigate(routeName, params);
     }
     navigation.closeDrawer();
   };

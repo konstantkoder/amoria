@@ -1,9 +1,10 @@
-import { initializeApp, FirebaseApp } from "firebase/app";
+import { getApp, getApps, initializeApp, FirebaseApp } from "firebase/app";
 import {
   getFirestore,
   Firestore,
 } from "firebase/firestore";
 import {
+  getAuth,
   getReactNativePersistence,
   initializeAuth,
   Auth,
@@ -33,19 +34,19 @@ let storage: FirebaseStorage | null = null;
 
 // Инициализируем Firebase ТОЛЬКО если конфиг заполнен
 if (isFirebaseConfigured()) {
-  app = initializeApp(firebaseConfig);
+  app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
-  auth = initializeAuth(app, {
-    persistence: getReactNativePersistence(AsyncStorage),
-  });
+  try {
+    auth = initializeAuth(app, {
+      persistence: getReactNativePersistence(AsyncStorage),
+    });
+  } catch {
+    auth = getAuth(app);
+  }
 
   db = getFirestore(app);
 
   storage = getStorage(app);
-} else {
-  console.warn(
-    "[firebaseConfig] Firebase не сконфигурирован — работаем в демо/офлайн-режиме."
-  );
 }
 
 export { app, auth, db, storage };

@@ -53,7 +53,7 @@ export default function FlirtSettingsScreen() {
 
   return (
     <ScrollView
-      style={{ flex: 1, backgroundColor: theme.colors.bg }}
+      style={{ flex: 1, backgroundColor: theme.colors.background }}
       contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
     >
       <Text
