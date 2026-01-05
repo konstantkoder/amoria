@@ -141,6 +141,7 @@ export default function AppNavigator() {
   return (
     // TEMP: Drawer navigator is created here; no legacy implementation prop is used.
     <Drawer.Navigator
+      useLegacyImplementation={false}
       screenOptions={{
         headerShown: false,
         drawerType: "slide",
