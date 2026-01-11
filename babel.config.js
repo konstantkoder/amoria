@@ -10,7 +10,7 @@ module.exports = function (api) {
           // alias @ -> src (оставляем, если уже был подключён)
           root: ['./'],
           alias: {
-            '^@/assets/(.+)': './assets/\\1',
+            '^@/assets/(.+)': './src/assets/\\1',
             '^@/(.+)': './src/\\1',
           },
           extensions: ['.ts', '.tsx', '.js', '.jsx', '.json'],

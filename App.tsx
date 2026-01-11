@@ -35,13 +35,16 @@ const navTheme = {
   ...DefaultTheme,
   colors: {
     ...DefaultTheme.colors,
-    background: theme.colors.background,
+    background: "transparent",
     card: theme.colors.background,
     text: theme.colors.text,
     border: "rgba(255,255,255,0.08)",
     primary: theme.colors.primary,
   },
 };
+
+const SHOW_DEBUG_OVERLAY =
+  __DEV__ && process.env.EXPO_PUBLIC_SHOW_DEBUG_OVERLAY === "1";
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -120,10 +123,12 @@ export default function App() {
             </Stack.Navigator>
           </NavigationContainer>
         </ErrorBoundary>
-        <DebugOverlay
-          firebaseConfigured={isFirebaseConfigured()}
-          lastError={lastError}
-        />
+        {SHOW_DEBUG_OVERLAY ? (
+          <DebugOverlay
+            firebaseConfigured={isFirebaseConfigured()}
+            lastError={lastError}
+          />
+        ) : null}
       </LocaleProvider>
     </GestureHandlerRootView>
   );

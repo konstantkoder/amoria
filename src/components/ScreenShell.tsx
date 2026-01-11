@@ -2,12 +2,13 @@ import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { DrawerActions, useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
 
 import ScreenBackground, {
   type ScreenBackgroundVariant,
 } from "@/components/ScreenBackground";
 import MenuButton from "@/components/MenuButton";
+import { openDrawer } from "@/navigation/drawerController";
 
 type Props = {
   title?: string;
@@ -15,6 +16,7 @@ type Props = {
   overlayOpacity?: number;
   blurRadius?: number;
   debugTint?: boolean;
+  showHeader?: boolean;
   showBack?: boolean;
   onBack?: () => void;
   children: React.ReactNode;
@@ -26,11 +28,16 @@ export default function ScreenShell({
   overlayOpacity,
   blurRadius,
   debugTint = false,
+  showHeader = true,
   showBack,
   onBack,
   children,
 }: Props) {
   const navigation = useNavigation<any>();
+  const route = useRoute<any>();
+  const showDebugTint =
+    debugTint ||
+    (__DEV__ && process.env.EXPO_PUBLIC_BG_DEBUG === "1");
 
   const handleBack = () => {
     if (onBack) return onBack();
@@ -38,16 +45,7 @@ export default function ScreenShell({
   };
 
   const handleMenu = () => {
-    const parent = navigation.getParent?.();
-    if (parent && typeof (parent as any).openDrawer === "function") {
-      (parent as any).openDrawer();
-      return;
-    }
-    if (typeof (navigation as any).openDrawer === "function") {
-      (navigation as any).openDrawer();
-      return;
-    }
-    navigation.dispatch(DrawerActions.openDrawer());
+    openDrawer();
   };
 
   return (
@@ -55,34 +53,37 @@ export default function ScreenShell({
       variant={background}
       overlayOpacity={overlayOpacity}
       blurRadius={blurRadius}
-      debugTint={debugTint}
+      debugTint={showDebugTint}
+      screenLabel={route?.name ?? title ?? "Screen"}
     >
       <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
-        <View style={styles.header}>
-          <View style={styles.headerSide}>
-            {showBack ? (
-              <TouchableOpacity
-                onPress={handleBack}
-                style={styles.iconButton}
-                activeOpacity={0.85}
-              >
-                <Ionicons name="chevron-back" size={22} color="#fff" />
-              </TouchableOpacity>
-            ) : null}
-          </View>
+        {showHeader ? (
+          <View style={styles.header}>
+            <View style={styles.headerSide}>
+              {showBack ? (
+                <TouchableOpacity
+                  onPress={handleBack}
+                  style={styles.iconButton}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="chevron-back" size={22} color="#fff" />
+                </TouchableOpacity>
+              ) : null}
+            </View>
 
-          <View style={styles.titleWrap}>
-            {title ? (
-              <Text style={styles.title} numberOfLines={1}>
-                {title}
-              </Text>
-            ) : null}
-          </View>
+            <View style={styles.titleWrap}>
+              {title ? (
+                <Text style={styles.title} numberOfLines={1}>
+                  {title}
+                </Text>
+              ) : null}
+            </View>
 
-          <View style={styles.headerSide}>
-            <MenuButton onPress={handleMenu} />
+            <View style={styles.headerSide}>
+              <MenuButton onPress={handleMenu} />
+            </View>
           </View>
-        </View>
+        ) : null}
       </SafeAreaView>
 
       <SafeAreaView style={styles.bodySafe} edges={["left", "right", "bottom"]}>
@@ -93,7 +94,7 @@ export default function ScreenShell({
 }
 
 const styles = StyleSheet.create({
-  safe: { paddingHorizontal: 12 },
+  safe: { paddingHorizontal: 12, backgroundColor: "transparent" },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -118,6 +119,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.08)",
   },
-  bodySafe: { flex: 1, paddingHorizontal: 12 },
-  content: { flex: 1 },
+  bodySafe: { flex: 1, paddingHorizontal: 12, backgroundColor: "transparent" },
+  content: { flex: 1, backgroundColor: "transparent" },
 });

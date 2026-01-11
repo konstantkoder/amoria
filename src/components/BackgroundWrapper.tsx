@@ -7,15 +7,16 @@ import {
   ViewStyle,
 } from "react-native";
 
-import { backgrounds, type BackgroundKey } from "../assets/backgrounds";
+import { backgrounds, type BackgroundKey } from "@/assets/backgrounds";
 
 export type { BackgroundKey };
+
+const warnedMissingKeys = new Set<string>();
 
 type Props = {
   background: BackgroundKey;
   blurRadius?: number;
   overlayOpacity?: number;
-  overlayColor?: string;
   style?: StyleProp<ViewStyle>;
   children: React.ReactNode;
 };
@@ -23,34 +24,75 @@ type Props = {
 export default function BackgroundWrapper({
   background,
   blurRadius = 0,
-  overlayOpacity = 0,
-  overlayColor,
+  overlayOpacity = 0.22,
   style,
   children,
 }: Props) {
+  const [retryCount, setRetryCount] = React.useState(0);
+  const [useFallback, setUseFallback] = React.useState(false);
+  React.useEffect(() => {
+    setRetryCount(0);
+    setUseFallback(false);
+  }, [background]);
+
+  const safeOpacity = Math.min(Math.max(overlayOpacity, 0), 1);
   const bgSource = backgrounds[background];
-  const safeOpacity = Math.min(Math.max(overlayOpacity ?? 0, 0), 1);
-  const overlayValue =
-    overlayColor ?? `rgba(0,0,0,${safeOpacity.toFixed(2)})`;
-  const shouldRenderOverlay = safeOpacity > 0;
+
+  if (!bgSource) {
+    if (__DEV__) {
+      const key = String(background);
+      if (!warnedMissingKeys.has(key)) {
+        warnedMissingKeys.add(key);
+        console.warn("BG_MISSING_KEY", key);
+      }
+    }
+    return (
+      <View style={[styles.root, style, { backgroundColor: "#000" }]}>
+        {children}
+      </View>
+    );
+  }
+
+  const fallbackSource = backgrounds.nightCity ?? bgSource;
+  const source = useFallback ? fallbackSource : bgSource;
 
   return (
     <ImageBackground
-      source={bgSource}
-      style={[styles.root, style]}
+      source={source}
+      key={`${background}:${useFallback ? "fallback" : "main"}:${retryCount}`}
       resizeMode="cover"
       blurRadius={blurRadius}
+      style={[styles.root, style]}
+      imageStyle={styles.image}
+      onError={(e) => {
+        const msg = String(e?.nativeEvent?.error ?? "");
+        console.warn("BG_IMAGE_ERROR", background, msg);
+        if (msg.includes("Problem decoding into existing bitmap")) {
+          return;
+        }
+        setRetryCount((current) => {
+          const next = current + 1;
+          if (next >= 2) {
+            setUseFallback(true);
+          }
+          return next;
+        });
+      }}
     >
-      {shouldRenderOverlay ? (
-        <View style={[styles.overlay, { backgroundColor: overlayValue }]} />
-      ) : null}
+      <View
+        pointerEvents="none"
+        style={[styles.overlay, { opacity: safeOpacity }]}
+      />
       {children}
     </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  // DO NOT paint a solid backgroundColor here — it can visually "eat" your image.
   root: { flex: 1 },
-  overlay: { ...StyleSheet.absoluteFillObject },
+  image: { opacity: 1 },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "#000",
+  },
 });

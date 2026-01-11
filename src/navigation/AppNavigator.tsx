@@ -1,24 +1,26 @@
 import React from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-import { createDrawerNavigator } from "@react-navigation/drawer";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Drawer } from "react-native-drawer-layout";
 
 import FeedScreen from "@/screens/FeedScreen";
 import NearbyScreen from "@/screens/NearbyScreen";
 import NowScreen from "@/screens/NowScreen";
+import RoomsScreen from "@/screens/RoomsScreen";
+import InboxScreen from "@/screens/InboxScreen";
 import VideoChatScreen from "@/screens/VideoChatScreen";
 import QuestionScreen from "@/screens/QuestionScreen";
+
 import ProfileScreen from "@/screens/ProfileScreen";
 import EditProfileScreen from "@/screens/EditProfileScreen";
 import PhotoManagerScreen from "@/screens/PhotoManagerScreen";
 import FlirtSettingsScreen from "@/screens/settings/FlirtSettingsScreen";
-import RoomsScreen from "@/screens/RoomsScreen";
-import InboxScreen from "@/screens/InboxScreen";
 
 import { theme } from "@/theme";
 import AppDrawerContent from "@/navigation/AppDrawerContent";
+import { registerDrawerControls } from "@/navigation/drawerController";
 
 export type ProfileStackParamList = {
   ProfileMain: undefined;
@@ -29,21 +31,20 @@ export type ProfileStackParamList = {
 
 const Tab = createBottomTabNavigator();
 const ProfileStack = createNativeStackNavigator<ProfileStackParamList>();
-const Drawer = createDrawerNavigator();
+const RootStack = createNativeStackNavigator();
 
 function ProfileStackNavigator() {
   return (
-    <ProfileStack.Navigator screenOptions={{ headerShown: false }}>
+    <ProfileStack.Navigator
+      screenOptions={{
+        headerShown: false,
+        contentStyle: { backgroundColor: "transparent" },
+      }}
+    >
       <ProfileStack.Screen name="ProfileMain" component={ProfileScreen} />
       <ProfileStack.Screen name="EditProfile" component={EditProfileScreen} />
-      <ProfileStack.Screen
-        name="PhotoManager"
-        component={PhotoManagerScreen}
-      />
-      <ProfileStack.Screen
-        name="FlirtSettings"
-        component={FlirtSettingsScreen}
-      />
+      <ProfileStack.Screen name="PhotoManager" component={PhotoManagerScreen} />
+      <ProfileStack.Screen name="FlirtSettings" component={FlirtSettingsScreen} />
     </ProfileStack.Navigator>
   );
 }
@@ -53,6 +54,8 @@ function MainTabs() {
 
   return (
     <Tab.Navigator
+      initialRouteName="Feed"
+      sceneContainerStyle={{ backgroundColor: "transparent" }}
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarActiveTintColor: theme.colors.accent,
@@ -78,7 +81,11 @@ function MainTabs() {
         },
       })}
     >
-      <Tab.Screen name="Feed" component={FeedScreen} options={{ title: "Лента" }} />
+      <Tab.Screen
+        name="Feed"
+        component={FeedScreen}
+        options={{ title: "Лента", tabBarLabel: "Лента" }}
+      />
 
       <Tab.Screen
         name="Nearby"
@@ -113,45 +120,57 @@ function MainTabs() {
       <Tab.Screen
         name="Rooms"
         component={RoomsScreen}
-        options={{ title: "Комнаты" }}
+        options={{ title: "Комнаты", tabBarLabel: "Комнаты" }}
       />
 
+      {/* Hidden tabs */}
       <Tab.Screen
         name="VideoChat"
         component={VideoChatScreen}
-        options={{
-          tabBarButton: () => null,
-          headerShown: false,
-        }}
+        options={{ tabBarButton: () => null, headerShown: false }}
       />
-
-      {/* Question — скрытая вкладка, без кнопки в таб-баре */}
       <Tab.Screen
         name="Question"
         component={QuestionScreen}
-        options={{
-          tabBarButton: () => null,
-        }}
+        options={{ tabBarButton: () => null }}
       />
     </Tab.Navigator>
   );
 }
 
 export default function AppNavigator() {
+  const [drawerOpen, setDrawerOpen] = React.useState(false);
+
+  React.useEffect(() => {
+    registerDrawerControls({
+      setOpen: setDrawerOpen,
+      getOpen: () => drawerOpen,
+    });
+  }, [drawerOpen]);
+
   return (
-    // TEMP: Drawer navigator is created here; no legacy implementation prop is used.
-    <Drawer.Navigator
-      useLegacyImplementation={false}
-      screenOptions={{
-        headerShown: false,
-        drawerType: "slide",
-        overlayColor: "transparent",
-        drawerStyle: { backgroundColor: "transparent", width: 300 },
-      }}
-      drawerContent={(props) => <AppDrawerContent {...props} />}
+    <Drawer
+      open={drawerOpen}
+      onOpen={() => setDrawerOpen(true)}
+      onClose={() => setDrawerOpen(false)}
+      drawerType="slide"
+      swipeEnabled
+      overlayStyle={{ backgroundColor: "transparent" }}
+      drawerStyle={{ backgroundColor: "transparent", width: 300 }}
+      style={{ backgroundColor: "transparent" }}
+      renderDrawerContent={() => (
+        <AppDrawerContent onClose={() => setDrawerOpen(false)} />
+      )}
     >
-      <Drawer.Screen name="Tabs" component={MainTabs} />
-      <Drawer.Screen name="Profile" component={ProfileStackNavigator} />
-    </Drawer.Navigator>
+      <RootStack.Navigator
+        screenOptions={{
+          headerShown: false,
+          contentStyle: { backgroundColor: "transparent" },
+        }}
+      >
+        <RootStack.Screen name="Tabs" component={MainTabs} />
+        <RootStack.Screen name="Profile" component={ProfileStackNavigator} />
+      </RootStack.Navigator>
+    </Drawer>
   );
 }

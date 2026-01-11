@@ -20,6 +20,9 @@
       "expo-dev-client",
       "expo-notifications"
     ],
+    "assetBundlePatterns": [
+      "src/assets/backgrounds/*"
+    ],
     "ios": {
       "usesAppleSignIn": false,
       "supportsTablet": false,

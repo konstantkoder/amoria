@@ -14,7 +14,6 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
-import MapView, { Circle, Marker } from "react-native-maps";
 
 import { theme } from "@/theme";
 import { auth, db, isFirebaseConfigured } from "@/config/firebaseConfig";
@@ -348,68 +347,24 @@ export default function RoomsScreen() {
           }}
         >
           {pos ? (
-            <MapView
-              style={{ height: 260, width: "100%" }}
-              initialRegion={{
-                latitude: pos.lat,
-                longitude: pos.lng,
-                latitudeDelta: 0.004,
-                longitudeDelta: 0.004,
+            <View
+              style={{
+                height: 260,
+                width: "100%",
+                alignItems: "center",
+                justifyContent: "center",
               }}
-              mapType="standard"
-              showsUserLocation
-              showsMyLocationButton={false}
             >
-              <Circle
-                center={{
-                  latitude: pos.lat,
-                  longitude: pos.lng,
+              <Text
+                style={{
+                  color: "#E5E7EB",
+                  fontSize: 14,
+                  textAlign: "center",
                 }}
-                radius={140}
-                strokeColor="rgba(249,115,22,0.9)"
-                fillColor="rgba(249,115,22,0.18)"
-              />
-
-              {ROOM_KIND_ORDER.map((kind) => {
-                const meta = getRoomMeta(kind);
-                const coord = getRoomMarkerCoord(pos, kind);
-                return (
-                  <Marker
-                    key={kind}
-                    coordinate={coord}
-                    onPress={() => enterRoom(kind)}
-                    anchor={{ x: 0.5, y: 1 }}
-                  >
-                    <View
-                      style={{
-                        backgroundColor: "rgba(15,23,42,0.96)",
-                        borderRadius: 18,
-                        paddingHorizontal: 8,
-                        paddingVertical: 6,
-                        borderWidth: 1,
-                        borderColor: "rgba(251,146,60,0.9)",
-                        shadowColor: "#000000",
-                        shadowOpacity: 0.35,
-                        shadowRadius: 4,
-                        shadowOffset: { width: 0, height: 2 },
-                        elevation: 4,
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      <Text
-                        style={{
-                          fontSize: 18,
-                          color: "#F9FAFB",
-                        }}
-                      >
-                        {meta.emoji}
-                      </Text>
-                    </View>
-                  </Marker>
-                );
-              })}
-            </MapView>
+              >
+                Map temporarily disabled (react-native-maps not installed)
+              </Text>
+            </View>
           ) : (
             <View
               style={{
