@@ -1,3 +1,8 @@
+// NOTE: Modified version of ProfileScreen. This update swaps the menu
+// background for the neon city to make the profile section feel more
+// consistent with the rest of the app. We also set custom overlay and blur
+// values to ensure readability while letting the image shine through.
+
 import React, { useEffect } from "react";
 import { View, Text, Button, Alert, TouchableOpacity } from "react-native";
 import { useNavigation } from "@react-navigation/native";
@@ -18,12 +23,15 @@ type ProfileNav = NativeStackNavigationProp<
 
 export default function ProfileScreen() {
   const navigation = useNavigation<ProfileNav>();
-
   useEffect(() => {
     registerForPushNotificationsAsync().catch(() => {});
   }, []);
   return (
-    <ScreenBackground variant="menu">
+    <ScreenBackground
+      variant="nightCity"
+      overlayOpacity={0.3}
+      blurRadius={2}
+    >
       <View style={{ flex: 1, padding: 24 }}>
         <Text style={{ fontSize: 22, fontWeight: "700", marginBottom: 12 }}>
           Профиль

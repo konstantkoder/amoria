@@ -1,4 +1,8 @@
-// FILE: src/screens/NearbyScreen.tsx
+// NOTE: This file is a modified copy of the original NearbyScreen from the
+// Amoria project. The primary change here is the use of a new background
+// variant and custom overlay/blur settings to give the "Объявления" (Nearby)
+// screen a fresh look. The rest of the logic remains unchanged from upstream.
+
 import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -26,6 +30,7 @@ import {
 } from "@/services/ads";
 import ScreenShell from "@/components/ScreenShell";
 
+// Compose state holds temporary data for creating a personal ad.
 type ComposeState = {
   title: string;
   text: string;
@@ -67,7 +72,7 @@ export default function NearbyScreen() {
   const defaultCountry = useMemo(() => getDefaultCountry(), []);
   const [countryCode, setCountryCode] = useState(defaultCountry.code);
   const [city, setCity] = useState<string | undefined>(
-    defaultCountry.cities[0]
+    defaultCountry.cities[0],
   );
 
   const [filters, setFilters] = useState<AdFilters>({
@@ -99,7 +104,7 @@ export default function NearbyScreen() {
 
   const selectedCountry = useMemo(
     () => AVAILABLE_COUNTRIES.find((c) => c.code === countryCode),
-    [countryCode]
+    [countryCode],
   );
 
   const canPost = !!user && isFirebaseConfigured() && !!db;
@@ -132,7 +137,7 @@ export default function NearbyScreen() {
     if (!canPost) {
       Alert.alert(
         "Вход нужен",
-        "Чтобы создавать анкеты, сначала войди или зарегистрируйся."
+        "Чтобы создавать анкеты, сначала войди или зарегистрируйся.",
       );
       return;
     }
@@ -170,7 +175,7 @@ export default function NearbyScreen() {
     } catch (e: any) {
       Alert.alert(
         "Ошибка",
-        e?.message ?? "Не удалось опубликовать анкету, попробуй позже."
+        e?.message ?? "Не удалось опубликовать анкету, попробуй позже.",
       );
     }
   };
@@ -199,19 +204,21 @@ export default function NearbyScreen() {
                 paddingVertical: 6,
                 borderRadius: 999,
                 borderWidth: 1,
+                // Make category chips feel livelier: use the accent color for
+                // active states and subtler borders/backgrounds otherwise.
                 borderColor: active
-                  ? "rgba(251,191,36,1)"
-                  : "rgba(156,163,175,0.6)",
+                  ? theme.colors.accent
+                  : theme.colors.borderSubtle,
                 backgroundColor: active
-                  ? "rgba(251,191,36,0.16)"
-                  : "rgba(15,23,42,0.9)",
+                  ? "rgba(255,122,60,0.2)"
+                  : theme.colors.pillBg,
               }}
             >
               <Text
                 style={{
-                  color: active ? "#FBBF24" : "#E5E7EB",
-                  fontSize: 12,
-                  fontWeight: active ? "800" : "500",
+                color: active ? theme.colors.accent : theme.colors.pillText,
+                fontSize: 12,
+                fontWeight: active ? "800" : "600",
                 }}
               >
                 {meta.short}
@@ -247,8 +254,9 @@ export default function NearbyScreen() {
               style={{
                 borderRadius: 12,
                 borderWidth: 1,
-                borderColor: "rgba(156,163,175,0.6)",
-                backgroundColor: "rgba(15,23,42,0.9)",
+                // Use subtle border and soft background for better contrast.
+                borderColor: theme.colors.borderSubtle,
+                backgroundColor: theme.colors.backgroundSoft,
                 paddingHorizontal: 10,
                 paddingVertical: 8,
               }}
@@ -265,9 +273,9 @@ export default function NearbyScreen() {
                   >
                     <Text
                       style={{
-                        color: active ? "#FBBF24" : "#E5E7EB",
+                        color: active ? theme.colors.accent : theme.colors.pillText,
                         fontSize: 13,
-                        fontWeight: active ? "700" : "500",
+                        fontWeight: active ? "700" : "600",
                       }}
                     >
                       {c.name}
@@ -287,8 +295,8 @@ export default function NearbyScreen() {
               style={{
                 borderRadius: 12,
                 borderWidth: 1,
-                borderColor: "rgba(156,163,175,0.6)",
-                backgroundColor: "rgba(15,23,42,0.9)",
+                borderColor: theme.colors.borderSubtle,
+                backgroundColor: theme.colors.backgroundSoft,
                 paddingHorizontal: 10,
                 paddingVertical: 8,
               }}
@@ -305,9 +313,9 @@ export default function NearbyScreen() {
                   >
                     <Text
                       style={{
-                        color: active ? "#FBBF24" : "#E5E7EB",
+                        color: active ? theme.colors.accent : theme.colors.pillText,
                         fontSize: 13,
-                        fontWeight: active ? "700" : "500",
+                        fontWeight: active ? "700" : "600",
                       }}
                     >
                       {cityName}
@@ -331,14 +339,15 @@ export default function NearbyScreen() {
           marginTop: 16,
           padding: 12,
           borderRadius: 16,
-          backgroundColor: "rgba(15,23,42,0.96)",
+          // Soft card background with a subtle border for the compose form
+          backgroundColor: theme.colors.backgroundSoft,
           borderWidth: 1,
-          borderColor: "rgba(251,191,36,0.4)",
+          borderColor: theme.colors.primary,
         }}
       >
         <Text
           style={{
-            color: "#FBBF24",
+            color: theme.colors.primary,
             fontSize: 14,
             fontWeight: "800",
             marginBottom: 8,
@@ -348,9 +357,7 @@ export default function NearbyScreen() {
         </Text>
 
         {/* Категория */}
-        <Text
-          style={{ color: "#9CA3AF", fontSize: 12, marginBottom: 4 }}
-        >
+        <Text style={{ color: "#9CA3AF", fontSize: 12, marginBottom: 4 }}>
           Кого ты ищешь
         </Text>
         <View
@@ -376,18 +383,18 @@ export default function NearbyScreen() {
                   borderRadius: 999,
                   borderWidth: 1,
                   borderColor: active
-                    ? "rgba(251,191,36,1)"
-                    : "rgba(156,163,175,0.6)",
+                    ? theme.colors.accent
+                    : theme.colors.borderSubtle,
                   backgroundColor: active
-                    ? "rgba(251,191,36,0.18)"
-                    : "rgba(15,23,42,0.9)",
+                    ? "rgba(255,122,60,0.2)"
+                    : theme.colors.pillBg,
                 }}
               >
                 <Text
                   style={{
-                    color: active ? "#FBBF24" : "#E5E7EB",
+                    color: active ? theme.colors.accent : theme.colors.pillText,
                     fontSize: 11,
-                    fontWeight: active ? "700" : "500",
+                    fontWeight: active ? "700" : "600",
                   }}
                 >
                   {meta.label}
@@ -408,11 +415,12 @@ export default function NearbyScreen() {
           style={{
             borderRadius: 12,
             borderWidth: 1,
-            borderColor: "rgba(156,163,175,0.6)",
-            backgroundColor: "rgba(15,23,42,0.9)",
+            // Softer background and subtle border for title input
+            borderColor: theme.colors.borderSubtle,
+            backgroundColor: theme.colors.backgroundSoft,
             paddingHorizontal: 10,
             paddingVertical: 8,
-            color: "#E5E7EB",
+            color: theme.colors.pillText,
             fontSize: 14,
             marginBottom: 8,
           }}
@@ -430,11 +438,11 @@ export default function NearbyScreen() {
           style={{
             borderRadius: 12,
             borderWidth: 1,
-            borderColor: "rgba(156,163,175,0.6)",
-            backgroundColor: "rgba(15,23,42,0.9)",
+            borderColor: theme.colors.borderSubtle,
+            backgroundColor: theme.colors.backgroundSoft,
             paddingHorizontal: 10,
             paddingVertical: 8,
-            color: "#E5E7EB",
+            color: theme.colors.pillText,
             fontSize: 14,
             height: 90,
             textAlignVertical: "top",
@@ -496,9 +504,10 @@ export default function NearbyScreen() {
           borderRadius: 16,
           padding: 12,
           marginBottom: 10,
-          backgroundColor: "rgba(15,23,42,0.96)",
+          // Ad cards use a soft background and subtle border to match other panels
+          backgroundColor: theme.colors.backgroundSoft,
           borderWidth: 1,
-          borderColor: "rgba(55,65,81,0.9)",
+          borderColor: theme.colors.borderSubtle,
         }}
       >
         <View
@@ -569,7 +578,7 @@ export default function NearbyScreen() {
             onPress={() =>
               Alert.alert(
                 "Сообщение",
-                "Чат по анкете будет подключён к общему чату Amoria на следующем шаге."
+                "Чат по анкете будет подключён к общему чату Amoria на следующем шаге.",
               )
             }
             style={{
@@ -578,19 +587,19 @@ export default function NearbyScreen() {
               paddingHorizontal: 10,
               paddingVertical: 6,
               borderRadius: 999,
-              backgroundColor: "rgba(251,191,36,0.16)",
+              backgroundColor: "rgba(255,78,138,0.18)",
               borderWidth: 1,
-              borderColor: "rgba(251,191,36,0.7)",
+              borderColor: theme.colors.primary,
             }}
           >
             <Ionicons
               name="chatbubble-ellipses-outline"
               size={14}
-              color="#FBBF24"
+              color={theme.colors.primary}
             />
             <Text
               style={{
-                color: "#FBBF24",
+                color: theme.colors.primary,
                 fontSize: 12,
                 fontWeight: "700",
                 marginLeft: 4,
@@ -607,7 +616,12 @@ export default function NearbyScreen() {
   return (
     <ScreenShell
       title="Объявления"
-      background="smoke"
+      // Use the neon city background for a vibrant feel. The overlay and blur
+      // values are tuned to allow more of the image to show through while
+      // keeping content legible.
+      background="nightCity"
+      overlayOpacity={0.3}
+      blurRadius={2}
       debugTint={false}
     >
       <View
@@ -627,8 +641,8 @@ export default function NearbyScreen() {
             marginBottom: 10,
           }}
         >
-          Здесь люди оставляют личные объявлении о знакомстве.{"\n"}Ты
-          выбираешь страну, город и формат поиска.
+          Здесь люди оставляют личные объявлении о знакомстве.{"\n"}
+          Ты выбираешь страну, город и формат поиска.
         </Text>
 
         {renderCategoryFilters()}

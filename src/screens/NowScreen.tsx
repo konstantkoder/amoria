@@ -1,4 +1,10 @@
-// FILE: src/screens/NowScreen.tsx
+// NOTE: Modified copy of the original NowScreen. The key change is the
+// background used for the 'Сейчас' screen: we switch from the hearts
+// wallpaper to the neon city backdrop, and expose custom overlay/blur
+// settings to let more of the image show through while preserving text
+// legibility. All other functionality remains identical to the upstream
+// version.
+
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -26,7 +32,6 @@ import { makeNickname } from "@/services/rooms";
 import ScreenShell from "@/components/ScreenShell";
 
 type Pos = { lat: number; lng: number; accuracy?: number | null };
-
 type RadiusOption = number | null; // null = без ограничения
 
 const RADIUS_OPTIONS: RadiusOption[] = [5, 10, 25, 50, 100, null];
@@ -70,7 +75,6 @@ function formatAgo(ts: number) {
 
 function distanceKm(pos: Pos | null, item: { lat?: number; lng?: number }): number | null {
   if (!pos || item.lat == null || item.lng == null) return null;
-
   const R = 6371; // км
   const dLat = ((item.lat - pos.lat) * Math.PI) / 180;
   const dLng = ((item.lng - pos.lng) * Math.PI) / 180;
@@ -91,15 +95,12 @@ export default function NowScreen() {
 
   const [pos, setPos] = useState<Pos | null>(null);
   const [posLoading, setPosLoading] = useState(false);
-
   const [region, setRegion] = useState<string | null>(null);
   const [posts, setPosts] = useState<NowPost[]>([]);
   const [loading, setLoading] = useState(false);
-
   const [mood, setMood] = useState<NowMood>("chill");
   const [message, setMessage] = useState(""); // текст сообщения
   const [sending, setSending] = useState(false);
-
   const [radiusKm, setRadiusKm] = useState<RadiusOption>(25);
 
   const nickname = useMemo(() => {
@@ -114,11 +115,9 @@ export default function NowScreen() {
       if (status !== "granted") {
         throw new Error("Нужен доступ к геолокации (в настройках телефона).");
       }
-
       const current = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced,
       });
-
       const nextPos: Pos = {
         lat: current.coords.latitude,
         lng: current.coords.longitude,
@@ -140,13 +139,11 @@ export default function NowScreen() {
 
   useEffect(() => {
     if (!region || !db || !isFirebaseConfigured()) return;
-
     setLoading(true);
     const unsub = subscribeNowPosts(db, region, (list) => {
       setPosts(list);
       setLoading(false);
     });
-
     return () => unsub?.();
   }, [region]);
 
@@ -154,43 +151,33 @@ export default function NowScreen() {
     if (!user) {
       Alert.alert(
         "Нужен вход",
-        "Чтобы писать в разделе “Сейчас”, сначала войди или зарегистрируйся."
+        "Чтобы писать в разделе “Сейчас”, сначала войди или зарегистрируйся.",
       );
       return;
     }
-
     if (!db || !isFirebaseConfigured()) {
       Alert.alert(
         "Firebase не подключён",
-        "Раздел “Сейчас” работает через Firebase. Проверь .env и перезапусти Expo."
+        "Раздел “Сейчас” работает через Firebase. Проверь .env и перезапусти Expo.",
       );
       return;
     }
-
     const trimmed = message.trim();
     if (!trimmed) {
       Alert.alert("Пустой текст", "Напиши хотя бы одну фразу.");
       return;
     }
-
     if (!pos) {
       Alert.alert(
         "Нет локации",
-        "Не удалось получить координаты. Попробуй обновить местоположение."
+        "Не удалось получить координаты. Попробуй обновить местоположение.",
       );
       return;
     }
-
-    // Сохраняем предыдущий текст, чтобы вернуть его при ошибке
     const previousMessage = message;
-
-    // *** КЛЮЧЕВОЙ МОМЕНТ ***
-    // Очищаем поле СРАЗУ, ещё до Firestore.
     setMessage("");
-
     try {
       setSending(true);
-
       await createNowPost(db, {
         uid: user.uid,
         nickname,
@@ -199,13 +186,11 @@ export default function NowScreen() {
         lat: pos.lat,
         lng: pos.lng,
       });
-      // если сюда дошли — всё ок, поле уже пустое
     } catch (e: any) {
-      // Если ошибка — вернём текст обратно, чтобы пользователь не потерял его
       setMessage(previousMessage);
       Alert.alert(
         "Ошибка",
-        e?.message ?? "Не удалось отправить сообщение, попробуй ещё раз."
+        e?.message ?? "Не удалось отправить сообщение, попробуй ещё раз.",
       );
     } finally {
       setSending(false);
@@ -241,21 +226,22 @@ export default function NowScreen() {
               paddingHorizontal: 10,
               paddingVertical: 6,
               borderRadius: 999,
+              // Livelier mood chips: primary accent for active, subtle for inactive
               backgroundColor: active
-                ? "rgba(52,211,153,0.18)"
-                : "rgba(15,23,42,0.95)",
+                ? "rgba(255,78,138,0.25)"
+                : theme.colors.pillBg,
               borderWidth: 1,
               borderColor: active
-                ? "rgba(52,211,153,0.9)"
-                : "rgba(75,85,99,0.8)",
+                ? theme.colors.primary
+                : theme.colors.borderSubtle,
             }}
           >
             <Text style={{ fontSize: 14, marginRight: 4 }}>{m.emoji}</Text>
             <Text
               style={{
-                color: active ? "#A7F3D0" : "#E5E7EB",
+                color: active ? theme.colors.primary : theme.colors.pillText,
                 fontSize: 12,
-                fontWeight: active ? "800" : "500",
+                fontWeight: active ? "800" : "600",
               }}
             >
               {m.label}
@@ -279,7 +265,6 @@ export default function NowScreen() {
       {RADIUS_OPTIONS.map((option, idx) => {
         const active = radiusKm === option;
         const label = option == null ? "Все" : `${option} км`;
-
         return (
           <TouchableOpacity
             key={idx}
@@ -289,19 +274,20 @@ export default function NowScreen() {
               paddingVertical: 6,
               borderRadius: 999,
               borderWidth: 1,
+              // Livelier radius chips: warm accent for active, subtle for inactive
               borderColor: active
-                ? "rgba(251,191,36,1)"
-                : "rgba(75,85,99,0.8)",
+                ? theme.colors.accent
+                : theme.colors.borderSubtle,
               backgroundColor: active
-                ? "rgba(251,191,36,0.18)"
-                : "rgba(15,23,42,0.95)",
+                ? "rgba(255,122,60,0.25)"
+                : theme.colors.pillBg,
             }}
           >
             <Text
               style={{
-                color: active ? "#FBBF24" : "#E5E7EB",
+                color: active ? theme.colors.accent : theme.colors.pillText,
                 fontSize: 12,
-                fontWeight: active ? "800" : "500",
+                fontWeight: active ? "800" : "600",
               }}
             >
               {label}
@@ -317,9 +303,10 @@ export default function NowScreen() {
       style={{
         borderRadius: 18,
         padding: 14,
-        backgroundColor: "rgba(15,23,42,0.96)",
+        // Use a softer panel background and subtle border for the composer
+        backgroundColor: theme.colors.backgroundSoft,
         borderWidth: 1,
-        borderColor: "rgba(75,85,99,0.9)",
+        borderColor: theme.colors.borderSubtle,
         marginBottom: 14,
       }}
     >
@@ -342,9 +329,7 @@ export default function NowScreen() {
       >
         Сообщения видят люди в твоём районе. Радиус можно поменять ниже — от 5 км до 100 км.
       </Text>
-
       {renderMoodChips()}
-
       <TextInput
         value={message}
         onChangeText={setMessage}
@@ -355,17 +340,17 @@ export default function NowScreen() {
           marginTop: 10,
           borderRadius: 12,
           borderWidth: 1,
-          borderColor: "rgba(75,85,99,0.9)",
-          backgroundColor: "rgba(15,23,42,0.96)",
+          // Use a soft background and subtle border for the message input
+          borderColor: theme.colors.borderSubtle,
+          backgroundColor: theme.colors.backgroundSoft,
           paddingHorizontal: 10,
           paddingVertical: 8,
-          color: "#E5E7EB",
+          color: theme.colors.pillText,
           fontSize: 14,
           height: 80,
           textAlignVertical: "top",
         }}
       />
-
       {/* временный дебаг — можно потом убрать */}
       <Text
         style={{
@@ -376,7 +361,6 @@ export default function NowScreen() {
       >
         debug: message = [{message}]
       </Text>
-
       <View
         style={{
           flexDirection: "row",
@@ -408,8 +392,7 @@ export default function NowScreen() {
             >
               <Ionicons name="location-outline" size={16} color="#A7F3D0" />
               <Text style={{ color: "#9CA3AF", fontSize: 12 }}>
-                Локация готова (точность ~
-                {Math.round(pos.accuracy ?? 0)} м)
+                Локация готова (точность ~{Math.round(pos.accuracy ?? 0)} м)
               </Text>
             </View>
           ) : (
@@ -435,7 +418,6 @@ export default function NowScreen() {
             </TouchableOpacity>
           )}
         </View>
-
         <TouchableOpacity
           onPress={onSend}
           disabled={sending}
@@ -465,16 +447,16 @@ export default function NowScreen() {
   const renderPostItem = ({ item }: { item: NowPost }) => {
     const moodMeta = MOOD_META.find((m) => m.key === item.mood) ?? MOOD_META[0];
     const dist = distanceKm(pos, item);
-
     return (
       <View
         style={{
           borderRadius: 16,
           padding: 12,
           marginBottom: 10,
-          backgroundColor: "rgba(15,23,42,0.96)",
+          // Card backgrounds also use the softer theme palette with subtle border
+          backgroundColor: theme.colors.backgroundSoft,
           borderWidth: 1,
-          borderColor: "rgba(55,65,81,0.9)",
+          borderColor: theme.colors.borderSubtle,
         }}
       >
         <View
@@ -500,8 +482,7 @@ export default function NowScreen() {
               fontSize: 11,
             }}
           >
-            {formatAgo(item.createdAt)}
-            {dist != null ? ` • ~${dist} км` : ""}
+            {formatAgo(item.createdAt)}{dist != null ? ` • ~${dist} км` : ""}
           </Text>
         </View>
         <Text
@@ -528,7 +509,11 @@ export default function NowScreen() {
   return (
     <ScreenShell
       title="Сейчас"
-      background="hearts"
+      // Switch from hearts to the neon city backdrop. Tune overlay and blur
+      // to achieve a balanced contrast between content and the vibrant image.
+      background="nightCity"
+      overlayOpacity={0.3}
+      blurRadius={2}
       debugTint={false}
     >
       <View
@@ -540,9 +525,7 @@ export default function NowScreen() {
         }}
       >
         <SectionTitle>Сейчас</SectionTitle>
-
         {renderComposer()}
-
         <View
           style={{
             flexDirection: "row",
@@ -569,9 +552,7 @@ export default function NowScreen() {
             Радиус: {radiusKm == null ? "все расстояния" : `до ~${radiusKm} км`}
           </Text>
         </View>
-
         {renderRadiusChips()}
-
         {loading ? (
           <View
             style={{
