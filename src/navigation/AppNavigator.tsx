@@ -21,6 +21,7 @@ import FlirtSettingsScreen from "@/screens/settings/FlirtSettingsScreen";
 import { theme } from "@/theme";
 import AppDrawerContent from "@/navigation/AppDrawerContent";
 import { registerDrawerControls } from "@/navigation/drawerController";
+import ScreenBackground from "@/components/ScreenBackground";
 
 export type ProfileStackParamList = {
   ProfileMain: undefined;
@@ -30,17 +31,12 @@ export type ProfileStackParamList = {
 };
 
 const Tab = createBottomTabNavigator();
-const ProfileStack = createNativeStackNavigator<ProfileStackParamList>();
 const RootStack = createNativeStackNavigator();
+const ProfileStack = createNativeStackNavigator<ProfileStackParamList>();
 
 function ProfileStackNavigator() {
   return (
-    <ProfileStack.Navigator
-      screenOptions={{
-        headerShown: false,
-        contentStyle: { backgroundColor: "transparent" },
-      }}
-    >
+    <ProfileStack.Navigator screenOptions={{ headerShown: false }}>
       <ProfileStack.Screen name="ProfileMain" component={ProfileScreen} />
       <ProfileStack.Screen name="EditProfile" component={EditProfileScreen} />
       <ProfileStack.Screen name="PhotoManager" component={PhotoManagerScreen} />
@@ -76,6 +72,7 @@ function MainTabs() {
             Rooms: "home-outline",
             Inbox: "chatbubbles-outline",
           };
+
           const name = map[route.name] ?? "ellipse-outline";
           return <Ionicons name={name} size={size} color={color} />;
         },
@@ -86,37 +83,21 @@ function MainTabs() {
         component={FeedScreen}
         options={{ title: "Лента", tabBarLabel: "Лента" }}
       />
-
-      <Tab.Screen
-        name="Nearby"
-        component={NearbyScreen}
-        options={{
-          title: "Объявления",
-          tabBarLabel: "Объявления",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="megaphone-outline" size={size} color={color} />
-          ),
-        }}
-      />
-
       <Tab.Screen
         name="Now"
         component={NowScreen}
-        options={{ title: "Сейчас", tabBarLabel: "СЕЙЧАС" }}
+        options={{ title: "Сейчас", tabBarLabel: "Сейчас" }}
       />
-
+      <Tab.Screen
+        name="Nearby"
+        component={NearbyScreen}
+        options={{ title: "Объявления", tabBarLabel: "Объявления" }}
+      />
       <Tab.Screen
         name="Inbox"
         component={InboxScreen}
-        options={{
-          title: "Чаты",
-          tabBarLabel: "Чаты",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="chatbubbles-outline" size={size} color={color} />
-          ),
-        }}
+        options={{ title: "Чаты", tabBarLabel: "Чаты" }}
       />
-
       <Tab.Screen
         name="Rooms"
         component={RoomsScreen}
@@ -155,11 +136,13 @@ export default function AppNavigator() {
       onClose={() => setDrawerOpen(false)}
       drawerType="slide"
       swipeEnabled
-      overlayStyle={{ backgroundColor: "transparent" }}
+      overlayStyle={{ backgroundColor: "rgba(0,0,0,0.55)" }}
       drawerStyle={{ backgroundColor: "transparent", width: 300 }}
       style={{ backgroundColor: "transparent" }}
       renderDrawerContent={() => (
-        <AppDrawerContent onClose={() => setDrawerOpen(false)} />
+        <ScreenBackground variant="menu" overlayOpacity={0.35} blurRadius={5}>
+          <AppDrawerContent onClose={() => setDrawerOpen(false)} />
+        </ScreenBackground>
       )}
     >
       <RootStack.Navigator
