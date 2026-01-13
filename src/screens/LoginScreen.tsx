@@ -12,7 +12,6 @@ import {
   createUserWithEmailAndPassword,
 } from "firebase/auth";
 import { auth, isFirebaseConfigured } from "@/config/firebaseConfig";
-import { useLocale } from "@/contexts/LocaleContext";
 
 type LoginScreenProps = {
   onAuthStart?: () => void;
@@ -27,7 +26,6 @@ export default function LoginScreen({
 }: LoginScreenProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const { locale, setLocale } = useLocale();
   const firebaseConfigured = isFirebaseConfigured();
   const fallbackMessage = useMemo(() => {
     if (authError) return authError;
@@ -106,43 +104,6 @@ export default function LoginScreen({
         {fallbackMessage ? (
           <Text style={styles.errorText}>{fallbackMessage}</Text>
         ) : null}
-        <View style={styles.languageBlock}>
-          <Text style={styles.languageLabel}>Язык / Language</Text>
-          <View style={styles.languageRow}>
-            <TouchableOpacity
-              onPress={() => setLocale("ru")}
-              style={[
-                styles.languageButton,
-                locale === "ru" ? styles.languageButtonActive : null,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.languageText,
-                  locale === "ru" ? styles.languageTextActive : null,
-                ]}
-              >
-                Русский
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => setLocale("en")}
-              style={[
-                styles.languageButton,
-                locale === "en" ? styles.languageButtonActive : null,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.languageText,
-                  locale === "en" ? styles.languageTextActive : null,
-                ]}
-              >
-                English
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
         <TextInput
           style={styles.input}
           placeholder="Email"
@@ -227,24 +188,4 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: { opacity: 0.55 },
   buttonText: { fontSize: 16, fontWeight: "600", color: "#000000" },
-  languageBlock: { marginBottom: 12 },
-  languageLabel: {
-    fontSize: 13,
-    fontWeight: "600",
-    marginBottom: 6,
-    color: "#000000",
-  },
-  languageRow: { flexDirection: "row", gap: 8 },
-  languageButton: {
-    flex: 1,
-    paddingVertical: 8,
-    borderRadius: 10,
-    borderWidth: 1,
-    alignItems: "center",
-    borderColor: "#111827",
-    backgroundColor: "#FFFFFF",
-  },
-  languageButtonActive: { backgroundColor: "#E5E7EB" },
-  languageText: { fontSize: 13, fontWeight: "700", color: "#000000" },
-  languageTextActive: { color: "#000000" },
 });

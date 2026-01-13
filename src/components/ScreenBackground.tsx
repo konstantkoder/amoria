@@ -1,30 +1,60 @@
-// NOTE: Modified copy of the original ScreenBackground component. We've
-// adjusted the default overlay opacity and blur radius values for certain
-// variants to create a more vibrant and polished look. In particular,
-// the 'smoke' variant now has a lighter overlay, and the 'menu' variant
-// feels less opaque. All other logic remains unchanged from the upstream
-// version.
-
 import React from "react";
 import { StyleSheet, View, Text } from "react-native";
-import BackgroundWrapper, { type BackgroundKey } from "@/components/BackgroundWrapper";
+import { LinearGradient } from "expo-linear-gradient";
+
+import BackgroundWrapper, {
+  type BackgroundKey,
+} from "@/components/BackgroundWrapper";
 
 export type ScreenBackgroundVariant =
   | "default"
   | "hearts"
   | "smoke"
   | "nightCity"
-  | "menu";
+  | "menu"
+  | "ads"
+  | "now"
+  | "chats"
+  | "rooms"
+  | "profile"
+  | "aurora"
+  | "sunset"
+  | "deepSpace";
 
 type Props = {
   variant?: ScreenBackgroundVariant;
   overlayOpacity?: number;
   blurRadius?: number;
   debugTint?: boolean;
+  screenLabel?: string;
   children: React.ReactNode;
 };
 
-const mapVariantToKey = (variant: ScreenBackgroundVariant): BackgroundKey => {
+const gradientPresets = {
+  aurora: {
+    colors: ["#0ea5e9", "#a855f7", "#22c55e", "#0b1020"],
+    start: { x: 0, y: 0 },
+    end: { x: 1, y: 1 },
+  },
+  sunset: {
+    colors: ["#f97316", "#ec4899", "#8b5cf6", "#0b1020"],
+    start: { x: 0, y: 1 },
+    end: { x: 1, y: 0 },
+  },
+  deepSpace: {
+    colors: ["#050816", "#0b1020", "#111827", "#0b1020"],
+    start: { x: 0, y: 0 },
+    end: { x: 1, y: 1 },
+  },
+} as const;
+
+function isGradientVariant(
+  v: ScreenBackgroundVariant,
+): v is keyof typeof gradientPresets {
+  return v === "aurora" || v === "sunset" || v === "deepSpace";
+}
+
+function mapVariantToKey(variant: ScreenBackgroundVariant): BackgroundKey {
   switch (variant) {
     case "hearts":
       return "hearts";
@@ -34,12 +64,21 @@ const mapVariantToKey = (variant: ScreenBackgroundVariant): BackgroundKey => {
       return "nightCity";
     case "menu":
       return "menu";
+    case "ads":
+      return "ads";
+    case "now":
+      return "now";
+    case "chats":
+      return "chats";
+    case "rooms":
+      return "rooms";
+    case "profile":
+      return "profile";
     case "default":
     default:
-      // Default to hearts to keep a visible background.
       return "hearts";
   }
-};
+}
 
 const variantDefaults: Record<
   ScreenBackgroundVariant,
@@ -47,15 +86,21 @@ const variantDefaults: Record<
 > = {
   default: { overlayOpacity: 0.18, blurRadius: 0 },
   hearts: { overlayOpacity: 0.18, blurRadius: 0 },
-  // Smoke now uses a lighter overlay and a modest blur to let more of the
-  // underlying image show through while still muting it enough for legible text.
+
+  // image variants
   smoke: { overlayOpacity: 0.35, blurRadius: 3 },
-  // Night city stays the same as default for consistency; screens using it
-  // explicitly pass their own overlay and blur values.
   nightCity: { overlayOpacity: 0.33, blurRadius: 2 },
-  // Menu variant is less opaque and slightly blurred so that the side drawer
-  // feels translucent rather than heavily dimmed.
-  menu: { overlayOpacity: 0.3, blurRadius: 3 },
+  menu: { overlayOpacity: 0.28, blurRadius: 5 },
+  ads: { overlayOpacity: 0.18, blurRadius: 0 },
+  now: { overlayOpacity: 0.18, blurRadius: 0 },
+  chats: { overlayOpacity: 0.18, blurRadius: 0 },
+  rooms: { overlayOpacity: 0.20, blurRadius: 0 },
+  profile: { overlayOpacity: 0.18, blurRadius: 0 },
+
+  // gradient variants (blur is ignored, но оставляем для совместимости)
+  aurora: { overlayOpacity: 0.22, blurRadius: 0 },
+  sunset: { overlayOpacity: 0.22, blurRadius: 0 },
+  deepSpace: { overlayOpacity: 0.28, blurRadius: 0 },
 };
 
 export default function ScreenBackground({
@@ -63,12 +108,50 @@ export default function ScreenBackground({
   overlayOpacity,
   blurRadius,
   debugTint = false,
+  screenLabel,
   children,
 }: Props) {
-  const key = mapVariantToKey(variant);
   const defaults = variantDefaults[variant] ?? variantDefaults.default;
   const resolvedOverlayOpacity = overlayOpacity ?? defaults.overlayOpacity;
   const resolvedBlurRadius = blurRadius ?? defaults.blurRadius;
+  const debugLabel = screenLabel ?? variant;
+
+  // Gradient backgrounds (for unique tab backgrounds)
+  if (isGradientVariant(variant)) {
+    const preset = gradientPresets[variant];
+
+    return (
+      <View style={styles.root}>
+        <LinearGradient
+          colors={preset.colors}
+          start={preset.start}
+          end={preset.end}
+          style={StyleSheet.absoluteFillObject}
+        />
+
+        {/* Decorative blobs for "image-like" depth */}
+        <View pointerEvents="none" style={[styles.blob, styles.blobA]} />
+        <View pointerEvents="none" style={[styles.blob, styles.blobB]} />
+
+        <View
+          pointerEvents="none"
+          style={[
+            styles.overlay,
+            { opacity: resolvedOverlayOpacity },
+          ]}
+        />
+
+        {debugTint ? <View pointerEvents="none" style={styles.debug} /> : null}
+        {debugTint ? <Text style={styles.debugText}>BG: {debugLabel}</Text> : null}
+
+        {children}
+      </View>
+    );
+  }
+
+  // Image backgrounds (existing behavior)
+  const key = mapVariantToKey(variant);
+
   return (
     <BackgroundWrapper
       background={key}
@@ -76,15 +159,18 @@ export default function ScreenBackground({
       blurRadius={resolvedBlurRadius}
     >
       {debugTint ? <View pointerEvents="none" style={styles.debug} /> : null}
-      {debugTint ? (
-        <Text style={styles.debugText}>BG KEY: {key}</Text>
-      ) : null}
+      {debugTint ? <Text style={styles.debugText}>BG: {debugLabel}</Text> : null}
       {children}
     </BackgroundWrapper>
   );
 }
 
 const styles = StyleSheet.create({
+  root: { flex: 1 },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "#000",
+  },
   debug: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(255,0,255,0.08)",
@@ -96,5 +182,22 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 12,
     opacity: 0.8,
+  },
+  blob: {
+    position: "absolute",
+    width: 420,
+    height: 420,
+    borderRadius: 420,
+    opacity: 0.18,
+  },
+  blobA: {
+    top: -120,
+    left: -80,
+    backgroundColor: "#22c55e",
+  },
+  blobB: {
+    bottom: -140,
+    right: -100,
+    backgroundColor: "#a855f7",
   },
 });
