@@ -8,6 +8,8 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
+import { useLocale } from "@/contexts/LocaleContext";
+import { LANGUAGE_LABELS } from "@/i18n/translations";
 
 type Props = {
   onClose?: () => void;
@@ -15,10 +17,16 @@ type Props = {
 
 export default function AppDrawerContent({ onClose }: Props) {
   const navigation = useNavigation<any>();
+  const { t, locale, openLanguagePicker } = useLocale();
 
   const handleClose = React.useCallback(() => {
     onClose?.();
   }, [onClose]);
+
+  const handleOpenLanguagePicker = React.useCallback(() => {
+    openLanguagePicker();
+    onClose?.();
+  }, [openLanguagePicker, onClose]);
 
   const navigateSafe = React.useCallback(
     (routeName: string) => {
@@ -35,38 +43,53 @@ export default function AppDrawerContent({ onClose }: Props) {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Меню</Text>
-      <ScrollView
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-      >
-        <TouchableOpacity
-          onPress={handleClose}
-          activeOpacity={0.85}
-          style={styles.button}
+      <View style={styles.panel}>
+        <Text style={styles.title}>{t("common.menu")}</Text>
+        <Text style={styles.subtitle}>
+          {t("common.language")}: {LANGUAGE_LABELS[locale]}
+        </Text>
+        <ScrollView
+          style={styles.panelScroll}
+          contentContainerStyle={[styles.content, styles.panelContent]}
+          showsVerticalScrollIndicator={false}
         >
-          <Ionicons name="close-outline" size={20} color="#E5E7EB" />
-          <Text style={styles.buttonText}>Закрыть</Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            onPress={handleClose}
+            activeOpacity={0.85}
+            style={styles.button}
+          >
+            <Ionicons name="close-outline" size={20} color="#E5E7EB" />
+            <Text style={styles.buttonText}>{t("drawer.close")}</Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          onPress={() => navigateSafe("Profile")}
-          activeOpacity={0.85}
-          style={styles.button}
-        >
-          <Ionicons name="person-outline" size={20} color="#E5E7EB" />
-          <Text style={styles.buttonText}>Профиль</Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => navigateSafe("Profile")}
+            activeOpacity={0.85}
+            style={styles.button}
+          >
+            <Ionicons name="person-outline" size={20} color="#E5E7EB" />
+            <Text style={styles.buttonText}>{t("drawer.profile")}</Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          onPress={() => navigateSafe("Tabs")}
-          activeOpacity={0.85}
-          style={styles.button}
-        >
-          <Ionicons name="home-outline" size={20} color="#E5E7EB" />
-          <Text style={styles.buttonText}>Главная</Text>
-        </TouchableOpacity>
-      </ScrollView>
+          <TouchableOpacity
+            onPress={handleOpenLanguagePicker}
+            activeOpacity={0.85}
+            style={styles.button}
+          >
+            <Ionicons name="language-outline" size={20} color="#E5E7EB" />
+            <Text style={styles.buttonText}>{t("drawer.language")}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => navigateSafe("Tabs")}
+            activeOpacity={0.85}
+            style={styles.button}
+          >
+            <Ionicons name="home-outline" size={20} color="#E5E7EB" />
+            <Text style={styles.buttonText}>{t("drawer.feed")}</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </View>
     </View>
   );
 }
@@ -74,19 +97,46 @@ export default function AppDrawerContent({ onClose }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingHorizontal: 16,
-    paddingTop: 20,
     backgroundColor: "transparent",
   },
+  panel: {
+    backgroundColor: "rgba(0,0,0,0.20)",
+    borderRadius: 18,
+    padding: 16,
+    margin: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.10)",
+    flex: 1,
+    alignSelf: "stretch",
+    justifyContent: "flex-start",
+  },
   title: {
-    color: "#E5E7EB",
+    color: "#FFFFFF",
     fontSize: 22,
     fontWeight: "800",
     marginBottom: 12,
+    textShadowColor: "rgba(0,0,0,0.75)",
+    textShadowRadius: 6,
+    textShadowOffset: { width: 0, height: 2 },
+  },
+  subtitle: {
+    color: "rgba(255,255,255,0.82)",
+    fontSize: 12,
+    fontWeight: "600",
+    marginBottom: 12,
+    textShadowColor: "rgba(0,0,0,0.65)",
+    textShadowRadius: 6,
+    textShadowOffset: { width: 0, height: 1 },
   },
   content: {
     gap: 10,
     paddingBottom: 20,
+  },
+  panelContent: {
+    paddingBottom: 24,
+  },
+  panelScroll: {
+    flex: 1,
   },
   button: {
     flexDirection: "row",
@@ -100,8 +150,11 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.12)",
   },
   buttonText: {
-    color: "#E5E7EB",
+    color: "rgba(255,255,255,0.92)",
     fontSize: 15,
     fontWeight: "700",
+    textShadowColor: "rgba(0,0,0,0.75)",
+    textShadowRadius: 6,
+    textShadowOffset: { width: 0, height: 2 },
   },
 });

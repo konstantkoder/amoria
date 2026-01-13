@@ -18,6 +18,7 @@ import * as Location from "expo-location";
 import { theme } from "@/theme";
 import { auth, db, isFirebaseConfigured } from "@/config/firebaseConfig";
 import ScreenShell from "@/components/ScreenShell";
+import { useLocale } from "@/contexts/LocaleContext";
 import {
   RoomDoc,
   RoomKind,
@@ -105,6 +106,7 @@ function getRoomMarkerCoord(base: Pos, kind: RoomKind): LatLng {
 
 export default function RoomsScreen() {
   const insets = useSafeAreaInsets();
+  const { t } = useLocale();
   const uid = auth?.currentUser?.uid ?? null;
   const nickname = useMemo(
     () => (uid ? makeNickname(uid) : "Аноним"),
@@ -658,12 +660,15 @@ export default function RoomsScreen() {
     </View>
   );
 
-  const headerTitle = stage === "chat" ? room?.title ?? "Комната" : "Комнаты";
+  const headerTitle =
+    stage === "chat" ? room?.title ?? t("screens.rooms.title") : t("screens.rooms.title");
 
   return (
     <ScreenShell
       title={headerTitle}
-      background="nightCity"
+      background="rooms"
+      overlayOpacity={0.20}
+      blurRadius={0}
       debugTint={false}
       showBack={stage === "chat"}
       onBack={stage === "chat" ? leaveRoom : undefined}

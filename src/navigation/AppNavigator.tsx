@@ -21,7 +21,7 @@ import FlirtSettingsScreen from "@/screens/settings/FlirtSettingsScreen";
 import { theme } from "@/theme";
 import AppDrawerContent from "@/navigation/AppDrawerContent";
 import { registerDrawerControls } from "@/navigation/drawerController";
-import ScreenBackground from "@/components/ScreenBackground";
+import { useLocale } from "@/contexts/LocaleContext";
 
 export type ProfileStackParamList = {
   ProfileMain: undefined;
@@ -47,9 +47,11 @@ function ProfileStackNavigator() {
 
 function MainTabs() {
   const insets = useSafeAreaInsets();
+  const { t, locale } = useLocale();
 
   return (
     <Tab.Navigator
+      key={locale}
       initialRouteName="Feed"
       sceneContainerStyle={{ backgroundColor: "transparent" }}
       screenOptions={({ route }) => ({
@@ -81,27 +83,42 @@ function MainTabs() {
       <Tab.Screen
         name="Feed"
         component={FeedScreen}
-        options={{ title: "Лента", tabBarLabel: "Лента" }}
+        options={{
+          title: t("screens.feed.title"),
+          tabBarLabel: t("tabs.feed"),
+        }}
       />
       <Tab.Screen
         name="Now"
         component={NowScreen}
-        options={{ title: "Сейчас", tabBarLabel: "Сейчас" }}
+        options={{
+          title: t("screens.now.title"),
+          tabBarLabel: t("tabs.now"),
+        }}
       />
       <Tab.Screen
         name="Nearby"
         component={NearbyScreen}
-        options={{ title: "Объявления", tabBarLabel: "Объявления" }}
+        options={{
+          title: t("screens.ads.title"),
+          tabBarLabel: t("tabs.ads"),
+        }}
       />
       <Tab.Screen
         name="Inbox"
         component={InboxScreen}
-        options={{ title: "Чаты", tabBarLabel: "Чаты" }}
+        options={{
+          title: t("screens.chats.title"),
+          tabBarLabel: t("tabs.chats"),
+        }}
       />
       <Tab.Screen
         name="Rooms"
         component={RoomsScreen}
-        options={{ title: "Комнаты", tabBarLabel: "Комнаты" }}
+        options={{
+          title: t("screens.rooms.title"),
+          tabBarLabel: t("tabs.rooms"),
+        }}
       />
 
       {/* Hidden tabs */}
@@ -134,15 +151,13 @@ export default function AppNavigator() {
       open={drawerOpen}
       onOpen={() => setDrawerOpen(true)}
       onClose={() => setDrawerOpen(false)}
-      drawerType="slide"
+      drawerType="front"
       swipeEnabled
-      overlayStyle={{ backgroundColor: "rgba(0,0,0,0.55)" }}
+      overlayStyle={{ backgroundColor: "transparent" }}
       drawerStyle={{ backgroundColor: "transparent", width: 300 }}
       style={{ backgroundColor: "transparent" }}
       renderDrawerContent={() => (
-        <ScreenBackground variant="menu" overlayOpacity={0.35} blurRadius={5}>
-          <AppDrawerContent onClose={() => setDrawerOpen(false)} />
-        </ScreenBackground>
+        <AppDrawerContent onClose={() => setDrawerOpen(false)} />
       )}
     >
       <RootStack.Navigator

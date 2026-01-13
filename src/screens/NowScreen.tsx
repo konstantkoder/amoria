@@ -30,6 +30,8 @@ import {
 } from "@/services/now";
 import { makeNickname } from "@/services/rooms";
 import ScreenShell from "@/components/ScreenShell";
+import NeonBorder from "@/components/NeonBorder";
+import { useLocale } from "@/contexts/LocaleContext";
 
 type Pos = { lat: number; lng: number; accuracy?: number | null };
 type RadiusOption = number | null; // null = без ограничения
@@ -92,6 +94,7 @@ function distanceKm(pos: Pos | null, item: { lat?: number; lng?: number }): numb
 export default function NowScreen() {
   const insets = useSafeAreaInsets();
   const user = auth?.currentUser ?? null;
+  const { t } = useLocale();
 
   const [pos, setPos] = useState<Pos | null>(null);
   const [posLoading, setPosLoading] = useState(false);
@@ -217,36 +220,33 @@ export default function NowScreen() {
       {MOOD_META.map((m) => {
         const active = m.key === mood;
         return (
-          <TouchableOpacity
-            key={m.key}
-            onPress={() => setMood(m.key)}
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              paddingHorizontal: 10,
-              paddingVertical: 6,
-              borderRadius: 999,
-              // Livelier mood chips: primary accent for active, subtle for inactive
-              backgroundColor: active
-                ? "rgba(255,78,138,0.25)"
-                : theme.colors.pillBg,
-              borderWidth: 1,
-              borderColor: active
-                ? theme.colors.primary
-                : theme.colors.borderSubtle,
-            }}
-          >
-            <Text style={{ fontSize: 14, marginRight: 4 }}>{m.emoji}</Text>
-            <Text
+          <NeonBorder key={m.key} active={active}>
+            <TouchableOpacity
+              onPress={() => setMood(m.key)}
               style={{
-                color: active ? theme.colors.primary : theme.colors.pillText,
-                fontSize: 12,
-                fontWeight: active ? "800" : "600",
+                flexDirection: "row",
+                alignItems: "center",
+                paddingHorizontal: 10,
+                paddingVertical: 6,
+                borderRadius: 999,
+                // Livelier mood chips: primary accent for active, subtle for inactive
+                backgroundColor: active
+                  ? "rgba(255,78,138,0.25)"
+                  : theme.colors.pillBg,
               }}
             >
-              {m.label}
-            </Text>
-          </TouchableOpacity>
+              <Text style={{ fontSize: 14, marginRight: 4 }}>{m.emoji}</Text>
+              <Text
+                style={{
+                  color: active ? theme.colors.primary : theme.colors.pillText,
+                  fontSize: 12,
+                  fontWeight: active ? "800" : "600",
+                }}
+              >
+                {m.label}
+              </Text>
+            </TouchableOpacity>
+          </NeonBorder>
         );
       })}
     </View>
@@ -266,33 +266,30 @@ export default function NowScreen() {
         const active = radiusKm === option;
         const label = option == null ? "Все" : `${option} км`;
         return (
-          <TouchableOpacity
-            key={idx}
-            onPress={() => setRadiusKm(option)}
-            style={{
-              paddingHorizontal: 10,
-              paddingVertical: 6,
-              borderRadius: 999,
-              borderWidth: 1,
-              // Livelier radius chips: warm accent for active, subtle for inactive
-              borderColor: active
-                ? theme.colors.accent
-                : theme.colors.borderSubtle,
-              backgroundColor: active
-                ? "rgba(255,122,60,0.25)"
-                : theme.colors.pillBg,
-            }}
-          >
-            <Text
+          <NeonBorder key={idx} active={active}>
+            <TouchableOpacity
+              onPress={() => setRadiusKm(option)}
               style={{
-                color: active ? theme.colors.accent : theme.colors.pillText,
-                fontSize: 12,
-                fontWeight: active ? "800" : "600",
+                paddingHorizontal: 10,
+                paddingVertical: 6,
+                borderRadius: 999,
+                // Livelier radius chips: warm accent for active, subtle for inactive
+                backgroundColor: active
+                  ? "rgba(255,122,60,0.25)"
+                  : theme.colors.pillBg,
               }}
             >
-              {label}
-            </Text>
-          </TouchableOpacity>
+              <Text
+                style={{
+                  color: active ? theme.colors.accent : theme.colors.pillText,
+                  fontSize: 12,
+                  fontWeight: active ? "800" : "600",
+                }}
+              >
+                {label}
+              </Text>
+            </TouchableOpacity>
+          </NeonBorder>
         );
       })}
     </View>
@@ -437,7 +434,7 @@ export default function NowScreen() {
               fontWeight: "800",
             }}
           >
-            Отправить
+            {t("now.send")}
           </Text>
         </TouchableOpacity>
       </View>
@@ -508,12 +505,10 @@ export default function NowScreen() {
 
   return (
     <ScreenShell
-      title="Сейчас"
-      // Switch from hearts to the neon city backdrop. Tune overlay and blur
-      // to achieve a balanced contrast between content and the vibrant image.
-      background="nightCity"
-      overlayOpacity={0.3}
-      blurRadius={2}
+      title={t("screens.now.title")}
+      background="now"
+      overlayOpacity={0.18}
+      blurRadius={0}
       debugTint={false}
     >
       <View
@@ -524,7 +519,7 @@ export default function NowScreen() {
           paddingBottom: insets.bottom + 8,
         }}
       >
-        <SectionTitle>Сейчас</SectionTitle>
+        <SectionTitle>{t("screens.now.title")}</SectionTitle>
         {renderComposer()}
         <View
           style={{

@@ -1,7 +1,6 @@
-// NOTE: Modified version of ProfileScreen. This update swaps the menu
-// background for the neon city to make the profile section feel more
-// consistent with the rest of the app. We also set custom overlay and blur
-// values to ensure readability while letting the image shine through.
+// NOTE: Modified version of ProfileScreen. This update sets a dedicated
+// profile background and tweaks overlay/blur to keep the image bright while
+// preserving text readability.
 
 import React, { useEffect } from "react";
 import { View, Text, Button, Alert, TouchableOpacity } from "react-native";
@@ -10,6 +9,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { doc, setDoc } from "firebase/firestore";
 import { db } from "@/config/firebaseConfig";
 import ScreenBackground from "@/components/ScreenBackground";
+import { useLocale } from "@/contexts/LocaleContext";
 import {
   registerForPushNotificationsAsync,
   sendLocalNotification,
@@ -23,38 +23,39 @@ type ProfileNav = NativeStackNavigationProp<
 
 export default function ProfileScreen() {
   const navigation = useNavigation<ProfileNav>();
+  const { t } = useLocale();
   useEffect(() => {
     registerForPushNotificationsAsync().catch(() => {});
   }, []);
   return (
     <ScreenBackground
-      variant="nightCity"
-      overlayOpacity={0.3}
-      blurRadius={2}
+      variant="profile"
+      overlayOpacity={0.18}
+      blurRadius={0}
     >
       <View style={{ flex: 1, padding: 24 }}>
         <Text style={{ fontSize: 22, fontWeight: "700", marginBottom: 12 }}>
-          Профиль
+          {t("screens.profile.title")}
         </Text>
         <Button
-          title="Редактировать профиль"
+          title={t("profile.edit")}
           onPress={() => navigation.navigate("EditProfile")}
         />
         <View style={{ height: 8 }} />
         <Button
-          title="Мои фото"
+          title={t("profile.photos")}
           onPress={() => navigation.navigate("PhotoManager")}
         />
         <View style={{ height: 8 }} />
         <Button
-          title="Флирт 18+"
+          title={t("profile.flirt18")}
           onPress={() => navigation.navigate("FlirtSettings")}
         />
         {/* DEV: тест локальных уведомлений */}
         {__DEV__ && (
           <View style={{ marginTop: 16 }}>
             <Button
-              title="Тест уведомления"
+              title={t("profile.testNotif")}
               onPress={() =>
                 sendLocalNotification({
                   title: "Проверка",

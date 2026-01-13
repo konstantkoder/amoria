@@ -12,9 +12,11 @@ import { Ionicons } from "@expo/vector-icons";
 import { theme } from "@/theme";
 import ScreenShell from "@/components/ScreenShell";
 import { getLikes } from "@/services/likes";
+import { useLocale } from "@/contexts/LocaleContext";
 
 export default function InboxScreen() {
   const insets = useSafeAreaInsets();
+  const { t } = useLocale();
   const [likesCount, setLikesCount] = useState(0);
   useEffect(() => {
     let alive = true;
@@ -32,13 +34,10 @@ export default function InboxScreen() {
   }, []);
   return (
     <ScreenShell
-      title="Чаты"
-      // Use the neon city backdrop for chats as well to maintain a
-      // consistent vibrant feel across the app. Adjust overlay and blur for
-      // clarity.
-      background="nightCity"
-      overlayOpacity={0.3}
-      blurRadius={2}
+      title={t("screens.chats.title")}
+      background="chats"
+      overlayOpacity={0.18}
+      blurRadius={0}
       debugTint={false}
     >
       <View
@@ -64,7 +63,7 @@ export default function InboxScreen() {
               fontWeight: "800",
             }}
           >
-            Чаты
+            {t("screens.chats.title")}
           </Text>
           <Text style={{ color: "#9CA3AF", fontSize: 12 }}>
             Лайкнутые: {likesCount}

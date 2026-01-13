@@ -29,6 +29,8 @@ import {
   subscribePersonalAds,
 } from "@/services/ads";
 import ScreenShell from "@/components/ScreenShell";
+import NeonBorder from "@/components/NeonBorder";
+import { useLocale } from "@/contexts/LocaleContext";
 
 // Compose state holds temporary data for creating a personal ad.
 type ComposeState = {
@@ -68,6 +70,7 @@ function formatAgo(ts: number) {
 export default function NearbyScreen() {
   const insets = useSafeAreaInsets();
   const user = auth?.currentUser ?? null;
+  const { t } = useLocale();
 
   const defaultCountry = useMemo(() => getDefaultCountry(), []);
   const [countryCode, setCountryCode] = useState(defaultCountry.code);
@@ -196,34 +199,31 @@ export default function NearbyScreen() {
           const meta = getAdCategoryMeta(cat);
           const active = filters.category === cat;
           return (
-            <TouchableOpacity
-              key={cat}
-              onPress={() => onChangeFilterCategory(cat)}
-              style={{
-                paddingHorizontal: 10,
-                paddingVertical: 6,
-                borderRadius: 999,
-                borderWidth: 1,
-                // Make category chips feel livelier: use the accent color for
-                // active states and subtler borders/backgrounds otherwise.
-                borderColor: active
-                  ? theme.colors.accent
-                  : theme.colors.borderSubtle,
-                backgroundColor: active
-                  ? "rgba(255,122,60,0.2)"
-                  : theme.colors.pillBg,
-              }}
-            >
-              <Text
+            <NeonBorder key={cat} active={active}>
+              <TouchableOpacity
+                onPress={() => onChangeFilterCategory(cat)}
                 style={{
-                color: active ? theme.colors.accent : theme.colors.pillText,
-                fontSize: 12,
-                fontWeight: active ? "800" : "600",
+                  paddingHorizontal: 10,
+                  paddingVertical: 6,
+                  borderRadius: 999,
+                  // Make category chips feel livelier: use the accent color for
+                  // active states and subtler borders/backgrounds otherwise.
+                  backgroundColor: active
+                    ? "rgba(255,122,60,0.2)"
+                    : theme.colors.pillBg,
                 }}
               >
-                {meta.short}
-              </Text>
-            </TouchableOpacity>
+                <Text
+                  style={{
+                  color: active ? theme.colors.accent : theme.colors.pillText,
+                  fontSize: 12,
+                  fontWeight: active ? "800" : "600",
+                  }}
+                >
+                  {meta.short}
+                </Text>
+              </TouchableOpacity>
+            </NeonBorder>
           );
         })}
       </View>
@@ -615,13 +615,10 @@ export default function NearbyScreen() {
 
   return (
     <ScreenShell
-      title="Объявления"
-      // Use the neon city background for a vibrant feel. The overlay and blur
-      // values are tuned to allow more of the image to show through while
-      // keeping content legible.
-      background="nightCity"
-      overlayOpacity={0.3}
-      blurRadius={2}
+      title={t("screens.ads.title")}
+      background="ads"
+      overlayOpacity={0.18}
+      blurRadius={0}
       debugTint={false}
     >
       <View
@@ -632,7 +629,7 @@ export default function NearbyScreen() {
           paddingBottom: insets.bottom + 8,
         }}
       >
-        <SectionTitle>Объявления</SectionTitle>
+        <SectionTitle>{t("screens.ads.title")}</SectionTitle>
 
         <Text
           style={{
@@ -664,7 +661,7 @@ export default function NearbyScreen() {
               flex: 1,
             }}
           >
-            Объявления
+            {t("screens.ads.title")}
           </Text>
 
           <TouchableOpacity
