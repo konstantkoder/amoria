@@ -8,8 +8,10 @@ import {
 } from "@/services/firebase";
 import { uploadImage } from "@/services/storage";
 import { theme } from "@/theme";
+import { useLocale } from "@/contexts/LocaleContext";
 
 export default function PhotoManagerScreen() {
+  const { t } = useLocale();
   const [uid, setUid] = useState("");
   const [photos, setPhotos] = useState<string[]>([]);
 
@@ -26,8 +28,8 @@ export default function PhotoManagerScreen() {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
       Alert.alert(
-        "Нет доступа",
-        "Разрешите доступ к фото, чтобы загрузить изображение",
+        t("photos.permissionTitle"),
+        t("photos.permissionBody"),
       );
       return;
     }
@@ -55,9 +57,9 @@ export default function PhotoManagerScreen() {
       style={{ flex: 1, padding: 16, backgroundColor: theme.colors.background }}
     >
       <Text style={{ fontSize: 22, fontWeight: "700", marginBottom: 12 }}>
-        Мои фото
+        {t("profile.photos")}
       </Text>
-      <Button title="Добавить фото" onPress={addPhoto} />
+      <Button title={t("photos.add")} onPress={addPhoto} />
       <FlatList
         data={photos}
         keyExtractor={(item, idx) => `${item}-${idx}`}
@@ -77,13 +79,13 @@ export default function PhotoManagerScreen() {
               source={{ uri: item }}
               style={{ width: "100%", height: "100%" }}
             />
-            <Button title="Удалить" onPress={() => removePhoto(index)} />
+            <Button title={t("photos.remove")} onPress={() => removePhoto(index)} />
           </View>
         )}
       />
       {photos.length === 0 && (
         <Text style={{ marginTop: 12, opacity: 0.7 }}>
-          Пока нет фото. Добавь первое!
+          {t("photos.empty")}
         </Text>
       )}
     </View>

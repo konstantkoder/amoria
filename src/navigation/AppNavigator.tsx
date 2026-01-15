@@ -84,7 +84,7 @@ function MainTabs() {
         name="Feed"
         component={FeedScreen}
         options={{
-          title: t("screens.feed.title"),
+          title: t("tabs.feed"),
           tabBarLabel: t("tabs.feed"),
         }}
       />
@@ -92,7 +92,7 @@ function MainTabs() {
         name="Now"
         component={NowScreen}
         options={{
-          title: t("screens.now.title"),
+          title: t("tabs.now"),
           tabBarLabel: t("tabs.now"),
         }}
       />
@@ -100,7 +100,7 @@ function MainTabs() {
         name="Nearby"
         component={NearbyScreen}
         options={{
-          title: t("screens.ads.title"),
+          title: t("tabs.ads"),
           tabBarLabel: t("tabs.ads"),
         }}
       />
@@ -108,7 +108,7 @@ function MainTabs() {
         name="Inbox"
         component={InboxScreen}
         options={{
-          title: t("screens.chats.title"),
+          title: t("tabs.chats"),
           tabBarLabel: t("tabs.chats"),
         }}
       />
@@ -116,7 +116,7 @@ function MainTabs() {
         name="Rooms"
         component={RoomsScreen}
         options={{
-          title: t("screens.rooms.title"),
+          title: t("tabs.rooms"),
           tabBarLabel: t("tabs.rooms"),
         }}
       />
@@ -138,6 +138,7 @@ function MainTabs() {
 
 export default function AppNavigator() {
   const [drawerOpen, setDrawerOpen] = React.useState(false);
+  const { locale } = useLocale();
 
   React.useEffect(() => {
     registerDrawerControls({
@@ -148,6 +149,7 @@ export default function AppNavigator() {
 
   return (
     <Drawer
+      key={locale}
       open={drawerOpen}
       onOpen={() => setDrawerOpen(true)}
       onClose={() => setDrawerOpen(false)}

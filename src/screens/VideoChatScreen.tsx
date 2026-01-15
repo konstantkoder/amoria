@@ -3,17 +3,19 @@ import { StyleSheet, Text, View } from "react-native";
 
 import ScreenShell from "@/components/ScreenShell";
 import { theme } from "@/theme";
+import { useLocale } from "@/contexts/LocaleContext";
 
 export default function VideoChatScreen() {
+  const { t } = useLocale();
   return (
     <ScreenShell
-      title="Видеочат"
+      title={t("videoChat.title")}
       background="nightCity"
       debugTint={false}
       showBack
     >
       <View style={styles.container}>
-        <Text style={styles.message}>Видеочат скоро будет доступен</Text>
+        <Text style={styles.message}>{t("videoChat.comingSoon")}</Text>
       </View>
     </ScreenShell>
   );

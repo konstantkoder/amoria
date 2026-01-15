@@ -11,11 +11,13 @@ import { theme } from "@/theme";
 import VoiceIntroModal from "@/components/VoiceIntroModal";
 import ScreenShell from "@/components/ScreenShell";
 import { addDislike, addLike, getDislikes, getLikes } from "@/services/likes";
+import { useLocale } from "@/contexts/LocaleContext";
 
 const getStableUserId = (user: DemoUser) =>
   (user as { id?: string }).id ?? user.uid ?? "";
 
 export default function FeedScreen() {
+  const { t } = useLocale();
   const [adultModeEnabled, setAdultModeEnabled] = useState(false);
   const [voiceIntroUser, setVoiceIntroUser] = useState<DemoUser | null>(null);
   const [likedIds, setLikedIds] = useState<string[]>([]);
@@ -24,8 +26,8 @@ export default function FeedScreen() {
   const questionText = useMemo(() => {
     const qid = getDailyQuestionId();
     const q = QUESTIONS.find((item) => item.id === qid);
-    return q?.text ?? "Сегодняшний вопрос недоступен.";
-  }, []);
+    return q ? t(q.textKey) : t("feed.questionUnavailable");
+  }, [t]);
 
   const previewUsers = useMemo(() => {
     return DEMO_USERS.slice(0, 5);
@@ -81,14 +83,14 @@ export default function FeedScreen() {
     const subtitle =
       user.bio ??
       user.about ??
-      "В полной версии здесь откроется подробный профиль и чат.";
-    const title = user.displayName ?? user.name ?? "Профиль";
+      t("feed.previewSubtitle");
+    const title = user.displayName ?? user.name ?? t("screen.profile");
     const ageSuffix = user.age ? `, ${user.age}` : "";
 
     Alert.alert(
       `${title}${ageSuffix}`,
-      `${subtitle}\n\nСейчас это демо-профиль. В релизе здесь будет экран анкеты и чат.`,
-      [{ text: "OK" }]
+      `${subtitle}\n\n${t("feed.previewBody")}`,
+      [{ text: t("common.ok") }]
     );
   };
 
@@ -125,7 +127,7 @@ export default function FeedScreen() {
     } catch {
       // ignore
     }
-    Alert.alert("Лайк", "Лайк сохранён (demo). Позже тут будет чат/матч.");
+    Alert.alert(t("feed.likeTitle"), t("feed.likeBody"));
   };
 
   const onDislike = async (user: DemoUser, userId: string) => {
@@ -144,7 +146,7 @@ export default function FeedScreen() {
 
   return (
     <ScreenShell
-      title="AMORIA"
+      title={t("tabs.feed")}
       background="hearts"
       debugTint={false}
     >
@@ -171,7 +173,7 @@ export default function FeedScreen() {
               marginBottom: 8,
             }}
           >
-            Вопрос дня
+            {t("feed.questionOfDay")}
           </Text>
           <Text
             style={{
@@ -189,7 +191,7 @@ export default function FeedScreen() {
               fontSize: 13,
             }}
           >
-            Ответ можно написать во вкладке «Question» внизу экрана.
+            {t("feed.questionHint")}
           </Text>
         </View>
 
@@ -209,10 +211,10 @@ export default function FeedScreen() {
               fontWeight: "600",
             }}
           >
-            Рядом с тобой
+            {t("feed.locationNear")}
           </Text>
           <Text style={{ color: "#9CA3AF", fontSize: 12, fontWeight: "600" }}>
-            Лайкнутые: {likedCount}
+            {t("common.likedCount", { count: String(likedCount) })}
           </Text>
         </View>
 
@@ -224,8 +226,7 @@ export default function FeedScreen() {
               marginBottom: 8,
             }}
           >
-            18+ цели (casual/sex) сейчас скрыты. Ты можешь включить 18+ режим
-            во вкладке «Profile», чтобы видеть больше анкет.
+            {t("feed.adultModeHint")}
           </Text>
         )}
 
@@ -236,7 +237,7 @@ export default function FeedScreen() {
               fontSize: 14,
             }}
           >
-            Поблизости пока никого. Попробуй позже.
+            {t("feed.nobodyNearby")}
           </Text>
         )}
 

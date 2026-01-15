@@ -18,6 +18,7 @@ type Props = {
 export default function AppDrawerContent({ onClose }: Props) {
   const navigation = useNavigation<any>();
   const { t, locale, openLanguagePicker } = useLocale();
+  const languageLabel = LANGUAGE_LABELS[locale];
 
   const handleClose = React.useCallback(() => {
     onClose?.();
@@ -44,9 +45,12 @@ export default function AppDrawerContent({ onClose }: Props) {
   return (
     <View style={styles.container}>
       <View style={styles.panel}>
-        <Text style={styles.title}>{t("common.menu")}</Text>
+        <Text style={styles.title}>{t("menu.title")}</Text>
         <Text style={styles.subtitle}>
-          {t("common.language")}: {LANGUAGE_LABELS[locale]}
+          {t("menu.languageCurrent", {
+            code: locale.toUpperCase(),
+            language: languageLabel,
+          })}
         </Text>
         <ScrollView
           style={styles.panelScroll}
@@ -59,7 +63,7 @@ export default function AppDrawerContent({ onClose }: Props) {
             style={styles.button}
           >
             <Ionicons name="close-outline" size={20} color="#E5E7EB" />
-            <Text style={styles.buttonText}>{t("drawer.close")}</Text>
+            <Text style={styles.buttonText}>{t("menu.close")}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -68,7 +72,7 @@ export default function AppDrawerContent({ onClose }: Props) {
             style={styles.button}
           >
             <Ionicons name="person-outline" size={20} color="#E5E7EB" />
-            <Text style={styles.buttonText}>{t("drawer.profile")}</Text>
+            <Text style={styles.buttonText}>{t("menu.profile")}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -77,7 +81,7 @@ export default function AppDrawerContent({ onClose }: Props) {
             style={styles.button}
           >
             <Ionicons name="language-outline" size={20} color="#E5E7EB" />
-            <Text style={styles.buttonText}>{t("drawer.language")}</Text>
+            <Text style={styles.buttonText}>{t("menu.language")}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -86,7 +90,7 @@ export default function AppDrawerContent({ onClose }: Props) {
             style={styles.button}
           >
             <Ionicons name="home-outline" size={20} color="#E5E7EB" />
-            <Text style={styles.buttonText}>{t("drawer.feed")}</Text>
+            <Text style={styles.buttonText}>{t("tabs.feed")}</Text>
           </TouchableOpacity>
         </ScrollView>
       </View>

@@ -9,32 +9,27 @@ import {
   View,
 } from "react-native";
 
-import { useLocale } from "@/contexts/LocaleContext";
-
-type LanguageOption = {
-  code: string;
-  label: string;
-};
+import { LANGUAGE_LABELS, type Locale } from "@/i18n/translations";
 
 type Props = {
   visible: boolean;
-  current: string;
-  languages: ReadonlyArray<LanguageOption>;
-  onSelect: (code: string) => void;
+  currentLocale: Locale;
+  locales: ReadonlyArray<Locale>;
+  onSelect: (code: Locale) => void;
   onClose: () => void;
+  t: (key: string, params?: Record<string, string>) => string;
   mandatory?: boolean;
 };
 
 export default function LanguagePickerModal({
   visible,
-  current,
-  languages,
+  currentLocale,
+  locales,
   onSelect,
   onClose,
+  t,
   mandatory = false,
 }: Props) {
-  const { t } = useLocale();
-
   const handleBackdropPress = () => {
     if (!mandatory) onClose();
   };
@@ -56,18 +51,18 @@ export default function LanguagePickerModal({
           onPress={handleBackdropPress}
         />
         <View style={styles.card}>
-          <Text style={styles.title}>{t("common.selectLanguage")}</Text>
+          <Text style={styles.title}>{t("modal.language.title")}</Text>
           <FlatList
-            data={languages}
-            keyExtractor={(item) => item.code}
+            data={locales}
+            keyExtractor={(item) => item}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.listContent}
             renderItem={({ item }) => {
-              const isActive = item.code === current;
+              const isActive = item === currentLocale;
               return (
                 <TouchableOpacity
                   activeOpacity={0.85}
-                  onPress={() => onSelect(item.code)}
+                  onPress={() => onSelect(item)}
                   style={[
                     styles.languageButton,
                     isActive ? styles.languageButtonActive : null,
@@ -79,7 +74,7 @@ export default function LanguagePickerModal({
                       isActive ? styles.languageTextActive : null,
                     ]}
                   >
-                    {item.label}
+                    {LANGUAGE_LABELS[item]}
                   </Text>
                 </TouchableOpacity>
               );

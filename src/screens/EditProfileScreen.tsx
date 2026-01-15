@@ -12,6 +12,7 @@ import {
 import { theme } from "@/theme";
 import type { Goal, Mood, UserProfile } from "../models/User";
 import { getUserProfile, updateUserFields } from "../services/user";
+import { useLocale } from "@/contexts/LocaleContext";
 
 const GOAL_OPTIONS: Goal[] = [
   "dating",
@@ -31,45 +32,26 @@ const MOOD_OPTIONS: Mood[] = [
   "party",
 ];
 
-function goalLabel(goal: Goal): string {
-  switch (goal) {
-    case "dating":
-      return "Знакомства";
-    case "friends":
-      return "Дружба";
-    case "chat":
-      return "Чат";
-    case "long_term":
-      return "Серьёзные отношения";
-    case "short_term":
-      return "Лёгкие встречи";
-    case "casual":
-      return "Casual / флирт";
-    case "sex":
-      return "Только секс";
-    default:
-      return goal;
-  }
-}
+const GOAL_LABEL_KEYS: Record<Goal, string> = {
+  dating: "profile.goal.dating",
+  friends: "profile.goal.friends",
+  chat: "profile.goal.chat",
+  long_term: "profile.goal.long_term",
+  short_term: "profile.goal.short_term",
+  casual: "profile.goal.casual",
+  sex: "profile.goal.sex",
+};
 
-function moodLabel(mood: Mood): string {
-  switch (mood) {
-    case "happy":
-      return "Весёлое";
-    case "chill":
-      return "Спокойное";
-    case "active":
-      return "В движении";
-    case "serious":
-      return "Серьёзный настрой";
-    case "party":
-      return "Готов(а) тусить";
-    default:
-      return mood;
-  }
-}
+const MOOD_LABEL_KEYS: Record<Mood, string> = {
+  happy: "profile.mood.happy",
+  chill: "profile.mood.chill",
+  active: "profile.mood.active",
+  serious: "profile.mood.serious",
+  party: "profile.mood.party",
+};
 
 export default function EditProfileScreen() {
+  const { t } = useLocale();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -99,7 +81,7 @@ export default function EditProfileScreen() {
         setAllowAdultMode(profile.allowAdultMode ?? false);
         setMysteryMode(profile.mysteryMode ?? false);
       } catch {
-        Alert.alert("Ошибка", "Не удалось загрузить профиль.");
+        Alert.alert(t("common.error"), t("editProfile.loadErrorBody"));
       } finally {
         setLoading(false);
       }
@@ -126,9 +108,9 @@ export default function EditProfileScreen() {
         mysteryMode,
       });
 
-      Alert.alert("Готово", "Профиль обновлён.");
+      Alert.alert(t("common.done"), t("editProfile.saveSuccessBody"));
     } catch {
-      Alert.alert("Ошибка", "Не удалось сохранить изменения.");
+      Alert.alert(t("common.error"), t("editProfile.saveErrorBody"));
     } finally {
       setSaving(false);
     }
@@ -151,7 +133,7 @@ export default function EditProfileScreen() {
             color: theme.colors.subtext,
           }}
         >
-          Загружаем профиль…
+          {t("editProfile.loading")}
         </Text>
       </View>
     );
@@ -174,7 +156,7 @@ export default function EditProfileScreen() {
           marginBottom: 16,
         }}
       >
-        Мой профиль
+        {t("editProfile.title")}
       </Text>
 
       {/* Имя */}
@@ -185,12 +167,12 @@ export default function EditProfileScreen() {
           marginBottom: 4,
         }}
       >
-        Имя
+        {t("editProfile.nameLabel")}
       </Text>
       <TextInput
         value={displayName}
         onChangeText={setDisplayName}
-        placeholder="Как тебя зовут?"
+        placeholder={t("editProfile.namePlaceholder")}
         placeholderTextColor={theme.colors.muted}
         style={{
           backgroundColor: theme.colors.card,
@@ -212,13 +194,13 @@ export default function EditProfileScreen() {
           marginBottom: 4,
         }}
       >
-        О себе
+        {t("editProfile.aboutLabel")}
       </Text>
       <TextInput
         value={about}
         onChangeText={setAbout}
         multiline
-        placeholder="Пара строк о тебе…"
+        placeholder={t("editProfile.aboutPlaceholder")}
         placeholderTextColor={theme.colors.muted}
         style={{
           backgroundColor: theme.colors.card,
@@ -242,12 +224,12 @@ export default function EditProfileScreen() {
           marginBottom: 4,
         }}
       >
-        Интересы (через запятую)
+        {t("editProfile.interestsLabel")}
       </Text>
       <TextInput
         value={interestsText}
         onChangeText={setInterestsText}
-        placeholder="музыка, путешествия, спорт…"
+        placeholder={t("editProfile.interestsPlaceholder")}
         placeholderTextColor={theme.colors.muted}
         style={{
           backgroundColor: theme.colors.card,
@@ -269,7 +251,7 @@ export default function EditProfileScreen() {
           marginBottom: 4,
         }}
       >
-        Цель знакомства
+        {t("editProfile.goalLabel")}
       </Text>
       <View
         style={{
@@ -298,15 +280,15 @@ export default function EditProfileScreen() {
               <Text
                 style={{
                   color: active ? "#FFFFFF" : theme.colors.pillText,
-                  fontSize: 12,
-                  fontWeight: "600",
-                }}
-              >
-                {goalLabel(g)}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
+                fontSize: 12,
+                fontWeight: "600",
+              }}
+            >
+                {t(GOAL_LABEL_KEYS[g])}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
       </View>
 
       {/* Настроение */}
@@ -317,7 +299,7 @@ export default function EditProfileScreen() {
           marginBottom: 4,
         }}
       >
-        Текущее настроение
+        {t("editProfile.moodLabel")}
       </Text>
       <View
         style={{
@@ -346,15 +328,15 @@ export default function EditProfileScreen() {
               <Text
                 style={{
                   color: active ? "#FFFFFF" : theme.colors.pillText,
-                  fontSize: 12,
-                  fontWeight: "600",
-                }}
-              >
-                {moodLabel(m)}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
+                fontSize: 12,
+                fontWeight: "600",
+              }}
+            >
+                {t(MOOD_LABEL_KEYS[m])}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
       </View>
 
       {/* Переключатели 18+ и Mystery */}
@@ -384,7 +366,7 @@ export default function EditProfileScreen() {
                 marginBottom: 2,
               }}
             >
-              18+ режим / casual
+              {t("editProfile.adultModeTitle")}
             </Text>
             <Text
               style={{
@@ -392,7 +374,7 @@ export default function EditProfileScreen() {
                 fontSize: 12,
               }}
             >
-              Показывать меня тем, кто ищет кэжуал / 18+ формат.
+              {t("editProfile.adultModeDescription")}
             </Text>
           </View>
           <Switch
@@ -418,7 +400,7 @@ export default function EditProfileScreen() {
                 marginBottom: 2,
               }}
             >
-              Режим тайны
+              {t("profile.mysteryBadge")}
             </Text>
             <Text
               style={{
@@ -426,7 +408,7 @@ export default function EditProfileScreen() {
                 fontSize: 12,
               }}
             >
-              Фото и детали профиля открываются постепенно при общении.
+              {t("editProfile.mysteryDescription")}
             </Text>
           </View>
           <Switch
@@ -460,7 +442,7 @@ export default function EditProfileScreen() {
               fontWeight: "700",
             }}
           >
-            Сохранить
+            {t("common.save")}
           </Text>
         )}
       </TouchableOpacity>

@@ -31,6 +31,7 @@ import {
 import ScreenShell from "@/components/ScreenShell";
 import NeonBorder from "@/components/NeonBorder";
 import { useLocale } from "@/contexts/LocaleContext";
+import { formatAgoLong } from "@/utils/timeAgo";
 
 // Compose state holds temporary data for creating a personal ad.
 type ComposeState = {
@@ -52,19 +53,6 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
       {children}
     </Text>
   );
-}
-
-function formatAgo(ts: number) {
-  if (!ts) return "";
-  const diff = Date.now() - ts;
-  const sec = Math.floor(diff / 1000);
-  if (sec < 60) return "только что";
-  const min = Math.floor(sec / 60);
-  if (min < 60) return `${min} мин`;
-  const h = Math.floor(min / 60);
-  if (h < 24) return `${h} ч`;
-  const d = Math.floor(h / 24);
-  return `${d} дн`;
 }
 
 export default function NearbyScreen() {
@@ -138,10 +126,7 @@ export default function NearbyScreen() {
 
   const onToggleCompose = () => {
     if (!canPost) {
-      Alert.alert(
-        "Вход нужен",
-        "Чтобы создавать анкеты, сначала войди или зарегистрируйся.",
-      );
+      Alert.alert(t("ads.signInTitle"), t("ads.signInBody"));
       return;
     }
     setComposeOpen((v) => !v);
@@ -153,7 +138,7 @@ export default function NearbyScreen() {
     const trimmedTitle = compose.title.trim();
     const trimmedText = compose.text.trim();
     if (!trimmedTitle || !trimmedText) {
-      Alert.alert("Заполни анкету", "Нужны и заголовок, и текст.");
+      Alert.alert(t("ads.fillTitle"), t("ads.fillBody"));
       return;
     }
 
@@ -170,15 +155,15 @@ export default function NearbyScreen() {
         category:
           (compose.category === "ALL" ? "Other" : compose.category) || "Other",
         countryCode: country.code,
-        countryName: country.name,
+        countryName: country.nameKey,
         city: cityValue,
       });
       setCompose({ title: "", text: "", category: compose.category });
       setComposeOpen(false);
     } catch (e: any) {
       Alert.alert(
-        "Ошибка",
-        e?.message ?? "Не удалось опубликовать анкету, попробуй позже.",
+        t("ads.publishFailedTitle"),
+        e?.message ?? t("ads.publishFailedBody"),
       );
     }
   };
@@ -220,7 +205,7 @@ export default function NearbyScreen() {
                   fontWeight: active ? "800" : "600",
                   }}
                 >
-                  {meta.short}
+                  {t(meta.shortKey)}
                 </Text>
               </TouchableOpacity>
             </NeonBorder>
@@ -236,7 +221,7 @@ export default function NearbyScreen() {
     return (
       <View style={{ gap: 8 }}>
         <Text style={{ color: "#9CA3AF", fontSize: 12, marginBottom: 2 }}>
-          Страна и город для объявлений
+          {t("ads.filterTitle")}
         </Text>
 
         <View
@@ -248,7 +233,7 @@ export default function NearbyScreen() {
           {/* Страна */}
           <View style={{ flex: 1 }}>
             <Text style={{ color: "#6B7280", fontSize: 11, marginBottom: 4 }}>
-              Страна
+              {t("ads.country")}
             </Text>
             <View
               style={{
@@ -278,7 +263,7 @@ export default function NearbyScreen() {
                         fontWeight: active ? "700" : "600",
                       }}
                     >
-                      {c.name}
+                      {t(c.nameKey)}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -289,7 +274,7 @@ export default function NearbyScreen() {
           {/* Город */}
           <View style={{ flex: 1 }}>
             <Text style={{ color: "#6B7280", fontSize: 11, marginBottom: 4 }}>
-              Город
+              {t("ads.city")}
             </Text>
             <View
               style={{
@@ -301,12 +286,12 @@ export default function NearbyScreen() {
                 paddingVertical: 8,
               }}
             >
-              {currentCountry.cities.map((cityName) => {
-                const active = cityName === city;
+              {currentCountry.cities.map((cityKey) => {
+                const active = cityKey === city;
                 return (
                   <TouchableOpacity
-                    key={cityName}
-                    onPress={() => onChangeCity(cityName)}
+                    key={cityKey}
+                    onPress={() => onChangeCity(cityKey)}
                     style={{
                       paddingVertical: 4,
                     }}
@@ -318,7 +303,7 @@ export default function NearbyScreen() {
                         fontWeight: active ? "700" : "600",
                       }}
                     >
-                      {cityName}
+                      {t(cityKey)}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -353,12 +338,12 @@ export default function NearbyScreen() {
             marginBottom: 8,
           }}
         >
-          Новая анкета
+          {t("ads.newForm")}
         </Text>
 
         {/* Категория */}
         <Text style={{ color: "#9CA3AF", fontSize: 12, marginBottom: 4 }}>
-          Кого ты ищешь
+          {t("ads.whoLookingFor")}
         </Text>
         <View
           style={{
@@ -397,7 +382,7 @@ export default function NearbyScreen() {
                     fontWeight: active ? "700" : "600",
                   }}
                 >
-                  {meta.label}
+                  {t(meta.labelKey)}
                 </Text>
               </TouchableOpacity>
             );
@@ -410,7 +395,7 @@ export default function NearbyScreen() {
           onChangeText={(v) =>
             setCompose((prev) => ({ ...prev, title: v }))
           }
-          placeholder="Короткий заголовок…"
+          placeholder={t("ads.titlePlaceholder")}
           placeholderTextColor="#6B7280"
           style={{
             borderRadius: 12,
@@ -432,7 +417,7 @@ export default function NearbyScreen() {
           onChangeText={(v) =>
             setCompose((prev) => ({ ...prev, text: v }))
           }
-          placeholder="Расскажи пару фраз о себе и о том, кого ищешь…"
+          placeholder={t("ads.textPlaceholder")}
           placeholderTextColor="#6B7280"
           multiline
           style={{
@@ -471,7 +456,7 @@ export default function NearbyScreen() {
             <Text
               style={{ color: "#E5E7EB", fontSize: 13, fontWeight: "600" }}
             >
-              Отмена
+              {t("common.cancel")}
             </Text>
           </TouchableOpacity>
 
@@ -487,7 +472,7 @@ export default function NearbyScreen() {
             <Text
               style={{ color: "white", fontSize: 13, fontWeight: "800" }}
             >
-              Опубликовать
+              {t("ads.publish")}
             </Text>
           </TouchableOpacity>
         </View>
@@ -525,7 +510,7 @@ export default function NearbyScreen() {
               flex: 1,
             }}
           >
-            {item.title || "Без названия"}
+            {item.title || t("ads.untitled")}
           </Text>
           <Text
             style={{
@@ -533,7 +518,7 @@ export default function NearbyScreen() {
               fontSize: 11,
             }}
           >
-            {formatAgo(item.createdAt)}
+            {formatAgoLong(item.createdAt, t)}
           </Text>
         </View>
 
@@ -544,7 +529,7 @@ export default function NearbyScreen() {
             marginBottom: 4,
           }}
         >
-          {catMeta.label}
+          {t(catMeta.labelKey)}
         </Text>
 
         <Text
@@ -571,16 +556,16 @@ export default function NearbyScreen() {
               fontSize: 12,
             }}
           >
-            {item.countryName}, {item.city}
-          </Text>
+          {(item.countryName.startsWith("geo.")
+            ? t(item.countryName)
+            : item.countryName)},{" "}
+          {item.city.startsWith("geo.") ? t(item.city) : item.city}
+        </Text>
 
-          <TouchableOpacity
-            onPress={() =>
-              Alert.alert(
-                "Сообщение",
-                "Чат по анкете будет подключён к общему чату Amoria на следующем шаге.",
-              )
-            }
+        <TouchableOpacity
+          onPress={() =>
+            Alert.alert(t("ads.messageTitle"), t("ads.messageBody"))
+          }
             style={{
               flexDirection: "row",
               alignItems: "center",
@@ -605,7 +590,7 @@ export default function NearbyScreen() {
                 marginLeft: 4,
               }}
             >
-              Написать
+              {t("ads.write")}
             </Text>
           </TouchableOpacity>
         </View>
@@ -615,7 +600,7 @@ export default function NearbyScreen() {
 
   return (
     <ScreenShell
-      title={t("screens.ads.title")}
+      title={t("tabs.ads")}
       background="ads"
       overlayOpacity={0.18}
       blurRadius={0}
@@ -629,7 +614,7 @@ export default function NearbyScreen() {
           paddingBottom: insets.bottom + 8,
         }}
       >
-        <SectionTitle>{t("screens.ads.title")}</SectionTitle>
+        <SectionTitle>{t("ads.title")}</SectionTitle>
 
         <Text
           style={{
@@ -638,8 +623,7 @@ export default function NearbyScreen() {
             marginBottom: 10,
           }}
         >
-          Здесь люди оставляют личные объявлении о знакомстве.{"\n"}
-          Ты выбираешь страну, город и формат поиска.
+          {t("ads.description")}
         </Text>
 
         {renderCategoryFilters()}
@@ -661,7 +645,7 @@ export default function NearbyScreen() {
               flex: 1,
             }}
           >
-            {t("screens.ads.title")}
+            {t("ads.title")}
           </Text>
 
           <TouchableOpacity
@@ -686,7 +670,7 @@ export default function NearbyScreen() {
                 marginLeft: 4,
               }}
             >
-              Новая анкета
+              {t("ads.newForm")}
             </Text>
           </TouchableOpacity>
         </View>
@@ -715,8 +699,7 @@ export default function NearbyScreen() {
             ListEmptyComponent={
               <View style={{ paddingTop: 20 }}>
                 <Text style={{ color: "#9CA3AF", fontSize: 13 }}>
-                  Пока объявлений нет. Стань первым — создай анкету в своём
-                  городе.
+                  {t("ads.noneYet")}
                 </Text>
               </View>
             }

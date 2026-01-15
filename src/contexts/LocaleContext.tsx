@@ -8,35 +8,28 @@ import React, {
 } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-import LanguagePickerModal from "@/components/LanguagePickerModal";
 import {
-  LANGUAGE_CODES,
-  LANGUAGE_OPTIONS,
-  type LanguageCode,
-  type TranslationKey,
-  translations,
+  DEFAULT_LOCALE,
+  STORAGE_KEY,
+  translate,
+  type Locale,
+  isLocale,
 } from "@/i18n/translations";
-
-export type Locale = LanguageCode;
-export const supportedLanguages = LANGUAGE_OPTIONS;
 
 type LocaleContextValue = {
   locale: Locale;
   setLocale: (next: Locale) => void;
   ready: boolean;
-  openLanguagePicker: (opts?: { force?: boolean }) => void;
+  openLanguagePicker: () => void;
   closeLanguagePicker: () => void;
-  t: (key: TranslationKey, params?: Record<string, string>) => string;
+  t: (key: string, params?: Record<string, string>) => string;
+  languagePickerVisible: boolean;
+  languagePickerMandatory: boolean;
 };
 
-const STORAGE_KEY = "amoria_language";
-const LocaleContext = createContext<LocaleContextValue | undefined>(undefined);
-const languageSet = new Set<string>(LANGUAGE_CODES);
-const DEFAULT_LOCALE: Locale = "ru";
-const isSupportedLocale = (value: string | null): value is Locale =>
-  !!value && languageSet.has(value);
-const replaceAll = (value: string, search: string, replacement: string) =>
-  value.split(search).join(replacement);
+export const LocaleContext = createContext<LocaleContextValue | undefined>(
+  undefined,
+);
 
 export function LocaleProvider({ children }: { children: React.ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>(DEFAULT_LOCALE);
@@ -50,7 +43,7 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
       try {
         const stored = await AsyncStorage.getItem(STORAGE_KEY);
         if (!alive) return;
-        if (isSupportedLocale(stored)) {
+        if (stored && isLocale(stored)) {
           setLocaleState(stored);
         } else {
           setLanguagePickerVisible(true);
@@ -70,6 +63,10 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  useEffect(() => {
+    console.log("[i18n] locale changed:", locale);
+  }, [locale]);
+
   const setLocale = useCallback((next: Locale) => {
     setLocaleState(next);
     setLanguagePickerVisible(false);
@@ -78,24 +75,14 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const t = useCallback(
-    (key: TranslationKey, params?: Record<string, string>) => {
-      const dict = translations[locale] ?? translations.en;
-      let s = dict[key] ?? translations.en[key] ?? String(key);
-      if (params) {
-        for (const k in params) {
-          s = replaceAll(s, `{${k}}`, params[k]);
-        }
-      }
-      return s;
-    },
+    (key: string, params?: Record<string, string>) =>
+      translate(locale, key, params),
     [locale],
   );
 
-  const openLanguagePicker = useCallback((opts?: { force?: boolean }) => {
+  const openLanguagePicker = useCallback(() => {
     setLanguagePickerVisible(true);
-    if (opts?.force) {
-      setLanguagePickerMandatory(true);
-    }
+    setLanguagePickerMandatory(false);
   }, []);
 
   const closeLanguagePicker = useCallback(() => {
@@ -111,23 +98,22 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
       openLanguagePicker,
       closeLanguagePicker,
       t,
+      languagePickerVisible,
+      languagePickerMandatory,
     }),
-    [locale, setLocale, ready, openLanguagePicker, closeLanguagePicker, t],
+    [
+      locale,
+      setLocale,
+      ready,
+      openLanguagePicker,
+      closeLanguagePicker,
+      t,
+      languagePickerVisible,
+      languagePickerMandatory,
+    ],
   );
 
-  return (
-    <LocaleContext.Provider value={value}>
-      {children}
-      <LanguagePickerModal
-        visible={languagePickerVisible}
-        current={locale}
-        languages={supportedLanguages}
-        onSelect={setLocale}
-        onClose={closeLanguagePicker}
-        mandatory={languagePickerMandatory}
-      />
-    </LocaleContext.Provider>
-  );
+  return <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>;
 }
 
 export function useLocale() {

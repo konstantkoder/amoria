@@ -5,6 +5,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import BackgroundWrapper, {
   type BackgroundKey,
 } from "@/components/BackgroundWrapper";
+import { useLocale } from "@/contexts/LocaleContext";
 
 export type ScreenBackgroundVariant =
   | "default"
@@ -111,10 +112,12 @@ export default function ScreenBackground({
   screenLabel,
   children,
 }: Props) {
+  const { t } = useLocale();
   const defaults = variantDefaults[variant] ?? variantDefaults.default;
   const resolvedOverlayOpacity = overlayOpacity ?? defaults.overlayOpacity;
   const resolvedBlurRadius = blurRadius ?? defaults.blurRadius;
   const debugLabel = screenLabel ?? variant;
+  const debugText = t("debug.backgroundLabel", { label: debugLabel });
 
   // Gradient backgrounds (for unique tab backgrounds)
   if (isGradientVariant(variant)) {
@@ -142,7 +145,7 @@ export default function ScreenBackground({
         />
 
         {debugTint ? <View pointerEvents="none" style={styles.debug} /> : null}
-        {debugTint ? <Text style={styles.debugText}>BG: {debugLabel}</Text> : null}
+        {debugTint ? <Text style={styles.debugText}>{debugText}</Text> : null}
 
         {children}
       </View>
@@ -159,7 +162,7 @@ export default function ScreenBackground({
       blurRadius={resolvedBlurRadius}
     >
       {debugTint ? <View pointerEvents="none" style={styles.debug} /> : null}
-      {debugTint ? <Text style={styles.debugText}>BG: {debugLabel}</Text> : null}
+      {debugTint ? <Text style={styles.debugText}>{debugText}</Text> : null}
       {children}
     </BackgroundWrapper>
   );

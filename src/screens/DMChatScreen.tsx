@@ -19,11 +19,13 @@ import {
 import { db } from "@/config/firebaseConfig";
 import { theme } from "@/theme";
 import ScreenShell from "@/components/ScreenShell";
+import { useLocale } from "@/contexts/LocaleContext";
 
 export default function DMChatScreen() {
+  const { t } = useLocale();
   const route = useRoute<any>();
   const peerId = route.params?.peerId ?? "demo-peer";
-  const peerName = route.params?.peerName ?? "Пользователь";
+  const peerName = route.params?.peerName ?? t("common.user");
   const threadId = ["me", peerId].sort().join("__");
   const [text, setText] = useState("");
   const [msgs, setMsgs] = useState<any[]>([]);
@@ -54,7 +56,7 @@ export default function DMChatScreen() {
 
   return (
     <ScreenShell
-      title={`Диалог с ${peerName}`}
+      title={t("dm.title", { name: peerName })}
       background="nightCity"
       debugTint={false}
       showBack
@@ -74,11 +76,11 @@ export default function DMChatScreen() {
         <TextInput
           value={text}
           onChangeText={setText}
-          placeholder="Сообщение…"
+          placeholder={t("dm.messagePlaceholder")}
           style={styles.input}
         />
         <TouchableOpacity onPress={send} style={styles.sendBtn}>
-          <Text style={styles.sendTxt}>Отпр.</Text>
+          <Text style={styles.sendTxt}>{t("common.send")}</Text>
         </TouchableOpacity>
       </View>
     </ScreenShell>

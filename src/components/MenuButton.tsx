@@ -1,12 +1,14 @@
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useLocale } from "@/contexts/LocaleContext";
 
 type Props = {
   onPress: () => void;
 };
 
 export default function MenuButton({ onPress }: Props) {
+  const { t } = useLocale();
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -14,7 +16,7 @@ export default function MenuButton({ onPress }: Props) {
       activeOpacity={0.85}
     >
       <Ionicons name="menu-outline" size={20} color="#fff" />
-      <Text style={styles.label}>Меню</Text>
+      <Text style={styles.label}>{t("menu.title")}</Text>
     </TouchableOpacity>
   );
 }

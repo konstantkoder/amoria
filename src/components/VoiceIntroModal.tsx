@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { theme } from "@/theme";
+import { useLocale } from "@/contexts/LocaleContext";
 
 export type VoiceIntroModalProps = {
   visible: boolean;
@@ -20,11 +21,13 @@ export type VoiceIntroModalProps = {
 const VoiceIntroModal: React.FC<VoiceIntroModalProps> = ({
   visible,
   onClose,
-  userName = "Пользователь",
+  userName,
   durationSeconds = 8,
 }) => {
+  const { t } = useLocale();
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
+  const resolvedName = userName ?? t("common.user");
 
   const anim = useRef(new Animated.Value(0)).current;
 
@@ -103,6 +106,9 @@ const VoiceIntroModal: React.FC<VoiceIntroModalProps> = ({
     return `${m}:${s.toString().padStart(2, "0")}`;
   }, [durationSeconds]);
 
+  const subtitleTemplate = t("voiceIntro.subtitle", { name: "{name}" });
+  const [subtitleBefore, subtitleAfter] = subtitleTemplate.split("{name}");
+
   return (
     <Modal
       visible={visible}
@@ -113,7 +119,7 @@ const VoiceIntroModal: React.FC<VoiceIntroModalProps> = ({
       <View style={styles.backdrop}>
         <View style={styles.card}>
           <View style={styles.headerRow}>
-            <Text style={styles.title}>Голосовое интро</Text>
+            <Text style={styles.title}>{t("voiceIntro.title")}</Text>
             <TouchableOpacity
               onPress={onClose}
               activeOpacity={0.8}
@@ -124,9 +130,9 @@ const VoiceIntroModal: React.FC<VoiceIntroModalProps> = ({
           </View>
 
           <Text style={styles.subtitle}>
-            Здесь будет настоящий голос{" "}
-            <Text style={styles.username}>{userName}</Text> — короткое интро,
-            чтобы почувствовать человека по голосу.
+            {subtitleBefore}
+            <Text style={styles.username}>{resolvedName}</Text>
+            {subtitleAfter}
           </Text>
 
           {/* Плеер */}
@@ -185,19 +191,14 @@ const VoiceIntroModal: React.FC<VoiceIntroModalProps> = ({
 
           {/* Подсказки для интро */}
           <View style={styles.hintsBlock}>
-            <Text style={styles.hintsTitle}>Идеи для интро:</Text>
-            <Text style={styles.hintItem}>• 3 слова, которые тебя описывают.</Text>
-            <Text style={styles.hintItem}>
-              • Что тебе больше всего нравится в людях?
-            </Text>
-            <Text style={styles.hintItem}>
-              • Чем бы занялся/занялась, если бы завтра был выходной без забот?
-            </Text>
+            <Text style={styles.hintsTitle}>{t("voiceIntro.hintsTitle")}</Text>
+            <Text style={styles.hintItem}>{t("voiceIntro.hint1")}</Text>
+            <Text style={styles.hintItem}>{t("voiceIntro.hint2")}</Text>
+            <Text style={styles.hintItem}>{t("voiceIntro.hint3")}</Text>
           </View>
 
           <Text style={styles.demoNote}>
-            Сейчас это демо-режим. Позже здесь появится настоящая запись, которую
-            можно будет отправить прямо из профиля или чата.
+            {t("voiceIntro.demoNote")}
           </Text>
         </View>
       </View>

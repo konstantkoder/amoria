@@ -1,5 +1,6 @@
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
+import { LocaleContext } from "@/contexts/LocaleContext";
 
 type ErrorBoundaryProps = {
   children: React.ReactNode;
@@ -14,6 +15,9 @@ export default class ErrorBoundary extends React.Component<
   ErrorBoundaryProps,
   ErrorBoundaryState
 > {
+  static contextType = LocaleContext;
+  context: any = null;
+
   state: ErrorBoundaryState = { error: null };
 
   static getDerivedStateFromError(error: Error) {
@@ -27,11 +31,12 @@ export default class ErrorBoundary extends React.Component<
   render() {
     const { error } = this.state;
     if (!error) return this.props.children;
+    const t = this.context?.t ?? ((key: string) => key);
 
     return (
       <View style={styles.container}>
-        <Text style={styles.title}>Something went wrong</Text>
-        <Text style={styles.message}>Try restarting the app.</Text>
+        <Text style={styles.title}>{t("errorBoundary.title")}</Text>
+        <Text style={styles.message}>{t("errorBoundary.message")}</Text>
         {__DEV__ && error?.message ? (
           <Text style={styles.devMessage}>{error.message}</Text>
         ) : null}

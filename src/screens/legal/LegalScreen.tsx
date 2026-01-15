@@ -1,9 +1,10 @@
 import React from "react";
 import { Text, ScrollView, Button } from "react-native";
-import { PrivacyRU, PrivacyEN, PrivacyHR } from "@/legal/policies";
 import { theme } from "@/theme";
+import { useLocale } from "@/contexts/LocaleContext";
 
 export default function LegalScreen({ navigation }: any) {
+  const { t } = useLocale();
   return (
     <ScrollView
       style={{
@@ -13,12 +14,10 @@ export default function LegalScreen({ navigation }: any) {
       }}
     >
       <Text style={{ fontSize: 24, fontWeight: "700", marginBottom: 12 }}>
-        Политика конфиденциальности
+        {t("legal.privacy.title")}
       </Text>
-      <Text style={{ marginBottom: 12 }}>{PrivacyRU}</Text>
-      <Text style={{ marginBottom: 12 }}>{PrivacyEN}</Text>
-      <Text style={{ marginBottom: 12 }}>{PrivacyHR}</Text>
-      <Button title="Назад" onPress={() => navigation.goBack()} />
+      <Text style={{ marginBottom: 12 }}>{t("legal.privacy.body")}</Text>
+      <Button title={t("common.back")} onPress={() => navigation.goBack()} />
     </ScrollView>
   );
 }

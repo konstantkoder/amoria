@@ -67,7 +67,7 @@ export function subscribeNowPosts(
       return {
         id: d.id,
         uid: String(x.uid ?? ""),
-        nickname: String(x.nickname ?? "Аноним"),
+        nickname: String(x.nickname ?? "common.anonymous"),
         text: String(x.text ?? ""),
         mood: (x.mood as NowMood) ?? "other",
         region: String(x.region ?? ""),

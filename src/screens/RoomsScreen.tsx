@@ -19,6 +19,9 @@ import { theme } from "@/theme";
 import { auth, db, isFirebaseConfigured } from "@/config/firebaseConfig";
 import ScreenShell from "@/components/ScreenShell";
 import { useLocale } from "@/contexts/LocaleContext";
+import { formatAgoShort } from "@/utils/timeAgo";
+import { translateMaybeKey } from "@/utils/i18n";
+import { formatNickname } from "@/utils/nickname";
 import {
   RoomDoc,
   RoomKind,
@@ -46,19 +49,6 @@ type LatLng = {
   latitude: number;
   longitude: number;
 };
-
-function formatAgo(ts: number) {
-  const diff = Date.now() - ts;
-  if (diff < 15_000) return "сейчас";
-  const sec = Math.floor(diff / 1000);
-  if (sec < 60) return `${sec}с`;
-  const min = Math.floor(sec / 60);
-  if (min < 60) return `${min}м`;
-  const h = Math.floor(min / 60);
-  if (h < 24) return `${h}ч`;
-  const d = Math.floor(h / 24);
-  return `${d}д`;
-}
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
@@ -108,10 +98,16 @@ export default function RoomsScreen() {
   const insets = useSafeAreaInsets();
   const { t } = useLocale();
   const uid = auth?.currentUser?.uid ?? null;
-  const nickname = useMemo(
-    () => (uid ? makeNickname(uid) : "Аноним"),
-    [uid]
+  const nicknameCode = useMemo(
+    () => (uid ? makeNickname(uid) : "common.anonymous"),
+    [uid],
   );
+  const nicknameLabel = useMemo(() => {
+    const formatted = formatNickname(nicknameCode, t);
+    return formatted === nicknameCode
+      ? translateMaybeKey(nicknameCode, t, ["common."])
+      : formatted;
+  }, [nicknameCode, t]);
 
   const [stage, setStage] = useState<Stage>("choose");
   const [pos, setPos] = useState<Pos | null>(null);
@@ -140,7 +136,7 @@ export default function RoomsScreen() {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
-        throw new Error("Нужен доступ к геолокации (в настройках телефона).");
+        throw new Error(t("geo.permissionRequired"));
       }
 
       const current = await Location.getCurrentPositionAsync({
@@ -154,11 +150,11 @@ export default function RoomsScreen() {
       });
     } catch (e: any) {
       setPos(null);
-      setPosError(e?.message ?? "Не удалось получить геолокацию.");
+      setPosError(e?.message ?? t("geo.noLocationAccess"));
     } finally {
       setPosLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     ensurePosition();
@@ -167,17 +163,11 @@ export default function RoomsScreen() {
   const enterRoom = useCallback(
     async (kind: RoomKind) => {
       if (!uid) {
-        Alert.alert(
-          "Нужен вход",
-          "Сначала войди/зарегистрируйся, чтобы писать в комнатах."
-        );
+        Alert.alert(t("rooms.signInTitle"), t("rooms.signInBody"));
         return;
       }
       if (!isFirebaseConfigured() || !db) {
-        Alert.alert(
-          "Firebase не подключён",
-          "Комнаты работают через Firebase (Firestore). Проверь .env и перезапусти Expo."
-        );
+        Alert.alert(t("rooms.firebaseTitle"), t("rooms.firebaseBody"));
         return;
       }
       if (!pos) {
@@ -191,10 +181,10 @@ export default function RoomsScreen() {
         setRoom(next);
         setStage("chat");
       } catch (e: any) {
-        Alert.alert("Ошибка", e?.message ?? "Не удалось открыть комнату.");
+        Alert.alert(t("common.error"), e?.message ?? t("rooms.openFailed"));
       }
     },
-    [uid, pos, ensurePosition]
+    [uid, pos, ensurePosition, t]
   );
 
   useEffect(() => {
@@ -221,7 +211,7 @@ export default function RoomsScreen() {
     async function tick() {
       try {
         if (cancelled) return;
-        await touchRoomMember(db, room.id, uid, nickname);
+        await touchRoomMember(db, room.id, uid, nicknameCode);
       } catch {
         // ignore
       }
@@ -233,7 +223,7 @@ export default function RoomsScreen() {
       cancelled = true;
       clearInterval(t);
     };
-  }, [room, uid, nickname, db]);
+  }, [room, uid, nicknameCode, db]);
 
   const onSend = useCallback(async () => {
     if (!room || !db || !uid) return;
@@ -242,14 +232,14 @@ export default function RoomsScreen() {
 
     try {
       setText("");
-      await sendRoomMessage(db, room.id, uid, nickname, value);
+      await sendRoomMessage(db, room.id, uid, nicknameCode, value);
       requestAnimationFrame(() =>
         listRef.current?.scrollToOffset({ offset: 0, animated: true })
       );
     } catch (e: any) {
-      Alert.alert("Ошибка", e?.message ?? "Не удалось отправить сообщение.");
+      Alert.alert(t("common.error"), e?.message ?? t("rooms.sendFailed"));
     }
-  }, [room, db, text, uid, nickname]);
+  }, [room, db, text, uid, nicknameCode, t]);
 
   const leaveRoom = useCallback(() => {
     setRoom(null);
@@ -262,7 +252,7 @@ export default function RoomsScreen() {
   const renderChoose = () => (
     <View style={{ flex: 1 }}>
       <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
-        <SectionTitle>Комнаты рядом</SectionTitle>
+        <SectionTitle>{t("rooms.nearbyRooms")}</SectionTitle>
 
         <View
           style={{
@@ -281,9 +271,7 @@ export default function RoomsScreen() {
               lineHeight: 20,
             }}
           >
-            Здесь чат <Text style={{ fontWeight: "800" }}>без фото</Text>,
-            привязанный к месту.{"\n"}Ты можешь быть на работе или в баре — и
-            общаться только с теми, кто рядом.
+            {t("rooms.noPhotoChat")}
           </Text>
 
           <View style={{ height: 10 }} />
@@ -293,7 +281,9 @@ export default function RoomsScreen() {
               style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
             >
               <ActivityIndicator color={theme.colors.primary} />
-              <Text style={{ color: "#A3A3A3" }}>Получаем геолокацию…</Text>
+              <Text style={{ color: "#A3A3A3" }}>
+                {t("rooms.getLocation")}
+              </Text>
             </View>
           ) : pos ? (
             <View
@@ -301,8 +291,7 @@ export default function RoomsScreen() {
             >
               <Ionicons name="location-outline" size={18} color="#E5E7EB" />
               <Text style={{ color: "#E5E7EB", fontSize: 13 }}>
-                Локация готова (точность ~
-                {Math.round(pos.accuracy ?? 0)}м)
+                {t("rooms.locationReady")} (~{Math.round(pos.accuracy ?? 0)} {t("units.m")})
               </Text>
               <View style={{ flex: 1 }} />
               <TouchableOpacity onPress={ensurePosition} style={{ padding: 6 }}>
@@ -316,7 +305,7 @@ export default function RoomsScreen() {
           ) : (
             <View>
               <Text style={{ color: "#FCA5A5", fontSize: 13 }}>
-                {posError ?? "Нет доступа к геолокации."}
+                {posError ?? t("geo.noLocationAccess")}
               </Text>
               <View style={{ height: 8 }} />
               <TouchableOpacity
@@ -330,7 +319,7 @@ export default function RoomsScreen() {
                 }}
               >
                 <Text style={{ color: "white", fontWeight: "800" }}>
-                  Включить геолокацию
+                  {t("geo.enableLocation")}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -364,7 +353,7 @@ export default function RoomsScreen() {
                   textAlign: "center",
                 }}
               >
-                Map temporarily disabled (react-native-maps not installed)
+                {t("rooms.mapDisabled")}
               </Text>
             </View>
           ) : (
@@ -387,7 +376,7 @@ export default function RoomsScreen() {
                       marginBottom: 8,
                     }}
                   >
-                    Включи геолокацию, чтобы показать карту комнат рядом.
+                    {t("rooms.enableForMap")}
                   </Text>
                   <TouchableOpacity
                     onPress={ensurePosition}
@@ -399,7 +388,7 @@ export default function RoomsScreen() {
                     }}
                   >
                     <Text style={{ color: "white", fontWeight: "800" }}>
-                      Обновить локацию
+                      {t("geo.refreshLocation")}
                     </Text>
                   </TouchableOpacity>
                 </>
@@ -409,7 +398,7 @@ export default function RoomsScreen() {
         </View>
 
         <View style={{ paddingTop: 16 }}>
-          <SectionTitle>Выбери место</SectionTitle>
+          <SectionTitle>{t("rooms.choosePlace")}</SectionTitle>
 
           <View
             style={{
@@ -446,7 +435,7 @@ export default function RoomsScreen() {
                       fontWeight: "700",
                     }}
                   >
-                    {meta.label}
+                    {t(meta.labelKey)}
                   </Text>
                 </TouchableOpacity>
               );
@@ -462,8 +451,7 @@ export default function RoomsScreen() {
               marginBottom: 16,
             }}
           >
-            Комната создаётся автоматически по геохэшу места. Чтобы попасть в
-            одну и ту же комнату, людям нужно находиться рядом.
+            {t("rooms.placeInfo")}
           </Text>
         </View>
       </View>
@@ -472,6 +460,8 @@ export default function RoomsScreen() {
 
   const renderChatHeader = () => {
     if (!room) return null;
+    const meta = getRoomMeta(room.kind);
+    const roomTitle = `${meta.emoji} ${t(meta.labelKey)}`;
     return (
       <View
         style={{
@@ -493,7 +483,7 @@ export default function RoomsScreen() {
               fontWeight: "900",
             }}
           >
-            {room.title}
+            {roomTitle}
           </Text>
           <Text
             style={{
@@ -502,7 +492,10 @@ export default function RoomsScreen() {
               marginTop: 2,
             }}
           >
-            Участников рядом: {activeMembers.length} • ты: {nickname}
+            {t("rooms.membersLine", {
+              count: String(activeMembers.length),
+              name: nicknameLabel,
+            })}
           </Text>
         </View>
 
@@ -529,6 +522,11 @@ export default function RoomsScreen() {
 
   const renderMessage = ({ item }: { item: RoomMessage }) => {
     const isMe = item.uid === uid;
+    const formatted = formatNickname(item.nickname, t);
+    const displayName =
+      formatted === item.nickname
+        ? translateMaybeKey(item.nickname, t, ["common."])
+        : formatted;
     return (
       <View
         style={{
@@ -545,7 +543,8 @@ export default function RoomsScreen() {
             textAlign: isMe ? "right" : "left",
           }}
         >
-          {isMe ? "ты" : item.nickname} • {formatAgo(item.createdAt)}
+          {isMe ? t("common.you") : displayName} •{" "}
+          {formatAgoShort(item.createdAt, t)}
         </Text>
 
         <View
@@ -588,8 +587,7 @@ export default function RoomsScreen() {
         ListEmptyComponent={
           <View style={{ paddingTop: 20 }}>
             <Text style={{ color: "#A3A3A3" }}>
-              Пока пусто. Напиши первым — тебя увидят только рядом находящиеся
-              люди.
+              {t("rooms.emptyChat")}
             </Text>
           </View>
         }
@@ -629,7 +627,7 @@ export default function RoomsScreen() {
             <TextInput
               value={text}
               onChangeText={setText}
-              placeholder="Сообщение…"
+              placeholder={t("rooms.messagePlaceholder")}
               placeholderTextColor="#6B7280"
               multiline
               style={{
@@ -660,8 +658,10 @@ export default function RoomsScreen() {
     </View>
   );
 
-  const headerTitle =
-    stage === "chat" ? room?.title ?? t("screens.rooms.title") : t("screens.rooms.title");
+  const roomTitle = room
+    ? `${getRoomMeta(room.kind).emoji} ${t(getRoomMeta(room.kind).labelKey)}`
+    : t("tabs.rooms");
+  const headerTitle = stage === "chat" ? roomTitle : t("tabs.rooms");
 
   return (
     <ScreenShell

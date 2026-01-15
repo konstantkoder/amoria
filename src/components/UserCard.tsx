@@ -4,6 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { theme, getMoodTheme } from "@/theme";
 import { DemoUser } from "@/services/demoUsers";
 import { getIcebreakerForUser } from "@/services/icebreakers";
+import { useLocale } from "@/contexts/LocaleContext";
 import type { Mood, Goal } from "../models/User";
 
 type Props = {
@@ -16,42 +17,30 @@ type Props = {
   onPressVoiceIntro?: (user: DemoUser) => void;
 };
 
-function formatMood(mood?: Mood): string {
-  switch (mood) {
-    case "happy":
-      return "Весёлое настроение";
-    case "chill":
-      return "Спокойно";
-    case "active":
-      return "В движении";
-    case "serious":
-      return "Серьёзный настрой";
-    case "party":
-      return "Готов(а) тусить";
-    default:
-      return "Настроение не указано";
-  }
+const MOOD_LABEL_KEYS: Record<Mood, string> = {
+  happy: "profile.mood.happy",
+  chill: "profile.mood.chill",
+  active: "profile.mood.active",
+  serious: "profile.mood.serious",
+  party: "profile.mood.party",
+};
+
+const GOAL_LABEL_KEYS: Record<Goal, string> = {
+  dating: "profile.goal.dating",
+  friends: "profile.goal.friends",
+  chat: "profile.goal.chat",
+  long_term: "profile.goal.long_term",
+  short_term: "profile.goal.short_term",
+  casual: "profile.goal.casual",
+  sex: "profile.goal.sex",
+};
+
+function moodLabelKey(mood?: Mood): string {
+  return (mood && MOOD_LABEL_KEYS[mood]) || "profile.mood.unknown";
 }
 
-function formatGoal(goal?: Goal): string {
-  switch (goal) {
-    case "dating":
-      return "Знакомства";
-    case "friends":
-      return "Дружба";
-    case "chat":
-      return "Чат";
-    case "long_term":
-      return "Серьёзные отношения";
-    case "short_term":
-      return "Лёгкие встречи";
-    case "casual":
-      return "Casual / флирт";
-    case "sex":
-      return "Только секс";
-    default:
-      return "Цель не указана";
-  }
+function goalLabelKey(goal?: Goal): string {
+  return (goal && GOAL_LABEL_KEYS[goal]) || "profile.goal.unknown";
 }
 
 function isAdultGoal(goal?: Goal | null): boolean {
@@ -67,6 +56,7 @@ export function UserCard({
   onPress,
   onPressVoiceIntro,
 }: Props) {
+  const { t } = useLocale();
   const moodTheme = getMoodTheme(user.mood ?? null);
   const icebreaker = getIcebreakerForUser({
     goal: user.goal,
@@ -74,9 +64,12 @@ export function UserCard({
     interests: user.interests ?? [],
     displayName: user.displayName ?? "",
   });
+  const icebreakerText = icebreaker
+    ? t(icebreaker.key, icebreaker.params)
+    : null;
 
-  const name = user.displayName || "Пользователь";
-  const about = user.about || "Пока без описания…";
+  const name = user.displayName || t("common.user");
+  const about = user.about || t("profile.noDescription");
   const interests = Array.isArray(user.interests) ? user.interests : [];
 
   const isMystery = !!user.mysteryMode;
@@ -101,9 +94,11 @@ export function UserCard({
           .toString()
           .padStart(2, "0")}`
       : `0:${introSeconds.toString().padStart(2, "0")}`;
-  const voiceIntroLabel = `Голосовое интро ~${introDuration}${
-    isAdult ? " (18+)" : ""
-  }`;
+  const adultSuffix = isAdult ? ` ${t("common.adultShort")}` : "";
+  const voiceIntroLabel = t("profile.voiceIntroLabel", {
+    duration: introDuration,
+    adultSuffix,
+  });
   const Container =
     (onPress ? TouchableOpacity : View) as React.ComponentType<any>;
 
@@ -164,7 +159,7 @@ export function UserCard({
                   textAlign: "center",
                 }}
               >
-                Режим тайны: фото откроются позже
+                {t("profile.mysteryHint")}
               </Text>
             )}
           </View>
@@ -190,7 +185,7 @@ export function UserCard({
                 fontSize: 11,
               }}
             >
-              18+
+              {t("common.adultShort")}
             </Text>
           </View>
         )}
@@ -224,7 +219,7 @@ export function UserCard({
               marginLeft: 8,
             }}
           >
-            {distance.toFixed(1)} км
+            {distance.toFixed(1)} {t("units.km")}
           </Text>
         )}
       </View>
@@ -254,7 +249,7 @@ export function UserCard({
         </Text>
       )}
 
-      {icebreaker && (
+      {icebreakerText && (
         <View
           style={{
             marginTop: 8,
@@ -270,7 +265,7 @@ export function UserCard({
               marginBottom: 2,
             }}
           >
-            💬 Идея для первого сообщения:
+            💬 {t("icebreaker.title")}
           </Text>
           <Text
             style={{
@@ -278,7 +273,7 @@ export function UserCard({
               color: theme.colors.text,
             }}
           >
-            {icebreaker}
+            {icebreakerText}
           </Text>
         </View>
       )}
@@ -343,7 +338,7 @@ export function UserCard({
                 fontWeight: "600",
               }}
             >
-              {formatGoal(user.goal)}
+              {t(goalLabelKey(user.goal))}
             </Text>
           </View>
         )}
@@ -366,7 +361,7 @@ export function UserCard({
                 fontWeight: "600",
               }}
             >
-              {formatMood(user.mood)}
+              {t(moodLabelKey(user.mood))}
             </Text>
           </View>
         )}
@@ -389,7 +384,7 @@ export function UserCard({
                 fontWeight: "600",
               }}
             >
-              Режим тайны
+              {t("profile.mysteryBadge")}
             </Text>
           </View>
         )}

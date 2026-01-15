@@ -35,7 +35,7 @@ export default function ProfileScreen() {
     >
       <View style={{ flex: 1, padding: 24 }}>
         <Text style={{ fontSize: 22, fontWeight: "700", marginBottom: 12 }}>
-          {t("screens.profile.title")}
+          {t("screen.profile")}
         </Text>
         <Button
           title={t("profile.edit")}
@@ -58,8 +58,8 @@ export default function ProfileScreen() {
               title={t("profile.testNotif")}
               onPress={() =>
                 sendLocalNotification({
-                  title: "Проверка",
-                  body: "Это локальное уведомление работает ✅",
+                  title: t("profile.notifTitle"),
+                  body: t("profile.notifBody"),
                 })
               }
             />
@@ -78,14 +78,14 @@ export default function ProfileScreen() {
             onPress={async () => {
               try {
                 const base = [
-                  { name: "Alex", age: 27, bio: "Путешествия, кофе, винил" },
-                  { name: "Mira", age: 24, bio: "Йога и кино по вечерам" },
-                  { name: "Dan", age: 29, bio: "Хайкинг, бег, борщ 😅" },
-                  { name: "Ira", age: 25, bio: "Пишу музыку и люблю панк-рок" },
-                  { name: "Leo", age: 31, bio: "Фотограф, ищу приятные беседы" },
-                  { name: "Nika", age: 26, bio: "Кроссфит и книги" },
-                  { name: "Oleg", age: 28, bio: "Гик по жизни" },
-                  { name: "Tanya", age: 23, bio: "Ищу друзей для походов" },
+                  { name: "Alex", age: 27, bio: "Travel, coffee, vinyl." },
+                  { name: "Mira", age: 24, bio: "Yoga and movies in the evening." },
+                  { name: "Dan", age: 29, bio: "Hiking, running, ramen 😅." },
+                  { name: "Ira", age: 25, bio: "I make music and love punk rock." },
+                  { name: "Leo", age: 31, bio: "Photographer, looking for easy conversations." },
+                  { name: "Nika", age: 26, bio: "Crossfit and books." },
+                  { name: "Oleg", age: 28, bio: "Tech geek by nature." },
+                  { name: "Tanya", age: 23, bio: "Looking for friends to hike with." },
                 ];
                 await Promise.all(
                   base.map((u, idx) =>
@@ -101,17 +101,17 @@ export default function ProfileScreen() {
                     ),
                   ),
                 );
-                Alert.alert("Готово", "Засидили 8 демо-анкет");
+                Alert.alert(t("profile.seedDoneTitle"), t("profile.seedDoneBody"));
               } catch (e: any) {
                 Alert.alert(
-                  "Ошибка",
-                  e?.message ?? "Не удалось засидить демо-аккаунты",
+                  t("common.error"),
+                  e?.message ?? t("profile.seedFailedBody"),
                 );
               }
             }}
           >
             <Text style={{ color: "#fff", fontWeight: "800" }}>
-              Seed demo users
+              {t("profile.seed")}
             </Text>
           </TouchableOpacity>
         )}

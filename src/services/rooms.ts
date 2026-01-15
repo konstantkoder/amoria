@@ -41,14 +41,14 @@ export type RoomMember = {
 
 const ROOM_META: Record<
   RoomKind,
-  { label: string; emoji: string; precision: number; radiusM: number }
+  { labelKey: string; emoji: string; precision: number; radiusM: number }
 > = {
-  work: { label: "Работа", emoji: "🏢", precision: 7, radiusM: 250 },
-  bar: { label: "Бар", emoji: "🍹", precision: 7, radiusM: 350 },
-  cafe: { label: "Кафе", emoji: "☕", precision: 7, radiusM: 250 },
-  gym: { label: "Зал", emoji: "🏋️", precision: 7, radiusM: 300 },
-  park: { label: "Парк", emoji: "🌳", precision: 6, radiusM: 900 },
-  home: { label: "Дом", emoji: "🏠", precision: 8, radiusM: 80 },
+  work: { labelKey: "rooms.place.work", emoji: "🏢", precision: 7, radiusM: 250 },
+  bar: { labelKey: "rooms.place.bar", emoji: "🍹", precision: 7, radiusM: 350 },
+  cafe: { labelKey: "rooms.place.cafe", emoji: "☕", precision: 7, radiusM: 250 },
+  gym: { labelKey: "rooms.place.gym", emoji: "🏋️", precision: 7, radiusM: 300 },
+  park: { labelKey: "rooms.place.park", emoji: "🌳", precision: 6, radiusM: 900 },
+  home: { labelKey: "rooms.place.home", emoji: "🏠", precision: 8, radiusM: 80 },
 };
 
 export const ROOM_KIND_ORDER: RoomKind[] = [
@@ -71,37 +71,39 @@ export function buildRoomId(kind: RoomKind, lat: number, lng: number) {
   return `${kind}_${prefix}`;
 }
 
+const NICKNAME_COLORS = [
+  "blue",
+  "lime",
+  "purple",
+  "gold",
+  "pink",
+  "turquoise",
+  "gray",
+  "red",
+];
+
+const NICKNAME_ANIMALS = [
+  "fox",
+  "wolf",
+  "cat",
+  "tiger",
+  "raccoon",
+  "owl",
+  "panda",
+  "dolphin",
+  "lion",
+  "hare",
+];
+
 export function makeNickname(uid: string) {
-  const colors = [
-    "Синий",
-    "Лаймовый",
-    "Фиолетовый",
-    "Золотой",
-    "Розовый",
-    "Бирюзовый",
-    "Серый",
-    "Красный",
-  ];
-  const animals = [
-    "Лис",
-    "Волк",
-    "Кот",
-    "Тигр",
-    "Енот",
-    "Сова",
-    "Панда",
-    "Дельфин",
-    "Лев",
-    "Заяц",
-  ];
 
   let h = 0;
   for (let i = 0; i < uid.length; i++) h = (h * 31 + uid.charCodeAt(i)) >>> 0;
 
-  const c = colors[h % colors.length];
-  const a = animals[(h >>> 8) % animals.length];
+  const c = NICKNAME_COLORS[h % NICKNAME_COLORS.length];
+  const a = NICKNAME_ANIMALS[(h >>> 8) % NICKNAME_ANIMALS.length];
   const n = ((h >>> 16) % 900) + 100;
-  return `${c} ${a} ${n}`;
+  return `nick.${c}.${a}.${n}`;
 }
 
 export async function openOrCreateGeoRoom(
@@ -115,12 +117,13 @@ export async function openOrCreateGeoRoom(
   const id = `${kind}_${geohash.slice(0, meta.precision)}`;
   const ref = doc(db, "rooms", id);
   const now = Date.now();
+  const fallbackTitle = meta.labelKey;
 
   const snap = await getDoc(ref);
   if (!snap.exists()) {
     const room: Omit<RoomDoc, "id"> = {
       kind,
-      title: `${meta.emoji} ${meta.label}`,
+      title: fallbackTitle,
       geo: { lat, lng, geohash, precision: meta.precision },
       radiusM: meta.radiusM,
       createdAt: now,
@@ -136,7 +139,7 @@ export async function openOrCreateGeoRoom(
   return {
     id,
     kind: data.kind ?? kind,
-    title: data.title ?? `${meta.emoji} ${meta.label}`,
+    title: data.title ?? fallbackTitle,
     geo: data.geo ?? { lat, lng, geohash, precision: meta.precision },
     radiusM: data.radiusM ?? meta.radiusM,
     createdAt: data.createdAt ?? now,
@@ -161,7 +164,7 @@ export function subscribeRoomMessages(
       return {
         id: d.id,
         uid: String(x.uid ?? ""),
-        nickname: String(x.nickname ?? "Аноним"),
+        nickname: String(x.nickname ?? "common.anonymous"),
         text: String(x.text ?? ""),
         createdAt: Number(x.createdAt ?? 0),
       };
@@ -205,7 +208,7 @@ export function subscribeRoomMembers(
       const x = d.data() as any;
       return {
         uid: String(x.uid ?? d.id),
-        nickname: String(x.nickname ?? "Аноним"),
+        nickname: String(x.nickname ?? "common.anonymous"),
         lastSeen: Number(x.lastSeen ?? 0),
       };
     });

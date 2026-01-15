@@ -34,7 +34,7 @@ export default function InboxScreen() {
   }, []);
   return (
     <ScreenShell
-      title={t("screens.chats.title")}
+      title={t("tabs.chats")}
       background="chats"
       overlayOpacity={0.18}
       blurRadius={0}
@@ -63,10 +63,10 @@ export default function InboxScreen() {
               fontWeight: "800",
             }}
           >
-            {t("screens.chats.title")}
+            {t("tabs.chats")}
           </Text>
           <Text style={{ color: "#9CA3AF", fontSize: 12 }}>
-            Лайкнутые: {likesCount}
+            {t("common.likedCount", { count: String(likesCount) })}
           </Text>
         </View>
         <View
@@ -89,8 +89,7 @@ export default function InboxScreen() {
               marginTop: 8,
             }}
           >
-            Здесь будут собраны все твои переписки.{"\n"}
-            Позже мы свяжём этот экран с матчами и сообщениями из ленты, анкет и “Сейчас”.
+            {t("chats.empty")}
           </Text>
         </View>
       </View>

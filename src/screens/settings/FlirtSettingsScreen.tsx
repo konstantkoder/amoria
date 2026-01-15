@@ -15,8 +15,10 @@ import {
   setFlirtEnabled,
 } from "@/services/moderation";
 import { setAdultConsent, setFlirtEnabledRemote } from "@/services/firebase";
+import { useLocale } from "@/contexts/LocaleContext";
 
 export default function FlirtSettingsScreen() {
+  const { t } = useLocale();
   const [adult, setAdult] = useState(false);
   const [flirt, setFlirt] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -43,9 +45,12 @@ export default function FlirtSettingsScreen() {
       await setFlirtEnabled(allowFlirt);
       await setAdultConsent(adult);
       await setFlirtEnabledRemote(allowFlirt);
-      Alert.alert("Готово", "Настройки сохранены");
+      Alert.alert(t("common.done"), t("flirt.saveSuccessBody"));
     } catch (e: any) {
-      Alert.alert("Ошибка", e?.message ?? "Не удалось обновить настройки");
+      Alert.alert(
+        t("common.error"),
+        e?.message ?? t("flirt.saveErrorBody"),
+      );
     } finally {
       setBusy(false);
     }
@@ -64,11 +69,10 @@ export default function FlirtSettingsScreen() {
           marginBottom: 8,
         }}
       >
-        Флирт 18+
+        {t("flirt.title")}
       </Text>
       <Text style={{ color: "#333", marginBottom: 12 }}>
-        Этот режим доступен только пользователям 18+. Контент в этом разделе
-        должен соответствовать правилам сообщества.
+        {t("flirt.description")}
       </Text>
       <View
         style={{
@@ -79,7 +83,7 @@ export default function FlirtSettingsScreen() {
         }}
       >
         <Text style={{ fontWeight: "700", marginBottom: 8 }}>
-          Подтверждение возраста
+          {t("flirt.ageConfirmTitle")}
         </Text>
         <View
           style={{
@@ -88,7 +92,7 @@ export default function FlirtSettingsScreen() {
             justifyContent: "space-between",
           }}
         >
-          <Text>Мне 18 лет и больше</Text>
+          <Text>{t("flirt.ageConfirmLabel")}</Text>
           <Switch value={adult} onValueChange={setAdult} />
         </View>
       </View>
@@ -102,7 +106,7 @@ export default function FlirtSettingsScreen() {
         }}
       >
         <Text style={{ fontWeight: "700", marginBottom: 8 }}>
-          Включить «Флирт 18+»
+          {t("flirt.enableTitle")}
         </Text>
         <View
           style={{
@@ -111,9 +115,7 @@ export default function FlirtSettingsScreen() {
             justifyContent: "space-between",
           }}
         >
-          <Text>
-            Показывать меня и показывать мне только участников с флагом «Флирт»
-          </Text>
+          <Text>{t("flirt.enableDescription")}</Text>
           <Switch
             value={flirt && adult}
             onValueChange={setFlirt}
@@ -122,12 +124,10 @@ export default function FlirtSettingsScreen() {
         </View>
       </View>
       <View style={{ backgroundColor: "#fff", borderRadius: 16, padding: 14 }}>
-        <Text style={{ fontWeight: "700", marginBottom: 8 }}>Правила</Text>
-        <Text style={{ color: "#333" }}>
-          • Никаких NSFW-изображений, агрессии, хейта и попыток монетизации
-          общения.{"\n"}• Жалоба/блок — мгновенно, повторные нарушения →
-          удаление аккаунта.
+        <Text style={{ fontWeight: "700", marginBottom: 8 }}>
+          {t("flirt.rulesTitle")}
         </Text>
+        <Text style={{ color: "#333" }}>{t("flirt.rulesBody")}</Text>
       </View>
       <TouchableOpacity
         disabled={busy}
@@ -141,7 +141,7 @@ export default function FlirtSettingsScreen() {
         }}
       >
         <Text style={{ color: "#fff", textAlign: "center", fontWeight: "800" }}>
-          {busy ? "Сохранение…" : "Сохранить"}
+          {busy ? t("common.saving") : t("common.save")}
         </Text>
       </TouchableOpacity>
     </ScrollView>

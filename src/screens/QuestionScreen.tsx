@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { ScrollView, StyleSheet, Text, TextInput, View, Button } from "react-native";
 import {
   QUESTIONS,
@@ -7,23 +7,26 @@ import {
   saveQuestionOfTheDayAnswer,
 } from "@/services/questions";
 import { theme } from "@/theme";
+import { useLocale } from "@/contexts/LocaleContext";
 
 const QuestionScreen: React.FC = () => {
-  const [questionText, setQuestionText] = useState<string>("");
+  const { t } = useLocale();
   const [answer, setAnswer] = useState<string>("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [errorKey, setErrorKey] = useState<string | null>(null);
 
-  useEffect(() => {
+  const questionKey = useMemo(() => {
     const id = getDailyQuestionId();
     const q = QUESTIONS.find((item) => item.id === id);
-    setQuestionText(q ? q.text : "Вопрос дня");
+    return q?.textKey ?? "question.title";
+  }, []);
 
+  useEffect(() => {
     (async () => {
       setIsLoading(true);
-      setErrorMessage(null);
+      setErrorKey(null);
 
       try {
         const saved = await loadQuestionOfTheDayAnswer();
@@ -32,7 +35,7 @@ const QuestionScreen: React.FC = () => {
           setIsSaved(true);
         }
       } catch {
-        setErrorMessage("Не удалось загрузить ответ.");
+        setErrorKey("question.loadError");
       } finally {
         setIsLoading(false);
       }
@@ -50,7 +53,7 @@ const QuestionScreen: React.FC = () => {
     }
 
     setIsSaving(true);
-    setErrorMessage(null);
+    setErrorKey(null);
 
     try {
       await saveQuestionOfTheDayAnswer(trimmed);
@@ -60,7 +63,7 @@ const QuestionScreen: React.FC = () => {
         "[QuestionScreen] Failed to save question of the day answer",
         err,
       );
-      setErrorMessage("Не удалось сохранить ответ. Попробуй ещё раз.");
+      setErrorKey("question.saveError");
       setIsSaved(false);
     } finally {
       setIsSaving(false);
@@ -71,17 +74,17 @@ const QuestionScreen: React.FC = () => {
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.contentContainer}
-    >
-      <Text style={styles.title}>Вопрос дня</Text>
+  >
+      <Text style={styles.title}>{t("question.title")}</Text>
 
-      {errorMessage && <Text style={styles.error}>{errorMessage}</Text>}
+      {errorKey && <Text style={styles.error}>{t(errorKey)}</Text>}
 
-      <Text style={styles.question}>{questionText}</Text>
+      <Text style={styles.question}>{t(questionKey)}</Text>
 
       <TextInput
         style={styles.input}
         multiline
-        placeholder="Твой ответ..."
+        placeholder={t("question.answerPlaceholder")}
         placeholderTextColor="#9CA3AF"
         value={answer}
         onChangeText={(text) => {
@@ -93,7 +96,13 @@ const QuestionScreen: React.FC = () => {
 
       <View style={styles.buttonWrapper}>
         <Button
-          title={isSaving ? "СОХРАНЯЮ..." : isSaved ? "СОХРАНЕНО" : "СОХРАНИТЬ"}
+          title={
+            isSaving
+              ? t("question.saving")
+              : isSaved
+                ? t("question.saved")
+                : t("question.save")
+          }
           onPress={handleSave}
           disabled={isSaving || isLoading || !answer.trim()}
         />

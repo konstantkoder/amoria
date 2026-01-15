@@ -9,6 +9,7 @@ import ScreenBackground, {
 } from "@/components/ScreenBackground";
 import MenuButton from "@/components/MenuButton";
 import { openDrawer } from "@/navigation/drawerController";
+import { useLocale } from "@/contexts/LocaleContext";
 
 type Props = {
   title?: string;
@@ -35,6 +36,7 @@ export default function ScreenShell({
 }: Props) {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
+  const { t } = useLocale();
   const showDebugTint =
     debugTint ||
     (__DEV__ && process.env.EXPO_PUBLIC_BG_DEBUG === "1");
@@ -54,7 +56,7 @@ export default function ScreenShell({
       overlayOpacity={overlayOpacity}
       blurRadius={blurRadius}
       debugTint={showDebugTint}
-      screenLabel={route?.name ?? title ?? "Screen"}
+      screenLabel={route?.name ?? title ?? t("common.screen")}
     >
       <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
         {showHeader ? (

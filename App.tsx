@@ -17,10 +17,11 @@ import LoginScreen from "@/screens/LoginScreen";
 import AppNavigator from "@/navigation/AppNavigator";
 import DMChatScreen from "@/screens/DMChatScreen";
 import LegalScreen from "@/screens/legal/LegalScreen";
-import { LocaleProvider } from "@/contexts/LocaleContext";
+import { LocaleProvider, useLocale } from "@/contexts/LocaleContext";
 import { theme } from "@/theme/theme";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import DebugOverlay from "@/components/DebugOverlay";
+import LanguagePickerHost from "@/components/LanguagePickerHost";
 
 LogBox.ignoreLogs([
   "expo-notifications: Android Push notifications (remote notifications) functionality provided by expo-notifications was removed from Expo Go with the release of SDK 53.",
@@ -45,6 +46,46 @@ const navTheme = {
 
 const SHOW_DEBUG_OVERLAY =
   __DEV__ && process.env.EXPO_PUBLIC_SHOW_DEBUG_OVERLAY === "1";
+
+type AppNavigationProps = {
+  user: User | null;
+  authError: string | null;
+  setAuthEnabled: React.Dispatch<React.SetStateAction<boolean>>;
+};
+
+function AppNavigation({ user, authError, setAuthEnabled }: AppNavigationProps) {
+  const { locale } = useLocale();
+
+  return (
+    <NavigationContainer
+      key={locale}
+      ref={navigationRef}
+      theme={navTheme}
+      onReady={() => {
+        (globalThis as any).__NAV = navigationRef;
+      }}
+    >
+      <Stack.Navigator screenOptions={{ headerShown: false }}>
+        {user ? (
+          <>
+            <Stack.Screen name="Root" component={AppNavigator} />
+            <Stack.Screen name="DM" component={DMChatScreen} />
+            <Stack.Screen name="Legal" component={LegalScreen} />
+          </>
+        ) : (
+          <Stack.Screen name="Login">
+            {() => (
+              <LoginScreen
+                onAuthStart={() => setAuthEnabled(true)}
+                authError={authError}
+              />
+            )}
+          </Stack.Screen>
+        )}
+      </Stack.Navigator>
+    </NavigationContainer>
+  );
+}
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -71,7 +112,7 @@ export default function App() {
       (error) => {
         console.error("[auth] onAuthStateChanged failed", error);
         setUser(null);
-        setAuthError(error?.message ?? "Ошибка авторизации");
+        setAuthError(error?.message ?? "auth.error");
         setInitializing(false);
       }
     );
@@ -93,36 +134,16 @@ export default function App() {
       <LocaleProvider>
         <ErrorBoundary
           onError={(error) =>
-            setLastError(error?.message ?? "Unknown error")
+            setLastError(error?.message ?? "debug.unknownError")
           }
         >
-          <NavigationContainer
-            ref={navigationRef}
-            theme={navTheme}
-            onReady={() => {
-              (globalThis as any).__NAV = navigationRef;
-            }}
-          >
-            <Stack.Navigator screenOptions={{ headerShown: false }}>
-              {user ? (
-                <>
-                  <Stack.Screen name="Root" component={AppNavigator} />
-                  <Stack.Screen name="DM" component={DMChatScreen} />
-                  <Stack.Screen name="Legal" component={LegalScreen} />
-                </>
-              ) : (
-                <Stack.Screen name="Login">
-                  {() => (
-                    <LoginScreen
-                      onAuthStart={() => setAuthEnabled(true)}
-                      authError={authError}
-                    />
-                  )}
-                </Stack.Screen>
-              )}
-            </Stack.Navigator>
-          </NavigationContainer>
+          <AppNavigation
+            user={user}
+            authError={authError}
+            setAuthEnabled={setAuthEnabled}
+          />
         </ErrorBoundary>
+        <LanguagePickerHost />
         {SHOW_DEBUG_OVERLAY ? (
           <DebugOverlay
             firebaseConfigured={isFirebaseConfigured()}

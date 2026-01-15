@@ -32,20 +32,14 @@ import { makeNickname } from "@/services/rooms";
 import ScreenShell from "@/components/ScreenShell";
 import NeonBorder from "@/components/NeonBorder";
 import { useLocale } from "@/contexts/LocaleContext";
+import { formatAgoLong } from "@/utils/timeAgo";
+import { translateMaybeKey } from "@/utils/i18n";
+import { formatNickname } from "@/utils/nickname";
 
 type Pos = { lat: number; lng: number; accuracy?: number | null };
 type RadiusOption = number | null; // null = без ограничения
 
 const RADIUS_OPTIONS: RadiusOption[] = [5, 10, 25, 50, 100, null];
-
-const MOOD_META: { key: NowMood; label: string; emoji: string }[] = [
-  { key: "chill", label: "Просто посидеть", emoji: "😌" },
-  { key: "talk", label: "Поговорить", emoji: "💬" },
-  { key: "drink", label: "Выпить кофе/дринк", emoji: "🥤" },
-  { key: "walk", label: "Прогуляться", emoji: "🚶" },
-  { key: "fun", label: "Развлечься", emoji: "🎉" },
-  { key: "other", label: "Другое", emoji: "✨" },
-];
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
@@ -60,19 +54,6 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
       {children}
     </Text>
   );
-}
-
-function formatAgo(ts: number) {
-  if (!ts) return "";
-  const diff = Date.now() - ts;
-  const sec = Math.floor(diff / 1000);
-  if (sec < 60) return "только что";
-  const min = Math.floor(sec / 60);
-  if (min < 60) return `${min} мин`;
-  const h = Math.floor(min / 60);
-  if (h < 24) return `${h} ч`;
-  const d = Math.floor(h / 24);
-  return `${d} дн`;
 }
 
 function distanceKm(pos: Pos | null, item: { lat?: number; lng?: number }): number | null {
@@ -106,8 +87,20 @@ export default function NowScreen() {
   const [sending, setSending] = useState(false);
   const [radiusKm, setRadiusKm] = useState<RadiusOption>(25);
 
+  const moodMeta: { key: NowMood; label: string; emoji: string }[] = useMemo(
+    () => [
+      { key: "chill", label: t("now.mood.chill"), emoji: "😌" },
+      { key: "talk", label: t("now.mood.talk"), emoji: "💬" },
+      { key: "drink", label: t("now.mood.drink"), emoji: "🥤" },
+      { key: "walk", label: t("now.mood.walk"), emoji: "🚶" },
+      { key: "fun", label: t("now.mood.fun"), emoji: "🎉" },
+      { key: "other", label: t("now.mood.other"), emoji: "✨" },
+    ],
+    [t],
+  );
+
   const nickname = useMemo(() => {
-    if (!user?.uid) return "Аноним";
+    if (!user?.uid) return "common.anonymous";
     return makeNickname(user.uid);
   }, [user?.uid]);
 
@@ -116,7 +109,7 @@ export default function NowScreen() {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
-        throw new Error("Нужен доступ к геолокации (в настройках телефона).");
+        throw new Error(t("geo.permissionRequired"));
       }
       const current = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced,
@@ -134,7 +127,7 @@ export default function NowScreen() {
     } finally {
       setPosLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     ensurePosition();
@@ -152,29 +145,20 @@ export default function NowScreen() {
 
   const onSend = async () => {
     if (!user) {
-      Alert.alert(
-        "Нужен вход",
-        "Чтобы писать в разделе “Сейчас”, сначала войди или зарегистрируйся.",
-      );
+      Alert.alert(t("now.signInTitle"), t("now.signInBody"));
       return;
     }
     if (!db || !isFirebaseConfigured()) {
-      Alert.alert(
-        "Firebase не подключён",
-        "Раздел “Сейчас” работает через Firebase. Проверь .env и перезапусти Expo.",
-      );
+      Alert.alert(t("now.firebaseTitle"), t("now.firebaseBody"));
       return;
     }
     const trimmed = message.trim();
     if (!trimmed) {
-      Alert.alert("Пустой текст", "Напиши хотя бы одну фразу.");
+      Alert.alert(t("now.emptyTitle"), t("now.emptyBody"));
       return;
     }
     if (!pos) {
-      Alert.alert(
-        "Нет локации",
-        "Не удалось получить координаты. Попробуй обновить местоположение.",
-      );
+      Alert.alert(t("now.noLocationTitle"), t("now.noLocationBody"));
       return;
     }
     const previousMessage = message;
@@ -191,10 +175,7 @@ export default function NowScreen() {
       });
     } catch (e: any) {
       setMessage(previousMessage);
-      Alert.alert(
-        "Ошибка",
-        e?.message ?? "Не удалось отправить сообщение, попробуй ещё раз.",
-      );
+      Alert.alert(t("now.sendFailedTitle"), e?.message ?? t("now.sendFailedBody"));
     } finally {
       setSending(false);
     }
@@ -217,7 +198,7 @@ export default function NowScreen() {
         marginTop: 6,
       }}
     >
-      {MOOD_META.map((m) => {
+      {moodMeta.map((m) => {
         const active = m.key === mood;
         return (
           <NeonBorder key={m.key} active={active}>
@@ -264,7 +245,8 @@ export default function NowScreen() {
     >
       {RADIUS_OPTIONS.map((option, idx) => {
         const active = radiusKm === option;
-        const label = option == null ? "Все" : `${option} км`;
+        const label =
+          option == null ? t("common.all") : `${option} ${t("units.km")}`;
         return (
           <NeonBorder key={idx} active={active}>
             <TouchableOpacity
@@ -315,7 +297,7 @@ export default function NowScreen() {
           marginBottom: 4,
         }}
       >
-        Что ты хочешь сейчас?
+        {t("now.promptTitle")}
       </Text>
       <Text
         style={{
@@ -324,13 +306,13 @@ export default function NowScreen() {
           marginBottom: 6,
         }}
       >
-        Сообщения видят люди в твоём районе. Радиус можно поменять ниже — от 5 км до 100 км.
+        {t("now.promptSubtitle")}
       </Text>
       {renderMoodChips()}
       <TextInput
         value={message}
         onChangeText={setMessage}
-        placeholder="Напиши, что у тебя на уме прямо сейчас…"
+        placeholder={t("now.placeholder")}
         placeholderTextColor="#6B7280"
         multiline
         style={{
@@ -348,16 +330,6 @@ export default function NowScreen() {
           textAlignVertical: "top",
         }}
       />
-      {/* временный дебаг — можно потом убрать */}
-      <Text
-        style={{
-          marginTop: 4,
-          color: "#9CA3AF",
-          fontSize: 11,
-        }}
-      >
-        debug: message = [{message}]
-      </Text>
       <View
         style={{
           flexDirection: "row",
@@ -376,7 +348,7 @@ export default function NowScreen() {
             >
               <ActivityIndicator size="small" color={theme.colors.primary} />
               <Text style={{ color: "#9CA3AF", fontSize: 12 }}>
-                Обновляем местоположение…
+                {t("geo.locationUpdating")}
               </Text>
             </View>
           ) : pos ? (
@@ -389,7 +361,7 @@ export default function NowScreen() {
             >
               <Ionicons name="location-outline" size={16} color="#A7F3D0" />
               <Text style={{ color: "#9CA3AF", fontSize: 12 }}>
-                Локация готова (точность ~{Math.round(pos.accuracy ?? 0)} м)
+                {t("geo.locationReady")} (~{Math.round(pos.accuracy ?? 0)} {t("units.m")})
               </Text>
             </View>
           ) : (
@@ -410,7 +382,7 @@ export default function NowScreen() {
                   textDecorationLine: "underline",
                 }}
               >
-                Включить геолокацию для “Сейчас”
+                {t("geo.enableForNow")}
               </Text>
             </TouchableOpacity>
           )}
@@ -442,8 +414,13 @@ export default function NowScreen() {
   );
 
   const renderPostItem = ({ item }: { item: NowPost }) => {
-    const moodMeta = MOOD_META.find((m) => m.key === item.mood) ?? MOOD_META[0];
+    const moodInfo = moodMeta.find((m) => m.key === item.mood) ?? moodMeta[0];
     const dist = distanceKm(pos, item);
+    const formattedNickname = formatNickname(item.nickname, t);
+    const nickname =
+      formattedNickname === item.nickname
+        ? translateMaybeKey(item.nickname, t, ["common."])
+        : formattedNickname;
     return (
       <View
         style={{
@@ -471,7 +448,7 @@ export default function NowScreen() {
               flex: 1,
             }}
           >
-            {moodMeta.emoji} {item.nickname}
+            {moodInfo.emoji} {nickname}
           </Text>
           <Text
             style={{
@@ -479,7 +456,8 @@ export default function NowScreen() {
               fontSize: 11,
             }}
           >
-            {formatAgo(item.createdAt)}{dist != null ? ` • ~${dist} км` : ""}
+            {formatAgoLong(item.createdAt, t)}
+            {dist != null ? ` • ~${dist} ${t("units.km")}` : ""}
           </Text>
         </View>
         <Text
@@ -489,7 +467,7 @@ export default function NowScreen() {
             marginBottom: 4,
           }}
         >
-          {moodMeta.label}
+          {moodInfo.label}
         </Text>
         <Text
           style={{
@@ -505,7 +483,7 @@ export default function NowScreen() {
 
   return (
     <ScreenShell
-      title={t("screens.now.title")}
+      title={t("tabs.now")}
       background="now"
       overlayOpacity={0.18}
       blurRadius={0}
@@ -519,7 +497,7 @@ export default function NowScreen() {
           paddingBottom: insets.bottom + 8,
         }}
       >
-        <SectionTitle>{t("screens.now.title")}</SectionTitle>
+        <SectionTitle>{t("now.title")}</SectionTitle>
         {renderComposer()}
         <View
           style={{
@@ -536,7 +514,7 @@ export default function NowScreen() {
               fontWeight: "800",
             }}
           >
-            Люди рядом прямо сейчас
+            {t("now.peopleNearby")}
           </Text>
           <Text
             style={{
@@ -544,7 +522,10 @@ export default function NowScreen() {
               fontSize: 11,
             }}
           >
-            Радиус: {radiusKm == null ? "все расстояния" : `до ~${radiusKm} км`}
+            {t("common.radius")}:{" "}
+            {radiusKm == null
+              ? t("now.radiusAll")
+              : t("now.radiusUpTo", { km: String(radiusKm) })}
           </Text>
         </View>
         {renderRadiusChips()}
@@ -575,7 +556,7 @@ export default function NowScreen() {
                     fontSize: 13,
                   }}
                 >
-                  Пока никто поблизости не написал, что хочет сделать прямо сейчас. Начни первым.
+                  {t("now.noneNearby")}
                 </Text>
               </View>
             }

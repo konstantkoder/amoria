@@ -1,82 +1,97 @@
 import { Goal, Mood, UserProfile } from "@/models/User";
 
-const FALLBACK: string[] = [
-  "Привет! Что хорошего у тебя сегодня?",
-  "Привет 😊 Как проходит твой день?",
-  "Хей! Что бы ты делал(а), если бы сейчас было идеальное утро?",
+export type Icebreaker = {
+  key: string;
+  params?: Record<string, string>;
+};
+
+const FALLBACK_KEYS: string[] = [
+  "icebreaker.fallback.1",
+  "icebreaker.fallback.2",
+  "icebreaker.fallback.3",
 ];
 
-const GOAL_BASED: Partial<Record<Goal, string[]>> = {
+const GOAL_BASED_KEYS: Partial<Record<Goal, string[]>> = {
   dating: [
-    "Привет! Какой формат свидания тебе больше заходит: кофе, прогулка или что-то необычное?",
-    "Если бы у нас было первое свидание, куда бы ты предложил(а) пойти?",
+    "icebreaker.goal.dating.1",
+    "icebreaker.goal.dating.2",
   ],
   friends: [
-    "Привет! Ищешь компанию для чего больше – кофе, прогулок или настолок?",
-    "Если бы мы просто тусили как друзья, что бы ты предложил(а) сделать?",
+    "icebreaker.goal.friends.1",
+    "icebreaker.goal.friends.2",
   ],
   chat: [
-    "Привет! О чём тебе интереснее всего болтать с людьми?",
-    "Если бы мы зависли в чате на час, о чём бы точно поговорили?",
+    "icebreaker.goal.chat.1",
+    "icebreaker.goal.chat.2",
   ],
   long_term: [
-    "Привет! Что для тебя самое важное в людях рядом?",
-    "Как ты понимаешь, что человек «свой»?",
+    "icebreaker.goal.long_term.1",
+    "icebreaker.goal.long_term.2",
   ],
   short_term: [
-    "Привет! Что для тебя идеальный лёгкий вечер?",
-    "За счёт чего человек может тебя расположить к себе с первых сообщений?",
+    "icebreaker.goal.short_term.1",
+    "icebreaker.goal.short_term.2",
   ],
 };
 
-const MOOD_BASED: Partial<Record<Mood, string[]>> = {
+const MOOD_BASED_KEYS: Partial<Record<Mood, string[]>> = {
   happy: [
-    "Вижу хорошее настроение 🙂 Что его сегодня подняло?",
-    "Кажется, ты на позитиве. Что сегодня порадовало больше всего?",
+    "icebreaker.mood.happy.1",
+    "icebreaker.mood.happy.2",
   ],
   chill: [
-    "Настроение чил. Как лучше всего расслабляешься после дня?",
-    "Если бы мы просто чилили, что бы делали – кино, музыка или прогулка?",
+    "icebreaker.mood.chill.1",
+    "icebreaker.mood.chill.2",
   ],
   active: [
-    "Ты кажешься активным человеком. Какой последний спонтанный поступок у тебя был?",
-    "Что для тебя лучший активный выходной?",
+    "icebreaker.mood.active.1",
+    "icebreaker.mood.active.2",
   ],
   serious: [
-    "Кажешься довольно осознанным человеком. Что для тебя сейчас приоритет в жизни?",
-    "Во что ты инвестируешь своё время и энергию в первую очередь?",
+    "icebreaker.mood.serious.1",
+    "icebreaker.mood.serious.2",
   ],
   party: [
-    "Настроение «party» 🥳 Где тебе больше всего нравилось тусить?",
-    "Представь идеальную вечеринку. Что там точно должно быть?",
+    "icebreaker.mood.party.1",
+    "icebreaker.mood.party.2",
   ],
 };
 
 export function getIcebreakerForUser(
   user: Pick<UserProfile, "goal" | "mood" | "interests" | "displayName">
-): string {
-  const pool: string[] = [];
+): Icebreaker | null {
+  const pool: Icebreaker[] = [];
 
-  if (user.goal && GOAL_BASED[user.goal]) {
-    pool.push(...(GOAL_BASED[user.goal] ?? []));
+  if (user.goal && GOAL_BASED_KEYS[user.goal]) {
+    const keys = GOAL_BASED_KEYS[user.goal] ?? [];
+    pool.push(...keys.map((key) => ({ key })));
   }
 
-  if (user.mood && MOOD_BASED[user.mood]) {
-    pool.push(...(MOOD_BASED[user.mood] ?? []));
+  if (user.mood && MOOD_BASED_KEYS[user.mood]) {
+    const keys = MOOD_BASED_KEYS[user.mood] ?? [];
+    pool.push(...keys.map((key) => ({ key })));
   }
 
   if (user.interests && user.interests.length > 0) {
     const topInterest = user.interests[0];
     if (topInterest) {
       pool.push(
-        `Вижу интерес к «${topInterest}». Как ты к этому пришёл(пришла)?`,
-        `Расскажи что-нибудь забавное, связанное с «${topInterest}».`
+        {
+          key: "icebreaker.interest.1",
+          params: { interest: topInterest },
+        },
+        {
+          key: "icebreaker.interest.2",
+          params: { interest: topInterest },
+        },
       );
     }
   }
 
   if (pool.length === 0) {
-    return FALLBACK[Math.floor(Math.random() * FALLBACK.length)];
+    const fallbackKey =
+      FALLBACK_KEYS[Math.floor(Math.random() * FALLBACK_KEYS.length)];
+    return { key: fallbackKey };
   }
 
   return pool[Math.floor(Math.random() * pool.length)];

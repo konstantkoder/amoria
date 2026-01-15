@@ -12,6 +12,8 @@ import {
   createUserWithEmailAndPassword,
 } from "firebase/auth";
 import { auth, isFirebaseConfigured } from "@/config/firebaseConfig";
+import { useLocale } from "@/contexts/LocaleContext";
+import { translateMaybeKey } from "@/utils/i18n";
 
 type LoginScreenProps = {
   onAuthStart?: () => void;
@@ -24,34 +26,35 @@ export default function LoginScreen({
   onAuthStart,
   authError,
 }: LoginScreenProps) {
+  const { t } = useLocale();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const firebaseConfigured = isFirebaseConfigured();
   const fallbackMessage = useMemo(() => {
-    if (authError) return authError;
+    if (authError) return translateMaybeKey(authError, t, ["auth."]);
     if (!firebaseConfigured) {
-      return "Firebase не настроен. Вход недоступен.";
+      return t("auth.firebaseDisabledLogin");
     }
     return null;
-  }, [authError, firebaseConfigured]);
+  }, [authError, firebaseConfigured, t]);
   const authDisabled = !firebaseConfigured;
 
   const login = async () => {
     const trimmedEmail = email.trim();
     if (!trimmedEmail) {
-      Alert.alert("Вход", "Введите email.");
+      Alert.alert(t("auth.loginTitle"), t("auth.emailRequired"));
       return;
     }
     if (!EMAIL_RE.test(trimmedEmail)) {
-      Alert.alert("Вход", "Проверь формат email.");
+      Alert.alert(t("auth.loginTitle"), t("auth.emailInvalid"));
       return;
     }
     if (!password) {
-      Alert.alert("Вход", "Введите пароль.");
+      Alert.alert(t("auth.loginTitle"), t("auth.passwordRequired"));
       return;
     }
     if (!auth) {
-      Alert.alert("Вход", "Firebase не настроен. Вход недоступен.");
+      Alert.alert(t("auth.loginTitle"), t("auth.firebaseDisabledLogin"));
       return;
     }
     onAuthStart?.();
@@ -59,26 +62,26 @@ export default function LoginScreen({
       await signInWithEmailAndPassword(auth, trimmedEmail, password);
     } catch (e: any) {
       console.error(e);
-      Alert.alert("Вход", e?.message ?? "Ошибка входа");
+      Alert.alert(t("auth.loginTitle"), e?.message ?? t("auth.loginError"));
     }
   };
 
   const register = async () => {
     const trimmedEmail = email.trim();
     if (!trimmedEmail) {
-      Alert.alert("Регистрация", "Введите email.");
+      Alert.alert(t("auth.registerTitle"), t("auth.emailRequired"));
       return;
     }
     if (!EMAIL_RE.test(trimmedEmail)) {
-      Alert.alert("Регистрация", "Проверь формат email.");
+      Alert.alert(t("auth.registerTitle"), t("auth.emailInvalid"));
       return;
     }
     if (!password) {
-      Alert.alert("Регистрация", "Введите пароль.");
+      Alert.alert(t("auth.registerTitle"), t("auth.passwordRequired"));
       return;
     }
     if (!auth) {
-      Alert.alert("Регистрация", "Firebase не настроен. Регистрация недоступна.");
+      Alert.alert(t("auth.registerTitle"), t("auth.firebaseDisabledRegister"));
       return;
     }
     onAuthStart?.();
@@ -88,25 +91,28 @@ export default function LoginScreen({
       console.error(e);
       if (e?.code === "auth/email-already-in-use") {
         Alert.alert(
-          "Регистрация",
-          "Этот email уже зарегистрирован. Попробуйте войти.",
+          t("auth.registerTitle"),
+          t("auth.emailInUse"),
         );
         return;
       }
-      Alert.alert("Регистрация", e?.message ?? "Ошибка регистрации");
+      Alert.alert(
+        t("auth.registerTitle"),
+        e?.message ?? t("auth.registerError"),
+      );
     }
   };
 
   return (
     <View style={styles.screen}>
       <View style={styles.container}>
-        <Text style={styles.title}>Вход</Text>
+        <Text style={styles.title}>{t("auth.loginTitle")}</Text>
         {fallbackMessage ? (
           <Text style={styles.errorText}>{fallbackMessage}</Text>
         ) : null}
         <TextInput
           style={styles.input}
-          placeholder="Email"
+          placeholder={t("auth.emailPlaceholder")}
           placeholderTextColor="#6B7280"
           keyboardType="email-address"
           autoCapitalize="none"
@@ -115,7 +121,7 @@ export default function LoginScreen({
         />
         <TextInput
           style={styles.input}
-          placeholder="Пароль"
+          placeholder={t("auth.passwordPlaceholder")}
           placeholderTextColor="#6B7280"
           secureTextEntry
           value={password}
@@ -126,7 +132,7 @@ export default function LoginScreen({
           onPress={login}
           disabled={authDisabled}
         >
-          <Text style={styles.buttonText}>Войти</Text>
+          <Text style={styles.buttonText}>{t("auth.loginButton")}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[
@@ -137,7 +143,7 @@ export default function LoginScreen({
           onPress={register}
           disabled={authDisabled}
         >
-          <Text style={styles.buttonText}>Зарегистрироваться</Text>
+          <Text style={styles.buttonText}>{t("auth.registerButton")}</Text>
         </TouchableOpacity>
       </View>
     </View>

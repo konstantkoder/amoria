@@ -1,5 +1,7 @@
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
+import { useLocale } from "@/contexts/LocaleContext";
+import { translateMaybeKey } from "@/utils/i18n";
 
 type DebugOverlayProps = {
   firebaseConfigured: boolean;
@@ -10,15 +12,24 @@ export default function DebugOverlay({
   firebaseConfigured,
   lastError,
 }: DebugOverlayProps) {
+  const { t } = useLocale();
   if (!__DEV__) return null;
+  const configuredLabel = firebaseConfigured
+    ? t("common.true")
+    : t("common.false");
+  const lastErrorLabel = lastError
+    ? translateMaybeKey(lastError, t, ["debug.", "auth.", "common."])
+    : t("common.none");
 
   return (
     <View pointerEvents="none" style={styles.container}>
-      <Text style={styles.title}>Debug</Text>
+      <Text style={styles.title}>{t("debug.title")}</Text>
       <Text style={styles.line}>
-        Firebase configured: {firebaseConfigured ? "true" : "false"}
+        {t("debug.firebaseConfigured", { value: configuredLabel })}
       </Text>
-      <Text style={styles.line}>Last error: {lastError ?? "none"}</Text>
+      <Text style={styles.line}>
+        {t("debug.lastError", { value: lastErrorLabel })}
+      </Text>
     </View>
   );
 }

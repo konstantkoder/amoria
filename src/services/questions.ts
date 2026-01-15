@@ -4,10 +4,10 @@ import { getCurrentUser } from "@/services/user";
 import { collection, doc, setDoc } from "firebase/firestore";
 
 export const QUESTIONS = [
-  { id: "q1", text: "Что для тебя идеальное свидание?" },
-  { id: "q2", text: "С кем из исторических личностей ты бы поужинал(а)?" },
-  { id: "q3", text: "Горы или море? Почему?" },
-  { id: "q4", text: "Какая песня всегда поднимает тебе настроение?" },
+  { id: "q1", textKey: "questions.q1" },
+  { id: "q2", textKey: "questions.q2" },
+  { id: "q3", textKey: "questions.q3" },
+  { id: "q4", textKey: "questions.q4" },
 ];
 
 export function getDailyQuestionId(date = new Date()) {

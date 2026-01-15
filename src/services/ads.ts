@@ -44,26 +44,34 @@ export type AdFilters = {
 
 export type CountryConfig = {
   code: string;
-  name: string;
+  nameKey: string;
   cities: string[];
 };
 
 const AD_CATEGORY_META: Record<
   Exclude<AdCategory, "ALL">,
-  { label: string; short: string }
+  { labelKey: string; shortKey: string }
 > = {
-  F4M: { label: "Она ищет его", short: "Она • Он" },
-  M4F: { label: "Он ищет её", short: "Он • Она" },
-  M4M: { label: "Он ищет его", short: "Он • Он" },
-  F4F: { label: "Она ищет её", short: "Она • Она" },
-  Other: { label: "Что-то другое", short: "Другое" },
+  F4M: { labelKey: "ads.category.F4M.label", shortKey: "ads.category.F4M.short" },
+  M4F: { labelKey: "ads.category.M4F.label", shortKey: "ads.category.M4F.short" },
+  M4M: { labelKey: "ads.category.M4M.label", shortKey: "ads.category.M4M.short" },
+  F4F: { labelKey: "ads.category.F4F.label", shortKey: "ads.category.F4F.short" },
+  Other: { labelKey: "ads.category.Other.label", shortKey: "ads.category.Other.short" },
 };
 
 export function getAdCategoryMeta(cat: AdCategory) {
   if (cat === "ALL") {
-    return { label: "Все категории", short: "Все" };
+    return {
+      labelKey: "ads.category.ALL.label",
+      shortKey: "ads.category.ALL.short",
+    };
   }
-  return AD_CATEGORY_META[cat] ?? { label: "Другое", short: "Другое" };
+  return (
+    AD_CATEGORY_META[cat] ?? {
+      labelKey: "ads.category.Other.label",
+      shortKey: "ads.category.Other.short",
+    }
+  );
 }
 
 /**
@@ -73,18 +81,34 @@ export function getAdCategoryMeta(cat: AdCategory) {
 export const AVAILABLE_COUNTRIES: CountryConfig[] = [
   {
     code: "HR",
-    name: "Хорватия",
-    cities: ["Загреб", "Карловац", "Сплит", "Риека", "Задар"],
+    nameKey: "geo.country.HR",
+    cities: [
+      "geo.city.HR.ZAGREB",
+      "geo.city.HR.KARLOVAC",
+      "geo.city.HR.SPLIT",
+      "geo.city.HR.RIJEKA",
+      "geo.city.HR.ZADAR",
+    ],
   },
   {
     code: "DE",
-    name: "Германия",
-    cities: ["Мюнхен", "Берлин", "Гамбург", "Кёльн"],
+    nameKey: "geo.country.DE",
+    cities: [
+      "geo.city.DE.MUNICH",
+      "geo.city.DE.BERLIN",
+      "geo.city.DE.HAMBURG",
+      "geo.city.DE.COLOGNE",
+    ],
   },
   {
     code: "UA",
-    name: "Украина",
-    cities: ["Киев", "Львов", "Одесса", "Харьков"],
+    nameKey: "geo.country.UA",
+    cities: [
+      "geo.city.UA.KYIV",
+      "geo.city.UA.LVIV",
+      "geo.city.UA.ODESA",
+      "geo.city.UA.KHARKIV",
+    ],
   },
 ];
 
