@@ -9,7 +9,6 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { useLocale } from "@/contexts/LocaleContext";
-import { LANGUAGE_LABELS } from "@/i18n/translations";
 
 type Props = {
   onClose?: () => void;
@@ -18,7 +17,6 @@ type Props = {
 export default function AppDrawerContent({ onClose }: Props) {
   const navigation = useNavigation<any>();
   const { t, locale, openLanguagePicker } = useLocale();
-  const languageLabel = LANGUAGE_LABELS[locale];
 
   const handleClose = React.useCallback(() => {
     onClose?.();
@@ -49,7 +47,6 @@ export default function AppDrawerContent({ onClose }: Props) {
         <Text style={styles.subtitle}>
           {t("menu.languageCurrent", {
             code: locale.toUpperCase(),
-            language: languageLabel,
           })}
         </Text>
         <ScrollView
