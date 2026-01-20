@@ -1,0 +1,165 @@
+
+=== bs ===
+TOO LONG (UI risk): 1
+- icebreaker.goal.chat.2: 82/80 "Kad bismo se družili u ćaskanju sat vremena, o čemu bismo definitivno razgovaral…"
+
+=== cs ===
+TOO LONG (UI risk): 3
+- legal.privacy.title: 29/28 "Zásady ochrany osobních údajů"
+- now.firebaseTitle: 29/28 "Firebase není nakonfigurována"
+- rooms.firebaseTitle: 29/28 "Firebase není nakonfigurována"
+
+=== da ===
+TOO LONG (UI risk): 1
+- icebreaker.goal.dating.1: 83/80 "Hej! Hvilken slags date kan du bedst lide: kaffe, en gåtur eller noget usædvanli…"
+
+=== de ===
+TOO LONG (UI risk): 9
+- icebreaker.goal.dating.1: 100/80 "Hallo! Welche Art von Date magst du mehr: einen Kaffee, einen Spaziergang oder e…"
+- geo.permissionRequired: 97/80 "Es ist eine Standortberechtigung erforderlich (aktivieren Sie diese in den Telef…"
+- rooms.noPhotoChat: 95/80 "Ein Chat ohne Fotos, die an einen Ort gebunden sind. Sprechen Sie nur mit Person…"
+- icebreaker.mood.happy.2: 94/80 "Sie scheinen in einer positiven Stimmung zu sein. Was hat dich heute am glücklic…"
+- now.placeholder: 52/40 "Schreiben Sie, was Ihnen gerade durch den Kopf geht…"
+- icebreaker.mood.chill.2: 89/80 "Wenn wir nur entspannen würden, was würden wir tun – Filme, Musik oder einen Spa…"
+- icebreaker.goal.friends.1: 88/80 "Hallo! Suchen Sie Gesellschaft für etwas anderes: Kaffee, Spaziergänge oder Bret…"
+- icebreaker.goal.chat.2: 82/80 "Wenn wir eine Stunde lang chatten würden, worüber würden wir auf jeden Fall rede…"
+- icebreaker.title: 29/28 "Idee für die erste Nachricht:"
+
+=== el ===
+NEWLINE COUNT DIFF: 1
+- legal.privacy.body: en=9 el=8
+TOO LONG (UI risk): 7
+- now.placeholder: 50/40 "Γράψε αυτό που έχεις στο μυαλό σου αυτή τη στιγμή…"
+- rooms.noRooms: 86/80 "Δεν βρέθηκαν δωμάτια σε κοντινή απόσταση. Επιλέξτε ένα μέρος για να δημιουργήσετ…"
+- now.firebaseTitle: 32/28 "Το Firebase δεν έχει διαμορφωθεί"
+- rooms.firebaseTitle: 32/28 "Το Firebase δεν έχει διαμορφωθεί"
+- rooms.noPhotoChat: 84/80 "Μια συνομιλία χωρίς φωτογραφίες δεμένη με ένα μέρος. Μιλήστε μόνο με τους κοντιν…"
+- ads.filterTitle: 29/28 "Χώρα και πόλη για διαφημίσεις"
+- feed.questionHint: 61/60 "Μπορείτε να απαντήσετε στην καρτέλα "Ερώτηση" στο κάτω μέρος."
+
+=== es ===
+TOO LONG (UI risk): 2
+- now.placeholder: 47/40 "Escribe lo que tienes en mente en este momento…"
+- feed.questionHint: 63/60 "Puedes responder en la pestaña "Pregunta" en la parte inferior."
+
+=== fi ===
+NEWLINE COUNT DIFF: 1
+- legal.privacy.body: en=9 fi=8
+TOO LONG (UI risk): 4
+- icebreaker.goal.dating.1: 91/80 "Hei! Millaisista treffeistä pidät enemmän: kahvista, kävelystä vai jostain epäta…"
+- icebreaker.mood.happy.2: 89/80 "Näyttää siltä, ​​että tunnelmasi on positiivinen. Mikä teki sinut onnellisimmaks…"
+- dm.title: 33/28 "Keskustele henkilön {name} kanssa"
+- icebreaker.mood.chill.2: 82/80 "Jos olisimme vain rentoutumassa, mitä tekisimme - elokuvia, musiikkia vai kävely…"
+
+=== fr ===
+TOO LONG (UI risk): 10
+- icebreaker.mood.happy.2: 109/80 "Il semble que vous soyez dans une ambiance positive. Qu'est-ce qui vous a rendu …"
+- icebreaker.goal.friends.1: 106/80 "Salut ! Vous cherchez de la compagnie pour quoi de plus : un café, des promenade…"
+- icebreaker.goal.dating.1: 104/80 "Salut ! Quel genre de rendez-vous préférez-vous : un café, une promenade ou quel…"
+- icebreaker.mood.chill.2: 104/80 "Si nous devions simplement nous détendre, que ferions-nous : des films, de la mu…"
+- rooms.noPhotoChat: 92/80 "Une discussion sans photos liée à un lieu. Parlez uniquement avec les personnes …"
+- geo.permissionRequired: 89/80 "L'autorisation de localisation est requise (activez-la dans les paramètres du té…"
+- icebreaker.goal.long_term.1: 87/80 "Salut ! Qu'est-ce qui est le plus important pour vous parmi les personnes à prox…"
+- ads.filterTitle: 31/28 "Pays et ville pour les annonces"
+- icebreaker.title: 30/28 "Idée pour le premier message :"
+- errorBoundary.title: 29/28 "Quelque chose s'est mal passé"
+
+=== hu ===
+NEWLINE COUNT DIFF: 1
+- legal.privacy.body: en=9 hu=8
+TOO LONG (UI risk): 3
+- ads.filterTitle: 31/28 "Ország és város a hirdetésekhez"
+- now.firebaseTitle: 29/28 "A Firebase nincs konfigurálva"
+- rooms.firebaseTitle: 29/28 "A Firebase nincs konfigurálva"
+
+=== it ===
+TOO LONG (UI risk): 4
+- icebreaker.goal.dating.1: 92/80 "Ciao! Che tipo di appuntamento preferisci: un caffè, una passeggiata o qualcosa …"
+- geo.permissionRequired: 89/80 "È richiesta l'autorizzazione alla posizione (abilitarla nelle impostazioni del t…"
+- icebreaker.mood.chill.2: 84/80 "Se dovessimo semplicemente rilassarci, cosa faremmo: film, musica o una passeggi…"
+- now.placeholder: 43/40 "Scrivi cosa hai in mente in questo momento…"
+
+=== nl ===
+TOO LONG (UI risk): 8
+- icebreaker.mood.happy.2: 98/80 "Het lijkt erop dat je in een positieve sfeer zit. Waar ben je vandaag het gelukk…"
+- rooms.noPhotoChat: 94/80 "Een chat zonder foto's die aan een plaats zijn gekoppeld. Praat alleen met mense…"
+- icebreaker.mood.chill.2: 92/80 "Als we gewoon aan het chillen waren, wat zouden we dan doen: films, muziek of ee…"
+- icebreaker.goal.friends.1: 87/80 "Hallo! Op zoek naar gezelschap voor wat nog meer: ​​koffie, wandelingen of bords…"
+- icebreaker.goal.dating.1: 84/80 "Hoi! Van wat voor soort date hou je meer: ​​koffie, een wandeling of iets ongewo…"
+- ads.filterTitle: 30/28 "Land en stad voor advertenties"
+- icebreaker.goal.chat.2: 82/80 "Als we een uur in de chat zouden rondhangen, waar zouden we dan zeker over prate…"
+- icebreaker.title: 29/28 "Idee voor het eerste bericht:"
+
+=== no ===
+TOO LONG (UI risk): 1
+- icebreaker.title: 29/28 "Idé til den første meldingen:"
+
+=== pl ===
+TOO LONG (UI risk): 4
+- icebreaker.mood.happy.2: 89/80 "Wygląda na to, że jesteś w pozytywnym nastroju. Co sprawiło Ci dzisiaj najwięcej…"
+- now.firebaseTitle: 37/28 "Baza Firebase nie jest skonfigurowana"
+- icebreaker.goal.friends.1: 84/80 "Cześć! Szukasz towarzystwa do czego więcej: kawy, spacerów, a może gier planszow…"
+- icebreaker.title: 29/28 "Pomysł na pierwszą wiadomość:"
+
+=== pt ===
+TOO LONG (UI risk): 3
+- icebreaker.goal.chat.2: 83/80 "Se ficássemos conversando por uma hora, sobre o que definitivamente conversaríam…"
+- icebreaker.title: 31/28 "Ideia para a primeira mensagem:"
+- icebreaker.mood.chill.2: 82/80 "Se estivéssemos apenas relaxando, o que faríamos: filmes, música ou uma caminhad…"
+
+=== ro ===
+TOO LONG (UI risk): 3
+- icebreaker.goal.dating.1: 84/80 "Hi! Ce tip de întâlnire îți place mai mult: o cafea, o plimbare sau ceva neobișn…"
+- ads.filterTitle: 30/28 "Țara și orașul pentru anunțuri"
+- legal.privacy.title: 29/28 "Politica de confidențialitate"
+
+=== ru ===
+NEWLINE COUNT DIFF: 1
+- legal.privacy.body: en=9 ru=18
+TOO LONG (UI risk): 2
+- icebreaker.goal.dating.1: 87/80 "Привет! Какой формат свидания тебе больше заходит: кофе, прогулка или что-то нео…"
+- ads.filterTitle: 29/28 "Страна и город для объявлений"
+
+=== sk ===
+NEWLINE COUNT DIFF: 1
+- legal.privacy.body: en=9 sk=8
+TOO LONG (UI risk): 3
+- now.firebaseTitle: 31/28 "Firebase nie je nakonfigurovaná"
+- rooms.firebaseTitle: 31/28 "Firebase nie je nakonfigurovaná"
+- legal.privacy.title: 30/28 "Zásady ochrany osobných údajov"
+
+=== sl ===
+TOO LONG (UI risk): 1
+- rooms.noPhotoChat: 82/80 "Klepet brez fotografij, vezanih na kraj. Pogovarjajte se samo s tistimi v bližin…"
+
+=== sr ===
+TOO LONG (UI risk): 1
+- icebreaker.goal.chat.2: 81/80 "Кад бисмо се сат времена дружили у ћаскању, о чему бисмо дефинитивно разговарали…"
+CYRILLIC IN NON-RU/UK: 285
+- ads.category.ALL.label: "Све категорије"
+- ads.category.ALL.short: "Све"
+- ads.category.F4F.label: "Она је тражи"
+- ads.category.F4F.short: "Она • Она"
+- ads.category.F4M.label: "Она га тражи"
+- ads.category.F4M.short: "Она • Он"
+- ads.category.M4F.label: "Он је тражи"
+- ads.category.M4F.short: "Он • Она"
+- ads.category.M4M.label: "Он га тражи"
+- ads.category.M4M.short: "Он • Он"
+
+=== sv ===
+TOO LONG (UI risk): 1
+- icebreaker.title: 31/28 "Idé för det första meddelandet:"
+
+=== tr ===
+TOO LONG (UI risk): 2
+- icebreaker.goal.friends.1: 88/80 "Merhaba! Daha fazlası için arkadaş mı arıyorsunuz: kahve, yürüyüşler veya masa o…"
+- icebreaker.goal.dating.1: 84/80 "Merhaba! Hangi randevuyu daha çok seversiniz: kahve, yürüyüş veya sıra dışı bir …"
+
+=== uk ===
+TOO LONG (UI risk): 3
+- icebreaker.goal.dating.1: 82/80 "привіт Яке побачення тобі більше подобається: кава, прогулянка чи щось незвичайн…"
+- icebreaker.title: 30/28 "Ідея для першого повідомлення:"
+- ads.filterTitle: 29/28 "Країна та місто для оголошень"
+
+LQA OK (placeholders match).

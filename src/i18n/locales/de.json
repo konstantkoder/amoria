@@ -249,7 +249,7 @@
   "auth.emailPlaceholder": "E-Mail",
   "auth.passwordPlaceholder": "Passwort",
   "auth.loginButton": "Anmelden",
-  "auth.registerButton": "Konto erstellen",
+  "auth.registerButton": "Registrieren",
   "dm.title": "Chat mit {name}",
   "dm.messagePlaceholder": "Nachricht...",
   "question.title": "Frage des Tages",

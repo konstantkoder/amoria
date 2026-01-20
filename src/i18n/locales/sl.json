@@ -249,7 +249,7 @@
   "auth.emailPlaceholder": "E-pošta",
   "auth.passwordPlaceholder": "Geslo",
   "auth.loginButton": "Prijava",
-  "auth.registerButton": "Ustvari račun",
+  "auth.registerButton": "Registracija",
   "dm.title": "Klepet z {name}",
   "dm.messagePlaceholder": "Sporočilo...",
   "question.title": "Vprašanje dneva",

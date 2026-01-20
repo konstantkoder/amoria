@@ -249,7 +249,7 @@
   "auth.emailPlaceholder": "Correo electrónico",
   "auth.passwordPlaceholder": "Contraseña",
   "auth.loginButton": "Iniciar sesión",
-  "auth.registerButton": "Crear una cuenta",
+  "auth.registerButton": "Registrarse",
   "dm.title": "Chatea con {name}",
   "dm.messagePlaceholder": "Mensaje...",
   "question.title": "pregunta del dia",

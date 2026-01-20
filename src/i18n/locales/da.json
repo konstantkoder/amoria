@@ -237,7 +237,7 @@
   "icebreaker.interest.2": "Fortæl mig noget sjovt relateret til \"{interest}\".",
   "auth.error": "Godkendelsesfejl",
   "auth.loginTitle": "Log ind",
-  "auth.registerTitle": "Register",
+  "auth.registerTitle": "Opret konto",
   "auth.firebaseDisabledLogin": "Firebase er ikke konfigureret. Log ind er ikke tilgængeligt.",
   "auth.firebaseDisabledRegister": "Firebase er ikke konfigureret. Registrering er ikke tilgængelig.",
   "auth.emailRequired": "Indtast en e-mail.",
