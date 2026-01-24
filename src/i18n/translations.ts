@@ -32,7 +32,18 @@ export type Locale =
   | "ro" | "hu" | "el" | "tr";
 
 export const DEFAULT_LOCALE: Locale = "en";
-export const STORAGE_KEY = "amoria_language";
+export const STORAGE_KEY = "amoria.locale";
+export const LEGACY_STORAGE_KEY = "amoria_language";
+
+let runtimeLocale: Locale = DEFAULT_LOCALE;
+
+export function setRuntimeLocale(next: Locale) {
+  runtimeLocale = next;
+}
+
+export function getRuntimeLocale() {
+  return runtimeLocale;
+}
 
 export const LANGUAGE_CODES: Locale[] = [
   "en","ru",

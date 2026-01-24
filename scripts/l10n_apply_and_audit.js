@@ -82,9 +82,18 @@ function hasCyrillic(str) { return /[\u0400-\u04FF]/.test(str); }
 function hasLatin(str) { return /[A-Za-z]/.test(str); }
 
 const MIX_WHITELIST = ["Firebase", "email", "Email", "OK", "SMS", "GPS", "km", "URL", "HTTP", "HTTPS"];
+function stripMixedScriptNoise(str) {
+  let cleaned = str.replace(/\{[a-zA-Z0-9_]+\}/g, "");
+  cleaned = cleaned.replace(/`[^`]*`/g, "");
+  cleaned = cleaned.replace(/"([A-Za-z0-9_./:+-]+)"/g, "");
+  cleaned = cleaned.replace(/'([A-Za-z0-9_./:+-]+)'/g, "");
+  cleaned = cleaned.replace(/«([A-Za-z0-9_./:+-]+)»/g, "");
+  cleaned = cleaned.replace(/“([A-Za-z0-9_./:+-]+)”/g, "");
+  return cleaned;
+}
 function isMixedScript(str) {
-  if (!(hasCyrillic(str) && hasLatin(str))) return false;
-  let cleaned = str;
+  let cleaned = stripMixedScriptNoise(str);
+  if (!(hasCyrillic(cleaned) && hasLatin(cleaned))) return false;
   for (const t of MIX_WHITELIST) cleaned = cleaned.split(t).join("");
   return hasCyrillic(cleaned) && hasLatin(cleaned);
 }

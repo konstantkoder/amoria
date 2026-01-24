@@ -10,7 +10,9 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import {
   DEFAULT_LOCALE,
+  LEGACY_STORAGE_KEY,
   STORAGE_KEY,
+  setRuntimeLocale,
   translate,
   type Locale,
   isLocale,
@@ -40,22 +42,34 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let alive = true;
     (async () => {
+      let nextLocale = DEFAULT_LOCALE;
       try {
         const stored = await AsyncStorage.getItem(STORAGE_KEY);
         if (!alive) return;
         if (stored && isLocale(stored)) {
-          setLocaleState(stored);
+          nextLocale = stored;
         } else {
-          setLanguagePickerVisible(true);
-          setLanguagePickerMandatory(true);
+          const legacy = await AsyncStorage.getItem(LEGACY_STORAGE_KEY);
+          if (!alive) return;
+          if (legacy && isLocale(legacy)) {
+            nextLocale = legacy;
+            await AsyncStorage.setItem(STORAGE_KEY, legacy);
+          } else {
+            await AsyncStorage.setItem(STORAGE_KEY, DEFAULT_LOCALE);
+          }
         }
       } catch {
         if (alive) {
-          setLanguagePickerVisible(true);
-          setLanguagePickerMandatory(true);
+          try {
+            await AsyncStorage.setItem(STORAGE_KEY, DEFAULT_LOCALE);
+          } catch {}
         }
       } finally {
-        if (alive) setReady(true);
+        if (!alive) return;
+        setLocaleState(nextLocale);
+        setLanguagePickerVisible(false);
+        setLanguagePickerMandatory(false);
+        setReady(true);
       }
     })();
     return () => {
@@ -67,11 +81,19 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
     console.log("[i18n] locale changed:", locale);
   }, [locale]);
 
+  useEffect(() => {
+    setRuntimeLocale(locale);
+  }, [locale]);
+
+  useEffect(() => {
+    if (!ready) return;
+    AsyncStorage.setItem(STORAGE_KEY, locale).catch(() => {});
+  }, [locale, ready]);
+
   const setLocale = useCallback((next: Locale) => {
     setLocaleState(next);
     setLanguagePickerVisible(false);
     setLanguagePickerMandatory(false);
-    AsyncStorage.setItem(STORAGE_KEY, next).catch(() => {});
   }, []);
 
   const t = useCallback(
