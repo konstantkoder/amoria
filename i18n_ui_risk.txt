@@ -1,10 +1,10 @@
 I18N UI RISK REPORT
 Base: en.json
-Dir:  C:\Dev\Amoria\src\i18n\locales
+Dir:  /mnt/c/Dev/Amoria/src/i18n/locales
 
 === BS (risk=5) ===
-[50] auth.firebaseDisabledRegister: Firebase nije podešen. Registracija nije dostupna.
-[45] auth.firebaseDisabledLogin: Firebase nije podešen. Prijava nije dostupna.
+[41] auth.firebaseDisabledRegister: Firebase nije podešen. Nema registracije.
+[36] auth.firebaseDisabledLogin: Firebase nije podešen. Nema prijave.
 [32] now.sendFailedBody: Ne mogu poslati. Pokušaj ponovo.
 [26] auth.registerError: Registracija nije uspjela.
 [21] auth.loginError: Prijava nije uspjela.
@@ -17,8 +17,8 @@ Dir:  C:\Dev\Amoria\src\i18n\locales
 [24] auth.registerError: Registrace se nezdařila.
 
 === DA (risk=7) ===
-[48] auth.firebaseDisabledRegister: Firebase er ikke sat op. Kan ikke oprette konto.
-[44] auth.firebaseDisabledLogin: Firebase er ikke sat op. Kan ikke logge ind.
+[40] auth.firebaseDisabledLogin: Firebase ikke sat op. Login ikke muligt.
+[40] auth.firebaseDisabledRegister: Firebase ikke sat op. Opret ikke muligt.
 [28] now.sendFailedBody: Kunne ikke sende. Prøv igen.
 [27] auth.registerError: Registreringen mislykkedes.
 [20] ads.whoLookingFor: Hvem leder du efter?
@@ -26,15 +26,15 @@ Dir:  C:\Dev\Amoria\src\i18n\locales
 [17] rooms.sendFailed: Kunne ikke sende.
 
 === DE (risk=5) ===
-[57] auth.firebaseDisabledRegister: Firebase nicht eingerichtet. Registrierung nicht möglich.
-[53] auth.firebaseDisabledLogin: Firebase nicht eingerichtet. Anmeldung nicht möglich.
+[44] auth.firebaseDisabledRegister: Firebase fehlt. Registrierung nicht möglich.
+[36] auth.firebaseDisabledLogin: Firebase fehlt. Login nicht möglich.
 [29] now.sendFailedBody: Nicht gesendet. Bitte erneut.
 [29] auth.registerError: Registrierung fehlgeschlagen.
 [25] auth.loginError: Anmeldung fehlgeschlagen.
 
 === EL (risk=5) ===
-[52] auth.firebaseDisabledLogin: Το Firebase δεν έχει ρυθμιστεί. Δεν γίνεται σύνδεση.
-[52] auth.firebaseDisabledRegister: Το Firebase δεν έχει ρυθμιστεί. Δεν γίνεται εγγραφή.
+[53] auth.firebaseDisabledLogin: Το Firebase δεν έχει ρυθμιστεί. Σύνδεση μη διαθέσιμη.
+[53] auth.firebaseDisabledRegister: Το Firebase δεν έχει ρυθμιστεί. Εγγραφή μη διαθέσιμη.
 [29] now.sendFailedBody: Δεν στάλθηκε. Δοκιμάστε ξανά.
 [18] auth.loginError: Η σύνδεση απέτυχε.
 [18] auth.registerError: Η εγγραφή απέτυχε.
@@ -48,24 +48,24 @@ Dir:  C:\Dev\Amoria\src\i18n\locales
 [17] auth.registerError: Couldn't sign up.
 
 === ES (risk=6) ===
-[55] auth.firebaseDisabledLogin: Firebase no está configurado. No puedes iniciar sesión.
-[52] auth.firebaseDisabledRegister: Firebase no está configurado. No puedes registrarte.
+[48] auth.firebaseDisabledRegister: Firebase no configurado. Registro no disponible.
+[46] auth.firebaseDisabledLogin: Firebase no configurado. Inicio no disponible.
 [38] now.sendFailedBody: No se pudo enviar. Inténtalo de nuevo.
 [26] auth.loginError: Error de inicio de sesión.
 [18] rooms.sendFailed: No se pudo enviar.
 [18] auth.registerError: Error de registro.
 
 === FI (risk=6) ===
-[52] auth.firebaseDisabledLogin: Firebasea ei ole asetettu. Kirjautuminen ei onnistu.
-[52] auth.firebaseDisabledRegister: Firebasea ei ole asetettu. Rekisteröinti ei onnistu.
+[39] auth.firebaseDisabledRegister: Firebase puuttuu. Ei voi rekisteröityä.
 [35] now.sendFailedBody: Ei voitu lähettää. Yritä uudelleen.
+[35] auth.firebaseDisabledLogin: Firebase puuttuu. Ei voi kirjautua.
 [32] auth.loginError: Sisäänkirjautuminen epäonnistui.
 [26] auth.registerError: Rekisteröinti epäonnistui.
 [18] rooms.sendFailed: Ei voitu lähettää.
 
 === FR (risk=7) ===
-[47] auth.firebaseDisabledRegister: Firebase non configuré. Inscription impossible.
-[45] auth.firebaseDisabledLogin: Firebase non configuré. Connexion impossible.
+[40] auth.firebaseDisabledRegister: Firebase absent. Inscription impossible.
+[38] auth.firebaseDisabledLogin: Firebase absent. Connexion impossible.
 [31] now.sendFailedBody: Impossible d'envoyer. Réessaie.
 [23] auth.registerError: Échec de l'inscription.
 [22] auth.loginError: Échec de la connexion.
@@ -73,8 +73,8 @@ Dir:  C:\Dev\Amoria\src\i18n\locales
 [21] ads.whoLookingFor: Qui recherchez-vous ?
 
 === HR (risk=5) ===
-[50] auth.firebaseDisabledRegister: Firebase nije podešen. Registracija nije dostupna.
-[45] auth.firebaseDisabledLogin: Firebase nije podešen. Prijava nije dostupna.
+[41] auth.firebaseDisabledRegister: Firebase nije podešen. Nema registracije.
+[36] auth.firebaseDisabledLogin: Firebase nije podešen. Nema prijave.
 [32] now.sendFailedBody: Ne mogu poslati. Pokušaj ponovo.
 [26] auth.registerError: Registracija nije uspjela.
 [21] auth.loginError: Prijava nije uspjela.
@@ -103,8 +103,8 @@ Dir:  C:\Dev\Amoria\src\i18n\locales
 [19] auth.loginError: Aanmelding mislukt.
 
 === NO (risk=7) ===
-[47] auth.firebaseDisabledRegister: Firebase er ikke satt opp. Kan ikke registrere.
-[46] auth.firebaseDisabledLogin: Firebase er ikke satt opp. Kan ikke logge inn.
+[51] auth.firebaseDisabledRegister: Firebase ikke satt opp. Registrering utilgjengelig.
+[49] auth.firebaseDisabledLogin: Firebase ikke satt opp. Innlogging utilgjengelig.
 [29] now.sendFailedBody: Kunne ikke sende. Prøv igjen.
 [25] auth.registerError: Registreringen mislyktes.
 [20] ads.whoLookingFor: Hvem leter du etter?
@@ -112,15 +112,15 @@ Dir:  C:\Dev\Amoria\src\i18n\locales
 [17] rooms.sendFailed: Kunne ikke sende.
 
 === PL (risk=5) ===
-[57] auth.firebaseDisabledRegister: Firebase nie jest ustawiony. Nie można się zarejestrować.
-[53] auth.firebaseDisabledLogin: Firebase nie jest ustawiony. Nie można się zalogować.
+[47] auth.firebaseDisabledRegister: Firebase nieustawiony. Rejestracja niedostępna.
+[45] auth.firebaseDisabledLogin: Firebase nieustawiony. Logowanie niedostępne.
 [30] now.sendFailedBody: Nie wysłano. Spróbuj ponownie.
 [29] auth.registerError: Rejestracja nie powiodła się.
 [27] auth.loginError: Logowanie nie powiodło się.
 
 === PT (risk=6) ===
-[54] auth.firebaseDisabledRegister: Firebase não configurado. Não é possível se cadastrar.
-[48] auth.firebaseDisabledLogin: Firebase não configurado. Não é possível entrar.
+[48] auth.firebaseDisabledRegister: Firebase não configurado. Cadastro indisponível.
+[45] auth.firebaseDisabledLogin: Firebase não configurado. Login indisponível.
 [39] now.sendFailedBody: Não foi possível enviar. Tente de novo.
 [24] rooms.sendFailed: Não foi possível enviar.
 [18] ads.whoLookingFor: Quem você procura?
@@ -135,7 +135,7 @@ Dir:  C:\Dev\Amoria\src\i18n\locales
 [21] rooms.sendFailed: Nu s-a putut trimite.
 
 === RU (risk=5) ===
-[45] auth.firebaseDisabledRegister: Firebase не настроен. Регистрация недоступна.
+[38] auth.firebaseDisabledRegister: Firebase не настроен. Нет регистрации.
 [35] auth.firebaseDisabledLogin: Firebase не настроен. Войти нельзя.
 [33] now.sendFailedBody: Не отправилось. Попробуй ещё раз.
 [18] auth.registerError: Ошибка регистрации
@@ -156,15 +156,15 @@ Dir:  C:\Dev\Amoria\src\i18n\locales
 [18] auth.loginError: Prijava ni uspela.
 
 === SR (risk=5) ===
-[50] auth.firebaseDisabledRegister: Firebase nije podešen. Registracija nije dostupna.
-[45] auth.firebaseDisabledLogin: Firebase nije podešen. Prijava nije dostupna.
+[41] auth.firebaseDisabledRegister: Firebase nije podešen. Nema registracije.
+[36] auth.firebaseDisabledLogin: Firebase nije podešen. Nema prijave.
 [32] now.sendFailedBody: Ne mogu poslati. Pokušaj ponovo.
 [27] auth.loginError: Prijavljivanje nije uspelo.
 [25] auth.registerError: Registracija nije uspela.
 
 === SV (risk=7) ===
-[47] auth.firebaseDisabledRegister: Firebase är inte inställt. Kan inte registrera.
-[45] auth.firebaseDisabledLogin: Firebase är inte inställt. Kan inte logga in.
+[45] auth.firebaseDisabledRegister: Firebase ej inställt. Registrering ej möjlig.
+[43] auth.firebaseDisabledLogin: Firebase ej inställt. Inloggning ej möjlig.
 [31] now.sendFailedBody: Kunde inte skicka. Försök igen.
 [28] auth.registerError: Registreringen misslyckades.
 [26] auth.loginError: Inloggningen misslyckades.
@@ -179,8 +179,8 @@ Dir:  C:\Dev\Amoria\src\i18n\locales
 [21] auth.registerError: Kayıt başarısız oldu.
 
 === UK (risk=4) ===
-[50] auth.firebaseDisabledRegister: Firebase не налаштовано. Зареєструватися не можна.
 [42] auth.firebaseDisabledLogin: Firebase не налаштовано. Увійти неможливо.
+[42] auth.firebaseDisabledRegister: Firebase не налаштовано. Реєстрації немає.
 [31] now.sendFailedBody: Не надіслалось. Спробуй ще раз.
 [19] auth.registerError: Помилка реєстрації.
 

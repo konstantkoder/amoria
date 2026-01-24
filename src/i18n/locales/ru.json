@@ -239,7 +239,7 @@
   "auth.loginTitle": "Вход",
   "auth.registerTitle": "Регистрация",
   "auth.firebaseDisabledLogin": "Firebase не настроен. Войти нельзя.",
-  "auth.firebaseDisabledRegister": "Firebase не настроен. Регистрация недоступна.",
+  "auth.firebaseDisabledRegister": "Firebase не настроен. Нет регистрации.",
   "auth.emailRequired": "Введите email.",
   "auth.emailInvalid": "Проверь формат email.",
   "auth.passwordRequired": "Введите пароль.",

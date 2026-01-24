@@ -239,7 +239,7 @@
   "auth.loginTitle": "Вхід",
   "auth.registerTitle": "Реєстрація",
   "auth.firebaseDisabledLogin": "Firebase не налаштовано. Увійти неможливо.",
-  "auth.firebaseDisabledRegister": "Firebase не налаштовано. Зареєструватися не можна.",
+  "auth.firebaseDisabledRegister": "Firebase не налаштовано. Реєстрації немає.",
   "auth.emailRequired": "Введіть адресу електронної пошти.",
   "auth.emailInvalid": "Перевірте формат електронної пошти.",
   "auth.passwordRequired": "Введіть пароль.",
