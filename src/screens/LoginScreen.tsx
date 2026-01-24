@@ -26,10 +26,15 @@ export default function LoginScreen({
   onAuthStart,
   authError,
 }: LoginScreenProps) {
-  const { t } = useLocale();
+  const { t, locale, openLanguagePicker } = useLocale();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const firebaseConfigured = isFirebaseConfigured();
+  const localeCode = locale.toUpperCase();
+  const languageLabel = useMemo(() => {
+    const translated = t("menu.languageCurrent", { code: localeCode });
+    return translated === "menu.languageCurrent" ? localeCode : translated;
+  }, [localeCode, t]);
   const fallbackMessage = useMemo(() => {
     if (authError) return translateMaybeKey(authError, t, ["auth."]);
     if (!firebaseConfigured) {
@@ -105,6 +110,13 @@ export default function LoginScreen({
 
   return (
     <View style={styles.screen}>
+      <TouchableOpacity
+        style={styles.languageButton}
+        onPress={openLanguagePicker}
+        activeOpacity={0.85}
+      >
+        <Text style={styles.languageButtonText}>{languageLabel}</Text>
+      </TouchableOpacity>
       <View style={styles.container}>
         <Text style={styles.title}>{t("auth.loginTitle")}</Text>
         {fallbackMessage ? (
@@ -154,6 +166,26 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: "#FFFFFF",
+  },
+  languageButton: {
+    position: "absolute",
+    top: 16,
+    right: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: "rgba(17,24,39,0.88)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.35)",
+    zIndex: 2,
+  },
+  languageButtonText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "700",
+    textShadowColor: "rgba(0,0,0,0.6)",
+    textShadowRadius: 4,
+    textShadowOffset: { width: 0, height: 1 },
   },
   container: {
     flex: 1,
