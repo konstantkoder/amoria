@@ -1,6 +1,6 @@
 I18N UI RISK REPORT
 Base: en.json
-Dir:  /mnt/c/Dev/Amoria/src/i18n/locales
+Dir:  C:\Dev\Amoria\src\i18n\locales
 
 === BS (risk=5) ===
 [50] auth.firebaseDisabledRegister: Firebase nije podešen. Registracija nije dostupna.
