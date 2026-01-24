@@ -43,6 +43,7 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
     let alive = true;
     (async () => {
       let nextLocale = DEFAULT_LOCALE;
+      let shouldPrompt = false;
       try {
         const stored = await AsyncStorage.getItem(STORAGE_KEY);
         if (!alive) return;
@@ -55,20 +56,18 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
             nextLocale = legacy;
             await AsyncStorage.setItem(STORAGE_KEY, legacy);
           } else {
-            await AsyncStorage.setItem(STORAGE_KEY, DEFAULT_LOCALE);
+            shouldPrompt = true;
           }
         }
       } catch {
         if (alive) {
-          try {
-            await AsyncStorage.setItem(STORAGE_KEY, DEFAULT_LOCALE);
-          } catch {}
+          shouldPrompt = true;
         }
       } finally {
         if (!alive) return;
         setLocaleState(nextLocale);
-        setLanguagePickerVisible(false);
-        setLanguagePickerMandatory(false);
+        setLanguagePickerVisible(shouldPrompt);
+        setLanguagePickerMandatory(shouldPrompt);
         setReady(true);
       }
     })();
@@ -86,9 +85,9 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
   }, [locale]);
 
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || languagePickerMandatory) return;
     AsyncStorage.setItem(STORAGE_KEY, locale).catch(() => {});
-  }, [locale, ready]);
+  }, [locale, ready, languagePickerMandatory]);
 
   const setLocale = useCallback((next: Locale) => {
     setLocaleState(next);
