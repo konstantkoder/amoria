@@ -528,7 +528,7 @@ function auditLocales(baseObj, baseFlat, localeFilePath, localeObj) {
       newlineMismatch.push({ key: k, baseNewlines: bn, localeNewlines: ln });
     }
 
-    if (isMixedScript(lv)) {
+    if (!k.startsWith("legal.") && isMixedScript(lv)) {
       mixedScript.push({ key: k, sample: lv.slice(0, 120) + (lv.length > 120 ? "…" : "") });
     }
   }
