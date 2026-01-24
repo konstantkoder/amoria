@@ -1,0 +1,201 @@
+I18N UI RISK REPORT
+Base: en.json
+Dir:  /mnt/c/Dev/Amoria/src/i18n/locales
+
+=== BS (risk=6) ===
+[55] auth.firebaseDisabledRegister: Firebase nije konfigurisan. Registracija nije dostupna.
+[52] now.sendFailedBody: Nije moguće poslati poruku. Molimo pokušajte ponovo.
+[50] auth.firebaseDisabledLogin: Firebase nije konfigurisan. Prijava je nedostupna.
+[27] rooms.sendFailed: Nije moguće poslati poruku.
+[26] auth.registerError: Registracija nije uspjela.
+[21] auth.loginError: Prijava nije uspjela.
+
+=== CS (risk=6) ===
+[56] auth.firebaseDisabledLogin: Firebase není nakonfigurována. Přihlášení není dostupné.
+[56] auth.firebaseDisabledRegister: Firebase není nakonfigurováno. Registrace není dostupná.
+[45] now.sendFailedBody: Zprávu nelze odeslat. Zkuste to prosím znovu.
+[24] auth.loginError: Přihlášení se nezdařilo.
+[24] auth.registerError: Registrace se nezdařila.
+[21] rooms.sendFailed: Zprávu nelze odeslat.
+
+=== DA (risk=7) ===
+[64] auth.firebaseDisabledRegister: Firebase er ikke konfigureret. Registrering er ikke tilgængelig.
+[60] auth.firebaseDisabledLogin: Firebase er ikke konfigureret. Log ind er ikke tilgængeligt.
+[46] now.sendFailedBody: Kunne ikke sende beskeden. Prøv venligst igen.
+[27] auth.registerError: Registreringen mislykkedes.
+[26] rooms.sendFailed: Kunne ikke sende beskeden.
+[19] ads.whoLookingFor: Hvem leder du efter
+[18] auth.loginError: Login mislykkedes.
+
+=== DE (risk=6) ===
+[74] now.sendFailedBody: Die Nachricht konnte nicht gesendet werden. Bitte versuchen Sie es erneut.
+[71] auth.firebaseDisabledRegister: Firebase ist nicht konfiguriert. Die Registrierung ist nicht verfügbar.
+[65] auth.firebaseDisabledLogin: Firebase ist nicht konfiguriert. Die Anmeldung ist nicht möglich.
+[43] rooms.sendFailed: Die Nachricht konnte nicht gesendet werden.
+[29] auth.registerError: Registrierung fehlgeschlagen.
+[25] auth.loginError: Anmeldung fehlgeschlagen.
+
+=== EL (risk=6) ===
+[62] auth.firebaseDisabledLogin: Το Firebase δεν έχει ρυθμιστεί. Η σύνδεση δεν είναι διαθέσιμη.
+[62] auth.firebaseDisabledRegister: Το Firebase δεν έχει ρυθμιστεί. Η εγγραφή δεν είναι διαθέσιμη.
+[57] now.sendFailedBody: Δεν ήταν δυνατή η αποστολή του μηνύματος. Δοκιμάστε ξανά.
+[41] rooms.sendFailed: Δεν ήταν δυνατή η αποστολή του μηνύματος.
+[18] auth.loginError: Η σύνδεση απέτυχε.
+[18] auth.registerError: Η εγγραφή απέτυχε.
+
+=== EN (risk=7) ===
+[46] auth.firebaseDisabledLogin: Firebase isn't set up. Sign in is unavailable.
+[46] auth.firebaseDisabledRegister: Firebase isn't set up. Sign up is unavailable.
+[45] now.sendFailedBody: Could not send the message. Please try again.
+[27] rooms.sendFailed: Could not send the message.
+[23] ads.whoLookingFor: Who are you looking for
+[17] auth.loginError: Couldn't sign in.
+[17] auth.registerError: Couldn't sign up.
+
+=== ES (risk=6) ===
+[69] auth.firebaseDisabledLogin: Firebase no está configurado. El inicio de sesión no está disponible.
+[61] auth.firebaseDisabledRegister: Firebase no está configurado. El registro no está disponible.
+[60] now.sendFailedBody: No se pudo enviar el mensaje. Por favor, inténtalo de nuevo.
+[29] rooms.sendFailed: No se pudo enviar el mensaje.
+[26] auth.loginError: Error de inicio de sesión.
+[18] auth.registerError: Error de registro.
+
+=== FI (risk=6) ===
+[64] auth.firebaseDisabledLogin: Firebasea ei ole määritetty. Kirjautuminen ei ole käytettävissä.
+[64] auth.firebaseDisabledRegister: Firebasea ei ole määritetty. Rekisteröinti ei ole käytettävissä.
+[43] now.sendFailedBody: Viestiä ei voitu lähettää. Yritä uudelleen.
+[32] auth.loginError: Sisäänkirjautuminen epäonnistui.
+[26] rooms.sendFailed: Viestiä ei voitu lähettää.
+[26] auth.registerError: Rekisteröinti epäonnistui.
+
+=== FR (risk=7) ===
+[65] auth.firebaseDisabledRegister: Firebase n’est pas configuré. L'inscription n'est pas disponible.
+[64] auth.firebaseDisabledLogin: Firebase n'est pas configuré. La connexion n’est pas disponible.
+[52] now.sendFailedBody: Impossible d'envoyer le message. Veuillez réessayer.
+[32] rooms.sendFailed: Impossible d'envoyer le message.
+[23] auth.registerError: Échec de l'inscription.
+[22] auth.loginError: Échec de la connexion.
+[19] ads.whoLookingFor: Qui recherchez-vous
+
+=== HR (risk=6) ===
+[55] auth.firebaseDisabledRegister: Firebase nije konfiguriran. Registracija nije dostupna.
+[52] now.sendFailedBody: Nije moguće poslati poruku. Molimo pokušajte ponovo.
+[50] auth.firebaseDisabledLogin: Firebase nije konfiguriran. Prijava nije dostupna.
+[27] rooms.sendFailed: Nije moguće poslati poruku.
+[26] auth.registerError: Registracija nije uspjela.
+[21] auth.loginError: Prijava nije uspjela.
+
+=== HU (risk=6) ===
+[61] auth.firebaseDisabledLogin: A Firebase nincs konfigurálva. A bejelentkezés nem érhető el.
+[60] auth.firebaseDisabledRegister: A Firebase nincs konfigurálva. A regisztráció nem érhető el.
+[58] now.sendFailedBody: Nem sikerült elküldeni az üzenetet. Kérjük, próbálja újra.
+[35] rooms.sendFailed: Nem sikerült elküldeni az üzenetet.
+[26] auth.registerError: A regisztráció sikertelen.
+[25] auth.loginError: Sikertelen bejelentkezés.
+
+=== IT (risk=7) ===
+[63] auth.firebaseDisabledRegister: Firebase non è configurato. La registrazione non è disponibile.
+[56] auth.firebaseDisabledLogin: Firebase non è configurato. L'accesso non è disponibile.
+[42] now.sendFailedBody: Impossibile inviare il messaggio. Riprova.
+[33] rooms.sendFailed: Impossibile inviare il messaggio.
+[22] auth.registerError: Registrazione fallita.
+[21] ads.whoLookingFor: Chi stai cercando per
+[21] auth.loginError: Accesso non riuscito.
+
+=== NL (risk=6) ===
+[65] auth.firebaseDisabledRegister: Firebase is niet geconfigureerd. Registratie is niet beschikbaar.
+[63] auth.firebaseDisabledLogin: Firebase is niet geconfigureerd. Aanmelden is niet beschikbaar.
+[52] now.sendFailedBody: Kan het bericht niet verzenden. Probeer het opnieuw.
+[31] rooms.sendFailed: Kan het bericht niet verzenden.
+[20] auth.registerError: Registratie mislukt.
+[19] auth.loginError: Aanmelding mislukt.
+
+=== NO (risk=7) ===
+[60] auth.firebaseDisabledRegister: Firebase er ikke konfigurert. Registrering er utilgjengelig.
+[57] auth.firebaseDisabledLogin: Firebase er ikke konfigurert. Pålogging er utilgjengelig.
+[49] now.sendFailedBody: Kunne ikke sende meldingen. Vennligst prøv igjen.
+[27] rooms.sendFailed: Kunne ikke sende meldingen.
+[25] auth.registerError: Registreringen mislyktes.
+[20] auth.loginError: Pålogging mislyktes.
+[19] ads.whoLookingFor: Hvem leter du etter
+
+=== PL (risk=6) ===
+[63] auth.firebaseDisabledRegister: Firebase nie jest skonfigurowana. Rejestracja jest niedostępna.
+[61] auth.firebaseDisabledLogin: Firebase nie jest skonfigurowana. Logowanie jest niedostępne.
+[46] now.sendFailedBody: Nie można wysłać wiadomości. Spróbuj ponownie.
+[32] rooms.sendFailed: Nie udało się wysłać wiadomości.
+[29] auth.registerError: Rejestracja nie powiodła się.
+[27] auth.loginError: Logowanie nie powiodło się.
+
+=== PT (risk=6) ===
+[64] auth.firebaseDisabledRegister: O Firebase não está configurado. O registro não está disponível.
+[63] now.sendFailedBody: Não foi possível enviar a mensagem. Por favor, tente novamente.
+[61] auth.firebaseDisabledLogin: O Firebase não está configurado. O login não está disponível.
+[35] rooms.sendFailed: Não foi possível enviar a mensagem.
+[18] auth.registerError: Falha no registro.
+[17] ads.whoLookingFor: Quem você procura
+
+=== RO (risk=6) ===
+[63] auth.firebaseDisabledRegister: Firebase nu este configurat. Înregistrarea nu este disponibilă.
+[60] now.sendFailedBody: Nu s-a putut trimite mesajul. Vă rugăm să încercați din nou.
+[60] auth.firebaseDisabledLogin: Firebase nu este configurat. Conectarea nu este disponibilă.
+[29] rooms.sendFailed: Nu s-a putut trimite mesajul.
+[23] auth.loginError: Conectarea nu a reușit.
+[22] auth.registerError: Înregistrarea a eșuat.
+
+=== RU (risk=6) ===
+[49] now.sendFailedBody: Не удалось отправить сообщение, попробуй ещё раз.
+[45] auth.firebaseDisabledRegister: Firebase не настроен. Регистрация недоступна.
+[38] auth.firebaseDisabledLogin: Firebase не настроен. Вход недоступен.
+[31] rooms.sendFailed: Не удалось отправить сообщение.
+[18] auth.registerError: Ошибка регистрации
+[18] auth.registerButton: Зарегистрироваться
+
+=== SK (risk=6) ===
+[61] auth.firebaseDisabledLogin: Firebase nie je nakonfigurovaný. Prihlásenie nie je dostupné.
+[59] auth.firebaseDisabledRegister: Firebase nie je nakonfigurovaný. Registrácia je nedostupná.
+[46] now.sendFailedBody: Správu sa nepodarilo odoslať. Skúste to znova.
+[29] rooms.sendFailed: Správu sa nepodarilo odoslať.
+[20] auth.loginError: Prihlásenie zlyhalo.
+[20] auth.registerError: Registrácia zlyhala.
+
+=== SL (risk=6) ===
+[51] auth.firebaseDisabledRegister: Firebase ni konfiguriran. Registracija ni na voljo.
+[50] now.sendFailedBody: Sporočila ni bilo mogoče poslati. Poskusite znova.
+[46] auth.firebaseDisabledLogin: Firebase ni konfiguriran. Prijava ni na voljo.
+[33] rooms.sendFailed: Ni bilo mogoče poslati sporočila.
+[23] auth.registerError: Registracija ni uspela.
+[18] auth.loginError: Prijava ni uspela.
+
+=== SR (risk=6) ===
+[55] auth.firebaseDisabledRegister: Firebase nije konfigurisan. Registracija nije dostupna.
+[50] auth.firebaseDisabledLogin: Firebase nije konfigurisan. Prijava je nedostupna.
+[45] now.sendFailedBody: Nije moguće poslati poruku. Pokušajte ponovo.
+[27] rooms.sendFailed: Nije moguće poslati poruku.
+[27] auth.loginError: Prijavljivanje nije uspelo.
+[25] auth.registerError: Registracija nije uspela.
+
+=== SV (risk=7) ===
+[64] auth.firebaseDisabledRegister: Firebase är inte konfigurerad. Registrering är inte tillgänglig.
+[62] auth.firebaseDisabledLogin: Firebase är inte konfigurerad. Inloggning är inte tillgänglig.
+[43] now.sendFailedBody: Kunde inte skicka meddelandet. Försök igen.
+[30] rooms.sendFailed: Kunde inte skicka meddelandet.
+[28] auth.registerError: Registreringen misslyckades.
+[26] auth.loginError: Inloggningen misslyckades.
+[18] ads.whoLookingFor: Vem letar du efter
+
+=== TR (risk=6) ===
+[48] auth.firebaseDisabledRegister: Firebase yapılandırılmadı. Kayıt kullanılamıyor.
+[45] auth.firebaseDisabledLogin: Firebase yapılandırılmadı. Oturum açılamıyor.
+[43] now.sendFailedBody: Mesaj gönderilemedi. Lütfen tekrar deneyin.
+[22] auth.loginError: Oturum açma başarısız.
+[21] auth.registerError: Kayıt başarısız oldu.
+[20] rooms.sendFailed: Mesaj gönderilemedi.
+
+=== UK (risk=5) ===
+[52] now.sendFailedBody: Не вдалося надіслати повідомлення. Спробуйте ще раз.
+[47] auth.firebaseDisabledRegister: Firebase не налаштовано. Реєстрація недоступна.
+[42] auth.firebaseDisabledLogin: Firebase не налаштовано. Вхід недоступний.
+[34] rooms.sendFailed: Не вдалося надіслати повідомлення.
+[19] auth.registerError: Помилка реєстрації.
+

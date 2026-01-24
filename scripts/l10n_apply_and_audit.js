@@ -528,7 +528,8 @@ function auditLocales(baseObj, baseFlat, localeFilePath, localeObj) {
       newlineMismatch.push({ key: k, baseNewlines: bn, localeNewlines: ln });
     }
 
-    if (!k.startsWith("legal.") && isMixedScript(lv)) {
+    const skipMixedScript = k === "legal.privacy.body" || k === "legal.privacy.title";
+    if (!skipMixedScript && isMixedScript(lv)) {
       mixedScript.push({ key: k, sample: lv.slice(0, 120) + (lv.length > 120 ? "…" : "") });
     }
   }

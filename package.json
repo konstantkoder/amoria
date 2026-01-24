@@ -15,7 +15,10 @@
     "sanity:deck": "powershell -NoLogo -NonInteractive -ExecutionPolicy Bypass -File scripts/sanity_deck.ps1",
     "sanity:flirt": "powershell -NoLogo -NonInteractive -ExecutionPolicy Bypass -File scripts/sanity_flirt.ps1",
     "dev:lan": "npx expo start -c --port 8092 --lan",
-    "dev:tunnel": "npx expo start -c --port 8092 --tunnel"
+    "dev:tunnel": "npx expo start -c --port 8092 --tunnel",
+    "i18n:pack": "powershell -ExecutionPolicy Bypass -File scripts\\make-i18n-translation-pack.ps1",
+    "i18n:audit": "node scripts/l10n_apply_and_audit.js",
+    "i18n:ui-risk": "node scripts/i18n_ui_risk.js"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",

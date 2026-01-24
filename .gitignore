@@ -78,3 +78,13 @@ coverage/
 New Text Document*.txt
 er.name
 upload_to_github*.bat
+i18n_translation_pack.zip
+.amoria_l10n_pack/
+_translation_master_pack/
+amoria_translation_review_pack/
+i18n_review_pack/
+*.csv
+*lqa*.txt
+i18n_audit_latest.txt
+i18n_core_review.csv
+glossary_template.json
