@@ -53,9 +53,11 @@ function MainTabs() {
     <Tab.Navigator
       key={locale}
       initialRouteName="Feed"
+      detachInactiveScreens={false}
       sceneContainerStyle={{ backgroundColor: "transparent" }}
       screenOptions={({ route }) => ({
         headerShown: false,
+        lazy: false,
         tabBarActiveTintColor: theme.colors.accent,
         tabBarInactiveTintColor: "#A1A1AA",
         tabBarStyle: {

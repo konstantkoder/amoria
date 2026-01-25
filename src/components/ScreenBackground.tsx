@@ -85,8 +85,8 @@ const variantDefaults: Record<
   ScreenBackgroundVariant,
   { overlayOpacity: number; blurRadius: number }
 > = {
-  default: { overlayOpacity: 0.18, blurRadius: 0 },
-  hearts: { overlayOpacity: 0.18, blurRadius: 0 },
+  default: { overlayOpacity: 0.18, blurRadius: 2 },
+  hearts: { overlayOpacity: 0.18, blurRadius: 2 },
 
   // image variants
   smoke: { overlayOpacity: 0.35, blurRadius: 3 },

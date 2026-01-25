@@ -55,13 +55,16 @@ export default function BackgroundWrapper({
 
   const fallbackSource = backgrounds.nightCity ?? bgSource;
   const source = useFallback ? fallbackSource : bgSource;
+  const activeSource = source;
 
   return (
     <ImageBackground
-      source={source}
+      source={activeSource}
+      defaultSource={activeSource}
       key={`${background}:${useFallback ? "fallback" : "main"}:${retryCount}`}
       resizeMode="cover"
       blurRadius={blurRadius}
+      fadeDuration={0}
       style={[styles.root, style]}
       imageStyle={styles.image}
       onError={(e) => {
@@ -89,8 +92,8 @@ export default function BackgroundWrapper({
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1 },
-  image: { opacity: 1 },
+  root: { flex: 1, backgroundColor: "#000000" },
+  image: { opacity: 1, backgroundColor: "#000000" },
   overlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "#000",

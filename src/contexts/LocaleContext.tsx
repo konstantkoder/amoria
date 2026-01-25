@@ -77,10 +77,6 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    console.log("[i18n] locale changed:", locale);
-  }, [locale]);
-
-  useEffect(() => {
     setRuntimeLocale(locale);
   }, [locale]);
 
