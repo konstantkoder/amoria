@@ -2,21 +2,19 @@ import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { useNavigation } from "@react-navigation/native";
 
 import ScreenBackground, {
   type ScreenBackgroundVariant,
 } from "@/components/ScreenBackground";
 import MenuButton from "@/components/MenuButton";
 import { openDrawer } from "@/navigation/drawerController";
-import { useLocale } from "@/contexts/LocaleContext";
 
 type Props = {
   title?: string;
   background?: ScreenBackgroundVariant;
   overlayOpacity?: number;
   blurRadius?: number;
-  debugTint?: boolean;
   showHeader?: boolean;
   showBack?: boolean;
   onBack?: () => void;
@@ -28,18 +26,12 @@ export default function ScreenShell({
   background = "default",
   overlayOpacity,
   blurRadius,
-  debugTint = false,
   showHeader = true,
   showBack,
   onBack,
   children,
 }: Props) {
   const navigation = useNavigation<any>();
-  const route = useRoute<any>();
-  const { t } = useLocale();
-  const showDebugTint =
-    debugTint ||
-    (__DEV__ && process.env.EXPO_PUBLIC_BG_DEBUG === "1");
 
   const handleBack = () => {
     if (onBack) return onBack();
@@ -55,8 +47,6 @@ export default function ScreenShell({
       variant={background}
       overlayOpacity={overlayOpacity}
       blurRadius={blurRadius}
-      debugTint={showDebugTint}
-      screenLabel={route?.name ?? title ?? t("common.screen")}
     >
       <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
         {showHeader ? (

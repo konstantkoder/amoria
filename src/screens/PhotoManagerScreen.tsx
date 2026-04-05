@@ -1,11 +1,16 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, Button, Image, FlatList, Alert } from "react-native";
 import * as ImagePicker from "expo-image-picker";
+import { auth, isFirebaseConfigured } from "@/config/firebaseConfig";
 import {
   ensureAuth,
-  getUserProfile,
-  updateUserPhotos,
+  getUserProfile as getDemoUserProfile,
+  updateUserPhotos as updateDemoUserPhotos,
 } from "@/services/firebase";
+import {
+  getUserProfile as getRemoteUserProfile,
+  updateUserFields,
+} from "@/services/user";
 import { uploadImage } from "@/services/storage";
 import { theme } from "@/theme";
 import { useLocale } from "@/contexts/LocaleContext";
@@ -14,15 +19,27 @@ export default function PhotoManagerScreen() {
   const { t } = useLocale();
   const [uid, setUid] = useState("");
   const [photos, setPhotos] = useState<string[]>([]);
+  const firebaseConfigured = isFirebaseConfigured();
 
   useEffect(() => {
     (async () => {
+      if (firebaseConfigured) {
+        const currentUid = auth?.currentUser?.uid;
+        if (!currentUid) {
+          Alert.alert(t("now.signInTitle"));
+          return;
+        }
+        setUid(currentUid);
+        const prof: any = await getRemoteUserProfile();
+        setPhotos(prof?.photos || []);
+        return;
+      }
       const id = await ensureAuth();
       setUid(id);
-      const prof: any = await getUserProfile(id);
+      const prof: any = await getDemoUserProfile(id);
       setPhotos(prof?.photos || []);
     })();
-  }, []);
+  }, [firebaseConfigured, t]);
 
   async function addPhoto() {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -39,17 +56,47 @@ export default function PhotoManagerScreen() {
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
     });
     if (res.canceled) return;
+    let activeUid = uid;
+    if (firebaseConfigured) {
+      activeUid = auth?.currentUser?.uid ?? "";
+      if (!activeUid) {
+        Alert.alert(t("now.signInTitle"));
+        return;
+      }
+    } else if (!activeUid) {
+      activeUid = await ensureAuth();
+      setUid(activeUid);
+    }
     const uri = res.assets[0].uri;
-    const url = await uploadImage(uid, uri);
+    const url = await uploadImage(activeUid, uri);
     const next = [url, ...photos].slice(0, 6); // ограничим 6 фото
     setPhotos(next);
-    await updateUserPhotos(uid, next);
+    if (firebaseConfigured) {
+      await updateUserFields({ photos: next });
+    } else {
+      await updateDemoUserPhotos(activeUid, next);
+    }
   }
 
   async function removePhoto(index: number) {
+    let activeUid = uid;
+    if (firebaseConfigured) {
+      activeUid = auth?.currentUser?.uid ?? "";
+      if (!activeUid) {
+        Alert.alert(t("now.signInTitle"));
+        return;
+      }
+    } else if (!activeUid) {
+      activeUid = await ensureAuth();
+      setUid(activeUid);
+    }
     const next = photos.filter((_, i) => i !== index);
     setPhotos(next);
-    await updateUserPhotos(uid, next);
+    if (firebaseConfigured) {
+      await updateUserFields({ photos: next });
+    } else {
+      await updateDemoUserPhotos(activeUid, next);
+    }
   }
 
   return (

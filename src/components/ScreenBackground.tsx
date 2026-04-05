@@ -1,11 +1,10 @@
 import React from "react";
-import { StyleSheet, View, Text } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 
 import BackgroundWrapper, {
   type BackgroundKey,
 } from "@/components/BackgroundWrapper";
-import { useLocale } from "@/contexts/LocaleContext";
 
 export type ScreenBackgroundVariant =
   | "default"
@@ -26,8 +25,6 @@ type Props = {
   variant?: ScreenBackgroundVariant;
   overlayOpacity?: number;
   blurRadius?: number;
-  debugTint?: boolean;
-  screenLabel?: string;
   children: React.ReactNode;
 };
 
@@ -108,16 +105,11 @@ export default function ScreenBackground({
   variant = "default",
   overlayOpacity,
   blurRadius,
-  debugTint = false,
-  screenLabel,
   children,
 }: Props) {
-  const { t } = useLocale();
   const defaults = variantDefaults[variant] ?? variantDefaults.default;
   const resolvedOverlayOpacity = overlayOpacity ?? defaults.overlayOpacity;
   const resolvedBlurRadius = blurRadius ?? defaults.blurRadius;
-  const debugLabel = screenLabel ?? variant;
-  const debugText = t("debug.backgroundLabel", { label: debugLabel });
 
   // Gradient backgrounds (for unique tab backgrounds)
   if (isGradientVariant(variant)) {
@@ -144,9 +136,6 @@ export default function ScreenBackground({
           ]}
         />
 
-        {debugTint ? <View pointerEvents="none" style={styles.debug} /> : null}
-        {debugTint ? <Text style={styles.debugText}>{debugText}</Text> : null}
-
         {children}
       </View>
     );
@@ -161,8 +150,6 @@ export default function ScreenBackground({
       overlayOpacity={resolvedOverlayOpacity}
       blurRadius={resolvedBlurRadius}
     >
-      {debugTint ? <View pointerEvents="none" style={styles.debug} /> : null}
-      {debugTint ? <Text style={styles.debugText}>{debugText}</Text> : null}
       {children}
     </BackgroundWrapper>
   );
@@ -173,18 +160,6 @@ const styles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "#000",
-  },
-  debug: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(255,0,255,0.08)",
-  },
-  debugText: {
-    position: "absolute",
-    top: 10,
-    left: 10,
-    color: "#fff",
-    fontSize: 12,
-    opacity: 0.8,
   },
   blob: {
     position: "absolute",

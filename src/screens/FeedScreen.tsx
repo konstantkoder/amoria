@@ -148,7 +148,8 @@ export default function FeedScreen() {
     <ScreenShell
       title={t("tabs.feed")}
       background="hearts"
-      debugTint={false}
+      blurRadius={9}
+      overlayOpacity={0.26}
     >
       <ScrollView
         style={{ flex: 1 }}

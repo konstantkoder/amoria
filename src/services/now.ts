@@ -2,11 +2,12 @@
 import {
   Firestore,
   QueryConstraint,
-  addDoc,
   collection,
+  doc,
   onSnapshot,
   orderBy,
   query,
+  setDoc,
   where,
   limit,
 } from "firebase/firestore";
@@ -27,6 +28,7 @@ export type NowPost = {
 };
 
 export type CreateNowPostInput = {
+  clientId: string;
   uid: string;
   nickname: string;
   text: string;
@@ -87,15 +89,25 @@ export async function createNowPost(
 ) {
   const region = makeRegion(input.lat, input.lng);
   const now = Date.now();
+  const clientId = String(input.clientId || "").trim();
+  if (!clientId) return "";
 
-  await addDoc(collection(db, "nowPosts"), {
-    uid: input.uid,
-    nickname: input.nickname,
-    text: input.text.trim(),
-    mood: input.mood,
-    region,
-    createdAt: now,
-    lat: input.lat,
-    lng: input.lng,
-  });
+  const ref = doc(collection(db, "nowPosts"), clientId);
+  await setDoc(
+    ref,
+    {
+      clientId,
+      uid: input.uid,
+      nickname: input.nickname,
+      text: input.text.trim(),
+      mood: input.mood,
+      region,
+      createdAt: now,
+      lat: input.lat,
+      lng: input.lng,
+    },
+    { merge: true }
+  );
+
+  return ref.id;
 }

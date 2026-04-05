@@ -1,7 +1,6 @@
 import { geohashForLocation } from "geofire-common";
 import {
   Firestore,
-  addDoc,
   collection,
   doc,
   getDoc,
@@ -9,9 +8,23 @@ import {
   onSnapshot,
   orderBy,
   query,
+  serverTimestamp,
   setDoc,
   updateDoc,
 } from "firebase/firestore";
+
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(`Timeout: ${label}`)), ms);
+    p.then((v) => {
+      clearTimeout(t);
+      resolve(v);
+    }).catch((e) => {
+      clearTimeout(t);
+      reject(e);
+    });
+  });
+}
 
 export type RoomKind = "work" | "bar" | "cafe" | "gym" | "park" | "home";
 
@@ -27,8 +40,10 @@ export type RoomDoc = {
 
 export type RoomMessage = {
   id: string;
+  clientId?: string;
+  pending?: boolean;
   uid: string;
-  nickname: string;
+  nicknameCode: string;
   text: string;
   createdAt: number;
 };
@@ -110,38 +125,61 @@ export async function openOrCreateGeoRoom(
   db: Firestore,
   kind: RoomKind,
   lat: number,
-  lng: number
+  lng: number,
+  opts?: { precision?: number; radiusM?: number }
 ): Promise<RoomDoc> {
   const meta = ROOM_META[kind];
+  const precision = opts?.precision ?? meta.precision;
+  const radiusM = opts?.radiusM ?? meta.radiusM;
   const geohash = geohashForLocation([lat, lng]);
-  const id = `${kind}_${geohash.slice(0, meta.precision)}`;
+  const id = `${kind}_${geohash.slice(0, precision)}`;
   const ref = doc(db, "rooms", id);
   const now = Date.now();
   const fallbackTitle = meta.labelKey;
+  const baseRoom: Omit<RoomDoc, "id"> = {
+    kind,
+    title: fallbackTitle,
+    geo: { lat, lng, geohash, precision },
+    radiusM,
+    createdAt: now,
+    lastActiveAt: now,
+  };
 
-  const snap = await getDoc(ref);
-  if (!snap.exists()) {
-    const room: Omit<RoomDoc, "id"> = {
-      kind,
-      title: fallbackTitle,
-      geo: { lat, lng, geohash, precision: meta.precision },
-      radiusM: meta.radiusM,
-      createdAt: now,
-      lastActiveAt: now,
-    };
-    await setDoc(ref, room);
-    return { id, ...room };
+  const fireAndForgetCreate = () => {
+    setDoc(ref, baseRoom, { merge: true }).catch(() => {});
+  };
+
+  let snap;
+  try {
+    snap = await withTimeout(getDoc(ref), 4500, "rooms.getDoc");
+  } catch {
+    setDoc(
+      ref,
+      {
+        kind,
+        geo: { lat, lng, geohash, precision },
+        radiusM,
+        lastActiveAt: now,
+      },
+      { merge: true }
+    ).catch(() => {});
+    return { id, ...baseRoom };
   }
 
-  await updateDoc(ref, { lastActiveAt: now });
+  if (!snap.exists()) {
+    fireAndForgetCreate();
+    return { id, ...baseRoom };
+  }
+
+  updateDoc(ref, { lastActiveAt: now }).catch(() => {});
 
   const data = snap.data() as any;
   return {
     id,
     kind: data.kind ?? kind,
     title: data.title ?? fallbackTitle,
-    geo: data.geo ?? { lat, lng, geohash, precision: meta.precision },
-    radiusM: data.radiusM ?? meta.radiusM,
+    geo: data.geo ?? { lat, lng, geohash, precision },
+    radiusM: data.radiusM ?? radiusM,
     createdAt: data.createdAt ?? now,
     lastActiveAt: data.lastActiveAt ?? now,
   };
@@ -150,7 +188,8 @@ export async function openOrCreateGeoRoom(
 export function subscribeRoomMessages(
   db: Firestore,
   roomId: string,
-  onMessages: (messages: RoomMessage[]) => void
+  onMessages: (messages: RoomMessage[]) => void,
+  onError?: (e: any) => void
 ) {
   const q = query(
     collection(db, "rooms", roomId, "messages"),
@@ -158,62 +197,98 @@ export function subscribeRoomMessages(
     limit(80)
   );
 
-  return onSnapshot(q, (snap) => {
-    const msgs: RoomMessage[] = snap.docs.map((d) => {
-      const x = d.data() as any;
-      return {
-        id: d.id,
-        uid: String(x.uid ?? ""),
-        nickname: String(x.nickname ?? "common.anonymous"),
-        text: String(x.text ?? ""),
-        createdAt: Number(x.createdAt ?? 0),
-      };
-    });
-    onMessages(msgs);
-  });
+  return onSnapshot(
+    q,
+    (snap) => {
+      const msgs: RoomMessage[] = snap.docs.map((d) => {
+        const x = d.data() as any;
+        return {
+          id: d.id,
+          clientId: String(x.clientId ?? d.id),
+          pending: d.metadata.hasPendingWrites,
+          uid: String(x.uid ?? ""),
+          nicknameCode: String(
+            x.nicknameCode ?? x.nickname ?? "common.anonymous"
+          ),
+          text: String(x.text ?? ""),
+          createdAt: Number(x.createdAt ?? 0),
+        };
+      });
+      onMessages(msgs);
+    },
+    (err) => {
+      onError?.(err);
+    }
+  );
 }
 
 export async function sendRoomMessage(
   db: Firestore,
   roomId: string,
   uid: string,
-  nickname: string,
-  text: string
-) {
-  const trimmed = text.trim();
-  if (!trimmed) return;
+  nicknameCode: string,
+  text: string,
+  clientId: string
+): Promise<string> {
+  const value = text.trim();
+  if (!value) return "";
+  const stableClientId = String(clientId || "").trim();
+  if (!stableClientId) return "";
 
-  await addDoc(collection(db, "rooms", roomId, "messages"), {
-    uid,
-    nickname,
-    text: trimmed,
-    createdAt: Date.now(),
-  });
+  const msgRef = doc(collection(db, "rooms", roomId, "messages"), stableClientId);
+  await setDoc(
+    msgRef,
+    {
+      clientId: stableClientId,
+      uid,
+      nicknameCode,
+      text: value,
+      createdAt: Date.now(),
+      createdAtServer: serverTimestamp(),
+    },
+    { merge: true }
+  );
 
-  await updateDoc(doc(db, "rooms", roomId), { lastActiveAt: Date.now() });
+  // Обновление метаданных комнаты не должно ломать отправку
+  try {
+    await setDoc(
+      doc(db, "rooms", roomId),
+      { lastActiveAt: Date.now() },
+      { merge: true }
+    );
+  } catch {}
+
+  return msgRef.id;
 }
 
 export function subscribeRoomMembers(
   db: Firestore,
   roomId: string,
-  onMembers: (members: RoomMember[]) => void
+  onMembers: (members: RoomMember[]) => void,
+  onError?: (e: any) => void
 ) {
   const q = query(
     collection(db, "rooms", roomId, "members"),
     orderBy("lastSeen", "desc"),
     limit(60)
   );
-  return onSnapshot(q, (snap) => {
-    const members: RoomMember[] = snap.docs.map((d) => {
-      const x = d.data() as any;
-      return {
-        uid: String(x.uid ?? d.id),
-        nickname: String(x.nickname ?? "common.anonymous"),
-        lastSeen: Number(x.lastSeen ?? 0),
-      };
-    });
-    onMembers(members);
-  });
+  return onSnapshot(
+    q,
+    (snap) => {
+      const members: RoomMember[] = snap.docs.map((d) => {
+        const x = d.data() as any;
+        return {
+          uid: String(x.uid ?? d.id),
+          nickname: String(x.nickname ?? "common.anonymous"),
+          lastSeen: Number(x.lastSeen ?? 0),
+        };
+      });
+      onMembers(members);
+    },
+    (err) => {
+      onError?.(err);
+    }
+  );
 }
 
 export async function touchRoomMember(

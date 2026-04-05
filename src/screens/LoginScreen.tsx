@@ -11,22 +11,20 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
 } from "firebase/auth";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { auth, isFirebaseConfigured } from "@/config/firebaseConfig";
 import { useLocale } from "@/contexts/LocaleContext";
 import { translateMaybeKey } from "@/utils/i18n";
 
 type LoginScreenProps = {
-  onAuthStart?: () => void;
   authError?: string | null;
 };
 
 const EMAIL_RE = /^\S+@\S+\.\S+$/;
 
-export default function LoginScreen({
-  onAuthStart,
-  authError,
-}: LoginScreenProps) {
+export default function LoginScreen({ authError }: LoginScreenProps) {
   const { t, locale, openLanguagePicker } = useLocale();
+  const insets = useSafeAreaInsets();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const firebaseConfigured = isFirebaseConfigured();
@@ -62,7 +60,6 @@ export default function LoginScreen({
       Alert.alert(t("auth.loginTitle"), t("auth.firebaseDisabledLogin"));
       return;
     }
-    onAuthStart?.();
     try {
       await signInWithEmailAndPassword(auth, trimmedEmail, password);
     } catch (e: any) {
@@ -89,7 +86,6 @@ export default function LoginScreen({
       Alert.alert(t("auth.registerTitle"), t("auth.firebaseDisabledRegister"));
       return;
     }
-    onAuthStart?.();
     try {
       await createUserWithEmailAndPassword(auth, trimmedEmail, password);
     } catch (e: any) {
@@ -111,7 +107,7 @@ export default function LoginScreen({
   return (
     <View style={styles.screen}>
       <TouchableOpacity
-        style={styles.languageButton}
+        style={[styles.languageButton, { top: insets.top + 8 }]}
         onPress={openLanguagePicker}
         activeOpacity={0.85}
       >
@@ -169,15 +165,15 @@ const styles = StyleSheet.create({
   },
   languageButton: {
     position: "absolute",
-    top: 16,
     right: 16,
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 999,
-    backgroundColor: "rgba(17,24,39,0.88)",
+    backgroundColor: "#111827",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.35)",
     zIndex: 2,
+    elevation: 8,
   },
   languageButtonText: {
     color: "#FFFFFF",

@@ -11,7 +11,6 @@ export default function VideoChatScreen() {
     <ScreenShell
       title={t("videoChat.title")}
       background="nightCity"
-      debugTint={false}
       showBack
     >
       <View style={styles.container}>

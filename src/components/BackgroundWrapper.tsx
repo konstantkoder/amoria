@@ -11,8 +11,6 @@ import { backgrounds, type BackgroundKey } from "@/assets/backgrounds";
 
 export type { BackgroundKey };
 
-const warnedMissingKeys = new Set<string>();
-
 type Props = {
   background: BackgroundKey;
   blurRadius?: number;
@@ -39,13 +37,6 @@ export default function BackgroundWrapper({
   const bgSource = backgrounds[background];
 
   if (!bgSource) {
-    if (__DEV__) {
-      const key = String(background);
-      if (!warnedMissingKeys.has(key)) {
-        warnedMissingKeys.add(key);
-        console.warn("BG_MISSING_KEY", key);
-      }
-    }
     return (
       <View style={[styles.root, style, { backgroundColor: "#000" }]}>
         {children}
@@ -69,7 +60,6 @@ export default function BackgroundWrapper({
       imageStyle={styles.image}
       onError={(e) => {
         const msg = String(e?.nativeEvent?.error ?? "");
-        console.warn("BG_IMAGE_ERROR", background, msg);
         if (msg.includes("Problem decoding into existing bitmap")) {
           return;
         }

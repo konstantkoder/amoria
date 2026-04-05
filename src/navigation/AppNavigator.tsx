@@ -5,18 +5,25 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Drawer } from "react-native-drawer-layout";
 
-import FeedScreen from "@/screens/FeedScreen";
+import PlayLobbyScreen from "@/screens/PlayLobbyScreen";
 import NearbyScreen from "@/screens/NearbyScreen";
 import NowScreen from "@/screens/NowScreen";
 import RoomsScreen from "@/screens/RoomsScreen";
 import InboxScreen from "@/screens/InboxScreen";
 import VideoChatScreen from "@/screens/VideoChatScreen";
 import QuestionScreen from "@/screens/QuestionScreen";
+import PlayMatchScreen from "@/screens/PlayMatchScreen";
+import PlayCanvasScreen from "@/screens/PlayCanvasScreen";
+import PlayResultScreen from "@/screens/PlayResultScreen";
+import DMChatScreen from "@/screens/DMChatScreen";
 
 import ProfileScreen from "@/screens/ProfileScreen";
 import EditProfileScreen from "@/screens/EditProfileScreen";
 import PhotoManagerScreen from "@/screens/PhotoManagerScreen";
 import FlirtSettingsScreen from "@/screens/settings/FlirtSettingsScreen";
+import SettingsScreen from "@/screens/SettingsScreen";
+import PrivacyPolicyScreen from "@/screens/PrivacyPolicyScreen";
+import LocationInfoScreen from "@/screens/LocationInfoScreen";
 
 import { theme } from "@/theme";
 import AppDrawerContent from "@/navigation/AppDrawerContent";
@@ -47,17 +54,17 @@ function ProfileStackNavigator() {
 
 function MainTabs() {
   const insets = useSafeAreaInsets();
-  const { t, locale } = useLocale();
+  const { t } = useLocale();
 
   return (
     <Tab.Navigator
-      key={locale}
       initialRouteName="Feed"
       detachInactiveScreens={false}
-      sceneContainerStyle={{ backgroundColor: "transparent" }}
+      sceneContainerStyle={{ backgroundColor: theme.colors.background }}
       screenOptions={({ route }) => ({
         headerShown: false,
         lazy: false,
+        tabBarHideOnKeyboard: true, // AMORIA_FIX_TABBAR_HIDE_ON_KEYBOARD_V1
         tabBarActiveTintColor: theme.colors.accent,
         tabBarInactiveTintColor: "#A1A1AA",
         tabBarStyle: {
@@ -84,7 +91,7 @@ function MainTabs() {
     >
       <Tab.Screen
         name="Feed"
-        component={FeedScreen}
+        component={PlayLobbyScreen}
         options={{
           title: t("tabs.feed"),
           tabBarLabel: t("tabs.feed"),
@@ -140,7 +147,6 @@ function MainTabs() {
 
 export default function AppNavigator() {
   const [drawerOpen, setDrawerOpen] = React.useState(false);
-  const { locale } = useLocale();
 
   React.useEffect(() => {
     registerDrawerControls({
@@ -151,7 +157,6 @@ export default function AppNavigator() {
 
   return (
     <Drawer
-      key={locale}
       open={drawerOpen}
       onOpen={() => setDrawerOpen(true)}
       onClose={() => setDrawerOpen(false)}
@@ -171,7 +176,14 @@ export default function AppNavigator() {
         }}
       >
         <RootStack.Screen name="Tabs" component={MainTabs} />
+        <RootStack.Screen name="PlayMatch" component={PlayMatchScreen} />
+        <RootStack.Screen name="PlayCanvas" component={PlayCanvasScreen} />
+        <RootStack.Screen name="PlayResult" component={PlayResultScreen} />
+        <RootStack.Screen name="DMChat" component={DMChatScreen} />
         <RootStack.Screen name="Profile" component={ProfileStackNavigator} />
+        <RootStack.Screen name="Settings" component={SettingsScreen} />
+        <RootStack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
+        <RootStack.Screen name="LocationInfo" component={LocationInfoScreen} />
       </RootStack.Navigator>
     </Drawer>
   );

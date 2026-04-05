@@ -2,11 +2,12 @@
 import {
   Firestore,
   QueryConstraint,
-  addDoc,
   collection,
+  doc,
   onSnapshot,
   orderBy,
   query,
+  setDoc,
   where,
   limit,
 } from "firebase/firestore";
@@ -27,6 +28,7 @@ export type PersonalAd = {
 };
 
 export type CreatePersonalAdInput = {
+  clientId: string;
   authorUid: string;
   title: string;
   text: string;
@@ -171,15 +173,26 @@ export async function createPersonalAd(
   input: CreatePersonalAdInput
 ) {
   const now = Date.now();
-  await addDoc(collection(db, "personalAds"), {
-    authorUid: input.authorUid,
-    title: input.title.trim(),
-    text: input.text.trim(),
-    category: input.category,
-    countryCode: input.countryCode,
-    countryName: input.countryName,
-    city: input.city,
-    createdAt: now,
-    isActive: true,
-  });
+  const clientId = String(input.clientId || "").trim();
+  if (!clientId) return "";
+
+  const ref = doc(collection(db, "personalAds"), clientId);
+  await setDoc(
+    ref,
+    {
+      clientId,
+      authorUid: input.authorUid,
+      title: input.title.trim(),
+      text: input.text.trim(),
+      category: input.category,
+      countryCode: input.countryCode,
+      countryName: input.countryName,
+      city: input.city,
+      createdAt: now,
+      isActive: true,
+    },
+    { merge: true }
+  );
+
+  return ref.id;
 }

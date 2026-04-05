@@ -1,18 +1,13 @@
-import { getApp, getApps, initializeApp, FirebaseApp } from "firebase/app";
+import { getApp, getApps, initializeApp, type FirebaseApp } from "firebase/app";
 import {
+  type Firestore,
   getFirestore,
-  Firestore,
+  initializeFirestore,
 } from "firebase/firestore";
-import {
-  getAuth,
-  getReactNativePersistence,
-  initializeAuth,
-  Auth,
-} from "firebase/auth";
-import { getStorage, FirebaseStorage } from "firebase/storage";
+import { getAuth, getReactNativePersistence, initializeAuth } from "firebase/auth";
+import { getStorage } from "firebase/storage";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-// Конфиг из .env (EXPO_PUBLIC_*)
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -22,31 +17,42 @@ const firebaseConfig = {
   appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
 };
 
-// Простая проверка: настроен ли Firebase
 export function isFirebaseConfigured(): boolean {
   return Boolean(process.env.EXPO_PUBLIC_FIREBASE_API_KEY);
 }
 
-let app: FirebaseApp | null = null;
-let auth: Auth | null = null;
-let db: Firestore | null = null;
-let storage: FirebaseStorage | null = null;
+export const app: FirebaseApp | null = isFirebaseConfigured()
+  ? getApps().length
+    ? getApp()
+    : initializeApp(firebaseConfig)
+  : null;
 
-// Инициализируем Firebase ТОЛЬКО если конфиг заполнен
-if (isFirebaseConfigured()) {
-  app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-
+// Auth (React Native persistence)
+export const auth = (() => {
+  if (!app) return null;
   try {
-    auth = initializeAuth(app, {
+    return initializeAuth(app, {
       persistence: getReactNativePersistence(AsyncStorage),
     });
   } catch {
-    auth = getAuth(app);
+    return getAuth(app);
   }
+})();
 
-  db = getFirestore(app);
+export const db: Firestore | null = (() => {
+  if (!app) return null;
+  try {
+    // AMORIA_FIRESTORE_LONGPOLL_V1
+    return initializeFirestore(app, {
+      experimentalAutoDetectLongPolling: true,
+      experimentalForceLongPolling: true,
+      useFetchStreams: false,
+    } as any);
+  } catch {
+    // If Firestore was already initialized elsewhere, reuse it.
+    return getFirestore(app);
+  }
+})();
 
-  storage = getStorage(app);
-}
-
-export { app, auth, db, storage };
+export const storage = app ? getStorage(app) : null;
+export { firebaseConfig };

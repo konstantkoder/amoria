@@ -2,17 +2,19 @@ import "react-native-gesture-handler";
 import "react-native-reanimated";
 
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, LogBox } from "react-native";
+import { ActivityIndicator, LogBox, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { KeyboardProvider } from "react-native-keyboard-controller";
 import {
   DefaultTheme,
   NavigationContainer,
   createNavigationContainerRef,
 } from "@react-navigation/native";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { onAuthStateChanged, User } from "firebase/auth";
 
-import { auth, isFirebaseConfigured } from "@/config/firebaseConfig";
+import { auth } from "@/config/firebaseConfig";
 import LoginScreen from "@/screens/LoginScreen";
 import AppNavigator from "@/navigation/AppNavigator";
 import DMChatScreen from "@/screens/DMChatScreen";
@@ -20,7 +22,6 @@ import LegalScreen from "@/screens/legal/LegalScreen";
 import { LocaleProvider, useLocale } from "@/contexts/LocaleContext";
 import { theme } from "@/theme/theme";
 import ErrorBoundary from "@/components/ErrorBoundary";
-import DebugOverlay from "@/components/DebugOverlay";
 import LanguagePickerHost from "@/components/LanguagePickerHost";
 
 LogBox.ignoreLogs([
@@ -36,7 +37,7 @@ const navTheme = {
   ...DefaultTheme,
   colors: {
     ...DefaultTheme.colors,
-    background: "transparent",
+    background: theme.colors.background,
     card: theme.colors.background,
     text: theme.colors.text,
     border: "rgba(255,255,255,0.08)",
@@ -44,21 +45,17 @@ const navTheme = {
   },
 };
 
-const SHOW_DEBUG_OVERLAY =
-  __DEV__ && process.env.EXPO_PUBLIC_SHOW_DEBUG_OVERLAY === "1";
-
 type AppNavigationProps = {
   user: User | null;
   authError: string | null;
-  setAuthEnabled: React.Dispatch<React.SetStateAction<boolean>>;
 };
 
-function AppNavigation({ user, authError, setAuthEnabled }: AppNavigationProps) {
+function AppNavigation({ user, authError }: AppNavigationProps) {
   const { locale } = useLocale();
 
   return (
     <NavigationContainer
-      key={locale}
+      key={`${locale}-${user ? "in" : "out"}`}
       ref={navigationRef}
       theme={navTheme}
       onReady={() => {
@@ -74,12 +71,7 @@ function AppNavigation({ user, authError, setAuthEnabled }: AppNavigationProps) 
           </>
         ) : (
           <Stack.Screen name="Login">
-            {() => (
-              <LoginScreen
-                onAuthStart={() => setAuthEnabled(true)}
-                authError={authError}
-              />
-            )}
+            {() => <LoginScreen authError={authError} />}
           </Stack.Screen>
         )}
       </Stack.Navigator>
@@ -87,70 +79,82 @@ function AppNavigation({ user, authError, setAuthEnabled }: AppNavigationProps) 
   );
 }
 
-export default function App() {
+function FullScreenLoader() {
+  return (
+    <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+      <ActivityIndicator color={theme.colors.primary} />
+    </View>
+  );
+}
+
+function AuthGate() {
   const [user, setUser] = useState<User | null>(null);
-  const [initializing, setInitializing] = useState(false);
-  const [authEnabled, setAuthEnabled] = useState(false);
+  const [authReady, setAuthReady] = useState(!auth);
   const [authError, setAuthError] = useState<string | null>(null);
-  const [lastError, setLastError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!authEnabled || !auth) {
-      setInitializing(false);
+    if (!auth) {
+      setUser(null);
+      setAuthError(null);
+      setAuthReady(true);
       return;
     }
 
-    setInitializing(true);
+    setAuthReady(false);
     setAuthError(null);
 
     const unsub = onAuthStateChanged(
       auth,
       (firebaseUser) => {
         setUser(firebaseUser);
-        setInitializing(false);
+        setAuthReady(true);
       },
       (error) => {
         console.error("[auth] onAuthStateChanged failed", error);
         setUser(null);
         setAuthError(error?.message ?? "auth.error");
-        setInitializing(false);
+        setAuthReady(true);
       }
     );
     return unsub;
-  }, [authEnabled]);
-
-  if (initializing) {
-    return (
-      <GestureHandlerRootView
-        style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
-      >
-        <ActivityIndicator color={theme.colors.primary} />
-      </GestureHandlerRootView>
-    );
-  }
+  }, []);
 
   return (
+    <>
+      {!authReady ? (
+        <FullScreenLoader />
+      ) : (
+        <>
+          <ErrorBoundary>
+            <AppNavigation user={user} authError={authError} />
+          </ErrorBoundary>
+          <LanguagePickerHost />
+        </>
+      )}
+    </>
+  );
+}
+
+function AppBootstrap() {
+  const { ready } = useLocale();
+  return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <LocaleProvider>
-        <ErrorBoundary
-          onError={(error) =>
-            setLastError(error?.message ?? "debug.unknownError")
-          }
-        >
-          <AppNavigation
-            user={user}
-            authError={authError}
-            setAuthEnabled={setAuthEnabled}
-          />
-        </ErrorBoundary>
-        <LanguagePickerHost />
-        {SHOW_DEBUG_OVERLAY ? (
-          <DebugOverlay
-            firebaseConfigured={isFirebaseConfigured()}
-            lastError={lastError}
-          />
-        ) : null}
-      </LocaleProvider>
+      {!ready ? <FullScreenLoader /> : <AuthGate />}
     </GestureHandlerRootView>
+  );
+}
+
+export default function App() {
+  return (
+    <KeyboardProvider
+      statusBarTranslucent={false}
+      navigationBarTranslucent={false}
+    >
+      <SafeAreaProvider>
+        <LocaleProvider>
+          <AppBootstrap />
+        </LocaleProvider>
+      </SafeAreaProvider>
+    </KeyboardProvider>
   );
 }

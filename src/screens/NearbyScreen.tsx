@@ -3,7 +3,7 @@
 // variant and custom overlay/blur settings to give the "Объявления" (Nearby)
 // screen a fresh look. The rest of the logic remains unchanged from upstream.
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -80,6 +80,8 @@ export default function NearbyScreen() {
     text: "",
     category: "F4M",
   });
+  const [publishing, setPublishing] = useState(false);
+  const sendGuardRef = useRef(false);
 
   useEffect(() => {
     if (!isFirebaseConfigured() || !db) return;
@@ -133,6 +135,7 @@ export default function NearbyScreen() {
   };
 
   const onPublish = async () => {
+    if (sendGuardRef.current) return;
     if (!canPost || !user || !db) return;
 
     const trimmedTitle = compose.title.trim();
@@ -146,9 +149,14 @@ export default function NearbyScreen() {
       AVAILABLE_COUNTRIES.find((c) => c.code === countryCode) ??
       defaultCountry;
     const cityValue = city ?? country.cities[0];
+    sendGuardRef.current = true;
+    setPublishing(true);
+    const clientId = `m_${user.uid}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
 
     try {
+      // AMORIA_ADS_IDEMPOTENT_V1
       await createPersonalAd(db, {
+        clientId,
         authorUid: user.uid,
         title: trimmedTitle,
         text: trimmedText,
@@ -165,8 +173,21 @@ export default function NearbyScreen() {
         t("ads.publishFailedTitle"),
         e?.message ?? t("ads.publishFailedBody"),
       );
+    } finally {
+      setPublishing(false);
+      setTimeout(() => {
+        sendGuardRef.current = false;
+      }, 250);
     }
   };
+
+  const visibleAds = useMemo(() => {
+    const deduped = new Map<string, PersonalAd>();
+    for (const ad of ads) {
+      deduped.set(String(ad.id), ad);
+    }
+    return Array.from(deduped.values());
+  }, [ads]);
 
   const renderCategoryFilters = () => {
     const cats: AdCategory[] = ["ALL", "F4M", "M4F", "M4M", "F4F", "Other"];
@@ -462,11 +483,13 @@ export default function NearbyScreen() {
 
           <TouchableOpacity
             onPress={onPublish}
+            disabled={publishing}
             style={{
               paddingHorizontal: 14,
               paddingVertical: 8,
               borderRadius: 12,
               backgroundColor: theme.colors.primary,
+              opacity: publishing ? 0.7 : 1,
             }}
           >
             <Text
@@ -604,7 +627,6 @@ export default function NearbyScreen() {
       background="ads"
       overlayOpacity={0.18}
       blurRadius={0}
-      debugTint={false}
     >
       <View
         style={{
@@ -689,8 +711,8 @@ export default function NearbyScreen() {
           </View>
         ) : (
           <FlatList
-            data={ads}
-            keyExtractor={(x) => x.id}
+            data={visibleAds}
+            keyExtractor={(x) => String(x.id)}
             renderItem={renderAdItem}
             contentContainerStyle={{
               paddingTop: 8,

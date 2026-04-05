@@ -5,7 +5,7 @@
 // legibility. All other functionality remains identical to the upstream
 // version.
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -86,6 +86,7 @@ export default function NowScreen() {
   const [message, setMessage] = useState(""); // текст сообщения
   const [sending, setSending] = useState(false);
   const [radiusKm, setRadiusKm] = useState<RadiusOption>(25);
+  const sendGuardRef = useRef(false);
 
   const moodMeta: { key: NowMood; label: string; emoji: string }[] = useMemo(
     () => [
@@ -144,6 +145,7 @@ export default function NowScreen() {
   }, [region]);
 
   const onSend = async () => {
+    if (sendGuardRef.current) return;
     if (!user) {
       Alert.alert(t("now.signInTitle"), t("now.signInBody"));
       return;
@@ -161,11 +163,15 @@ export default function NowScreen() {
       Alert.alert(t("now.noLocationTitle"), t("now.noLocationBody"));
       return;
     }
+    sendGuardRef.current = true;
     const previousMessage = message;
+    const clientId = `m_${user.uid}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
     setMessage("");
     try {
       setSending(true);
+      // AMORIA_NOW_IDEMPOTENT_V1
       await createNowPost(db, {
+        clientId,
         uid: user.uid,
         nickname,
         text: trimmed,
@@ -178,15 +184,20 @@ export default function NowScreen() {
       Alert.alert(t("now.sendFailedTitle"), e?.message ?? t("now.sendFailedBody"));
     } finally {
       setSending(false);
+      setTimeout(() => {
+        sendGuardRef.current = false;
+      }, 250);
     }
   };
 
   const visiblePosts = useMemo(() => {
-    return posts.filter((p) => {
+    const deduped = new Map<string, NowPost>();
+    for (const p of posts) {
       const dist = distanceKm(pos, p);
-      if (radiusKm == null || dist == null) return true;
-      return dist <= radiusKm;
-    });
+      if (radiusKm != null && dist != null && dist > radiusKm) continue;
+      deduped.set(String(p.id), p);
+    }
+    return Array.from(deduped.values());
   }, [posts, pos, radiusKm]);
 
   const renderMoodChips = () => (
@@ -487,7 +498,6 @@ export default function NowScreen() {
       background="now"
       overlayOpacity={0.18}
       blurRadius={0}
-      debugTint={false}
     >
       <View
         style={{
@@ -542,7 +552,7 @@ export default function NowScreen() {
         ) : (
           <FlatList
             data={visiblePosts}
-            keyExtractor={(x) => x.id}
+            keyExtractor={(x) => String(x.id)}
             renderItem={renderPostItem}
             contentContainerStyle={{
               paddingTop: 4,
