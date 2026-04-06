@@ -315,6 +315,7 @@ export default function SharedCanvasWebView({
   const [canvasSize, setCanvasSize] = useState({ width: 1, height: 1 });
   const [selectedColor, setSelectedColor] = useState(PALETTE[0]);
   const [selectedWidth, setSelectedWidth] = useState(BRUSHES[1]);
+  const lastInjectedPayloadRef = useRef("");
 
   const normalizedStrokes = useMemo(
     () =>
@@ -331,9 +332,18 @@ export default function SharedCanvasWebView({
     [strokes]
   );
 
-  const injectPayload = (payload: unknown) => {
-    ref.current?.injectJavaScript(`window.__applyPayload(${escapeHtmlPayload(payload)}); true;`);
+  const injectPayload = (payload: unknown, force = false) => {
+    const serialized = escapeHtmlPayload(payload);
+    if (!force && lastInjectedPayloadRef.current === serialized) return;
+    lastInjectedPayloadRef.current = serialized;
+    ref.current?.injectJavaScript(`window.__applyPayload(${serialized}); true;`);
   };
+
+  useEffect(() => {
+    return () => {
+      lastInjectedPayloadRef.current = "";
+    };
+  }, []);
 
   useEffect(() => {
     if (!ready) return;
@@ -423,13 +433,11 @@ export default function SharedCanvasWebView({
             scrollEnabled={false}
             bounces={false}
             overScrollMode="never"
-            onLoadEnd={() => {
-              setReady(true);
-            }}
             onMessage={(event) => {
               try {
                 const payload = JSON.parse(event.nativeEvent.data);
                 if (payload?.type === "ready") {
+                  setReady(true);
                   injectPayload({
                     type: "init",
                     localUid,
@@ -438,7 +446,7 @@ export default function SharedCanvasWebView({
                     width: selectedWidth,
                     size: canvasSize,
                     strokes: normalizedStrokes,
-                  });
+                  }, true);
                   return;
                 }
                 if (payload?.type === "stroke_batch" && Array.isArray(payload.strokes)) {

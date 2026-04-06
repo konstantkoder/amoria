@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   FlatList,
   Keyboard,
   StyleSheet,
@@ -27,29 +28,66 @@ import {
 export default function DMChatScreen() {
   const { t } = useLocale();
   const route = useRoute<any>();
-  const myId = auth?.currentUser?.uid ?? "me";
-  const peerId = String(route.params?.peerId ?? "demo-peer");
-  const threadId = String(route.params?.threadId ?? buildDmThreadId(myId, peerId));
+  const myId = auth?.currentUser?.uid ?? "";
+  const routePeerId = String(route.params?.peerId ?? "");
+  const threadId = String(
+    route.params?.threadId ?? (myId && routePeerId ? buildDmThreadId(myId, routePeerId) : "")
+  );
   const routePeerName = String(route.params?.peerName ?? t("common.user"));
+  const peerId = routePeerId || "";
 
   const [text, setText] = useState("");
   const textRef = useRef("");
   const inputRef = useRef<TextInput>(null);
+  const listRef = useRef<FlatList<DmMessageDoc & { failed?: boolean }>>(null);
   const sendGuardRef = useRef(false);
+  const mountedRef = useRef(true);
+  const activeThreadRef = useRef(threadId);
   const [sending, setSending] = useState(false);
 
   const [thread, setThread] = useState<DmThreadDoc | null>(null);
   const [msgs, setMsgs] = useState<DmMessageDoc[]>([]);
   const [failedById, setFailedById] = useState<Record<string, true>>({});
+  const [threadLoading, setThreadLoading] = useState(true);
+  const [messagesLoading, setMessagesLoading] = useState(true);
 
   useEffect(() => {
-    if (!db || !myId) {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    activeThreadRef.current = threadId;
+    sendGuardRef.current = false;
+    setSending(false);
+    setThread(null);
+    setMsgs([]);
+    setFailedById({});
+    setThreadLoading(Boolean(db && myId && threadId));
+    setMessagesLoading(Boolean(db && threadId));
+    textRef.current = "";
+    setText("");
+    inputRef.current?.setNativeProps?.({ text: "" });
+    inputRef.current?.clear?.();
+    inputRef.current?.blur?.();
+    Keyboard.dismiss();
+    listRef.current?.scrollToOffset?.({ offset: 0, animated: false });
+  }, [myId, threadId]);
+
+  useEffect(() => {
+    if (!db || !myId || !threadId) {
       setThread(null);
+      setThreadLoading(false);
       return;
     }
 
+    setThreadLoading(true);
     const unsubscribe = subscribeDmThreads(db, myId, (threads) => {
+      if (!mountedRef.current || activeThreadRef.current !== threadId) return;
       setThread(threads.find((item) => item.id === threadId) ?? null);
+      setThreadLoading(false);
     });
 
     return unsubscribe;
@@ -58,10 +96,16 @@ export default function DMChatScreen() {
   useEffect(() => {
     if (!db || !threadId) {
       setMsgs([]);
+      setMessagesLoading(false);
       return;
     }
 
-    return subscribeDmMessages(db, threadId, setMsgs);
+    setMessagesLoading(true);
+    return subscribeDmMessages(db, threadId, (next) => {
+      if (!mountedRef.current || activeThreadRef.current !== threadId) return;
+      setMsgs(next);
+      setMessagesLoading(false);
+    });
   }, [threadId]);
 
   useEffect(() => {
@@ -78,12 +122,6 @@ export default function DMChatScreen() {
       return changed ? next : prev;
     });
   }, [msgs]);
-
-  useEffect(() => {
-    setFailedById({});
-    textRef.current = "";
-    setText("");
-  }, [threadId]);
 
   const peer = useMemo(() => {
     if (!thread) {
@@ -111,11 +149,15 @@ export default function DMChatScreen() {
 
   const send = useCallback(() => {
     const value = (textRef.current || "").trim();
-    if (!value || !db) return;
+    if (!value || !db || !threadId || !myId || !peer.uid) return;
     if (sendGuardRef.current) return;
+    const targetThreadId = threadId;
+    const targetPeerId = peer.uid;
     sendGuardRef.current = true;
 
-    setSending(true);
+    if (mountedRef.current) {
+      setSending(true);
+    }
 
     textRef.current = "";
     setText("");
@@ -132,8 +174,9 @@ export default function DMChatScreen() {
       return next;
     });
 
-    void sendDmMessage(db, threadId, myId, peer.uid, value, clientId)
+    void sendDmMessage(db, targetThreadId, myId, targetPeerId, value, clientId)
       .then(() => {
+        if (!mountedRef.current || activeThreadRef.current !== targetThreadId) return;
         setFailedById((prev) => {
           if (!prev[clientId]) return prev;
           const next = { ...prev };
@@ -142,21 +185,27 @@ export default function DMChatScreen() {
         });
       })
       .catch(() => {
+        if (!mountedRef.current || activeThreadRef.current !== targetThreadId) return;
         setFailedById((prev) => ({ ...prev, [clientId]: true }));
       })
       .finally(() => {
-        setSending(false);
+        if (mountedRef.current && activeThreadRef.current === targetThreadId) {
+          setSending(false);
+        }
         setTimeout(() => {
-          sendGuardRef.current = false;
+          if (activeThreadRef.current === targetThreadId) {
+            sendGuardRef.current = false;
+          }
         }, 250);
       });
   }, [db, myId, peer.uid, threadId]);
 
   const retrySend = useCallback(
     (clientId: string) => {
-      if (!db) return;
+      if (!db || !threadId || !myId) return;
       const target = msgs.find((m) => String(m.id) === clientId);
       if (!target?.text) return;
+      const targetThreadId = threadId;
 
       setFailedById((prev) => {
         if (!prev[clientId]) return prev;
@@ -167,12 +216,13 @@ export default function DMChatScreen() {
 
       void sendDmMessage(
         db,
-        threadId,
+        targetThreadId,
         target.from || myId,
         target.to || peer.uid,
         target.text,
         clientId
       ).catch(() => {
+        if (!mountedRef.current || activeThreadRef.current !== targetThreadId) return;
         setFailedById((prev) => ({ ...prev, [clientId]: true }));
       });
     },
@@ -188,6 +238,8 @@ export default function DMChatScreen() {
   const sourceTitle =
     thread?.source === "play" ? "Вы познакомились через Нарисовать вместе" : "";
   const strokeCount = thread?.artworkSummary?.strokeCount;
+  const isLoading = threadLoading || messagesLoading;
+  const isEmpty = !isLoading && mergedMsgs.length === 0;
 
   const renderItem = useCallback(
     ({ item }: { item: DmMessageDoc & { failed?: boolean } }) => {
@@ -230,30 +282,67 @@ export default function DMChatScreen() {
     [myId, retrySend, t]
   );
 
+  if (!threadId) {
+    return (
+      <ScreenShell title={t("dm.title", { name: routePeerName })} background="nightCity" showBack>
+        <View style={styles.centerState}>
+          <Text style={styles.emptyTitle}>Чат недоступен</Text>
+          <Text style={styles.emptyText}>
+            Не удалось открыть чат без актуального идентификатора диалога.
+          </Text>
+        </View>
+      </ScreenShell>
+    );
+  }
+
   return (
     <ScreenShell
       title={t("dm.title", { name: peer.name })}
       background="nightCity"
       showBack
     >
-      <FlatList
-        inverted
-        data={mergedMsgs}
-        keyExtractor={(item) => String(item.id)}
-        style={{ flex: 1 }}
-        contentContainerStyle={styles.listContent}
-        renderItem={renderItem}
-        ListFooterComponent={
-          sourceTitle ? (
+      {isLoading ? (
+        <View style={styles.centerState}>
+          <ActivityIndicator color={theme.colors.accent} />
+          <Text style={styles.emptyText}>Подключаем диалог…</Text>
+        </View>
+      ) : isEmpty ? (
+        <View style={styles.centerState}>
+          {sourceTitle ? (
             <View style={styles.sourceCard}>
               <Text style={styles.sourceTitle}>{sourceTitle}</Text>
               {strokeCount != null ? (
                 <Text style={styles.sourceMeta}>Штрихов: {strokeCount}</Text>
               ) : null}
             </View>
-          ) : null
-        }
-      />
+          ) : null}
+          <Text style={styles.emptyTitle}>Диалог открыт</Text>
+          <Text style={styles.emptyText}>
+            Здесь пока нет сообщений. Можно написать первым и продолжить контакт.
+          </Text>
+        </View>
+      ) : (
+        <FlatList
+          ref={listRef}
+          key={threadId}
+          inverted
+          data={mergedMsgs}
+          keyExtractor={(item) => String(item.id)}
+          style={{ flex: 1 }}
+          contentContainerStyle={styles.listContent}
+          renderItem={renderItem}
+          ListFooterComponent={
+            sourceTitle ? (
+              <View style={styles.sourceCard}>
+                <Text style={styles.sourceTitle}>{sourceTitle}</Text>
+                {strokeCount != null ? (
+                  <Text style={styles.sourceMeta}>Штрихов: {strokeCount}</Text>
+                ) : null}
+              </View>
+            ) : null
+          }
+        />
+      )}
       <KeyboardStickyView offset={{ closed: 0, opened: 0 }}>
         <View style={styles.inputRow}>
           <TextInput
@@ -285,6 +374,13 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 8,
   },
+  centerState: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 28,
+    gap: 12,
+  },
   sourceCard: {
     borderRadius: theme.shapes.cardInner,
     padding: 14,
@@ -303,6 +399,18 @@ const styles = StyleSheet.create({
     color: theme.colors.subtext,
     fontSize: 12,
     fontWeight: "600",
+  },
+  emptyTitle: {
+    color: theme.colors.text,
+    fontSize: 20,
+    fontWeight: "800",
+    textAlign: "center",
+  },
+  emptyText: {
+    color: theme.colors.subtext,
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: "center",
   },
   msgWrap: {
     width: "100%",

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -7,7 +7,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { auth, db } from "@/config/firebaseConfig";
 import { theme } from "@/theme";
 import ScreenShell from "@/components/ScreenShell";
-import { getLikes } from "@/services/likes";
 import { mapDmThreadToPeer, subscribeDmThreads, type DmThreadDoc } from "@/services/dm";
 import { useLocale } from "@/contexts/LocaleContext";
 
@@ -56,28 +55,17 @@ export default function InboxScreen() {
   const navigation = useNavigation<any>();
   const { t } = useLocale();
   const uid = auth?.currentUser?.uid ?? "";
-  const [likesCount, setLikesCount] = useState(0);
   const [cards, setCards] = useState<InboxThreadCard[]>([]);
-
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      try {
-        const ids = await getLikes();
-        if (alive) setLikesCount(ids.length);
-      } catch {}
-    })();
-    return () => {
-      alive = false;
-    };
-  }, []);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!db || !uid) {
       setCards([]);
+      setLoading(false);
       return;
     }
 
+    setLoading(true);
     const unsubscribe = subscribeDmThreads(db, uid, (threads) => {
       const next = threads
         .map((thread) => mapThreadToCard(thread, uid, t("common.user")))
@@ -85,6 +73,7 @@ export default function InboxScreen() {
         .sort((a, b) => b.sortAt - a.sortAt);
 
       setCards(next);
+      setLoading(false);
     });
 
     return unsubscribe;
@@ -122,12 +111,25 @@ export default function InboxScreen() {
           >
             {t("tabs.chats")}
           </Text>
-          <Text style={{ color: "#9CA3AF", fontSize: 12 }}>
-            {t("common.likedCount", { count: String(likesCount) })}
-          </Text>
+          <Text style={{ color: "#9CA3AF", fontSize: 12 }}>{cards.length}</Text>
         </View>
 
-        {cards.length ? (
+        {loading ? (
+          <View
+            style={{
+              flex: 1,
+              alignItems: "center",
+              justifyContent: "center",
+              paddingHorizontal: 28,
+              gap: 12,
+            }}
+          >
+            <ActivityIndicator color={theme.colors.accent} />
+            <Text style={{ color: theme.colors.subtext, fontSize: 14, textAlign: "center" }}>
+              Подключаем чаты…
+            </Text>
+          </View>
+        ) : cards.length ? (
           <ScrollView
             style={{ flex: 1 }}
             contentContainerStyle={{ paddingTop: 10, paddingBottom: 12, gap: 12 }}

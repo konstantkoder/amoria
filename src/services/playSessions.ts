@@ -181,15 +181,25 @@ export async function enqueuePlayRequest(
 }
 
 export async function cancelPlayRequest(db: Firestore, uid: string): Promise<void> {
-  await setDoc(
-    doc(db, "playQueue", uid),
-    {
-      uid,
-      updatedAt: Date.now(),
-      status: "cancelled" satisfies PlayQueueStatus,
-    },
-    { merge: true }
-  );
+  const queueRef = doc(db, "playQueue", uid);
+  await runTransaction(db, async (tx) => {
+    const snapshot = await tx.get(queueRef);
+    if (!snapshot.exists()) return;
+
+    const current = asPlayQueueDoc(snapshot.id, snapshot.data());
+    if (current.status === "matched" && current.sessionId) return;
+    if (current.status === "cancelled") return;
+
+    tx.set(
+      queueRef,
+      {
+        uid,
+        updatedAt: Date.now(),
+        status: "cancelled" satisfies PlayQueueStatus,
+      },
+      { merge: true }
+    );
+  });
 }
 
 export function subscribeOwnQueueEntry(

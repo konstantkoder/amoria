@@ -1,5 +1,6 @@
 import React from "react";
 import {
+  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -71,12 +72,45 @@ export default function PlayResultScreen() {
   const [decision, setDecision] = React.useState<PlayRevealDecision | null>(null);
   const [submitting, setSubmitting] = React.useState(false);
   const [replayOpen, setReplayOpen] = React.useState(false);
+  const [loadingSession, setLoadingSession] = React.useState(true);
+  const [loadingEvents, setLoadingEvents] = React.useState(true);
+  const [openingChat, setOpeningChat] = React.useState(false);
+  const mountedRef = React.useRef(true);
+  const openChatPromiseRef = React.useRef<Promise<void> | null>(null);
 
   React.useEffect(() => {
-    if (!db || !sessionId) return;
-    const unsubscribeSession = subscribePlaySession(db, sessionId, setSession);
-    const unsubscribeEvents = subscribePlayEvents(db, sessionId, setEvents);
+    mountedRef.current = true;
+    setSession(null);
+    setEvents([]);
+    setDecision(null);
+    setSubmitting(false);
+    setReplayOpen(false);
+    setOpeningChat(false);
+    openChatPromiseRef.current = null;
+
+    if (!db || !sessionId) {
+      setLoadingSession(false);
+      setLoadingEvents(false);
+      return () => {
+        mountedRef.current = false;
+      };
+    }
+
+    setLoadingSession(true);
+    setLoadingEvents(true);
+
+    const unsubscribeSession = subscribePlaySession(db, sessionId, (next) => {
+      if (!mountedRef.current) return;
+      setSession(next);
+      setLoadingSession(false);
+    });
+    const unsubscribeEvents = subscribePlayEvents(db, sessionId, (next) => {
+      if (!mountedRef.current) return;
+      setEvents(next);
+      setLoadingEvents(false);
+    });
     return () => {
+      mountedRef.current = false;
       unsubscribeSession();
       unsubscribeEvents();
     };
@@ -84,10 +118,13 @@ export default function PlayResultScreen() {
 
   React.useEffect(() => {
     const ownDecision = session?.revealDecisions?.[uid];
-    if (ownDecision && ownDecision !== decision) {
-      setDecision(ownDecision);
+    if (!mountedRef.current) return;
+    if (ownDecision) {
+      setDecision((prev) => (prev === ownDecision ? prev : ownDecision));
+      return;
     }
-  }, [decision, session?.revealDecisions, uid]);
+    setDecision(null);
+  }, [session?.revealDecisions, uid]);
 
   const peer = React.useMemo(() => {
     if (!session) return null;
@@ -128,30 +165,49 @@ export default function PlayResultScreen() {
 
   const openChat = React.useCallback(async () => {
     if (!db || !session || !uid || !peer?.uid) return;
+    if (openChatPromiseRef.current) {
+      await openChatPromiseRef.current;
+      return;
+    }
 
-    const threadId = await ensureDmThread(db, uid, peer.uid, {
-      memberNames: {
-        [uid]: session.participantNicknames?.[uid] ?? makeNickname(uid),
-        [peer.uid]: peerName,
-      },
-      source: "play",
-      sourceSessionId: sessionId,
-      artworkSummary: {
-        activity: "draw",
-        strokeCount: totalStrokeCount,
-      },
+    const task = (async () => {
+      if (mountedRef.current) {
+        setOpeningChat(true);
+      }
+
+      const threadId = await ensureDmThread(db, uid, peer.uid, {
+        memberNames: {
+          [uid]: session.participantNicknames?.[uid] ?? makeNickname(uid),
+          [peer.uid]: peerName,
+        },
+        source: "play",
+        sourceSessionId: sessionId,
+        artworkSummary: {
+          activity: "draw",
+          strokeCount: totalStrokeCount,
+        },
+      });
+
+      if (!mountedRef.current) return;
+      navigation.replace("DMChat", {
+        threadId,
+        peerId: peer.uid,
+        peerName,
+        sourceSessionId: sessionId,
+      });
+    })().finally(() => {
+      openChatPromiseRef.current = null;
+      if (mountedRef.current) {
+        setOpeningChat(false);
+      }
     });
 
-    navigation.replace("DMChat", {
-      threadId,
-      peerId: peer.uid,
-      peerName,
-      sourceSessionId: sessionId,
-    });
+    openChatPromiseRef.current = task;
+    await task;
   }, [db, navigation, peer?.uid, peerName, session, sessionId, totalStrokeCount, uid]);
 
   const handleOpenPress = React.useCallback(async () => {
-    if (submitting) return;
+    if (submitting || openingChat) return;
 
     if (allOpen) {
       await openChat();
@@ -159,28 +215,88 @@ export default function PlayResultScreen() {
     }
 
     if (!db || !sessionId || !uid || decision) return;
-    setSubmitting(true);
-    setDecision("open");
+    if (mountedRef.current) {
+      setSubmitting(true);
+      setDecision("open");
+    }
     try {
       await submitRevealDecision(db, sessionId, uid, "open");
     } finally {
-      setSubmitting(false);
+      if (mountedRef.current) {
+        setSubmitting(false);
+      }
     }
-  }, [allOpen, db, decision, openChat, sessionId, submitting, uid]);
+  }, [allOpen, db, decision, openChat, openingChat, sessionId, submitting, uid]);
 
   const handleSkipPress = React.useCallback(async () => {
-    if (!db || !sessionId || !uid || submitting || decision) return;
-    setSubmitting(true);
-    setDecision("skip");
+    if (!db || !sessionId || !uid || submitting || decision || openingChat) return;
+    if (mountedRef.current) {
+      setSubmitting(true);
+      setDecision("skip");
+    }
     try {
       await submitRevealDecision(db, sessionId, uid, "skip");
     } finally {
-      setSubmitting(false);
+      if (mountedRef.current) {
+        setSubmitting(false);
+      }
     }
-  }, [db, decision, sessionId, submitting, uid]);
+  }, [db, decision, openingChat, sessionId, submitting, uid]);
 
-  const primaryDisabled = submitting || (Boolean(decision) && !allOpen);
-  const tertiaryDisabled = submitting || Boolean(decision);
+  const primaryDisabled = submitting || openingChat || (Boolean(decision) && !allOpen);
+  const tertiaryDisabled = submitting || openingChat || Boolean(decision);
+
+  if (!sessionId) {
+    return (
+      <ScreenShell
+        title="Итог сессии"
+        background="nightCity"
+        showBack
+        onBack={() => navigation.navigate("Tabs")}
+      >
+        <View style={styles.centerState}>
+          <Text style={styles.statusTitle}>Сессия не найдена</Text>
+          <Text style={styles.statusText}>
+            Не удалось открыть итог без идентификатора совместной сессии.
+          </Text>
+        </View>
+      </ScreenShell>
+    );
+  }
+
+  if (loadingSession || loadingEvents) {
+    return (
+      <ScreenShell
+        title="Итог сессии"
+        background="nightCity"
+        showBack
+        onBack={() => navigation.navigate("Tabs")}
+      >
+        <View style={styles.centerState}>
+          <ActivityIndicator color={theme.colors.accent} />
+          <Text style={styles.statusText}>Собираем итог совместной сессии…</Text>
+        </View>
+      </ScreenShell>
+    );
+  }
+
+  if (!session) {
+    return (
+      <ScreenShell
+        title="Итог сессии"
+        background="nightCity"
+        showBack
+        onBack={() => navigation.navigate("Tabs")}
+      >
+        <View style={styles.centerState}>
+          <Text style={styles.statusTitle}>Итог больше недоступен</Text>
+          <Text style={styles.statusText}>
+            Сессия уже исчезла или не успела сохраниться. Можно вернуться во Вместе и начать новую.
+          </Text>
+        </View>
+      </ScreenShell>
+    );
+  }
 
   return (
     <ScreenShell
@@ -243,7 +359,9 @@ export default function PlayResultScreen() {
             onPress={() => void handleOpenPress()}
             style={[styles.primaryButton, primaryDisabled && styles.disabledButton]}
           >
-            <Text style={styles.primaryText}>Открыть чат и профили</Text>
+            <Text style={styles.primaryText}>
+              {openingChat ? "Открываем чат…" : "Открыть чат и профили"}
+            </Text>
           </Pressable>
 
           <Pressable
@@ -321,6 +439,13 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 28,
     gap: 14,
+  },
+  centerState: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 28,
+    gap: 12,
   },
   heroCard: {
     borderRadius: theme.shapes.card,

@@ -193,6 +193,7 @@ export default function ReplayCanvasWebView({
   const [visibleCount, setVisibleCount] = useState(autoplay ? 0 : strokes.length);
   const [playing, setPlaying] = useState(autoplay);
   const endSentRef = useRef(false);
+  const lastInjectedPayloadRef = useRef("");
 
   const normalizedStrokes = useMemo(
     () =>
@@ -209,9 +210,18 @@ export default function ReplayCanvasWebView({
     [strokes]
   );
 
-  const injectPayload = (payload: unknown) => {
-    ref.current?.injectJavaScript(`window.__applyPayload(${escapeHtmlPayload(payload)}); true;`);
+  const injectPayload = (payload: unknown, force = false) => {
+    const serialized = escapeHtmlPayload(payload);
+    if (!force && lastInjectedPayloadRef.current === serialized) return;
+    lastInjectedPayloadRef.current = serialized;
+    ref.current?.injectJavaScript(`window.__applyPayload(${serialized}); true;`);
   };
+
+  useEffect(() => {
+    return () => {
+      lastInjectedPayloadRef.current = "";
+    };
+  }, []);
 
   useEffect(() => {
     setVisibleCount(autoplay ? 0 : normalizedStrokes.length);
@@ -292,19 +302,17 @@ export default function ReplayCanvasWebView({
             scrollEnabled={false}
             bounces={false}
             overScrollMode="never"
-            onLoadEnd={() => {
-              setReady(true);
-            }}
             onMessage={(event) => {
               try {
                 const payload = JSON.parse(event.nativeEvent.data);
                 if (payload?.type === "ready") {
+                  setReady(true);
                   injectPayload({
                     type: "init",
                     size: canvasSize,
                     strokes: normalizedStrokes,
                     visibleCount,
-                  });
+                  }, true);
                 }
               } catch {}
             }}

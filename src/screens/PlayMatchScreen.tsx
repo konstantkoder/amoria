@@ -29,9 +29,47 @@ export default function PlayMatchScreen() {
   const nickname = React.useMemo(() => makeNickname(uid), [uid]);
   const [busy, setBusy] = React.useState(false);
   const [statusText, setStatusText] = React.useState("Поднимаем очередь для общего холста...");
-  const navigatedRef = React.useRef(false);
+  const mountedRef = React.useRef(true);
+  const matchedSessionRef = React.useRef("");
+  const cancelledRef = React.useRef(false);
+  const cancellingPromiseRef = React.useRef<Promise<void> | null>(null);
+
+  const setBusySafe = React.useCallback((value: boolean) => {
+    if (!mountedRef.current) return;
+    setBusy(value);
+  }, []);
+
+  const setStatusTextSafe = React.useCallback((value: string) => {
+    if (!mountedRef.current) return;
+    setStatusText(value);
+  }, []);
+
+  const cancelQueue = React.useCallback(async () => {
+    if (!db || !uid || matchedSessionRef.current) return;
+    if (cancellingPromiseRef.current) {
+      await cancellingPromiseRef.current;
+      return;
+    }
+
+    const task = cancelPlayRequest(db, uid).catch(() => {});
+    cancellingPromiseRef.current = task;
+    await task;
+    cancellingPromiseRef.current = null;
+  }, [uid]);
+
+  const enterSession = React.useCallback(
+    (nextSessionId: string) => {
+      if (!nextSessionId || matchedSessionRef.current || !mountedRef.current) return;
+      matchedSessionRef.current = nextSessionId;
+      navigation.replace("PlayCanvas", { sessionId: nextSessionId });
+    },
+    [navigation]
+  );
 
   React.useEffect(() => {
+    mountedRef.current = true;
+    cancelledRef.current = false;
+
     if (!isFirebaseConfigured() || !db || !uid) {
       Alert.alert(
         "Parallel Play недоступен",
@@ -41,47 +79,62 @@ export default function PlayMatchScreen() {
       return;
     }
 
-    setBusy(true);
+    setBusySafe(true);
     const unsubscribe = subscribeOwnQueueEntry(db, uid, (entry) => {
-      if (entry?.sessionId && !navigatedRef.current) {
-        navigatedRef.current = true;
-        navigation.replace("PlayCanvas", { sessionId: entry.sessionId });
+      if (entry?.status === "cancelled" && !matchedSessionRef.current) {
+        setStatusTextSafe("Поиск остановлен. Можно вернуться и попробовать снова.");
+        setBusySafe(false);
+        return;
+      }
+
+      if (entry?.sessionId) {
+        enterSession(entry.sessionId);
       }
     });
 
     void (async () => {
       try {
         await enqueuePlayRequest(db, uid, activity, nickname);
-        setStatusText("Ищем человека, который тоже готов рисовать прямо сейчас...");
+        if (!mountedRef.current || cancelledRef.current || matchedSessionRef.current) {
+          await cancelQueue();
+          return;
+        }
+        setStatusTextSafe("Ищем человека, который тоже готов рисовать прямо сейчас...");
         const result = await tryMatchWaitingPlayer(db, uid, nickname, activity);
-        if (result.sessionId && !navigatedRef.current) {
-          navigatedRef.current = true;
-          navigation.replace("PlayCanvas", { sessionId: result.sessionId });
+        if (!mountedRef.current || cancelledRef.current) {
+          if (!result.sessionId) {
+            await cancelQueue();
+          }
+          return;
+        }
+        if (result.sessionId) {
+          enterSession(result.sessionId);
         }
       } catch {
+        if (!mountedRef.current || cancelledRef.current) return;
         Alert.alert(
           "Не удалось начать поиск",
           "Попробуй еще раз через пару секунд.",
           [{ text: "OK", onPress: () => navigation.goBack() }]
         );
       } finally {
-        setBusy(false);
+        setBusySafe(false);
       }
     })();
 
     return () => {
+      mountedRef.current = false;
+      cancelledRef.current = true;
       unsubscribe();
+      void cancelQueue();
     };
-  }, [activity, navigation, nickname, uid]);
+  }, [activity, cancelQueue, enterSession, navigation, nickname, setBusySafe, setStatusTextSafe, uid]);
 
   const handleCancel = React.useCallback(async () => {
-    if (db && uid) {
-      try {
-        await cancelPlayRequest(db, uid);
-      } catch {}
-    }
+    cancelledRef.current = true;
+    await cancelQueue();
     navigation.goBack();
-  }, [navigation, uid]);
+  }, [cancelQueue, navigation]);
 
   return (
     <ScreenShell

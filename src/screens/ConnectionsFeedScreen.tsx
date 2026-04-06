@@ -149,12 +149,14 @@ export default function ConnectionsFeedScreen() {
   const navigation = useNavigation<any>();
   const { t } = useLocale();
   const uid = auth?.currentUser?.uid ?? "";
+  const [now, setNow] = useState(() => Date.now());
   const [threads, setThreads] = useState<DmThreadDoc[]>([]);
   const [sessions, setSessions] = useState<PlaySessionDoc[]>([]);
   const [threadsLoaded, setThreadsLoaded] = useState(false);
   const [sessionsLoaded, setSessionsLoaded] = useState(false);
 
   useEffect(() => {
+    let alive = true;
     if (!db || !uid) {
       setThreads([]);
       setThreadsLoaded(true);
@@ -163,14 +165,19 @@ export default function ConnectionsFeedScreen() {
 
     setThreadsLoaded(false);
     const unsubscribe = subscribeDmThreads(db, uid, (next) => {
+      if (!alive) return;
       setThreads(next);
       setThreadsLoaded(true);
     });
 
-    return unsubscribe;
+    return () => {
+      alive = false;
+      unsubscribe();
+    };
   }, [uid]);
 
   useEffect(() => {
+    let alive = true;
     if (!db || !uid) {
       setSessions([]);
       setSessionsLoaded(true);
@@ -179,14 +186,21 @@ export default function ConnectionsFeedScreen() {
 
     setSessionsLoaded(false);
     const unsubscribe = subscribeRecentMutualPlaySessions(db, uid, (next) => {
+      if (!alive) return;
       setSessions(next);
       setSessionsLoaded(true);
     });
 
-    return unsubscribe;
+    return () => {
+      alive = false;
+      unsubscribe();
+    };
   }, [uid]);
 
-  const now = Date.now();
+  useEffect(() => {
+    setNow(Date.now());
+  }, [sessions, threads]);
+
   const threadBySessionId = useMemo(() => {
     const next = new Map<string, DmThreadDoc>();
     for (const thread of threads) {
@@ -220,6 +234,7 @@ export default function ConnectionsFeedScreen() {
   const isEmpty = !connectionCards.length && !storyCards.length;
 
   const openChat = (card: { threadId: string; peerId: string; peerName: string }) => {
+    if (!card.threadId || !card.peerId) return;
     navigation.navigate("DMChat", {
       threadId: card.threadId,
       peerId: card.peerId,
@@ -228,6 +243,7 @@ export default function ConnectionsFeedScreen() {
   };
 
   const openReplay = (sessionId: string) => {
+    if (!sessionId) return;
     navigation.navigate("PlayResult", { sessionId });
   };
 

@@ -1,5 +1,7 @@
 import React from "react";
 import {
+  Alert,
+  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -58,13 +60,47 @@ export default function PlayCanvasScreen() {
   const uid = auth?.currentUser?.uid ?? "";
   const [session, setSession] = React.useState<PlaySessionDoc | null>(null);
   const [events, setEvents] = React.useState<PlayStrokeBatch[]>([]);
-  const finishGuardRef = React.useRef(false);
+  const [loadingSession, setLoadingSession] = React.useState(true);
+  const [loadingEvents, setLoadingEvents] = React.useState(true);
+  const [finishing, setFinishing] = React.useState(false);
+  const mountedRef = React.useRef(true);
+  const navigationHandledRef = React.useRef(false);
+  const finishPromiseRef = React.useRef<Promise<void> | null>(null);
+  const allowExitRef = React.useRef(false);
 
   React.useEffect(() => {
-    if (!db || !sessionId) return;
-    const unsubscribeSession = subscribePlaySession(db, sessionId, setSession);
-    const unsubscribeEvents = subscribePlayEvents(db, sessionId, setEvents);
+    mountedRef.current = true;
+    navigationHandledRef.current = false;
+    allowExitRef.current = false;
+    finishPromiseRef.current = null;
+    setFinishing(false);
+    setTick(Date.now());
+
+    if (!db || !sessionId) {
+      setSession(null);
+      setEvents([]);
+      setLoadingSession(false);
+      setLoadingEvents(false);
+      return () => {
+        mountedRef.current = false;
+      };
+    }
+
+    setLoadingSession(true);
+    setLoadingEvents(true);
+
+    const unsubscribeSession = subscribePlaySession(db, sessionId, (next) => {
+      if (!mountedRef.current) return;
+      setSession(next);
+      setLoadingSession(false);
+    });
+    const unsubscribeEvents = subscribePlayEvents(db, sessionId, (next) => {
+      if (!mountedRef.current) return;
+      setEvents(next);
+      setLoadingEvents(false);
+    });
     return () => {
+      mountedRef.current = false;
       unsubscribeSession();
       unsubscribeEvents();
     };
@@ -80,34 +116,64 @@ export default function PlayCanvasScreen() {
     [events]
   );
 
-  const completeSession = React.useCallback(async () => {
-    if (!db || !sessionId || finishGuardRef.current) return;
-    finishGuardRef.current = true;
-    try {
-      await finishPlaySession(db, sessionId, totalStrokeCount);
-    } catch {}
+  const openResultScreen = React.useCallback(() => {
+    if (!mountedRef.current || navigationHandledRef.current || !sessionId) return;
+    navigationHandledRef.current = true;
+    allowExitRef.current = true;
     navigation.replace("PlayResult", { sessionId });
-  }, [navigation, sessionId, totalStrokeCount]);
+  }, [navigation, sessionId]);
+
+  const completeSession = React.useCallback(async () => {
+    if (!db || !sessionId) {
+      openResultScreen();
+      return;
+    }
+    if (finishPromiseRef.current) {
+      await finishPromiseRef.current;
+      return;
+    }
+
+    const task = (async () => {
+      if (mountedRef.current) {
+        setFinishing(true);
+      }
+
+      if (session?.status === "active") {
+        try {
+          await finishPlaySession(db, sessionId, totalStrokeCount);
+        } catch {}
+      }
+
+      openResultScreen();
+    })().finally(() => {
+      finishPromiseRef.current = null;
+      if (mountedRef.current) {
+        setFinishing(false);
+      }
+    });
+
+    finishPromiseRef.current = task;
+    try {
+      await task;
+    } catch {}
+  }, [db, openResultScreen, session?.status, sessionId, totalStrokeCount]);
 
   React.useEffect(() => {
     if (!session) return;
-    if (
-      (session.status === "finished" || session.status === "revealed") &&
-      !finishGuardRef.current
-    ) {
-      finishGuardRef.current = true;
-      navigation.replace("PlayResult", { sessionId });
+    if (session.status === "finished" || session.status === "revealed") {
+      openResultScreen();
     }
-  }, [navigation, session, sessionId]);
+  }, [openResultScreen, session]);
 
   const [tick, setTick] = React.useState(Date.now());
 
   React.useEffect(() => {
+    if (!session?.startedAt || session.status !== "active") return;
     const timer = setInterval(() => {
       setTick(Date.now());
     }, 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [session?.startedAt, session?.status]);
 
   const liveRemaining = React.useMemo(() => {
     if (!session?.startedAt) return SESSION_DURATION_SEC;
@@ -121,9 +187,34 @@ export default function PlayCanvasScreen() {
     void completeSession();
   }, [completeSession, liveRemaining, session]);
 
+  React.useEffect(() => {
+    const unsubscribe = navigation.addListener("beforeRemove", (event: any) => {
+      if (allowExitRef.current || navigationHandledRef.current) return;
+      if (session?.status !== "active") return;
+
+      event.preventDefault();
+      Alert.alert(
+        "Завершить сессию?",
+        "Если выйти сейчас, совместная сессия мягко завершится и откроется итоговый экран.",
+        [
+          { text: "Остаться", style: "cancel" },
+          {
+            text: "Завершить",
+            style: "destructive",
+            onPress: () => {
+              void completeSession();
+            },
+          },
+        ]
+      );
+    });
+
+    return unsubscribe;
+  }, [completeSession, navigation, session?.status]);
+
   const handleLocalBatch = React.useCallback(
     async (strokes: SharedCanvasStroke[]) => {
-      if (!db || !uid || !sessionId || session?.status !== "active") return;
+      if (!db || !uid || !sessionId || session?.status !== "active" || finishing) return;
 
       const payload: PlayStroke[] = strokes.map((stroke) => ({
         id: stroke.id,
@@ -140,7 +231,7 @@ export default function PlayCanvasScreen() {
         await appendStrokeBatch(db, sessionId, uid, payload);
       } catch {}
     },
-    [session?.status, sessionId, uid]
+    [db, finishing, session?.status, sessionId, uid]
   );
 
   const partnerId = React.useMemo(() => {
@@ -149,12 +240,72 @@ export default function PlayCanvasScreen() {
 
   const partnerName = session?.participantNicknames?.[partnerId] ?? makeNickname(partnerId || "peer");
 
+  if (!sessionId) {
+    return (
+      <ScreenShell title="Общий холст" background="nightCity" showBack>
+        <View style={styles.centerState}>
+          <Text style={styles.centerTitle}>Сессия не найдена</Text>
+          <Text style={styles.centerText}>
+            Не удалось открыть общий холст без идентификатора сессии.
+          </Text>
+        </View>
+      </ScreenShell>
+    );
+  }
+
+  if (loadingSession || loadingEvents) {
+    return (
+      <ScreenShell title="Общий холст" background="nightCity" showBack>
+        <View style={styles.centerState}>
+          <ActivityIndicator color={theme.colors.accent} />
+          <Text style={styles.centerText}>Подключаем общий холст…</Text>
+        </View>
+      </ScreenShell>
+    );
+  }
+
+  if (!session) {
+    return (
+      <ScreenShell title="Общий холст" background="nightCity" showBack>
+        <View style={styles.centerState}>
+          <Text style={styles.centerTitle}>Сессия больше недоступна</Text>
+          <Text style={styles.centerText}>
+            Совместная сессия уже завершилась или была закрыта.
+          </Text>
+          <Pressable onPress={() => navigation.replace("Tabs")} style={styles.returnButton}>
+            <Text style={styles.returnButtonText}>Вернуться во Вместе</Text>
+          </Pressable>
+        </View>
+      </ScreenShell>
+    );
+  }
+
   return (
     <ScreenShell
       title="Общий холст"
       background="nightCity"
       showBack
-      onBack={() => navigation.goBack()}
+      onBack={() => {
+        if (session.status !== "active") {
+          allowExitRef.current = true;
+          navigation.goBack();
+          return;
+        }
+        Alert.alert(
+          "Завершить сессию?",
+          "Если выйти сейчас, совместная сессия мягко завершится и откроется итоговый экран.",
+          [
+            { text: "Остаться", style: "cancel" },
+            {
+              text: "Завершить",
+              style: "destructive",
+              onPress: () => {
+                void completeSession();
+              },
+            },
+          ]
+        );
+      }}
     >
       <ScrollView
         style={{ flex: 1 }}
@@ -178,7 +329,7 @@ export default function PlayCanvasScreen() {
         <SharedCanvasWebView
           localUid={uid}
           strokes={allStrokes}
-          disabled={session?.status !== "active"}
+          disabled={session.status !== "active" || finishing}
           onLocalStrokeBatch={handleLocalBatch}
         />
 
@@ -187,8 +338,14 @@ export default function PlayCanvasScreen() {
             <Text style={styles.footerLabel}>Stroke batches</Text>
             <Text style={styles.footerValue}>{events.length}</Text>
           </View>
-          <Pressable onPress={() => void completeSession()} style={styles.finishButton}>
-            <Text style={styles.finishText}>Завершить раньше</Text>
+          <Pressable
+            disabled={finishing}
+            onPress={() => void completeSession()}
+            style={[styles.finishButton, finishing ? styles.finishButtonDisabled : null]}
+          >
+            <Text style={styles.finishText}>
+              {finishing ? "Завершаем…" : "Завершить раньше"}
+            </Text>
           </Pressable>
         </View>
       </ScrollView>
@@ -241,6 +398,25 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 19,
   },
+  centerState: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 28,
+    gap: 12,
+  },
+  centerTitle: {
+    color: theme.colors.text,
+    fontSize: 22,
+    fontWeight: "800",
+    textAlign: "center",
+  },
+  centerText: {
+    color: theme.colors.subtext,
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: "center",
+  },
   footerRow: {
     flexDirection: "row",
     gap: 12,
@@ -270,8 +446,22 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     backgroundColor: theme.colors.primary,
   },
+  finishButtonDisabled: {
+    opacity: 0.7,
+  },
   finishText: {
     color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  returnButton: {
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    backgroundColor: theme.colors.accent,
+  },
+  returnButtonText: {
+    color: theme.colors.text,
     fontSize: 14,
     fontWeight: "800",
   },
