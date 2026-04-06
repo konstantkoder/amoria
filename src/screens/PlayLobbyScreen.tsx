@@ -9,6 +9,7 @@ import {
 import { useNavigation } from "@react-navigation/native";
 
 import ScreenShell from "@/components/ScreenShell";
+import { useLocale } from "@/contexts/LocaleContext";
 import { theme } from "@/theme";
 
 type ActivityCard = {
@@ -47,10 +48,11 @@ const CARDS: ActivityCard[] = [
 
 export default function PlayLobbyScreen() {
   const navigation = useNavigation<any>();
+  const { t } = useLocale();
 
   return (
     <ScreenShell
-      title="Parallel Play"
+      title={t("tabs.together")}
       background="hearts"
       blurRadius={8}
       overlayOpacity={0.28}

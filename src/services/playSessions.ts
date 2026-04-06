@@ -335,6 +335,43 @@ export function subscribePlaySession(
   });
 }
 
+export function isMutualOpenPlaySession(session: PlaySessionDoc) {
+  if (!session.participantIds.length) return false;
+  return session.participantIds.every(
+    (participantId) => session.revealDecisions?.[participantId] === "open"
+  );
+}
+
+export function subscribeRecentMutualPlaySessions(
+  db: Firestore,
+  uid: string,
+  onData: (data: PlaySessionDoc[]) => void,
+  maxItems = 5
+) {
+  const sessionsQuery = query(
+    collection(db, "playSessions"),
+    where("participantIds", "array-contains", uid)
+  );
+
+  return onSnapshot(
+    sessionsQuery,
+    (snapshot) => {
+      const next = snapshot.docs
+        .map((item) => asPlaySessionDoc(item.id, item.data()))
+        .filter((session) => isMutualOpenPlaySession(session))
+        .sort((a, b) => {
+          const aTime = a.endedAt ?? a.startedAt ?? a.createdAt;
+          const bTime = b.endedAt ?? b.startedAt ?? b.createdAt;
+          return bTime - aTime;
+        })
+        .slice(0, maxItems);
+
+      onData(next);
+    },
+    () => onData([])
+  );
+}
+
 export function subscribePlayEvents(
   db: Firestore,
   sessionId: string,

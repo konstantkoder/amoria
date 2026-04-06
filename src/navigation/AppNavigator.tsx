@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Drawer } from "react-native-drawer-layout";
 
 import PlayLobbyScreen from "@/screens/PlayLobbyScreen";
-import NearbyScreen from "@/screens/NearbyScreen";
+import ConnectionsFeedScreen from "@/screens/ConnectionsFeedScreen";
 import NowScreen from "@/screens/NowScreen";
 import RoomsScreen from "@/screens/RoomsScreen";
 import InboxScreen from "@/screens/InboxScreen";
@@ -58,7 +58,7 @@ function MainTabs() {
 
   return (
     <Tab.Navigator
-      initialRouteName="Feed"
+      initialRouteName="Together"
       detachInactiveScreens={false}
       sceneContainerStyle={{ backgroundColor: theme.colors.background }}
       screenOptions={({ route }) => ({
@@ -77,9 +77,9 @@ function MainTabs() {
         tabBarLabelStyle: { fontSize: 12, fontWeight: "600" },
         tabBarIcon: ({ color, size }) => {
           const map: Record<string, keyof typeof Ionicons.glyphMap> = {
-            Feed: "reader-outline",
+            Together: "sparkles-outline",
             Now: "flash-outline",
-            Nearby: "location-outline",
+            Connections: "git-network-outline",
             Rooms: "home-outline",
             Inbox: "chatbubbles-outline",
           };
@@ -90,11 +90,11 @@ function MainTabs() {
       })}
     >
       <Tab.Screen
-        name="Feed"
+        name="Together"
         component={PlayLobbyScreen}
         options={{
-          title: t("tabs.feed"),
-          tabBarLabel: t("tabs.feed"),
+          title: t("tabs.together"),
+          tabBarLabel: t("tabs.together"),
         }}
       />
       <Tab.Screen
@@ -106,11 +106,11 @@ function MainTabs() {
         }}
       />
       <Tab.Screen
-        name="Nearby"
-        component={NearbyScreen}
+        name="Connections"
+        component={ConnectionsFeedScreen}
         options={{
-          title: t("tabs.ads"),
-          tabBarLabel: t("tabs.ads"),
+          title: t("tabs.connections"),
+          tabBarLabel: t("tabs.connections"),
         }}
       />
       <Tab.Screen

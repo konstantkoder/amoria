@@ -159,7 +159,7 @@ export default function AppDrawerContent({ onClose }: Props) {
             <View style={styles.iconWrap}>
               <Ionicons name="home-outline" size={20} color="#E5E7EB" />
             </View>
-            <Text style={styles.buttonText}>{t("tabs.feed")}</Text>
+            <Text style={styles.buttonText}>{t("tabs.together")}</Text>
           </TouchableOpacity>
         </ScrollView>
       </View>

@@ -1,0 +1,606 @@
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { useNavigation } from "@react-navigation/native";
+import { Ionicons } from "@expo/vector-icons";
+
+import ScreenShell from "@/components/ScreenShell";
+import { auth, db } from "@/config/firebaseConfig";
+import { useLocale } from "@/contexts/LocaleContext";
+import {
+  mapDmThreadToPeer,
+  subscribeDmThreads,
+  type DmThreadDoc,
+} from "@/services/dm";
+import {
+  getPeerFromSession,
+  subscribeRecentMutualPlaySessions,
+  type PlaySessionDoc,
+} from "@/services/playSessions";
+import { theme } from "@/theme";
+
+type ConnectionCard = {
+  id: string;
+  threadId: string;
+  peerId: string;
+  peerName: string;
+  sourceLabel: string;
+  previewText: string;
+  freshnessLabel: string;
+  sortAt: number;
+  strokeCount?: number;
+  sessionId?: string;
+};
+
+type StoryCard = {
+  id: string;
+  sessionId: string;
+  peerId: string;
+  peerName: string;
+  activityLabel: string;
+  strokeCount: number;
+  dateLabel: string;
+  sortAt: number;
+  threadId?: string;
+};
+
+function formatFreshness(value: number, now: number, t: (key: string, params?: Record<string, string>) => string) {
+  if (!value) return t("connections.justNow");
+
+  const diff = Math.max(now - value, 0);
+  const minute = 60 * 1000;
+  const hour = 60 * minute;
+  const day = 24 * hour;
+
+  if (diff < hour) {
+    const minutes = Math.max(Math.round(diff / minute), 1);
+    return t("connections.minutesAgo", { count: String(minutes) });
+  }
+
+  if (diff < day) {
+    const hours = Math.max(Math.round(diff / hour), 1);
+    return t("connections.hoursAgo", { count: String(hours) });
+  }
+
+  if (diff < 7 * day) {
+    const days = Math.max(Math.round(diff / day), 1);
+    return t("connections.daysAgo", { count: String(days) });
+  }
+
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      day: "2-digit",
+      month: "short",
+    }).format(new Date(value));
+  } catch {
+    return new Date(value).toLocaleDateString();
+  }
+}
+
+function formatActivityLabel(activity: string, t: (key: string) => string) {
+  if (activity === "draw") return t("connections.sourceDraw");
+  return activity;
+}
+
+function mapThreadToConnectionCard(
+  thread: DmThreadDoc,
+  uid: string,
+  now: number,
+  t: (key: string, params?: Record<string, string>) => string
+): ConnectionCard | null {
+  const peer = mapDmThreadToPeer(thread, uid);
+  if (!peer) return null;
+
+  const sortAt = thread.lastMessageAt ?? thread.updatedAt ?? thread.createdAt;
+
+  return {
+    id: thread.id,
+    threadId: thread.id,
+    peerId: peer.uid,
+    peerName: peer.name,
+    sourceLabel:
+      thread.source === "play"
+        ? t("connections.sourceDraw")
+        : t("connections.sourceOpened"),
+    previewText:
+      thread.lastMessageText?.trim() || t("connections.connectionPreviewFallback"),
+    freshnessLabel: formatFreshness(sortAt, now, t),
+    sortAt,
+    ...(thread.artworkSummary?.strokeCount != null
+      ? { strokeCount: thread.artworkSummary.strokeCount }
+      : {}),
+    ...(thread.sourceSessionId ? { sessionId: thread.sourceSessionId } : {}),
+  };
+}
+
+function mapSessionToStoryCard(
+  session: PlaySessionDoc,
+  uid: string,
+  now: number,
+  t: (key: string, params?: Record<string, string>) => string,
+  threadBySessionId: Map<string, DmThreadDoc>
+): StoryCard | null {
+  const peer = getPeerFromSession(session, uid);
+  if (!peer) return null;
+
+  const sortAt = session.endedAt ?? session.startedAt ?? session.createdAt;
+  const linkedThread = threadBySessionId.get(session.id);
+
+  return {
+    id: session.id,
+    sessionId: session.id,
+    peerId: peer.uid,
+    peerName: peer.nickname,
+    activityLabel: formatActivityLabel(session.activity, t),
+    strokeCount: session.resultStrokeCount ?? 0,
+    dateLabel: formatFreshness(sortAt, now, t),
+    sortAt,
+    ...(linkedThread ? { threadId: linkedThread.id } : {}),
+  };
+}
+
+export default function ConnectionsFeedScreen() {
+  const navigation = useNavigation<any>();
+  const { t } = useLocale();
+  const uid = auth?.currentUser?.uid ?? "";
+  const [threads, setThreads] = useState<DmThreadDoc[]>([]);
+  const [sessions, setSessions] = useState<PlaySessionDoc[]>([]);
+  const [threadsLoaded, setThreadsLoaded] = useState(false);
+  const [sessionsLoaded, setSessionsLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!db || !uid) {
+      setThreads([]);
+      setThreadsLoaded(true);
+      return;
+    }
+
+    setThreadsLoaded(false);
+    const unsubscribe = subscribeDmThreads(db, uid, (next) => {
+      setThreads(next);
+      setThreadsLoaded(true);
+    });
+
+    return unsubscribe;
+  }, [uid]);
+
+  useEffect(() => {
+    if (!db || !uid) {
+      setSessions([]);
+      setSessionsLoaded(true);
+      return;
+    }
+
+    setSessionsLoaded(false);
+    const unsubscribe = subscribeRecentMutualPlaySessions(db, uid, (next) => {
+      setSessions(next);
+      setSessionsLoaded(true);
+    });
+
+    return unsubscribe;
+  }, [uid]);
+
+  const now = Date.now();
+  const threadBySessionId = useMemo(() => {
+    const next = new Map<string, DmThreadDoc>();
+    for (const thread of threads) {
+      if (thread.sourceSessionId) {
+        next.set(thread.sourceSessionId, thread);
+      }
+    }
+    return next;
+  }, [threads]);
+
+  const connectionCards = useMemo(
+    () =>
+      threads
+        .map((thread) => mapThreadToConnectionCard(thread, uid, now, t))
+        .filter((item): item is ConnectionCard => Boolean(item))
+        .sort((a, b) => b.sortAt - a.sortAt),
+    [now, t, threads, uid]
+  );
+
+  const storyCards = useMemo(
+    () =>
+      sessions
+        .map((session) => mapSessionToStoryCard(session, uid, now, t, threadBySessionId))
+        .filter((item): item is StoryCard => Boolean(item))
+        .sort((a, b) => b.sortAt - a.sortAt)
+        .slice(0, 5),
+    [now, sessions, t, threadBySessionId, uid]
+  );
+
+  const isLoading = !threadsLoaded || !sessionsLoaded;
+  const isEmpty = !connectionCards.length && !storyCards.length;
+
+  const openChat = (card: { threadId: string; peerId: string; peerName: string }) => {
+    navigation.navigate("DMChat", {
+      threadId: card.threadId,
+      peerId: card.peerId,
+      peerName: card.peerName,
+    });
+  };
+
+  const openReplay = (sessionId: string) => {
+    navigation.navigate("PlayResult", { sessionId });
+  };
+
+  const goToTogether = () => {
+    navigation.navigate("Together");
+  };
+
+  return (
+    <ScreenShell
+      title={t("connections.title")}
+      background="nightCity"
+      overlayOpacity={0.2}
+      blurRadius={2}
+    >
+      {isLoading ? (
+        <View style={styles.centerState}>
+          <ActivityIndicator color={theme.colors.accent} />
+          <Text style={styles.stateText}>{t("connections.loading")}</Text>
+        </View>
+      ) : isEmpty ? (
+        <View style={styles.emptyWrap}>
+          <View style={styles.emptyIcon}>
+            <Ionicons name="git-network-outline" size={34} color={theme.colors.accent} />
+          </View>
+          <Text style={styles.emptyTitle}>{t("connections.emptyTitle")}</Text>
+          <Text style={styles.emptyText}>{t("connections.emptyBody")}</Text>
+          <Pressable onPress={goToTogether} style={styles.primaryButton}>
+            <Text style={styles.primaryButtonText}>{t("connections.goToTogether")}</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.heroCard}>
+            <Text style={styles.heroKicker}>{t("connections.heroKicker")}</Text>
+            <Text style={styles.heroTitle}>{t("connections.heroTitle")}</Text>
+            <Text style={styles.heroText}>{t("connections.heroBody")}</Text>
+          </View>
+
+          {connectionCards.length ? (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>{t("connections.openConnectionsTitle")}</Text>
+              <Text style={styles.sectionText}>{t("connections.openConnectionsBody")}</Text>
+
+              {connectionCards.map((card) => (
+                <View key={card.id} style={styles.card}>
+                  <View style={styles.cardTopRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.cardTitle}>{card.peerName}</Text>
+                      <Text style={styles.cardSource}>{card.sourceLabel}</Text>
+                    </View>
+                    <Text style={styles.cardDate}>{card.freshnessLabel}</Text>
+                  </View>
+
+                  <Text style={styles.previewText} numberOfLines={2}>
+                    {card.previewText}
+                  </Text>
+
+                  <View style={styles.metaRow}>
+                    {card.strokeCount != null ? (
+                      <View style={styles.metaPill}>
+                        <Text style={styles.metaPillText}>
+                          {t("connections.strokeCount", { count: String(card.strokeCount) })}
+                        </Text>
+                      </View>
+                    ) : null}
+                    <View style={styles.metaPill}>
+                      <Text style={styles.metaPillText}>{t("connections.connectionOpen")}</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.actionsRow}>
+                    <Pressable onPress={() => openChat(card)} style={styles.primaryCta}>
+                      <Text style={styles.primaryCtaText}>{t("connections.openChat")}</Text>
+                    </Pressable>
+                    {card.sessionId ? (
+                      <Pressable
+                        onPress={() => openReplay(card.sessionId!)}
+                        style={styles.secondaryCta}
+                      >
+                        <Text style={styles.secondaryCtaText}>{t("connections.openReplay")}</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                </View>
+              ))}
+            </View>
+          ) : null}
+
+          {storyCards.length ? (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>{t("connections.recentStoriesTitle")}</Text>
+              <Text style={styles.sectionText}>{t("connections.recentStoriesBody")}</Text>
+
+              {storyCards.map((card) => (
+                <Pressable
+                  key={card.id}
+                  onPress={() =>
+                    card.threadId
+                      ? openChat({
+                          threadId: card.threadId,
+                          peerId: card.peerId,
+                          peerName: card.peerName,
+                        })
+                      : openReplay(card.sessionId)
+                  }
+                  style={styles.storyCard}
+                >
+                  <View style={styles.storyHeader}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.storyTitle}>{card.activityLabel}</Text>
+                      <Text style={styles.storyPeer}>{card.peerName}</Text>
+                    </View>
+                    <Text style={styles.cardDate}>{card.dateLabel}</Text>
+                  </View>
+
+                  <View style={styles.storyMetaRow}>
+                    <View style={styles.metaPill}>
+                      <Text style={styles.metaPillText}>
+                        {t("connections.strokeCount", { count: String(card.strokeCount) })}
+                      </Text>
+                    </View>
+                    <View style={styles.metaPill}>
+                      <Text style={styles.metaPillText}>{t("connections.mutualOpen")}</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.actionsRow}>
+                    {card.threadId ? (
+                      <Pressable
+                        onPress={() =>
+                          openChat({
+                            threadId: card.threadId!,
+                            peerId: card.peerId,
+                            peerName: card.peerName,
+                          })
+                        }
+                        style={styles.primaryCta}
+                      >
+                        <Text style={styles.primaryCtaText}>{t("connections.openChat")}</Text>
+                      </Pressable>
+                    ) : null}
+                    <Pressable
+                      onPress={() => openReplay(card.sessionId)}
+                      style={styles.secondaryCta}
+                    >
+                      <Text style={styles.secondaryCtaText}>{t("connections.openReplay")}</Text>
+                    </Pressable>
+                  </View>
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
+        </ScrollView>
+      )}
+    </ScreenShell>
+  );
+}
+
+const styles = StyleSheet.create({
+  scroll: { flex: 1 },
+  content: {
+    padding: 16,
+    paddingBottom: 40,
+    gap: 18,
+  },
+  centerState: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+    paddingHorizontal: 28,
+  },
+  stateText: {
+    color: theme.colors.subtext,
+    fontSize: 14,
+    textAlign: "center",
+  },
+  heroCard: {
+    padding: 20,
+    borderRadius: theme.shapes.card,
+    backgroundColor: "rgba(13, 18, 34, 0.88)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  heroKicker: {
+    color: theme.colors.accent,
+    fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 1,
+    marginBottom: 8,
+  },
+  heroTitle: {
+    color: theme.colors.text,
+    fontSize: 24,
+    lineHeight: 30,
+    fontWeight: "800",
+    marginBottom: 10,
+  },
+  heroText: {
+    color: theme.colors.subtext,
+    fontSize: 14,
+    lineHeight: 21,
+  },
+  section: {
+    gap: 12,
+  },
+  sectionTitle: {
+    color: theme.colors.text,
+    fontSize: 20,
+    fontWeight: "800",
+  },
+  sectionText: {
+    color: theme.colors.subtext,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  card: {
+    borderRadius: theme.shapes.card,
+    padding: 18,
+    backgroundColor: "rgba(19, 24, 45, 0.88)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    gap: 12,
+  },
+  storyCard: {
+    borderRadius: theme.shapes.card,
+    padding: 18,
+    backgroundColor: "rgba(12, 16, 31, 0.9)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 122, 60, 0.16)",
+    gap: 12,
+  },
+  cardTopRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  storyHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  cardTitle: {
+    color: theme.colors.text,
+    fontSize: 18,
+    fontWeight: "800",
+    marginBottom: 4,
+  },
+  storyTitle: {
+    color: theme.colors.text,
+    fontSize: 17,
+    fontWeight: "800",
+    marginBottom: 4,
+  },
+  storyPeer: {
+    color: theme.colors.accent,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  cardSource: {
+    color: theme.colors.accent,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  cardDate: {
+    color: theme.colors.muted,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  previewText: {
+    color: theme.colors.subtext,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  metaRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  storyMetaRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  metaPill: {
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)",
+  },
+  metaPillText: {
+    color: theme.colors.pillText,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  actionsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  primaryCta: {
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: theme.colors.accent,
+  },
+  primaryCtaText: {
+    color: theme.colors.text,
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  secondaryCta: {
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  secondaryCtaText: {
+    color: theme.colors.text,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  emptyWrap: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 28,
+  },
+  emptyIcon: {
+    width: 82,
+    height: 82,
+    borderRadius: 41,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255, 122, 60, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    marginBottom: 18,
+  },
+  emptyTitle: {
+    color: theme.colors.text,
+    fontSize: 22,
+    lineHeight: 28,
+    fontWeight: "800",
+    textAlign: "center",
+    marginBottom: 10,
+  },
+  emptyText: {
+    color: theme.colors.subtext,
+    fontSize: 14,
+    lineHeight: 21,
+    textAlign: "center",
+    marginBottom: 18,
+  },
+  primaryButton: {
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    backgroundColor: theme.colors.accent,
+  },
+  primaryButtonText: {
+    color: theme.colors.text,
+    fontSize: 14,
+    fontWeight: "800",
+  },
+});
