@@ -1,29 +1,34 @@
-import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, FlatList, Pressable, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
 import { auth, db } from "@/config/firebaseConfig";
-import { theme } from "@/theme";
 import ScreenShell from "@/components/ScreenShell";
-import { mapDmThreadToPeer, subscribeDmThreads, type DmThreadDoc } from "@/services/dm";
+import {
+  buildDmChatRouteParams,
+  mapDmThreadToPeer,
+  subscribeDmThreads,
+  type DmThreadDoc,
+} from "@/services/dm";
 import { useLocale } from "@/contexts/LocaleContext";
+import { theme } from "@/theme";
 
 type InboxThreadCard = {
   id: string;
   peerId: string;
   peerName: string;
-  sourceLabel: string;
+  sourceKey: "play" | "direct";
   previewText: string;
   dateLabel: string;
   sortAt: number;
 };
 
 function formatThreadDate(value: number) {
-  if (!value) return "Сейчас";
+  if (!value) return "";
   try {
-    return new Intl.DateTimeFormat("ru-RU", {
+    return new Intl.DateTimeFormat(undefined, {
       day: "2-digit",
       month: "short",
       hour: "2-digit",
@@ -34,7 +39,12 @@ function formatThreadDate(value: number) {
   }
 }
 
-function mapThreadToCard(thread: DmThreadDoc, uid: string, fallbackName: string) {
+function mapThreadToCard(
+  thread: DmThreadDoc,
+  uid: string,
+  fallbackName: string,
+  previewFallback: string
+): InboxThreadCard | null {
   const peer = mapDmThreadToPeer(thread, uid);
   if (!peer) return null;
 
@@ -43,41 +53,163 @@ function mapThreadToCard(thread: DmThreadDoc, uid: string, fallbackName: string)
     id: thread.id,
     peerId: peer.uid,
     peerName: peer.name || fallbackName,
-    sourceLabel: thread.source === "play" ? "Нарисовали вместе" : "Диалог",
-    previewText: thread.lastMessageText?.trim() || "Чат открыт после совместной сессии.",
+    sourceKey: thread.source === "play" ? "play" : "direct",
+    previewText: thread.lastMessageText?.trim() || previewFallback,
     dateLabel: formatThreadDate(sortAt),
     sortAt,
-  } satisfies InboxThreadCard;
+  };
 }
 
 export default function InboxScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const { t } = useLocale();
+  const tt = useCallback(
+    (key: string, fallback: string, params?: Record<string, string>) => {
+      const value = t(key, params);
+      return value === key ? fallback : value;
+    },
+    [t]
+  );
   const uid = auth?.currentUser?.uid ?? "";
   const [cards, setCards] = useState<InboxThreadCard[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
+    let alive = true;
     if (!db || !uid) {
       setCards([]);
       setLoading(false);
+      setError(null);
       return;
     }
 
     setLoading(true);
-    const unsubscribe = subscribeDmThreads(db, uid, (threads) => {
-      const next = threads
-        .map((thread) => mapThreadToCard(thread, uid, t("common.user")))
-        .filter((item): item is InboxThreadCard => Boolean(item))
-        .sort((a, b) => b.sortAt - a.sortAt);
+    setError(null);
+    const unsubscribe = subscribeDmThreads(
+      db,
+      uid,
+      (threads) => {
+        if (!alive) return;
+        const next = threads
+          .map((thread) =>
+            mapThreadToCard(
+              thread,
+              uid,
+              t("common.user"),
+              tt("inbox.previewFallback", "The connection is open. You can write first.")
+            )
+          )
+          .filter((item): item is InboxThreadCard => Boolean(item))
+          .sort((a, b) => b.sortAt - a.sortAt);
 
-      setCards(next);
-      setLoading(false);
-    });
+        setCards(next);
+        setLoading(false);
+      },
+      () => {
+        if (!alive) return;
+        setError(tt("inbox.errorBody", "We couldn't connect your personal chats right now. Try again."));
+        setLoading(false);
+      }
+    );
 
-    return unsubscribe;
-  }, [t, uid]);
+    return () => {
+      alive = false;
+      unsubscribe();
+    };
+  }, [reloadKey, t, tt, uid]);
+
+  const sourceLabels = useMemo(
+    () => ({
+      play: tt("connections.sourceDraw", "Drew together"),
+      direct: tt("inbox.sourceDefault", "Open chat"),
+    }),
+    [tt]
+  );
+
+  const renderCard = useCallback(
+    ({ item }: { item: InboxThreadCard }) => (
+      <Pressable
+        onPress={() =>
+          navigation.navigate(
+            "DMChat",
+            buildDmChatRouteParams({
+              threadId: item.id,
+              peerId: item.peerId,
+              peerName: item.peerName,
+            })
+          )
+        }
+        style={{
+          backgroundColor: "rgba(17, 20, 36, 0.9)",
+          borderRadius: 22,
+          padding: 16,
+          borderWidth: 1,
+          borderColor: theme.colors.borderSubtle,
+          gap: 10,
+        }}
+      >
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "flex-start",
+            justifyContent: "space-between",
+            gap: 12,
+          }}
+        >
+          <View style={{ flex: 1, gap: 6 }}>
+            <Text
+              style={{
+                color: theme.colors.text,
+                fontSize: 17,
+                fontWeight: "800",
+              }}
+            >
+              {item.peerName}
+            </Text>
+            <View
+              style={{
+                alignSelf: "flex-start",
+                paddingHorizontal: 10,
+                paddingVertical: 6,
+                borderRadius: theme.shapes.pill,
+                backgroundColor: "rgba(255, 122, 60, 0.12)",
+                borderWidth: 1,
+                borderColor: "rgba(255, 122, 60, 0.22)",
+              }}
+            >
+              <Text style={{ color: theme.colors.accent, fontSize: 12, fontWeight: "800" }}>
+                {sourceLabels[item.sourceKey]}
+              </Text>
+            </View>
+          </View>
+          <Text
+            style={{
+              color: theme.colors.muted,
+              fontSize: 12,
+              fontWeight: "700",
+            }}
+          >
+            {item.dateLabel}
+          </Text>
+        </View>
+
+        <Text
+          style={{
+            color: theme.colors.subtext,
+            fontSize: 14,
+            lineHeight: 20,
+          }}
+          numberOfLines={2}
+        >
+          {item.previewText}
+        </Text>
+      </Pressable>
+    ),
+    [navigation, sourceLabels]
+  );
 
   return (
     <ScreenShell
@@ -94,24 +226,31 @@ export default function InboxScreen() {
           paddingBottom: insets.bottom + 8,
         }}
       >
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "baseline",
-            justifyContent: "space-between",
-            marginBottom: 8,
-          }}
-        >
-          <Text
+        <View style={{ marginBottom: 16, gap: 8 }}>
+          <View
             style={{
-              color: "#E5E7EB",
-              fontSize: 18,
-              fontWeight: "800",
+              flexDirection: "row",
+              alignItems: "baseline",
+              justifyContent: "space-between",
             }}
           >
-            {t("tabs.chats")}
+            <Text
+              style={{
+                color: theme.colors.text,
+                fontSize: 18,
+                fontWeight: "800",
+              }}
+            >
+              {t("tabs.chats")}
+            </Text>
+            <Text style={{ color: theme.colors.muted, fontSize: 12 }}>{cards.length}</Text>
+          </View>
+          <Text style={{ color: theme.colors.subtext, fontSize: 14, lineHeight: 20 }}>
+            {tt(
+              "inbox.subheader",
+              "This is where active personal conversation lives. Connections keeps the shared story, and Chats keeps the dialogue moving."
+            )}
           </Text>
-          <Text style={{ color: "#9CA3AF", fontSize: 12 }}>{cards.length}</Text>
         </View>
 
         {loading ? (
@@ -126,86 +265,69 @@ export default function InboxScreen() {
           >
             <ActivityIndicator color={theme.colors.accent} />
             <Text style={{ color: theme.colors.subtext, fontSize: 14, textAlign: "center" }}>
-              Подключаем чаты…
+              {tt("inbox.loading", "Loading your chats…")}
             </Text>
           </View>
-        ) : cards.length ? (
-          <ScrollView
-            style={{ flex: 1 }}
-            contentContainerStyle={{ paddingTop: 10, paddingBottom: 12, gap: 12 }}
-            showsVerticalScrollIndicator={false}
+        ) : error ? (
+          <View
+            style={{
+              flex: 1,
+              alignItems: "center",
+              justifyContent: "center",
+              paddingHorizontal: 28,
+              gap: 12,
+            }}
           >
-            {cards.map((card) => (
-              <Pressable
-                key={card.id}
-                onPress={() =>
-                  navigation.navigate("DMChat", {
-                    threadId: card.id,
-                    peerId: card.peerId,
-                    peerName: card.peerName,
-                  })
-                }
-                style={{
-                  backgroundColor: "rgba(17, 20, 36, 0.86)",
-                  borderRadius: 22,
-                  padding: 16,
-                  borderWidth: 1,
-                  borderColor: theme.colors.borderSubtle,
-                }}
-              >
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: 12,
-                    marginBottom: 10,
-                  }}
-                >
-                  <Text
-                    style={{
-                      color: theme.colors.text,
-                      fontSize: 17,
-                      fontWeight: "800",
-                      flex: 1,
-                    }}
-                  >
-                    {card.peerName}
-                  </Text>
-                  <Text
-                    style={{
-                      color: theme.colors.muted,
-                      fontSize: 12,
-                      fontWeight: "600",
-                    }}
-                  >
-                    {card.dateLabel}
-                  </Text>
-                </View>
-
-                <Text
-                  style={{
-                    color: theme.colors.accent,
-                    fontSize: 13,
-                    fontWeight: "700",
-                    marginBottom: 8,
-                  }}
-                >
-                  {card.sourceLabel}
-                </Text>
-                <Text
-                  style={{
-                    color: theme.colors.subtext,
-                    fontSize: 14,
-                    lineHeight: 20,
-                  }}
-                  numberOfLines={2}
-                >
-                  {card.previewText}
-                </Text>
-              </Pressable>
-            ))}
-          </ScrollView>
+            <View
+              style={{
+                width: 78,
+                height: 78,
+                borderRadius: 39,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: "rgba(255, 122, 60, 0.12)",
+                borderWidth: 1,
+                borderColor: "rgba(255,255,255,0.08)",
+              }}
+            >
+              <Ionicons name="alert-circle-outline" size={34} color={theme.colors.accent} />
+            </View>
+            <Text
+              style={{
+                color: theme.colors.text,
+                fontSize: 18,
+                fontWeight: "800",
+                textAlign: "center",
+              }}
+            >
+              {tt("inbox.errorTitle", "Chats are temporarily unavailable")}
+            </Text>
+            <Text style={{ color: theme.colors.subtext, fontSize: 14, lineHeight: 20, textAlign: "center" }}>
+              {error}
+            </Text>
+            <Pressable
+              onPress={() => setReloadKey((prev) => prev + 1)}
+              style={{
+                marginTop: 4,
+                paddingHorizontal: 14,
+                paddingVertical: 10,
+                borderRadius: theme.shapes.pill,
+                backgroundColor: theme.colors.primary,
+              }}
+            >
+              <Text style={{ color: "#fff", fontWeight: "800" }}>
+                {tt("common.retry", "Retry")}
+              </Text>
+            </Pressable>
+          </View>
+        ) : cards.length ? (
+          <FlatList
+            data={cards}
+            keyExtractor={(item) => item.id}
+            renderItem={renderCard}
+            contentContainerStyle={{ paddingTop: 8, paddingBottom: 12, gap: 12 }}
+            showsVerticalScrollIndicator={false}
+          />
         ) : (
           <View
             style={{
@@ -227,11 +349,7 @@ export default function InboxScreen() {
                 borderColor: "rgba(255,255,255,0.08)",
               }}
             >
-              <Ionicons
-                name="chatbubbles-outline"
-                size={34}
-                color={theme.colors.primary}
-              />
+              <Ionicons name="chatbubbles-outline" size={34} color={theme.colors.primary} />
             </View>
             <Text
               style={{
@@ -243,17 +361,20 @@ export default function InboxScreen() {
                 marginBottom: 8,
               }}
             >
-              Пока пусто
+              {tt("chats.empty", "No chats yet.")}
             </Text>
             <Text
               style={{
-                color: "#9CA3AF",
-                fontSize: 13,
+                color: theme.colors.subtext,
+                fontSize: 14,
                 textAlign: "center",
                 lineHeight: 20,
               }}
             >
-              Пока пусто. Открой кого-то после совместной сессии, и здесь появится чат.
+              {tt(
+                "inbox.emptyBody",
+                "After a mutual open, the personal chat will appear here and stay ready whenever you want to continue."
+              )}
             </Text>
           </View>
         )}

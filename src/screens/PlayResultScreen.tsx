@@ -13,7 +13,7 @@ import ScreenShell from "@/components/ScreenShell";
 import ReplayCanvasWebView from "@/components/play/ReplayCanvasWebView";
 import type { SharedCanvasStroke } from "@/components/play/SharedCanvasWebView";
 import { auth, db } from "@/config/firebaseConfig";
-import { ensureDmThread } from "@/services/dm";
+import { buildDmChatRouteParams, ensureDmThread } from "@/services/dm";
 import {
   getPeerFromSession,
   submitRevealDecision,
@@ -189,12 +189,15 @@ export default function PlayResultScreen() {
       });
 
       if (!mountedRef.current) return;
-      navigation.replace("DMChat", {
-        threadId,
-        peerId: peer.uid,
-        peerName,
-        sourceSessionId: sessionId,
-      });
+      navigation.replace(
+        "DMChat",
+        buildDmChatRouteParams({
+          threadId,
+          peerId: peer.uid,
+          peerName,
+          sourceSessionId: sessionId,
+        })
+      );
     })().finally(() => {
       openChatPromiseRef.current = null;
       if (mountedRef.current) {

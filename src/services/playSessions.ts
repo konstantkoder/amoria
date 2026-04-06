@@ -356,7 +356,8 @@ export function subscribeRecentMutualPlaySessions(
   db: Firestore,
   uid: string,
   onData: (data: PlaySessionDoc[]) => void,
-  maxItems = 5
+  maxItems = 5,
+  onError?: (error: Error) => void
 ) {
   const sessionsQuery = query(
     collection(db, "playSessions"),
@@ -378,7 +379,10 @@ export function subscribeRecentMutualPlaySessions(
 
       onData(next);
     },
-    () => onData([])
+    (error) => {
+      onError?.(error);
+      onData([]);
+    }
   );
 }
 

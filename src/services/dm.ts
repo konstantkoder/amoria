@@ -41,6 +41,13 @@ export type DmMessageDoc = {
   pending?: boolean;
 };
 
+export type DmChatRouteParams = {
+  threadId: string;
+  peerId: string;
+  peerName?: string;
+  sourceSessionId?: string;
+};
+
 function asDmThreadDoc(id: string, raw: unknown): DmThreadDoc {
   const data = (raw ?? {}) as Partial<DmThreadDoc>;
   return {
@@ -93,6 +100,17 @@ function asDmMessageDoc(id: string, raw: unknown, pending: boolean): DmMessageDo
 
 export function buildDmThreadId(uidA: string, uidB: string): string {
   return [String(uidA ?? ""), String(uidB ?? "")].sort().join("__");
+}
+
+export function buildDmChatRouteParams(params: DmChatRouteParams): DmChatRouteParams {
+  return {
+    threadId: String(params.threadId ?? ""),
+    peerId: String(params.peerId ?? ""),
+    ...(params.peerName?.trim() ? { peerName: params.peerName.trim() } : {}),
+    ...(params.sourceSessionId?.trim()
+      ? { sourceSessionId: params.sourceSessionId.trim() }
+      : {}),
+  };
 }
 
 export async function ensureDmThread(
@@ -160,7 +178,8 @@ export async function ensureDmThread(
 export function subscribeDmThreads(
   db: Firestore,
   uid: string,
-  onData: (data: DmThreadDoc[]) => void
+  onData: (data: DmThreadDoc[]) => void,
+  onError?: (error: Error) => void
 ) {
   const threadsQuery = query(
     collection(db, "dmThreads"),
@@ -170,16 +189,32 @@ export function subscribeDmThreads(
   return onSnapshot(
     threadsQuery,
     (snapshot) => {
-      onData(snapshot.docs.map((item) => asDmThreadDoc(item.id, item.data())));
+      const byId = new Map<string, DmThreadDoc>();
+      for (const item of snapshot.docs) {
+        const thread = asDmThreadDoc(item.id, item.data());
+        byId.set(thread.id, thread);
+      }
+
+      onData(
+        Array.from(byId.values()).sort((a, b) => {
+          const aTime = a.lastMessageAt ?? a.updatedAt ?? a.createdAt;
+          const bTime = b.lastMessageAt ?? b.updatedAt ?? b.createdAt;
+          return bTime - aTime;
+        })
+      );
     },
-    () => onData([])
+    (error) => {
+      onError?.(error);
+      onData([]);
+    }
   );
 }
 
 export function subscribeDmMessages(
   db: Firestore,
   threadId: string,
-  onData: (data: DmMessageDoc[]) => void
+  onData: (data: DmMessageDoc[]) => void,
+  onError?: (error: Error) => void
 ) {
   const messagesQuery = query(
     collection(db, "dmThreads", threadId, "messages"),
@@ -189,13 +224,22 @@ export function subscribeDmMessages(
   return onSnapshot(
     messagesQuery,
     (snapshot) => {
+      const byClientId = new Map<string, DmMessageDoc>();
+      for (const item of snapshot.docs) {
+        const message = asDmMessageDoc(item.id, item.data(), item.metadata.hasPendingWrites);
+        byClientId.set(message.clientId || message.id, message);
+      }
+
       onData(
-        snapshot.docs.map((item) =>
-          asDmMessageDoc(item.id, item.data(), item.metadata.hasPendingWrites)
+        Array.from(byClientId.values()).sort(
+          (a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0)
         )
       );
     },
-    () => onData([])
+    (error) => {
+      onError?.(error);
+      onData([]);
+    }
   );
 }
 
@@ -269,6 +313,8 @@ export async function sendDmMessage(
     );
   });
 
+  // Keep the legacy mirror write as a silent fallback for older readers, while
+  // the current UI relies only on `dmThreads/.../messages`.
   setDoc(
     doc(collection(db, "dm", threadId, "messages"), stableClientId),
     {

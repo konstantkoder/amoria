@@ -1,12 +1,5 @@
-import React, { useEffect, useMemo, useState } from "react";
-import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -14,6 +7,8 @@ import ScreenShell from "@/components/ScreenShell";
 import { auth, db } from "@/config/firebaseConfig";
 import { useLocale } from "@/contexts/LocaleContext";
 import {
+  buildDmChatRouteParams,
+  ensureDmThread,
   mapDmThreadToPeer,
   subscribeDmThreads,
   type DmThreadDoc,
@@ -25,32 +20,25 @@ import {
 } from "@/services/playSessions";
 import { theme } from "@/theme";
 
-type ConnectionCard = {
+type HistoryCard = {
   id: string;
-  threadId: string;
-  peerId: string;
-  peerName: string;
-  sourceLabel: string;
-  previewText: string;
-  freshnessLabel: string;
-  sortAt: number;
-  strokeCount?: number;
   sessionId?: string;
-};
-
-type StoryCard = {
-  id: string;
-  sessionId: string;
+  threadId?: string;
   peerId: string;
   peerName: string;
   activityLabel: string;
-  strokeCount: number;
-  dateLabel: string;
+  previewText: string;
+  freshnessLabel: string;
+  strokeCount?: number;
   sortAt: number;
-  threadId?: string;
+  isFallback: boolean;
 };
 
-function formatFreshness(value: number, now: number, t: (key: string, params?: Record<string, string>) => string) {
+function formatFreshness(
+  value: number,
+  now: number,
+  t: (key: string, params?: Record<string, string>) => string
+) {
   if (!value) return t("connections.justNow");
 
   const diff = Math.max(now - value, 0);
@@ -88,93 +76,113 @@ function formatActivityLabel(activity: string, t: (key: string) => string) {
   return activity;
 }
 
-function mapThreadToConnectionCard(
-  thread: DmThreadDoc,
-  uid: string,
-  now: number,
-  t: (key: string, params?: Record<string, string>) => string
-): ConnectionCard | null {
-  const peer = mapDmThreadToPeer(thread, uid);
-  if (!peer) return null;
-
-  const sortAt = thread.lastMessageAt ?? thread.updatedAt ?? thread.createdAt;
-
-  return {
-    id: thread.id,
-    threadId: thread.id,
-    peerId: peer.uid,
-    peerName: peer.name,
-    sourceLabel:
-      thread.source === "play"
-        ? t("connections.sourceDraw")
-        : t("connections.sourceOpened"),
-    previewText:
-      thread.lastMessageText?.trim() || t("connections.connectionPreviewFallback"),
-    freshnessLabel: formatFreshness(sortAt, now, t),
-    sortAt,
-    ...(thread.artworkSummary?.strokeCount != null
-      ? { strokeCount: thread.artworkSummary.strokeCount }
-      : {}),
-    ...(thread.sourceSessionId ? { sessionId: thread.sourceSessionId } : {}),
-  };
-}
-
-function mapSessionToStoryCard(
+function mapSessionToHistoryCard(
   session: PlaySessionDoc,
   uid: string,
   now: number,
   t: (key: string, params?: Record<string, string>) => string,
   threadBySessionId: Map<string, DmThreadDoc>
-): StoryCard | null {
+): HistoryCard | null {
   const peer = getPeerFromSession(session, uid);
   if (!peer) return null;
 
-  const sortAt = session.endedAt ?? session.startedAt ?? session.createdAt;
   const linkedThread = threadBySessionId.get(session.id);
+  const sortAt = session.endedAt ?? session.startedAt ?? session.createdAt;
 
   return {
     id: session.id,
     sessionId: session.id,
+    ...(linkedThread ? { threadId: linkedThread.id } : {}),
     peerId: peer.uid,
     peerName: peer.nickname,
     activityLabel: formatActivityLabel(session.activity, t),
-    strokeCount: session.resultStrokeCount ?? 0,
-    dateLabel: formatFreshness(sortAt, now, t),
+    previewText: linkedThread?.lastMessageText?.trim() || t("connections.connectionPreviewFallback"),
+    freshnessLabel: formatFreshness(sortAt, now, t),
+    ...(session.resultStrokeCount != null ? { strokeCount: session.resultStrokeCount } : {}),
     sortAt,
-    ...(linkedThread ? { threadId: linkedThread.id } : {}),
+    isFallback: false,
+  };
+}
+
+function mapThreadToFallbackCard(
+  thread: DmThreadDoc,
+  uid: string,
+  now: number,
+  t: (key: string, params?: Record<string, string>) => string
+): HistoryCard | null {
+  if (thread.sourceSessionId) return null;
+  const peer = mapDmThreadToPeer(thread, uid);
+  if (!peer) return null;
+
+  const sortAt = thread.lastMessageAt ?? thread.updatedAt ?? thread.createdAt;
+  return {
+    id: thread.id,
+    threadId: thread.id,
+    peerId: peer.uid,
+    peerName: peer.name,
+    activityLabel:
+      thread.source === "play" ? t("connections.sourceDraw") : t("connections.sourceOpened"),
+    previewText: thread.lastMessageText?.trim() || t("connections.connectionPreviewFallback"),
+    freshnessLabel: formatFreshness(sortAt, now, t),
+    ...(thread.artworkSummary?.strokeCount != null
+      ? { strokeCount: thread.artworkSummary.strokeCount }
+      : {}),
+    sortAt,
+    isFallback: true,
   };
 }
 
 export default function ConnectionsFeedScreen() {
   const navigation = useNavigation<any>();
   const { t } = useLocale();
+  const tt = useCallback(
+    (key: string, fallback: string, params?: Record<string, string>) => {
+      const value = t(key, params);
+      return value === key ? fallback : value;
+    },
+    [t]
+  );
   const uid = auth?.currentUser?.uid ?? "";
   const [now, setNow] = useState(() => Date.now());
   const [threads, setThreads] = useState<DmThreadDoc[]>([]);
   const [sessions, setSessions] = useState<PlaySessionDoc[]>([]);
   const [threadsLoaded, setThreadsLoaded] = useState(false);
   const [sessionsLoaded, setSessionsLoaded] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [openingCardId, setOpeningCardId] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let alive = true;
     if (!db || !uid) {
       setThreads([]);
       setThreadsLoaded(true);
+      setError(null);
       return;
     }
 
     setThreadsLoaded(false);
-    const unsubscribe = subscribeDmThreads(db, uid, (next) => {
-      if (!alive) return;
-      setThreads(next);
-      setThreadsLoaded(true);
-    });
+    setError(null);
+    const unsubscribe = subscribeDmThreads(
+      db,
+      uid,
+      (next) => {
+        if (!alive) return;
+        setThreads(next);
+        setThreadsLoaded(true);
+      },
+      () => {
+        if (!alive) return;
+        setError(tt("connections.errorBody", "We couldn't load your open connections right now."));
+        setThreadsLoaded(true);
+      }
+    );
 
     return () => {
       alive = false;
       unsubscribe();
     };
-  }, [uid]);
+  }, [uid, tt, reloadKey]);
 
   useEffect(() => {
     let alive = true;
@@ -185,17 +193,28 @@ export default function ConnectionsFeedScreen() {
     }
 
     setSessionsLoaded(false);
-    const unsubscribe = subscribeRecentMutualPlaySessions(db, uid, (next) => {
-      if (!alive) return;
-      setSessions(next);
-      setSessionsLoaded(true);
-    });
+    setError(null);
+    const unsubscribe = subscribeRecentMutualPlaySessions(
+      db,
+      uid,
+      (next) => {
+        if (!alive) return;
+        setSessions(next);
+        setSessionsLoaded(true);
+      },
+      5,
+      () => {
+        if (!alive) return;
+        setError(tt("connections.errorBody", "We couldn't load your open connections right now."));
+        setSessionsLoaded(true);
+      }
+    );
 
     return () => {
       alive = false;
       unsubscribe();
     };
-  }, [uid]);
+  }, [uid, reloadKey, tt]);
 
   useEffect(() => {
     setNow(Date.now());
@@ -211,45 +230,150 @@ export default function ConnectionsFeedScreen() {
     return next;
   }, [threads]);
 
-  const connectionCards = useMemo(
-    () =>
-      threads
-        .map((thread) => mapThreadToConnectionCard(thread, uid, now, t))
-        .filter((item): item is ConnectionCard => Boolean(item))
-        .sort((a, b) => b.sortAt - a.sortAt),
-    [now, t, threads, uid]
-  );
+  const sessionById = useMemo(() => {
+    const next = new Map<string, PlaySessionDoc>();
+    for (const session of sessions) {
+      next.set(session.id, session);
+    }
+    return next;
+  }, [sessions]);
 
-  const storyCards = useMemo(
+  const historyCards = useMemo(
     () =>
       sessions
-        .map((session) => mapSessionToStoryCard(session, uid, now, t, threadBySessionId))
-        .filter((item): item is StoryCard => Boolean(item))
+        .map((session) => mapSessionToHistoryCard(session, uid, now, t, threadBySessionId))
+        .filter((item): item is HistoryCard => Boolean(item))
         .sort((a, b) => b.sortAt - a.sortAt)
-        .slice(0, 5),
+        .slice(0, 8),
     [now, sessions, t, threadBySessionId, uid]
   );
 
+  const fallbackCards = useMemo(
+    () =>
+      historyCards.length
+        ? []
+        : threads
+            .map((thread) => mapThreadToFallbackCard(thread, uid, now, t))
+            .filter((item): item is HistoryCard => Boolean(item))
+            .sort((a, b) => b.sortAt - a.sortAt),
+    [historyCards.length, now, t, threads, uid]
+  );
+
   const isLoading = !threadsLoaded || !sessionsLoaded;
-  const isEmpty = !connectionCards.length && !storyCards.length;
+  const isEmpty = !historyCards.length && !fallbackCards.length;
 
-  const openChat = (card: { threadId: string; peerId: string; peerName: string }) => {
-    if (!card.threadId || !card.peerId) return;
-    navigation.navigate("DMChat", {
-      threadId: card.threadId,
-      peerId: card.peerId,
-      peerName: card.peerName,
-    });
-  };
+  const openChat = useCallback(
+    async (card: HistoryCard) => {
+      if (!db || !uid || !card.peerId) return;
 
-  const openReplay = (sessionId: string) => {
-    if (!sessionId) return;
-    navigation.navigate("PlayResult", { sessionId });
-  };
+      if (card.threadId) {
+        navigation.navigate(
+          "DMChat",
+          buildDmChatRouteParams({
+            threadId: card.threadId,
+            peerId: card.peerId,
+            peerName: card.peerName,
+            sourceSessionId: card.sessionId,
+          })
+        );
+        return;
+      }
 
-  const goToTogether = () => {
+      if (!card.sessionId) return;
+      const session = sessionById.get(card.sessionId);
+      if (!session) return;
+
+      setOpeningCardId(card.id);
+      try {
+        const threadId = await ensureDmThread(db, uid, card.peerId, {
+          memberNames: {
+            [uid]: session.participantNicknames?.[uid] ?? t("common.you"),
+            [card.peerId]: card.peerName,
+          },
+          source: "play",
+          sourceSessionId: session.id,
+          artworkSummary: {
+            activity: session.activity,
+            strokeCount: session.resultStrokeCount,
+          },
+        });
+
+        navigation.navigate(
+          "DMChat",
+          buildDmChatRouteParams({
+            threadId,
+            peerId: card.peerId,
+            peerName: card.peerName,
+            sourceSessionId: session.id,
+          })
+        );
+      } finally {
+        setOpeningCardId((prev) => (prev === card.id ? null : prev));
+      }
+    },
+    [db, navigation, sessionById, t, uid]
+  );
+
+  const goToTogether = useCallback(() => {
     navigation.navigate("Together");
-  };
+  }, [navigation]);
+
+  const renderConnectionCard = useCallback(
+    (card: HistoryCard) => (
+      <View key={card.id} style={card.isFallback ? styles.storyCard : styles.card}>
+        <View style={styles.cardTopRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.cardTitle}>{card.peerName}</Text>
+            <Text style={styles.cardSource}>{card.activityLabel}</Text>
+          </View>
+          <Text style={styles.cardDate}>{card.freshnessLabel}</Text>
+        </View>
+
+        {!card.isFallback ? (
+          <Text style={styles.sectionText}>
+            {tt(
+              "connections.whatConnectedYou",
+              "What connected you: a shared session that already opened into direct contact."
+            )}
+          </Text>
+        ) : null}
+
+        <Text style={styles.previewText} numberOfLines={2}>
+          {card.previewText}
+        </Text>
+
+        <View style={styles.metaRow}>
+          {card.strokeCount != null ? (
+            <View style={styles.metaPill}>
+              <Text style={styles.metaPillText}>
+                {t("connections.strokeCount", { count: String(card.strokeCount) })}
+              </Text>
+            </View>
+          ) : null}
+          <View style={styles.metaPill}>
+            <Text style={styles.metaPillText}>
+              {card.isFallback ? t("connections.connectionOpen") : t("connections.mutualOpen")}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.actionsRow}>
+          <Pressable
+            onPress={() => void openChat(card)}
+            style={styles.primaryCta}
+            disabled={openingCardId === card.id}
+          >
+            <Text style={styles.primaryCtaText}>
+              {openingCardId === card.id
+                ? tt("connections.openingChat", "Opening chat…")
+                : t("connections.openChat")}
+            </Text>
+          </Pressable>
+        </View>
+      </View>
+    ),
+    [openChat, openingCardId, t, tt]
+  );
 
   return (
     <ScreenShell
@@ -262,6 +386,19 @@ export default function ConnectionsFeedScreen() {
         <View style={styles.centerState}>
           <ActivityIndicator color={theme.colors.accent} />
           <Text style={styles.stateText}>{t("connections.loading")}</Text>
+        </View>
+      ) : error ? (
+        <View style={styles.emptyWrap}>
+          <View style={styles.emptyIcon}>
+            <Ionicons name="cloud-offline-outline" size={34} color={theme.colors.accent} />
+          </View>
+          <Text style={styles.emptyTitle}>
+            {tt("connections.errorTitle", "Connections are temporarily unavailable")}
+          </Text>
+          <Text style={styles.emptyText}>{error}</Text>
+          <Pressable onPress={() => setReloadKey((prev) => prev + 1)} style={styles.primaryButton}>
+            <Text style={styles.primaryButtonText}>{tt("common.retry", "Retry")}</Text>
+          </Pressable>
         </View>
       ) : isEmpty ? (
         <View style={styles.emptyWrap}>
@@ -286,118 +423,26 @@ export default function ConnectionsFeedScreen() {
             <Text style={styles.heroText}>{t("connections.heroBody")}</Text>
           </View>
 
-          {connectionCards.length ? (
+          {historyCards.length ? (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>{t("connections.openConnectionsTitle")}</Text>
               <Text style={styles.sectionText}>{t("connections.openConnectionsBody")}</Text>
-
-              {connectionCards.map((card) => (
-                <View key={card.id} style={styles.card}>
-                  <View style={styles.cardTopRow}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.cardTitle}>{card.peerName}</Text>
-                      <Text style={styles.cardSource}>{card.sourceLabel}</Text>
-                    </View>
-                    <Text style={styles.cardDate}>{card.freshnessLabel}</Text>
-                  </View>
-
-                  <Text style={styles.previewText} numberOfLines={2}>
-                    {card.previewText}
-                  </Text>
-
-                  <View style={styles.metaRow}>
-                    {card.strokeCount != null ? (
-                      <View style={styles.metaPill}>
-                        <Text style={styles.metaPillText}>
-                          {t("connections.strokeCount", { count: String(card.strokeCount) })}
-                        </Text>
-                      </View>
-                    ) : null}
-                    <View style={styles.metaPill}>
-                      <Text style={styles.metaPillText}>{t("connections.connectionOpen")}</Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.actionsRow}>
-                    <Pressable onPress={() => openChat(card)} style={styles.primaryCta}>
-                      <Text style={styles.primaryCtaText}>{t("connections.openChat")}</Text>
-                    </Pressable>
-                    {card.sessionId ? (
-                      <Pressable
-                        onPress={() => openReplay(card.sessionId!)}
-                        style={styles.secondaryCta}
-                      >
-                        <Text style={styles.secondaryCtaText}>{t("connections.openReplay")}</Text>
-                      </Pressable>
-                    ) : null}
-                  </View>
-                </View>
-              ))}
+              {historyCards.map(renderConnectionCard)}
             </View>
           ) : null}
 
-          {storyCards.length ? (
+          {fallbackCards.length ? (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>{t("connections.recentStoriesTitle")}</Text>
-              <Text style={styles.sectionText}>{t("connections.recentStoriesBody")}</Text>
-
-              {storyCards.map((card) => (
-                <Pressable
-                  key={card.id}
-                  onPress={() =>
-                    card.threadId
-                      ? openChat({
-                          threadId: card.threadId,
-                          peerId: card.peerId,
-                          peerName: card.peerName,
-                        })
-                      : openReplay(card.sessionId)
-                  }
-                  style={styles.storyCard}
-                >
-                  <View style={styles.storyHeader}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.storyTitle}>{card.activityLabel}</Text>
-                      <Text style={styles.storyPeer}>{card.peerName}</Text>
-                    </View>
-                    <Text style={styles.cardDate}>{card.dateLabel}</Text>
-                  </View>
-
-                  <View style={styles.storyMetaRow}>
-                    <View style={styles.metaPill}>
-                      <Text style={styles.metaPillText}>
-                        {t("connections.strokeCount", { count: String(card.strokeCount) })}
-                      </Text>
-                    </View>
-                    <View style={styles.metaPill}>
-                      <Text style={styles.metaPillText}>{t("connections.mutualOpen")}</Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.actionsRow}>
-                    {card.threadId ? (
-                      <Pressable
-                        onPress={() =>
-                          openChat({
-                            threadId: card.threadId!,
-                            peerId: card.peerId,
-                            peerName: card.peerName,
-                          })
-                        }
-                        style={styles.primaryCta}
-                      >
-                        <Text style={styles.primaryCtaText}>{t("connections.openChat")}</Text>
-                      </Pressable>
-                    ) : null}
-                    <Pressable
-                      onPress={() => openReplay(card.sessionId)}
-                      style={styles.secondaryCta}
-                    >
-                      <Text style={styles.secondaryCtaText}>{t("connections.openReplay")}</Text>
-                    </Pressable>
-                  </View>
-                </Pressable>
-              ))}
+              <Text style={styles.sectionTitle}>
+                {tt("connections.fallbackTitle", "Open chats without saved story")}
+              </Text>
+              <Text style={styles.sectionText}>
+                {tt(
+                  "connections.fallbackBody",
+                  "Older or simplified connections stay here if they do not yet have a full session history."
+                )}
+              </Text>
+              {fallbackCards.map(renderConnectionCard)}
             </View>
           ) : null}
         </ScrollView>
@@ -486,28 +531,11 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: 12,
   },
-  storyHeader: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    gap: 12,
-  },
   cardTitle: {
     color: theme.colors.text,
     fontSize: 18,
     fontWeight: "800",
     marginBottom: 4,
-  },
-  storyTitle: {
-    color: theme.colors.text,
-    fontSize: 17,
-    fontWeight: "800",
-    marginBottom: 4,
-  },
-  storyPeer: {
-    color: theme.colors.accent,
-    fontSize: 14,
-    fontWeight: "700",
   },
   cardSource: {
     color: theme.colors.accent,
@@ -525,11 +553,6 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   metaRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  storyMetaRow: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
@@ -563,24 +586,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "800",
   },
-  secondaryCta: {
-    borderRadius: theme.shapes.pill,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    backgroundColor: "rgba(255,255,255,0.06)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
-  },
-  secondaryCtaText: {
-    color: theme.colors.text,
-    fontSize: 13,
-    fontWeight: "700",
-  },
   emptyWrap: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 28,
+    gap: 12,
   },
   emptyIcon: {
     width: 82,
@@ -591,7 +602,6 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255, 122, 60, 0.12)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.08)",
-    marginBottom: 18,
   },
   emptyTitle: {
     color: theme.colors.text,
@@ -599,14 +609,12 @@ const styles = StyleSheet.create({
     lineHeight: 28,
     fontWeight: "800",
     textAlign: "center",
-    marginBottom: 10,
   },
   emptyText: {
     color: theme.colors.subtext,
     fontSize: 14,
     lineHeight: 21,
     textAlign: "center",
-    marginBottom: 18,
   },
   primaryButton: {
     borderRadius: theme.shapes.pill,

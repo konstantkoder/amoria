@@ -1,19 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  FlatList,
-  Keyboard,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { ActivityIndicator, FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { KeyboardStickyView } from "react-native-keyboard-controller";
 import { useRoute } from "@react-navigation/native";
-import { auth, db } from "@/config/firebaseConfig";
-import { theme } from "@/theme";
+
 import ScreenShell from "@/components/ScreenShell";
+import { auth, db } from "@/config/firebaseConfig";
 import { useLocale } from "@/contexts/LocaleContext";
 import {
   buildDmThreadId,
@@ -24,37 +15,54 @@ import {
   type DmMessageDoc,
   type DmThreadDoc,
 } from "@/services/dm";
+import { theme } from "@/theme";
+
+type RenderMessage = DmMessageDoc & { failed?: boolean };
 
 export default function DMChatScreen() {
   const { t } = useLocale();
+  const tt = useCallback(
+    (key: string, fallback: string, params?: Record<string, string>) => {
+      const value = t(key, params);
+      return value === key ? fallback : value;
+    },
+    [t]
+  );
   const route = useRoute<any>();
   const myId = auth?.currentUser?.uid ?? "";
   const routePeerId = String(route.params?.peerId ?? "");
   const threadId = String(
     route.params?.threadId ?? (myId && routePeerId ? buildDmThreadId(myId, routePeerId) : "")
   );
-  const routePeerName = String(route.params?.peerName ?? t("common.user"));
+  const routePeerName = String(route.params?.peerName ?? "").trim();
   const peerId = routePeerId || "";
 
   const [text, setText] = useState("");
-  const textRef = useRef("");
-  const inputRef = useRef<TextInput>(null);
-  const listRef = useRef<FlatList<DmMessageDoc & { failed?: boolean }>>(null);
-  const sendGuardRef = useRef(false);
-  const mountedRef = useRef(true);
-  const activeThreadRef = useRef(threadId);
   const [sending, setSending] = useState(false);
-
   const [thread, setThread] = useState<DmThreadDoc | null>(null);
   const [msgs, setMsgs] = useState<DmMessageDoc[]>([]);
   const [failedById, setFailedById] = useState<Record<string, true>>({});
   const [threadLoading, setThreadLoading] = useState(true);
   const [messagesLoading, setMessagesLoading] = useState(true);
+  const [subscriptionError, setSubscriptionError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [resolvedPeerName, setResolvedPeerName] = useState(routePeerName);
+
+  const textRef = useRef("");
+  const inputRef = useRef<TextInput>(null);
+  const listRef = useRef<FlatList<RenderMessage>>(null);
+  const sendGuardRef = useRef(false);
+  const mountedRef = useRef(true);
+  const activeThreadRef = useRef(threadId);
+  const sendResetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
+      if (sendResetTimeoutRef.current) {
+        clearTimeout(sendResetTimeoutRef.current);
+      }
     };
   }, []);
 
@@ -67,14 +75,14 @@ export default function DMChatScreen() {
     setFailedById({});
     setThreadLoading(Boolean(db && myId && threadId));
     setMessagesLoading(Boolean(db && threadId));
+    setSubscriptionError(null);
+    setResolvedPeerName(routePeerName);
     textRef.current = "";
     setText("");
     inputRef.current?.setNativeProps?.({ text: "" });
     inputRef.current?.clear?.();
-    inputRef.current?.blur?.();
-    Keyboard.dismiss();
     listRef.current?.scrollToOffset?.({ offset: 0, animated: false });
-  }, [myId, threadId]);
+  }, [myId, routePeerName, threadId]);
 
   useEffect(() => {
     if (!db || !myId || !threadId) {
@@ -84,14 +92,24 @@ export default function DMChatScreen() {
     }
 
     setThreadLoading(true);
-    const unsubscribe = subscribeDmThreads(db, myId, (threads) => {
-      if (!mountedRef.current || activeThreadRef.current !== threadId) return;
-      setThread(threads.find((item) => item.id === threadId) ?? null);
-      setThreadLoading(false);
-    });
+    setSubscriptionError(null);
+    const unsubscribe = subscribeDmThreads(
+      db,
+      myId,
+      (threads) => {
+        if (!mountedRef.current || activeThreadRef.current !== threadId) return;
+        setThread(threads.find((item) => item.id === threadId) ?? null);
+        setThreadLoading(false);
+      },
+      () => {
+        if (!mountedRef.current || activeThreadRef.current !== threadId) return;
+        setSubscriptionError(tt("dm.errorBody", "We couldn't connect this chat right now. Try again."));
+        setThreadLoading(false);
+      }
+    );
 
     return unsubscribe;
-  }, [myId, threadId]);
+  }, [myId, threadId, tt, reloadKey]);
 
   useEffect(() => {
     if (!db || !threadId) {
@@ -101,21 +119,31 @@ export default function DMChatScreen() {
     }
 
     setMessagesLoading(true);
-    return subscribeDmMessages(db, threadId, (next) => {
-      if (!mountedRef.current || activeThreadRef.current !== threadId) return;
-      setMsgs(next);
-      setMessagesLoading(false);
-    });
-  }, [threadId]);
+    setSubscriptionError(null);
+    return subscribeDmMessages(
+      db,
+      threadId,
+      (next) => {
+        if (!mountedRef.current || activeThreadRef.current !== threadId) return;
+        setMsgs(next);
+        setMessagesLoading(false);
+      },
+      () => {
+        if (!mountedRef.current || activeThreadRef.current !== threadId) return;
+        setSubscriptionError(tt("dm.errorBody", "We couldn't connect this chat right now. Try again."));
+        setMessagesLoading(false);
+      }
+    );
+  }, [threadId, tt, reloadKey]);
 
   useEffect(() => {
     if (!msgs.length) return;
     setFailedById((prev) => {
       let changed = false;
       const next = { ...prev };
-      for (const m of msgs) {
-        if (next[m.id] && !m.pending) {
-          delete next[m.id];
+      for (const message of msgs) {
+        if (next[message.clientId] && !message.pending) {
+          delete next[message.clientId];
           changed = true;
         }
       }
@@ -123,36 +151,46 @@ export default function DMChatScreen() {
     });
   }, [msgs]);
 
+  useEffect(() => {
+    const nextName = thread ? mapDmThreadToPeer(thread, myId)?.name?.trim?.() ?? "" : "";
+    if (nextName) {
+      setResolvedPeerName((prev) => (prev === nextName ? prev : nextName));
+    }
+  }, [myId, thread]);
+
   const peer = useMemo(() => {
     if (!thread) {
       return {
         uid: peerId,
-        name: routePeerName,
+        name: routePeerName || t("common.user"),
       };
     }
-    return mapDmThreadToPeer(thread, myId) ?? { uid: peerId, name: routePeerName };
-  }, [myId, peerId, routePeerName, thread]);
+    return mapDmThreadToPeer(thread, myId) ?? {
+      uid: peerId,
+      name: routePeerName || t("common.user"),
+    };
+  }, [myId, peerId, routePeerName, t, thread]);
 
   const mergedMsgs = useMemo(() => {
-    const map = new Map<string, DmMessageDoc & { failed?: boolean }>();
-    for (const m of msgs) {
-      const id = String(m.id);
-      map.set(id, {
-        ...m,
-        failed: Boolean(failedById[id]),
+    const byId = new Map<string, RenderMessage>();
+    for (const message of msgs) {
+      const key = String(message.clientId || message.id);
+      byId.set(key, {
+        ...message,
+        failed: Boolean(failedById[key]),
       });
     }
-    const deduped = Array.from(map.values());
-    deduped.sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
-    return deduped;
-  }, [msgs, failedById]);
+    return Array.from(byId.values()).sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
+  }, [failedById, msgs]);
 
   const send = useCallback(() => {
     const value = (textRef.current || "").trim();
     if (!value || !db || !threadId || !myId || !peer.uid) return;
     if (sendGuardRef.current) return;
+
     const targetThreadId = threadId;
     const targetPeerId = peer.uid;
+    const clientId = `m_${myId}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
     sendGuardRef.current = true;
 
     if (mountedRef.current) {
@@ -163,10 +201,7 @@ export default function DMChatScreen() {
     setText("");
     inputRef.current?.setNativeProps?.({ text: "" });
     inputRef.current?.clear?.();
-    inputRef.current?.blur?.();
-    Keyboard.dismiss();
 
-    const clientId = `m_${myId}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
     setFailedById((prev) => {
       if (!prev[clientId]) return prev;
       const next = { ...prev };
@@ -175,15 +210,6 @@ export default function DMChatScreen() {
     });
 
     void sendDmMessage(db, targetThreadId, myId, targetPeerId, value, clientId)
-      .then(() => {
-        if (!mountedRef.current || activeThreadRef.current !== targetThreadId) return;
-        setFailedById((prev) => {
-          if (!prev[clientId]) return prev;
-          const next = { ...prev };
-          delete next[clientId];
-          return next;
-        });
-      })
       .catch(() => {
         if (!mountedRef.current || activeThreadRef.current !== targetThreadId) return;
         setFailedById((prev) => ({ ...prev, [clientId]: true }));
@@ -192,7 +218,7 @@ export default function DMChatScreen() {
         if (mountedRef.current && activeThreadRef.current === targetThreadId) {
           setSending(false);
         }
-        setTimeout(() => {
+        sendResetTimeoutRef.current = setTimeout(() => {
           if (activeThreadRef.current === targetThreadId) {
             sendGuardRef.current = false;
           }
@@ -203,9 +229,8 @@ export default function DMChatScreen() {
   const retrySend = useCallback(
     (clientId: string) => {
       if (!db || !threadId || !myId) return;
-      const target = msgs.find((m) => String(m.id) === clientId);
+      const target = msgs.find((message) => String(message.clientId || message.id) === clientId);
       if (!target?.text) return;
-      const targetThreadId = threadId;
 
       setFailedById((prev) => {
         if (!prev[clientId]) return prev;
@@ -214,35 +239,46 @@ export default function DMChatScreen() {
         return next;
       });
 
-      void sendDmMessage(
-        db,
-        targetThreadId,
-        target.from || myId,
-        target.to || peer.uid,
-        target.text,
-        clientId
-      ).catch(() => {
-        if (!mountedRef.current || activeThreadRef.current !== targetThreadId) return;
-        setFailedById((prev) => ({ ...prev, [clientId]: true }));
-      });
+      void sendDmMessage(db, threadId, target.from || myId, target.to || peer.uid, target.text, clientId).catch(
+        () => {
+          if (!mountedRef.current || activeThreadRef.current !== threadId) return;
+          setFailedById((prev) => ({ ...prev, [clientId]: true }));
+        }
+      );
     },
     [db, msgs, myId, peer.uid, threadId]
   );
 
-  const handleTextChange = useCallback((v: string) => {
-    textRef.current = v;
-    setText(v);
+  const handleTextChange = useCallback((value: string) => {
+    textRef.current = value;
+    setText(value);
   }, []);
 
   const canSend = text.trim().length > 0;
-  const sourceTitle =
-    thread?.source === "play" ? "Вы познакомились через Нарисовать вместе" : "";
+  const sourceTitle = thread?.source === "play" ? tt("dm.sourcePlay", "You opened after drawing together") : "";
   const strokeCount = thread?.artworkSummary?.strokeCount;
   const isLoading = threadLoading || messagesLoading;
   const isEmpty = !isLoading && mergedMsgs.length === 0;
+  const screenTitleName = resolvedPeerName || routePeerName || peer.name || "";
+  const screenTitle = screenTitleName ? t("dm.title", { name: screenTitleName }) : tt("dm.genericTitle", "Chat");
+
+  const renderSourceCard = useCallback(
+    () =>
+      sourceTitle ? (
+        <View style={styles.sourceCard}>
+          <Text style={styles.sourceTitle}>{sourceTitle}</Text>
+          <Text style={styles.sourceMeta}>
+            {strokeCount != null
+              ? tt("dm.sourceStrokeCount", "Strokes: {count}", { count: String(strokeCount) })
+              : tt("dm.contextReady", "The connection context is already saved.")}
+          </Text>
+        </View>
+      ) : null,
+    [sourceTitle, strokeCount, tt]
+  );
 
   const renderItem = useCallback(
-    ({ item }: { item: DmMessageDoc & { failed?: boolean } }) => {
+    ({ item }: { item: RenderMessage }) => {
       const failed = item.failed === true;
       const pending = !failed && item.pending === true;
       const isOwn = item.from === myId;
@@ -251,11 +287,8 @@ export default function DMChatScreen() {
         <TouchableOpacity
           activeOpacity={failed ? 0.85 : 1}
           disabled={!failed}
-          onPress={() => retrySend(item.id)}
-          style={[
-            styles.msgWrap,
-            isOwn ? styles.msgWrapOwn : styles.msgWrapPeer,
-          ]}
+          onPress={() => retrySend(String(item.clientId || item.id))}
+          style={[styles.msgWrap, isOwn ? styles.msgWrapOwn : styles.msgWrapPeer]}
         >
           <View
             style={[
@@ -269,9 +302,7 @@ export default function DMChatScreen() {
               {item.text}
             </Text>
             {failed ? (
-              <Text style={[styles.msgStatus, styles.msgFailedText]}>
-                {t("common.failed")}
-              </Text>
+              <Text style={[styles.msgStatus, styles.msgFailedText]}>{t("common.failed")}</Text>
             ) : pending ? (
               <Text style={styles.msgStatus}>{t("common.sending")}</Text>
             ) : null}
@@ -284,11 +315,11 @@ export default function DMChatScreen() {
 
   if (!threadId) {
     return (
-      <ScreenShell title={t("dm.title", { name: routePeerName })} background="nightCity" showBack>
+      <ScreenShell title={screenTitle} background="nightCity" showBack>
         <View style={styles.centerState}>
-          <Text style={styles.emptyTitle}>Чат недоступен</Text>
+          <Text style={styles.emptyTitle}>{tt("dm.unavailableTitle", "Chat unavailable")}</Text>
           <Text style={styles.emptyText}>
-            Не удалось открыть чат без актуального идентификатора диалога.
+            {tt("dm.unavailableBody", "We couldn't open the conversation without a valid thread identifier.")}
           </Text>
         </View>
       </ScreenShell>
@@ -296,29 +327,26 @@ export default function DMChatScreen() {
   }
 
   return (
-    <ScreenShell
-      title={t("dm.title", { name: peer.name })}
-      background="nightCity"
-      showBack
-    >
+    <ScreenShell title={screenTitle} background="nightCity" showBack>
       {isLoading ? (
         <View style={styles.centerState}>
           <ActivityIndicator color={theme.colors.accent} />
-          <Text style={styles.emptyText}>Подключаем диалог…</Text>
+          <Text style={styles.emptyText}>{tt("dm.loading", "Connecting the chat…")}</Text>
+        </View>
+      ) : subscriptionError ? (
+        <View style={styles.centerState}>
+          <Text style={styles.emptyTitle}>{tt("dm.errorTitle", "The chat is temporarily unavailable")}</Text>
+          <Text style={styles.emptyText}>{subscriptionError}</Text>
+          <TouchableOpacity onPress={() => setReloadKey((prev) => prev + 1)} style={styles.retryButton}>
+            <Text style={styles.retryText}>{tt("common.retry", "Retry")}</Text>
+          </TouchableOpacity>
         </View>
       ) : isEmpty ? (
         <View style={styles.centerState}>
-          {sourceTitle ? (
-            <View style={styles.sourceCard}>
-              <Text style={styles.sourceTitle}>{sourceTitle}</Text>
-              {strokeCount != null ? (
-                <Text style={styles.sourceMeta}>Штрихов: {strokeCount}</Text>
-              ) : null}
-            </View>
-          ) : null}
-          <Text style={styles.emptyTitle}>Диалог открыт</Text>
+          {renderSourceCard()}
+          <Text style={styles.emptyTitle}>{tt("dm.emptyTitle", "The connection is open")}</Text>
           <Text style={styles.emptyText}>
-            Здесь пока нет сообщений. Можно написать первым и продолжить контакт.
+            {tt("dm.emptyBody", "There are no messages yet. Say hi first and continue the connection from here.")}
           </Text>
         </View>
       ) : (
@@ -327,22 +355,19 @@ export default function DMChatScreen() {
           key={threadId}
           inverted
           data={mergedMsgs}
-          keyExtractor={(item) => String(item.id)}
+          keyExtractor={(item) => String(item.clientId || item.id)}
           style={{ flex: 1 }}
           contentContainerStyle={styles.listContent}
           renderItem={renderItem}
-          ListFooterComponent={
-            sourceTitle ? (
-              <View style={styles.sourceCard}>
-                <Text style={styles.sourceTitle}>{sourceTitle}</Text>
-                {strokeCount != null ? (
-                  <Text style={styles.sourceMeta}>Штрихов: {strokeCount}</Text>
-                ) : null}
-              </View>
-            ) : null
-          }
+          keyboardShouldPersistTaps="handled"
+          initialNumToRender={16}
+          maxToRenderPerBatch={20}
+          windowSize={10}
+          removeClippedSubviews
+          ListFooterComponent={renderSourceCard()}
         />
       )}
+
       <KeyboardStickyView offset={{ closed: 0, opened: 0 }}>
         <View style={styles.inputRow}>
           <TextInput
@@ -352,14 +377,13 @@ export default function DMChatScreen() {
             placeholder={t("dm.messagePlaceholder")}
             placeholderTextColor={theme.colors.muted}
             style={styles.input}
+            multiline
+            maxLength={1000}
           />
           <TouchableOpacity
             onPress={send}
             disabled={!canSend || sending}
-            style={[
-              styles.sendBtn,
-              !canSend || sending ? styles.sendBtnDisabled : null,
-            ]}
+            style={[styles.sendBtn, !canSend || sending ? styles.sendBtnDisabled : null]}
           >
             <Text style={styles.sendTxt}>{t("common.send")}</Text>
           </TouchableOpacity>
@@ -382,10 +406,12 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   sourceCard: {
+    alignSelf: "center",
     borderRadius: theme.shapes.cardInner,
-    padding: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     marginBottom: 10,
-    backgroundColor: "rgba(17, 20, 36, 0.86)",
+    backgroundColor: "rgba(17, 20, 36, 0.74)",
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
   },
@@ -394,11 +420,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "800",
     marginBottom: 4,
+    textAlign: "center",
   },
   sourceMeta: {
     color: theme.colors.subtext,
     fontSize: 12,
     fontWeight: "600",
+    textAlign: "center",
   },
   emptyTitle: {
     color: theme.colors.text,
@@ -464,6 +492,7 @@ const styles = StyleSheet.create({
   },
   inputRow: {
     flexDirection: "row",
+    alignItems: "flex-end",
     paddingHorizontal: 10,
     paddingTop: 10,
     paddingBottom: 10,
@@ -471,6 +500,8 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
+    minHeight: 48,
+    maxHeight: 120,
     backgroundColor: "rgba(255,255,255,0.96)",
     color: "#111827",
     borderRadius: 14,
@@ -482,6 +513,7 @@ const styles = StyleSheet.create({
   sendBtn: {
     backgroundColor: theme.colors.primary,
     paddingHorizontal: 16,
+    minHeight: 48,
     justifyContent: "center",
     borderRadius: 14,
   },
@@ -489,6 +521,17 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   sendTxt: {
+    color: "#fff",
+    fontWeight: "800",
+  },
+  retryButton: {
+    marginTop: 6,
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: theme.shapes.pill,
+  },
+  retryText: {
     color: "#fff",
     fontWeight: "800",
   },
