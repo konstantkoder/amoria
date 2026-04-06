@@ -1013,6 +1013,64 @@ export default function RoomsScreen() {
         contentContainerStyle={{ paddingBottom: 24 }}
       >
       <View style={{ paddingHorizontal: 16, paddingTop: insets.top + 8 }}>
+        <View
+          style={{
+            borderRadius: theme.shapes.card,
+            padding: 18,
+            backgroundColor: "rgba(12, 16, 31, 0.92)",
+            borderWidth: 1,
+            borderColor: "rgba(255,255,255,0.08)",
+            marginBottom: 14,
+          }}
+        >
+          <Text
+            style={{
+              color: theme.colors.accent,
+              fontSize: 12,
+              fontWeight: "800",
+              letterSpacing: 1,
+              marginBottom: 8,
+            }}
+          >
+            {t("rooms.heroKicker")}
+          </Text>
+          <Text
+            style={{
+              color: theme.colors.text,
+              fontSize: 24,
+              lineHeight: 30,
+              fontWeight: "800",
+              marginBottom: 10,
+            }}
+          >
+            {t("rooms.heroTitle")}
+          </Text>
+          <Text
+            style={{
+              color: theme.colors.subtext,
+              fontSize: 14,
+              lineHeight: 21,
+              marginBottom: 14,
+            }}
+          >
+            {t("rooms.heroBody")}
+          </Text>
+          <Pressable
+            onPress={() => navigation.navigate("Together")}
+            style={{
+              alignSelf: "flex-start",
+              borderRadius: theme.shapes.pill,
+              paddingHorizontal: 14,
+              paddingVertical: 10,
+              backgroundColor: theme.colors.accent,
+            }}
+          >
+            <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: "800" }}>
+              {t("rooms.goToTogether")}
+            </Text>
+          </Pressable>
+        </View>
+
         <SectionTitle>{t("rooms.nearbyRooms")}</SectionTitle>
 
         <View
@@ -1320,6 +1378,38 @@ export default function RoomsScreen() {
         </View>
 
         <View style={{ paddingTop: 16 }}>
+          <View
+            style={{
+              borderRadius: 18,
+              padding: 14,
+              backgroundColor: "rgba(255,255,255,0.05)",
+              borderWidth: 1,
+              borderColor: "rgba(255,255,255,0.08)",
+              marginBottom: 16,
+            }}
+          >
+            <Text style={{ color: "#E5E7EB", fontSize: 15, fontWeight: "800", marginBottom: 4 }}>
+              {t("rooms.oneToOneTitle")}
+            </Text>
+            <Text style={{ color: "#A3A3A3", fontSize: 13, lineHeight: 19, marginBottom: 10 }}>
+              {t("rooms.oneToOneBody")}
+            </Text>
+            <TouchableOpacity
+              onPress={() => navigation.navigate("Together")}
+              style={{
+                alignSelf: "flex-start",
+                paddingHorizontal: 12,
+                paddingVertical: 8,
+                borderRadius: 12,
+                backgroundColor: theme.colors.primary,
+              }}
+            >
+              <Text style={{ color: "white", fontWeight: "800" }}>
+                {t("rooms.goToTogether")}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
           <SectionTitle>{t("rooms.choosePlace")}</SectionTitle>
 
           <View

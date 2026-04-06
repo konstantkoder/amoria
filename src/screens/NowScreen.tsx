@@ -1,20 +1,15 @@
-// NOTE: Modified copy of the original NowScreen. The key change is the
-// background used for the 'Сейчас' screen: we switch from the hearts
-// wallpaper to the neon city backdrop, and expose custom overlay/blur
-// settings to let more of the image show through while preserving text
-// legibility. All other functionality remains identical to the upstream
-// version.
-
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Pressable,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Location from "expo-location";
 import { Ionicons } from "@expo/vector-icons";
@@ -74,8 +69,11 @@ function distanceKm(pos: Pos | null, item: { lat?: number; lng?: number }): numb
 
 export default function NowScreen() {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation<any>();
   const user = auth?.currentUser ?? null;
   const { t } = useLocale();
+  const mountedRef = useRef(true);
+  const sendResetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [pos, setPos] = useState<Pos | null>(null);
   const [posLoading, setPosLoading] = useState(false);
@@ -87,6 +85,16 @@ export default function NowScreen() {
   const [sending, setSending] = useState(false);
   const [radiusKm, setRadiusKm] = useState<RadiusOption>(25);
   const sendGuardRef = useRef(false);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      if (sendResetTimeoutRef.current) {
+        clearTimeout(sendResetTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const moodMeta: { key: NowMood; label: string; emoji: string }[] = useMemo(
     () => [
@@ -106,6 +114,7 @@ export default function NowScreen() {
   }, [user?.uid]);
 
   const ensurePosition = useCallback(async () => {
+    if (!mountedRef.current) return;
     setPosLoading(true);
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
@@ -120,13 +129,17 @@ export default function NowScreen() {
         lng: current.coords.longitude,
         accuracy: current.coords.accuracy,
       };
+      if (!mountedRef.current) return;
       setPos(nextPos);
       setRegion(makeRegion(nextPos.lat, nextPos.lng));
     } catch (e: any) {
+      if (!mountedRef.current) return;
       setPos(null);
       setRegion(null);
     } finally {
-      setPosLoading(false);
+      if (mountedRef.current) {
+        setPosLoading(false);
+      }
     }
   }, [t]);
 
@@ -135,9 +148,14 @@ export default function NowScreen() {
   }, [ensurePosition]);
 
   useEffect(() => {
-    if (!region || !db || !isFirebaseConfigured()) return;
+    if (!region || !db || !isFirebaseConfigured()) {
+      setPosts([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     const unsub = subscribeNowPosts(db, region, (list) => {
+      if (!mountedRef.current) return;
       setPosts(list);
       setLoading(false);
     });
@@ -168,8 +186,9 @@ export default function NowScreen() {
     const clientId = `m_${user.uid}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
     setMessage("");
     try {
-      setSending(true);
-      // AMORIA_NOW_IDEMPOTENT_V1
+      if (mountedRef.current) {
+        setSending(true);
+      }
       await createNowPost(db, {
         clientId,
         uid: user.uid,
@@ -180,15 +199,27 @@ export default function NowScreen() {
         lng: pos.lng,
       });
     } catch (e: any) {
-      setMessage(previousMessage);
+      if (mountedRef.current) {
+        setMessage(previousMessage);
+      }
       Alert.alert(t("now.sendFailedTitle"), e?.message ?? t("now.sendFailedBody"));
     } finally {
-      setSending(false);
-      setTimeout(() => {
+      if (mountedRef.current) {
+        setSending(false);
+      }
+      sendResetTimeoutRef.current = setTimeout(() => {
         sendGuardRef.current = false;
       }, 250);
     }
   };
+
+  const goToTogether = useCallback(() => {
+    navigation.navigate("Together");
+  }, [navigation]);
+
+  const goToRooms = useCallback(() => {
+    navigation.navigate("Rooms");
+  }, [navigation]);
 
   const visiblePosts = useMemo(() => {
     const deduped = new Map<string, NowPost>();
@@ -293,7 +324,6 @@ export default function NowScreen() {
       style={{
         borderRadius: 18,
         padding: 14,
-        // Use a softer panel background and subtle border for the composer
         backgroundColor: theme.colors.backgroundSoft,
         borderWidth: 1,
         borderColor: theme.colors.borderSubtle,
@@ -308,7 +338,7 @@ export default function NowScreen() {
           marginBottom: 4,
         }}
       >
-        {t("now.promptTitle")}
+        {t("now.myStatusTitle")}
       </Text>
       <Text
         style={{
@@ -317,7 +347,7 @@ export default function NowScreen() {
           marginBottom: 6,
         }}
       >
-        {t("now.promptSubtitle")}
+        {t("now.myStatusBody")}
       </Text>
       {renderMoodChips()}
       <TextInput
@@ -384,7 +414,6 @@ export default function NowScreen() {
                 gap: 6,
               }}
             >
-              {/* здесь пока оставил иконку как есть, позже заменим на валидную */}
               <Ionicons name="location-outline" size={16} color="#F97373" />
               <Text
                 style={{
@@ -492,6 +521,119 @@ export default function NowScreen() {
     );
   };
 
+  const renderHero = () => (
+    <View
+      style={{
+        borderRadius: theme.shapes.card,
+        padding: 18,
+        backgroundColor: "rgba(12, 16, 31, 0.9)",
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.08)",
+        marginBottom: 14,
+      }}
+    >
+      <Text
+        style={{
+          color: theme.colors.accent,
+          fontSize: 12,
+          fontWeight: "800",
+          letterSpacing: 1,
+          marginBottom: 8,
+        }}
+      >
+        {t("now.heroKicker")}
+      </Text>
+      <Text
+        style={{
+          color: theme.colors.text,
+          fontSize: 24,
+          lineHeight: 30,
+          fontWeight: "800",
+          marginBottom: 10,
+        }}
+      >
+        {t("now.heroTitle")}
+      </Text>
+      <Text
+        style={{
+          color: theme.colors.subtext,
+          fontSize: 14,
+          lineHeight: 21,
+          marginBottom: 14,
+        }}
+      >
+        {t("now.heroBody")}
+      </Text>
+
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+        <Pressable
+          onPress={goToTogether}
+          style={{
+            borderRadius: theme.shapes.pill,
+            paddingHorizontal: 14,
+            paddingVertical: 10,
+            backgroundColor: theme.colors.accent,
+          }}
+        >
+          <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: "800" }}>
+            {t("now.goToTogether")}
+          </Text>
+        </Pressable>
+        <Pressable
+          onPress={goToRooms}
+          style={{
+            borderRadius: theme.shapes.pill,
+            paddingHorizontal: 14,
+            paddingVertical: 10,
+            backgroundColor: "rgba(255,255,255,0.06)",
+            borderWidth: 1,
+            borderColor: "rgba(255,255,255,0.08)",
+          }}
+        >
+          <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: "700" }}>
+            {t("now.openRooms")}
+          </Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+
+  const renderRoomsBridge = () => (
+    <View
+      style={{
+        borderRadius: 18,
+        padding: 14,
+        backgroundColor: "rgba(17, 20, 36, 0.88)",
+        borderWidth: 1,
+        borderColor: theme.colors.borderSubtle,
+        marginBottom: 14,
+      }}
+    >
+      <Text style={{ color: theme.colors.text, fontSize: 15, fontWeight: "800", marginBottom: 4 }}>
+        {t("now.roomsCardTitle")}
+      </Text>
+      <Text style={{ color: theme.colors.subtext, fontSize: 13, lineHeight: 19, marginBottom: 10 }}>
+        {t("now.roomsCardBody")}
+      </Text>
+      <Pressable
+        onPress={goToRooms}
+        style={{
+          alignSelf: "flex-start",
+          borderRadius: theme.shapes.pill,
+          paddingHorizontal: 14,
+          paddingVertical: 10,
+          backgroundColor: theme.colors.pillBg,
+          borderWidth: 1,
+          borderColor: theme.colors.borderSubtle,
+        }}
+      >
+        <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: "800" }}>
+          {t("now.openRooms")}
+        </Text>
+      </Pressable>
+    </View>
+  );
+
   return (
     <ScreenShell
       title={t("tabs.now")}
@@ -507,8 +649,10 @@ export default function NowScreen() {
           paddingBottom: insets.bottom + 8,
         }}
       >
-        <SectionTitle>{t("now.title")}</SectionTitle>
+        {renderHero()}
+        <SectionTitle>{t("now.myVibeTitle")}</SectionTitle>
         {renderComposer()}
+        {renderRoomsBridge()}
         <View
           style={{
             flexDirection: "row",
