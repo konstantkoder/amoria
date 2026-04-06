@@ -11,6 +11,7 @@ import {
   setDoc,
   where,
 } from "firebase/firestore";
+import { makeNickname } from "@/services/rooms";
 
 export type PlayActivity = "draw";
 
@@ -24,6 +25,7 @@ export type PlayQueueDoc = {
   createdAt: number;
   updatedAt: number;
   status: PlayQueueStatus;
+  nickname?: string;
   sessionId?: string;
 };
 
@@ -64,14 +66,28 @@ export type PlayStrokeBatch = {
 
 function asPlayQueueDoc(id: string, raw: unknown): PlayQueueDoc {
   const data = (raw ?? {}) as Partial<PlayQueueDoc>;
+  const nickname =
+    typeof data.nickname === "string" && data.nickname.trim()
+      ? data.nickname.trim()
+      : typeof (raw as { displayName?: unknown })?.displayName === "string" &&
+          String((raw as { displayName?: unknown }).displayName).trim()
+        ? String((raw as { displayName?: unknown }).displayName).trim()
+        : "";
   return {
     uid: String(data.uid ?? id),
     activity: (data.activity ?? "draw") as PlayActivity,
     createdAt: Number(data.createdAt ?? 0),
     updatedAt: Number(data.updatedAt ?? 0),
     status: (data.status ?? "waiting") as PlayQueueStatus,
+    ...(nickname ? { nickname } : {}),
     ...(data.sessionId ? { sessionId: String(data.sessionId) } : {}),
   };
+}
+
+function resolveQueueNickname(queue: Pick<PlayQueueDoc, "uid" | "nickname">) {
+  const nickname = queue.nickname?.trim();
+  if (nickname) return nickname;
+  return makeNickname(queue.uid || "peer");
 }
 
 function asPlaySessionDoc(id: string, raw: unknown): PlaySessionDoc {
@@ -145,7 +161,8 @@ function asPlayStrokeBatch(id: string, raw: unknown): PlayStrokeBatch {
 export async function enqueuePlayRequest(
   db: Firestore,
   uid: string,
-  activity: PlayActivity
+  activity: PlayActivity,
+  nickname?: string
 ): Promise<void> {
   const now = Date.now();
   const ref = doc(db, "playQueue", uid);
@@ -157,6 +174,7 @@ export async function enqueuePlayRequest(
       createdAt: now,
       updatedAt: now,
       status: "waiting" satisfies PlayQueueStatus,
+      ...(nickname?.trim() ? { nickname: nickname.trim() } : {}),
     },
     { merge: true }
   );
@@ -248,6 +266,7 @@ export async function tryMatchWaitingPlayer(
           createdAt,
           updatedAt: now,
           status: "waiting" satisfies PlayQueueStatus,
+          ...(nickname.trim() ? { nickname: nickname.trim() } : {}),
         },
         { merge: true }
       );
@@ -259,8 +278,8 @@ export async function tryMatchWaitingPlayer(
     const sessionId = sessionRef.id;
     const participantIds = [candidateData.uid, uid];
     const participantNicknames: Record<string, string> = {
-      [candidateData.uid]: candidateData.uid,
-      [uid]: nickname,
+      [candidateData.uid]: resolveQueueNickname(candidateData),
+      [uid]: nickname.trim() || makeNickname(uid || "me"),
     };
 
     tx.set(sessionRef, {
@@ -408,6 +427,6 @@ export function getPeerFromSession(session: PlaySessionDoc, myUid: string) {
 
   return {
     uid: peerUid,
-    nickname: session.participantNicknames[peerUid] ?? peerUid,
+    nickname: session.participantNicknames[peerUid] ?? makeNickname(peerUid),
   };
 }

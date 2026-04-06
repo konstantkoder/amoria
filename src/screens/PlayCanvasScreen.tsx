@@ -100,12 +100,6 @@ export default function PlayCanvasScreen() {
     }
   }, [navigation, session, sessionId]);
 
-  const remainingSec = React.useMemo(() => {
-    if (!session?.startedAt) return SESSION_DURATION_SEC;
-    const elapsed = Math.floor((Date.now() - session.startedAt) / 1000);
-    return Math.max(SESSION_DURATION_SEC - elapsed, 0);
-  }, [session?.startedAt]);
-
   const [tick, setTick] = React.useState(Date.now());
 
   React.useEffect(() => {

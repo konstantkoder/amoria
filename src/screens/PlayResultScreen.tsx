@@ -1,6 +1,7 @@
 import React from "react";
 import {
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -8,7 +9,10 @@ import {
 import { useNavigation, useRoute } from "@react-navigation/native";
 
 import ScreenShell from "@/components/ScreenShell";
+import ReplayCanvasWebView from "@/components/play/ReplayCanvasWebView";
+import type { SharedCanvasStroke } from "@/components/play/SharedCanvasWebView";
 import { auth, db } from "@/config/firebaseConfig";
+import { ensureDmThread } from "@/services/dm";
 import {
   getPeerFromSession,
   submitRevealDecision,
@@ -21,6 +25,42 @@ import {
 import { makeNickname } from "@/services/rooms";
 import { theme } from "@/theme";
 
+const SESSION_DURATION_SEC = 420;
+
+function formatActivityLabel(activity: string) {
+  if (activity === "draw") return "Нарисовать вместе";
+  return activity;
+}
+
+function formatDuration(session: PlaySessionDoc | null) {
+  if (!session?.startedAt || !session?.endedAt) return "7 минут";
+
+  const diffSec = Math.max(Math.round((session.endedAt - session.startedAt) / 1000), 0);
+  if (!diffSec) return "7 минут";
+  if (diffSec >= SESSION_DURATION_SEC) return "7 минут";
+
+  const minutes = Math.floor(diffSec / 60);
+  const seconds = diffSec % 60;
+  if (!minutes) return `${seconds} сек`;
+  if (!seconds) return `${minutes} мин`;
+  return `${minutes} мин ${seconds} сек`;
+}
+
+function mapReplayStrokes(events: PlayStrokeBatch[]): SharedCanvasStroke[] {
+  return events.flatMap((batch) =>
+    batch.strokes.map((stroke) => ({
+      id: stroke.id,
+      uid: batch.uid,
+      color: stroke.color,
+      width: stroke.width,
+      points: stroke.points.map((point) => ({
+        x: point.x,
+        y: point.y,
+      })),
+    }))
+  );
+}
+
 export default function PlayResultScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
@@ -30,7 +70,7 @@ export default function PlayResultScreen() {
   const [events, setEvents] = React.useState<PlayStrokeBatch[]>([]);
   const [decision, setDecision] = React.useState<PlayRevealDecision | null>(null);
   const [submitting, setSubmitting] = React.useState(false);
-  const navigatedRef = React.useRef(false);
+  const [replayOpen, setReplayOpen] = React.useState(false);
 
   React.useEffect(() => {
     if (!db || !sessionId) return;
@@ -55,6 +95,24 @@ export default function PlayResultScreen() {
   }, [session, uid]);
 
   const peerName = peer?.nickname ?? makeNickname(peer?.uid ?? "peer");
+  const totalStrokeCount = React.useMemo(() => {
+    if (session?.resultStrokeCount != null) {
+      return session.resultStrokeCount;
+    }
+    return events.reduce((sum, batch) => sum + batch.strokes.length, 0);
+  }, [events, session?.resultStrokeCount]);
+
+  const replayStrokes = React.useMemo(() => mapReplayStrokes(events), [events]);
+  const myStrokeCount = React.useMemo(
+    () =>
+      events.reduce(
+        (sum, batch) => sum + (batch.uid === uid ? batch.strokes.length : 0),
+        0
+      ),
+    [events, uid]
+  );
+  const peerStrokeCount = Math.max(totalStrokeCount - myStrokeCount, 0);
+
   const revealValues = session?.participantIds.map(
     (participantId) => session.revealDecisions?.[participantId]
   ) ?? [];
@@ -63,35 +121,66 @@ export default function PlayResultScreen() {
   const allOpen =
     revealValues.length > 0 && revealValues.every((value) => value === "open");
   const anySkip = revealValues.some((value) => value === "skip");
-
-  React.useEffect(() => {
-    if (!session || !allDecisionsMade || navigatedRef.current) return;
-    navigatedRef.current = true;
-    if (allOpen && peer?.uid) {
-      navigation.replace("DMChat", {
-        peerId: peer.uid,
-        peerName,
-      });
-      return;
-    }
-  }, [allDecisionsMade, allOpen, navigation, peer?.uid, peerName, session]);
-
-  const handleDecision = React.useCallback(
-    async (nextDecision: PlayRevealDecision) => {
-      if (!db || !sessionId || !uid || submitting) return;
-      setSubmitting(true);
-      setDecision(nextDecision);
-      try {
-        await submitRevealDecision(db, sessionId, uid, nextDecision);
-      } finally {
-        setSubmitting(false);
-      }
-    },
-    [sessionId, uid, submitting]
-  );
-
   const showSoftEnding = allDecisionsMade && anySkip;
   const waitingForPeer = Boolean(decision) && !allDecisionsMade;
+  const durationLabel = formatDuration(session);
+  const activityLabel = formatActivityLabel(session?.activity ?? "draw");
+
+  const openChat = React.useCallback(async () => {
+    if (!db || !session || !uid || !peer?.uid) return;
+
+    const threadId = await ensureDmThread(db, uid, peer.uid, {
+      memberNames: {
+        [uid]: session.participantNicknames?.[uid] ?? makeNickname(uid),
+        [peer.uid]: peerName,
+      },
+      source: "play",
+      sourceSessionId: sessionId,
+      artworkSummary: {
+        activity: "draw",
+        strokeCount: totalStrokeCount,
+      },
+    });
+
+    navigation.replace("DMChat", {
+      threadId,
+      peerId: peer.uid,
+      peerName,
+      sourceSessionId: sessionId,
+    });
+  }, [db, navigation, peer?.uid, peerName, session, sessionId, totalStrokeCount, uid]);
+
+  const handleOpenPress = React.useCallback(async () => {
+    if (submitting) return;
+
+    if (allOpen) {
+      await openChat();
+      return;
+    }
+
+    if (!db || !sessionId || !uid || decision) return;
+    setSubmitting(true);
+    setDecision("open");
+    try {
+      await submitRevealDecision(db, sessionId, uid, "open");
+    } finally {
+      setSubmitting(false);
+    }
+  }, [allOpen, db, decision, openChat, sessionId, submitting, uid]);
+
+  const handleSkipPress = React.useCallback(async () => {
+    if (!db || !sessionId || !uid || submitting || decision) return;
+    setSubmitting(true);
+    setDecision("skip");
+    try {
+      await submitRevealDecision(db, sessionId, uid, "skip");
+    } finally {
+      setSubmitting(false);
+    }
+  }, [db, decision, sessionId, submitting, uid]);
+
+  const primaryDisabled = submitting || (Boolean(decision) && !allOpen);
+  const tertiaryDisabled = submitting || Boolean(decision);
 
   return (
     <ScreenShell
@@ -100,36 +189,97 @@ export default function PlayResultScreen() {
       showBack
       onBack={() => navigation.navigate("Tabs")}
     >
-      <View style={styles.container}>
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryKicker}>Готово</Text>
-          <Text style={styles.summaryTitle}>Совместный рисунок завершен</Text>
-          <Text style={styles.summaryText}>
-            За эту сессию было отправлено {events.length} stroke batch.
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.heroCard}>
+          <Text style={styles.heroKicker}>Ваше совместное творение</Text>
+          <Text style={styles.heroTitle}>Рисунок готов</Text>
+          <Text style={styles.heroText}>
+            Вы успели собрать один общий холст из отдельных жестов, темпа и импровизации.
           </Text>
-          <Text style={styles.summaryPeer}>Напарник: {peerName}</Text>
+
+          <View style={styles.metaGrid}>
+            <View style={styles.metaItem}>
+              <Text style={styles.metaLabel}>Активность</Text>
+              <Text style={styles.metaValue}>{activityLabel}</Text>
+            </View>
+            <View style={styles.metaItem}>
+              <Text style={styles.metaLabel}>Напарник</Text>
+              <Text style={styles.metaValue}>{peerName}</Text>
+            </View>
+            <View style={styles.metaItem}>
+              <Text style={styles.metaLabel}>Штрихов</Text>
+              <Text style={styles.metaValue}>{totalStrokeCount}</Text>
+            </View>
+            <View style={styles.metaItem}>
+              <Text style={styles.metaLabel}>Длительность</Text>
+              <Text style={styles.metaValue}>{durationLabel}</Text>
+            </View>
+          </View>
+
+          <View style={styles.legendRow}>
+            <View style={styles.legendPill}>
+              <View style={[styles.legendDot, { backgroundColor: theme.colors.primary }]} />
+              <Text style={styles.legendText}>Твои штрихи: {myStrokeCount}</Text>
+            </View>
+            <View style={styles.legendPill}>
+              <View style={[styles.legendDot, { backgroundColor: theme.colors.accent }]} />
+              <Text style={styles.legendText}>Штрихи напарника: {peerStrokeCount}</Text>
+            </View>
+          </View>
         </View>
 
-        {!decision ? (
-          <View style={styles.actionCard}>
-            <Text style={styles.actionTitle}>Что делаем дальше?</Text>
-            <Text style={styles.actionText}>
-              Если оба выберут открыть, запустим чат и раскроем профили.
+        <View style={styles.actionCard}>
+          <Text style={styles.actionTitle}>Что делаем дальше?</Text>
+          <Text style={styles.actionText}>
+            Если оба выберут открыть, появится приватный чат и раскроются профили.
+          </Text>
+
+          <Pressable
+            disabled={primaryDisabled}
+            onPress={() => void handleOpenPress()}
+            style={[styles.primaryButton, primaryDisabled && styles.disabledButton]}
+          >
+            <Text style={styles.primaryText}>Открыть чат и профили</Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => setReplayOpen((prev) => !prev)}
+            style={styles.secondaryButton}
+          >
+            <Text style={styles.secondaryText}>
+              {replayOpen ? "Скрыть replay" : "Посмотреть replay"}
             </Text>
-            <Pressable
-              disabled={submitting}
-              onPress={() => void handleDecision("open")}
-              style={[styles.primaryButton, submitting && styles.disabledButton]}
-            >
-              <Text style={styles.primaryText}>Открыть чат и профили</Text>
-            </Pressable>
-            <Pressable
-              disabled={submitting}
-              onPress={() => void handleDecision("skip")}
-              style={[styles.secondaryButton, submitting && styles.disabledButton]}
-            >
-              <Text style={styles.secondaryText}>Пропустить</Text>
-            </Pressable>
+          </Pressable>
+
+          <Pressable
+            disabled={tertiaryDisabled}
+            onPress={() => void handleSkipPress()}
+            style={[styles.tertiaryButton, tertiaryDisabled && styles.disabledButton]}
+          >
+            <Text style={styles.tertiaryText}>Пропустить</Text>
+          </Pressable>
+        </View>
+
+        {replayOpen ? (
+          <View style={styles.replayBlock}>
+            <View style={styles.replayHeader}>
+              <View>
+                <Text style={styles.replayTitle}>Replay рисунка</Text>
+                <Text style={styles.replayText}>
+                  Проигрываем штрихи в исходном порядке без отдельного экрана.
+                </Text>
+              </View>
+            </View>
+            <ReplayCanvasWebView
+              strokes={replayStrokes}
+              autoplay
+              speed={1.25}
+              showControls
+            />
           </View>
         ) : null}
 
@@ -137,7 +287,17 @@ export default function PlayResultScreen() {
           <View style={styles.statusCard}>
             <Text style={styles.statusTitle}>Ждем второго участника</Text>
             <Text style={styles.statusText}>
-              Твое решение сохранено. Как только напарник ответит, продолжим автоматически.
+              Твое решение уже сохранено. Итог останется здесь, а чат откроется только после второго
+              согласия.
+            </Text>
+          </View>
+        ) : null}
+
+        {allOpen ? (
+          <View style={styles.statusCard}>
+            <Text style={styles.statusTitle}>Вы оба выбрали открыть</Text>
+            <Text style={styles.statusText}>
+              Приватный чат готов. Когда захочешь, открой его через главную кнопку выше.
             </Text>
           </View>
         ) : null}
@@ -146,56 +306,99 @@ export default function PlayResultScreen() {
           <View style={styles.statusCard}>
             <Text style={styles.statusTitle}>Сессия завершена мягко</Text>
             <Text style={styles.statusText}>
-              Кто-то выбрал пропустить раскрытие. Рисунок завершен без открытия чата.
+              Кто-то выбрал пропустить раскрытие. Рисунок и replay остаются с вами, но чат не
+              откроется.
             </Text>
-            <Pressable
-              onPress={() => navigation.navigate("Tabs")}
-              style={styles.secondaryButton}
-            >
-              <Text style={styles.secondaryText}>Назад</Text>
-            </Pressable>
           </View>
         ) : null}
-      </View>
+      </ScrollView>
     </ScreenShell>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
+  content: {
     padding: 16,
+    paddingBottom: 28,
     gap: 14,
   },
-  summaryCard: {
+  heroCard: {
     borderRadius: theme.shapes.card,
     padding: 20,
-    backgroundColor: theme.colors.card,
+    backgroundColor: "rgba(20, 18, 35, 0.92)",
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
+    shadowColor: "#000000",
+    shadowOpacity: 0.28,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 12 },
+    gap: 14,
   },
-  summaryKicker: {
+  heroKicker: {
     color: theme.colors.accent,
     fontSize: 12,
     fontWeight: "800",
-    letterSpacing: 1.1,
-    marginBottom: 8,
+    letterSpacing: 1.2,
   },
-  summaryTitle: {
+  heroTitle: {
     color: theme.colors.text,
-    fontSize: 24,
-    fontWeight: "800",
-    marginBottom: 10,
+    fontSize: 28,
+    fontWeight: "900",
   },
-  summaryText: {
+  heroText: {
     color: theme.colors.subtext,
     fontSize: 15,
     lineHeight: 22,
-    marginBottom: 10,
   },
-  summaryPeer: {
+  metaGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  metaItem: {
+    width: "47%",
+    minWidth: 140,
+    borderRadius: theme.shapes.cardInner,
+    padding: 14,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+  },
+  metaLabel: {
+    color: theme.colors.muted,
+    fontSize: 12,
+    fontWeight: "700",
+    marginBottom: 5,
+  },
+  metaValue: {
     color: theme.colors.text,
-    fontSize: 14,
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  legendRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  legendPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: theme.colors.pillBg,
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+  },
+  legendDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  legendText: {
+    color: theme.colors.text,
+    fontSize: 13,
     fontWeight: "700",
   },
   actionCard: {
@@ -232,15 +435,50 @@ const styles = StyleSheet.create({
     borderRadius: theme.shapes.cardInner,
     paddingVertical: 15,
     paddingHorizontal: 16,
-    backgroundColor: theme.colors.pillBg,
+    backgroundColor: theme.colors.accentSoft,
     borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
+    borderColor: "rgba(255, 122, 60, 0.22)",
     alignItems: "center",
   },
   secondaryText: {
     color: theme.colors.text,
     fontSize: 15,
+    fontWeight: "800",
+  },
+  tertiaryButton: {
+    borderRadius: theme.shapes.cardInner,
+    paddingVertical: 15,
+    paddingHorizontal: 16,
+    backgroundColor: theme.colors.pillBg,
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+    alignItems: "center",
+  },
+  tertiaryText: {
+    color: theme.colors.text,
+    fontSize: 15,
     fontWeight: "700",
+  },
+  replayBlock: {
+    gap: 10,
+  },
+  replayHeader: {
+    borderRadius: theme.shapes.card,
+    padding: 18,
+    backgroundColor: "rgba(18, 14, 30, 0.86)",
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+  },
+  replayTitle: {
+    color: theme.colors.text,
+    fontSize: 18,
+    fontWeight: "800",
+    marginBottom: 6,
+  },
+  replayText: {
+    color: theme.colors.subtext,
+    fontSize: 14,
+    lineHeight: 20,
   },
   disabledButton: {
     opacity: 0.6,

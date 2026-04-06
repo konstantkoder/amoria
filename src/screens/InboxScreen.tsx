@@ -1,69 +1,27 @@
 import React, { useEffect, useState } from "react";
-import { Pressable, ScrollView, View, Text } from "react-native";
+import { Pressable, ScrollView, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import {
-  collection,
-  onSnapshot,
-  query,
-  where,
-} from "firebase/firestore";
 
 import { auth, db } from "@/config/firebaseConfig";
 import { theme } from "@/theme";
 import ScreenShell from "@/components/ScreenShell";
 import { getLikes } from "@/services/likes";
-import { getPeerFromSession, type PlaySessionDoc } from "@/services/playSessions";
+import { mapDmThreadToPeer, subscribeDmThreads, type DmThreadDoc } from "@/services/dm";
 import { useLocale } from "@/contexts/LocaleContext";
 
-type InboxSessionCard = {
+type InboxThreadCard = {
   id: string;
-  activity: string;
-  status: string;
   peerId: string;
   peerName: string;
+  sourceLabel: string;
+  previewText: string;
   dateLabel: string;
+  sortAt: number;
 };
 
-function asPlaySessionDoc(id: string, raw: unknown): PlaySessionDoc {
-  const data = (raw ?? {}) as Partial<PlaySessionDoc>;
-  return {
-    id,
-    activity: (data.activity ?? "draw") as PlaySessionDoc["activity"],
-    status: (data.status ?? "matching") as PlaySessionDoc["status"],
-    createdAt: Number(data.createdAt ?? 0),
-    startedAt: Number(data.startedAt ?? data.createdAt ?? 0),
-    ...(data.endedAt != null ? { endedAt: Number(data.endedAt) } : {}),
-    participantIds: Array.isArray(data.participantIds)
-      ? data.participantIds.map((value) => String(value))
-      : [],
-    participantNicknames:
-      data.participantNicknames && typeof data.participantNicknames === "object"
-        ? Object.fromEntries(
-            Object.entries(data.participantNicknames).map(([key, value]) => [
-              key,
-              String(value ?? ""),
-            ])
-          )
-        : {},
-    ...(data.revealDecisions && typeof data.revealDecisions === "object"
-      ? {
-          revealDecisions: Object.fromEntries(
-            Object.entries(data.revealDecisions).map(([key, value]) => [
-              key,
-              value === "open" ? "open" : "skip",
-            ])
-          ) as PlaySessionDoc["revealDecisions"],
-        }
-      : {}),
-    ...(data.resultStrokeCount != null
-      ? { resultStrokeCount: Number(data.resultStrokeCount) }
-      : {}),
-  };
-}
-
-function formatSessionDate(value: number) {
+function formatThreadDate(value: number) {
   if (!value) return "Сейчас";
   try {
     return new Intl.DateTimeFormat("ru-RU", {
@@ -77,9 +35,20 @@ function formatSessionDate(value: number) {
   }
 }
 
-function getActivityLabel(activity: string) {
-  if (activity === "draw") return "Нарисовать вместе";
-  return activity;
+function mapThreadToCard(thread: DmThreadDoc, uid: string, fallbackName: string) {
+  const peer = mapDmThreadToPeer(thread, uid);
+  if (!peer) return null;
+
+  const sortAt = thread.lastMessageAt ?? thread.updatedAt ?? thread.createdAt;
+  return {
+    id: thread.id,
+    peerId: peer.uid,
+    peerName: peer.name || fallbackName,
+    sourceLabel: thread.source === "play" ? "Нарисовали вместе" : "Диалог",
+    previewText: thread.lastMessageText?.trim() || "Чат открыт после совместной сессии.",
+    dateLabel: formatThreadDate(sortAt),
+    sortAt,
+  } satisfies InboxThreadCard;
 }
 
 export default function InboxScreen() {
@@ -88,7 +57,7 @@ export default function InboxScreen() {
   const { t } = useLocale();
   const uid = auth?.currentUser?.uid ?? "";
   const [likesCount, setLikesCount] = useState(0);
-  const [cards, setCards] = useState<InboxSessionCard[]>([]);
+  const [cards, setCards] = useState<InboxThreadCard[]>([]);
 
   useEffect(() => {
     let alive = true;
@@ -96,9 +65,7 @@ export default function InboxScreen() {
       try {
         const ids = await getLikes();
         if (alive) setLikesCount(ids.length);
-      } catch {
-        // ignore errors fetching likes
-      }
+      } catch {}
     })();
     return () => {
       alive = false;
@@ -111,47 +78,14 @@ export default function InboxScreen() {
       return;
     }
 
-    const sessionsQuery = query(
-      collection(db, "playSessions"),
-      where("participantIds", "array-contains", uid)
-    );
+    const unsubscribe = subscribeDmThreads(db, uid, (threads) => {
+      const next = threads
+        .map((thread) => mapThreadToCard(thread, uid, t("common.user")))
+        .filter((item): item is InboxThreadCard => Boolean(item))
+        .sort((a, b) => b.sortAt - a.sortAt);
 
-    const unsubscribe = onSnapshot(
-      sessionsQuery,
-      (snapshot) => {
-        const next = snapshot.docs
-          .map((item) => asPlaySessionDoc(item.id, item.data()))
-          .filter((session) => {
-            if (session.participantIds.length < 2) return false;
-            const decisions = session.revealDecisions;
-            if (!decisions) return false;
-            return session.participantIds.every(
-              (participantId) => decisions[participantId] === "open"
-            );
-          })
-          .map((session) => {
-            const peer = getPeerFromSession(session, uid);
-            if (!peer) return null;
-            return {
-              id: session.id,
-              activity: getActivityLabel(session.activity),
-              status: "Открыто",
-              peerId: peer.uid,
-              peerName: peer.nickname || t("common.user"),
-              dateLabel: formatSessionDate(
-                session.endedAt ?? session.startedAt ?? session.createdAt
-              ),
-            } satisfies InboxSessionCard;
-          })
-          .filter((item): item is InboxSessionCard => Boolean(item))
-          .sort((a, b) => b.id.localeCompare(a.id));
-
-        setCards(next);
-      },
-      () => {
-        setCards([]);
-      }
-    );
+      setCards(next);
+    });
 
     return unsubscribe;
   }, [t, uid]);
@@ -204,6 +138,7 @@ export default function InboxScreen() {
                 key={card.id}
                 onPress={() =>
                   navigation.navigate("DMChat", {
+                    threadId: card.id,
                     peerId: card.peerId,
                     peerName: card.peerName,
                   })
@@ -235,42 +170,36 @@ export default function InboxScreen() {
                   >
                     {card.peerName}
                   </Text>
-                  <View
+                  <Text
                     style={{
-                      paddingHorizontal: 10,
-                      paddingVertical: 5,
-                      borderRadius: 999,
-                      backgroundColor: theme.colors.accentSoft,
+                      color: theme.colors.muted,
+                      fontSize: 12,
+                      fontWeight: "600",
                     }}
                   >
-                    <Text
-                      style={{
-                        color: theme.colors.text,
-                        fontSize: 12,
-                        fontWeight: "700",
-                      }}
-                    >
-                      {card.status}
-                    </Text>
-                  </View>
+                    {card.dateLabel}
+                  </Text>
                 </View>
 
                 <Text
                   style={{
-                    color: theme.colors.subtext,
-                    fontSize: 14,
+                    color: theme.colors.accent,
+                    fontSize: 13,
+                    fontWeight: "700",
                     marginBottom: 8,
                   }}
                 >
-                  {card.activity}
+                  {card.sourceLabel}
                 </Text>
                 <Text
                   style={{
-                    color: theme.colors.muted,
-                    fontSize: 12,
+                    color: theme.colors.subtext,
+                    fontSize: 14,
+                    lineHeight: 20,
                   }}
+                  numberOfLines={2}
                 >
-                  {card.dateLabel}
+                  {card.previewText}
                 </Text>
               </Pressable>
             ))}
@@ -312,18 +241,17 @@ export default function InboxScreen() {
                 marginBottom: 8,
               }}
             >
-              Пока нет открытых диалогов
+              Пока пусто
             </Text>
             <Text
               style={{
                 color: "#9CA3AF",
                 fontSize: 13,
                 textAlign: "center",
-                lineHeight: 19,
+                lineHeight: 20,
               }}
             >
-              Здесь появятся пары из Parallel Play, где вы оба выбрали открыть чат
-              после совместной сессии.
+              Пока пусто. Открой кого-то после совместной сессии, и здесь появится чат.
             </Text>
           </View>
         )}

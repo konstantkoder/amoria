@@ -26,6 +26,7 @@ export default function PlayMatchScreen() {
   const activity = (route.params?.activity ?? "draw") as PlayActivity;
   const user = auth?.currentUser ?? null;
   const uid = user?.uid ?? "";
+  const nickname = React.useMemo(() => makeNickname(uid), [uid]);
   const [busy, setBusy] = React.useState(false);
   const [statusText, setStatusText] = React.useState("Поднимаем очередь для общего холста...");
   const navigatedRef = React.useRef(false);
@@ -50,14 +51,9 @@ export default function PlayMatchScreen() {
 
     void (async () => {
       try {
-        await enqueuePlayRequest(db, uid, activity);
+        await enqueuePlayRequest(db, uid, activity, nickname);
         setStatusText("Ищем человека, который тоже готов рисовать прямо сейчас...");
-        const result = await tryMatchWaitingPlayer(
-          db,
-          uid,
-          makeNickname(uid),
-          activity
-        );
+        const result = await tryMatchWaitingPlayer(db, uid, nickname, activity);
         if (result.sessionId && !navigatedRef.current) {
           navigatedRef.current = true;
           navigation.replace("PlayCanvas", { sessionId: result.sessionId });
@@ -76,7 +72,7 @@ export default function PlayMatchScreen() {
     return () => {
       unsubscribe();
     };
-  }, [activity, navigation, uid]);
+  }, [activity, navigation, nickname, uid]);
 
   const handleCancel = React.useCallback(async () => {
     if (db && uid) {
