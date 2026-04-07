@@ -14,6 +14,11 @@ import ScreenShell from "@/components/ScreenShell";
 import { auth, db } from "@/config/firebaseConfig";
 import { useLocale } from "@/contexts/LocaleContext";
 import {
+  formatActivitySignalLabel,
+  getPlaySessionActivitySignal,
+  useActivityFreshnessState,
+} from "@/services/activityFreshness";
+import {
   buildDmChatRouteParams,
   ensureDmThread,
   findDmThreadBySourceSessionId,
@@ -56,6 +61,8 @@ function formatDateTime(value: number) {
 
 type HistoryCard = PlayHistoryItem & {
   threadId?: string;
+  signalLabel?: string;
+  signalTone?: "fresh" | "recent";
 };
 
 export default function PlayHistoryScreen() {
@@ -69,6 +76,7 @@ export default function PlayHistoryScreen() {
     [t]
   );
   const uid = auth?.currentUser?.uid ?? "";
+  const freshnessState = useActivityFreshnessState();
   const [history, setHistory] = useState<PlayHistoryItem[]>([]);
   const [threads, setThreads] = useState<DmThreadDoc[]>([]);
   const [historyLoaded, setHistoryLoaded] = useState(false);
@@ -157,12 +165,22 @@ export default function PlayHistoryScreen() {
     () =>
       history.map((item) => {
         const thread = findDmThreadBySourceSessionId(threads, item.sessionId);
+        const signal = getPlaySessionActivitySignal(
+          item,
+          freshnessState.playSessions[item.sessionId] ?? 0
+        );
         return {
           ...item,
           ...(thread?.id ? { threadId: thread.id } : {}),
+          ...(signal
+            ? {
+                signalLabel: formatActivitySignalLabel(signal, tt),
+                signalTone: signal.tone,
+              }
+            : {}),
         };
       }),
-    [history, threads]
+    [freshnessState.playSessions, history, threads, tt]
   );
 
   const isLoading = !historyLoaded || !threadsLoaded;
@@ -232,7 +250,28 @@ export default function PlayHistoryScreen() {
       >
         <View style={styles.cardTop}>
           <View style={styles.cardTopText}>
-            <Text style={styles.cardTitle}>{item.peer.nickname}</Text>
+            <View style={styles.cardTitleRow}>
+              <Text style={styles.cardTitle}>{item.peer.nickname}</Text>
+              {item.signalLabel ? (
+                <View
+                  style={[
+                    styles.signalBadge,
+                    item.signalTone === "fresh" ? styles.signalBadgeFresh : styles.signalBadgeRecent,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.signalBadgeText,
+                      item.signalTone === "fresh"
+                        ? styles.signalBadgeTextFresh
+                        : styles.signalBadgeTextRecent,
+                    ]}
+                  >
+                    {item.signalLabel}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
             <Text style={styles.cardActivity}>{formatActivityLabel(item.activity)}</Text>
           </View>
           <Text style={styles.cardDate}>{formatDateTime(item.sortAt)}</Text>
@@ -534,6 +573,12 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 4,
   },
+  cardTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 8,
+  },
   cardTitle: {
     color: theme.colors.text,
     fontSize: 18,
@@ -543,6 +588,30 @@ const styles = StyleSheet.create({
     color: theme.colors.accent,
     fontSize: 13,
     fontWeight: "700",
+  },
+  signalBadge: {
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderWidth: 1,
+  },
+  signalBadgeFresh: {
+    backgroundColor: "rgba(255, 78, 138, 0.16)",
+    borderColor: "rgba(255, 78, 138, 0.28)",
+  },
+  signalBadgeRecent: {
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderColor: theme.colors.borderSubtle,
+  },
+  signalBadgeText: {
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  signalBadgeTextFresh: {
+    color: theme.colors.primary,
+  },
+  signalBadgeTextRecent: {
+    color: theme.colors.text,
   },
   cardDate: {
     color: theme.colors.muted,

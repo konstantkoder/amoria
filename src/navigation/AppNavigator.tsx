@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Drawer } from "react-native-drawer-layout";
 
+import { auth, db } from "@/config/firebaseConfig";
 import PlayLobbyScreen from "@/screens/PlayLobbyScreen";
 import ConnectionsFeedScreen from "@/screens/ConnectionsFeedScreen";
 import NowScreen from "@/screens/NowScreen";
@@ -31,6 +32,11 @@ import { theme } from "@/theme";
 import AppDrawerContent from "@/navigation/AppDrawerContent";
 import { registerDrawerControls } from "@/navigation/drawerController";
 import { useLocale } from "@/contexts/LocaleContext";
+import {
+  getDmThreadActivitySignal,
+  useActivityFreshnessState,
+} from "@/services/activityFreshness";
+import { subscribeDmThreads, type DmThreadDoc } from "@/services/dm";
 
 export type ProfileStackParamList = {
   ProfileMain: undefined;
@@ -57,6 +63,29 @@ function ProfileStackNavigator() {
 function MainTabs() {
   const insets = useSafeAreaInsets();
   const { t } = useLocale();
+  const freshnessState = useActivityFreshnessState();
+  const uid = auth?.currentUser?.uid ?? "";
+  const [threads, setThreads] = React.useState<DmThreadDoc[]>([]);
+
+  React.useEffect(() => {
+    if (!db || !uid) {
+      setThreads([]);
+      return;
+    }
+
+    return subscribeDmThreads(db, uid, (next) => {
+      setThreads(next);
+    });
+  }, [uid]);
+
+  const freshChatsCount = React.useMemo(
+    () =>
+      threads.filter((thread) => {
+        const signal = getDmThreadActivitySignal(thread, freshnessState.dmThreads[thread.id] ?? 0);
+        return signal?.tone === "fresh";
+      }).length,
+    [freshnessState.dmThreads, threads]
+  );
 
   return (
     <Tab.Navigator
@@ -121,6 +150,17 @@ function MainTabs() {
         options={{
           title: t("tabs.chats"),
           tabBarLabel: t("tabs.chats"),
+          ...(freshChatsCount
+            ? {
+                tabBarBadge: freshChatsCount > 9 ? "9+" : freshChatsCount,
+                tabBarBadgeStyle: {
+                  backgroundColor: theme.colors.primary,
+                  color: "#fff",
+                  fontSize: 11,
+                  fontWeight: "800",
+                },
+              }
+            : {}),
         }}
       />
       <Tab.Screen

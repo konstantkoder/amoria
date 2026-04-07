@@ -15,6 +15,7 @@ import ReplayCanvasWebView from "@/components/play/ReplayCanvasWebView";
 import type { SharedCanvasStroke } from "@/components/play/SharedCanvasWebView";
 import { auth, db } from "@/config/firebaseConfig";
 import { useLocale } from "@/contexts/LocaleContext";
+import { markPlaySessionSeen } from "@/services/activityFreshness";
 import {
   buildDmChatRouteParams,
   findDmThreadBySourceSessionId,
@@ -211,6 +212,11 @@ export default function PlaySessionDetailScreen() {
       unsubscribeThreads();
     };
   }, [replayFocus, reloadKey, sessionId, tt, uid]);
+
+  React.useEffect(() => {
+    if (!sessionId) return;
+    void markPlaySessionSeen(sessionId);
+  }, [sessionId]);
 
   const peer = React.useMemo(() => {
     if (!session) return null;

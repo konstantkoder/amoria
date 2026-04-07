@@ -7,6 +7,12 @@ import ScreenShell from "@/components/ScreenShell";
 import { auth, db } from "@/config/firebaseConfig";
 import { useLocale } from "@/contexts/LocaleContext";
 import {
+  formatActivitySignalLabel,
+  getDmThreadActivitySignal,
+  getPlaySessionActivitySignal,
+  useActivityFreshnessState,
+} from "@/services/activityFreshness";
+import {
   buildDmChatRouteParams,
   ensureDmThread,
   mapDmThreadToPeer,
@@ -32,6 +38,8 @@ type HistoryCard = {
   strokeCount?: number;
   sortAt: number;
   isFallback: boolean;
+  signalLabel?: string;
+  signalTone?: "fresh" | "recent";
 };
 
 function formatFreshness(
@@ -81,7 +89,9 @@ function mapSessionToHistoryCard(
   uid: string,
   now: number,
   t: (key: string, params?: Record<string, string>) => string,
-  threadBySessionId: Map<string, DmThreadDoc>
+  threadBySessionId: Map<string, DmThreadDoc>,
+  signalLabel?: string,
+  signalTone?: "fresh" | "recent"
 ): HistoryCard | null {
   const peer = getPeerFromSession(session, uid);
   if (!peer) return null;
@@ -101,6 +111,7 @@ function mapSessionToHistoryCard(
     ...(session.resultStrokeCount != null ? { strokeCount: session.resultStrokeCount } : {}),
     sortAt,
     isFallback: false,
+    ...(signalLabel ? { signalLabel, signalTone } : {}),
   };
 }
 
@@ -108,7 +119,9 @@ function mapThreadToFallbackCard(
   thread: DmThreadDoc,
   uid: string,
   now: number,
-  t: (key: string, params?: Record<string, string>) => string
+  t: (key: string, params?: Record<string, string>) => string,
+  signalLabel?: string,
+  signalTone?: "fresh" | "recent"
 ): HistoryCard | null {
   if (thread.sourceSessionId) return null;
   const peer = mapDmThreadToPeer(thread, uid);
@@ -129,6 +142,7 @@ function mapThreadToFallbackCard(
       : {}),
     sortAt,
     isFallback: true,
+    ...(signalLabel ? { signalLabel, signalTone } : {}),
   };
 }
 
@@ -143,6 +157,7 @@ export default function ConnectionsFeedScreen() {
     [t]
   );
   const uid = auth?.currentUser?.uid ?? "";
+  const freshnessState = useActivityFreshnessState();
   const [now, setNow] = useState(() => Date.now());
   const [threads, setThreads] = useState<DmThreadDoc[]>([]);
   const [sessions, setSessions] = useState<PlaySessionDoc[]>([]);
@@ -241,11 +256,32 @@ export default function ConnectionsFeedScreen() {
   const historyCards = useMemo(
     () =>
       sessions
-        .map((session) => mapSessionToHistoryCard(session, uid, now, t, threadBySessionId))
+        .map((session) => {
+          const linkedThread = threadBySessionId.get(session.id);
+          const threadSignal = linkedThread
+            ? getDmThreadActivitySignal(linkedThread, freshnessState.dmThreads[linkedThread.id] ?? 0, now)
+            : null;
+          const sessionSignal = getPlaySessionActivitySignal(
+            session,
+            freshnessState.playSessions[session.id] ?? 0,
+            now
+          );
+          const signal = threadSignal ?? sessionSignal;
+
+          return mapSessionToHistoryCard(
+            session,
+            uid,
+            now,
+            t,
+            threadBySessionId,
+            formatActivitySignalLabel(signal, tt),
+            signal?.tone
+          );
+        })
         .filter((item): item is HistoryCard => Boolean(item))
         .sort((a, b) => b.sortAt - a.sortAt)
         .slice(0, 8),
-    [now, sessions, t, threadBySessionId, uid]
+    [freshnessState.dmThreads, freshnessState.playSessions, now, sessions, t, threadBySessionId, tt, uid]
   );
 
   const fallbackCards = useMemo(
@@ -253,10 +289,24 @@ export default function ConnectionsFeedScreen() {
       historyCards.length
         ? []
         : threads
-            .map((thread) => mapThreadToFallbackCard(thread, uid, now, t))
+            .map((thread) => {
+              const signal = getDmThreadActivitySignal(
+                thread,
+                freshnessState.dmThreads[thread.id] ?? 0,
+                now
+              );
+              return mapThreadToFallbackCard(
+                thread,
+                uid,
+                now,
+                t,
+                formatActivitySignalLabel(signal, tt),
+                signal?.tone
+              );
+            })
             .filter((item): item is HistoryCard => Boolean(item))
             .sort((a, b) => b.sortAt - a.sortAt),
-    [historyCards.length, now, t, threads, uid]
+    [freshnessState.dmThreads, historyCards.length, now, t, threads, tt, uid]
   );
 
   const isLoading = !threadsLoaded || !sessionsLoaded;
@@ -337,7 +387,28 @@ export default function ConnectionsFeedScreen() {
       <View key={card.id} style={card.isFallback ? styles.storyCard : styles.card}>
         <View style={styles.cardTopRow}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.cardTitle}>{card.peerName}</Text>
+            <View style={styles.cardTitleRow}>
+              <Text style={styles.cardTitle}>{card.peerName}</Text>
+              {card.signalLabel ? (
+                <View
+                  style={[
+                    styles.signalBadge,
+                    card.signalTone === "fresh" ? styles.signalBadgeFresh : styles.signalBadgeRecent,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.signalBadgeText,
+                      card.signalTone === "fresh"
+                        ? styles.signalBadgeTextFresh
+                        : styles.signalBadgeTextRecent,
+                    ]}
+                  >
+                    {card.signalLabel}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
             <Text style={styles.cardSource}>{card.activityLabel}</Text>
           </View>
           <Text style={styles.cardDate}>{card.freshnessLabel}</Text>
@@ -635,10 +706,41 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     marginBottom: 4,
   },
+  cardTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 4,
+  },
   cardSource: {
     color: theme.colors.accent,
     fontSize: 13,
     fontWeight: "700",
+  },
+  signalBadge: {
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderWidth: 1,
+  },
+  signalBadgeFresh: {
+    backgroundColor: "rgba(255, 78, 138, 0.16)",
+    borderColor: "rgba(255, 78, 138, 0.28)",
+  },
+  signalBadgeRecent: {
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderColor: theme.colors.borderSubtle,
+  },
+  signalBadgeText: {
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  signalBadgeTextFresh: {
+    color: theme.colors.primary,
+  },
+  signalBadgeTextRecent: {
+    color: theme.colors.text,
   },
   cardDate: {
     color: theme.colors.muted,

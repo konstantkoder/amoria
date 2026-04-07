@@ -7,6 +7,11 @@ import { Ionicons } from "@expo/vector-icons";
 import { auth, db } from "@/config/firebaseConfig";
 import ScreenShell from "@/components/ScreenShell";
 import {
+  formatActivitySignalLabel,
+  getDmThreadActivitySignal,
+  useActivityFreshnessState,
+} from "@/services/activityFreshness";
+import {
   buildDmChatRouteParams,
   mapDmThreadToPeer,
   subscribeDmThreads,
@@ -23,6 +28,8 @@ type InboxThreadCard = {
   previewText: string;
   dateLabel: string;
   sortAt: number;
+  signalLabel?: string;
+  signalTone?: "fresh" | "recent";
 };
 
 function formatThreadDate(value: number) {
@@ -43,12 +50,15 @@ function mapThreadToCard(
   thread: DmThreadDoc,
   uid: string,
   fallbackName: string,
-  previewFallback: string
+  previewFallback: string,
+  seenAt: number,
+  formatSignal: (thread: DmThreadDoc) => string
 ): InboxThreadCard | null {
   const peer = mapDmThreadToPeer(thread, uid);
   if (!peer) return null;
 
   const sortAt = thread.lastMessageAt ?? thread.updatedAt ?? thread.createdAt;
+  const signal = getDmThreadActivitySignal(thread, seenAt);
   return {
     id: thread.id,
     peerId: peer.uid,
@@ -57,6 +67,7 @@ function mapThreadToCard(
     previewText: thread.lastMessageText?.trim() || previewFallback,
     dateLabel: formatThreadDate(sortAt),
     sortAt,
+    ...(signal ? { signalLabel: formatSignal(thread), signalTone: signal.tone } : {}),
   };
 }
 
@@ -72,6 +83,7 @@ export default function InboxScreen() {
     [t]
   );
   const uid = auth?.currentUser?.uid ?? "";
+  const freshnessState = useActivityFreshnessState();
   const [cards, setCards] = useState<InboxThreadCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -99,7 +111,16 @@ export default function InboxScreen() {
               thread,
               uid,
               t("common.user"),
-              tt("inbox.previewFallback", "The connection is open. You can write first.")
+              tt("inbox.previewFallback", "The connection is open. You can write first."),
+              freshnessState.dmThreads[thread.id] ?? 0,
+              (currentThread) =>
+                formatActivitySignalLabel(
+                  getDmThreadActivitySignal(
+                    currentThread,
+                    freshnessState.dmThreads[currentThread.id] ?? 0
+                  ),
+                  tt
+                )
             )
           )
           .filter((item): item is InboxThreadCard => Boolean(item))
@@ -119,7 +140,7 @@ export default function InboxScreen() {
       alive = false;
       unsubscribe();
     };
-  }, [reloadKey, t, tt, uid]);
+  }, [freshnessState.dmThreads, reloadKey, t, tt, uid]);
 
   const sourceLabels = useMemo(
     () => ({
@@ -150,11 +171,13 @@ export default function InboxScreen() {
           )
         }
         style={{
-          backgroundColor: "rgba(17, 20, 36, 0.9)",
+          backgroundColor:
+            item.signalTone === "fresh" ? "rgba(25, 20, 37, 0.94)" : "rgba(17, 20, 36, 0.9)",
           borderRadius: 22,
           padding: 16,
           borderWidth: 1,
-          borderColor: theme.colors.borderSubtle,
+          borderColor:
+            item.signalTone === "fresh" ? "rgba(255, 78, 138, 0.34)" : theme.colors.borderSubtle,
           gap: 10,
         }}
       >
@@ -167,15 +190,45 @@ export default function InboxScreen() {
           }}
         >
           <View style={{ flex: 1, gap: 6 }}>
-            <Text
-              style={{
-                color: theme.colors.text,
-                fontSize: 17,
-                fontWeight: "800",
-              }}
-            >
-              {item.peerName}
-            </Text>
+            <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+              <Text
+                style={{
+                  color: theme.colors.text,
+                  fontSize: 17,
+                  fontWeight: "800",
+                }}
+              >
+                {item.peerName}
+              </Text>
+              {item.signalLabel ? (
+                <View
+                  style={{
+                    paddingHorizontal: 8,
+                    paddingVertical: 4,
+                    borderRadius: theme.shapes.pill,
+                    backgroundColor:
+                      item.signalTone === "fresh"
+                        ? "rgba(255, 78, 138, 0.16)"
+                        : "rgba(255,255,255,0.08)",
+                    borderWidth: 1,
+                    borderColor:
+                      item.signalTone === "fresh"
+                        ? "rgba(255, 78, 138, 0.28)"
+                        : theme.colors.borderSubtle,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: item.signalTone === "fresh" ? theme.colors.primary : theme.colors.text,
+                      fontSize: 11,
+                      fontWeight: "800",
+                    }}
+                  >
+                    {item.signalLabel}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
             <View
               style={{
                 alignSelf: "flex-start",
@@ -205,7 +258,7 @@ export default function InboxScreen() {
 
         <Text
           style={{
-            color: theme.colors.subtext,
+            color: item.signalTone === "fresh" ? theme.colors.text : theme.colors.subtext,
             fontSize: 14,
             lineHeight: 20,
           }}

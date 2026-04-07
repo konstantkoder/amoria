@@ -6,6 +6,7 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import ScreenShell from "@/components/ScreenShell";
 import { auth, db } from "@/config/firebaseConfig";
 import { useLocale } from "@/contexts/LocaleContext";
+import { markDmThreadSeen } from "@/services/activityFreshness";
 import {
   buildDmThreadId,
   mapDmThreadToPeer,
@@ -84,6 +85,11 @@ export default function DMChatScreen() {
     inputRef.current?.clear?.();
     listRef.current?.scrollToOffset?.({ offset: 0, animated: false });
   }, [myId, routePeerName, threadId]);
+
+  useEffect(() => {
+    if (!threadId) return;
+    void markDmThreadSeen(threadId);
+  }, [threadId]);
 
   useEffect(() => {
     if (!db || !myId || !threadId) {
