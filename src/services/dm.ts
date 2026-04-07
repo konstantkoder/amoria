@@ -45,7 +45,6 @@ export type DmChatRouteParams = {
   threadId: string;
   peerId: string;
   peerName?: string;
-  sourceSessionId?: string;
   backTarget?: "together" | "history" | "connections" | "inbox";
 };
 
@@ -76,7 +75,7 @@ function asDmThreadDoc(id: string, raw: unknown): DmThreadDoc {
     data.artworkSummary.activity
       ? {
           artworkSummary: {
-            activity: data.artworkSummary.activity === "draw" ? "draw" : "draw",
+            activity: "draw",
             ...(data.artworkSummary.strokeCount != null
               ? { strokeCount: Number(data.artworkSummary.strokeCount) }
               : {}),
@@ -108,9 +107,6 @@ export function buildDmChatRouteParams(params: DmChatRouteParams): DmChatRoutePa
     threadId: String(params.threadId ?? ""),
     peerId: String(params.peerId ?? ""),
     ...(params.peerName?.trim() ? { peerName: params.peerName.trim() } : {}),
-    ...(params.sourceSessionId?.trim()
-      ? { sourceSessionId: params.sourceSessionId.trim() }
-      : {}),
     ...(params.backTarget ? { backTarget: params.backTarget } : {}),
   };
 }

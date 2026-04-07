@@ -273,7 +273,6 @@ export default function ConnectionsFeedScreen() {
             threadId: card.threadId,
             peerId: card.peerId,
             peerName: card.peerName,
-            sourceSessionId: card.sessionId,
             backTarget: "connections",
           })
         );
@@ -305,7 +304,6 @@ export default function ConnectionsFeedScreen() {
             threadId,
             peerId: card.peerId,
             peerName: card.peerName,
-            sourceSessionId: session.id,
             backTarget: "connections",
           })
         );

@@ -48,7 +48,6 @@ export default function DMChatScreen() {
   const [messagesLoading, setMessagesLoading] = useState(true);
   const [subscriptionError, setSubscriptionError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
-  const [resolvedPeerName, setResolvedPeerName] = useState(routePeerName);
 
   const textRef = useRef("");
   const inputRef = useRef<TextInput>(null);
@@ -78,7 +77,6 @@ export default function DMChatScreen() {
     setThreadLoading(Boolean(db && myId && threadId));
     setMessagesLoading(Boolean(db && threadId));
     setSubscriptionError(null);
-    setResolvedPeerName(routePeerName);
     textRef.current = "";
     setText("");
     inputRef.current?.setNativeProps?.({ text: "" });
@@ -152,13 +150,6 @@ export default function DMChatScreen() {
       return changed ? next : prev;
     });
   }, [msgs]);
-
-  useEffect(() => {
-    const nextName = thread ? mapDmThreadToPeer(thread, myId)?.name?.trim?.() ?? "" : "";
-    if (nextName) {
-      setResolvedPeerName((prev) => (prev === nextName ? prev : nextName));
-    }
-  }, [myId, thread]);
 
   const peer = useMemo(() => {
     if (!thread) {
@@ -261,7 +252,7 @@ export default function DMChatScreen() {
   const strokeCount = thread?.artworkSummary?.strokeCount;
   const isLoading = threadLoading || messagesLoading;
   const isEmpty = !isLoading && mergedMsgs.length === 0;
-  const screenTitleName = resolvedPeerName || routePeerName || peer.name || "";
+  const screenTitleName = peer.name || routePeerName || "";
   const screenTitle = screenTitleName ? t("dm.title", { name: screenTitleName }) : tt("dm.genericTitle", "Chat");
   const handleBack = useCallback(() => {
     if (navigation.canGoBack()) {

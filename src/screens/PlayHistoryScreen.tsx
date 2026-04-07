@@ -107,6 +107,14 @@ export default function PlayHistoryScreen() {
   const goToConnections = useCallback(() => {
     navigation.navigate("Tabs", { screen: "Connections" });
   }, [navigation]);
+  const handleLoadError = useCallback(() => {
+    setError(
+      tt(
+        "playHistory.errorBody",
+        "Не удалось собрать ваши совместные истории. Попробуй еще раз."
+      )
+    );
+  }, [tt]);
 
   useEffect(() => {
     let alive = true;
@@ -129,12 +137,7 @@ export default function PlayHistoryScreen() {
       },
       () => {
         if (!alive) return;
-        setError(
-          tt(
-            "playHistory.errorBody",
-            "Не удалось собрать ваши совместные истории. Попробуй еще раз."
-          )
-        );
+        handleLoadError();
         setHistoryLoaded(true);
       }
     );
@@ -143,7 +146,7 @@ export default function PlayHistoryScreen() {
       alive = false;
       unsubscribe();
     };
-  }, [reloadKey, tt, uid]);
+  }, [handleLoadError, reloadKey, uid]);
 
   useEffect(() => {
     let alive = true;
@@ -164,12 +167,7 @@ export default function PlayHistoryScreen() {
       },
       () => {
         if (!alive) return;
-        setError(
-          tt(
-            "playHistory.errorBody",
-            "Не удалось собрать ваши совместные истории. Попробуй еще раз."
-          )
-        );
+        handleLoadError();
         setThreadsLoaded(true);
       }
     );
@@ -178,7 +176,7 @@ export default function PlayHistoryScreen() {
       alive = false;
       unsubscribe();
     };
-  }, [reloadKey, tt, uid]);
+  }, [handleLoadError, reloadKey, uid]);
 
   const threadBySessionId = useMemo(() => {
     const next = new Map<string, DmThreadDoc>();
@@ -237,7 +235,6 @@ export default function PlayHistoryScreen() {
             threadId,
             peerId: card.peer.uid,
             peerName: card.peer.nickname,
-            sourceSessionId: card.sessionId,
             backTarget: "history",
           })
         );

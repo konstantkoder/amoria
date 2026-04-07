@@ -65,7 +65,7 @@ function MainTabs() {
       screenOptions={({ route }) => ({
         headerShown: false,
         lazy: false,
-        tabBarHideOnKeyboard: true, // AMORIA_FIX_TABBAR_HIDE_ON_KEYBOARD_V1
+        tabBarHideOnKeyboard: true,
         tabBarActiveTintColor: theme.colors.accent,
         tabBarInactiveTintColor: "#A1A1AA",
         tabBarStyle: {

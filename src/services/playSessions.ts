@@ -55,16 +55,9 @@ export type PlayHistoryItem = {
     uid: string;
     nickname: string;
   };
-  createdAt: number;
-  startedAt: number;
-  endedAt?: number;
   sortAt: number;
   strokeCount?: number;
   revealOutcome: PlayRevealOutcome;
-  revealDecisions: {
-    mine?: PlayRevealDecision;
-    peer?: PlayRevealDecision;
-  };
 };
 
 export type PlayStrokePoint = {
@@ -402,18 +395,9 @@ export function mapPlaySessionToHistoryItem(
     sessionId: session.id,
     activity: session.activity,
     peer,
-    createdAt: session.createdAt,
-    startedAt: session.startedAt,
-    ...(session.endedAt != null ? { endedAt: session.endedAt } : {}),
     sortAt: session.endedAt ?? session.startedAt ?? session.createdAt,
     ...(session.resultStrokeCount != null ? { strokeCount: session.resultStrokeCount } : {}),
     revealOutcome: resolvePlayRevealOutcome(session),
-    revealDecisions: {
-      ...(session.revealDecisions?.[uid] ? { mine: session.revealDecisions[uid] } : {}),
-      ...(session.revealDecisions?.[peer.uid]
-        ? { peer: session.revealDecisions[peer.uid] }
-        : {}),
-    },
   };
 }
 
@@ -423,6 +407,10 @@ function isCompletedPlaySession(session: PlaySessionDoc) {
     session.status === "revealed" ||
     session.endedAt != null
   );
+}
+
+function getPlaySessionSortAt(session: Pick<PlaySessionDoc, "createdAt" | "startedAt" | "endedAt">) {
+  return session.endedAt ?? session.startedAt ?? session.createdAt;
 }
 
 export function subscribeRecentMutualPlaySessions(
@@ -443,11 +431,7 @@ export function subscribeRecentMutualPlaySessions(
       const next = snapshot.docs
         .map((item) => asPlaySessionDoc(item.id, item.data()))
         .filter((session) => isMutualOpenPlaySession(session))
-        .sort((a, b) => {
-          const aTime = a.endedAt ?? a.startedAt ?? a.createdAt;
-          const bTime = b.endedAt ?? b.startedAt ?? b.createdAt;
-          return bTime - aTime;
-        })
+        .sort((a, b) => getPlaySessionSortAt(b) - getPlaySessionSortAt(a))
         .slice(0, maxItems);
 
       onData(next);

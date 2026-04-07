@@ -13,36 +13,22 @@ import { useLocale } from "@/contexts/LocaleContext";
 import { theme } from "@/theme";
 
 type ActivityCard = {
-  id: string;
   title: string;
   description: string;
-  status: "active" | "soon";
 };
 
-const CARDS: ActivityCard[] = [
+const SOON_CARDS: ActivityCard[] = [
   {
-    id: "draw",
-    title: "Нарисовать вместе",
-    description: "Общий холст на двоих. Семь минут, один рисунок, один ритм.",
-    status: "active",
-  },
-  {
-    id: "world",
     title: "Построить мир",
     description: "Совместная мини-сцена, где каждый достраивает идею второго.",
-    status: "soon",
   },
   {
-    id: "playlist",
     title: "Составить плейлист",
     description: "Быстрый обмен треками и общий вайб из нескольких выборов.",
-    status: "soon",
   },
   {
-    id: "quest",
     title: "Пройти мини-квест",
     description: "Небольшое кооперативное испытание с мягкими подсказками.",
-    status: "soon",
   },
 ];
 
@@ -130,14 +116,11 @@ export default function PlayLobbyScreen() {
           </Text>
         </View>
 
-        {CARDS.filter((card) => card.status === "soon").map((card) => {
+        {SOON_CARDS.map((card, index) => {
           return (
             <Pressable
-              key={card.id}
+              key={`${card.title}_${index}`}
               disabled
-              onPress={() =>
-                navigation.navigate("PlayMatch", { activity: "draw" })
-              }
               style={[styles.card, styles.cardSoon]}
             >
               <View style={styles.cardHeader}>

@@ -16,6 +16,7 @@ import { auth, db } from "@/config/firebaseConfig";
 import { buildDmChatRouteParams, ensureDmThread } from "@/services/dm";
 import {
   getPeerFromSession,
+  resolvePlayRevealOutcome,
   submitRevealDecision,
   subscribePlayEvents,
   subscribePlaySession,
@@ -160,16 +161,13 @@ export default function PlayResultScreen() {
   );
   const peerStrokeCount = Math.max(totalStrokeCount - myStrokeCount, 0);
 
-  const revealValues = session?.participantIds.map(
-    (participantId) => session.revealDecisions?.[participantId]
-  ) ?? [];
-  const allDecisionsMade =
-    revealValues.length > 0 && revealValues.every((value) => value === "open" || value === "skip");
-  const allOpen =
-    revealValues.length > 0 && revealValues.every((value) => value === "open");
-  const anySkip = revealValues.some((value) => value === "skip");
-  const showSoftEnding = allDecisionsMade && anySkip;
-  const waitingForPeer = Boolean(decision) && !allDecisionsMade;
+  const revealOutcome = React.useMemo(
+    () => (session ? resolvePlayRevealOutcome(session) : "waiting"),
+    [session]
+  );
+  const allOpen = revealOutcome === "open_open";
+  const showSoftEnding = revealOutcome === "open_skip" || revealOutcome === "skip_skip";
+  const waitingForPeer = Boolean(decision) && revealOutcome === "waiting";
   const durationLabel = formatDuration(session);
   const activityLabel = formatActivityLabel(session?.activity ?? "draw");
   const outcomeTitle = allOpen
@@ -215,7 +213,6 @@ export default function PlayResultScreen() {
           threadId,
           peerId: peer.uid,
           peerName,
-          sourceSessionId: sessionId,
           backTarget: historyMode ? "history" : "together",
         })
       );

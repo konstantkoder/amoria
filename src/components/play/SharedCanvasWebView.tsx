@@ -340,12 +340,6 @@ export default function SharedCanvasWebView({
   };
 
   useEffect(() => {
-    return () => {
-      lastInjectedPayloadRef.current = "";
-    };
-  }, []);
-
-  useEffect(() => {
     if (!ready) return;
     injectPayload({
       type: "sync",
@@ -458,7 +452,7 @@ export default function SharedCanvasWebView({
           />
           {disabled ? (
             <View pointerEvents="none" style={styles.disabledOverlay}>
-              <Text style={styles.disabledText}>Canvas locked</Text>
+              <Text style={styles.disabledText}>Холст закрыт</Text>
             </View>
           ) : null}
         </View>

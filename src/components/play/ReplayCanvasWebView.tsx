@@ -218,12 +218,6 @@ export default function ReplayCanvasWebView({
   };
 
   useEffect(() => {
-    return () => {
-      lastInjectedPayloadRef.current = "";
-    };
-  }, []);
-
-  useEffect(() => {
     setVisibleCount(autoplay ? 0 : normalizedStrokes.length);
     setPlaying(autoplay && normalizedStrokes.length > 0);
     endSentRef.current = false;
