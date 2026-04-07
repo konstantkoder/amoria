@@ -290,9 +290,18 @@ export default function DMChatScreen() {
               ? tt("dm.sourceStrokeCount", "Strokes: {count}", { count: String(strokeCount) })
               : tt("dm.contextReady", "The connection context is already saved.")}
           </Text>
+          {thread?.sourceSessionId ? (
+            <TouchableOpacity
+              onPress={() => navigation.navigate("PlaySessionDetail", { sessionId: thread.sourceSessionId })}
+              style={styles.sourceLink}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.sourceLinkText}>Открыть совместную историю</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
       ) : null,
-    [sourceTitle, strokeCount, tt]
+    [navigation, sourceTitle, strokeCount, thread?.sourceSessionId, tt]
   );
 
   const renderItem = useCallback(
@@ -456,6 +465,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
     textAlign: "center",
+  },
+  sourceLink: {
+    alignSelf: "center",
+    marginTop: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: theme.shapes.pill,
+    backgroundColor: theme.colors.pillBg,
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+  },
+  sourceLinkText: {
+    color: theme.colors.text,
+    fontSize: 12,
+    fontWeight: "800",
   },
   emptyTitle: {
     color: theme.colors.text,

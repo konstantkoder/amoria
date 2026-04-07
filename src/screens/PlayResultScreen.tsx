@@ -89,6 +89,9 @@ export default function PlayResultScreen() {
   const goToConnections = React.useCallback(() => {
     navigation.navigate("Tabs", { screen: "Connections" });
   }, [navigation]);
+  const startNewSession = React.useCallback(() => {
+    navigation.navigate("PlayMatch", { activity: "draw" });
+  }, [navigation]);
   const goToDetail = React.useCallback(
     (focus?: "replay") => {
       if (!sessionId) return;
@@ -220,7 +223,8 @@ export default function PlayResultScreen() {
           threadId,
           peerId: peer.uid,
           peerName,
-          backTarget: historyMode ? "history" : "together",
+          backTarget: "sessionDetail",
+          backSessionId: sessionId,
         })
       );
     })().finally(() => {
@@ -432,7 +436,7 @@ export default function PlayResultScreen() {
                 style={[styles.primaryButton, primaryDisabled && styles.disabledButton]}
               >
                 <Text style={styles.primaryText}>
-                  {openingChat ? "Открываем чат…" : "Открыть чат и профили"}
+                  {openingChat ? "Открываем чат…" : "Выбрать открыть"}
                 </Text>
               </Pressable>
 
@@ -467,13 +471,29 @@ export default function PlayResultScreen() {
           </Text>
           <View style={styles.routeActions}>
             {!historyMode ? (
+              <Pressable onPress={startNewSession} style={styles.routeButtonPrimary}>
+                <Text style={styles.routeButtonPrimaryText}>Начать новую совместную сессию</Text>
+              </Pressable>
+            ) : null}
+            {!historyMode ? (
               <Pressable onPress={goToHistory} style={styles.routeButton}>
                 <Text style={styles.routeButtonText}>Открыть историю</Text>
               </Pressable>
             ) : null}
             <Pressable onPress={() => goToDetail(replayOpen ? "replay" : undefined)} style={styles.routeButton}>
-              <Text style={styles.routeButtonText}>Страница истории</Text>
+              <Text style={styles.routeButtonText}>Открыть совместную историю</Text>
             </Pressable>
+            {allOpen && !historyMode ? (
+              <Pressable
+                onPress={() => void openChat()}
+                style={[styles.routeButton, openingChat && styles.disabledButton]}
+                disabled={openingChat}
+              >
+                <Text style={styles.routeButtonText}>
+                  {openingChat ? "Открываем чат…" : "Открыть чат"}
+                </Text>
+              </Pressable>
+            ) : null}
             {allOpen ? (
               <Pressable onPress={goToConnections} style={styles.routeButton}>
                 <Text style={styles.routeButtonText}>Лента связей</Text>
@@ -735,6 +755,17 @@ const styles = StyleSheet.create({
   },
   routeButtonText: {
     color: theme.colors.text,
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  routeButtonPrimary: {
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: theme.colors.primary,
+  },
+  routeButtonPrimaryText: {
+    color: "#fff",
     fontSize: 13,
     fontWeight: "800",
   },

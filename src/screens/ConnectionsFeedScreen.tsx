@@ -328,6 +328,9 @@ export default function ConnectionsFeedScreen() {
   const goToHistory = useCallback(() => {
     navigation.navigate("PlayHistory");
   }, [navigation]);
+  const startNewSession = useCallback(() => {
+    navigation.navigate("PlayMatch", { activity: "draw" });
+  }, [navigation]);
 
   const renderConnectionCard = useCallback(
     (card: HistoryCard) => (
@@ -423,9 +426,14 @@ export default function ConnectionsFeedScreen() {
           </View>
           <Text style={styles.emptyTitle}>{t("connections.emptyTitle")}</Text>
           <Text style={styles.emptyText}>{t("connections.emptyBody")}</Text>
-          <Pressable onPress={goToTogether} style={styles.primaryButton}>
-            <Text style={styles.primaryButtonText}>{t("connections.goToTogether")}</Text>
-          </Pressable>
+          <View style={styles.emptyActions}>
+            <Pressable onPress={startNewSession} style={styles.primaryButton}>
+              <Text style={styles.primaryButtonText}>Новая совместная сессия</Text>
+            </Pressable>
+            <Pressable onPress={goToTogether} style={styles.secondaryEmptyButton}>
+              <Text style={styles.secondaryEmptyButtonText}>{t("connections.goToTogether")}</Text>
+            </Pressable>
+          </View>
         </View>
       ) : (
         <ScrollView
@@ -438,6 +446,9 @@ export default function ConnectionsFeedScreen() {
             <Text style={styles.heroTitle}>{t("connections.heroTitle")}</Text>
             <Text style={styles.heroText}>{t("connections.heroBody")}</Text>
             <View style={styles.heroActions}>
+              <Pressable onPress={startNewSession} style={styles.heroPrimaryButton}>
+                <Text style={styles.heroPrimaryButtonText}>Новая совместная сессия</Text>
+              </Pressable>
               <Pressable onPress={goToHistory} style={styles.heroSecondaryButton}>
                 <Text style={styles.heroSecondaryButtonText}>Совместные истории</Text>
               </Pressable>
@@ -452,6 +463,20 @@ export default function ConnectionsFeedScreen() {
               <Text style={styles.sectionTitle}>{t("connections.openConnectionsTitle")}</Text>
               <Text style={styles.sectionText}>{t("connections.openConnectionsBody")}</Text>
               {historyCards.map(renderConnectionCard)}
+              <View style={styles.reentryCard}>
+                <Text style={styles.reentryTitle}>Хочешь вернуть динамику?</Text>
+                <Text style={styles.reentryText}>
+                  Связи продолжают уже открытый контакт, а новый совместный опыт запускает следующий круг.
+                </Text>
+                <View style={styles.heroActions}>
+                  <Pressable onPress={startNewSession} style={styles.heroPrimaryButton}>
+                    <Text style={styles.heroPrimaryButtonText}>Начать новую совместную сессию</Text>
+                  </Pressable>
+                  <Pressable onPress={goToTogether} style={styles.heroSecondaryButton}>
+                    <Text style={styles.heroSecondaryButtonText}>Вернуться во Вместе</Text>
+                  </Pressable>
+                </View>
+              </View>
             </View>
           ) : null}
 
@@ -539,8 +564,38 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "800",
   },
+  heroPrimaryButton: {
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: theme.colors.primary,
+  },
+  heroPrimaryButtonText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "800",
+  },
   section: {
     gap: 12,
+  },
+  reentryCard: {
+    marginTop: 6,
+    padding: 18,
+    borderRadius: theme.shapes.card,
+    backgroundColor: "rgba(11, 16, 30, 0.9)",
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+    gap: 10,
+  },
+  reentryTitle: {
+    color: theme.colors.text,
+    fontSize: 18,
+    fontWeight: "800",
+  },
+  reentryText: {
+    color: theme.colors.subtext,
+    fontSize: 14,
+    lineHeight: 20,
   },
   sectionTitle: {
     color: theme.colors.text,
@@ -672,6 +727,12 @@ const styles = StyleSheet.create({
     lineHeight: 21,
     textAlign: "center",
   },
+  emptyActions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: 10,
+  },
   primaryButton: {
     borderRadius: theme.shapes.pill,
     paddingHorizontal: 18,
@@ -679,6 +740,19 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.accent,
   },
   primaryButtonText: {
+    color: theme.colors.text,
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  secondaryEmptyButton: {
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    backgroundColor: theme.colors.pillBg,
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+  },
+  secondaryEmptyButtonText: {
     color: theme.colors.text,
     fontSize: 14,
     fontWeight: "800",

@@ -208,7 +208,8 @@ export default function PlayHistoryScreen() {
             threadId,
             peerId: card.peer.uid,
             peerName: card.peer.nickname,
-            backTarget: "history",
+            backTarget: "sessionDetail",
+            backSessionId: card.sessionId,
           })
         );
       } finally {
@@ -365,7 +366,7 @@ export default function PlayHistoryScreen() {
             </Text>
             <View style={styles.heroActions}>
               <Pressable onPress={goToStart} style={styles.heroPrimaryButton}>
-                <Text style={styles.heroPrimaryButtonText}>Новая сессия</Text>
+                <Text style={styles.heroPrimaryButtonText}>Хочу новую совместную сессию</Text>
               </Pressable>
               <Pressable onPress={goToConnections} style={styles.heroSecondaryButton}>
                 <Text style={styles.heroSecondaryButtonText}>Лента связей</Text>
@@ -384,6 +385,20 @@ export default function PlayHistoryScreen() {
               )}
             </Text>
             {cards.map(renderCard)}
+            <View style={styles.reentryCard}>
+              <Text style={styles.reentryTitle}>Готова новая совместная сессия?</Text>
+              <Text style={styles.reentryText}>
+                История хранит прошлые моменты, а новый круг начинается отсюда без лишнего обхода.
+              </Text>
+              <View style={styles.reentryActions}>
+                <Pressable onPress={goToStart} style={styles.heroPrimaryButton}>
+                  <Text style={styles.heroPrimaryButtonText}>Начать новую совместную сессию</Text>
+                </Pressable>
+                <Pressable onPress={goToTogether} style={styles.heroSecondaryButton}>
+                  <Text style={styles.heroSecondaryButtonText}>Вернуться во Вместе</Text>
+                </Pressable>
+              </View>
+            </View>
           </View>
         </ScrollView>
       )}
@@ -466,6 +481,30 @@ const styles = StyleSheet.create({
   },
   section: {
     gap: 12,
+  },
+  reentryCard: {
+    marginTop: 6,
+    padding: 18,
+    borderRadius: theme.shapes.card,
+    backgroundColor: "rgba(11, 16, 30, 0.9)",
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+    gap: 10,
+  },
+  reentryTitle: {
+    color: theme.colors.text,
+    fontSize: 18,
+    fontWeight: "800",
+  },
+  reentryText: {
+    color: theme.colors.subtext,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  reentryActions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
   },
   sectionTitle: {
     color: theme.colors.text,

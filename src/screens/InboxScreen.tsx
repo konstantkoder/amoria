@@ -128,6 +128,12 @@ export default function InboxScreen() {
     }),
     [tt]
   );
+  const goToTogether = useCallback(() => {
+    navigation.navigate("Tabs", { screen: "Together" });
+  }, [navigation]);
+  const startNewSession = useCallback(() => {
+    navigation.navigate("PlayMatch", { activity: "draw" });
+  }, [navigation]);
 
   const renderCard = useCallback(
     ({ item }: { item: InboxThreadCard }) => (
@@ -268,6 +274,20 @@ export default function InboxScreen() {
               {tt("inbox.openConnections", "Открыть связи")}
             </Text>
           </Pressable>
+          <Pressable
+            onPress={startNewSession}
+            style={{
+              alignSelf: "flex-start",
+              paddingHorizontal: 12,
+              paddingVertical: 8,
+              borderRadius: theme.shapes.pill,
+              backgroundColor: theme.colors.primary,
+            }}
+          >
+            <Text style={{ color: "#fff", fontSize: 12, fontWeight: "800" }}>
+              Начать новую совместную сессию
+            </Text>
+          </Pressable>
         </View>
 
         {loading ? (
@@ -386,6 +406,7 @@ export default function InboxScreen() {
                 fontSize: 14,
                 textAlign: "center",
                 lineHeight: 20,
+                marginBottom: 18,
               }}
             >
               {tt(
@@ -393,6 +414,36 @@ export default function InboxScreen() {
                 "After a mutual open, the personal chat will appear here and stay ready whenever you want to continue."
               )}
             </Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 10 }}>
+              <Pressable
+                onPress={startNewSession}
+                style={{
+                  paddingHorizontal: 14,
+                  paddingVertical: 10,
+                  borderRadius: theme.shapes.pill,
+                  backgroundColor: theme.colors.primary,
+                }}
+              >
+                <Text style={{ color: "#fff", fontWeight: "800" }}>
+                  Начать новую совместную сессию
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={goToTogether}
+                style={{
+                  paddingHorizontal: 14,
+                  paddingVertical: 10,
+                  borderRadius: theme.shapes.pill,
+                  backgroundColor: theme.colors.pillBg,
+                  borderWidth: 1,
+                  borderColor: theme.colors.borderSubtle,
+                }}
+              >
+                <Text style={{ color: theme.colors.text, fontWeight: "800" }}>
+                  Вернуться во Вместе
+                </Text>
+              </Pressable>
+            </View>
           </View>
         )}
       </View>

@@ -256,6 +256,10 @@ export default function PlaySessionDetailScreen() {
     navigation.navigate("PlayMatch", { activity: "draw" });
   }, [navigation]);
 
+  const openReplay = React.useCallback(() => {
+    setReplayOpen((prev) => !prev);
+  }, []);
+
   if (!sessionId) {
     return (
       <ScreenShell
@@ -437,12 +441,19 @@ export default function PlaySessionDetailScreen() {
                     )}
             </Text>
           )}
-
-          <Pressable onPress={startNewSession} style={styles.secondaryButton}>
-            <Text style={styles.secondaryButtonText}>
-              {tt("playDetail.startNew", "Начать новую совместную сессию")}
-            </Text>
-          </Pressable>
+          <View style={styles.actionRow}>
+            <Pressable onPress={startNewSession} style={styles.secondaryButton}>
+              <Text style={styles.secondaryButtonText}>
+                {tt("playDetail.startNew", "Начать новую совместную сессию")}
+              </Text>
+            </Pressable>
+            <Pressable onPress={goToHistory} style={styles.secondaryButton}>
+              <Text style={styles.secondaryButtonText}>Открыть другие истории</Text>
+            </Pressable>
+            <Pressable onPress={goToTogether} style={styles.secondaryButton}>
+              <Text style={styles.secondaryButtonText}>Вернуться во Вместе</Text>
+            </Pressable>
+          </View>
         </View>
 
         <View style={styles.replayBlock}>
@@ -456,7 +467,7 @@ export default function PlaySessionDetailScreen() {
                 )}
               </Text>
             </View>
-            <Pressable onPress={() => setReplayOpen((prev) => !prev)} style={styles.replayToggle}>
+            <Pressable onPress={openReplay} style={styles.replayToggle}>
               <Text style={styles.replayToggleText}>
                 {replayOpen
                   ? tt("playDetail.hideReplay", "Скрыть replay")
@@ -630,6 +641,11 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 13,
     fontWeight: "800",
+  },
+  actionRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
   },
   secondaryButton: {
     alignSelf: "flex-start",
