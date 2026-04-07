@@ -139,6 +139,7 @@ export default function InboxScreen() {
               threadId: item.id,
               peerId: item.peerId,
               peerName: item.peerName,
+              backTarget: "inbox",
             })
           )
         }
@@ -251,6 +252,22 @@ export default function InboxScreen() {
               "This is where active personal conversation lives. Connections keeps the shared story, and Chats keeps the dialogue moving."
             )}
           </Text>
+          <Pressable
+            onPress={() => navigation.navigate("Tabs", { screen: "Connections" })}
+            style={{
+              alignSelf: "flex-start",
+              paddingHorizontal: 12,
+              paddingVertical: 8,
+              borderRadius: theme.shapes.pill,
+              backgroundColor: theme.colors.pillBg,
+              borderWidth: 1,
+              borderColor: theme.colors.borderSubtle,
+            }}
+          >
+            <Text style={{ color: theme.colors.text, fontSize: 12, fontWeight: "800" }}>
+              {tt("inbox.openConnections", "Открыть связи")}
+            </Text>
+          </Pressable>
         </View>
 
         {loading ? (

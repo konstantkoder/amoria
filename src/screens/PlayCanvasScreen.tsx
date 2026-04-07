@@ -67,12 +67,26 @@ export default function PlayCanvasScreen() {
   const navigationHandledRef = React.useRef(false);
   const finishPromiseRef = React.useRef<Promise<void> | null>(null);
   const allowExitRef = React.useRef(false);
+  const goToTogether = React.useCallback(() => {
+    navigation.navigate("Tabs", { screen: "Together" });
+  }, [navigation]);
+  const handleSafeBack = React.useCallback(() => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+      return;
+    }
+    goToTogether();
+  }, [goToTogether, navigation]);
 
   React.useEffect(() => {
     mountedRef.current = true;
     navigationHandledRef.current = false;
     allowExitRef.current = false;
     finishPromiseRef.current = null;
+    setSession(null);
+    setEvents([]);
+    setLoadingSession(true);
+    setLoadingEvents(true);
     setFinishing(false);
     setTick(Date.now());
 
@@ -242,7 +256,7 @@ export default function PlayCanvasScreen() {
 
   if (!sessionId) {
     return (
-      <ScreenShell title="Общий холст" background="nightCity" showBack>
+      <ScreenShell title="Общий холст" background="nightCity" showBack onBack={handleSafeBack}>
         <View style={styles.centerState}>
           <Text style={styles.centerTitle}>Сессия не найдена</Text>
           <Text style={styles.centerText}>
@@ -255,7 +269,7 @@ export default function PlayCanvasScreen() {
 
   if (loadingSession || loadingEvents) {
     return (
-      <ScreenShell title="Общий холст" background="nightCity" showBack>
+      <ScreenShell title="Общий холст" background="nightCity" showBack onBack={handleSafeBack}>
         <View style={styles.centerState}>
           <ActivityIndicator color={theme.colors.accent} />
           <Text style={styles.centerText}>Подключаем общий холст…</Text>
@@ -266,13 +280,13 @@ export default function PlayCanvasScreen() {
 
   if (!session) {
     return (
-      <ScreenShell title="Общий холст" background="nightCity" showBack>
+      <ScreenShell title="Общий холст" background="nightCity" showBack onBack={handleSafeBack}>
         <View style={styles.centerState}>
           <Text style={styles.centerTitle}>Сессия больше недоступна</Text>
           <Text style={styles.centerText}>
             Совместная сессия уже завершилась или была закрыта.
           </Text>
-          <Pressable onPress={() => navigation.replace("Tabs")} style={styles.returnButton}>
+          <Pressable onPress={goToTogether} style={styles.returnButton}>
             <Text style={styles.returnButtonText}>Вернуться во Вместе</Text>
           </Pressable>
         </View>
@@ -288,7 +302,7 @@ export default function PlayCanvasScreen() {
       onBack={() => {
         if (session.status !== "active") {
           allowExitRef.current = true;
-          navigation.goBack();
+          handleSafeBack();
           return;
         }
         Alert.alert(
@@ -323,7 +337,8 @@ export default function PlayCanvasScreen() {
         </View>
 
         <Text style={styles.helper}>
-          У вас 7 минут. Сохраняем только завершенные штрихи, чтобы сессия была стабильной.
+          У вас 7 минут на один общий рисунок. Когда время закончится, вы сразу увидите итог и
+          сможете решить, хотите ли продолжить знакомство.
         </Text>
 
         <SharedCanvasWebView
@@ -335,8 +350,8 @@ export default function PlayCanvasScreen() {
 
         <View style={styles.footerRow}>
           <View style={styles.footerCard}>
-            <Text style={styles.footerLabel}>Stroke batches</Text>
-            <Text style={styles.footerValue}>{events.length}</Text>
+            <Text style={styles.footerLabel}>Общих штрихов</Text>
+            <Text style={styles.footerValue}>{totalStrokeCount}</Text>
           </View>
           <Pressable
             disabled={finishing}

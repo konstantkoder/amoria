@@ -78,6 +78,15 @@ export default function PlayResultScreen() {
   const [openingChat, setOpeningChat] = React.useState(false);
   const mountedRef = React.useRef(true);
   const openChatPromiseRef = React.useRef<Promise<void> | null>(null);
+  const goToTogether = React.useCallback(() => {
+    navigation.navigate("Tabs", { screen: "Together" });
+  }, [navigation]);
+  const goToHistory = React.useCallback(() => {
+    navigation.navigate("PlayHistory");
+  }, [navigation]);
+  const goToConnections = React.useCallback(() => {
+    navigation.navigate("Tabs", { screen: "Connections" });
+  }, [navigation]);
 
   React.useEffect(() => {
     mountedRef.current = true;
@@ -200,13 +209,14 @@ export default function PlayResultScreen() {
       });
 
       if (!mountedRef.current) return;
-      navigation.replace(
+      navigation.navigate(
         "DMChat",
         buildDmChatRouteParams({
           threadId,
           peerId: peer.uid,
           peerName,
           sourceSessionId: sessionId,
+          backTarget: historyMode ? "history" : "together",
         })
       );
     })().finally(() => {
@@ -218,7 +228,7 @@ export default function PlayResultScreen() {
 
     openChatPromiseRef.current = task;
     await task;
-  }, [db, navigation, peer?.uid, peerName, session, sessionId, totalStrokeCount, uid]);
+  }, [db, historyMode, navigation, peer?.uid, peerName, session, sessionId, totalStrokeCount, uid]);
 
   const handleOpenPress = React.useCallback(async () => {
     if (submitting || openingChat) return;
@@ -269,7 +279,11 @@ export default function PlayResultScreen() {
       navigation.goBack();
       return;
     }
-    navigation.navigate("Tabs");
+    if (historyMode) {
+      goToHistory();
+      return;
+    }
+    goToTogether();
   };
 
   if (!sessionId) {
@@ -285,6 +299,9 @@ export default function PlayResultScreen() {
           <Text style={styles.statusText}>
             Не удалось открыть итог без идентификатора совместной сессии.
           </Text>
+          <Pressable onPress={goToTogether} style={styles.inlineButton}>
+            <Text style={styles.inlineButtonText}>Вернуться во Вместе</Text>
+          </Pressable>
         </View>
       </ScreenShell>
     );
@@ -319,6 +336,9 @@ export default function PlayResultScreen() {
           <Text style={styles.statusText}>
             Сессия уже исчезла или не успела сохраниться. Можно вернуться во Вместе и начать новую.
           </Text>
+          <Pressable onPress={goToTogether} style={styles.inlineButton}>
+            <Text style={styles.inlineButtonText}>Вернуться во Вместе</Text>
+          </Pressable>
         </View>
       </ScreenShell>
     );
@@ -337,10 +357,14 @@ export default function PlayResultScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.heroCard}>
-          <Text style={styles.heroKicker}>Ваше совместное творение</Text>
-          <Text style={styles.heroTitle}>Рисунок готов</Text>
+          <Text style={styles.heroKicker}>
+            {historyMode ? "Совместная история" : "Итог совместной сессии"}
+          </Text>
+          <Text style={styles.heroTitle}>{historyMode ? "Ваш общий рисунок" : "Рисунок готов"}</Text>
           <Text style={styles.heroText}>
-            Вы успели собрать один общий холст из отдельных жестов, темпа и импровизации.
+            {historyMode
+              ? "Здесь хранится завершенный общий рисунок, к которому можно вернуться в любой момент."
+              : "Вы собрали один общий холст из отдельных жестов, темпа и импровизации."}
           </Text>
 
           <View style={styles.metaGrid}>
@@ -423,9 +447,35 @@ export default function PlayResultScreen() {
             style={styles.secondaryButton}
           >
             <Text style={styles.secondaryText}>
-              {replayOpen ? "Скрыть replay" : "Посмотреть replay"}
+              {replayOpen ? "Скрыть replay" : "Открыть replay"}
             </Text>
           </Pressable>
+        </View>
+
+        <View style={styles.routeCard}>
+          <Text style={styles.routeTitle}>
+            {historyMode ? "Куда дальше" : "Что можно сделать после сессии"}
+          </Text>
+          <Text style={styles.routeText}>
+            {historyMode
+              ? "История хранит совместные моменты, а связи и чаты продолжают уже открытый контакт."
+              : "Итог завершает конкретную сессию, а дальше можно перейти в историю, в ленту связей или снова начать во Вместе."}
+          </Text>
+          <View style={styles.routeActions}>
+            {!historyMode ? (
+              <Pressable onPress={goToHistory} style={styles.routeButton}>
+                <Text style={styles.routeButtonText}>Открыть историю</Text>
+              </Pressable>
+            ) : null}
+            {allOpen ? (
+              <Pressable onPress={goToConnections} style={styles.routeButton}>
+                <Text style={styles.routeButtonText}>Лента связей</Text>
+              </Pressable>
+            ) : null}
+            <Pressable onPress={goToTogether} style={styles.routeButton}>
+              <Text style={styles.routeButtonText}>Вернуться во Вместе</Text>
+            </Pressable>
+          </View>
         </View>
 
         {replayOpen ? (
@@ -492,6 +542,18 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 28,
     gap: 12,
+  },
+  inlineButton: {
+    marginTop: 4,
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: theme.colors.primary,
+  },
+  inlineButtonText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "800",
   },
   heroCard: {
     borderRadius: theme.shapes.card,
@@ -632,6 +694,42 @@ const styles = StyleSheet.create({
   },
   replayBlock: {
     gap: 10,
+  },
+  routeCard: {
+    borderRadius: theme.shapes.card,
+    padding: 18,
+    backgroundColor: "rgba(17, 20, 36, 0.88)",
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+    gap: 10,
+  },
+  routeTitle: {
+    color: theme.colors.text,
+    fontSize: 18,
+    fontWeight: "800",
+  },
+  routeText: {
+    color: theme.colors.subtext,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  routeActions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  routeButton: {
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: theme.colors.pillBg,
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+  },
+  routeButtonText: {
+    color: theme.colors.text,
+    fontSize: 13,
+    fontWeight: "800",
   },
   replayHeader: {
     borderRadius: theme.shapes.card,

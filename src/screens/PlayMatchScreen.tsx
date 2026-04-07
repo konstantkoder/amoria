@@ -33,6 +33,9 @@ export default function PlayMatchScreen() {
   const matchedSessionRef = React.useRef("");
   const cancelledRef = React.useRef(false);
   const cancellingPromiseRef = React.useRef<Promise<void> | null>(null);
+  const returnToTogether = React.useCallback(() => {
+    navigation.navigate("Tabs", { screen: "Together" });
+  }, [navigation]);
 
   const setBusySafe = React.useCallback((value: boolean) => {
     if (!mountedRef.current) return;
@@ -72,9 +75,9 @@ export default function PlayMatchScreen() {
 
     if (!isFirebaseConfigured() || !db || !uid) {
       Alert.alert(
-        "Parallel Play недоступен",
+        "Совместная сессия недоступна",
         "Нужен активный вход в аккаунт и готовый Firebase.",
-        [{ text: "OK", onPress: () => navigation.goBack() }]
+        [{ text: "OK", onPress: returnToTogether }]
       );
       return;
     }
@@ -115,7 +118,7 @@ export default function PlayMatchScreen() {
         Alert.alert(
           "Не удалось начать поиск",
           "Попробуй еще раз через пару секунд.",
-          [{ text: "OK", onPress: () => navigation.goBack() }]
+          [{ text: "OK", onPress: returnToTogether }]
         );
       } finally {
         setBusySafe(false);
@@ -128,13 +131,17 @@ export default function PlayMatchScreen() {
       unsubscribe();
       void cancelQueue();
     };
-  }, [activity, cancelQueue, enterSession, navigation, nickname, setBusySafe, setStatusTextSafe, uid]);
+  }, [activity, cancelQueue, enterSession, nickname, returnToTogether, setBusySafe, setStatusTextSafe, uid]);
 
   const handleCancel = React.useCallback(async () => {
     cancelledRef.current = true;
     await cancelQueue();
-    navigation.goBack();
-  }, [cancelQueue, navigation]);
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+      return;
+    }
+    returnToTogether();
+  }, [cancelQueue, navigation, returnToTogether]);
 
   return (
     <ScreenShell
@@ -148,16 +155,16 @@ export default function PlayMatchScreen() {
           <View style={styles.orbitLarge} />
           <View style={styles.orbitSmall} />
           <View style={styles.centerGlow}>
-            <Text style={styles.centerText}>draw</Text>
+            <Text style={styles.centerText}>вместе</Text>
           </View>
         </View>
 
-        <Text style={styles.title}>Подбираем пару</Text>
+        <Text style={styles.title}>Ищем напарника</Text>
         <Text style={styles.body}>{statusText}</Text>
         <Text style={styles.caption}>
           {busy
-            ? "Сеанс начнется сразу после совпадения."
-            : "Ожидаем подтверждение и следим за очередью."}
+            ? "Совместная сессия начнется сразу после совпадения."
+            : "Поиск можно остановить в любой момент и спокойно вернуться во Вместе."}
         </Text>
 
         <Pressable onPress={handleCancel} style={styles.cancelButton}>

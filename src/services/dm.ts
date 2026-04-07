@@ -46,6 +46,7 @@ export type DmChatRouteParams = {
   peerId: string;
   peerName?: string;
   sourceSessionId?: string;
+  backTarget?: "together" | "history" | "connections" | "inbox";
 };
 
 function asDmThreadDoc(id: string, raw: unknown): DmThreadDoc {
@@ -110,6 +111,7 @@ export function buildDmChatRouteParams(params: DmChatRouteParams): DmChatRoutePa
     ...(params.sourceSessionId?.trim()
       ? { sourceSessionId: params.sourceSessionId.trim() }
       : {}),
+    ...(params.backTarget ? { backTarget: params.backTarget } : {}),
   };
 }
 

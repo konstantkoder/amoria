@@ -101,6 +101,12 @@ export default function PlayHistoryScreen() {
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [openingChatId, setOpeningChatId] = useState<string | null>(null);
+  const goToTogether = useCallback(() => {
+    navigation.navigate("Tabs", { screen: "Together" });
+  }, [navigation]);
+  const goToConnections = useCallback(() => {
+    navigation.navigate("Tabs", { screen: "Connections" });
+  }, [navigation]);
 
   useEffect(() => {
     let alive = true;
@@ -232,6 +238,7 @@ export default function PlayHistoryScreen() {
             peerId: card.peer.uid,
             peerName: card.peer.nickname,
             sourceSessionId: card.sessionId,
+            backTarget: "history",
           })
         );
       } finally {
@@ -348,6 +355,13 @@ export default function PlayHistoryScreen() {
       overlayOpacity={0.2}
       blurRadius={4}
       showBack
+      onBack={() => {
+        if (navigation.canGoBack()) {
+          navigation.goBack();
+          return;
+        }
+        goToTogether();
+      }}
     >
       {isLoading ? (
         <View style={styles.centerBlock}>
@@ -379,6 +393,14 @@ export default function PlayHistoryScreen() {
                 "Здесь живут ваши завершенные сессии: с кем они были, чем закончились и куда можно вернуться дальше."
               )}
             </Text>
+            <View style={styles.heroActions}>
+              <Pressable onPress={goToStart} style={styles.heroPrimaryButton}>
+                <Text style={styles.heroPrimaryButtonText}>Новая сессия</Text>
+              </Pressable>
+              <Pressable onPress={goToConnections} style={styles.heroSecondaryButton}>
+                <Text style={styles.heroSecondaryButtonText}>Лента связей</Text>
+              </Pressable>
+            </View>
           </View>
 
           <View style={styles.section}>
@@ -442,6 +464,35 @@ const styles = StyleSheet.create({
     color: theme.colors.subtext,
     fontSize: 14,
     lineHeight: 21,
+  },
+  heroActions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  heroPrimaryButton: {
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: theme.colors.primary,
+  },
+  heroPrimaryButtonText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  heroSecondaryButton: {
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: theme.colors.pillBg,
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+  },
+  heroSecondaryButtonText: {
+    color: theme.colors.text,
+    fontSize: 13,
+    fontWeight: "800",
   },
   section: {
     gap: 12,

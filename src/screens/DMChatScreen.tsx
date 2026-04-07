@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { KeyboardStickyView } from "react-native-keyboard-controller";
-import { useRoute } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
 
 import ScreenShell from "@/components/ScreenShell";
 import { auth, db } from "@/config/firebaseConfig";
@@ -20,6 +20,7 @@ import { theme } from "@/theme";
 type RenderMessage = DmMessageDoc & { failed?: boolean };
 
 export default function DMChatScreen() {
+  const navigation = useNavigation<any>();
   const { t } = useLocale();
   const tt = useCallback(
     (key: string, fallback: string, params?: Record<string, string>) => {
@@ -36,6 +37,7 @@ export default function DMChatScreen() {
   );
   const routePeerName = String(route.params?.peerName ?? "").trim();
   const peerId = routePeerId || "";
+  const backTarget = String(route.params?.backTarget ?? "");
 
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -261,6 +263,26 @@ export default function DMChatScreen() {
   const isEmpty = !isLoading && mergedMsgs.length === 0;
   const screenTitleName = resolvedPeerName || routePeerName || peer.name || "";
   const screenTitle = screenTitleName ? t("dm.title", { name: screenTitleName }) : tt("dm.genericTitle", "Chat");
+  const handleBack = useCallback(() => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+      return;
+    }
+
+    if (backTarget === "history") {
+      navigation.navigate("PlayHistory");
+      return;
+    }
+    if (backTarget === "connections") {
+      navigation.navigate("Tabs", { screen: "Connections" });
+      return;
+    }
+    if (backTarget === "inbox") {
+      navigation.navigate("Tabs", { screen: "Inbox" });
+      return;
+    }
+    navigation.navigate("Tabs", { screen: "Together" });
+  }, [backTarget, navigation]);
 
   const renderSourceCard = useCallback(
     () =>
@@ -315,7 +337,7 @@ export default function DMChatScreen() {
 
   if (!threadId) {
     return (
-      <ScreenShell title={screenTitle} background="nightCity" showBack>
+      <ScreenShell title={screenTitle} background="nightCity" showBack onBack={handleBack}>
         <View style={styles.centerState}>
           <Text style={styles.emptyTitle}>{tt("dm.unavailableTitle", "Chat unavailable")}</Text>
           <Text style={styles.emptyText}>
@@ -327,11 +349,11 @@ export default function DMChatScreen() {
   }
 
   return (
-    <ScreenShell title={screenTitle} background="nightCity" showBack>
+    <ScreenShell title={screenTitle} background="nightCity" showBack onBack={handleBack}>
       {isLoading ? (
         <View style={styles.centerState}>
           <ActivityIndicator color={theme.colors.accent} />
-          <Text style={styles.emptyText}>{tt("dm.loading", "Connecting the chat…")}</Text>
+          <Text style={styles.emptyText}>{tt("dm.loading", "Подключаем чат…")}</Text>
         </View>
       ) : subscriptionError ? (
         <View style={styles.centerState}>
@@ -348,6 +370,15 @@ export default function DMChatScreen() {
           <Text style={styles.emptyText}>
             {tt("dm.emptyBody", "There are no messages yet. Say hi first and continue the connection from here.")}
           </Text>
+          <TouchableOpacity onPress={handleBack} style={styles.retryButton}>
+            <Text style={styles.retryText}>
+              {backTarget === "history"
+                ? "Вернуться к истории"
+                : backTarget === "connections"
+                  ? "Вернуться в связи"
+                  : "Вернуться назад"}
+            </Text>
+          </TouchableOpacity>
         </View>
       ) : (
         <FlatList

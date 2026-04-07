@@ -274,6 +274,7 @@ export default function ConnectionsFeedScreen() {
             peerId: card.peerId,
             peerName: card.peerName,
             sourceSessionId: card.sessionId,
+            backTarget: "connections",
           })
         );
         return;
@@ -305,6 +306,7 @@ export default function ConnectionsFeedScreen() {
             peerId: card.peerId,
             peerName: card.peerName,
             sourceSessionId: session.id,
+            backTarget: "connections",
           })
         );
       } finally {
@@ -315,7 +317,11 @@ export default function ConnectionsFeedScreen() {
   );
 
   const goToTogether = useCallback(() => {
-    navigation.navigate("Together");
+    navigation.navigate("Tabs", { screen: "Together" });
+  }, [navigation]);
+
+  const goToHistory = useCallback(() => {
+    navigation.navigate("PlayHistory");
   }, [navigation]);
 
   const renderConnectionCard = useCallback(
@@ -421,6 +427,14 @@ export default function ConnectionsFeedScreen() {
             <Text style={styles.heroKicker}>{t("connections.heroKicker")}</Text>
             <Text style={styles.heroTitle}>{t("connections.heroTitle")}</Text>
             <Text style={styles.heroText}>{t("connections.heroBody")}</Text>
+            <View style={styles.heroActions}>
+              <Pressable onPress={goToHistory} style={styles.heroSecondaryButton}>
+                <Text style={styles.heroSecondaryButtonText}>Совместные истории</Text>
+              </Pressable>
+              <Pressable onPress={goToTogether} style={styles.heroSecondaryButton}>
+                <Text style={styles.heroSecondaryButtonText}>Вернуться во Вместе</Text>
+              </Pressable>
+            </View>
           </View>
 
           {historyCards.length ? (
@@ -495,6 +509,25 @@ const styles = StyleSheet.create({
     color: theme.colors.subtext,
     fontSize: 14,
     lineHeight: 21,
+  },
+  heroActions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    marginTop: 14,
+  },
+  heroSecondaryButton: {
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: theme.colors.pillBg,
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+  },
+  heroSecondaryButtonText: {
+    color: theme.colors.text,
+    fontSize: 13,
+    fontWeight: "800",
   },
   section: {
     gap: 12,

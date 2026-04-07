@@ -63,13 +63,28 @@ export default function PlayLobbyScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.hero}>
-          <Text style={styles.kicker}>MVP</Text>
-          <Text style={styles.heroTitle}>Найди напарника и соберите что-то вместе</Text>
+          <Text style={styles.kicker}>Совместный опыт</Text>
+          <Text style={styles.heroTitle}>Начни совместную сессию и посмотри, куда она приведет</Text>
           <Text style={styles.heroText}>
-            Быстрые совместные активности без долгой переписки. Сейчас доступен
-            только общий рисунок.
+            Вместе начинается общий опыт: сначала сессия, потом итог, история и чат, если вы
+            оба захотите продолжить.
           </Text>
         </View>
+
+        <Pressable
+          onPress={() => navigation.navigate("PlayMatch", { activity: "draw" })}
+          style={styles.primaryEntryCard}
+        >
+          <View style={styles.primaryEntryText}>
+            <Text style={styles.primaryEntryTitle}>Начать совместную сессию</Text>
+            <Text style={styles.primaryEntryBody}>
+              Общий холст на двоих. Семь минут, один рисунок и один ритм.
+            </Text>
+          </View>
+          <View style={styles.primaryEntryBadge}>
+            <Text style={styles.primaryEntryBadgeText}>Сейчас</Text>
+          </View>
+        </Pressable>
 
         <Pressable
           onPress={() => navigation.navigate("PlayHistory")}
@@ -78,7 +93,7 @@ export default function PlayLobbyScreen() {
           <View style={styles.historyTextWrap}>
             <Text style={styles.historyTitle}>Мои совместные истории</Text>
             <Text style={styles.historyText}>
-              Здесь остаются завершенные совместные сессии, replay и путь обратно в чат.
+              Здесь остаются завершенные совместные сессии, replay и путь обратно в разговор.
             </Text>
           </View>
           <View style={styles.historyBadge}>
@@ -86,31 +101,49 @@ export default function PlayLobbyScreen() {
           </View>
         </Pressable>
 
-        {CARDS.map((card) => {
-          const active = card.status === "active";
+        <View style={styles.quickRow}>
+          <Pressable
+            onPress={() => navigation.navigate("Tabs", { screen: "Now" })}
+            style={styles.quickCard}
+          >
+            <Text style={styles.quickTitle}>Твой вайб сейчас</Text>
+            <Text style={styles.quickText}>
+              Покажи свой текущий настрой и при желании вернись во Вместе позже.
+            </Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => navigation.navigate("Tabs", { screen: "Rooms" })}
+            style={styles.quickCard}
+          >
+            <Text style={styles.quickTitle}>Комнаты рядом</Text>
+            <Text style={styles.quickText}>
+              Если хочется живого группового контекста, переходи в Rooms без разрыва маршрута.
+            </Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.soonSection}>
+          <Text style={styles.soonTitle}>Что появится дальше</Text>
+          <Text style={styles.soonText}>
+            Следующие совместные форматы уже на подходе и позже расширят путь через Вместе.
+          </Text>
+        </View>
+
+        {CARDS.filter((card) => card.status === "soon").map((card) => {
           return (
             <Pressable
               key={card.id}
-              disabled={!active}
+              disabled
               onPress={() =>
                 navigation.navigate("PlayMatch", { activity: "draw" })
               }
-              style={[
-                styles.card,
-                active ? styles.cardActive : styles.cardSoon,
-              ]}
+              style={[styles.card, styles.cardSoon]}
             >
               <View style={styles.cardHeader}>
                 <Text style={styles.cardTitle}>{card.title}</Text>
-                <View
-                  style={[
-                    styles.badge,
-                    active ? styles.badgeActive : styles.badgeSoon,
-                  ]}
-                >
-                  <Text style={styles.badgeText}>
-                    {active ? "Активно" : "Скоро"}
-                  </Text>
+                <View style={[styles.badge, styles.badgeSoon]}>
+                  <Text style={styles.badgeText}>Скоро</Text>
                 </View>
               </View>
               <Text style={styles.cardDescription}>{card.description}</Text>
@@ -156,6 +189,42 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
   },
+  primaryEntryCard: {
+    borderRadius: theme.shapes.card,
+    padding: 20,
+    backgroundColor: theme.colors.cardElevated,
+    borderWidth: 1,
+    borderColor: "rgba(255, 122, 60, 0.3)",
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 14,
+  },
+  primaryEntryText: {
+    flex: 1,
+    gap: 8,
+  },
+  primaryEntryTitle: {
+    color: theme.colors.text,
+    fontSize: 20,
+    fontWeight: "800",
+  },
+  primaryEntryBody: {
+    color: theme.colors.subtext,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  primaryEntryBadge: {
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: theme.colors.primary,
+  },
+  primaryEntryBadgeText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "800",
+  },
   historyCard: {
     borderRadius: theme.shapes.card,
     padding: 18,
@@ -192,14 +261,45 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "800",
   },
+  quickRow: {
+    gap: 12,
+  },
+  quickCard: {
+    borderRadius: theme.shapes.card,
+    padding: 16,
+    backgroundColor: "rgba(17, 20, 36, 0.84)",
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+    gap: 8,
+  },
+  quickTitle: {
+    color: theme.colors.text,
+    fontSize: 16,
+    fontWeight: "800",
+  },
+  quickText: {
+    color: theme.colors.subtext,
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  soonSection: {
+    gap: 6,
+    marginTop: 2,
+  },
+  soonTitle: {
+    color: theme.colors.text,
+    fontSize: 18,
+    fontWeight: "800",
+  },
+  soonText: {
+    color: theme.colors.subtext,
+    fontSize: 13,
+    lineHeight: 19,
+  },
   card: {
     borderRadius: theme.shapes.card,
     padding: 18,
     borderWidth: 1,
-  },
-  cardActive: {
-    backgroundColor: theme.colors.cardElevated,
-    borderColor: "rgba(255, 122, 60, 0.28)",
   },
   cardSoon: {
     backgroundColor: "rgba(24, 24, 40, 0.72)",
@@ -223,9 +323,6 @@ const styles = StyleSheet.create({
     borderRadius: theme.shapes.pill,
     paddingHorizontal: 10,
     paddingVertical: 5,
-  },
-  badgeActive: {
-    backgroundColor: theme.colors.accentSoft,
   },
   badgeSoon: {
     backgroundColor: theme.colors.pillBg,
