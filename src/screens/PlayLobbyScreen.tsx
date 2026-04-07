@@ -71,6 +71,21 @@ export default function PlayLobbyScreen() {
           </Text>
         </View>
 
+        <Pressable
+          onPress={() => navigation.navigate("PlayHistory")}
+          style={styles.historyCard}
+        >
+          <View style={styles.historyTextWrap}>
+            <Text style={styles.historyTitle}>Мои совместные истории</Text>
+            <Text style={styles.historyText}>
+              Здесь остаются завершенные совместные сессии, replay и путь обратно в чат.
+            </Text>
+          </View>
+          <View style={styles.historyBadge}>
+            <Text style={styles.historyBadgeText}>Открыть</Text>
+          </View>
+        </Pressable>
+
         {CARDS.map((card) => {
           const active = card.status === "active";
           return (
@@ -140,6 +155,42 @@ const styles = StyleSheet.create({
     color: theme.colors.subtext,
     fontSize: 14,
     lineHeight: 20,
+  },
+  historyCard: {
+    borderRadius: theme.shapes.card,
+    padding: 18,
+    backgroundColor: "rgba(255, 122, 60, 0.1)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 122, 60, 0.2)",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  historyTextWrap: {
+    flex: 1,
+    gap: 8,
+  },
+  historyTitle: {
+    color: theme.colors.text,
+    fontSize: 18,
+    fontWeight: "800",
+  },
+  historyText: {
+    color: theme.colors.subtext,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  historyBadge: {
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: "rgba(255,255,255,0.08)",
+  },
+  historyBadgeText: {
+    color: theme.colors.text,
+    fontSize: 12,
+    fontWeight: "800",
   },
   card: {
     borderRadius: theme.shapes.card,

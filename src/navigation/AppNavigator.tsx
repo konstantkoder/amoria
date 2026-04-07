@@ -15,6 +15,7 @@ import QuestionScreen from "@/screens/QuestionScreen";
 import PlayMatchScreen from "@/screens/PlayMatchScreen";
 import PlayCanvasScreen from "@/screens/PlayCanvasScreen";
 import PlayResultScreen from "@/screens/PlayResultScreen";
+import PlayHistoryScreen from "@/screens/PlayHistoryScreen";
 import DMChatScreen from "@/screens/DMChatScreen";
 
 import ProfileScreen from "@/screens/ProfileScreen";
@@ -179,6 +180,7 @@ export default function AppNavigator() {
         <RootStack.Screen name="PlayMatch" component={PlayMatchScreen} />
         <RootStack.Screen name="PlayCanvas" component={PlayCanvasScreen} />
         <RootStack.Screen name="PlayResult" component={PlayResultScreen} />
+        <RootStack.Screen name="PlayHistory" component={PlayHistoryScreen} />
         <RootStack.Screen name="DMChat" component={DMChatScreen} />
         <RootStack.Screen name="Profile" component={ProfileStackNavigator} />
         <RootStack.Screen name="Settings" component={SettingsScreen} />

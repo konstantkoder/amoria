@@ -18,6 +18,11 @@ export type PlayActivity = "draw";
 export type PlayQueueStatus = "waiting" | "matched" | "cancelled";
 export type PlaySessionStatus = "matching" | "active" | "finished" | "revealed";
 export type PlayRevealDecision = "open" | "skip";
+export type PlayRevealOutcome =
+  | "open_open"
+  | "open_skip"
+  | "skip_skip"
+  | "waiting";
 
 export type PlayQueueDoc = {
   uid: string;
@@ -40,6 +45,26 @@ export type PlaySessionDoc = {
   participantNicknames: Record<string, string>;
   revealDecisions?: Record<string, PlayRevealDecision>;
   resultStrokeCount?: number;
+};
+
+export type PlayHistoryItem = {
+  id: string;
+  sessionId: string;
+  activity: PlayActivity;
+  peer: {
+    uid: string;
+    nickname: string;
+  };
+  createdAt: number;
+  startedAt: number;
+  endedAt?: number;
+  sortAt: number;
+  strokeCount?: number;
+  revealOutcome: PlayRevealOutcome;
+  revealDecisions: {
+    mine?: PlayRevealDecision;
+    peer?: PlayRevealDecision;
+  };
 };
 
 export type PlayStrokePoint = {
@@ -352,6 +377,54 @@ export function isMutualOpenPlaySession(session: PlaySessionDoc) {
   );
 }
 
+export function resolvePlayRevealOutcome(
+  session: Pick<PlaySessionDoc, "participantIds" | "revealDecisions">
+): PlayRevealOutcome {
+  const values = session.participantIds
+    .map((participantId) => session.revealDecisions?.[participantId])
+    .filter((value): value is PlayRevealDecision => value === "open" || value === "skip");
+
+  if (values.length < session.participantIds.length) return "waiting";
+  if (values.every((value) => value === "open")) return "open_open";
+  if (values.every((value) => value === "skip")) return "skip_skip";
+  return "open_skip";
+}
+
+export function mapPlaySessionToHistoryItem(
+  session: PlaySessionDoc,
+  uid: string
+): PlayHistoryItem | null {
+  const peer = getPeerFromSession(session, uid);
+  if (!peer) return null;
+
+  return {
+    id: session.id,
+    sessionId: session.id,
+    activity: session.activity,
+    peer,
+    createdAt: session.createdAt,
+    startedAt: session.startedAt,
+    ...(session.endedAt != null ? { endedAt: session.endedAt } : {}),
+    sortAt: session.endedAt ?? session.startedAt ?? session.createdAt,
+    ...(session.resultStrokeCount != null ? { strokeCount: session.resultStrokeCount } : {}),
+    revealOutcome: resolvePlayRevealOutcome(session),
+    revealDecisions: {
+      ...(session.revealDecisions?.[uid] ? { mine: session.revealDecisions[uid] } : {}),
+      ...(session.revealDecisions?.[peer.uid]
+        ? { peer: session.revealDecisions[peer.uid] }
+        : {}),
+    },
+  };
+}
+
+function isCompletedPlaySession(session: PlaySessionDoc) {
+  return (
+    session.status === "finished" ||
+    session.status === "revealed" ||
+    session.endedAt != null
+  );
+}
+
 export function subscribeRecentMutualPlaySessions(
   db: Firestore,
   uid: string,
@@ -376,6 +449,36 @@ export function subscribeRecentMutualPlaySessions(
           return bTime - aTime;
         })
         .slice(0, maxItems);
+
+      onData(next);
+    },
+    (error) => {
+      onError?.(error);
+      onData([]);
+    }
+  );
+}
+
+export function subscribeMyPlayHistory(
+  db: Firestore,
+  uid: string,
+  onData: (data: PlayHistoryItem[]) => void,
+  onError?: (error: Error) => void
+) {
+  const sessionsQuery = query(
+    collection(db, "playSessions"),
+    where("participantIds", "array-contains", uid)
+  );
+
+  return onSnapshot(
+    sessionsQuery,
+    (snapshot) => {
+      const next = snapshot.docs
+        .map((item) => asPlaySessionDoc(item.id, item.data()))
+        .filter(isCompletedPlaySession)
+        .map((session) => mapPlaySessionToHistoryItem(session, uid))
+        .filter((item): item is PlayHistoryItem => Boolean(item))
+        .sort((a, b) => b.sortAt - a.sortAt);
 
       onData(next);
     },

@@ -66,6 +66,7 @@ export default function PlayResultScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const sessionId = String(route.params?.sessionId ?? "");
+  const historyMode = route.params?.mode === "history";
   const uid = auth?.currentUser?.uid ?? "";
   const [session, setSession] = React.useState<PlaySessionDoc | null>(null);
   const [events, setEvents] = React.useState<PlayStrokeBatch[]>([]);
@@ -84,7 +85,7 @@ export default function PlayResultScreen() {
     setEvents([]);
     setDecision(null);
     setSubmitting(false);
-    setReplayOpen(false);
+    setReplayOpen(historyMode);
     setOpeningChat(false);
     openChatPromiseRef.current = null;
 
@@ -114,7 +115,7 @@ export default function PlayResultScreen() {
       unsubscribeSession();
       unsubscribeEvents();
     };
-  }, [sessionId]);
+  }, [historyMode, sessionId]);
 
   React.useEffect(() => {
     const ownDecision = session?.revealDecisions?.[uid];
@@ -162,6 +163,16 @@ export default function PlayResultScreen() {
   const waitingForPeer = Boolean(decision) && !allDecisionsMade;
   const durationLabel = formatDuration(session);
   const activityLabel = formatActivityLabel(session?.activity ?? "draw");
+  const outcomeTitle = allOpen
+    ? "Открылись оба"
+    : showSoftEnding
+      ? "Раскрытие остановилось мягко"
+      : "Решение еще не завершено";
+  const outcomeText = allOpen
+    ? "Эта совместная сессия уже открыла личный контакт. Можно вернуться к replay или сразу продолжить разговор."
+    : showSoftEnding
+      ? "Хотя бы один участник выбрал пропустить раскрытие. Replay и общий след остаются, а чат не открывается."
+      : "Один из ответов еще не сохранен. Replay доступен, а чат появится только после взаимного открытия.";
 
   const openChat = React.useCallback(async () => {
     if (!db || !session || !uid || !peer?.uid) return;
@@ -217,6 +228,7 @@ export default function PlayResultScreen() {
       return;
     }
 
+    if (historyMode) return;
     if (!db || !sessionId || !uid || decision) return;
     if (mountedRef.current) {
       setSubmitting(true);
@@ -229,7 +241,7 @@ export default function PlayResultScreen() {
         setSubmitting(false);
       }
     }
-  }, [allOpen, db, decision, openChat, openingChat, sessionId, submitting, uid]);
+  }, [allOpen, db, decision, historyMode, openChat, openingChat, sessionId, submitting, uid]);
 
   const handleSkipPress = React.useCallback(async () => {
     if (!db || !sessionId || !uid || submitting || decision || openingChat) return;
@@ -246,16 +258,27 @@ export default function PlayResultScreen() {
     }
   }, [db, decision, openingChat, sessionId, submitting, uid]);
 
-  const primaryDisabled = submitting || openingChat || (Boolean(decision) && !allOpen);
+  const primaryDisabled =
+    submitting ||
+    openingChat ||
+    (historyMode ? !allOpen : Boolean(decision) && !allOpen);
   const tertiaryDisabled = submitting || openingChat || Boolean(decision);
+  const screenTitle = historyMode ? "Совместная история" : "Итог сессии";
+  const handleBack = () => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+      return;
+    }
+    navigation.navigate("Tabs");
+  };
 
   if (!sessionId) {
     return (
       <ScreenShell
-        title="Итог сессии"
+        title={screenTitle}
         background="nightCity"
         showBack
-        onBack={() => navigation.navigate("Tabs")}
+        onBack={handleBack}
       >
         <View style={styles.centerState}>
           <Text style={styles.statusTitle}>Сессия не найдена</Text>
@@ -270,10 +293,10 @@ export default function PlayResultScreen() {
   if (loadingSession || loadingEvents) {
     return (
       <ScreenShell
-        title="Итог сессии"
+        title={screenTitle}
         background="nightCity"
         showBack
-        onBack={() => navigation.navigate("Tabs")}
+        onBack={handleBack}
       >
         <View style={styles.centerState}>
           <ActivityIndicator color={theme.colors.accent} />
@@ -286,10 +309,10 @@ export default function PlayResultScreen() {
   if (!session) {
     return (
       <ScreenShell
-        title="Итог сессии"
+        title={screenTitle}
         background="nightCity"
         showBack
-        onBack={() => navigation.navigate("Tabs")}
+        onBack={handleBack}
       >
         <View style={styles.centerState}>
           <Text style={styles.statusTitle}>Итог больше недоступен</Text>
@@ -303,10 +326,10 @@ export default function PlayResultScreen() {
 
   return (
     <ScreenShell
-      title="Итог сессии"
+      title={screenTitle}
       background="nightCity"
       showBack
-      onBack={() => navigation.navigate("Tabs")}
+      onBack={handleBack}
     >
       <ScrollView
         style={{ flex: 1 }}
@@ -352,20 +375,48 @@ export default function PlayResultScreen() {
         </View>
 
         <View style={styles.actionCard}>
-          <Text style={styles.actionTitle}>Что делаем дальше?</Text>
+          <Text style={styles.actionTitle}>
+            {historyMode ? outcomeTitle : "Что делаем дальше?"}
+          </Text>
           <Text style={styles.actionText}>
-            Если оба выберут открыть, появится приватный чат и раскроются профили.
+            {historyMode
+              ? outcomeText
+              : "Если оба выберут открыть, появится приватный чат и раскроются профили."}
           </Text>
 
-          <Pressable
-            disabled={primaryDisabled}
-            onPress={() => void handleOpenPress()}
-            style={[styles.primaryButton, primaryDisabled && styles.disabledButton]}
-          >
-            <Text style={styles.primaryText}>
-              {openingChat ? "Открываем чат…" : "Открыть чат и профили"}
-            </Text>
-          </Pressable>
+          {historyMode ? (
+            allOpen ? (
+              <Pressable
+                disabled={primaryDisabled}
+                onPress={() => void handleOpenPress()}
+                style={[styles.primaryButton, primaryDisabled && styles.disabledButton]}
+              >
+                <Text style={styles.primaryText}>
+                  {openingChat ? "Открываем чат…" : "Открыть чат"}
+                </Text>
+              </Pressable>
+            ) : null
+          ) : (
+            <>
+              <Pressable
+                disabled={primaryDisabled}
+                onPress={() => void handleOpenPress()}
+                style={[styles.primaryButton, primaryDisabled && styles.disabledButton]}
+              >
+                <Text style={styles.primaryText}>
+                  {openingChat ? "Открываем чат…" : "Открыть чат и профили"}
+                </Text>
+              </Pressable>
+
+              <Pressable
+                disabled={tertiaryDisabled}
+                onPress={() => void handleSkipPress()}
+                style={[styles.tertiaryButton, tertiaryDisabled && styles.disabledButton]}
+              >
+                <Text style={styles.tertiaryText}>Пропустить</Text>
+              </Pressable>
+            </>
+          )}
 
           <Pressable
             onPress={() => setReplayOpen((prev) => !prev)}
@@ -374,14 +425,6 @@ export default function PlayResultScreen() {
             <Text style={styles.secondaryText}>
               {replayOpen ? "Скрыть replay" : "Посмотреть replay"}
             </Text>
-          </Pressable>
-
-          <Pressable
-            disabled={tertiaryDisabled}
-            onPress={() => void handleSkipPress()}
-            style={[styles.tertiaryButton, tertiaryDisabled && styles.disabledButton]}
-          >
-            <Text style={styles.tertiaryText}>Пропустить</Text>
           </Pressable>
         </View>
 
