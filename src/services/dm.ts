@@ -45,7 +45,8 @@ export type DmChatRouteParams = {
   threadId: string;
   peerId: string;
   peerName?: string;
-  backTarget?: "together" | "history" | "connections" | "inbox";
+  backTarget?: "together" | "history" | "connections" | "inbox" | "sessionDetail";
+  backSessionId?: string;
 };
 
 function asDmThreadDoc(id: string, raw: unknown): DmThreadDoc {
@@ -108,7 +109,18 @@ export function buildDmChatRouteParams(params: DmChatRouteParams): DmChatRoutePa
     peerId: String(params.peerId ?? ""),
     ...(params.peerName?.trim() ? { peerName: params.peerName.trim() } : {}),
     ...(params.backTarget ? { backTarget: params.backTarget } : {}),
+    ...(params.backTarget === "sessionDetail" && params.backSessionId
+      ? { backSessionId: String(params.backSessionId) }
+      : {}),
   };
+}
+
+export function findDmThreadBySourceSessionId(
+  threads: DmThreadDoc[],
+  sessionId: string
+): DmThreadDoc | null {
+  if (!sessionId) return null;
+  return threads.find((thread) => thread.sourceSessionId === sessionId) ?? null;
 }
 
 export async function ensureDmThread(

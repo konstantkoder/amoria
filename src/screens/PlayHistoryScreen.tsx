@@ -16,13 +16,14 @@ import { useLocale } from "@/contexts/LocaleContext";
 import {
   buildDmChatRouteParams,
   ensureDmThread,
+  findDmThreadBySourceSessionId,
   subscribeDmThreads,
   type DmThreadDoc,
 } from "@/services/dm";
 import {
+  getPlayRevealCopy,
   subscribeMyPlayHistory,
   type PlayHistoryItem,
-  type PlayRevealOutcome,
 } from "@/services/playSessions";
 import { makeNickname } from "@/services/rooms";
 import { theme } from "@/theme";
@@ -37,32 +38,6 @@ function formatSourceLabel(activity: string) {
     return "Совместный рисунок, который вы собрали вдвоем";
   }
   return "Совместная сессия";
-}
-
-function formatRevealLabel(outcome: PlayRevealOutcome) {
-  switch (outcome) {
-    case "open_open":
-      return "open/open";
-    case "open_skip":
-      return "open/skip";
-    case "skip_skip":
-      return "skip/skip";
-    default:
-      return "waiting";
-  }
-}
-
-function formatRevealDescription(outcome: PlayRevealOutcome) {
-  switch (outcome) {
-    case "open_open":
-      return "Вы оба выбрали открыть";
-    case "open_skip":
-      return "Один открыл, другой пропустил";
-    case "skip_skip":
-      return "Оба выбрали пропустить";
-    default:
-      return "Ждем второе решение";
-  }
 }
 
 function formatDateTime(value: number) {
@@ -178,32 +153,30 @@ export default function PlayHistoryScreen() {
     };
   }, [handleLoadError, reloadKey, uid]);
 
-  const threadBySessionId = useMemo(() => {
-    const next = new Map<string, DmThreadDoc>();
-    for (const thread of threads) {
-      if (thread.sourceSessionId) {
-        next.set(thread.sourceSessionId, thread);
-      }
-    }
-    return next;
-  }, [threads]);
-
   const cards = useMemo<HistoryCard[]>(
     () =>
-      history.map((item) => ({
-        ...item,
-        ...(threadBySessionId.get(item.sessionId)?.id
-          ? { threadId: threadBySessionId.get(item.sessionId)?.id }
-          : {}),
-      })),
-    [history, threadBySessionId]
+      history.map((item) => {
+        const thread = findDmThreadBySourceSessionId(threads, item.sessionId);
+        return {
+          ...item,
+          ...(thread?.id ? { threadId: thread.id } : {}),
+        };
+      }),
+    [history, threads]
   );
 
   const isLoading = !historyLoaded || !threadsLoaded;
 
+  const openDetail = useCallback(
+    (sessionId: string) => {
+      navigation.navigate("PlaySessionDetail", { sessionId });
+    },
+    [navigation]
+  );
+
   const openReplay = useCallback(
     (sessionId: string) => {
-      navigation.navigate("PlayResult", { sessionId, mode: "history" });
+      navigation.navigate("PlaySessionDetail", { sessionId, focus: "replay" });
     },
     [navigation]
   );
@@ -253,7 +226,7 @@ export default function PlayHistoryScreen() {
     (item: HistoryCard) => (
       <Pressable
         key={item.id}
-        onPress={() => openReplay(item.sessionId)}
+        onPress={() => openDetail(item.sessionId)}
         style={styles.card}
       >
         <View style={styles.cardTop}>
@@ -277,11 +250,11 @@ export default function PlayHistoryScreen() {
           </View>
           <View style={styles.metaChip}>
             <Ionicons name="sparkles-outline" size={14} color={theme.colors.primary} />
-            <Text style={styles.metaText}>{formatRevealLabel(item.revealOutcome)}</Text>
+            <Text style={styles.metaText}>{getPlayRevealCopy(item.revealOutcome).shortLabel}</Text>
           </View>
         </View>
 
-        <Text style={styles.cardStatus}>{formatRevealDescription(item.revealOutcome)}</Text>
+        <Text style={styles.cardStatus}>{getPlayRevealCopy(item.revealOutcome).description}</Text>
 
         <View style={styles.actionsRow}>
           <Pressable onPress={() => openReplay(item.sessionId)} style={styles.secondaryButton}>
@@ -305,7 +278,7 @@ export default function PlayHistoryScreen() {
         </View>
       </Pressable>
     ),
-    [openChat, openReplay, openingChatId, tt]
+    [openChat, openDetail, openReplay, openingChatId, tt]
   );
 
   const renderEmpty = () => (

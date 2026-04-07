@@ -314,6 +314,13 @@ export default function ConnectionsFeedScreen() {
     [db, navigation, sessionById, t, uid]
   );
 
+  const openDetail = useCallback(
+    (sessionId: string) => {
+      navigation.navigate("PlaySessionDetail", { sessionId });
+    },
+    [navigation]
+  );
+
   const goToTogether = useCallback(() => {
     navigation.navigate("Tabs", { screen: "Together" });
   }, [navigation]);
@@ -362,6 +369,11 @@ export default function ConnectionsFeedScreen() {
         </View>
 
         <View style={styles.actionsRow}>
+          {!card.isFallback && card.sessionId ? (
+            <Pressable onPress={() => openDetail(card.sessionId!)} style={styles.secondaryCta}>
+              <Text style={styles.secondaryCtaText}>Открыть историю</Text>
+            </Pressable>
+          ) : null}
           <Pressable
             onPress={() => void openChat(card)}
             style={styles.primaryCta}
@@ -376,7 +388,7 @@ export default function ConnectionsFeedScreen() {
         </View>
       </View>
     ),
-    [openChat, openingCardId, t, tt]
+    [openChat, openDetail, openingCardId, t, tt]
   );
 
   return (
@@ -613,6 +625,19 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.accent,
   },
   primaryCtaText: {
+    color: theme.colors.text,
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  secondaryCta: {
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: theme.colors.pillBg,
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+  },
+  secondaryCtaText: {
     color: theme.colors.text,
     fontSize: 13,
     fontWeight: "800",

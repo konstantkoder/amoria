@@ -24,6 +24,11 @@ export type PlayRevealOutcome =
   | "skip_skip"
   | "waiting";
 
+export type PlayRevealCopy = {
+  shortLabel: string;
+  description: string;
+};
+
 export type PlayQueueDoc = {
   uid: string;
   activity: PlayActivity;
@@ -352,15 +357,23 @@ export async function tryMatchWaitingPlayer(
 export function subscribePlaySession(
   db: Firestore,
   sessionId: string,
-  onData: (data: PlaySessionDoc | null) => void
+  onData: (data: PlaySessionDoc | null) => void,
+  onError?: (error: Error) => void
 ) {
-  return onSnapshot(doc(db, "playSessions", sessionId), (snapshot) => {
-    if (!snapshot.exists()) {
+  return onSnapshot(
+    doc(db, "playSessions", sessionId),
+    (snapshot) => {
+      if (!snapshot.exists()) {
+        onData(null);
+        return;
+      }
+      onData(asPlaySessionDoc(snapshot.id, snapshot.data()));
+    },
+    (error) => {
+      onError?.(error);
       onData(null);
-      return;
     }
-    onData(asPlaySessionDoc(snapshot.id, snapshot.data()));
-  });
+  );
 }
 
 export function isMutualOpenPlaySession(session: PlaySessionDoc) {
@@ -381,6 +394,31 @@ export function resolvePlayRevealOutcome(
   if (values.every((value) => value === "open")) return "open_open";
   if (values.every((value) => value === "skip")) return "skip_skip";
   return "open_skip";
+}
+
+export function getPlayRevealCopy(outcome: PlayRevealOutcome): PlayRevealCopy {
+  switch (outcome) {
+    case "open_open":
+      return {
+        shortLabel: "Оба открыли",
+        description: "Вы оба выбрали открыть и перевели совместную сессию в личный контакт.",
+      };
+    case "open_skip":
+      return {
+        shortLabel: "Один пропустил",
+        description: "Один участник выбрал открыть, а второй решил пропустить раскрытие.",
+      };
+    case "skip_skip":
+      return {
+        shortLabel: "Оба пропустили",
+        description: "Вы оба решили оставить эту совместную сессию без дальнейшего раскрытия.",
+      };
+    default:
+      return {
+        shortLabel: "Ждём решение второго",
+        description: "Одно решение уже есть, а второе ещё не пришло.",
+      };
+  }
 }
 
 export function mapPlaySessionToHistoryItem(
@@ -476,7 +514,8 @@ export function subscribeMyPlayHistory(
 export function subscribePlayEvents(
   db: Firestore,
   sessionId: string,
-  onData: (data: PlayStrokeBatch[]) => void
+  onData: (data: PlayStrokeBatch[]) => void,
+  onError?: (error: Error) => void
 ) {
   const eventsQuery = query(
     collection(db, "playSessions", sessionId, "events"),
@@ -484,9 +523,16 @@ export function subscribePlayEvents(
     limit(200)
   );
 
-  return onSnapshot(eventsQuery, (snapshot) => {
-    onData(snapshot.docs.map((item) => asPlayStrokeBatch(item.id, item.data())));
-  });
+  return onSnapshot(
+    eventsQuery,
+    (snapshot) => {
+      onData(snapshot.docs.map((item) => asPlayStrokeBatch(item.id, item.data())));
+    },
+    (error) => {
+      onError?.(error);
+      onData([]);
+    }
+  );
 }
 
 export async function appendStrokeBatch(

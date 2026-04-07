@@ -16,6 +16,7 @@ import { auth, db } from "@/config/firebaseConfig";
 import { buildDmChatRouteParams, ensureDmThread } from "@/services/dm";
 import {
   getPeerFromSession,
+  getPlayRevealCopy,
   resolvePlayRevealOutcome,
   submitRevealDecision,
   subscribePlayEvents,
@@ -88,6 +89,16 @@ export default function PlayResultScreen() {
   const goToConnections = React.useCallback(() => {
     navigation.navigate("Tabs", { screen: "Connections" });
   }, [navigation]);
+  const goToDetail = React.useCallback(
+    (focus?: "replay") => {
+      if (!sessionId) return;
+      navigation.navigate("PlaySessionDetail", {
+        sessionId,
+        ...(focus ? { focus } : {}),
+      });
+    },
+    [navigation, sessionId]
+  );
 
   React.useEffect(() => {
     mountedRef.current = true;
@@ -170,16 +181,12 @@ export default function PlayResultScreen() {
   const waitingForPeer = Boolean(decision) && revealOutcome === "waiting";
   const durationLabel = formatDuration(session);
   const activityLabel = formatActivityLabel(session?.activity ?? "draw");
+  const revealCopy = React.useMemo(() => getPlayRevealCopy(revealOutcome), [revealOutcome]);
   const outcomeTitle = allOpen
     ? "Открылись оба"
     : showSoftEnding
       ? "Раскрытие остановилось мягко"
       : "Решение еще не завершено";
-  const outcomeText = allOpen
-    ? "Эта совместная сессия уже открыла личный контакт. Можно вернуться к replay или сразу продолжить разговор."
-    : showSoftEnding
-      ? "Хотя бы один участник выбрал пропустить раскрытие. Replay и общий след остаются, а чат не открывается."
-      : "Один из ответов еще не сохранен. Replay доступен, а чат появится только после взаимного открытия.";
 
   const openChat = React.useCallback(async () => {
     if (!db || !session || !uid || !peer?.uid) return;
@@ -401,7 +408,7 @@ export default function PlayResultScreen() {
           </Text>
           <Text style={styles.actionText}>
             {historyMode
-              ? outcomeText
+              ? revealCopy.description
               : "Если оба выберут открыть, появится приватный чат и раскроются профили."}
           </Text>
 
@@ -464,6 +471,9 @@ export default function PlayResultScreen() {
                 <Text style={styles.routeButtonText}>Открыть историю</Text>
               </Pressable>
             ) : null}
+            <Pressable onPress={() => goToDetail(replayOpen ? "replay" : undefined)} style={styles.routeButton}>
+              <Text style={styles.routeButtonText}>Страница истории</Text>
+            </Pressable>
             {allOpen ? (
               <Pressable onPress={goToConnections} style={styles.routeButton}>
                 <Text style={styles.routeButtonText}>Лента связей</Text>
@@ -506,7 +516,7 @@ export default function PlayResultScreen() {
 
         {allOpen ? (
           <View style={styles.statusCard}>
-            <Text style={styles.statusTitle}>Вы оба выбрали открыть</Text>
+            <Text style={styles.statusTitle}>{revealCopy.shortLabel}</Text>
             <Text style={styles.statusText}>
               Приватный чат готов. Когда захочешь, открой его через главную кнопку выше.
             </Text>

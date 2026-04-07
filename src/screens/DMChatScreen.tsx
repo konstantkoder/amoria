@@ -38,6 +38,7 @@ export default function DMChatScreen() {
   const routePeerName = String(route.params?.peerName ?? "").trim();
   const peerId = routePeerId || "";
   const backTarget = String(route.params?.backTarget ?? "");
+  const backSessionId = String(route.params?.backSessionId ?? "");
 
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -272,8 +273,12 @@ export default function DMChatScreen() {
       navigation.navigate("Tabs", { screen: "Inbox" });
       return;
     }
+    if (backTarget === "sessionDetail" && backSessionId) {
+      navigation.navigate("PlaySessionDetail", { sessionId: backSessionId });
+      return;
+    }
     navigation.navigate("Tabs", { screen: "Together" });
-  }, [backTarget, navigation]);
+  }, [backSessionId, backTarget, navigation]);
 
   const renderSourceCard = useCallback(
     () =>
@@ -365,6 +370,8 @@ export default function DMChatScreen() {
             <Text style={styles.retryText}>
               {backTarget === "history"
                 ? "Вернуться к истории"
+                : backTarget === "sessionDetail"
+                  ? "Вернуться к истории сессии"
                 : backTarget === "connections"
                   ? "Вернуться в связи"
                   : "Вернуться назад"}
