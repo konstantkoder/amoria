@@ -87,6 +87,10 @@ export type PlayStrokeBatch = {
   strokes: PlayStroke[];
 };
 
+export function isPlayActivity(value: unknown): value is PlayActivity {
+  return value === "draw";
+}
+
 function asPlayQueueDoc(id: string, raw: unknown): PlayQueueDoc {
   const data = (raw ?? {}) as Partial<PlayQueueDoc>;
   const nickname =

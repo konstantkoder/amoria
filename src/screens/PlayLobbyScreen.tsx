@@ -50,10 +50,10 @@ export default function PlayLobbyScreen() {
       >
         <View style={styles.hero}>
           <Text style={styles.kicker}>Совместный опыт</Text>
-          <Text style={styles.heroTitle}>Начни совместную сессию и посмотри, куда она приведет</Text>
+          <Text style={styles.heroTitle}>Вместе начинается с одного короткого опыта на двоих</Text>
           <Text style={styles.heroText}>
-            Вместе начинается общий опыт: сначала сессия, потом итог, история и чат, если вы
-            оба захотите продолжить.
+            Сначала вы проходите общую сессию, потом видите итог и только после этого решаете,
+            хотите ли открыть чат.
           </Text>
         </View>
 
@@ -64,7 +64,10 @@ export default function PlayLobbyScreen() {
           <View style={styles.primaryEntryText}>
             <Text style={styles.primaryEntryTitle}>Начать совместную сессию</Text>
             <Text style={styles.primaryEntryBody}>
-              Общий холст на двоих. Семь минут, один рисунок и один ритм.
+              Общий холст на двоих.
+            </Text>
+            <Text style={styles.primaryEntryMeta}>
+              7 минут вместе. Сначала общий опыт, потом чат, если захотят оба.
             </Text>
           </View>
           <View style={styles.primaryEntryBadge}>
@@ -79,7 +82,7 @@ export default function PlayLobbyScreen() {
           <View style={styles.historyTextWrap}>
             <Text style={styles.historyTitle}>Мои совместные истории</Text>
             <Text style={styles.historyText}>
-              Здесь остаются завершенные совместные сессии, replay и путь обратно в разговор.
+              Здесь остаются завершенные сессии, итоговые рисунки и путь обратно в разговор.
             </Text>
           </View>
           <View style={styles.historyBadge}>
@@ -94,7 +97,7 @@ export default function PlayLobbyScreen() {
           >
             <Text style={styles.quickTitle}>Твой вайб сейчас</Text>
             <Text style={styles.quickText}>
-              Покажи свой текущий настрой и при желании вернись во Вместе позже.
+              Если хочется сначала обозначить настроение, открой Now и вернись позже.
             </Text>
           </Pressable>
 
@@ -104,7 +107,7 @@ export default function PlayLobbyScreen() {
           >
             <Text style={styles.quickTitle}>Комнаты рядом</Text>
             <Text style={styles.quickText}>
-              Если хочется живого группового контекста, переходи в Rooms без разрыва маршрута.
+              Если нужен живой групповой контекст, переходи в Rooms без лишних шагов.
             </Text>
           </Pressable>
         </View>
@@ -112,7 +115,7 @@ export default function PlayLobbyScreen() {
         <View style={styles.soonSection}>
           <Text style={styles.soonTitle}>Что появится дальше</Text>
           <Text style={styles.soonText}>
-            Следующие совместные форматы уже на подходе и позже расширят путь через Вместе.
+            Новые форматы расширят Together позже, но главный вход уже здесь.
           </Text>
         </View>
 
@@ -196,6 +199,12 @@ const styles = StyleSheet.create({
     color: theme.colors.subtext,
     fontSize: 14,
     lineHeight: 20,
+  },
+  primaryEntryMeta: {
+    color: theme.colors.text,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "700",
   },
   primaryEntryBadge: {
     borderRadius: theme.shapes.pill,

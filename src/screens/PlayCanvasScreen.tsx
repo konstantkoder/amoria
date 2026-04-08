@@ -20,9 +20,9 @@ import {
   finishPlaySession,
   subscribePlayEvents,
   subscribePlaySession,
+  type PlaySessionDoc,
   type PlayStroke,
   type PlayStrokeBatch,
-  type PlaySessionDoc,
 } from "@/services/playSessions";
 import { makeNickname } from "@/services/rooms";
 import { theme } from "@/theme";
@@ -53,30 +53,53 @@ function mapBatchStroke(batch: PlayStrokeBatch): SharedCanvasStroke[] {
   }));
 }
 
+type GuardState = {
+  title: string;
+  body: string;
+  primaryLabel: string;
+  primaryAction: () => void;
+  secondaryLabel?: string;
+  secondaryAction?: () => void;
+};
+
 export default function PlayCanvasScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
-  const sessionId = String(route.params?.sessionId ?? "");
+  const sessionId = String(route.params?.sessionId ?? "").trim();
   const uid = auth?.currentUser?.uid ?? "";
   const [session, setSession] = React.useState<PlaySessionDoc | null>(null);
   const [events, setEvents] = React.useState<PlayStrokeBatch[]>([]);
   const [loadingSession, setLoadingSession] = React.useState(true);
   const [loadingEvents, setLoadingEvents] = React.useState(true);
+  const [loadError, setLoadError] = React.useState("");
   const [finishing, setFinishing] = React.useState(false);
+  const [tick, setTick] = React.useState(Date.now());
   const mountedRef = React.useRef(true);
   const navigationHandledRef = React.useRef(false);
   const finishPromiseRef = React.useRef<Promise<void> | null>(null);
   const allowExitRef = React.useRef(false);
+
   const goToTogether = React.useCallback(() => {
     navigation.navigate("Tabs", { screen: "Together" });
   }, [navigation]);
+
   const handleSafeBack = React.useCallback(() => {
+    allowExitRef.current = true;
     if (navigation.canGoBack()) {
       navigation.goBack();
       return;
     }
     goToTogether();
   }, [goToTogether, navigation]);
+
+  const retryCanvasEntry = React.useCallback(() => {
+    if (!sessionId) {
+      goToTogether();
+      return;
+    }
+    allowExitRef.current = true;
+    navigation.replace("PlayCanvas", { sessionId });
+  }, [goToTogether, navigation, sessionId]);
 
   React.useEffect(() => {
     mountedRef.current = true;
@@ -87,12 +110,11 @@ export default function PlayCanvasScreen() {
     setEvents([]);
     setLoadingSession(true);
     setLoadingEvents(true);
+    setLoadError("");
     setFinishing(false);
     setTick(Date.now());
 
-    if (!db || !sessionId) {
-      setSession(null);
-      setEvents([]);
+    if (!db || !uid || !sessionId) {
       setLoadingSession(false);
       setLoadingEvents(false);
       return () => {
@@ -100,25 +122,42 @@ export default function PlayCanvasScreen() {
       };
     }
 
-    setLoadingSession(true);
-    setLoadingEvents(true);
+    const unsubscribeSession = subscribePlaySession(
+      db,
+      sessionId,
+      (next) => {
+        if (!mountedRef.current) return;
+        setSession(next);
+        setLoadingSession(false);
+      },
+      () => {
+        if (!mountedRef.current) return;
+        setLoadError("Не получилось подключить совместную сессию. Попробуй открыть ее еще раз.");
+        setLoadingSession(false);
+      }
+    );
 
-    const unsubscribeSession = subscribePlaySession(db, sessionId, (next) => {
-      if (!mountedRef.current) return;
-      setSession(next);
-      setLoadingSession(false);
-    });
-    const unsubscribeEvents = subscribePlayEvents(db, sessionId, (next) => {
-      if (!mountedRef.current) return;
-      setEvents(next);
-      setLoadingEvents(false);
-    });
+    const unsubscribeEvents = subscribePlayEvents(
+      db,
+      sessionId,
+      (next) => {
+        if (!mountedRef.current) return;
+        setEvents(next);
+        setLoadingEvents(false);
+      },
+      () => {
+        if (!mountedRef.current) return;
+        setLoadError("Мы не смогли загрузить общий холст целиком. Попробуй переподключиться.");
+        setLoadingEvents(false);
+      }
+    );
+
     return () => {
       mountedRef.current = false;
       unsubscribeSession();
       unsubscribeEvents();
     };
-  }, [sessionId]);
+  }, [sessionId, uid]);
 
   const allStrokes = React.useMemo(
     () => events.flatMap((batch) => mapBatchStroke(batch)),
@@ -179,8 +218,6 @@ export default function PlayCanvasScreen() {
     }
   }, [openResultScreen, session]);
 
-  const [tick, setTick] = React.useState(Date.now());
-
   React.useEffect(() => {
     if (!session?.startedAt || session.status !== "active") return;
     const timer = setInterval(() => {
@@ -209,7 +246,7 @@ export default function PlayCanvasScreen() {
       event.preventDefault();
       Alert.alert(
         "Завершить сессию?",
-        "Если выйти сейчас, совместная сессия мягко завершится и откроется итоговый экран.",
+        "Если выйти сейчас, мы мягко завершим общий рисунок и сразу откроем итог.",
         [
           { text: "Остаться", style: "cancel" },
           {
@@ -254,14 +291,99 @@ export default function PlayCanvasScreen() {
 
   const partnerName = session?.participantNicknames?.[partnerId] ?? makeNickname(partnerId || "peer");
 
-  if (!sessionId) {
+  const sessionPhaseCopy = React.useMemo(() => {
+    if (session?.status === "active") {
+      return {
+        eyebrow: "Сессия началась",
+        title: "Вы уже в общем холсте",
+        body: "Рисуйте вместе до конца таймера. Когда время закончится, вы увидите итог и решите, хотите ли продолжить общение.",
+      };
+    }
+
+    return {
+      eyebrow: "Подключаем сессию",
+      title: "Сейчас все соберется",
+      body: "Мы уже открыли холст и синхронизируем его для вас двоих.",
+    };
+  }, [session?.status]);
+
+  const guardState = React.useMemo<GuardState | null>(() => {
+    if (!uid) {
+      return {
+        title: "Не удалось открыть сессию",
+        body: "Чтобы войти в совместный холст, нужен активный аккаунт.",
+        primaryLabel: "Открыть профиль",
+        primaryAction: () => navigation.navigate("Profile"),
+        secondaryLabel: "Назад",
+        secondaryAction: handleSafeBack,
+      };
+    }
+
+    if (!db) {
+      return {
+        title: "Холст пока недоступен",
+        body: "Мы не смогли подготовить подключение к сессии. Попробуй снова через пару секунд.",
+        primaryLabel: "Попробовать снова",
+        primaryAction: retryCanvasEntry,
+        secondaryLabel: "Во Вместе",
+        secondaryAction: goToTogether,
+      };
+    }
+
+    if (!sessionId) {
+      return {
+        title: "Сессия не найдена",
+        body: "Не получилось открыть совместный холст без контекста сессии. Вернись во Вместе и начни заново.",
+        primaryLabel: "Во Вместе",
+        primaryAction: goToTogether,
+        secondaryLabel: "Назад",
+        secondaryAction: handleSafeBack,
+      };
+    }
+
+    if (loadError) {
+      return {
+        title: "Подключение прервалось",
+        body: loadError,
+        primaryLabel: "Попробовать снова",
+        primaryAction: retryCanvasEntry,
+        secondaryLabel: "Во Вместе",
+        secondaryAction: goToTogether,
+      };
+    }
+
+    if (!loadingSession && !loadingEvents && !session) {
+      return {
+        title: "Сессия больше недоступна",
+        body: "Она уже завершилась или была закрыта. Можно спокойно вернуться и начать новую.",
+        primaryLabel: "Во Вместе",
+        primaryAction: goToTogether,
+        secondaryLabel: "Назад",
+        secondaryAction: handleSafeBack,
+      };
+    }
+
+    return null;
+  }, [goToTogether, handleSafeBack, loadError, loadingEvents, loadingSession, navigation, retryCanvasEntry, session, sessionId, uid]);
+
+  if (guardState) {
     return (
-      <ScreenShell title="Общий холст" background="nightCity" showBack onBack={handleSafeBack}>
+      <ScreenShell title="Совместная сессия" background="nightCity" showBack onBack={handleSafeBack}>
         <View style={styles.centerState}>
-          <Text style={styles.centerTitle}>Сессия не найдена</Text>
-          <Text style={styles.centerText}>
-            Не удалось открыть общий холст без идентификатора сессии.
-          </Text>
+          <View style={styles.guardCard}>
+            <Text style={styles.centerTitle}>{guardState.title}</Text>
+            <Text style={styles.centerText}>{guardState.body}</Text>
+            <View style={styles.guardActions}>
+              <Pressable onPress={guardState.primaryAction} style={styles.returnButton}>
+                <Text style={styles.returnButtonText}>{guardState.primaryLabel}</Text>
+              </Pressable>
+              {guardState.secondaryLabel && guardState.secondaryAction ? (
+                <Pressable onPress={guardState.secondaryAction} style={styles.secondaryButton}>
+                  <Text style={styles.secondaryButtonText}>{guardState.secondaryLabel}</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          </View>
         </View>
       </ScreenShell>
     );
@@ -269,26 +391,15 @@ export default function PlayCanvasScreen() {
 
   if (loadingSession || loadingEvents) {
     return (
-      <ScreenShell title="Общий холст" background="nightCity" showBack onBack={handleSafeBack}>
+      <ScreenShell title="Совместная сессия" background="nightCity" showBack onBack={handleSafeBack}>
         <View style={styles.centerState}>
-          <ActivityIndicator color={theme.colors.accent} />
-          <Text style={styles.centerText}>Подключаем общий холст…</Text>
-        </View>
-      </ScreenShell>
-    );
-  }
-
-  if (!session) {
-    return (
-      <ScreenShell title="Общий холст" background="nightCity" showBack onBack={handleSafeBack}>
-        <View style={styles.centerState}>
-          <Text style={styles.centerTitle}>Сессия больше недоступна</Text>
-          <Text style={styles.centerText}>
-            Совместная сессия уже завершилась или была закрыта.
-          </Text>
-          <Pressable onPress={goToTogether} style={styles.returnButton}>
-            <Text style={styles.returnButtonText}>Вернуться во Вместе</Text>
-          </Pressable>
+          <View style={styles.guardCard}>
+            <ActivityIndicator color={theme.colors.accent} />
+            <Text style={styles.centerTitle}>Подключаем общий холст</Text>
+            <Text style={styles.centerText}>
+              Сессия уже готовится. Еще пара секунд, и вы окажетесь в одном пространстве.
+            </Text>
+          </View>
         </View>
       </ScreenShell>
     );
@@ -296,18 +407,17 @@ export default function PlayCanvasScreen() {
 
   return (
     <ScreenShell
-      title="Общий холст"
+      title="Совместная сессия"
       background="nightCity"
       showBack
       onBack={() => {
-        if (session.status !== "active") {
-          allowExitRef.current = true;
+        if (session?.status !== "active") {
           handleSafeBack();
           return;
         }
         Alert.alert(
           "Завершить сессию?",
-          "Если выйти сейчас, совместная сессия мягко завершится и откроется итоговый экран.",
+          "Если выйти сейчас, мы мягко завершим общий рисунок и сразу откроем итог.",
           [
             { text: "Остаться", style: "cancel" },
             {
@@ -322,37 +432,46 @@ export default function PlayCanvasScreen() {
       }}
     >
       <ScrollView
-        style={{ flex: 1 }}
+        style={styles.scroll}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.statsCard}>
-          <View>
-            <Text style={styles.statsLabel}>Напарник</Text>
-            <Text style={styles.statsValue}>{partnerName}</Text>
+        <View style={styles.heroCard}>
+          <View style={styles.heroHeader}>
+            <View style={styles.heroTextWrap}>
+              <Text style={styles.heroEyebrow}>{sessionPhaseCopy.eyebrow}</Text>
+              <Text style={styles.heroTitle}>{sessionPhaseCopy.title}</Text>
+              <Text style={styles.heroBody}>{sessionPhaseCopy.body}</Text>
+            </View>
+            <View style={styles.timerPill}>
+              <Text style={styles.timerText}>{formatRemaining(liveRemaining)}</Text>
+            </View>
           </View>
-          <View style={styles.timerPill}>
-            <Text style={styles.timerText}>{formatRemaining(liveRemaining)}</Text>
+
+          <View style={styles.metaRow}>
+            <View style={styles.metaCard}>
+              <Text style={styles.metaLabel}>Напарник</Text>
+              <Text style={styles.metaValue}>{partnerName}</Text>
+            </View>
+            <View style={styles.metaCard}>
+              <Text style={styles.metaLabel}>Общих штрихов</Text>
+              <Text style={styles.metaValue}>{totalStrokeCount}</Text>
+            </View>
           </View>
         </View>
-
-        <Text style={styles.helper}>
-          У вас 7 минут на один общий рисунок. Когда время закончится, вы сразу увидите итог и
-          сможете решить, хотите ли продолжить знакомство.
-        </Text>
 
         <SharedCanvasWebView
           localUid={uid}
           strokes={allStrokes}
-          disabled={session.status !== "active" || finishing}
+          disabled={session?.status !== "active" || finishing}
           onLocalStrokeBatch={handleLocalBatch}
         />
 
         <View style={styles.footerRow}>
-          <View style={styles.footerCard}>
-            <Text style={styles.footerLabel}>Общих штрихов</Text>
-            <Text style={styles.footerValue}>{totalStrokeCount}</Text>
-          </View>
+          <Text style={styles.helper}>
+            У вас 7 минут на один общий рисунок. Когда время закончится, вы сразу увидите итог и
+            решите, хотите ли открыть чат дальше.
+          </Text>
           <Pressable
             disabled={finishing}
             onPress={() => void completeSession()}
@@ -369,29 +488,67 @@ export default function PlayCanvasScreen() {
 }
 
 const styles = StyleSheet.create({
+  scroll: { flex: 1 },
   content: {
     padding: 16,
     paddingBottom: 28,
     gap: 14,
   },
-  statsCard: {
+  heroCard: {
     borderRadius: theme.shapes.card,
     padding: 18,
+    backgroundColor: "rgba(17, 20, 36, 0.9)",
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+    gap: 14,
+  },
+  heroHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+  heroTextWrap: {
+    flex: 1,
+    gap: 8,
+  },
+  heroEyebrow: {
+    color: theme.colors.accent,
+    fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 1,
+    textTransform: "uppercase",
+  },
+  heroTitle: {
+    color: theme.colors.text,
+    fontSize: 24,
+    lineHeight: 28,
+    fontWeight: "800",
+  },
+  heroBody: {
+    color: theme.colors.subtext,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  metaRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  metaCard: {
+    flex: 1,
+    borderRadius: theme.shapes.cardInner,
+    padding: 14,
     backgroundColor: theme.colors.card,
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: 14,
+    gap: 6,
   },
-  statsLabel: {
+  metaLabel: {
     color: theme.colors.muted,
     fontSize: 12,
     fontWeight: "700",
-    marginBottom: 4,
   },
-  statsValue: {
+  metaValue: {
     color: theme.colors.text,
     fontSize: 18,
     fontWeight: "800",
@@ -412,17 +569,28 @@ const styles = StyleSheet.create({
     color: theme.colors.subtext,
     fontSize: 13,
     lineHeight: 19,
+    flex: 1,
   },
   centerState: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 28,
+    paddingHorizontal: 20,
+  },
+  guardCard: {
+    width: "100%",
+    borderRadius: theme.shapes.card,
+    padding: 22,
+    backgroundColor: "rgba(17, 20, 36, 0.9)",
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+    alignItems: "center",
     gap: 12,
   },
   centerTitle: {
     color: theme.colors.text,
     fontSize: 22,
+    lineHeight: 28,
     fontWeight: "800",
     textAlign: "center",
   },
@@ -436,24 +604,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 12,
     alignItems: "center",
-  },
-  footerCard: {
-    flex: 1,
-    borderRadius: theme.shapes.cardInner,
-    padding: 16,
-    backgroundColor: theme.colors.card,
-    borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
-  },
-  footerLabel: {
-    color: theme.colors.muted,
-    fontSize: 12,
-    marginBottom: 6,
-  },
-  footerValue: {
-    color: theme.colors.text,
-    fontSize: 24,
-    fontWeight: "800",
   },
   finishButton: {
     borderRadius: theme.shapes.cardInner,
@@ -469,15 +619,35 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "800",
   },
+  guardActions: {
+    width: "100%",
+    gap: 10,
+    marginTop: 4,
+  },
   returnButton: {
     borderRadius: theme.shapes.pill,
     paddingHorizontal: 18,
-    paddingVertical: 12,
+    paddingVertical: 14,
     backgroundColor: theme.colors.accent,
+    alignItems: "center",
   },
   returnButtonText: {
     color: theme.colors.text,
     fontSize: 14,
     fontWeight: "800",
+  },
+  secondaryButton: {
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    backgroundColor: "rgba(255,255,255,0.07)",
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+    alignItems: "center",
+  },
+  secondaryButtonText: {
+    color: theme.colors.text,
+    fontSize: 14,
+    fontWeight: "700",
   },
 });
