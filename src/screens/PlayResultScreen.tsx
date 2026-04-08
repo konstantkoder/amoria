@@ -1,6 +1,5 @@
 import React from "react";
 import {
-  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -9,6 +8,7 @@ import {
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 
+import CoreStateCard from "@/components/CoreStateCard";
 import ScreenShell from "@/components/ScreenShell";
 import ReplayCanvasWebView from "@/components/play/ReplayCanvasWebView";
 import type { SharedCanvasStroke } from "@/components/play/SharedCanvasWebView";
@@ -78,6 +78,9 @@ export default function PlayResultScreen() {
   const [loadingSession, setLoadingSession] = React.useState(true);
   const [loadingEvents, setLoadingEvents] = React.useState(true);
   const [openingChat, setOpeningChat] = React.useState(false);
+  const [loadError, setLoadError] = React.useState("");
+  const [actionError, setActionError] = React.useState("");
+  const [reloadKey, setReloadKey] = React.useState(0);
   const mountedRef = React.useRef(true);
   const openChatPromiseRef = React.useRef<Promise<void> | null>(null);
   const goToTogether = React.useCallback(() => {
@@ -111,6 +114,8 @@ export default function PlayResultScreen() {
     setSubmitting(false);
     setReplayOpen(historyMode);
     setOpeningChat(false);
+    setLoadError("");
+    setActionError("");
     openChatPromiseRef.current = null;
 
     if (!db || !sessionId) {
@@ -124,22 +129,40 @@ export default function PlayResultScreen() {
     setLoadingSession(true);
     setLoadingEvents(true);
 
-    const unsubscribeSession = subscribePlaySession(db, sessionId, (next) => {
-      if (!mountedRef.current) return;
-      setSession(next);
-      setLoadingSession(false);
-    });
-    const unsubscribeEvents = subscribePlayEvents(db, sessionId, (next) => {
-      if (!mountedRef.current) return;
-      setEvents(next);
-      setLoadingEvents(false);
-    });
+    const unsubscribeSession = subscribePlaySession(
+      db,
+      sessionId,
+      (next) => {
+        if (!mountedRef.current) return;
+        setSession(next);
+        setLoadingSession(false);
+      },
+      () => {
+        if (!mountedRef.current) return;
+        setLoadError("Не удалось собрать итог этой совместной сессии. Попробуй открыть его еще раз.");
+        setLoadingSession(false);
+      }
+    );
+    const unsubscribeEvents = subscribePlayEvents(
+      db,
+      sessionId,
+      (next) => {
+        if (!mountedRef.current) return;
+        setEvents(next);
+        setLoadingEvents(false);
+      },
+      () => {
+        if (!mountedRef.current) return;
+        setLoadError("Мы не смогли загрузить replay этой сессии целиком. Попробуй еще раз.");
+        setLoadingEvents(false);
+      }
+    );
     return () => {
       mountedRef.current = false;
       unsubscribeSession();
       unsubscribeEvents();
     };
-  }, [historyMode, sessionId]);
+  }, [historyMode, reloadKey, sessionId]);
 
   React.useEffect(() => {
     const ownDecision = session?.revealDecisions?.[uid];
@@ -185,6 +208,8 @@ export default function PlayResultScreen() {
   const durationLabel = formatDuration(session);
   const activityLabel = formatActivityLabel(session?.activity ?? "draw");
   const revealCopy = React.useMemo(() => getPlayRevealCopy(revealOutcome), [revealOutcome]);
+  const canOpenChat = Boolean(db && session && uid && peer?.uid);
+  const hasReplay = replayStrokes.length > 0;
   const outcomeTitle = allOpen
     ? "Открылись оба"
     : showSoftEnding
@@ -225,8 +250,11 @@ export default function PlayResultScreen() {
           peerName,
           backTarget: "sessionDetail",
           backSessionId: sessionId,
-        })
+          })
       );
+      if (mountedRef.current) {
+        setActionError("");
+      }
     })().finally(() => {
       openChatPromiseRef.current = null;
       if (mountedRef.current) {
@@ -235,8 +263,14 @@ export default function PlayResultScreen() {
     });
 
     openChatPromiseRef.current = task;
-    await task;
-  }, [db, historyMode, navigation, peer?.uid, peerName, session, sessionId, totalStrokeCount, uid]);
+    try {
+      await task;
+    } catch {
+      if (mountedRef.current) {
+        setActionError("Не удалось открыть чат прямо сейчас. Попробуй еще раз чуть позже.");
+      }
+    }
+  }, [db, navigation, peer?.uid, peerName, session, sessionId, totalStrokeCount, uid]);
 
   const handleOpenPress = React.useCallback(async () => {
     if (submitting || openingChat) return;
@@ -247,13 +281,24 @@ export default function PlayResultScreen() {
     }
 
     if (historyMode) return;
-    if (!db || !sessionId || !uid || decision) return;
+    if (!db || !sessionId || !uid || decision) {
+      if (mountedRef.current) {
+        setActionError("Сейчас не получилось сохранить решение. Вернись назад или попробуй снова.");
+      }
+      return;
+    }
     if (mountedRef.current) {
       setSubmitting(true);
       setDecision("open");
+      setActionError("");
     }
     try {
       await submitRevealDecision(db, sessionId, uid, "open");
+    } catch {
+      if (mountedRef.current) {
+        setDecision(null);
+        setActionError("Не удалось сохранить выбор. Попробуй еще раз.");
+      }
     } finally {
       if (mountedRef.current) {
         setSubmitting(false);
@@ -262,13 +307,24 @@ export default function PlayResultScreen() {
   }, [allOpen, db, decision, historyMode, openChat, openingChat, sessionId, submitting, uid]);
 
   const handleSkipPress = React.useCallback(async () => {
-    if (!db || !sessionId || !uid || submitting || decision || openingChat) return;
+    if (!db || !sessionId || !uid || submitting || decision || openingChat) {
+      if (mountedRef.current && !submitting && !openingChat) {
+        setActionError("Сейчас не получилось сохранить решение. Попробуй еще раз.");
+      }
+      return;
+    }
     if (mountedRef.current) {
       setSubmitting(true);
       setDecision("skip");
+      setActionError("");
     }
     try {
       await submitRevealDecision(db, sessionId, uid, "skip");
+    } catch {
+      if (mountedRef.current) {
+        setDecision(null);
+        setActionError("Не удалось сохранить выбор. Попробуй еще раз.");
+      }
     } finally {
       if (mountedRef.current) {
         setSubmitting(false);
@@ -279,7 +335,7 @@ export default function PlayResultScreen() {
   const primaryDisabled =
     submitting ||
     openingChat ||
-    (historyMode ? !allOpen : Boolean(decision) && !allOpen);
+    (historyMode ? !allOpen || !canOpenChat : Boolean(decision) && !allOpen);
   const tertiaryDisabled = submitting || openingChat || Boolean(decision);
   const screenTitle = historyMode ? "Совместная история" : "Итог сессии";
   const handleBack = () => {
@@ -303,13 +359,34 @@ export default function PlayResultScreen() {
         onBack={handleBack}
       >
         <View style={styles.centerState}>
-          <Text style={styles.statusTitle}>Сессия не найдена</Text>
-          <Text style={styles.statusText}>
-            Не удалось открыть итог без идентификатора совместной сессии.
-          </Text>
-          <Pressable onPress={goToTogether} style={styles.inlineButton}>
-            <Text style={styles.inlineButtonText}>Вернуться во Вместе</Text>
-          </Pressable>
+          <CoreStateCard
+            icon="alert-circle-outline"
+            title="Сессия не найдена"
+            body="Не удалось открыть итог без идентификатора совместной сессии."
+            primaryAction={{ label: "Вернуться во Вместе", onPress: goToTogether }}
+            secondaryAction={{ label: "Назад", onPress: handleBack }}
+          />
+        </View>
+      </ScreenShell>
+    );
+  }
+
+  if (!db) {
+    return (
+      <ScreenShell
+        title={screenTitle}
+        background="nightCity"
+        showBack
+        onBack={handleBack}
+      >
+        <View style={styles.centerState}>
+          <CoreStateCard
+            icon="cloud-offline-outline"
+            title="Итог пока недоступен"
+            body="Мы не смогли подключить итог этой сессии прямо сейчас. Вернись назад или попробуй открыть его еще раз позже."
+            primaryAction={{ label: "Вернуться во Вместе", onPress: goToTogether }}
+            secondaryAction={{ label: "Назад", onPress: handleBack }}
+          />
         </View>
       </ScreenShell>
     );
@@ -324,8 +401,33 @@ export default function PlayResultScreen() {
         onBack={handleBack}
       >
         <View style={styles.centerState}>
-          <ActivityIndicator color={theme.colors.accent} />
-          <Text style={styles.statusText}>Собираем итог совместной сессии…</Text>
+          <CoreStateCard
+            loading
+            icon="sparkles-outline"
+            title="Собираем итог"
+            body="Еще пара секунд, и здесь появится результат вашей совместной сессии."
+          />
+        </View>
+      </ScreenShell>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <ScreenShell
+        title={screenTitle}
+        background="nightCity"
+        showBack
+        onBack={handleBack}
+      >
+        <View style={styles.centerState}>
+          <CoreStateCard
+            icon="cloud-offline-outline"
+            title="Итог временно недоступен"
+            body={loadError}
+            primaryAction={{ label: "Повторить", onPress: () => setReloadKey((prev) => prev + 1) }}
+            secondaryAction={{ label: "Назад", onPress: handleBack }}
+          />
         </View>
       </ScreenShell>
     );
@@ -340,13 +442,13 @@ export default function PlayResultScreen() {
         onBack={handleBack}
       >
         <View style={styles.centerState}>
-          <Text style={styles.statusTitle}>Итог больше недоступен</Text>
-          <Text style={styles.statusText}>
-            Сессия уже исчезла или не успела сохраниться. Можно вернуться во Вместе и начать новую.
-          </Text>
-          <Pressable onPress={goToTogether} style={styles.inlineButton}>
-            <Text style={styles.inlineButtonText}>Вернуться во Вместе</Text>
-          </Pressable>
+          <CoreStateCard
+            icon="albums-outline"
+            title="Итог больше недоступен"
+            body="Сессия уже исчезла или не успела сохраниться. Можно вернуться во Вместе и начать новую."
+            primaryAction={{ label: "Вернуться во Вместе", onPress: goToTogether }}
+            secondaryAction={{ label: "Начать новую сессию", onPress: startNewSession }}
+          />
         </View>
       </ScreenShell>
     );
@@ -413,8 +515,13 @@ export default function PlayResultScreen() {
           <Text style={styles.actionText}>
             {historyMode
               ? revealCopy.description
-              : "Если оба выберут открыть, появится приватный чат и раскроются профили."}
+              : allOpen && !uid
+                ? "Открытие уже произошло, но чтобы войти в личный чат, нужен активный аккаунт."
+                : allOpen && !canOpenChat
+                ? "Открытие уже произошло, но контекст чата пока не готов. Можно открыть историю или попробовать чуть позже."
+                : "Если оба выберут открыть, появится приватный чат и раскроются профили."}
           </Text>
+          {actionError ? <Text style={styles.inlineError}>{actionError}</Text> : null}
 
           {historyMode ? (
             allOpen ? (
@@ -483,7 +590,7 @@ export default function PlayResultScreen() {
             <Pressable onPress={() => goToDetail(replayOpen ? "replay" : undefined)} style={styles.routeButton}>
               <Text style={styles.routeButtonText}>Открыть совместную историю</Text>
             </Pressable>
-            {allOpen && !historyMode ? (
+            {allOpen && !historyMode && canOpenChat ? (
               <Pressable
                 onPress={() => void openChat()}
                 style={[styles.routeButton, openingChat && styles.disabledButton]}
@@ -515,6 +622,14 @@ export default function PlayResultScreen() {
                 </Text>
               </View>
             </View>
+            {!hasReplay ? (
+              <View style={styles.statusCard}>
+                <Text style={styles.statusTitle}>Replay пока пустой</Text>
+                <Text style={styles.statusText}>
+                  Эта сессия сохранилась без штрихов. Итог и статус связи остались, но сам replay здесь не появится.
+                </Text>
+              </View>
+            ) : null}
             <ReplayCanvasWebView
               strokes={replayStrokes}
               autoplay
@@ -569,18 +684,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 28,
     gap: 12,
-  },
-  inlineButton: {
-    marginTop: 4,
-    borderRadius: theme.shapes.pill,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: theme.colors.primary,
-  },
-  inlineButtonText: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "800",
   },
   heroCard: {
     borderRadius: theme.shapes.card,
@@ -678,6 +781,11 @@ const styles = StyleSheet.create({
     color: theme.colors.subtext,
     fontSize: 14,
     lineHeight: 20,
+  },
+  inlineError: {
+    color: theme.colors.danger,
+    fontSize: 13,
+    lineHeight: 18,
   },
   primaryButton: {
     borderRadius: theme.shapes.cardInner,

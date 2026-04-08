@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -10,6 +9,7 @@ import {
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 
+import CoreStateCard from "@/components/CoreStateCard";
 import ScreenShell from "@/components/ScreenShell";
 import { auth, db } from "@/config/firebaseConfig";
 import { useLocale } from "@/contexts/LocaleContext";
@@ -82,6 +82,7 @@ export default function PlayHistoryScreen() {
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const [threadsLoaded, setThreadsLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [openingChatId, setOpeningChatId] = useState<string | null>(null);
   const goToTogether = useCallback(() => {
@@ -105,11 +106,13 @@ export default function PlayHistoryScreen() {
       setHistory([]);
       setHistoryLoaded(true);
       setError(null);
+      setActionError(null);
       return;
     }
 
     setHistoryLoaded(false);
     setError(null);
+    setActionError(null);
     const unsubscribe = subscribeMyPlayHistory(
       db,
       uid,
@@ -230,6 +233,9 @@ export default function PlayHistoryScreen() {
             backSessionId: card.sessionId,
           })
         );
+        setActionError(null);
+      } catch {
+        setActionError("Не удалось открыть чат прямо сейчас. Попробуй еще раз чуть позже.");
       } finally {
         setOpeningChatId((prev) => (prev === card.id ? null : prev));
       }
@@ -323,40 +329,74 @@ export default function PlayHistoryScreen() {
 
   const renderEmpty = () => (
     <View style={styles.centerBlock}>
-      <View style={styles.emptyIcon}>
-        <Ionicons name="albums-outline" size={34} color={theme.colors.accent} />
-      </View>
-      <Text style={styles.emptyTitle}>
-        {tt("playHistory.emptyTitle", "Общие истории появятся здесь")}
-      </Text>
-      <Text style={styles.emptyText}>
-        {tt(
+      <CoreStateCard
+        icon="albums-outline"
+        title={tt("playHistory.emptyTitle", "Общие истории появятся здесь")}
+        body={tt(
           "playHistory.emptyBody",
           "После первой совместной сессии здесь появятся ваши общие истории."
         )}
-      </Text>
-      <Pressable onPress={goToStart} style={styles.primaryButton}>
-        <Text style={styles.primaryButtonText}>
-          {tt("playHistory.startCta", "Начать совместную сессию")}
-        </Text>
-      </Pressable>
+        primaryAction={{
+          label: tt("playHistory.startCta", "Начать совместную сессию"),
+          onPress: goToStart,
+        }}
+        secondaryAction={{
+          label: t("connections.goToTogether"),
+          onPress: goToTogether,
+        }}
+      />
     </View>
   );
 
   const renderError = () => (
     <View style={styles.centerBlock}>
-      <View style={styles.emptyIcon}>
-        <Ionicons name="cloud-offline-outline" size={34} color={theme.colors.accent} />
-      </View>
-      <Text style={styles.emptyTitle}>
-        {tt("playHistory.errorTitle", "История временно недоступна")}
-      </Text>
-      <Text style={styles.emptyText}>{error}</Text>
-      <Pressable onPress={() => setReloadKey((prev) => prev + 1)} style={styles.primaryButton}>
-        <Text style={styles.primaryButtonText}>{tt("common.retry", "Повторить")}</Text>
-      </Pressable>
+      <CoreStateCard
+        icon="cloud-offline-outline"
+        title={tt("playHistory.errorTitle", "История временно недоступна")}
+        body={error ?? tt("playHistory.errorBody", "Не удалось собрать ваши совместные истории. Попробуй еще раз.")}
+        primaryAction={{
+          label: tt("common.retry", "Повторить"),
+          onPress: () => setReloadKey((prev) => prev + 1),
+        }}
+        secondaryAction={{
+          label: t("connections.goToTogether"),
+          onPress: goToTogether,
+        }}
+      />
     </View>
   );
+
+  if (!uid) {
+    return (
+      <ScreenShell title={tt("playHistory.title", "Мои совместные истории")} background="nightCity" showBack onBack={goToTogether}>
+        <View style={styles.centerBlock}>
+          <CoreStateCard
+            icon="person-circle-outline"
+            title="История доступна после входа"
+            body="Войди в аккаунт, чтобы видеть завершенные совместные сессии, replay и открытые чаты."
+            primaryAction={{ label: "Открыть профиль", onPress: () => navigation.navigate("Profile") }}
+            secondaryAction={{ label: t("connections.goToTogether"), onPress: goToTogether }}
+          />
+        </View>
+      </ScreenShell>
+    );
+  }
+
+  if (!db) {
+    return (
+      <ScreenShell title={tt("playHistory.title", "Мои совместные истории")} background="nightCity" showBack onBack={goToTogether}>
+        <View style={styles.centerBlock}>
+          <CoreStateCard
+            icon="cloud-offline-outline"
+            title={tt("playHistory.errorTitle", "История временно недоступна")}
+            body="Мы не смогли подключить совместные истории прямо сейчас. Попробуй позже или вернись во Вместе."
+            primaryAction={{ label: t("connections.goToTogether"), onPress: goToTogether }}
+            secondaryAction={{ label: "Связи", onPress: goToConnections }}
+          />
+        </View>
+      </ScreenShell>
+    );
+  }
 
   return (
     <ScreenShell
@@ -375,10 +415,12 @@ export default function PlayHistoryScreen() {
     >
       {isLoading ? (
         <View style={styles.centerBlock}>
-          <ActivityIndicator color={theme.colors.accent} />
-          <Text style={styles.loadingText}>
-            {tt("playHistory.loading", "Собираем ваши совместные истории…")}
-          </Text>
+          <CoreStateCard
+            loading
+            icon="albums-outline"
+            title={tt("playHistory.title", "Мои совместные истории")}
+            body={tt("playHistory.loading", "Собираем ваши совместные истории…")}
+          />
         </View>
       ) : error ? (
         renderError()
@@ -390,6 +432,13 @@ export default function PlayHistoryScreen() {
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
         >
+          {actionError ? (
+            <View style={styles.inlineErrorCard}>
+              <Text style={styles.inlineErrorTitle}>Чат пока не открылся</Text>
+              <Text style={styles.inlineErrorText}>{actionError}</Text>
+            </View>
+          ) : null}
+
           <View style={styles.heroCard}>
             <Text style={styles.heroKicker}>
               {tt("playHistory.heroKicker", "Память продукта")}
@@ -459,10 +508,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 28,
     gap: 14,
   },
-  loadingText: {
+  inlineErrorCard: {
+    padding: 16,
+    borderRadius: theme.shapes.card,
+    backgroundColor: "rgba(255, 77, 103, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 77, 103, 0.22)",
+    gap: 6,
+  },
+  inlineErrorTitle: {
+    color: theme.colors.text,
+    fontSize: 16,
+    fontWeight: "800",
+  },
+  inlineErrorText: {
     color: theme.colors.subtext,
     fontSize: 14,
-    textAlign: "center",
+    lineHeight: 20,
   },
   heroCard: {
     padding: 20,

@@ -1,6 +1,5 @@
 import React from "react";
 import {
-  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -8,8 +7,8 @@ import {
   View,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
-import { Ionicons } from "@expo/vector-icons";
 
+import CoreStateCard from "@/components/CoreStateCard";
 import ScreenShell from "@/components/ScreenShell";
 import ReplayCanvasWebView from "@/components/play/ReplayCanvasWebView";
 import type { SharedCanvasStroke } from "@/components/play/SharedCanvasWebView";
@@ -214,9 +213,9 @@ export default function PlaySessionDetailScreen() {
   }, [replayFocus, reloadKey, sessionId, tt, uid]);
 
   React.useEffect(() => {
-    if (!sessionId) return;
+    if (!sessionId || loadingSession || !session) return;
     void markPlaySessionSeen(sessionId);
-  }, [sessionId]);
+  }, [loadingSession, session, sessionId]);
 
   const peer = React.useMemo(() => {
     if (!session) return null;
@@ -235,6 +234,7 @@ export default function PlaySessionDetailScreen() {
     return events.reduce((sum, batch) => sum + batch.strokes.length, 0);
   }, [events, session?.resultStrokeCount]);
   const replayStrokes = React.useMemo(() => mapReplayStrokes(events), [events]);
+  const hasReplay = replayStrokes.length > 0;
   const revealOutcome = React.useMemo(
     () => (session ? resolvePlayRevealOutcome(session) : "waiting"),
     [session]
@@ -275,20 +275,49 @@ export default function PlaySessionDetailScreen() {
         onBack={handleBack}
       >
         <View style={styles.centerState}>
-          <Text style={styles.stateTitle}>
-            {tt("playDetail.missingTitle", "История не найдена")}
-          </Text>
-          <Text style={styles.stateText}>
-            {tt(
+          <CoreStateCard
+            icon="alert-circle-outline"
+            title={tt("playDetail.missingTitle", "История не найдена")}
+            body={tt(
               "playDetail.missingBody",
               "Не удалось открыть страницу истории без идентификатора совместной сессии."
             )}
-          </Text>
-          <Pressable onPress={goToHistory} style={styles.primaryButton}>
-            <Text style={styles.primaryButtonText}>
-              {tt("playDetail.goToHistory", "Вернуться к историям")}
-            </Text>
-          </Pressable>
+            primaryAction={{
+              label: tt("playDetail.goToHistory", "Вернуться к историям"),
+              onPress: goToHistory,
+            }}
+            secondaryAction={{
+              label: tt("playDetail.goToTogether", "Вернуться во Вместе"),
+              onPress: goToTogether,
+            }}
+          />
+        </View>
+      </ScreenShell>
+    );
+  }
+
+  if (!db) {
+    return (
+      <ScreenShell
+        title={tt("playDetail.title", "Совместная история")}
+        background="nightCity"
+        showBack
+        onBack={handleBack}
+      >
+        <View style={styles.centerState}>
+          <CoreStateCard
+            icon="cloud-offline-outline"
+            title={tt("playDetail.errorTitle", "История временно недоступна")}
+            body="Мы не смогли подключить совместную историю прямо сейчас. Вернись назад или попробуй позже."
+            primaryAction={{
+              label: tt("playDetail.goToHistory", "Вернуться к историям"),
+              onPress: goToHistory,
+            }}
+            secondaryAction={{
+              label: tt("playDetail.goToTogether", "Вернуться во Вместе"),
+              onPress: goToTogether,
+            }}
+          />
         </View>
       </ScreenShell>
     );
@@ -303,10 +332,12 @@ export default function PlaySessionDetailScreen() {
         onBack={handleBack}
       >
         <View style={styles.centerState}>
-          <ActivityIndicator color={theme.colors.accent} />
-          <Text style={styles.stateText}>
-            {tt("playDetail.loading", "Собираем страницу вашей совместной истории…")}
-          </Text>
+          <CoreStateCard
+            loading
+            icon="albums-outline"
+            title={tt("playDetail.title", "Совместная история")}
+            body={tt("playDetail.loading", "Собираем страницу вашей совместной истории…")}
+          />
         </View>
       </ScreenShell>
     );
@@ -321,16 +352,19 @@ export default function PlaySessionDetailScreen() {
         onBack={handleBack}
       >
         <View style={styles.centerState}>
-          <View style={styles.stateIcon}>
-            <Ionicons name="cloud-offline-outline" size={34} color={theme.colors.accent} />
-          </View>
-          <Text style={styles.stateTitle}>
-            {tt("playDetail.errorTitle", "История временно недоступна")}
-          </Text>
-          <Text style={styles.stateText}>{loadError}</Text>
-          <Pressable onPress={() => setReloadKey((prev) => prev + 1)} style={styles.primaryButton}>
-            <Text style={styles.primaryButtonText}>{tt("common.retry", "Повторить")}</Text>
-          </Pressable>
+          <CoreStateCard
+            icon="cloud-offline-outline"
+            title={tt("playDetail.errorTitle", "История временно недоступна")}
+            body={loadError}
+            primaryAction={{
+              label: tt("common.retry", "Повторить"),
+              onPress: () => setReloadKey((prev) => prev + 1),
+            }}
+            secondaryAction={{
+              label: tt("playDetail.goToHistory", "Вернуться к историям"),
+              onPress: goToHistory,
+            }}
+          />
         </View>
       </ScreenShell>
     );
@@ -345,27 +379,22 @@ export default function PlaySessionDetailScreen() {
         onBack={handleBack}
       >
         <View style={styles.centerState}>
-          <Text style={styles.stateTitle}>
-            {tt("playDetail.notFoundTitle", "Эта история больше недоступна")}
-          </Text>
-          <Text style={styles.stateText}>
-            {tt(
+          <CoreStateCard
+            icon="albums-outline"
+            title={tt("playDetail.notFoundTitle", "Эта история больше недоступна")}
+            body={tt(
               "playDetail.notFoundBody",
               "Документ совместной сессии не найден. Можно вернуться к общим историям или начать новую сессию."
             )}
-          </Text>
-          <View style={styles.centerActions}>
-            <Pressable onPress={goToHistory} style={styles.primaryButton}>
-              <Text style={styles.primaryButtonText}>
-                {tt("playDetail.goToHistory", "Вернуться к историям")}
-              </Text>
-            </Pressable>
-            <Pressable onPress={goToTogether} style={styles.secondaryButton}>
-              <Text style={styles.secondaryButtonText}>
-                {tt("playDetail.goToTogether", "Вернуться во Вместе")}
-              </Text>
-            </Pressable>
-          </View>
+            primaryAction={{
+              label: tt("playDetail.goToHistory", "Вернуться к историям"),
+              onPress: goToHistory,
+            }}
+            secondaryAction={{
+              label: tt("playDetail.goToTogether", "Вернуться во Вместе"),
+              onPress: goToTogether,
+            }}
+          />
         </View>
       </ScreenShell>
     );
@@ -433,19 +462,31 @@ export default function PlaySessionDetailScreen() {
               </Pressable>
             </>
           ) : (
-            <Text style={styles.actionText}>
-              {threadLookupError
-                ? threadLookupError
-                : revealOutcome === "open_open"
-                  ? tt(
-                      "playDetail.chatPending",
-                      "Открытие состоялось, но чат еще не найден в этой истории. Попробуй зайти сюда чуть позже."
-                    )
-                  : tt(
-                      "playDetail.chatUnavailable",
-                      "Чат появится только там, где совместная сессия действительно открылась в личный контакт."
-                    )}
-            </Text>
+            <>
+              <Text style={styles.actionText}>
+                {threadLookupError
+                  ? threadLookupError
+                  : !uid && revealOutcome === "open_open"
+                    ? "Чат уже должен быть доступен, но для входа в него нужен активный аккаунт."
+                  : revealOutcome === "open_open"
+                    ? tt(
+                        "playDetail.chatPending",
+                        "Открытие состоялось, но чат еще не найден в этой истории. Попробуй зайти сюда чуть позже."
+                      )
+                    : tt(
+                        "playDetail.chatUnavailable",
+                        "Чат появится только там, где совместная сессия действительно открылась в личный контакт."
+                      )}
+              </Text>
+              {revealOutcome === "open_open" || threadLookupError ? (
+                <Pressable
+                  onPress={() => setReloadKey((prev) => prev + 1)}
+                  style={styles.primaryButton}
+                >
+                  <Text style={styles.primaryButtonText}>{tt("common.retry", "Повторить")}</Text>
+                </Pressable>
+              ) : null}
+            </>
           )}
           <View style={styles.actionRow}>
             <Pressable onPress={startNewSession} style={styles.secondaryButton}>
@@ -483,13 +524,22 @@ export default function PlaySessionDetailScreen() {
           </View>
 
           {replayOpen ? (
-            <ReplayCanvasWebView
-              key={`${sessionId}_${replayStrokes.length}`}
-              strokes={replayStrokes}
-              autoplay
-              speed={1.25}
-              showControls
-            />
+            hasReplay ? (
+              <ReplayCanvasWebView
+                key={`${sessionId}_${replayStrokes.length}`}
+                strokes={replayStrokes}
+                autoplay
+                speed={1.25}
+                showControls
+              />
+            ) : (
+              <View style={styles.emptyReplayCard}>
+                <Text style={styles.emptyReplayTitle}>Replay недоступен</Text>
+                <Text style={styles.emptyReplayText}>
+                  Эта совместная сессия сохранилась без штрихов. История и итог остались, но самого replay здесь нет.
+                </Text>
+              </View>
+            )
           ) : null}
         </View>
       </ScrollView>
@@ -510,35 +560,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 14,
     paddingHorizontal: 28,
-  },
-  stateIcon: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(255, 122, 60, 0.12)",
-    borderWidth: 1,
-    borderColor: "rgba(255, 122, 60, 0.22)",
-  },
-  stateTitle: {
-    color: theme.colors.text,
-    fontSize: 22,
-    lineHeight: 28,
-    fontWeight: "800",
-    textAlign: "center",
-  },
-  stateText: {
-    color: theme.colors.subtext,
-    fontSize: 14,
-    lineHeight: 21,
-    textAlign: "center",
-  },
-  centerActions: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "center",
-    gap: 10,
   },
   heroCard: {
     padding: 20,
@@ -704,5 +725,23 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
     fontSize: 12,
     fontWeight: "800",
+  },
+  emptyReplayCard: {
+    padding: 16,
+    borderRadius: theme.shapes.cardInner,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+    gap: 8,
+  },
+  emptyReplayTitle: {
+    color: theme.colors.text,
+    fontSize: 16,
+    fontWeight: "800",
+  },
+  emptyReplayText: {
+    color: theme.colors.subtext,
+    fontSize: 14,
+    lineHeight: 20,
   },
 });

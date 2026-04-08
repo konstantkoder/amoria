@@ -47,8 +47,8 @@ function getBlockedState(reason: MatchBlockReason) {
     case "firebase":
       return {
         title: "Together временно не готов",
-        body: "Мы не смогли подготовить соединение для старта. Вернись назад или попробуй снова через пару секунд.",
-        primaryLabel: "Попробовать снова",
+        body: "Мы не смогли подготовить соединение для старта. Вернись назад или открой Together позже.",
+        primaryLabel: "Во Вместе",
         secondaryLabel: "Назад",
       };
     case "profile":
@@ -269,8 +269,7 @@ export default function PlayMatchScreen() {
       return;
     }
     if (blockReason === "firebase") {
-      allowLeaveRef.current = true;
-      navigation.replace("PlayMatch", { activity: "draw" });
+      returnToTogether();
       return;
     }
     returnToTogether();

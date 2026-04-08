@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { KeyboardStickyView } from "react-native-keyboard-controller";
 import { useNavigation, useRoute } from "@react-navigation/native";
 
+import CoreStateCard from "@/components/CoreStateCard";
 import ScreenShell from "@/components/ScreenShell";
 import { auth, db } from "@/config/firebaseConfig";
 import { useLocale } from "@/contexts/LocaleContext";
@@ -72,6 +73,10 @@ export default function DMChatScreen() {
   useEffect(() => {
     activeThreadRef.current = threadId;
     sendGuardRef.current = false;
+    if (sendResetTimeoutRef.current) {
+      clearTimeout(sendResetTimeoutRef.current);
+      sendResetTimeoutRef.current = null;
+    }
     setSending(false);
     setThread(null);
     setMsgs([]);
@@ -88,8 +93,10 @@ export default function DMChatScreen() {
 
   useEffect(() => {
     if (!threadId) return;
+    if (threadLoading && !msgs.length) return;
+    if (!thread && !msgs.length) return;
     void markDmThreadSeen(threadId);
-  }, [threadId]);
+  }, [msgs.length, thread, threadId, threadLoading]);
 
   useEffect(() => {
     if (!db || !myId || !threadId) {
@@ -258,7 +265,9 @@ export default function DMChatScreen() {
   const sourceTitle = thread?.source === "play" ? tt("dm.sourcePlay", "You opened after drawing together") : "";
   const strokeCount = thread?.artworkSummary?.strokeCount;
   const isLoading = threadLoading || messagesLoading;
+  const threadMissing = !isLoading && !subscriptionError && !thread && mergedMsgs.length === 0;
   const isEmpty = !isLoading && mergedMsgs.length === 0;
+  const canShowComposer = Boolean(db && myId && threadId && peer.uid) && !subscriptionError && !threadMissing;
   const screenTitleName = peer.name || routePeerName || "";
   const screenTitle = screenTitleName ? t("dm.title", { name: screenTitleName }) : tt("dm.genericTitle", "Chat");
   const handleBack = useCallback(() => {
@@ -350,10 +359,45 @@ export default function DMChatScreen() {
     return (
       <ScreenShell title={screenTitle} background="nightCity" showBack onBack={handleBack}>
         <View style={styles.centerState}>
-          <Text style={styles.emptyTitle}>{tt("dm.unavailableTitle", "Chat unavailable")}</Text>
-          <Text style={styles.emptyText}>
-            {tt("dm.unavailableBody", "We couldn't open the conversation without a valid thread identifier.")}
-          </Text>
+          <CoreStateCard
+            icon="alert-circle-outline"
+            title={tt("dm.unavailableTitle", "Chat unavailable")}
+            body={tt("dm.unavailableBody", "We couldn't open the conversation without a valid thread identifier.")}
+            primaryAction={{ label: "Назад", onPress: handleBack }}
+            secondaryAction={{ label: "Вернуться во Вместе", onPress: () => navigation.navigate("Tabs", { screen: "Together" }) }}
+          />
+        </View>
+      </ScreenShell>
+    );
+  }
+
+  if (!myId) {
+    return (
+      <ScreenShell title={screenTitle} background="nightCity" showBack onBack={handleBack}>
+        <View style={styles.centerState}>
+          <CoreStateCard
+            icon="person-circle-outline"
+            title="Чат доступен после входа"
+            body="Войди в аккаунт, чтобы открыть личный диалог и продолжить связь."
+            primaryAction={{ label: "Открыть профиль", onPress: () => navigation.navigate("Profile") }}
+            secondaryAction={{ label: "Назад", onPress: handleBack }}
+          />
+        </View>
+      </ScreenShell>
+    );
+  }
+
+  if (!db) {
+    return (
+      <ScreenShell title={screenTitle} background="nightCity" showBack onBack={handleBack}>
+        <View style={styles.centerState}>
+          <CoreStateCard
+            icon="cloud-offline-outline"
+            title={tt("dm.errorTitle", "The chat is temporarily unavailable")}
+            body="Мы не смогли подключить личный чат прямо сейчас. Попробуй позже или вернись назад."
+            primaryAction={{ label: "Назад", onPress: handleBack }}
+            secondaryAction={{ label: "Вернуться во Вместе", onPress: () => navigation.navigate("Tabs", { screen: "Together" }) }}
+          />
         </View>
       </ScreenShell>
     );
@@ -363,35 +407,52 @@ export default function DMChatScreen() {
     <ScreenShell title={screenTitle} background="nightCity" showBack onBack={handleBack}>
       {isLoading ? (
         <View style={styles.centerState}>
-          <ActivityIndicator color={theme.colors.accent} />
-          <Text style={styles.emptyText}>{tt("dm.loading", "Подключаем чат…")}</Text>
+          <CoreStateCard
+            loading
+            icon="chatbubble-ellipses-outline"
+            title={screenTitle}
+            body={tt("dm.loading", "Подключаем чат…")}
+          />
         </View>
       ) : subscriptionError ? (
         <View style={styles.centerState}>
-          <Text style={styles.emptyTitle}>{tt("dm.errorTitle", "The chat is temporarily unavailable")}</Text>
-          <Text style={styles.emptyText}>{subscriptionError}</Text>
-          <TouchableOpacity onPress={() => setReloadKey((prev) => prev + 1)} style={styles.retryButton}>
-            <Text style={styles.retryText}>{tt("common.retry", "Retry")}</Text>
-          </TouchableOpacity>
+          <CoreStateCard
+            icon="cloud-offline-outline"
+            title={tt("dm.errorTitle", "The chat is temporarily unavailable")}
+            body={subscriptionError}
+            primaryAction={{ label: tt("common.retry", "Retry"), onPress: () => setReloadKey((prev) => prev + 1) }}
+            secondaryAction={{ label: "Назад", onPress: handleBack }}
+          />
+        </View>
+      ) : threadMissing ? (
+        <View style={styles.centerState}>
+          <CoreStateCard
+            icon="chatbox-ellipses-outline"
+            title={tt("dm.unavailableTitle", "Chat unavailable")}
+            body="Мы не нашли этот диалог в текущем контексте. Возможно, старая ссылка уже устарела или чат еще не успел появиться."
+            primaryAction={{ label: tt("common.retry", "Retry"), onPress: () => setReloadKey((prev) => prev + 1) }}
+            secondaryAction={{ label: "Назад", onPress: handleBack }}
+          />
         </View>
       ) : isEmpty ? (
         <View style={styles.centerState}>
           {renderSourceCard()}
-          <Text style={styles.emptyTitle}>{tt("dm.emptyTitle", "The connection is open")}</Text>
-          <Text style={styles.emptyText}>
-            {tt("dm.emptyBody", "There are no messages yet. Say hi first and continue the connection from here.")}
-          </Text>
-          <TouchableOpacity onPress={handleBack} style={styles.retryButton}>
-            <Text style={styles.retryText}>
-              {backTarget === "history"
-                ? "Вернуться к истории"
-                : backTarget === "sessionDetail"
-                  ? "Вернуться к истории сессии"
-                : backTarget === "connections"
-                  ? "Вернуться в связи"
-                  : "Вернуться назад"}
-            </Text>
-          </TouchableOpacity>
+          <CoreStateCard
+            icon="chatbubbles-outline"
+            title={tt("dm.emptyTitle", "The connection is open")}
+            body={tt("dm.emptyBody", "There are no messages yet. Say hi first and continue the connection from here.")}
+            primaryAction={{
+              label:
+                backTarget === "history"
+                  ? "Вернуться к истории"
+                  : backTarget === "sessionDetail"
+                    ? "Вернуться к истории сессии"
+                    : backTarget === "connections"
+                      ? "Вернуться в связи"
+                      : "Вернуться назад",
+              onPress: handleBack,
+            }}
+          />
         </View>
       ) : (
         <FlatList
@@ -412,27 +473,29 @@ export default function DMChatScreen() {
         />
       )}
 
-      <KeyboardStickyView offset={{ closed: 0, opened: 0 }}>
-        <View style={styles.inputRow}>
-          <TextInput
-            ref={inputRef}
-            value={text}
-            onChangeText={handleTextChange}
-            placeholder={t("dm.messagePlaceholder")}
-            placeholderTextColor={theme.colors.muted}
-            style={styles.input}
-            multiline
-            maxLength={1000}
-          />
-          <TouchableOpacity
-            onPress={send}
-            disabled={!canSend || sending}
-            style={[styles.sendBtn, !canSend || sending ? styles.sendBtnDisabled : null]}
-          >
-            <Text style={styles.sendTxt}>{t("common.send")}</Text>
-          </TouchableOpacity>
-        </View>
-      </KeyboardStickyView>
+      {canShowComposer ? (
+        <KeyboardStickyView offset={{ closed: 0, opened: 0 }}>
+          <View style={styles.inputRow}>
+            <TextInput
+              ref={inputRef}
+              value={text}
+              onChangeText={handleTextChange}
+              placeholder={t("dm.messagePlaceholder")}
+              placeholderTextColor={theme.colors.muted}
+              style={styles.input}
+              multiline
+              maxLength={1000}
+            />
+            <TouchableOpacity
+              onPress={send}
+              disabled={!canSend || sending}
+              style={[styles.sendBtn, !canSend || sending ? styles.sendBtnDisabled : null]}
+            >
+              <Text style={styles.sendTxt}>{t("common.send")}</Text>
+            </TouchableOpacity>
+          </View>
+        </KeyboardStickyView>
+      ) : null}
     </ScreenShell>
   );
 }
@@ -580,17 +643,6 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   sendTxt: {
-    color: "#fff",
-    fontWeight: "800",
-  },
-  retryButton: {
-    marginTop: 6,
-    backgroundColor: theme.colors.primary,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: theme.shapes.pill,
-  },
-  retryText: {
     color: "#fff",
     fontWeight: "800",
   },

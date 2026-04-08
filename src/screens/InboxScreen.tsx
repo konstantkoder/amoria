@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, Text, View } from "react-native";
+import { FlatList, Pressable, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
 
 import { auth, db } from "@/config/firebaseConfig";
+import CoreStateCard from "@/components/CoreStateCard";
 import ScreenShell from "@/components/ScreenShell";
 import {
   formatActivitySignalLabel,
@@ -84,7 +84,7 @@ export default function InboxScreen() {
   );
   const uid = auth?.currentUser?.uid ?? "";
   const freshnessState = useActivityFreshnessState();
-  const [cards, setCards] = useState<InboxThreadCard[]>([]);
+  const [threads, setThreads] = useState<DmThreadDoc[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -92,7 +92,7 @@ export default function InboxScreen() {
   useEffect(() => {
     let alive = true;
     if (!db || !uid) {
-      setCards([]);
+      setThreads([]);
       setLoading(false);
       setError(null);
       return;
@@ -105,28 +105,7 @@ export default function InboxScreen() {
       uid,
       (threads) => {
         if (!alive) return;
-        const next = threads
-          .map((thread) =>
-            mapThreadToCard(
-              thread,
-              uid,
-              t("common.user"),
-              tt("inbox.previewFallback", "The connection is open. You can write first."),
-              freshnessState.dmThreads[thread.id] ?? 0,
-              (currentThread) =>
-                formatActivitySignalLabel(
-                  getDmThreadActivitySignal(
-                    currentThread,
-                    freshnessState.dmThreads[currentThread.id] ?? 0
-                  ),
-                  tt
-                )
-            )
-          )
-          .filter((item): item is InboxThreadCard => Boolean(item))
-          .sort((a, b) => b.sortAt - a.sortAt);
-
-        setCards(next);
+        setThreads(threads);
         setLoading(false);
       },
       () => {
@@ -140,7 +119,32 @@ export default function InboxScreen() {
       alive = false;
       unsubscribe();
     };
-  }, [freshnessState.dmThreads, reloadKey, t, tt, uid]);
+  }, [reloadKey, tt, uid]);
+
+  const cards = useMemo(
+    () =>
+      threads
+        .map((thread) =>
+          mapThreadToCard(
+            thread,
+            uid,
+            t("common.user"),
+            tt("inbox.previewFallback", "The connection is open. You can write first."),
+            freshnessState.dmThreads[thread.id] ?? 0,
+            (currentThread) =>
+              formatActivitySignalLabel(
+                getDmThreadActivitySignal(
+                  currentThread,
+                  freshnessState.dmThreads[currentThread.id] ?? 0
+                ),
+                tt
+              )
+          )
+        )
+        .filter((item): item is InboxThreadCard => Boolean(item))
+        .sort((a, b) => b.sortAt - a.sortAt),
+    [freshnessState.dmThreads, t, threads, tt, uid]
+  );
 
   const sourceLabels = useMemo(
     () => ({
@@ -271,6 +275,48 @@ export default function InboxScreen() {
     [navigation, sourceLabels]
   );
 
+  if (!uid) {
+    return (
+      <ScreenShell
+        title={t("tabs.chats")}
+        background="chats"
+        overlayOpacity={0.18}
+        blurRadius={0}
+      >
+        <View style={{ flex: 1, paddingHorizontal: 16, justifyContent: "center" }}>
+          <CoreStateCard
+            icon="person-circle-outline"
+            title="Чаты доступны после входа"
+            body="Войди в аккаунт, чтобы видеть личные диалоги, открытые после совместных сессий."
+            primaryAction={{ label: "Открыть профиль", onPress: () => navigation.navigate("Profile") }}
+            secondaryAction={{ label: "Вернуться во Вместе", onPress: goToTogether }}
+          />
+        </View>
+      </ScreenShell>
+    );
+  }
+
+  if (!db) {
+    return (
+      <ScreenShell
+        title={t("tabs.chats")}
+        background="chats"
+        overlayOpacity={0.18}
+        blurRadius={0}
+      >
+        <View style={{ flex: 1, paddingHorizontal: 16, justifyContent: "center" }}>
+          <CoreStateCard
+            icon="cloud-offline-outline"
+            title={tt("inbox.errorTitle", "Chats are temporarily unavailable")}
+            body="Мы не смогли подключить личные чаты прямо сейчас. Попробуй позже или вернись во Вместе."
+            primaryAction={{ label: "Вернуться во Вместе", onPress: goToTogether }}
+            secondaryAction={{ label: "Открыть связи", onPress: () => navigation.navigate("Tabs", { screen: "Connections" }) }}
+          />
+        </View>
+      </ScreenShell>
+    );
+  }
+
   return (
     <ScreenShell
       title={t("tabs.chats")}
@@ -349,14 +395,15 @@ export default function InboxScreen() {
               flex: 1,
               alignItems: "center",
               justifyContent: "center",
-              paddingHorizontal: 28,
-              gap: 12,
+              paddingHorizontal: 12,
             }}
           >
-            <ActivityIndicator color={theme.colors.accent} />
-            <Text style={{ color: theme.colors.subtext, fontSize: 14, textAlign: "center" }}>
-              {tt("inbox.loading", "Loading your chats…")}
-            </Text>
+            <CoreStateCard
+              loading
+              icon="chatbubbles-outline"
+              title={t("tabs.chats")}
+              body={tt("inbox.loading", "Loading your chats…")}
+            />
           </View>
         ) : error ? (
           <View
@@ -364,51 +411,19 @@ export default function InboxScreen() {
               flex: 1,
               alignItems: "center",
               justifyContent: "center",
-              paddingHorizontal: 28,
-              gap: 12,
+              paddingHorizontal: 12,
             }}
           >
-            <View
-              style={{
-                width: 78,
-                height: 78,
-                borderRadius: 39,
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: "rgba(255, 122, 60, 0.12)",
-                borderWidth: 1,
-                borderColor: "rgba(255,255,255,0.08)",
+            <CoreStateCard
+              icon="cloud-offline-outline"
+              title={tt("inbox.errorTitle", "Chats are temporarily unavailable")}
+              body={error}
+              primaryAction={{
+                label: tt("common.retry", "Retry"),
+                onPress: () => setReloadKey((prev) => prev + 1),
               }}
-            >
-              <Ionicons name="alert-circle-outline" size={34} color={theme.colors.accent} />
-            </View>
-            <Text
-              style={{
-                color: theme.colors.text,
-                fontSize: 18,
-                fontWeight: "800",
-                textAlign: "center",
-              }}
-            >
-              {tt("inbox.errorTitle", "Chats are temporarily unavailable")}
-            </Text>
-            <Text style={{ color: theme.colors.subtext, fontSize: 14, lineHeight: 20, textAlign: "center" }}>
-              {error}
-            </Text>
-            <Pressable
-              onPress={() => setReloadKey((prev) => prev + 1)}
-              style={{
-                marginTop: 4,
-                paddingHorizontal: 14,
-                paddingVertical: 10,
-                borderRadius: theme.shapes.pill,
-                backgroundColor: theme.colors.primary,
-              }}
-            >
-              <Text style={{ color: "#fff", fontWeight: "800" }}>
-                {tt("common.retry", "Retry")}
-              </Text>
-            </Pressable>
+              secondaryAction={{ label: "Вернуться во Вместе", onPress: goToTogether }}
+            />
           </View>
         ) : cards.length ? (
           <FlatList
@@ -424,79 +439,19 @@ export default function InboxScreen() {
               flex: 1,
               alignItems: "center",
               justifyContent: "center",
-              paddingHorizontal: 28,
+              paddingHorizontal: 12,
             }}
           >
-            <View
-              style={{
-                width: 78,
-                height: 78,
-                borderRadius: 39,
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: "rgba(255, 78, 138, 0.12)",
-                borderWidth: 1,
-                borderColor: "rgba(255,255,255,0.08)",
-              }}
-            >
-              <Ionicons name="chatbubbles-outline" size={34} color={theme.colors.primary} />
-            </View>
-            <Text
-              style={{
-                color: theme.colors.text,
-                fontSize: 18,
-                fontWeight: "800",
-                textAlign: "center",
-                marginTop: 18,
-                marginBottom: 8,
-              }}
-            >
-              {tt("chats.empty", "No chats yet.")}
-            </Text>
-            <Text
-              style={{
-                color: theme.colors.subtext,
-                fontSize: 14,
-                textAlign: "center",
-                lineHeight: 20,
-                marginBottom: 18,
-              }}
-            >
-              {tt(
+            <CoreStateCard
+              icon="chatbubbles-outline"
+              title={tt("chats.empty", "No chats yet.")}
+              body={tt(
                 "inbox.emptyBody",
                 "After a mutual open, the personal chat will appear here and stay ready whenever you want to continue."
               )}
-            </Text>
-            <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 10 }}>
-              <Pressable
-                onPress={startNewSession}
-                style={{
-                  paddingHorizontal: 14,
-                  paddingVertical: 10,
-                  borderRadius: theme.shapes.pill,
-                  backgroundColor: theme.colors.primary,
-                }}
-              >
-                <Text style={{ color: "#fff", fontWeight: "800" }}>
-                  Начать новую совместную сессию
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={goToTogether}
-                style={{
-                  paddingHorizontal: 14,
-                  paddingVertical: 10,
-                  borderRadius: theme.shapes.pill,
-                  backgroundColor: theme.colors.pillBg,
-                  borderWidth: 1,
-                  borderColor: theme.colors.borderSubtle,
-                }}
-              >
-                <Text style={{ color: theme.colors.text, fontWeight: "800" }}>
-                  Вернуться во Вместе
-                </Text>
-              </Pressable>
-            </View>
+              primaryAction={{ label: "Начать новую совместную сессию", onPress: startNewSession }}
+              secondaryAction={{ label: "Вернуться во Вместе", onPress: goToTogether }}
+            />
           </View>
         )}
       </View>

@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 
+import CoreStateCard from "@/components/CoreStateCard";
 import ScreenShell from "@/components/ScreenShell";
 import { auth, db } from "@/config/firebaseConfig";
 import { useLocale } from "@/contexts/LocaleContext";
@@ -164,6 +165,7 @@ export default function ConnectionsFeedScreen() {
   const [threadsLoaded, setThreadsLoaded] = useState(false);
   const [sessionsLoaded, setSessionsLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [openingCardId, setOpeningCardId] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -173,11 +175,13 @@ export default function ConnectionsFeedScreen() {
       setThreads([]);
       setThreadsLoaded(true);
       setError(null);
+      setActionError(null);
       return;
     }
 
     setThreadsLoaded(false);
     setError(null);
+    setActionError(null);
     const unsubscribe = subscribeDmThreads(
       db,
       uid,
@@ -317,6 +321,7 @@ export default function ConnectionsFeedScreen() {
       if (!db || !uid || !card.peerId) return;
 
       if (card.threadId) {
+        setActionError(null);
         navigation.navigate(
           "DMChat",
           buildDmChatRouteParams({
@@ -331,7 +336,10 @@ export default function ConnectionsFeedScreen() {
 
       if (!card.sessionId) return;
       const session = sessionById.get(card.sessionId);
-      if (!session) return;
+      if (!session) {
+        setActionError("Не удалось найти исходную совместную историю для этого чата. Попробуй открыть связь позже.");
+        return;
+      }
 
       setOpeningCardId(card.id);
       try {
@@ -357,6 +365,9 @@ export default function ConnectionsFeedScreen() {
             backTarget: "connections",
           })
         );
+        setActionError(null);
+      } catch {
+        setActionError("Не удалось открыть чат прямо сейчас. Попробуй еще раз чуть позже.");
       } finally {
         setOpeningCardId((prev) => (prev === card.id ? null : prev));
       }
@@ -465,6 +476,48 @@ export default function ConnectionsFeedScreen() {
     [openChat, openDetail, openingCardId, t, tt]
   );
 
+  if (!uid) {
+    return (
+      <ScreenShell
+        title={t("connections.title")}
+        background="nightCity"
+        overlayOpacity={0.2}
+        blurRadius={2}
+      >
+        <View style={styles.emptyWrap}>
+          <CoreStateCard
+            icon="person-circle-outline"
+            title="Связи доступны после входа"
+            body="Войди в аккаунт, чтобы видеть открытые связи, совместные истории и быстрый вход в личные чаты."
+            primaryAction={{ label: "Открыть профиль", onPress: () => navigation.navigate("Profile") }}
+            secondaryAction={{ label: t("connections.goToTogether"), onPress: goToTogether }}
+          />
+        </View>
+      </ScreenShell>
+    );
+  }
+
+  if (!db) {
+    return (
+      <ScreenShell
+        title={t("connections.title")}
+        background="nightCity"
+        overlayOpacity={0.2}
+        blurRadius={2}
+      >
+        <View style={styles.emptyWrap}>
+          <CoreStateCard
+            icon="cloud-offline-outline"
+            title={tt("connections.errorTitle", "Connections are temporarily unavailable")}
+            body="Мы не смогли подключить связи прямо сейчас. Попробуй позже или вернись во Вместе."
+            primaryAction={{ label: t("connections.goToTogether"), onPress: goToTogether }}
+            secondaryAction={{ label: "История", onPress: goToHistory }}
+          />
+        </View>
+      </ScreenShell>
+    );
+  }
+
   return (
     <ScreenShell
       title={t("connections.title")}
@@ -474,37 +527,35 @@ export default function ConnectionsFeedScreen() {
     >
       {isLoading ? (
         <View style={styles.centerState}>
-          <ActivityIndicator color={theme.colors.accent} />
-          <Text style={styles.stateText}>{t("connections.loading")}</Text>
+          <CoreStateCard
+            loading
+            icon="git-network-outline"
+            title={t("connections.title")}
+            body={t("connections.loading")}
+          />
         </View>
       ) : error ? (
         <View style={styles.emptyWrap}>
-          <View style={styles.emptyIcon}>
-            <Ionicons name="cloud-offline-outline" size={34} color={theme.colors.accent} />
-          </View>
-          <Text style={styles.emptyTitle}>
-            {tt("connections.errorTitle", "Connections are temporarily unavailable")}
-          </Text>
-          <Text style={styles.emptyText}>{error}</Text>
-          <Pressable onPress={() => setReloadKey((prev) => prev + 1)} style={styles.primaryButton}>
-            <Text style={styles.primaryButtonText}>{tt("common.retry", "Retry")}</Text>
-          </Pressable>
+          <CoreStateCard
+            icon="cloud-offline-outline"
+            title={tt("connections.errorTitle", "Connections are temporarily unavailable")}
+            body={error}
+            primaryAction={{
+              label: tt("common.retry", "Retry"),
+              onPress: () => setReloadKey((prev) => prev + 1),
+            }}
+            secondaryAction={{ label: t("connections.goToTogether"), onPress: goToTogether }}
+          />
         </View>
       ) : isEmpty ? (
         <View style={styles.emptyWrap}>
-          <View style={styles.emptyIcon}>
-            <Ionicons name="git-network-outline" size={34} color={theme.colors.accent} />
-          </View>
-          <Text style={styles.emptyTitle}>{t("connections.emptyTitle")}</Text>
-          <Text style={styles.emptyText}>{t("connections.emptyBody")}</Text>
-          <View style={styles.emptyActions}>
-            <Pressable onPress={startNewSession} style={styles.primaryButton}>
-              <Text style={styles.primaryButtonText}>Новая совместная сессия</Text>
-            </Pressable>
-            <Pressable onPress={goToTogether} style={styles.secondaryEmptyButton}>
-              <Text style={styles.secondaryEmptyButtonText}>{t("connections.goToTogether")}</Text>
-            </Pressable>
-          </View>
+          <CoreStateCard
+            icon="git-network-outline"
+            title={t("connections.emptyTitle")}
+            body={t("connections.emptyBody")}
+            primaryAction={{ label: "Новая совместная сессия", onPress: startNewSession }}
+            secondaryAction={{ label: t("connections.goToTogether"), onPress: goToTogether }}
+          />
         </View>
       ) : (
         <ScrollView
@@ -512,6 +563,13 @@ export default function ConnectionsFeedScreen() {
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
         >
+          {actionError ? (
+            <View style={styles.inlineErrorCard}>
+              <Text style={styles.inlineErrorTitle}>Связь пока не открылась</Text>
+              <Text style={styles.inlineErrorText}>{actionError}</Text>
+            </View>
+          ) : null}
+
           <View style={styles.heroCard}>
             <Text style={styles.heroKicker}>{t("connections.heroKicker")}</Text>
             <Text style={styles.heroTitle}>{t("connections.heroTitle")}</Text>
@@ -584,11 +642,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 12,
     paddingHorizontal: 28,
-  },
-  stateText: {
-    color: theme.colors.subtext,
-    fontSize: 14,
-    textAlign: "center",
   },
   heroCard: {
     padding: 20,
@@ -806,57 +859,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 28,
     gap: 12,
   },
-  emptyIcon: {
-    width: 82,
-    height: 82,
-    borderRadius: 41,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(255, 122, 60, 0.12)",
+  inlineErrorCard: {
+    padding: 16,
+    borderRadius: theme.shapes.card,
+    backgroundColor: "rgba(255, 77, 103, 0.12)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
+    borderColor: "rgba(255, 77, 103, 0.22)",
+    gap: 6,
   },
-  emptyTitle: {
+  inlineErrorTitle: {
     color: theme.colors.text,
-    fontSize: 22,
-    lineHeight: 28,
+    fontSize: 16,
     fontWeight: "800",
-    textAlign: "center",
   },
-  emptyText: {
+  inlineErrorText: {
     color: theme.colors.subtext,
     fontSize: 14,
-    lineHeight: 21,
-    textAlign: "center",
-  },
-  emptyActions: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "center",
-    gap: 10,
-  },
-  primaryButton: {
-    borderRadius: theme.shapes.pill,
-    paddingHorizontal: 18,
-    paddingVertical: 12,
-    backgroundColor: theme.colors.accent,
-  },
-  primaryButtonText: {
-    color: theme.colors.text,
-    fontSize: 14,
-    fontWeight: "800",
-  },
-  secondaryEmptyButton: {
-    borderRadius: theme.shapes.pill,
-    paddingHorizontal: 18,
-    paddingVertical: 12,
-    backgroundColor: theme.colors.pillBg,
-    borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
-  },
-  secondaryEmptyButtonText: {
-    color: theme.colors.text,
-    fontSize: 14,
-    fontWeight: "800",
+    lineHeight: 20,
   },
 });
