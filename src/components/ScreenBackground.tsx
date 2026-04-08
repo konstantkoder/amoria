@@ -9,6 +9,9 @@ import BackgroundWrapper, {
 export type ScreenBackgroundVariant =
   | "default"
   | "hearts"
+  | "togetherDream"
+  | "togetherCosmos"
+  | "togetherSoft"
   | "smoke"
   | "nightCity"
   | "menu"
@@ -56,6 +59,12 @@ function mapVariantToKey(variant: ScreenBackgroundVariant): BackgroundKey {
   switch (variant) {
     case "hearts":
       return "hearts";
+    case "togetherDream":
+      return "togetherDream";
+    case "togetherCosmos":
+      return "togetherCosmos";
+    case "togetherSoft":
+      return "togetherSoft";
     case "smoke":
       return "smoke";
     case "nightCity":
@@ -84,6 +93,9 @@ const variantDefaults: Record<
 > = {
   default: { overlayOpacity: 0.18, blurRadius: 2 },
   hearts: { overlayOpacity: 0.18, blurRadius: 2 },
+  togetherDream: { overlayOpacity: 0.24, blurRadius: 0 },
+  togetherCosmos: { overlayOpacity: 0.28, blurRadius: 0 },
+  togetherSoft: { overlayOpacity: 0.22, blurRadius: 0 },
 
   // image variants
   smoke: { overlayOpacity: 0.35, blurRadius: 3 },

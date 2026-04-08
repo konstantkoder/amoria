@@ -46,8 +46,8 @@ function getBlockedState(reason: MatchBlockReason) {
       };
     case "firebase":
       return {
-        title: "Together временно не готов",
-        body: "Мы не смогли подготовить соединение для старта. Вернись назад или открой Together позже.",
+        title: "Старт Together пока недоступен",
+        body: "Мы не смогли подготовить соединение для 7-минутной сессии. Вернись во Вместе и попробуй еще раз.",
         primaryLabel: "Во Вместе",
         secondaryLabel: "Назад",
       };
@@ -82,7 +82,7 @@ export default function PlayMatchScreen() {
   const [queueCancelled, setQueueCancelled] = React.useState(false);
   const [statusTitle, setStatusTitle] = React.useState("Подготовим совместную сессию");
   const [statusText, setStatusText] = React.useState(
-    "Сейчас поставим тебя в очередь и попробуем быстро найти человека, который тоже готов начать."
+    "Сейчас поставим тебя в очередь и попробуем быстро найти второго человека для общего рисунка."
   );
   const mountedRef = React.useRef(true);
   const matchedSessionRef = React.useRef("");
@@ -183,7 +183,7 @@ export default function PlayMatchScreen() {
     setQueueCancelled(false);
     setStatusSafe(
       "Подготовим совместную сессию",
-      "Сейчас поставим тебя в очередь и попробуем быстро найти человека, который тоже готов начать."
+      "Сейчас поставим тебя в очередь и попробуем быстро найти второго человека для общего рисунка."
     );
 
     if (blockReason || !activity) {
@@ -196,7 +196,7 @@ export default function PlayMatchScreen() {
     setBusySafe(true);
     setStatusSafe(
       "Ищем человека",
-      "Как только найдем второго участника, сразу откроем общий холст на двоих."
+      "Как только найдем второго участника, сразу откроем общий холст. На сессию будет 7 минут."
     );
 
     const unsubscribe = subscribeOwnQueueEntry(db!, uid, (entry) => {

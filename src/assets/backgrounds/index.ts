@@ -1,5 +1,8 @@
 export const backgrounds = {
   hearts: require("./hearts_feed.jpg"),
+  togetherDream: require("./together_dream.jpg"),
+  togetherCosmos: require("./together_cosmos.jpg"),
+  togetherSoft: require("./together_soft.jpg"),
   smoke: require("./ads_wallpaper.jpg"),
   nightCity: require("./rooms_neon.jpg"),
   menu: require("./menu_glass.jpg"),
