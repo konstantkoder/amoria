@@ -262,7 +262,8 @@ export default function DMChatScreen() {
   }, []);
 
   const canSend = text.trim().length > 0;
-  const sourceTitle = thread?.source === "play" ? tt("dm.sourcePlay", "You opened after drawing together") : "";
+  const sourceTitle =
+    thread?.source === "play" ? tt("dm.sourcePlay", "Чат открылся после совместной сессии") : "";
   const strokeCount = thread?.artworkSummary?.strokeCount;
   const isLoading = threadLoading || messagesLoading;
   const threadMissing = !isLoading && !subscriptionError && !thread && mergedMsgs.length === 0;
@@ -302,8 +303,8 @@ export default function DMChatScreen() {
           <Text style={styles.sourceTitle}>{sourceTitle}</Text>
           <Text style={styles.sourceMeta}>
             {strokeCount != null
-              ? tt("dm.sourceStrokeCount", "Strokes: {count}", { count: String(strokeCount) })
-              : tt("dm.contextReady", "The connection context is already saved.")}
+              ? tt("dm.sourceStrokeCount", "Штрихов: {count}", { count: String(strokeCount) })
+              : tt("dm.contextReady", "Контекст этой истории уже сохранен.")}
           </Text>
           {thread?.sourceSessionId ? (
             <TouchableOpacity
@@ -361,8 +362,8 @@ export default function DMChatScreen() {
         <View style={styles.centerState}>
           <CoreStateCard
             icon="alert-circle-outline"
-            title={tt("dm.unavailableTitle", "Chat unavailable")}
-            body={tt("dm.unavailableBody", "We couldn't open the conversation without a valid thread identifier.")}
+            title={tt("dm.unavailableTitle", "Чат недоступен")}
+            body={tt("dm.unavailableBody", "Не удалось открыть переписку без корректного идентификатора диалога.")}
             primaryAction={{ label: "Назад", onPress: handleBack }}
             secondaryAction={{ label: "Вернуться во Вместе", onPress: () => navigation.navigate("Tabs", { screen: "Together" }) }}
           />
@@ -393,7 +394,7 @@ export default function DMChatScreen() {
         <View style={styles.centerState}>
           <CoreStateCard
             icon="cloud-offline-outline"
-            title={tt("dm.errorTitle", "The chat is temporarily unavailable")}
+            title={tt("dm.errorTitle", "Диалог временно недоступен")}
             body="Мы не смогли подключить личный чат прямо сейчас. Попробуй позже или вернись назад."
             primaryAction={{ label: "Назад", onPress: handleBack }}
             secondaryAction={{ label: "Вернуться во Вместе", onPress: () => navigation.navigate("Tabs", { screen: "Together" }) }}
@@ -418,9 +419,9 @@ export default function DMChatScreen() {
         <View style={styles.centerState}>
           <CoreStateCard
             icon="cloud-offline-outline"
-            title={tt("dm.errorTitle", "The chat is temporarily unavailable")}
+            title={tt("dm.errorTitle", "Диалог временно недоступен")}
             body={subscriptionError}
-            primaryAction={{ label: tt("common.retry", "Retry"), onPress: () => setReloadKey((prev) => prev + 1) }}
+            primaryAction={{ label: tt("common.retry", "Повторить"), onPress: () => setReloadKey((prev) => prev + 1) }}
             secondaryAction={{ label: "Назад", onPress: handleBack }}
           />
         </View>
@@ -428,9 +429,9 @@ export default function DMChatScreen() {
         <View style={styles.centerState}>
           <CoreStateCard
             icon="chatbox-ellipses-outline"
-            title={tt("dm.unavailableTitle", "Chat unavailable")}
+            title={tt("dm.unavailableTitle", "Чат недоступен")}
             body="Мы не нашли этот диалог в текущем контексте. Возможно, старая ссылка уже устарела или чат еще не успел появиться."
-            primaryAction={{ label: tt("common.retry", "Retry"), onPress: () => setReloadKey((prev) => prev + 1) }}
+            primaryAction={{ label: tt("common.retry", "Повторить"), onPress: () => setReloadKey((prev) => prev + 1) }}
             secondaryAction={{ label: "Назад", onPress: handleBack }}
           />
         </View>
@@ -439,8 +440,8 @@ export default function DMChatScreen() {
           {renderSourceCard()}
           <CoreStateCard
             icon="chatbubbles-outline"
-            title={tt("dm.emptyTitle", "The connection is open")}
-            body={tt("dm.emptyBody", "There are no messages yet. Say hi first and continue the connection from here.")}
+            title={tt("dm.emptyTitle", "Связь уже открыта")}
+            body={tt("dm.emptyBody", "Сообщений пока нет. Можно написать первым и мягко продолжить знакомство.")}
             primaryAction={{
               label:
                 backTarget === "history"
@@ -515,10 +516,10 @@ const styles = StyleSheet.create({
   sourceCard: {
     alignSelf: "center",
     borderRadius: theme.shapes.cardInner,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     marginBottom: 10,
-    backgroundColor: "rgba(17, 20, 36, 0.74)",
+    backgroundColor: "rgba(11, 16, 30, 0.82)",
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
   },
@@ -549,18 +550,6 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
     fontSize: 12,
     fontWeight: "800",
-  },
-  emptyTitle: {
-    color: theme.colors.text,
-    fontSize: 20,
-    fontWeight: "800",
-    textAlign: "center",
-  },
-  emptyText: {
-    color: theme.colors.subtext,
-    fontSize: 14,
-    lineHeight: 20,
-    textAlign: "center",
   },
   msgWrap: {
     width: "100%",
@@ -619,6 +608,9 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     paddingBottom: 10,
     gap: 8,
+    backgroundColor: "rgba(9, 11, 24, 0.22)",
+    borderTopWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
   },
   input: {
     flex: 1,

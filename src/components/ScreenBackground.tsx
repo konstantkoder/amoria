@@ -90,9 +90,9 @@ const variantDefaults: Record<
 > = {
   default: { overlayOpacity: 0.18, blurRadius: 2 },
   hearts: { overlayOpacity: 0.18, blurRadius: 2 },
-  togetherMain: { overlayOpacity: 0.26, blurRadius: 0 },
-  togetherStory: { overlayOpacity: 0.22, blurRadius: 0 },
-  togetherChat: { overlayOpacity: 0.18, blurRadius: 0 },
+  togetherMain: { overlayOpacity: 0.28, blurRadius: 0 },
+  togetherStory: { overlayOpacity: 0.24, blurRadius: 0 },
+  togetherChat: { overlayOpacity: 0.22, blurRadius: 0 },
 
   // image variants
   smoke: { overlayOpacity: 0.35, blurRadius: 3 },

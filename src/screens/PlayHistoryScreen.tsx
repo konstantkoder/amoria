@@ -40,7 +40,7 @@ function formatActivityLabel(activity: string) {
 
 function formatSourceLabel(activity: string) {
   if (activity === "draw") {
-    return "Совместный рисунок, который вы собрали вдвоем";
+    return "Совместный рисунок, который сохранился в вашей общей истории.";
   }
   return "Совместная сессия";
 }
@@ -452,10 +452,10 @@ export default function PlayHistoryScreen() {
             </Text>
             <View style={styles.heroActions}>
               <Pressable onPress={goToStart} style={styles.heroPrimaryButton}>
-                <Text style={styles.heroPrimaryButtonText}>Хочу новую совместную сессию</Text>
+                <Text style={styles.heroPrimaryButtonText}>Начать новую совместную сессию</Text>
               </Pressable>
               <Pressable onPress={goToConnections} style={styles.heroSecondaryButton}>
-                <Text style={styles.heroSecondaryButtonText}>Лента связей</Text>
+                <Text style={styles.heroSecondaryButtonText}>Открыть связи</Text>
               </Pressable>
             </View>
           </View>
@@ -467,24 +467,10 @@ export default function PlayHistoryScreen() {
             <Text style={styles.sectionText}>
               {tt(
                 "playHistory.sectionBody",
-                "Открой replay, посмотри, как закончилась сессия, и вернись в чат там, где он уже доступен."
+                "История хранит завершенные совместные сессии. Открой replay, перейди в страницу истории и возвращайся в чат там, где он уже открыт."
               )}
             </Text>
             {cards.map(renderCard)}
-            <View style={styles.reentryCard}>
-              <Text style={styles.reentryTitle}>Готова новая совместная сессия?</Text>
-              <Text style={styles.reentryText}>
-                История хранит прошлые моменты, а новый круг начинается отсюда без лишнего обхода.
-              </Text>
-              <View style={styles.reentryActions}>
-                <Pressable onPress={goToStart} style={styles.heroPrimaryButton}>
-                  <Text style={styles.heroPrimaryButtonText}>Начать новую совместную сессию</Text>
-                </Pressable>
-                <Pressable onPress={goToTogether} style={styles.heroSecondaryButton}>
-                  <Text style={styles.heroSecondaryButtonText}>Вернуться во Вместе</Text>
-                </Pressable>
-              </View>
-            </View>
           </View>
         </ScrollView>
       )}
@@ -580,30 +566,6 @@ const styles = StyleSheet.create({
   },
   section: {
     gap: 12,
-  },
-  reentryCard: {
-    marginTop: 6,
-    padding: 18,
-    borderRadius: theme.shapes.card,
-    backgroundColor: "rgba(11, 16, 30, 0.9)",
-    borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
-    gap: 10,
-  },
-  reentryTitle: {
-    color: theme.colors.text,
-    fontSize: 18,
-    fontWeight: "800",
-  },
-  reentryText: {
-    color: theme.colors.subtext,
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  reentryActions: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
   },
   sectionTitle: {
     color: theme.colors.text,
@@ -737,27 +699,5 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
     fontSize: 14,
     fontWeight: "800",
-  },
-  emptyIcon: {
-    width: 78,
-    height: 78,
-    borderRadius: 39,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(255, 122, 60, 0.12)",
-    borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
-  },
-  emptyTitle: {
-    color: theme.colors.text,
-    fontSize: 20,
-    fontWeight: "800",
-    textAlign: "center",
-  },
-  emptyText: {
-    color: theme.colors.subtext,
-    fontSize: 14,
-    lineHeight: 20,
-    textAlign: "center",
   },
 });

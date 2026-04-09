@@ -425,15 +425,6 @@ export default function ConnectionsFeedScreen() {
           <Text style={styles.cardDate}>{card.freshnessLabel}</Text>
         </View>
 
-        {!card.isFallback ? (
-          <Text style={styles.sectionText}>
-            {tt(
-              "connections.whatConnectedYou",
-              "What connected you: a shared session that already opened into direct contact."
-            )}
-          </Text>
-        ) : null}
-
         <Text style={styles.previewText} numberOfLines={2}>
           {card.previewText}
         </Text>
@@ -466,7 +457,7 @@ export default function ConnectionsFeedScreen() {
           >
             <Text style={styles.primaryCtaText}>
               {openingCardId === card.id
-                ? tt("connections.openingChat", "Opening chat…")
+                ? tt("connections.openingChat", "Открываем чат…")
                 : t("connections.openChat")}
             </Text>
           </Pressable>
@@ -479,10 +470,8 @@ export default function ConnectionsFeedScreen() {
   if (!uid) {
     return (
       <ScreenShell
-        title={t("connections.title")}
-        background="nightCity"
-        overlayOpacity={0.2}
-        blurRadius={2}
+        title={t("tabs.connections")}
+        background="togetherStory"
       >
         <View style={styles.emptyWrap}>
           <CoreStateCard
@@ -500,10 +489,8 @@ export default function ConnectionsFeedScreen() {
   if (!db) {
     return (
       <ScreenShell
-        title={t("connections.title")}
-        background="nightCity"
-        overlayOpacity={0.2}
-        blurRadius={2}
+        title={t("tabs.connections")}
+        background="togetherStory"
       >
         <View style={styles.emptyWrap}>
           <CoreStateCard
@@ -511,7 +498,7 @@ export default function ConnectionsFeedScreen() {
             title={tt("connections.errorTitle", "Connections are temporarily unavailable")}
             body="Мы не смогли подключить связи прямо сейчас. Попробуй позже или вернись во Вместе."
             primaryAction={{ label: t("connections.goToTogether"), onPress: goToTogether }}
-            secondaryAction={{ label: "История", onPress: goToHistory }}
+            secondaryAction={{ label: "Совместные истории", onPress: goToHistory }}
           />
         </View>
       </ScreenShell>
@@ -520,17 +507,15 @@ export default function ConnectionsFeedScreen() {
 
   return (
     <ScreenShell
-      title={t("connections.title")}
-      background="nightCity"
-      overlayOpacity={0.2}
-      blurRadius={2}
+      title={t("tabs.connections")}
+      background="togetherStory"
     >
       {isLoading ? (
         <View style={styles.centerState}>
           <CoreStateCard
             loading
             icon="git-network-outline"
-            title={t("connections.title")}
+            title={t("tabs.connections")}
             body={t("connections.loading")}
           />
         </View>
@@ -541,7 +526,7 @@ export default function ConnectionsFeedScreen() {
             title={tt("connections.errorTitle", "Connections are temporarily unavailable")}
             body={error}
             primaryAction={{
-              label: tt("common.retry", "Retry"),
+              label: tt("common.retry", "Повторить"),
               onPress: () => setReloadKey((prev) => prev + 1),
             }}
             secondaryAction={{ label: t("connections.goToTogether"), onPress: goToTogether }}
@@ -553,7 +538,7 @@ export default function ConnectionsFeedScreen() {
             icon="git-network-outline"
             title={t("connections.emptyTitle")}
             body={t("connections.emptyBody")}
-            primaryAction={{ label: "Новая совместная сессия", onPress: startNewSession }}
+            primaryAction={{ label: "Начать совместную сессию", onPress: startNewSession }}
             secondaryAction={{ label: t("connections.goToTogether"), onPress: goToTogether }}
           />
         </View>
@@ -565,7 +550,7 @@ export default function ConnectionsFeedScreen() {
         >
           {actionError ? (
             <View style={styles.inlineErrorCard}>
-              <Text style={styles.inlineErrorTitle}>Связь пока не открылась</Text>
+              <Text style={styles.inlineErrorTitle}>Чат пока не открылся</Text>
               <Text style={styles.inlineErrorText}>{actionError}</Text>
             </View>
           ) : null}
@@ -576,13 +561,10 @@ export default function ConnectionsFeedScreen() {
             <Text style={styles.heroText}>{t("connections.heroBody")}</Text>
             <View style={styles.heroActions}>
               <Pressable onPress={startNewSession} style={styles.heroPrimaryButton}>
-                <Text style={styles.heroPrimaryButtonText}>Новая совместная сессия</Text>
+                <Text style={styles.heroPrimaryButtonText}>Начать новую совместную сессию</Text>
               </Pressable>
               <Pressable onPress={goToHistory} style={styles.heroSecondaryButton}>
                 <Text style={styles.heroSecondaryButtonText}>Совместные истории</Text>
-              </Pressable>
-              <Pressable onPress={goToTogether} style={styles.heroSecondaryButton}>
-                <Text style={styles.heroSecondaryButtonText}>Вернуться во Вместе</Text>
               </Pressable>
             </View>
           </View>
@@ -592,32 +574,18 @@ export default function ConnectionsFeedScreen() {
               <Text style={styles.sectionTitle}>{t("connections.openConnectionsTitle")}</Text>
               <Text style={styles.sectionText}>{t("connections.openConnectionsBody")}</Text>
               {historyCards.map(renderConnectionCard)}
-              <View style={styles.reentryCard}>
-                <Text style={styles.reentryTitle}>Хочешь вернуть динамику?</Text>
-                <Text style={styles.reentryText}>
-                  Связи продолжают уже открытый контакт, а новый совместный опыт запускает следующий круг.
-                </Text>
-                <View style={styles.heroActions}>
-                  <Pressable onPress={startNewSession} style={styles.heroPrimaryButton}>
-                    <Text style={styles.heroPrimaryButtonText}>Начать новую совместную сессию</Text>
-                  </Pressable>
-                  <Pressable onPress={goToTogether} style={styles.heroSecondaryButton}>
-                    <Text style={styles.heroSecondaryButtonText}>Вернуться во Вместе</Text>
-                  </Pressable>
-                </View>
-              </View>
             </View>
           ) : null}
 
           {fallbackCards.length ? (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>
-                {tt("connections.fallbackTitle", "Open chats without saved story")}
+                {tt("connections.fallbackTitle", "Открытые чаты без сохраненной истории")}
               </Text>
               <Text style={styles.sectionText}>
                 {tt(
                   "connections.fallbackBody",
-                  "Older or simplified connections stay here if they do not yet have a full session history."
+                  "Здесь остаются связи, у которых чат уже жив, но полная история совместной сессии еще не подтянулась."
                 )}
               </Text>
               {fallbackCards.map(renderConnectionCard)}
@@ -701,25 +669,6 @@ const styles = StyleSheet.create({
   },
   section: {
     gap: 12,
-  },
-  reentryCard: {
-    marginTop: 6,
-    padding: 18,
-    borderRadius: theme.shapes.card,
-    backgroundColor: "rgba(11, 16, 30, 0.9)",
-    borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
-    gap: 10,
-  },
-  reentryTitle: {
-    color: theme.colors.text,
-    fontSize: 18,
-    fontWeight: "800",
-  },
-  reentryText: {
-    color: theme.colors.subtext,
-    fontSize: 14,
-    lineHeight: 20,
   },
   sectionTitle: {
     color: theme.colors.text,

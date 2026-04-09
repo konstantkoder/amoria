@@ -447,7 +447,7 @@ export default function PlayResultScreen() {
             title="Итог больше недоступен"
             body="Сессия уже исчезла или не успела сохраниться. Можно вернуться во Вместе и начать новую."
             primaryAction={{ label: "Вернуться во Вместе", onPress: goToTogether }}
-            secondaryAction={{ label: "Начать новую сессию", onPress: startNewSession }}
+            secondaryAction={{ label: "Начать новую совместную сессию", onPress: startNewSession }}
           />
         </View>
       </ScreenShell>
@@ -468,13 +468,13 @@ export default function PlayResultScreen() {
       >
         <View style={styles.heroCard}>
           <Text style={styles.heroKicker}>
-            {historyMode ? "Совместная история" : "Итог совместной сессии"}
+            {historyMode ? "Совместная история" : "Сразу после совместной сессии"}
           </Text>
-          <Text style={styles.heroTitle}>{historyMode ? "Ваш общий рисунок" : "Рисунок готов"}</Text>
+          <Text style={styles.heroTitle}>{historyMode ? "Ваш общий рисунок" : "Ваш общий рисунок готов"}</Text>
           <Text style={styles.heroText}>
             {historyMode
               ? "Здесь хранится завершенный общий рисунок, к которому можно вернуться в любой момент."
-              : "Вы собрали один общий холст из отдельных жестов, темпа и импровизации."}
+              : "Это итог только что завершившейся совместной сессии. Постоянный дом рисунка и replay находится в совместной истории."}
           </Text>
 
           <View style={styles.metaGrid}>
@@ -510,7 +510,7 @@ export default function PlayResultScreen() {
 
         <View style={styles.actionCard}>
           <Text style={styles.actionTitle}>
-            {historyMode ? outcomeTitle : "Что делаем дальше?"}
+            {historyMode ? outcomeTitle : "Что делать с этой сессией дальше?"}
           </Text>
           <Text style={styles.actionText}>
             {historyMode
@@ -519,7 +519,7 @@ export default function PlayResultScreen() {
                 ? "Открытие уже произошло, но чтобы войти в личный чат, нужен активный аккаунт."
                 : allOpen && !canOpenChat
                 ? "Открытие уже произошло, но контекст чата пока не готов. Можно открыть историю или попробовать чуть позже."
-                : "Если оба выберут открыть, появится приватный чат и раскроются профили."}
+                : "Если вы оба выберете открыть чат, сессия перейдет в личный контакт. Если нет, рисунок останется только вашей совместной историей."}
           </Text>
           {actionError ? <Text style={styles.inlineError}>{actionError}</Text> : null}
 
@@ -543,7 +543,7 @@ export default function PlayResultScreen() {
                 style={[styles.primaryButton, primaryDisabled && styles.disabledButton]}
               >
                 <Text style={styles.primaryText}>
-                  {openingChat ? "Открываем чат…" : "Выбрать открыть"}
+                  {openingChat ? "Открываем чат…" : "Хочу открыть чат"}
                 </Text>
               </Pressable>
 
@@ -552,7 +552,7 @@ export default function PlayResultScreen() {
                 onPress={() => void handleSkipPress()}
                 style={[styles.tertiaryButton, tertiaryDisabled && styles.disabledButton]}
               >
-                <Text style={styles.tertiaryText}>Пропустить</Text>
+                <Text style={styles.tertiaryText}>Оставить как историю</Text>
               </Pressable>
             </>
           )}
@@ -562,53 +562,36 @@ export default function PlayResultScreen() {
             style={styles.secondaryButton}
           >
             <Text style={styles.secondaryText}>
-              {replayOpen ? "Скрыть replay" : "Открыть replay"}
+              {replayOpen ? "Скрыть replay" : "Показать replay"}
             </Text>
           </Pressable>
         </View>
 
         <View style={styles.routeCard}>
           <Text style={styles.routeTitle}>
-            {historyMode ? "Куда дальше" : "Что можно сделать после сессии"}
+            {historyMode ? "Где живёт эта история" : "Куда эта история перейдёт дальше"}
           </Text>
           <Text style={styles.routeText}>
             {historyMode
-              ? "История хранит совместные моменты, а связи и чаты продолжают уже открытый контакт."
-              : "Итог завершает конкретную сессию, а дальше можно перейти в историю, в ленту связей или снова начать во Вместе."}
+              ? "Это промежуточный взгляд на историю. Полная страница истории остаётся главным домом для replay, статуса и возврата в чат."
+              : "Итог нужен для решения сразу после сессии. Потом рисунок живёт в совместной истории, а открытая связь продолжается уже в чатах и связях."}
           </Text>
           <View style={styles.routeActions}>
-            {!historyMode ? (
-              <Pressable onPress={startNewSession} style={styles.routeButtonPrimary}>
-                <Text style={styles.routeButtonPrimaryText}>Начать новую совместную сессию</Text>
-              </Pressable>
-            ) : null}
-            {!historyMode ? (
-              <Pressable onPress={goToHistory} style={styles.routeButton}>
-                <Text style={styles.routeButtonText}>Открыть историю</Text>
-              </Pressable>
-            ) : null}
-            <Pressable onPress={() => goToDetail(replayOpen ? "replay" : undefined)} style={styles.routeButton}>
-              <Text style={styles.routeButtonText}>Открыть совместную историю</Text>
+            <Pressable
+              onPress={() => goToDetail(replayOpen ? "replay" : undefined)}
+              style={styles.routeButtonPrimary}
+            >
+              <Text style={styles.routeButtonPrimaryText}>Открыть совместную историю</Text>
             </Pressable>
-            {allOpen && !historyMode && canOpenChat ? (
-              <Pressable
-                onPress={() => void openChat()}
-                style={[styles.routeButton, openingChat && styles.disabledButton]}
-                disabled={openingChat}
-              >
-                <Text style={styles.routeButtonText}>
-                  {openingChat ? "Открываем чат…" : "Открыть чат"}
-                </Text>
-              </Pressable>
-            ) : null}
-            {allOpen ? (
+            {allOpen && !historyMode ? (
               <Pressable onPress={goToConnections} style={styles.routeButton}>
-                <Text style={styles.routeButtonText}>Лента связей</Text>
+                <Text style={styles.routeButtonText}>Связи</Text>
+              </Pressable>
+            ) : !historyMode ? (
+              <Pressable onPress={startNewSession} style={styles.routeButton}>
+                <Text style={styles.routeButtonText}>Начать новую совместную сессию</Text>
               </Pressable>
             ) : null}
-            <Pressable onPress={goToTogether} style={styles.routeButton}>
-              <Text style={styles.routeButtonText}>Вернуться во Вместе</Text>
-            </Pressable>
           </View>
         </View>
 
@@ -618,7 +601,7 @@ export default function PlayResultScreen() {
               <View>
                 <Text style={styles.replayTitle}>Replay рисунка</Text>
                 <Text style={styles.replayText}>
-                  Проигрываем штрихи в исходном порядке без отдельного экрана.
+                  Штрихи идут в исходном порядке, чтобы можно было заново прожить этот общий момент.
                 </Text>
               </View>
             </View>
@@ -626,7 +609,7 @@ export default function PlayResultScreen() {
               <View style={styles.statusCard}>
                 <Text style={styles.statusTitle}>Replay пока пустой</Text>
                 <Text style={styles.statusText}>
-                  Эта сессия сохранилась без штрихов. Итог и статус связи остались, но сам replay здесь не появится.
+                  Эта сессия сохранилась без штрихов. Итог и статус связи остались, но сам replay здесь недоступен.
                 </Text>
               </View>
             ) : null}
@@ -645,15 +628,6 @@ export default function PlayResultScreen() {
             <Text style={styles.statusText}>
               Твое решение уже сохранено. Итог останется здесь, а чат откроется только после второго
               согласия.
-            </Text>
-          </View>
-        ) : null}
-
-        {allOpen ? (
-          <View style={styles.statusCard}>
-            <Text style={styles.statusTitle}>{revealCopy.shortLabel}</Text>
-            <Text style={styles.statusText}>
-              Приватный чат готов. Когда захочешь, открой его через главную кнопку выше.
             </Text>
           </View>
         ) : null}

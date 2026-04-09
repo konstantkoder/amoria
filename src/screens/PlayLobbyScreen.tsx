@@ -22,21 +22,21 @@ type ActivityCard = {
 const SOON_CARDS: ActivityCard[] = [
   {
     slug: "chain_draw",
-    title: "Chain Draw",
-    description: "По очереди по 1 штриху. 30 секунд на ход, чтобы рисунок рос вместе.",
-    details: "10 ходов, один общий результат.",
+    title: "Рисунок по очереди",
+    description: "Вы добавляете по одному штриху и по очереди собираете общий рисунок.",
+    details: "Короткий ритм, один холст и чувство живого обмена.",
   },
   {
     slug: "daily_prompt",
-    title: "Daily Prompt",
-    description: "Одна тема дня: город, мечта, путешествие или символ. Каждый рисует свою часть.",
-    details: "Одна общая тема, два взгляда, один итог.",
+    title: "Общая тема дня",
+    description: "Одна тема на двоих: город, мечта, путешествие или символ, который вы собираете вместе.",
+    details: "Одна идея, два взгляда и один общий итог.",
   },
   {
     slug: "color_mood",
-    title: "Color Mood",
-    description: "Каждый выбирает 3 цвета, а вместе вы собираете общую палитру и арт из настроения.",
-    details: "Мягкий цветовой формат без лишних шагов.",
+    title: "Палитра настроения",
+    description: "Каждый выбирает цвета, а затем вместе вы собираете мягкую общую палитру.",
+    details: "Больше про ощущение, чем про технику или скорость.",
   },
 ];
 
@@ -59,8 +59,8 @@ export default function PlayLobbyScreen() {
             <Text style={styles.kicker}>Главный романтический вход</Text>
             <Text style={styles.heroTitle}>Один общий рисунок на двоих</Text>
             <Text style={styles.heroText}>
-              Короткая совместная сессия, где знакомство начинается не с анкеты, а с одного
-              общего холста.
+              Здесь начинается совместная сессия. Сначала вы проходите один общий опыт, потом
+              рисунок остаётся в совместной истории, а чат открывается только по взаимному желанию.
             </Text>
           </View>
 
@@ -77,18 +77,18 @@ export default function PlayLobbyScreen() {
           </View>
         </View>
 
-        <Pressable
-          onPress={() => navigation.navigate("PlayHistory")}
-          style={styles.historyCard}
-        >
+          <Pressable
+            onPress={() => navigation.navigate("PlayHistory")}
+            style={styles.historyCard}
+          >
           <View style={styles.historyTextWrap}>
             <Text style={styles.historyTitle}>Мои совместные истории</Text>
             <Text style={styles.historyText}>
-              Готовые сессии, итоговые рисунки и быстрый возврат к уже начатой связи.
+              Здесь сохраняются итоговые рисунки, статусы открытия и вход обратно в уже начатую связь.
             </Text>
           </View>
           <View style={styles.historyBadge}>
-            <Text style={styles.historyBadgeText}>История</Text>
+            <Text style={styles.historyBadgeText}>Архив</Text>
           </View>
         </Pressable>
 
@@ -97,9 +97,9 @@ export default function PlayLobbyScreen() {
             onPress={() => navigation.navigate("Tabs", { screen: "Now" })}
             style={styles.quickCard}
           >
-            <Text style={styles.quickTitle}>Now</Text>
+            <Text style={styles.quickTitle}>Твой вайб</Text>
             <Text style={styles.quickText}>
-              Покажи настроение сейчас и вернись во Вместе, когда захочешь общий вход.
+              Раздел «Сейчас» помогает показать настроение до входа в совместную сессию.
             </Text>
           </Pressable>
 
@@ -107,9 +107,9 @@ export default function PlayLobbyScreen() {
             onPress={() => navigation.navigate("Tabs", { screen: "Rooms" })}
             style={styles.quickCard}
           >
-            <Text style={styles.quickTitle}>Rooms</Text>
+            <Text style={styles.quickTitle}>Комнаты рядом</Text>
             <Text style={styles.quickText}>
-              Если нужен живой контекст, перейди в Rooms и снова вернись к совместной сессии.
+              Если нужен живой групповой контекст, загляни в комнаты и вернись сюда одним тапом.
             </Text>
           </Pressable>
         </View>
@@ -117,7 +117,7 @@ export default function PlayLobbyScreen() {
         <View style={styles.soonSection}>
           <Text style={styles.soonTitle}>Что появится дальше</Text>
           <Text style={styles.soonText}>
-            Следующие режимы уже зафиксированы и продолжат Together как одно цельное ядро.
+            Это следующие режимы Together. Они расширят общий опыт, но останутся частью того же пути.
           </Text>
         </View>
 
@@ -129,10 +129,7 @@ export default function PlayLobbyScreen() {
               style={[styles.card, styles.cardSoon]}
             >
               <View style={styles.cardHeader}>
-                <View style={styles.cardTitleWrap}>
-                  <Text style={styles.cardTitle}>{card.title}</Text>
-                  <Text style={styles.cardSlug}>{card.slug}</Text>
-                </View>
+                <Text style={styles.cardTitle}>{card.title}</Text>
                 <View style={[styles.badge, styles.badgeSoon]}>
                   <Text style={styles.badgeText}>Скоро</Text>
                 </View>
@@ -309,23 +306,15 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-start",
     justifyContent: "space-between",
-    marginBottom: 12,
+    marginBottom: 10,
     gap: 12,
   },
-  cardTitleWrap: {
-    flex: 1,
-    gap: 4,
-  },
   cardTitle: {
+    flex: 1,
     color: theme.colors.text,
     fontSize: 18,
-    fontWeight: "700",
-  },
-  cardSlug: {
-    color: theme.colors.accent,
-    fontSize: 12,
+    lineHeight: 24,
     fontWeight: "800",
-    letterSpacing: 0.4,
   },
   badge: {
     borderRadius: theme.shapes.pill,

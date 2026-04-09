@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { FlatList, Pressable, Text, View } from "react-native";
+import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -148,8 +148,8 @@ export default function InboxScreen() {
 
   const sourceLabels = useMemo(
     () => ({
-      play: tt("connections.sourceDraw", "Drew together"),
-      direct: tt("inbox.sourceDefault", "Open chat"),
+      play: tt("inbox.sourcePlay", "После совместной сессии"),
+      direct: tt("inbox.sourceDefault", "Личный чат"),
     }),
     [tt]
   );
@@ -319,66 +319,29 @@ export default function InboxScreen() {
       background="togetherChat"
     >
       <View
-        style={{
-          flex: 1,
-          paddingHorizontal: 16,
-          paddingTop: 8,
-          paddingBottom: insets.bottom + 8,
-        }}
+        style={[styles.screenContent, { paddingBottom: insets.bottom + 8 }]}
       >
-        <View style={{ marginBottom: 16, gap: 8 }}>
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "baseline",
-              justifyContent: "space-between",
-            }}
-          >
+        <View style={styles.heroCard}>
+          <View style={styles.heroHeaderRow}>
             <Text
-              style={{
-                color: theme.colors.text,
-                fontSize: 18,
-                fontWeight: "800",
-              }}
+              style={styles.heroTitle}
             >
-              {t("tabs.chats")}
+              {tt("inbox.activeTitle", "Активные чаты")}
             </Text>
-            <Text style={{ color: theme.colors.muted, fontSize: 12 }}>{cards.length}</Text>
+            <Text style={styles.heroCount}>{cards.length}</Text>
           </View>
-          <Text style={{ color: theme.colors.subtext, fontSize: 14, lineHeight: 20 }}>
+          <Text style={styles.heroText}>
             {tt(
               "inbox.subheader",
-              "This is where active personal conversation lives. Connections keeps the shared story, and Chats keeps the dialogue moving."
+              "Здесь идёт активная переписка. «Связи» держат общий контекст, а «Чаты» продолжают сам разговор."
             )}
           </Text>
           <Pressable
             onPress={() => navigation.navigate("Tabs", { screen: "Connections" })}
-            style={{
-              alignSelf: "flex-start",
-              paddingHorizontal: 12,
-              paddingVertical: 8,
-              borderRadius: theme.shapes.pill,
-              backgroundColor: theme.colors.pillBg,
-              borderWidth: 1,
-              borderColor: theme.colors.borderSubtle,
-            }}
+            style={styles.heroLinkButton}
           >
-            <Text style={{ color: theme.colors.text, fontSize: 12, fontWeight: "800" }}>
-              {tt("inbox.openConnections", "Открыть связи")}
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={startNewSession}
-            style={{
-              alignSelf: "flex-start",
-              paddingHorizontal: 12,
-              paddingVertical: 8,
-              borderRadius: theme.shapes.pill,
-              backgroundColor: theme.colors.primary,
-            }}
-          >
-            <Text style={{ color: "#fff", fontSize: 12, fontWeight: "800" }}>
-              Начать новую совместную сессию
+            <Text style={styles.heroLinkText}>
+              {tt("inbox.openConnections", "Связи")}
             </Text>
           </Pressable>
         </View>
@@ -413,10 +376,13 @@ export default function InboxScreen() {
               title={tt("inbox.errorTitle", "Chats are temporarily unavailable")}
               body={error}
               primaryAction={{
-                label: tt("common.retry", "Retry"),
+                label: tt("common.retry", "Повторить"),
                 onPress: () => setReloadKey((prev) => prev + 1),
               }}
-              secondaryAction={{ label: "Вернуться во Вместе", onPress: goToTogether }}
+              secondaryAction={{
+                label: tt("inbox.openConnections", "Связи"),
+                onPress: () => navigation.navigate("Tabs", { screen: "Connections" }),
+              }}
             />
           </View>
         ) : cards.length ? (
@@ -424,7 +390,7 @@ export default function InboxScreen() {
             data={cards}
             keyExtractor={(item) => item.id}
             renderItem={renderCard}
-            contentContainerStyle={{ paddingTop: 8, paddingBottom: 12, gap: 12 }}
+            contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
           />
         ) : (
@@ -444,7 +410,10 @@ export default function InboxScreen() {
                 "After a mutual open, the personal chat will appear here and stay ready whenever you want to continue."
               )}
               primaryAction={{ label: "Начать новую совместную сессию", onPress: startNewSession }}
-              secondaryAction={{ label: "Вернуться во Вместе", onPress: goToTogether }}
+              secondaryAction={{
+                label: tt("inbox.openConnections", "Связи"),
+                onPress: () => navigation.navigate("Tabs", { screen: "Connections" }),
+              }}
             />
           </View>
         )}
@@ -452,3 +421,58 @@ export default function InboxScreen() {
     </ScreenShell>
   );
 }
+
+const styles = StyleSheet.create({
+  screenContent: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+  },
+  heroCard: {
+    marginBottom: 16,
+    gap: 10,
+    padding: 18,
+    borderRadius: theme.shapes.card,
+    backgroundColor: "rgba(16, 20, 38, 0.72)",
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+  },
+  heroHeaderRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    justifyContent: "space-between",
+  },
+  heroTitle: {
+    color: theme.colors.text,
+    fontSize: 18,
+    fontWeight: "800",
+  },
+  heroCount: {
+    color: theme.colors.muted,
+    fontSize: 12,
+  },
+  heroText: {
+    color: theme.colors.subtext,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  heroLinkButton: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: theme.shapes.pill,
+    backgroundColor: theme.colors.pillBg,
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+  },
+  heroLinkText: {
+    color: theme.colors.text,
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  listContent: {
+    paddingTop: 8,
+    paddingBottom: 12,
+    gap: 12,
+  },
+});

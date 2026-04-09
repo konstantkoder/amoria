@@ -414,10 +414,13 @@ export default function PlaySessionDetailScreen() {
       >
         <View style={styles.heroCard}>
           <Text style={styles.heroKicker}>
-            {tt("playDetail.heroKicker", "Страница вашей совместной истории")}
+            {tt("playDetail.heroKicker", "Постоянный дом этой истории")}
           </Text>
           <Text style={styles.heroTitle}>{peerName}</Text>
-          <Text style={styles.heroText}>{formatSourceLabel(session.activity)}</Text>
+          <Text style={styles.heroText}>
+            {formatSourceLabel(session.activity)} Здесь хранятся итог, replay и вход в чат, если он уже
+            открылся.
+          </Text>
 
           <View style={styles.metaGrid}>
             <View style={styles.metaItem}>
@@ -446,7 +449,7 @@ export default function PlaySessionDetailScreen() {
         </View>
 
         <View style={styles.actionCard}>
-          <Text style={styles.actionTitle}>{tt("playDetail.chatTitle", "Что можно сделать дальше")}</Text>
+          <Text style={styles.actionTitle}>{tt("playDetail.chatTitle", "Что доступно сейчас")}</Text>
           {canOpenChat ? (
             <>
               <Text style={styles.actionText}>
@@ -489,16 +492,13 @@ export default function PlaySessionDetailScreen() {
             </>
           )}
           <View style={styles.actionRow}>
+            <Pressable onPress={goToHistory} style={styles.secondaryButton}>
+              <Text style={styles.secondaryButtonText}>Ко всем историям</Text>
+            </Pressable>
             <Pressable onPress={startNewSession} style={styles.secondaryButton}>
               <Text style={styles.secondaryButtonText}>
                 {tt("playDetail.startNew", "Начать новую совместную сессию")}
               </Text>
-            </Pressable>
-            <Pressable onPress={goToHistory} style={styles.secondaryButton}>
-              <Text style={styles.secondaryButtonText}>Открыть другие истории</Text>
-            </Pressable>
-            <Pressable onPress={goToTogether} style={styles.secondaryButton}>
-              <Text style={styles.secondaryButtonText}>Вернуться во Вместе</Text>
             </Pressable>
           </View>
         </View>
@@ -518,7 +518,7 @@ export default function PlaySessionDetailScreen() {
               <Text style={styles.replayToggleText}>
                 {replayOpen
                   ? tt("playDetail.hideReplay", "Скрыть replay")
-                  : tt("playDetail.openReplay", "Открыть replay")}
+                  : tt("playDetail.openReplay", "Показать replay")}
               </Text>
             </Pressable>
           </View>
@@ -536,7 +536,7 @@ export default function PlaySessionDetailScreen() {
               <View style={styles.emptyReplayCard}>
                 <Text style={styles.emptyReplayTitle}>Replay недоступен</Text>
                 <Text style={styles.emptyReplayText}>
-                  Эта совместная сессия сохранилась без штрихов. История и итог остались, но самого replay здесь нет.
+                  Эта совместная сессия сохранилась без штрихов. История и итог остались, но сам replay здесь недоступен.
                 </Text>
               </View>
             )
