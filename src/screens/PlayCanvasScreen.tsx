@@ -16,8 +16,11 @@ import CoreStateCard from "@/components/CoreStateCard";
 import ScreenShell from "@/components/ScreenShell";
 import { auth, db } from "@/config/firebaseConfig";
 import {
+  advanceChainDrawTurn,
   appendStrokeBatch,
+  ensureChainDrawTurnState,
   finishPlaySession,
+  getChainDrawTurnState,
   subscribePlayEvents,
   subscribePlaySession,
   type PlaySessionDoc,
@@ -27,7 +30,7 @@ import {
 import { makeNickname } from "@/services/rooms";
 import { theme } from "@/theme";
 
-const SESSION_DURATION_SEC = 420;
+const DRAW_SESSION_DURATION_SEC = 420;
 
 function formatRemaining(totalSec: number) {
   const value = Math.max(totalSec, 0);
@@ -74,10 +77,12 @@ export default function PlayCanvasScreen() {
   const [loadingEvents, setLoadingEvents] = React.useState(true);
   const [loadError, setLoadError] = React.useState("");
   const [finishing, setFinishing] = React.useState(false);
+  const [passingTurn, setPassingTurn] = React.useState(false);
   const [tick, setTick] = React.useState(Date.now());
   const mountedRef = React.useRef(true);
   const navigationHandledRef = React.useRef(false);
   const finishPromiseRef = React.useRef<Promise<void> | null>(null);
+  const advanceTurnPromiseRef = React.useRef<Promise<void> | null>(null);
   const allowExitRef = React.useRef(false);
 
   const goToTogether = React.useCallback(() => {
@@ -107,12 +112,14 @@ export default function PlayCanvasScreen() {
     navigationHandledRef.current = false;
     allowExitRef.current = false;
     finishPromiseRef.current = null;
+    advanceTurnPromiseRef.current = null;
     setSession(null);
     setEvents([]);
     setLoadingSession(true);
     setLoadingEvents(true);
     setLoadError("");
     setFinishing(false);
+    setPassingTurn(false);
     setTick(Date.now());
 
     if (!db || !uid || !sessionId) {
@@ -170,6 +177,13 @@ export default function PlayCanvasScreen() {
     [events]
   );
 
+  const chainTurnState = React.useMemo(
+    () => (session ? getChainDrawTurnState(session) : null),
+    [session]
+  );
+  const isChainDraw = session?.activity === "chain_draw";
+  const isMyTurn = !isChainDraw || chainTurnState?.currentTurnUid === uid;
+
   const openResultScreen = React.useCallback(() => {
     if (!mountedRef.current || navigationHandledRef.current || !sessionId) return;
     navigationHandledRef.current = true;
@@ -220,24 +234,108 @@ export default function PlayCanvasScreen() {
   }, [openResultScreen, session]);
 
   React.useEffect(() => {
-    if (!session?.startedAt || session.status !== "active") return;
+    if (session?.status !== "active") return;
     const timer = setInterval(() => {
       setTick(Date.now());
     }, 1000);
     return () => clearInterval(timer);
-  }, [session?.startedAt, session?.status]);
-
-  const liveRemaining = React.useMemo(() => {
-    if (!session?.startedAt) return SESSION_DURATION_SEC;
-    const elapsed = Math.floor((tick - session.startedAt) / 1000);
-    return Math.max(SESSION_DURATION_SEC - elapsed, 0);
-  }, [session?.startedAt, tick]);
+  }, [session?.status]);
 
   React.useEffect(() => {
-    if (!session || session.status !== "active") return;
-    if (liveRemaining > 0) return;
+    if (!db || !sessionId || session?.activity !== "chain_draw" || session.status !== "active") {
+      return;
+    }
+
+    const needsTurnRepair =
+      !session.turnOrder?.length ||
+      !session.currentTurnUid ||
+      session.turnIndex == null ||
+      session.turnDurationSec == null ||
+      session.maxTurns == null ||
+      session.turnStartedAt == null;
+
+    if (!needsTurnRepair) return;
+    void ensureChainDrawTurnState(db, sessionId);
+  }, [
+    db,
+    session?.activity,
+    session?.currentTurnUid,
+    session?.maxTurns,
+    session?.status,
+    session?.turnDurationSec,
+    session?.turnIndex,
+    session?.turnOrder,
+    session?.turnStartedAt,
+    sessionId,
+  ]);
+
+  const drawRemaining = React.useMemo(() => {
+    if (!session?.startedAt) return DRAW_SESSION_DURATION_SEC;
+    const elapsed = Math.floor((tick - session.startedAt) / 1000);
+    return Math.max(DRAW_SESSION_DURATION_SEC - elapsed, 0);
+  }, [session?.startedAt, tick]);
+
+  const turnRemaining = React.useMemo(() => {
+    if (!chainTurnState) return 0;
+    const elapsed = Math.floor((tick - chainTurnState.turnStartedAt) / 1000);
+    return Math.max(chainTurnState.turnDurationSec - elapsed, 0);
+  }, [chainTurnState, tick]);
+
+  const advanceTurn = React.useCallback(async () => {
+    if (
+      !db ||
+      !sessionId ||
+      !session ||
+      session.activity !== "chain_draw" ||
+      session.status !== "active" ||
+      !chainTurnState
+    ) {
+      return;
+    }
+
+    if (advanceTurnPromiseRef.current) {
+      await advanceTurnPromiseRef.current;
+      return;
+    }
+
+    const task = (async () => {
+      if (mountedRef.current) {
+        setPassingTurn(true);
+      }
+
+      const result = await advanceChainDrawTurn(db, sessionId, {
+        expectedTurnIndex: chainTurnState.turnIndex,
+        expectedCurrentTurnUid: chainTurnState.currentTurnUid,
+        resultStrokeCount: totalStrokeCount,
+      });
+
+      if (result.state === "finished") {
+        openResultScreen();
+      }
+    })().finally(() => {
+      advanceTurnPromiseRef.current = null;
+      if (mountedRef.current) {
+        setPassingTurn(false);
+      }
+    });
+
+    advanceTurnPromiseRef.current = task;
+    try {
+      await task;
+    } catch {}
+  }, [chainTurnState, db, openResultScreen, session, sessionId, totalStrokeCount]);
+
+  React.useEffect(() => {
+    if (!session || session.status !== "active" || isChainDraw) return;
+    if (drawRemaining > 0) return;
     void completeSession();
-  }, [completeSession, liveRemaining, session]);
+  }, [completeSession, drawRemaining, isChainDraw, session]);
+
+  React.useEffect(() => {
+    if (!chainTurnState || !session || session.status !== "active") return;
+    if (turnRemaining > 0) return;
+    void advanceTurn();
+  }, [advanceTurn, chainTurnState, session, turnRemaining]);
 
   React.useEffect(() => {
     const unsubscribe = navigation.addListener("beforeRemove", (event: any) => {
@@ -266,7 +364,17 @@ export default function PlayCanvasScreen() {
 
   const handleLocalBatch = React.useCallback(
     async (strokes: SharedCanvasStroke[]) => {
-      if (!db || !uid || !sessionId || session?.status !== "active" || finishing) return;
+      if (
+        !db ||
+        !uid ||
+        !sessionId ||
+        session?.status !== "active" ||
+        finishing ||
+        passingTurn ||
+        (session?.activity === "chain_draw" && chainTurnState?.currentTurnUid !== uid)
+      ) {
+        return;
+      }
 
       const payload: PlayStroke[] = strokes.map((stroke) => ({
         id: stroke.id,
@@ -283,16 +391,58 @@ export default function PlayCanvasScreen() {
         await appendStrokeBatch(db, sessionId, uid, payload);
       } catch {}
     },
-    [db, finishing, session?.status, sessionId, uid]
+    [
+      chainTurnState?.currentTurnUid,
+      db,
+      finishing,
+      passingTurn,
+      session?.activity,
+      session?.status,
+      sessionId,
+      uid,
+    ]
   );
 
   const partnerId = React.useMemo(() => {
     return session?.participantIds.find((participantId) => participantId !== uid) ?? "";
   }, [session?.participantIds, uid]);
 
-  const partnerName = session?.participantNicknames?.[partnerId] ?? makeNickname(partnerId || "peer");
+  const partnerName =
+    session?.participantNicknames?.[partnerId] ?? makeNickname(partnerId || "peer");
+  const turnCounterLabel = chainTurnState
+    ? `${Math.min(chainTurnState.turnIndex + 1, chainTurnState.maxTurns)} / ${chainTurnState.maxTurns}`
+    : "";
+  const currentTurnLabel = !chainTurnState
+    ? ""
+    : chainTurnState.currentTurnUid === uid
+      ? "Твой ход"
+      : "Ход партнера";
+  const currentTurnName = !chainTurnState
+    ? ""
+    : chainTurnState.currentTurnUid === uid
+      ? "Сейчас рисуешь ты"
+      : `Сейчас рисует ${partnerName}`;
 
   const sessionPhaseCopy = React.useMemo(() => {
+    if (session?.activity === "chain_draw") {
+      if (session.status === "active") {
+        return {
+          eyebrow: "Рисунок по очереди",
+          title: currentTurnName || "Подключаем первый ход",
+          body:
+            chainTurnState?.currentTurnUid === uid
+              ? "У тебя короткий ход на 30 секунд. Когда закончишь раньше, можно сразу передать ход."
+              : "Ты видишь общий холст, а рисовать можно будет сразу после следующей передачи хода.",
+        };
+      }
+
+      return {
+        eyebrow: "Рисунок по очереди",
+        title: "Собираем пошаговый холст",
+        body: "Мы уже открыли один общий рисунок и синхронизируем первый ход для вас двоих.",
+      };
+    }
+
     if (session?.status === "active") {
       return {
         eyebrow: "Сессия началась",
@@ -306,7 +456,34 @@ export default function PlayCanvasScreen() {
       title: "Сейчас все соберется",
       body: "Мы уже открыли холст и синхронизируем его для вас двоих.",
     };
-  }, [session?.status]);
+  }, [chainTurnState?.currentTurnUid, currentTurnName, session?.activity, session?.status, uid]);
+
+  const timerTitle = isChainDraw ? "Время хода" : "Осталось";
+  const timerValue = formatRemaining(isChainDraw ? turnRemaining : drawRemaining);
+  const canvasDisabled = session?.status !== "active" || finishing || passingTurn || !isMyTurn;
+  const canvasDisabledTitle =
+    finishing
+      ? "Завершаем сессию"
+      : passingTurn
+        ? "Передаем ход"
+        : isChainDraw && !isMyTurn
+          ? "Ход партнера"
+          : "Холст закрыт";
+  const canvasDisabledBody =
+    finishing
+      ? "Сейчас откроем итог вашей совместной сессии."
+      : passingTurn
+        ? "Холст синхронизируется и откроется на следующем ходу."
+        : isChainDraw && !isMyTurn
+          ? `${partnerName} сейчас рисует. Холст откроется тебе на следующем ходе.`
+          : undefined;
+  const helperText = isChainDraw
+    ? isMyTurn
+      ? "Ход длится 30 секунд. Когда закончил раньше, передай ход и пусть рисунок продолжится дальше."
+      : "Сейчас холст у второго участника. Ты видишь общий рисунок и сможешь продолжить его на следующем ходе."
+    : totalStrokeCount
+      ? "У вас 7 минут на один общий рисунок. Когда время закончится, вы сразу увидите итог и решите, хотите ли открыть чат дальше."
+      : "Холст уже готов. Первый штрих появится сразу, как только кто-то из вас начнет рисовать.";
 
   const guardState = React.useMemo<GuardState | null>(() => {
     if (!uid) {
@@ -415,7 +592,7 @@ export default function PlayCanvasScreen() {
 
   return (
     <ScreenShell
-      title="Совместная сессия"
+      title={isChainDraw ? "Рисунок по очереди" : "Совместная сессия"}
       background="nightCity"
       showBack
       onBack={() => {
@@ -452,44 +629,77 @@ export default function PlayCanvasScreen() {
               <Text style={styles.heroBody}>{sessionPhaseCopy.body}</Text>
             </View>
             <View style={styles.timerPill}>
-              <Text style={styles.timerText}>{formatRemaining(liveRemaining)}</Text>
+              <Text style={styles.timerLabel}>{timerTitle}</Text>
+              <Text style={styles.timerText}>{timerValue}</Text>
             </View>
           </View>
 
           <View style={styles.metaRow}>
             <View style={styles.metaCard}>
-              <Text style={styles.metaLabel}>Напарник</Text>
-              <Text style={styles.metaValue}>{partnerName}</Text>
+              <Text style={styles.metaLabel}>{isChainDraw ? "Режим" : "Напарник"}</Text>
+              <Text style={styles.metaValue}>
+                {isChainDraw ? "Рисунок по очереди" : partnerName}
+              </Text>
             </View>
             <View style={styles.metaCard}>
-              <Text style={styles.metaLabel}>Общих штрихов</Text>
-              <Text style={styles.metaValue}>{totalStrokeCount}</Text>
+              <Text style={styles.metaLabel}>{isChainDraw ? "Сейчас" : "Общих штрихов"}</Text>
+              <Text style={styles.metaValue}>
+                {isChainDraw ? currentTurnLabel : totalStrokeCount}
+              </Text>
             </View>
           </View>
+
+          {isChainDraw ? (
+            <View style={styles.metaRow}>
+              <View style={styles.metaCard}>
+                <Text style={styles.metaLabel}>Ход</Text>
+                <Text style={styles.metaValue}>{turnCounterLabel}</Text>
+              </View>
+              <View style={styles.metaCard}>
+                <Text style={styles.metaLabel}>Общих штрихов</Text>
+                <Text style={styles.metaValue}>{totalStrokeCount}</Text>
+              </View>
+            </View>
+          ) : null}
         </View>
 
         <SharedCanvasWebView
           localUid={uid}
           strokes={allStrokes}
-          disabled={session?.status !== "active" || finishing}
+          disabled={canvasDisabled}
+          disabledTitle={canvasDisabledTitle}
+          disabledBody={canvasDisabledBody}
           onLocalStrokeBatch={handleLocalBatch}
         />
 
         <View style={styles.footerRow}>
-          <Text style={styles.helper}>
-            {totalStrokeCount
-              ? "У вас 7 минут на один общий рисунок. Когда время закончится, вы сразу увидите итог и решите, хотите ли открыть чат дальше."
-              : "Холст уже готов. Первый штрих появится сразу, как только кто-то из вас начнет рисовать."}
-          </Text>
-          <Pressable
-            disabled={finishing}
-            onPress={() => void completeSession()}
-            style={[styles.finishButton, finishing ? styles.finishButtonDisabled : null]}
-          >
-            <Text style={styles.finishText}>
-              {finishing ? "Завершаем…" : "Завершить раньше"}
-            </Text>
-          </Pressable>
+          <Text style={styles.helper}>{helperText}</Text>
+          {isChainDraw ? (
+            isMyTurn && session?.status === "active" ? (
+              <Pressable
+                disabled={passingTurn || finishing}
+                onPress={() => void advanceTurn()}
+                style={[
+                  styles.finishButton,
+                  (passingTurn || finishing) && styles.finishButtonDisabled,
+                ]}
+              >
+                <Text style={styles.finishText}>
+                  {passingTurn ? "Передаем…" : "Передать ход"}
+                </Text>
+              </Pressable>
+            ) : null
+          ) : (
+            <Pressable
+              disabled={finishing}
+              onPress={() => void completeSession()}
+              style={[styles.finishButton, finishing ? styles.finishButtonDisabled : null]}
+            >
+              <Text style={styles.finishText}>
+                {finishing ? "Завершаем…" : "Завершить раньше"}
+              </Text>
+            </Pressable>
+          )}
         </View>
       </ScrollView>
     </ScreenShell>
@@ -567,6 +777,16 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.accentSoft,
     paddingHorizontal: 14,
     paddingVertical: 10,
+    gap: 2,
+    minWidth: 92,
+    alignItems: "center",
+  },
+  timerLabel: {
+    color: theme.colors.muted,
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
   },
   timerText: {
     color: theme.colors.text,
@@ -590,6 +810,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 12,
     alignItems: "center",
+    flexWrap: "wrap",
   },
   finishButton: {
     borderRadius: theme.shapes.cardInner,

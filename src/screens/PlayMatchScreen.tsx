@@ -47,7 +47,7 @@ function getBlockedState(reason: MatchBlockReason) {
     case "firebase":
       return {
         title: "Старт Together пока недоступен",
-        body: "Мы не смогли подготовить соединение для 7-минутной сессии. Вернись во Вместе и попробуй еще раз.",
+        body: "Мы не смогли подготовить соединение для совместной сессии. Вернись во Вместе и попробуй еще раз.",
         primaryLabel: "Во Вместе",
         secondaryLabel: "Назад",
       };
@@ -68,6 +68,38 @@ function getBlockedState(reason: MatchBlockReason) {
   }
 }
 
+function getMatchModeCopy(activity: PlayActivity | null) {
+  if (activity === "chain_draw") {
+    return {
+      eyebrow: "10 ходов по 30 секунд",
+      preparingBody:
+        "Сейчас поставим тебя в очередь и попробуем быстро найти второго человека для рисунка по очереди.",
+      searchingBody:
+        "Как только найдём второго участника, сразу откроем один общий холст. Вы будете рисовать короткими ходами и по очереди собирать общий рисунок.",
+      delayedBody:
+        "Обычно это происходит быстро, но иногда поиск занимает чуть больше времени. Оставайся здесь или вернись и попробуй снова позже.",
+      foundBody:
+        "Подключаем вас к одному рисунку по очереди. Это займёт пару секунд.",
+      caption:
+        "Один общий холст, короткие ходы и передача хода после каждого раунда.",
+    };
+  }
+
+  return {
+    eyebrow: "7 минут на двоих",
+    preparingBody:
+      "Сейчас поставим тебя в очередь и попробуем быстро найти второго человека для общего рисунка.",
+    searchingBody:
+      "Как только найдем второго участника, сразу откроем общий холст. На сессию будет 7 минут.",
+    delayedBody:
+      "Обычно это происходит быстро, но иногда поиск занимает чуть больше времени. Оставайся здесь или вернись и попробуй снова позже.",
+    foundBody:
+      "Подключаем вас к общему холсту. Это займет пару секунд.",
+    caption:
+      "Сначала пройдет общий опыт. После него чат откроется только если вы оба этого захотите.",
+  };
+}
+
 export default function PlayMatchScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
@@ -75,15 +107,14 @@ export default function PlayMatchScreen() {
   const activity = isPlayActivity(route.params?.activity)
     ? (route.params.activity as PlayActivity)
     : null;
+  const modeCopy = React.useMemo(() => getMatchModeCopy(activity), [activity]);
   const nickname = React.useMemo(() => makeNickname(uid), [uid]);
   const blockReason = resolveMatchBlockReason(route.params, uid);
   const blockedState = blockReason ? getBlockedState(blockReason) : null;
   const [busy, setBusy] = React.useState(false);
   const [queueCancelled, setQueueCancelled] = React.useState(false);
   const [statusTitle, setStatusTitle] = React.useState("Подготовим совместную сессию");
-  const [statusText, setStatusText] = React.useState(
-    "Сейчас поставим тебя в очередь и попробуем быстро найти второго человека для общего рисунка."
-  );
+  const [statusText, setStatusText] = React.useState(modeCopy.preparingBody);
   const mountedRef = React.useRef(true);
   const matchedSessionRef = React.useRef("");
   const cancelledRef = React.useRef(false);
@@ -158,12 +189,12 @@ export default function PlayMatchScreen() {
     const timer = setTimeout(() => {
       setStatusSafe(
         "Все еще ищем человека",
-        "Обычно это происходит быстро, но иногда поиск занимает чуть больше времени. Оставайся здесь или вернись и попробуй снова позже."
+        modeCopy.delayedBody
       );
     }, 8000);
 
     return () => clearTimeout(timer);
-  }, [busy, queueCancelled, setStatusSafe]);
+  }, [busy, modeCopy.delayedBody, queueCancelled, setStatusSafe]);
 
   React.useEffect(() => {
     const unsubscribe = navigation.addListener("beforeRemove", (event: any) => {
@@ -183,7 +214,7 @@ export default function PlayMatchScreen() {
     setQueueCancelled(false);
     setStatusSafe(
       "Подготовим совместную сессию",
-      "Сейчас поставим тебя в очередь и попробуем быстро найти второго человека для общего рисунка."
+      modeCopy.preparingBody
     );
 
     if (blockReason || !activity) {
@@ -196,7 +227,7 @@ export default function PlayMatchScreen() {
     setBusySafe(true);
     setStatusSafe(
       "Ищем человека",
-      "Как только найдем второго участника, сразу откроем общий холст. На сессию будет 7 минут."
+      modeCopy.searchingBody
     );
 
     const unsubscribe = subscribeOwnQueueEntry(db!, uid, (entry) => {
@@ -213,7 +244,7 @@ export default function PlayMatchScreen() {
       if (entry?.sessionId) {
         setStatusSafe(
           "Напарник найден",
-          "Подключаем вас к общему холсту. Это займет пару секунд."
+          modeCopy.foundBody
         );
         enterSession(entry.sessionId);
       }
@@ -238,7 +269,7 @@ export default function PlayMatchScreen() {
         if (result.sessionId) {
           setStatusSafe(
             "Напарник найден",
-            "Подключаем вас к общему холсту. Это займет пару секунд."
+            modeCopy.foundBody
           );
           enterSession(result.sessionId);
         }
@@ -260,7 +291,19 @@ export default function PlayMatchScreen() {
       unsubscribe();
       void cancelQueue();
     };
-  }, [activity, blockReason, cancelQueue, enterSession, nickname, setBusySafe, setStatusSafe, uid]);
+  }, [
+    activity,
+    blockReason,
+    cancelQueue,
+    enterSession,
+    modeCopy.foundBody,
+    modeCopy.preparingBody,
+    modeCopy.searchingBody,
+    nickname,
+    setBusySafe,
+    setStatusSafe,
+    uid,
+  ]);
 
   const handlePrimaryBlockedAction = React.useCallback(() => {
     if (!blockReason) return;
@@ -334,12 +377,10 @@ export default function PlayMatchScreen() {
         </View>
 
         <View style={styles.statusCard}>
-          <Text style={styles.eyebrow}>7 минут на двоих</Text>
+          <Text style={styles.eyebrow}>{modeCopy.eyebrow}</Text>
           <Text style={styles.title}>{statusTitle}</Text>
           <Text style={styles.body}>{statusText}</Text>
-          <Text style={styles.caption}>
-            Сначала пройдет общий опыт. После него чат откроется только если вы оба этого захотите.
-          </Text>
+          <Text style={styles.caption}>{modeCopy.caption}</Text>
 
           <View style={styles.actionRow}>
             <Pressable onPress={handleCancel} style={styles.secondaryButton}>
@@ -349,7 +390,7 @@ export default function PlayMatchScreen() {
               <Pressable
                 onPress={() => {
                   allowLeaveRef.current = true;
-                  navigation.replace("PlayMatch", { activity: "draw" });
+                  navigation.replace("PlayMatch", { activity: activity ?? "draw" });
                 }}
                 style={styles.ghostButton}
               >

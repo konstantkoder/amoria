@@ -25,6 +25,7 @@ type InboxThreadCard = {
   peerId: string;
   peerName: string;
   sourceKey: "play" | "direct";
+  activity?: "draw" | "chain_draw";
   previewText: string;
   dateLabel: string;
   sortAt: number;
@@ -64,6 +65,9 @@ function mapThreadToCard(
     peerId: peer.uid,
     peerName: peer.name || fallbackName,
     sourceKey: thread.source === "play" ? "play" : "direct",
+    ...(thread.artworkSummary?.activity
+      ? { activity: thread.artworkSummary.activity }
+      : {}),
     previewText: thread.lastMessageText?.trim() || previewFallback,
     dateLabel: formatThreadDate(sortAt),
     sortAt,
@@ -148,7 +152,10 @@ export default function InboxScreen() {
 
   const sourceLabels = useMemo(
     () => ({
-      play: tt("inbox.sourcePlay", "После совместной сессии"),
+      play: {
+        draw: tt("inbox.sourcePlay", "После совместной сессии"),
+        chain_draw: tt("inbox.sourcePlayChainDraw", "После рисунка по очереди"),
+      },
       direct: tt("inbox.sourceDefault", "Личный чат"),
     }),
     [tt]
@@ -245,7 +252,9 @@ export default function InboxScreen() {
               }}
             >
               <Text style={{ color: theme.colors.accent, fontSize: 12, fontWeight: "800" }}>
-                {sourceLabels[item.sourceKey]}
+                {item.sourceKey === "play"
+                  ? sourceLabels.play[item.activity ?? "draw"]
+                  : sourceLabels.direct}
               </Text>
             </View>
           </View>

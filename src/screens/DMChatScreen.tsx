@@ -262,8 +262,13 @@ export default function DMChatScreen() {
   }, []);
 
   const canSend = text.trim().length > 0;
-  const sourceTitle =
-    thread?.source === "play" ? tt("dm.sourcePlay", "Чат открылся после совместной сессии") : "";
+  const sourceTitle = useMemo(() => {
+    if (thread?.source !== "play") return "";
+    if (thread.artworkSummary?.activity === "chain_draw") {
+      return tt("dm.sourcePlayChainDraw", "Чат открылся после рисунка по очереди");
+    }
+    return tt("dm.sourcePlay", "Чат открылся после совместной сессии");
+  }, [thread?.artworkSummary?.activity, thread?.source, tt]);
   const strokeCount = thread?.artworkSummary?.strokeCount;
   const isLoading = threadLoading || messagesLoading;
   const threadMissing = !isLoading && !subscriptionError && !thread && mergedMsgs.length === 0;

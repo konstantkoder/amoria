@@ -13,7 +13,11 @@ import {
 } from "firebase/firestore";
 import { makeNickname } from "@/services/rooms";
 
-export type PlayActivity = "draw";
+export type PlayActivity = "draw" | "chain_draw";
+export type PlayActivityLabelTone = "action" | "history" | "neutral";
+
+export const CHAIN_DRAW_TURN_DURATION_SEC = 30;
+export const CHAIN_DRAW_MAX_TURNS = 10;
 
 export type PlayQueueStatus = "waiting" | "matched" | "cancelled";
 export type PlaySessionStatus = "matching" | "active" | "finished" | "revealed";
@@ -48,6 +52,12 @@ export type PlaySessionDoc = {
   endedAt?: number;
   participantIds: string[];
   participantNicknames: Record<string, string>;
+  turnOrder?: string[];
+  currentTurnUid?: string;
+  turnIndex?: number;
+  turnDurationSec?: number;
+  maxTurns?: number;
+  turnStartedAt?: number;
   revealDecisions?: Record<string, PlayRevealDecision>;
   resultStrokeCount?: number;
 };
@@ -87,8 +97,146 @@ export type PlayStrokeBatch = {
   strokes: PlayStroke[];
 };
 
+export type PlayChainTurnState = {
+  turnOrder: string[];
+  currentTurnUid: string;
+  turnIndex: number;
+  turnDurationSec: number;
+  maxTurns: number;
+  turnStartedAt: number;
+};
+
+export type AdvanceChainDrawTurnResult = {
+  state: "advanced" | "finished" | "stale" | "ignored";
+  turnIndex?: number;
+  currentTurnUid?: string;
+};
+
 export function isPlayActivity(value: unknown): value is PlayActivity {
-  return value === "draw";
+  return value === "draw" || value === "chain_draw";
+}
+
+function normalizePlayActivity(value: unknown): PlayActivity {
+  return value === "chain_draw" ? "chain_draw" : "draw";
+}
+
+function normalizePositiveNumber(value: unknown, fallback: number) {
+  const next = Number(value);
+  if (!Number.isFinite(next) || next <= 0) return fallback;
+  return Math.floor(next);
+}
+
+function normalizeTurnIndex(value: unknown) {
+  const next = Number(value);
+  if (!Number.isFinite(next) || next < 0) return 0;
+  return Math.floor(next);
+}
+
+function normalizeTurnOrder(value: unknown, participantIds: string[]) {
+  const fallback = participantIds.filter(Boolean);
+  if (!Array.isArray(value)) return fallback;
+
+  const deduped = value
+    .map((item) => String(item ?? "").trim())
+    .filter(Boolean)
+    .filter((item, index, list) => list.indexOf(item) === index);
+
+  return deduped.length ? deduped : fallback;
+}
+
+function buildInitialChainDrawState(
+  participantIds: string[],
+  startedAt: number
+): PlayChainTurnState | null {
+  const turnOrder = normalizeTurnOrder(participantIds, participantIds);
+  if (!turnOrder.length) return null;
+
+  return {
+    turnOrder,
+    currentTurnUid: turnOrder[0],
+    turnIndex: 0,
+    turnDurationSec: CHAIN_DRAW_TURN_DURATION_SEC,
+    maxTurns: CHAIN_DRAW_MAX_TURNS,
+    turnStartedAt: startedAt,
+  };
+}
+
+export function getPlayActivityLabel(
+  activity: string,
+  tone: PlayActivityLabelTone = "neutral"
+) {
+  switch (activity) {
+    case "draw":
+      if (tone === "action") return "Нарисовать вместе";
+      if (tone === "history") return "Нарисовали вместе";
+      return "Свободный общий рисунок";
+    case "chain_draw":
+      return "Рисунок по очереди";
+    default:
+      return "Совместная сессия";
+  }
+}
+
+export function getPlayActivityStoryText(activity: string) {
+  switch (activity) {
+    case "draw":
+      return "Совместный рисунок, который сохранился в вашей общей истории.";
+    case "chain_draw":
+      return "Общий рисунок, который вы собирали по очереди и сохранили в вашей общей истории.";
+    default:
+      return "Совместная история";
+  }
+}
+
+export function getChainDrawTurnState(
+  session: Pick<
+    PlaySessionDoc,
+    | "activity"
+    | "participantIds"
+    | "startedAt"
+    | "turnOrder"
+    | "currentTurnUid"
+    | "turnIndex"
+    | "turnDurationSec"
+    | "maxTurns"
+    | "turnStartedAt"
+  >
+): PlayChainTurnState | null {
+  if (session.activity !== "chain_draw") return null;
+
+  const turnOrder = normalizeTurnOrder(session.turnOrder, session.participantIds);
+  if (!turnOrder.length) return null;
+
+  const turnIndex = normalizeTurnIndex(session.turnIndex);
+  const turnDurationSec = normalizePositiveNumber(
+    session.turnDurationSec,
+    CHAIN_DRAW_TURN_DURATION_SEC
+  );
+  const maxTurns = normalizePositiveNumber(session.maxTurns, CHAIN_DRAW_MAX_TURNS);
+  const currentTurnUid =
+    session.currentTurnUid && turnOrder.includes(session.currentTurnUid)
+      ? session.currentTurnUid
+      : turnOrder[turnIndex % turnOrder.length] ?? turnOrder[0];
+
+  return {
+    turnOrder,
+    currentTurnUid,
+    turnIndex,
+    turnDurationSec,
+    maxTurns,
+    turnStartedAt: normalizePositiveNumber(session.turnStartedAt, session.startedAt),
+  };
+}
+
+function buildChainDrawPatch(turn: PlayChainTurnState) {
+  return {
+    turnOrder: turn.turnOrder,
+    currentTurnUid: turn.currentTurnUid,
+    turnIndex: turn.turnIndex,
+    turnDurationSec: turn.turnDurationSec,
+    maxTurns: turn.maxTurns,
+    turnStartedAt: turn.turnStartedAt,
+  };
 }
 
 function asPlayQueueDoc(id: string, raw: unknown): PlayQueueDoc {
@@ -102,7 +250,7 @@ function asPlayQueueDoc(id: string, raw: unknown): PlayQueueDoc {
         : "";
   return {
     uid: String(data.uid ?? id),
-    activity: (data.activity ?? "draw") as PlayActivity,
+    activity: normalizePlayActivity(data.activity),
     createdAt: Number(data.createdAt ?? 0),
     updatedAt: Number(data.updatedAt ?? 0),
     status: (data.status ?? "waiting") as PlayQueueStatus,
@@ -121,7 +269,7 @@ function asPlaySessionDoc(id: string, raw: unknown): PlaySessionDoc {
   const data = (raw ?? {}) as Partial<PlaySessionDoc>;
   return {
     id,
-    activity: (data.activity ?? "draw") as PlayActivity,
+    activity: normalizePlayActivity(data.activity),
     status: (data.status ?? "matching") as PlaySessionStatus,
     createdAt: Number(data.createdAt ?? 0),
     startedAt: Number(data.startedAt ?? data.createdAt ?? 0),
@@ -138,6 +286,27 @@ function asPlaySessionDoc(id: string, raw: unknown): PlaySessionDoc {
             ])
           )
         : {},
+    ...(Array.isArray(data.turnOrder)
+      ? {
+          turnOrder: data.turnOrder.map((value) => String(value ?? "")).filter(Boolean),
+        }
+      : {}),
+    ...(data.currentTurnUid ? { currentTurnUid: String(data.currentTurnUid) } : {}),
+    ...(data.turnIndex != null ? { turnIndex: normalizeTurnIndex(data.turnIndex) } : {}),
+    ...(data.turnDurationSec != null
+      ? {
+          turnDurationSec: normalizePositiveNumber(
+            data.turnDurationSec,
+            CHAIN_DRAW_TURN_DURATION_SEC
+          ),
+        }
+      : {}),
+    ...(data.maxTurns != null
+      ? { maxTurns: normalizePositiveNumber(data.maxTurns, CHAIN_DRAW_MAX_TURNS) }
+      : {}),
+    ...(data.turnStartedAt != null
+      ? { turnStartedAt: Number(data.turnStartedAt) }
+      : {}),
     ...(data.revealDecisions && typeof data.revealDecisions === "object"
       ? {
           revealDecisions: Object.fromEntries(
@@ -318,6 +487,8 @@ export async function tryMatchWaitingPlayer(
       [candidateData.uid]: resolveQueueNickname(candidateData),
       [uid]: nickname.trim() || makeNickname(uid || "me"),
     };
+    const chainDrawState =
+      activity === "chain_draw" ? buildInitialChainDrawState(participantIds, now) : null;
 
     tx.set(sessionRef, {
       id: sessionId,
@@ -327,6 +498,7 @@ export async function tryMatchWaitingPlayer(
       startedAt: now,
       participantIds,
       participantNicknames,
+      ...(chainDrawState ? buildChainDrawPatch(chainDrawState) : {}),
     });
 
     tx.set(
@@ -573,6 +745,121 @@ export async function finishPlaySession(
     },
     { merge: true }
   );
+}
+
+export async function ensureChainDrawTurnState(
+  db: Firestore,
+  sessionId: string
+): Promise<void> {
+  const sessionRef = doc(db, "playSessions", sessionId);
+
+  await runTransaction(db, async (tx) => {
+    const snapshot = await tx.get(sessionRef);
+    if (!snapshot.exists()) return;
+
+    const session = asPlaySessionDoc(snapshot.id, snapshot.data());
+    if (session.activity !== "chain_draw" || session.status !== "active") return;
+
+    const turn = getChainDrawTurnState(session);
+    if (!turn) return;
+
+    const needsRepair =
+      !Array.isArray(session.turnOrder) ||
+      !session.turnOrder.length ||
+      session.currentTurnUid !== turn.currentTurnUid ||
+      session.turnIndex == null ||
+      session.turnDurationSec == null ||
+      session.maxTurns == null ||
+      session.turnStartedAt == null;
+
+    if (!needsRepair) return;
+
+    tx.set(sessionRef, buildChainDrawPatch(turn), { merge: true });
+  });
+}
+
+export async function advanceChainDrawTurn(
+  db: Firestore,
+  sessionId: string,
+  options?: {
+    expectedTurnIndex?: number;
+    expectedCurrentTurnUid?: string;
+    resultStrokeCount?: number;
+  }
+): Promise<AdvanceChainDrawTurnResult> {
+  const sessionRef = doc(db, "playSessions", sessionId);
+
+  return runTransaction(db, async (tx) => {
+    const snapshot = await tx.get(sessionRef);
+    if (!snapshot.exists()) {
+      return { state: "ignored" };
+    }
+
+    const session = asPlaySessionDoc(snapshot.id, snapshot.data());
+    if (session.activity !== "chain_draw" || session.status !== "active") {
+      return { state: "ignored" };
+    }
+
+    const turn = getChainDrawTurnState(session);
+    if (!turn) {
+      return { state: "ignored" };
+    }
+
+    if (
+      (options?.expectedTurnIndex != null && turn.turnIndex !== options.expectedTurnIndex) ||
+      (options?.expectedCurrentTurnUid &&
+        turn.currentTurnUid !== options.expectedCurrentTurnUid)
+    ) {
+      return {
+        state: "stale",
+        turnIndex: turn.turnIndex,
+        currentTurnUid: turn.currentTurnUid,
+      };
+    }
+
+    const now = Date.now();
+    const nextTurnIndex = turn.turnIndex + 1;
+
+    if (nextTurnIndex >= turn.maxTurns) {
+      tx.set(
+        sessionRef,
+        {
+          ...buildChainDrawPatch(turn),
+          endedAt: now,
+          resultStrokeCount:
+            options?.resultStrokeCount ?? session.resultStrokeCount ?? 0,
+          status: "finished" satisfies PlaySessionStatus,
+        },
+        { merge: true }
+      );
+
+      return {
+        state: "finished",
+        turnIndex: turn.turnIndex,
+        currentTurnUid: turn.currentTurnUid,
+      };
+    }
+
+    const nextTurnUid =
+      turn.turnOrder[nextTurnIndex % turn.turnOrder.length] ?? turn.currentTurnUid;
+
+    tx.set(
+      sessionRef,
+      buildChainDrawPatch({
+        ...turn,
+        currentTurnUid: nextTurnUid,
+        turnIndex: nextTurnIndex,
+        turnStartedAt: now,
+      }),
+      { merge: true }
+    );
+
+    return {
+      state: "advanced",
+      turnIndex: nextTurnIndex,
+      currentTurnUid: nextTurnUid,
+    };
+  });
 }
 
 export async function submitRevealDecision(

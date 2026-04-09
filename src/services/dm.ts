@@ -13,6 +13,10 @@ import {
 import { makeNickname } from "@/services/rooms";
 import type { PlayActivity } from "@/services/playSessions";
 
+function normalizeArtworkActivity(value: unknown): PlayActivity {
+  return value === "chain_draw" ? "chain_draw" : "draw";
+}
+
 export type DmSource = "play";
 
 export type DmThreadDoc = {
@@ -76,7 +80,7 @@ function asDmThreadDoc(id: string, raw: unknown): DmThreadDoc {
     data.artworkSummary.activity
       ? {
           artworkSummary: {
-            activity: "draw",
+            activity: normalizeArtworkActivity(data.artworkSummary.activity),
             ...(data.artworkSummary.strokeCount != null
               ? { strokeCount: Number(data.artworkSummary.strokeCount) }
               : {}),

@@ -21,6 +21,7 @@ import {
   type DmThreadDoc,
 } from "@/services/dm";
 import {
+  getPlayActivityLabel,
   getPeerFromSession,
   subscribeRecentMutualPlaySessions,
   type PlaySessionDoc,
@@ -80,9 +81,16 @@ function formatFreshness(
   }
 }
 
-function formatActivityLabel(activity: string, t: (key: string) => string) {
+function formatActivityLabel(
+  activity: string,
+  t: (key: string) => string,
+  tt: (key: string, fallback: string) => string
+) {
   if (activity === "draw") return t("connections.sourceDraw");
-  return activity;
+  if (activity === "chain_draw") {
+    return tt("connections.sourceChainDraw", getPlayActivityLabel(activity, "history"));
+  }
+  return getPlayActivityLabel(activity, "history");
 }
 
 function mapSessionToHistoryCard(
@@ -90,6 +98,7 @@ function mapSessionToHistoryCard(
   uid: string,
   now: number,
   t: (key: string, params?: Record<string, string>) => string,
+  tt: (key: string, fallback: string) => string,
   threadBySessionId: Map<string, DmThreadDoc>,
   signalLabel?: string,
   signalTone?: "fresh" | "recent"
@@ -106,7 +115,7 @@ function mapSessionToHistoryCard(
     ...(linkedThread ? { threadId: linkedThread.id } : {}),
     peerId: peer.uid,
     peerName: peer.nickname,
-    activityLabel: formatActivityLabel(session.activity, t),
+    activityLabel: formatActivityLabel(session.activity, t, tt),
     previewText: linkedThread?.lastMessageText?.trim() || t("connections.connectionPreviewFallback"),
     freshnessLabel: formatFreshness(sortAt, now, t),
     ...(session.resultStrokeCount != null ? { strokeCount: session.resultStrokeCount } : {}),
@@ -121,6 +130,7 @@ function mapThreadToFallbackCard(
   uid: string,
   now: number,
   t: (key: string, params?: Record<string, string>) => string,
+  tt: (key: string, fallback: string) => string,
   signalLabel?: string,
   signalTone?: "fresh" | "recent"
 ): HistoryCard | null {
@@ -135,7 +145,9 @@ function mapThreadToFallbackCard(
     peerId: peer.uid,
     peerName: peer.name,
     activityLabel:
-      thread.source === "play" ? t("connections.sourceDraw") : t("connections.sourceOpened"),
+      thread.source === "play"
+        ? formatActivityLabel(thread.artworkSummary?.activity ?? "draw", t, tt)
+        : t("connections.sourceOpened"),
     previewText: thread.lastMessageText?.trim() || t("connections.connectionPreviewFallback"),
     freshnessLabel: formatFreshness(sortAt, now, t),
     ...(thread.artworkSummary?.strokeCount != null
@@ -277,6 +289,7 @@ export default function ConnectionsFeedScreen() {
             uid,
             now,
             t,
+            tt,
             threadBySessionId,
             formatActivitySignalLabel(signal, tt),
             signal?.tone
@@ -304,6 +317,7 @@ export default function ConnectionsFeedScreen() {
                 uid,
                 now,
                 t,
+                tt,
                 formatActivitySignalLabel(signal, tt),
                 signal?.tone
               );

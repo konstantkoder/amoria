@@ -19,13 +19,7 @@ type ActivityCard = {
   details: string;
 };
 
-const SOON_CARDS: ActivityCard[] = [
-  {
-    slug: "chain_draw",
-    title: "Рисунок по очереди",
-    description: "Вы добавляете по одному штриху и по очереди собираете общий рисунок.",
-    details: "Короткий ритм, один холст и чувство живого обмена.",
-  },
+const ROADMAP_CARDS: ActivityCard[] = [
   {
     slug: "daily_prompt",
     title: "Общая тема дня",
@@ -92,6 +86,31 @@ export default function PlayLobbyScreen() {
           </View>
         </Pressable>
 
+        <View style={styles.liveSection}>
+          <Text style={styles.liveSectionTitle}>Еще один живой формат</Text>
+          <Text style={styles.liveSectionText}>
+            Вместе теперь работает не только как свободный холст. Можно войти и в пошаговый общий рисунок.
+          </Text>
+        </View>
+
+        <Pressable
+          onPress={() => navigation.navigate("PlayMatch", { activity: "chain_draw" })}
+          style={styles.liveCard}
+        >
+          <View style={styles.cardHeader}>
+            <Text style={styles.cardTitle}>Рисунок по очереди</Text>
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>Живой режим</Text>
+            </View>
+          </View>
+          <Text style={styles.cardDescription}>
+            Вы рисуете по очереди короткими ходами и собираете один общий рисунок.
+          </Text>
+          <Text style={styles.cardDetails}>
+            10 ходов по 30 секунд, один холст и понятный ритм передачи хода.
+          </Text>
+        </Pressable>
+
         <View style={styles.quickRow}>
           <Pressable
             onPress={() => navigation.navigate("Tabs", { screen: "Now" })}
@@ -121,7 +140,7 @@ export default function PlayLobbyScreen() {
           </Text>
         </View>
 
-        {SOON_CARDS.map((card) => {
+        {ROADMAP_CARDS.map((card) => {
           return (
             <Pressable
               key={card.slug}
@@ -259,6 +278,28 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 12,
   },
+  liveSection: {
+    gap: 6,
+    paddingHorizontal: 2,
+  },
+  liveSectionTitle: {
+    color: theme.colors.text,
+    fontSize: 18,
+    fontWeight: "800",
+  },
+  liveSectionText: {
+    color: theme.colors.subtext,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  liveCard: {
+    borderRadius: theme.shapes.card,
+    padding: 18,
+    backgroundColor: "rgba(18, 22, 40, 0.8)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.14)",
+    gap: 10,
+  },
   quickCard: {
     flex: 1,
     minWidth: 0,
@@ -320,9 +361,13 @@ const styles = StyleSheet.create({
     borderRadius: theme.shapes.pill,
     paddingHorizontal: 10,
     paddingVertical: 5,
+    backgroundColor: "rgba(255, 122, 60, 0.16)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 122, 60, 0.24)",
   },
   badgeSoon: {
     backgroundColor: theme.colors.pillBg,
+    borderColor: theme.colors.borderSubtle,
   },
   badgeText: {
     color: theme.colors.text,

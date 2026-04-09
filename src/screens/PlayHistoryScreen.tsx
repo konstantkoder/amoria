@@ -26,24 +26,14 @@ import {
   type DmThreadDoc,
 } from "@/services/dm";
 import {
+  getPlayActivityLabel,
+  getPlayActivityStoryText,
   getPlayRevealCopy,
   subscribeMyPlayHistory,
   type PlayHistoryItem,
 } from "@/services/playSessions";
 import { makeNickname } from "@/services/rooms";
 import { theme } from "@/theme";
-
-function formatActivityLabel(activity: string) {
-  if (activity === "draw") return "Нарисовали вместе";
-  return activity;
-}
-
-function formatSourceLabel(activity: string) {
-  if (activity === "draw") {
-    return "Совместный рисунок, который сохранился в вашей общей истории.";
-  }
-  return "Совместная сессия";
-}
 
 function formatDateTime(value: number) {
   if (!value) return "";
@@ -278,12 +268,14 @@ export default function PlayHistoryScreen() {
                 </View>
               ) : null}
             </View>
-            <Text style={styles.cardActivity}>{formatActivityLabel(item.activity)}</Text>
+            <Text style={styles.cardActivity}>
+              {getPlayActivityLabel(item.activity, "history")}
+            </Text>
           </View>
           <Text style={styles.cardDate}>{formatDateTime(item.sortAt)}</Text>
         </View>
 
-        <Text style={styles.cardSource}>{formatSourceLabel(item.activity)}</Text>
+        <Text style={styles.cardSource}>{getPlayActivityStoryText(item.activity)}</Text>
 
         <View style={styles.metaGrid}>
           <View style={styles.metaChip}>

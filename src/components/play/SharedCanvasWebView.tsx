@@ -28,6 +28,8 @@ type Props = {
   strokes: SharedCanvasStroke[];
   onLocalStrokeBatch?: (strokes: SharedCanvasStroke[]) => void;
   disabled?: boolean;
+  disabledTitle?: string;
+  disabledBody?: string;
 };
 
 const PALETTE = ["#F97393", "#FF8A3D", "#FACC15", "#34D399", "#38BDF8", "#A78BFA"];
@@ -309,6 +311,8 @@ export default function SharedCanvasWebView({
   strokes,
   onLocalStrokeBatch,
   disabled = false,
+  disabledTitle,
+  disabledBody,
 }: Props) {
   const ref = useRef<WebView>(null);
   const [ready, setReady] = useState(false);
@@ -380,11 +384,13 @@ export default function SharedCanvasWebView({
               <Pressable
                 key={color}
                 accessibilityRole="button"
+                disabled={disabled}
                 onPress={() => setSelectedColor(color)}
                 style={[
                   styles.colorButton,
                   { backgroundColor: color },
                   active && styles.colorButtonActive,
+                  disabled && styles.toolButtonDisabled,
                 ]}
               />
             );
@@ -397,8 +403,13 @@ export default function SharedCanvasWebView({
               <Pressable
                 key={width}
                 accessibilityRole="button"
+                disabled={disabled}
                 onPress={() => setSelectedWidth(width)}
-                style={[styles.brushButton, active && styles.brushButtonActive]}
+                style={[
+                  styles.brushButton,
+                  active && styles.brushButtonActive,
+                  disabled && styles.toolButtonDisabled,
+                ]}
               >
                 <View
                   style={[
@@ -408,6 +419,7 @@ export default function SharedCanvasWebView({
                       height: width,
                       borderRadius: width / 2,
                     },
+                    disabled && styles.brushDotDisabled,
                   ]}
                 />
               </Pressable>
@@ -452,7 +464,10 @@ export default function SharedCanvasWebView({
           />
           {disabled ? (
             <View pointerEvents="none" style={styles.disabledOverlay}>
-              <Text style={styles.disabledText}>Холст закрыт</Text>
+              <View style={styles.disabledCard}>
+                <Text style={styles.disabledTitle}>{disabledTitle ?? "Холст закрыт"}</Text>
+                {disabledBody ? <Text style={styles.disabledBody}>{disabledBody}</Text> : null}
+              </View>
             </View>
           ) : null}
         </View>
@@ -493,6 +508,9 @@ const styles = StyleSheet.create({
   colorButtonActive: {
     borderColor: "#FFFFFF",
   },
+  toolButtonDisabled: {
+    opacity: 0.45,
+  },
   brushRow: {
     flexDirection: "row",
     gap: 10,
@@ -514,6 +532,9 @@ const styles = StyleSheet.create({
   brushDot: {
     backgroundColor: theme.colors.text,
   },
+  brushDotDisabled: {
+    backgroundColor: "rgba(255,255,255,0.7)",
+  },
   canvasShell: {
     borderRadius: theme.shapes.cardInner,
     overflow: "hidden",
@@ -531,16 +552,29 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(5, 8, 22, 0.35)",
+    backgroundColor: "rgba(5, 8, 22, 0.42)",
   },
-  disabledText: {
+  disabledCard: {
+    maxWidth: 260,
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(16, 20, 35, 0.9)",
+    borderRadius: theme.shapes.cardInner,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.14)",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  disabledTitle: {
     color: theme.colors.text,
-    fontSize: 13,
-    fontWeight: "600",
-    backgroundColor: "rgba(16, 20, 35, 0.84)",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: theme.shapes.pill,
-    overflow: "hidden",
+    fontSize: 14,
+    fontWeight: "800",
+    textAlign: "center",
+  },
+  disabledBody: {
+    color: theme.colors.subtext,
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: "center",
   },
 });

@@ -15,6 +15,7 @@ import type { SharedCanvasStroke } from "@/components/play/SharedCanvasWebView";
 import { auth, db } from "@/config/firebaseConfig";
 import { buildDmChatRouteParams, ensureDmThread } from "@/services/dm";
 import {
+  getPlayActivityLabel,
   getPeerFromSession,
   getPlayRevealCopy,
   resolvePlayRevealOutcome,
@@ -30,13 +31,15 @@ import { theme } from "@/theme";
 
 const SESSION_DURATION_SEC = 420;
 
-function formatActivityLabel(activity: string) {
-  if (activity === "draw") return "Нарисовать вместе";
-  return activity;
-}
-
 function formatDuration(session: PlaySessionDoc | null) {
-  if (!session?.startedAt || !session?.endedAt) return "7 минут";
+  if (!session?.startedAt || !session?.endedAt) {
+    if (session?.activity === "chain_draw" && session.turnDurationSec && session.maxTurns) {
+      const totalSec = session.turnDurationSec * session.maxTurns;
+      const minutes = Math.max(Math.round(totalSec / 60), 1);
+      return `${minutes} мин`;
+    }
+    return "7 минут";
+  }
 
   const diffSec = Math.max(Math.round((session.endedAt - session.startedAt) / 1000), 0);
   if (!diffSec) return "7 минут";
@@ -93,8 +96,8 @@ export default function PlayResultScreen() {
     navigation.navigate("Tabs", { screen: "Connections" });
   }, [navigation]);
   const startNewSession = React.useCallback(() => {
-    navigation.navigate("PlayMatch", { activity: "draw" });
-  }, [navigation]);
+    navigation.navigate("PlayMatch", { activity: session?.activity ?? "draw" });
+  }, [navigation, session?.activity]);
   const goToDetail = React.useCallback(
     (focus?: "replay") => {
       if (!sessionId) return;
@@ -206,7 +209,7 @@ export default function PlayResultScreen() {
   const showSoftEnding = revealOutcome === "open_skip" || revealOutcome === "skip_skip";
   const waitingForPeer = Boolean(decision) && revealOutcome === "waiting";
   const durationLabel = formatDuration(session);
-  const activityLabel = formatActivityLabel(session?.activity ?? "draw");
+  const activityLabel = getPlayActivityLabel(session?.activity ?? "draw", "neutral");
   const revealCopy = React.useMemo(() => getPlayRevealCopy(revealOutcome), [revealOutcome]);
   const canOpenChat = Boolean(db && session && uid && peer?.uid);
   const hasReplay = replayStrokes.length > 0;
@@ -236,7 +239,7 @@ export default function PlayResultScreen() {
         source: "play",
         sourceSessionId: sessionId,
         artworkSummary: {
-          activity: "draw",
+          activity: session.activity,
           strokeCount: totalStrokeCount,
         },
       });

@@ -22,6 +22,8 @@ import {
   type DmThreadDoc,
 } from "@/services/dm";
 import {
+  getPlayActivityLabel,
+  getPlayActivityStoryText,
   getPeerFromSession,
   getPlayRevealCopy,
   resolvePlayRevealOutcome,
@@ -32,18 +34,6 @@ import {
 } from "@/services/playSessions";
 import { makeNickname } from "@/services/rooms";
 import { theme } from "@/theme";
-
-function formatActivityLabel(activity: string) {
-  if (activity === "draw") return "Нарисовали вместе";
-  return activity;
-}
-
-function formatSourceLabel(activity: string) {
-  if (activity === "draw") {
-    return "Совместный рисунок, который остался в вашей общей истории.";
-  }
-  return "Совместная история";
-}
 
 function formatDateTime(value: number) {
   if (!value) return "";
@@ -259,8 +249,8 @@ export default function PlaySessionDetailScreen() {
   }, [detailThread?.id, navigation, peer?.uid, peerName, sessionId]);
 
   const startNewSession = React.useCallback(() => {
-    navigation.navigate("PlayMatch", { activity: "draw" });
-  }, [navigation]);
+    navigation.navigate("PlayMatch", { activity: session?.activity ?? "draw" });
+  }, [navigation, session?.activity]);
 
   const openReplay = React.useCallback(() => {
     setReplayOpen((prev) => !prev);
@@ -418,14 +408,16 @@ export default function PlaySessionDetailScreen() {
           </Text>
           <Text style={styles.heroTitle}>{peerName}</Text>
           <Text style={styles.heroText}>
-            {formatSourceLabel(session.activity)} Здесь хранятся итог, replay и вход в чат, если он уже
-            открылся.
+            {getPlayActivityStoryText(session.activity)} Здесь хранятся итог, replay и вход в чат,
+            если он уже открылся.
           </Text>
 
           <View style={styles.metaGrid}>
             <View style={styles.metaItem}>
               <Text style={styles.metaLabel}>{tt("playDetail.activity", "Активность")}</Text>
-              <Text style={styles.metaValue}>{formatActivityLabel(session.activity)}</Text>
+              <Text style={styles.metaValue}>
+                {getPlayActivityLabel(session.activity, "history")}
+              </Text>
             </View>
             <View style={styles.metaItem}>
               <Text style={styles.metaLabel}>{tt("playDetail.partner", "Второй участник")}</Text>
