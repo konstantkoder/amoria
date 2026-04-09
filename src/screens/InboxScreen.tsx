@@ -279,9 +279,7 @@ export default function InboxScreen() {
     return (
       <ScreenShell
         title={t("tabs.chats")}
-        background="chats"
-        overlayOpacity={0.18}
-        blurRadius={0}
+        background="togetherChat"
       >
         <View style={{ flex: 1, paddingHorizontal: 16, justifyContent: "center" }}>
           <CoreStateCard
@@ -300,9 +298,7 @@ export default function InboxScreen() {
     return (
       <ScreenShell
         title={t("tabs.chats")}
-        background="chats"
-        overlayOpacity={0.18}
-        blurRadius={0}
+        background="togetherChat"
       >
         <View style={{ flex: 1, paddingHorizontal: 16, justifyContent: "center" }}>
           <CoreStateCard
@@ -320,9 +316,7 @@ export default function InboxScreen() {
   return (
     <ScreenShell
       title={t("tabs.chats")}
-      background="chats"
-      overlayOpacity={0.18}
-      blurRadius={0}
+      background="togetherChat"
     >
       <View
         style={{

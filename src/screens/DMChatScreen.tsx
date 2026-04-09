@@ -357,7 +357,7 @@ export default function DMChatScreen() {
 
   if (!threadId) {
     return (
-      <ScreenShell title={screenTitle} background="nightCity" showBack onBack={handleBack}>
+      <ScreenShell title={screenTitle} background="togetherChat" showBack onBack={handleBack}>
         <View style={styles.centerState}>
           <CoreStateCard
             icon="alert-circle-outline"
@@ -373,7 +373,7 @@ export default function DMChatScreen() {
 
   if (!myId) {
     return (
-      <ScreenShell title={screenTitle} background="nightCity" showBack onBack={handleBack}>
+      <ScreenShell title={screenTitle} background="togetherChat" showBack onBack={handleBack}>
         <View style={styles.centerState}>
           <CoreStateCard
             icon="person-circle-outline"
@@ -389,7 +389,7 @@ export default function DMChatScreen() {
 
   if (!db) {
     return (
-      <ScreenShell title={screenTitle} background="nightCity" showBack onBack={handleBack}>
+      <ScreenShell title={screenTitle} background="togetherChat" showBack onBack={handleBack}>
         <View style={styles.centerState}>
           <CoreStateCard
             icon="cloud-offline-outline"
@@ -404,7 +404,7 @@ export default function DMChatScreen() {
   }
 
   return (
-    <ScreenShell title={screenTitle} background="nightCity" showBack onBack={handleBack}>
+    <ScreenShell title={screenTitle} background="togetherChat" showBack onBack={handleBack}>
       {isLoading ? (
         <View style={styles.centerState}>
           <CoreStateCard

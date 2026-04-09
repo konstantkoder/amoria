@@ -368,7 +368,7 @@ export default function PlayHistoryScreen() {
 
   if (!uid) {
     return (
-      <ScreenShell title={tt("playHistory.title", "Мои совместные истории")} background="nightCity" showBack onBack={goToTogether}>
+      <ScreenShell title={tt("playHistory.title", "Мои совместные истории")} background="togetherStory" showBack onBack={goToTogether}>
         <View style={styles.centerBlock}>
           <CoreStateCard
             icon="person-circle-outline"
@@ -384,7 +384,7 @@ export default function PlayHistoryScreen() {
 
   if (!db) {
     return (
-      <ScreenShell title={tt("playHistory.title", "Мои совместные истории")} background="nightCity" showBack onBack={goToTogether}>
+      <ScreenShell title={tt("playHistory.title", "Мои совместные истории")} background="togetherStory" showBack onBack={goToTogether}>
         <View style={styles.centerBlock}>
           <CoreStateCard
             icon="cloud-offline-outline"
@@ -401,9 +401,7 @@ export default function PlayHistoryScreen() {
   return (
     <ScreenShell
       title={tt("playHistory.title", "Мои совместные истории")}
-      background="nightCity"
-      overlayOpacity={0.2}
-      blurRadius={4}
+      background="togetherStory"
       showBack
       onBack={() => {
         if (navigation.canGoBack()) {

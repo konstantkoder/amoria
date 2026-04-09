@@ -9,15 +9,14 @@ import BackgroundWrapper, {
 export type ScreenBackgroundVariant =
   | "default"
   | "hearts"
-  | "togetherDream"
-  | "togetherCosmos"
-  | "togetherSoft"
+  | "togetherMain"
+  | "togetherStory"
+  | "togetherChat"
   | "smoke"
   | "nightCity"
   | "menu"
   | "ads"
   | "now"
-  | "chats"
   | "rooms"
   | "profile"
   | "aurora"
@@ -59,12 +58,12 @@ function mapVariantToKey(variant: ScreenBackgroundVariant): BackgroundKey {
   switch (variant) {
     case "hearts":
       return "hearts";
-    case "togetherDream":
-      return "togetherDream";
-    case "togetherCosmos":
-      return "togetherCosmos";
-    case "togetherSoft":
-      return "togetherSoft";
+    case "togetherMain":
+      return "togetherMain";
+    case "togetherStory":
+      return "togetherStory";
+    case "togetherChat":
+      return "togetherChat";
     case "smoke":
       return "smoke";
     case "nightCity":
@@ -75,8 +74,6 @@ function mapVariantToKey(variant: ScreenBackgroundVariant): BackgroundKey {
       return "ads";
     case "now":
       return "now";
-    case "chats":
-      return "chats";
     case "rooms":
       return "rooms";
     case "profile":
@@ -93,9 +90,9 @@ const variantDefaults: Record<
 > = {
   default: { overlayOpacity: 0.18, blurRadius: 2 },
   hearts: { overlayOpacity: 0.18, blurRadius: 2 },
-  togetherDream: { overlayOpacity: 0.24, blurRadius: 0 },
-  togetherCosmos: { overlayOpacity: 0.28, blurRadius: 0 },
-  togetherSoft: { overlayOpacity: 0.22, blurRadius: 0 },
+  togetherMain: { overlayOpacity: 0.26, blurRadius: 0 },
+  togetherStory: { overlayOpacity: 0.22, blurRadius: 0 },
+  togetherChat: { overlayOpacity: 0.18, blurRadius: 0 },
 
   // image variants
   smoke: { overlayOpacity: 0.35, blurRadius: 3 },
@@ -103,7 +100,6 @@ const variantDefaults: Record<
   menu: { overlayOpacity: 0.28, blurRadius: 5 },
   ads: { overlayOpacity: 0.18, blurRadius: 0 },
   now: { overlayOpacity: 0.18, blurRadius: 0 },
-  chats: { overlayOpacity: 0.18, blurRadius: 0 },
   rooms: { overlayOpacity: 0.20, blurRadius: 0 },
   profile: { overlayOpacity: 0.18, blurRadius: 0 },
 

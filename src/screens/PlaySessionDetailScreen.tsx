@@ -270,7 +270,7 @@ export default function PlaySessionDetailScreen() {
     return (
       <ScreenShell
         title={tt("playDetail.title", "Совместная история")}
-        background="nightCity"
+        background="togetherStory"
         showBack
         onBack={handleBack}
       >
@@ -300,7 +300,7 @@ export default function PlaySessionDetailScreen() {
     return (
       <ScreenShell
         title={tt("playDetail.title", "Совместная история")}
-        background="nightCity"
+        background="togetherStory"
         showBack
         onBack={handleBack}
       >
@@ -327,7 +327,7 @@ export default function PlaySessionDetailScreen() {
     return (
       <ScreenShell
         title={tt("playDetail.title", "Совместная история")}
-        background="nightCity"
+        background="togetherStory"
         showBack
         onBack={handleBack}
       >
@@ -347,7 +347,7 @@ export default function PlaySessionDetailScreen() {
     return (
       <ScreenShell
         title={tt("playDetail.title", "Совместная история")}
-        background="nightCity"
+        background="togetherStory"
         showBack
         onBack={handleBack}
       >
@@ -374,7 +374,7 @@ export default function PlaySessionDetailScreen() {
     return (
       <ScreenShell
         title={tt("playDetail.title", "Совместная история")}
-        background="nightCity"
+        background="togetherStory"
         showBack
         onBack={handleBack}
       >
@@ -403,7 +403,7 @@ export default function PlaySessionDetailScreen() {
   return (
     <ScreenShell
       title={tt("playDetail.title", "Совместная история")}
-      background="nightCity"
+      background="togetherStory"
       showBack
       onBack={handleBack}
     >

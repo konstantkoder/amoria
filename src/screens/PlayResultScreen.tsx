@@ -354,7 +354,7 @@ export default function PlayResultScreen() {
     return (
       <ScreenShell
         title={screenTitle}
-        background="nightCity"
+        background="togetherStory"
         showBack
         onBack={handleBack}
       >
@@ -375,7 +375,7 @@ export default function PlayResultScreen() {
     return (
       <ScreenShell
         title={screenTitle}
-        background="nightCity"
+        background="togetherStory"
         showBack
         onBack={handleBack}
       >
@@ -396,7 +396,7 @@ export default function PlayResultScreen() {
     return (
       <ScreenShell
         title={screenTitle}
-        background="nightCity"
+        background="togetherStory"
         showBack
         onBack={handleBack}
       >
@@ -416,7 +416,7 @@ export default function PlayResultScreen() {
     return (
       <ScreenShell
         title={screenTitle}
-        background="nightCity"
+        background="togetherStory"
         showBack
         onBack={handleBack}
       >
@@ -437,7 +437,7 @@ export default function PlayResultScreen() {
     return (
       <ScreenShell
         title={screenTitle}
-        background="nightCity"
+        background="togetherStory"
         showBack
         onBack={handleBack}
       >
@@ -457,7 +457,7 @@ export default function PlayResultScreen() {
   return (
     <ScreenShell
       title={screenTitle}
-      background="nightCity"
+      background="togetherStory"
       showBack
       onBack={handleBack}
     >
