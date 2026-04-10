@@ -16,7 +16,7 @@ import {
 } from "@/services/playSessions";
 import { theme } from "@/theme";
 
-const LIVE_MODE_ORDER: PlayActivity[] = ["draw", "chain_draw", "daily_prompt", "color_mood"];
+const LIVE_MODE_ORDER: PlayActivity[] = ["daily_prompt", "chain_draw", "color_mood"];
 
 export default function PlayLobbyScreen() {
   const navigation = useNavigation<any>();
@@ -32,10 +32,10 @@ export default function PlayLobbyScreen() {
         <View style={styles.hero}>
           <View style={styles.heroTop}>
             <Text style={styles.kicker}>Игровой центр знакомств</Text>
-            <Text style={styles.heroTitle}>Четыре живых режима Together</Text>
+            <Text style={styles.heroTitle}>Начать совместную сессию</Text>
             <Text style={styles.heroText}>
-              Здесь начинается совместная сессия. Вы проходите один общий опыт, сохраняете его в
-              совместной истории и только потом решаете, открывать ли чат по взаимному желанию.
+              Главный вход запускает свободный общий рисунок. Ниже можно сразу выбрать более
+              явный сценарий: тему дня, рисунок по очереди или палитру настроения.
             </Text>
           </View>
 
@@ -44,10 +44,10 @@ export default function PlayLobbyScreen() {
               onPress={() => navigation.navigate("PlayMatch", { activity: "draw" })}
               style={styles.primaryCta}
             >
-              <Text style={styles.primaryCtaTitle}>Начать со свободного рисунка</Text>
+              <Text style={styles.primaryCtaTitle}>Начать совместную сессию</Text>
             </Pressable>
             <Text style={styles.primaryCtaHint}>
-              4 режима • одна общая история • чат только по взаимному желанию
+              Старт: свободный общий рисунок • 4 режима • чат только по взаимному желанию
             </Text>
           </View>
         </View>
@@ -69,10 +69,10 @@ export default function PlayLobbyScreen() {
         </Pressable>
 
         <View style={styles.liveSection}>
-          <Text style={styles.liveSectionTitle}>Живые режимы Together</Text>
+          <Text style={styles.liveSectionTitle}>Другие живые режимы</Text>
           <Text style={styles.liveSectionText}>
-            Все четыре режима уже живые: свободный рисунок, рисунок по очереди, тема дня и палитра
-            настроения. У каждого свой вход, свой контекст и тот же путь до истории и чата.
+            Если нужен более явный сценарий, запускай тему дня, рисунок по очереди или палитру
+            настроения. История, reveal и переход в чат дальше работают одинаково.
           </Text>
         </View>
 

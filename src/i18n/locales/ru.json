@@ -272,6 +272,7 @@
   "dm.sourcePlayChainDraw": "Чат открылся после рисунка по очереди",
   "dm.sourcePlayDailyPrompt": "Чат открылся после общей темы дня",
   "dm.sourcePlayColorMood": "Чат открылся после палитры настроения",
+  "dm.sourcePaletteReady": "Общая палитра уже собрана и сохранена в совместной истории.",
   "dm.sourceStrokeCount": "Штрихов: {count}",
   "dm.contextReady": "Контекст этой истории уже сохранен.",
   "profile.edit": "Редактировать профиль",

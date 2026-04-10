@@ -276,6 +276,19 @@ export default function DMChatScreen() {
     return tt("dm.sourcePlay", "Чат открылся после совместной сессии");
   }, [thread?.artworkSummary?.activity, thread?.source, tt]);
   const strokeCount = thread?.artworkSummary?.strokeCount;
+  const sourceMeta = useMemo(() => {
+    if (thread?.source !== "play") return "";
+    if (thread.artworkSummary?.activity === "color_mood") {
+      return tt(
+        "dm.sourcePaletteReady",
+        "Общая палитра уже собрана и сохранена в совместной истории."
+      );
+    }
+    if (strokeCount != null) {
+      return tt("dm.sourceStrokeCount", "Штрихов: {count}", { count: String(strokeCount) });
+    }
+    return tt("dm.contextReady", "Контекст этой истории уже сохранен.");
+  }, [strokeCount, thread?.artworkSummary?.activity, thread?.source, tt]);
   const isLoading = threadLoading || messagesLoading;
   const threadMissing = !isLoading && !subscriptionError && !thread && mergedMsgs.length === 0;
   const isEmpty = !isLoading && mergedMsgs.length === 0;
@@ -312,11 +325,7 @@ export default function DMChatScreen() {
       sourceTitle ? (
         <View style={styles.sourceCard}>
           <Text style={styles.sourceTitle}>{sourceTitle}</Text>
-          <Text style={styles.sourceMeta}>
-            {strokeCount != null
-              ? tt("dm.sourceStrokeCount", "Штрихов: {count}", { count: String(strokeCount) })
-              : tt("dm.contextReady", "Контекст этой истории уже сохранен.")}
-          </Text>
+          <Text style={styles.sourceMeta}>{sourceMeta}</Text>
           {thread?.sourceSessionId ? (
             <TouchableOpacity
               onPress={() => navigation.navigate("PlaySessionDetail", { sessionId: thread.sourceSessionId })}
@@ -328,7 +337,7 @@ export default function DMChatScreen() {
           ) : null}
         </View>
       ) : null,
-    [navigation, sourceTitle, strokeCount, thread?.sourceSessionId, tt]
+    [navigation, sourceMeta, sourceTitle, thread?.sourceSessionId]
   );
 
   const renderItem = useCallback(

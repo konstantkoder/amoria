@@ -18,6 +18,7 @@ import { useLocale } from "@/contexts/LocaleContext";
 import { markPlaySessionSeen } from "@/services/activityFreshness";
 import {
   buildDmChatRouteParams,
+  ensureDmThread,
   findDmThreadBySourceSessionId,
   subscribeDmThreads,
   type DmThreadDoc,
@@ -94,9 +95,12 @@ export default function PlaySessionDetailScreen() {
   const [loadingThreads, setLoadingThreads] = React.useState(true);
   const [loadError, setLoadError] = React.useState<string | null>(null);
   const [threadLookupError, setThreadLookupError] = React.useState<string | null>(null);
+  const [chatActionError, setChatActionError] = React.useState<string | null>(null);
   const [reloadKey, setReloadKey] = React.useState(0);
   const [replayOpen, setReplayOpen] = React.useState(replayFocus);
+  const [openingChat, setOpeningChat] = React.useState(false);
   const mountedRef = React.useRef(true);
+  const openChatPromiseRef = React.useRef<Promise<void> | null>(null);
 
   const goToTogether = React.useCallback(() => {
     navigation.navigate("Tabs", { screen: "Together" });
@@ -122,6 +126,7 @@ export default function PlaySessionDetailScreen() {
     setReplayOpen(replayFocus);
     setLoadError(null);
     setThreadLookupError(null);
+    setChatActionError(null);
 
     if (!db || !sessionId) {
       setLoadingSession(false);
@@ -255,23 +260,69 @@ export default function PlaySessionDetailScreen() {
     () => getPlayActivityMetricLabel(session?.activity ?? "draw", "detail"),
     [session?.activity]
   );
-  const canOpenChat = revealOutcome === "open_open" && Boolean(detailThread?.id);
+  const canOpenChat = revealOutcome === "open_open" && Boolean(db && session && uid && peer?.uid);
   const isLoading = loadingSession || loadingEvents || loadingThreads;
   const sortAt = session?.endedAt ?? session?.startedAt ?? session?.createdAt ?? 0;
 
   const openChat = React.useCallback(() => {
-    if (!detailThread?.id || !peer?.uid) return;
-    navigation.navigate(
-      "DMChat",
-      buildDmChatRouteParams({
-        threadId: detailThread.id,
-        peerId: peer.uid,
-        peerName,
-        backTarget: "sessionDetail",
-        backSessionId: sessionId,
-      })
-    );
-  }, [detailThread?.id, navigation, peer?.uid, peerName, sessionId]);
+    if (!db || !session || !uid || !peer?.uid) return;
+    if (openChatPromiseRef.current) {
+      void openChatPromiseRef.current;
+      return;
+    }
+
+    if (mountedRef.current) {
+      setChatActionError(null);
+    }
+
+    const task = (async () => {
+      if (mountedRef.current) {
+        setOpeningChat(true);
+      }
+
+      const threadId =
+        detailThread?.id ??
+        (await ensureDmThread(db, uid, peer.uid, {
+          memberNames: {
+            [uid]: session.participantNicknames?.[uid] ?? makeNickname(uid),
+            [peer.uid]: peerName,
+          },
+          source: "play",
+          sourceSessionId: sessionId,
+          artworkSummary: {
+            activity: session.activity,
+            strokeCount: totalStrokeCount,
+          },
+        }));
+
+      if (!mountedRef.current) return;
+      navigation.navigate(
+        "DMChat",
+        buildDmChatRouteParams({
+          threadId,
+          peerId: peer.uid,
+          peerName,
+          backTarget: "sessionDetail",
+          backSessionId: sessionId,
+        })
+      );
+      if (mountedRef.current) {
+        setChatActionError(null);
+      }
+    })().catch(() => {
+      if (mountedRef.current) {
+        setChatActionError("Не удалось открыть чат прямо сейчас. Попробуй ещё раз чуть позже.");
+      }
+    }).finally(() => {
+      openChatPromiseRef.current = null;
+      if (mountedRef.current) {
+        setOpeningChat(false);
+      }
+    });
+
+    openChatPromiseRef.current = task;
+    void task;
+  }, [db, detailThread?.id, navigation, peer?.uid, peerName, session, sessionId, totalStrokeCount, uid]);
 
   const startNewSession = React.useCallback(() => {
     navigation.navigate("PlayMatch", { activity: session?.activity ?? "draw" });
@@ -495,14 +546,17 @@ export default function PlaySessionDetailScreen() {
               <Text style={styles.actionText}>
                 {tt(
                   "playDetail.chatReady",
-                  "Личный чат уже открыт. Можно вернуться в разговор в любой момент."
+                  "Контакт уже открылся. Можно перейти в личный чат и продолжить разговор."
                 )}
               </Text>
-              <Pressable onPress={openChat} style={styles.primaryButton}>
+              <Pressable onPress={openChat} style={styles.primaryButton} disabled={openingChat}>
                 <Text style={styles.primaryButtonText}>
-                  {tt("connections.openChat", "Открыть чат")}
+                  {openingChat
+                    ? tt("connections.openingChat", "Открываем чат…")
+                    : tt("connections.openChat", "Открыть чат")}
                 </Text>
               </Pressable>
+              {chatActionError ? <Text style={styles.actionErrorText}>{chatActionError}</Text> : null}
             </>
           ) : (
             <>
@@ -700,6 +754,12 @@ const styles = StyleSheet.create({
     color: theme.colors.subtext,
     fontSize: 14,
     lineHeight: 21,
+  },
+  actionErrorText: {
+    color: theme.colors.danger,
+    fontSize: 13,
+    lineHeight: 19,
+    fontWeight: "600",
   },
   primaryButton: {
     alignSelf: "flex-start",

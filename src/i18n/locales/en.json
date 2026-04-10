@@ -272,6 +272,7 @@
   "dm.sourcePlayChainDraw": "This chat opened after turn-based drawing",
   "dm.sourcePlayDailyPrompt": "This chat opened after the daily shared theme",
   "dm.sourcePlayColorMood": "This chat opened after the mood palette",
+  "dm.sourcePaletteReady": "The shared palette is already saved in your story.",
   "dm.sourceStrokeCount": "Strokes: {count}",
   "dm.contextReady": "The context for this story is already saved.",
   "profile.edit": "Edit profile",
