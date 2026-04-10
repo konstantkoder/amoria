@@ -93,6 +93,9 @@ function formatActivityLabel(
   if (activity === "daily_prompt") {
     return tt("connections.sourceDailyPrompt", getPlayActivityLabel(activity, "history"));
   }
+  if (activity === "color_mood") {
+    return tt("connections.sourceColorMood", getPlayActivityLabel(activity, "history"));
+  }
   return getPlayActivityLabel(activity, "history");
 }
 

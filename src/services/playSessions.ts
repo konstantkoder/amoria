@@ -13,15 +13,22 @@ import {
 } from "firebase/firestore";
 import { makeNickname } from "@/services/rooms";
 
-export type PlayActivity = "draw" | "chain_draw" | "daily_prompt";
+export type PlayActivity = "draw" | "chain_draw" | "daily_prompt" | "color_mood";
 export type PlayActivityLabelTone = "action" | "history" | "neutral";
 export type PlayDailyPrompt = {
   id: string;
   text: string;
 };
+export type PlayColorMoodPhase = "picking" | "finished";
+export type PlayColorMoodOption = {
+  id: string;
+  label: string;
+  hex: string;
+};
 
 export const CHAIN_DRAW_TURN_DURATION_SEC = 30;
 export const CHAIN_DRAW_MAX_TURNS = 10;
+export const COLOR_MOOD_SELECTION_COUNT = 3;
 const DAILY_PROMPT_POOL: PlayDailyPrompt[] = [
   { id: "dream_city", text: "Город мечты" },
   { id: "symbol_of_joy", text: "Символ радости" },
@@ -36,6 +43,23 @@ const DAILY_PROMPT_POOL: PlayDailyPrompt[] = [
   { id: "sky_after_rain", text: "Небо после дождя" },
   { id: "color_of_hope", text: "Цвет надежды" },
 ];
+const COLOR_MOOD_OPTIONS: PlayColorMoodOption[] = [
+  { id: "soft_pink", label: "Мягкий розовый", hex: "#FF8FB1" },
+  { id: "peach", label: "Персиковый", hex: "#FFB48A" },
+  { id: "golden", label: "Золотистый", hex: "#F4C86A" },
+  { id: "lavender", label: "Лавандовый", hex: "#C8A9FF" },
+  { id: "deep_violet", label: "Глубокий фиолетовый", hex: "#7350B8" },
+  { id: "night_blue", label: "Ночной синий", hex: "#395DB9" },
+  { id: "powder", label: "Пудровый", hex: "#F1C9D8" },
+  { id: "warm_orange", label: "Тёплый оранжевый", hex: "#FF9150" },
+  { id: "soft_coral", label: "Нежный коралл", hex: "#FF7D78" },
+  { id: "light_lilac", label: "Светлый сиреневый", hex: "#DAC8FF" },
+  { id: "star_indigo", label: "Звёздный индиго", hex: "#4E61D3" },
+  { id: "morning_cream", label: "Утренний кремовый", hex: "#F8E9CC" },
+];
+const COLOR_MOOD_OPTIONS_BY_HEX = new Map(
+  COLOR_MOOD_OPTIONS.map((option) => [option.hex.toLowerCase(), option])
+);
 
 export type PlayQueueStatus = "waiting" | "matched" | "cancelled";
 export type PlaySessionStatus = "matching" | "active" | "finished" | "revealed";
@@ -70,6 +94,10 @@ export type PlaySessionDoc = {
   endedAt?: number;
   promptId?: string;
   promptText?: string;
+  paletteChoices?: Record<string, string[]>;
+  paletteCompletedAt?: number;
+  combinedPalette?: string[];
+  colorMoodPhase?: PlayColorMoodPhase;
   participantIds: string[];
   participantNicknames: Record<string, string>;
   turnOrder?: string[];
@@ -88,6 +116,7 @@ export type PlayHistoryItem = {
   activity: PlayActivity;
   promptId?: string;
   promptText?: string;
+  combinedPalette?: string[];
   peer: {
     uid: string;
     nickname: string;
@@ -134,8 +163,18 @@ export type AdvanceChainDrawTurnResult = {
   currentTurnUid?: string;
 };
 
+export type SubmitColorMoodChoicesResult = {
+  state: "waiting" | "finished" | "ignored";
+  combinedPalette?: string[];
+};
+
 export function isPlayActivity(value: unknown): value is PlayActivity {
-  return value === "draw" || value === "chain_draw" || value === "daily_prompt";
+  return (
+    value === "draw" ||
+    value === "chain_draw" ||
+    value === "daily_prompt" ||
+    value === "color_mood"
+  );
 }
 
 function normalizePlayActivity(value: unknown): PlayActivity {
@@ -144,6 +183,8 @@ function normalizePlayActivity(value: unknown): PlayActivity {
       return "chain_draw";
     case "daily_prompt":
       return "daily_prompt";
+    case "color_mood":
+      return "color_mood";
     default:
       return "draw";
   }
@@ -178,6 +219,36 @@ function normalizePromptString(value: unknown) {
   return value.trim();
 }
 
+function normalizeColorMoodChoiceHex(value: unknown) {
+  const stableValue = normalizePromptString(value).toLowerCase();
+  return COLOR_MOOD_OPTIONS_BY_HEX.get(stableValue)?.hex ?? "";
+}
+
+function normalizeColorMoodPalette(value: unknown, maxItems = COLOR_MOOD_SELECTION_COUNT) {
+  if (!Array.isArray(value)) return [];
+
+  const normalized = value
+    .map((item) => normalizeColorMoodChoiceHex(item))
+    .filter(Boolean)
+    .filter((item, index, list) => list.indexOf(item) === index);
+
+  return normalized.slice(0, maxItems);
+}
+
+function normalizeColorMoodChoices(value: unknown) {
+  if (!value || typeof value !== "object") return {};
+
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .map(([uid, rawChoices]) => [String(uid), normalizeColorMoodPalette(rawChoices)] as const)
+      .filter((entry) => entry[1].length > 0)
+  );
+}
+
+function normalizeColorMoodPhase(value: unknown): PlayColorMoodPhase {
+  return value === "finished" ? "finished" : "picking";
+}
+
 function getUtcDaySeed(timestamp: number) {
   if (!Number.isFinite(timestamp) || timestamp <= 0) return null;
   const date = new Date(timestamp);
@@ -188,6 +259,70 @@ function getUtcDaySeed(timestamp: number) {
 
 export function getPlayDailyPromptPool() {
   return DAILY_PROMPT_POOL;
+}
+
+export function getPlayColorMoodOptions() {
+  return COLOR_MOOD_OPTIONS;
+}
+
+export function getPlayColorMoodOption(hex: string): PlayColorMoodOption | null {
+  const stableHex = normalizeColorMoodChoiceHex(hex);
+  if (!stableHex) return null;
+  return COLOR_MOOD_OPTIONS_BY_HEX.get(stableHex.toLowerCase()) ?? null;
+}
+
+function buildCombinedColorMoodPalette(
+  paletteChoices: Record<string, string[]>,
+  participantIds: string[]
+) {
+  const ordered = participantIds.flatMap((participantId) => paletteChoices[participantId] ?? []);
+  return ordered.filter((hex, index, list) => list.indexOf(hex) === index);
+}
+
+export function getPlayColorMoodCombinedPalette(
+  session:
+    | Pick<PlaySessionDoc, "activity" | "participantIds" | "paletteChoices" | "combinedPalette">
+    | null
+    | undefined
+) {
+  if (!session || session.activity !== "color_mood") return [];
+  const combinedPalette = normalizeColorMoodPalette(
+    session.combinedPalette,
+    COLOR_MOOD_OPTIONS.length
+  );
+  if (combinedPalette.length) return combinedPalette;
+  return buildCombinedColorMoodPalette(
+    normalizeColorMoodChoices(session.paletteChoices),
+    session.participantIds ?? []
+  );
+}
+
+export function getPlayColorMoodChoices(
+  session:
+    | Pick<PlaySessionDoc, "activity" | "paletteChoices">
+    | null
+    | undefined,
+  uid: string
+) {
+  if (!session || session.activity !== "color_mood") return [];
+  return normalizeColorMoodChoices(session.paletteChoices)[uid] ?? [];
+}
+
+export function getPlayColorMoodPhase(
+  session:
+    | Pick<PlaySessionDoc, "activity" | "status" | "colorMoodPhase">
+    | null
+    | undefined
+) {
+  if (!session || session.activity !== "color_mood") return "picking" satisfies PlayColorMoodPhase;
+  if (session.status === "finished" || session.status === "revealed") {
+    return "finished" satisfies PlayColorMoodPhase;
+  }
+  return normalizeColorMoodPhase(session.colorMoodPhase);
+}
+
+export function playActivityUsesReplay(activity: string) {
+  return activity !== "color_mood";
 }
 
 export function getPlayDailyPromptById(promptId: string): PlayDailyPrompt | null {
@@ -288,6 +423,9 @@ export function getPlayActivityLabel(
       return "Рисунок по очереди";
     case "daily_prompt":
       return "Общая тема дня";
+    case "color_mood":
+      if (tone === "action") return "Собрать палитру вместе";
+      return "Палитра настроения";
     default:
       return "Совместная сессия";
   }
@@ -303,6 +441,8 @@ export function getPlayActivityStoryText(activity: string, promptText?: string) 
       return promptText?.trim()
         ? `Один рисунок на двоих по теме «${promptText.trim()}».`
         : "Один рисунок на двоих по общей теме дня.";
+    case "color_mood":
+      return "Мягкая совместная композиция и общая палитра, которую вы собрали вдвоем.";
     default:
       return "Совместная история";
   }
@@ -389,6 +529,11 @@ function asPlaySessionDoc(id: string, raw: unknown): PlaySessionDoc {
   const data = (raw ?? {}) as Partial<PlaySessionDoc>;
   const promptId = normalizePromptString(data.promptId);
   const promptText = normalizePromptString(data.promptText);
+  const paletteChoices = normalizeColorMoodChoices(data.paletteChoices);
+  const combinedPalette = normalizeColorMoodPalette(
+    data.combinedPalette,
+    COLOR_MOOD_OPTIONS.length
+  );
   return {
     id,
     activity: normalizePlayActivity(data.activity),
@@ -398,6 +543,12 @@ function asPlaySessionDoc(id: string, raw: unknown): PlaySessionDoc {
     ...(data.endedAt != null ? { endedAt: Number(data.endedAt) } : {}),
     ...(promptId ? { promptId } : {}),
     ...(promptText ? { promptText } : {}),
+    ...(Object.keys(paletteChoices).length ? { paletteChoices } : {}),
+    ...(data.paletteCompletedAt != null
+      ? { paletteCompletedAt: Number(data.paletteCompletedAt) }
+      : {}),
+    ...(combinedPalette.length ? { combinedPalette } : {}),
+    ...(data.colorMoodPhase ? { colorMoodPhase: normalizeColorMoodPhase(data.colorMoodPhase) } : {}),
     participantIds: Array.isArray(data.participantIds)
       ? data.participantIds.map((value) => String(value))
       : [],
@@ -615,6 +766,12 @@ export async function tryMatchWaitingPlayer(
       activity === "chain_draw" ? buildInitialChainDrawState(participantIds, now) : null;
     const prompt =
       activity === "daily_prompt" ? getPlayDailyPromptForTimestamp(now) : null;
+    const colorMoodPatch =
+      activity === "color_mood"
+        ? {
+            colorMoodPhase: "picking" satisfies PlayColorMoodPhase,
+          }
+        : null;
 
     tx.set(sessionRef, {
       id: sessionId,
@@ -628,6 +785,7 @@ export async function tryMatchWaitingPlayer(
             promptText: prompt.text,
           }
         : {}),
+      ...(colorMoodPatch ?? {}),
       participantIds,
       participantNicknames,
       ...(chainDrawState ? buildChainDrawPatch(chainDrawState) : {}),
@@ -736,6 +894,7 @@ export function mapPlaySessionToHistoryItem(
   const peer = getPeerFromSession(session, uid);
   if (!peer) return null;
   const prompt = getPlaySessionPrompt(session);
+  const combinedPalette = getPlayColorMoodCombinedPalette(session);
 
   return {
     id: session.id,
@@ -747,6 +906,7 @@ export function mapPlaySessionToHistoryItem(
           promptText: prompt.text,
         }
       : {}),
+    ...(combinedPalette.length ? { combinedPalette } : {}),
     peer,
     sortAt: session.endedAt ?? session.startedAt ?? session.createdAt,
     ...(session.resultStrokeCount != null ? { strokeCount: session.resultStrokeCount } : {}),
@@ -884,6 +1044,124 @@ export async function finishPlaySession(
     },
     { merge: true }
   );
+}
+
+export async function submitColorMoodChoices(
+  db: Firestore,
+  sessionId: string,
+  uid: string,
+  choices: string[]
+): Promise<SubmitColorMoodChoicesResult> {
+  const sessionRef = doc(db, "playSessions", sessionId);
+  const normalizedChoices = normalizeColorMoodPalette(choices);
+  if (normalizedChoices.length !== COLOR_MOOD_SELECTION_COUNT) {
+    return { state: "ignored" };
+  }
+
+  return runTransaction(db, async (tx) => {
+    const snapshot = await tx.get(sessionRef);
+    if (!snapshot.exists()) {
+      return { state: "ignored" };
+    }
+
+    const session = asPlaySessionDoc(snapshot.id, snapshot.data());
+    if (session.activity !== "color_mood") {
+      return { state: "ignored" };
+    }
+    if (session.status !== "active") {
+      const combinedPalette = getPlayColorMoodCombinedPalette(session);
+      return {
+        state: getPlayColorMoodPhase(session) === "finished" ? "finished" : "ignored",
+        ...(combinedPalette.length ? { combinedPalette } : {}),
+      };
+    }
+
+    const currentChoices = normalizeColorMoodChoices(session.paletteChoices);
+    const ownSavedChoices = currentChoices[uid] ?? [];
+    if (ownSavedChoices.length === COLOR_MOOD_SELECTION_COUNT) {
+      const combinedPalette = getPlayColorMoodCombinedPalette(session);
+      return {
+        state: getPlayColorMoodPhase(session) === "finished" ? "finished" : "waiting",
+        ...(combinedPalette.length ? { combinedPalette } : {}),
+      };
+    }
+
+    const nextChoices = {
+      ...currentChoices,
+      [uid]: normalizedChoices,
+    };
+    const allSubmitted =
+      session.participantIds.length > 0 &&
+      session.participantIds.every(
+        (participantId) =>
+          (nextChoices[participantId] ?? []).length === COLOR_MOOD_SELECTION_COUNT
+      );
+    const combinedPalette = allSubmitted
+      ? buildCombinedColorMoodPalette(nextChoices, session.participantIds)
+      : [];
+    const now = Date.now();
+
+    tx.set(
+      sessionRef,
+      {
+        paletteChoices: nextChoices,
+        colorMoodPhase: allSubmitted
+          ? ("finished" satisfies PlayColorMoodPhase)
+          : ("picking" satisfies PlayColorMoodPhase),
+        ...(allSubmitted
+          ? {
+              combinedPalette,
+              paletteCompletedAt: now,
+              endedAt: now,
+              status: "finished" satisfies PlaySessionStatus,
+            }
+          : {}),
+      },
+      { merge: true }
+    );
+
+    return {
+      state: allSubmitted ? "finished" : "waiting",
+      ...(combinedPalette.length ? { combinedPalette } : {}),
+    };
+  });
+}
+
+export async function finalizeColorMoodSession(
+  db: Firestore,
+  sessionId: string
+): Promise<string[]> {
+  const sessionRef = doc(db, "playSessions", sessionId);
+
+  return runTransaction(db, async (tx) => {
+    const snapshot = await tx.get(sessionRef);
+    if (!snapshot.exists()) return [];
+
+    const session = asPlaySessionDoc(snapshot.id, snapshot.data());
+    if (session.activity !== "color_mood") {
+      return [];
+    }
+
+    const combinedPalette = getPlayColorMoodCombinedPalette(session);
+    const now = Date.now();
+
+    tx.set(
+      sessionRef,
+      {
+        colorMoodPhase: "finished" satisfies PlayColorMoodPhase,
+        ...(combinedPalette.length ? { combinedPalette } : {}),
+        ...(combinedPalette.length ? { paletteCompletedAt: now } : {}),
+        endedAt: session.endedAt ?? now,
+        status:
+          session.status === "revealed"
+            ? ("revealed" satisfies PlaySessionStatus)
+            : ("finished" satisfies PlaySessionStatus),
+      },
+      { merge: true }
+    );
+
+    return combinedPalette;
+  });
 }
 
 export async function ensureChainDrawTurnState(

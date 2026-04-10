@@ -11,6 +11,7 @@ import { Ionicons } from "@expo/vector-icons";
 
 import CoreStateCard from "@/components/CoreStateCard";
 import ScreenShell from "@/components/ScreenShell";
+import ColorMoodPaletteSummary from "@/components/play/ColorMoodPaletteSummary";
 import { auth, db } from "@/config/firebaseConfig";
 import { useLocale } from "@/contexts/LocaleContext";
 import {
@@ -29,6 +30,7 @@ import {
   getPlayActivityLabel,
   getPlayActivityStoryText,
   getPlayRevealCopy,
+  playActivityUsesReplay,
   subscribeMyPlayHistory,
   type PlayHistoryItem,
 } from "@/services/playSessions";
@@ -240,6 +242,8 @@ export default function PlayHistoryScreen() {
   const renderCard = useCallback(
     (item: HistoryCard) => {
       const showDailyPrompt = item.activity === "daily_prompt";
+      const isColorMood = item.activity === "color_mood";
+      const activityHasReplay = playActivityUsesReplay(item.activity);
       const promptDisplay = item.promptText?.trim() || "Тема уточняется";
 
       return (
@@ -285,6 +289,16 @@ export default function PlayHistoryScreen() {
             {getPlayActivityStoryText(item.activity, item.promptText)}
           </Text>
 
+          {isColorMood ? (
+            <ColorMoodPaletteSummary
+              title="Ваша общая палитра"
+              combinedPalette={item.combinedPalette ?? []}
+              emptyTitle="Палитра собрана не полностью"
+              emptyBody="Эта история сохранилась без полного общего набора цветов, но итог всё равно остался в архиве."
+              compact
+            />
+          ) : null}
+
           {showDailyPrompt ? (
             <View style={styles.promptCard}>
               <Text style={styles.promptLabel}>Тема</Text>
@@ -294,11 +308,17 @@ export default function PlayHistoryScreen() {
 
           <View style={styles.metaGrid}>
             <View style={styles.metaChip}>
-              <Ionicons name="brush-outline" size={14} color={theme.colors.accent} />
+              <Ionicons
+                name={isColorMood ? "color-palette-outline" : "brush-outline"}
+                size={14}
+                color={theme.colors.accent}
+              />
               <Text style={styles.metaText}>
-                {tt("connections.strokeCount", "Штрихов: {count}", {
-                  count: String(item.strokeCount ?? 0),
-                })}
+                {isColorMood
+                  ? `Цветов: ${String(item.combinedPalette?.length ?? 0)}`
+                  : tt("connections.strokeCount", "Штрихов: {count}", {
+                      count: String(item.strokeCount ?? 0),
+                    })}
               </Text>
             </View>
             <View style={styles.metaChip}>
@@ -312,9 +332,16 @@ export default function PlayHistoryScreen() {
           <Text style={styles.cardStatus}>{getPlayRevealCopy(item.revealOutcome).description}</Text>
 
           <View style={styles.actionsRow}>
-            <Pressable onPress={() => openReplay(item.sessionId)} style={styles.secondaryButton}>
+            <Pressable
+              onPress={() =>
+                activityHasReplay ? openReplay(item.sessionId) : openDetail(item.sessionId)
+              }
+              style={styles.secondaryButton}
+            >
               <Text style={styles.secondaryButtonText}>
-                {tt("connections.openReplay", "Открыть replay")}
+                {!activityHasReplay
+                  ? "Открыть палитру"
+                  : tt("connections.openReplay", "Открыть replay")}
               </Text>
             </Pressable>
             {item.revealOutcome === "open_open" ? (

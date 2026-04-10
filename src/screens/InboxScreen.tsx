@@ -157,6 +157,7 @@ export default function InboxScreen() {
         draw: tt("inbox.sourcePlay", "После совместной сессии"),
         chain_draw: tt("inbox.sourcePlayChainDraw", "После рисунка по очереди"),
         daily_prompt: tt("inbox.sourcePlayDailyPrompt", "После общей темы дня"),
+        color_mood: tt("inbox.sourcePlayColorMood", "После палитры настроения"),
       },
       direct: tt("inbox.sourceDefault", "Личный чат"),
     }),

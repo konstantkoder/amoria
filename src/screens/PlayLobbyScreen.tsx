@@ -19,14 +19,7 @@ type ActivityCard = {
   details: string;
 };
 
-const ROADMAP_CARDS: ActivityCard[] = [
-  {
-    slug: "color_mood",
-    title: "Палитра настроения",
-    description: "Каждый выбирает цвета, а затем вместе вы собираете мягкую общую палитру.",
-    details: "Больше про ощущение, чем про технику или скорость.",
-  },
-];
+const ROADMAP_CARDS: ActivityCard[] = [];
 
 export default function PlayLobbyScreen() {
   const navigation = useNavigation<any>();
@@ -83,10 +76,28 @@ export default function PlayLobbyScreen() {
         <View style={styles.liveSection}>
           <Text style={styles.liveSectionTitle}>Живые режимы Together</Text>
           <Text style={styles.liveSectionText}>
-            Вместе уже работает в трех реальных состояниях: свободный общий рисунок, рисунок по
-            очереди и общая тема дня.
+            Вместе уже работает в четырёх реальных состояниях: свободный общий рисунок, рисунок по
+            очереди, общая тема дня и палитра настроения.
           </Text>
         </View>
+
+        <Pressable
+          onPress={() => navigation.navigate("PlayMatch", { activity: "color_mood" })}
+          style={styles.liveCard}
+        >
+          <View style={styles.cardHeader}>
+            <Text style={styles.cardTitle}>Палитра настроения</Text>
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>Живой режим</Text>
+            </View>
+          </View>
+          <Text style={styles.cardDescription}>
+            Каждый выбирает цвета, а вместе вы собираете общую палитру и мягкую совместную композицию.
+          </Text>
+          <Text style={styles.cardDetails}>
+            Короткая сессия выбора, одна общая палитра и тот же итог с решением об открытии чата.
+          </Text>
+        </Pressable>
 
         <Pressable
           onPress={() => navigation.navigate("PlayMatch", { activity: "daily_prompt" })}
@@ -146,31 +157,35 @@ export default function PlayLobbyScreen() {
           </Pressable>
         </View>
 
-        <View style={styles.soonSection}>
-          <Text style={styles.soonTitle}>Что появится дальше</Text>
-          <Text style={styles.soonText}>
-            Это следующие режимы Together. Они расширят общий опыт, но останутся частью того же пути.
-          </Text>
-        </View>
+        {ROADMAP_CARDS.length ? (
+          <>
+            <View style={styles.soonSection}>
+              <Text style={styles.soonTitle}>Что появится дальше</Text>
+              <Text style={styles.soonText}>
+                Это следующие режимы Together. Они расширят общий опыт, но останутся частью того же пути.
+              </Text>
+            </View>
 
-        {ROADMAP_CARDS.map((card) => {
-          return (
-            <Pressable
-              key={card.slug}
-              disabled
-              style={[styles.card, styles.cardSoon]}
-            >
-              <View style={styles.cardHeader}>
-                <Text style={styles.cardTitle}>{card.title}</Text>
-                <View style={[styles.badge, styles.badgeSoon]}>
-                  <Text style={styles.badgeText}>Скоро</Text>
-                </View>
-              </View>
-              <Text style={styles.cardDescription}>{card.description}</Text>
-              <Text style={styles.cardDetails}>{card.details}</Text>
-            </Pressable>
-          );
-        })}
+            {ROADMAP_CARDS.map((card) => {
+              return (
+                <Pressable
+                  key={card.slug}
+                  disabled
+                  style={[styles.card, styles.cardSoon]}
+                >
+                  <View style={styles.cardHeader}>
+                    <Text style={styles.cardTitle}>{card.title}</Text>
+                    <View style={[styles.badge, styles.badgeSoon]}>
+                      <Text style={styles.badgeText}>Скоро</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.cardDescription}>{card.description}</Text>
+                  <Text style={styles.cardDetails}>{card.details}</Text>
+                </Pressable>
+              );
+            })}
+          </>
+        ) : null}
       </ScrollView>
     </ScreenShell>
   );

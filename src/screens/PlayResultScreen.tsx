@@ -10,6 +10,7 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 
 import CoreStateCard from "@/components/CoreStateCard";
 import ScreenShell from "@/components/ScreenShell";
+import ColorMoodPaletteSummary from "@/components/play/ColorMoodPaletteSummary";
 import ReplayCanvasWebView from "@/components/play/ReplayCanvasWebView";
 import type { SharedCanvasStroke } from "@/components/play/SharedCanvasWebView";
 import { auth, db } from "@/config/firebaseConfig";
@@ -17,9 +18,12 @@ import { buildDmChatRouteParams, ensureDmThread } from "@/services/dm";
 import {
   getPlayActivityLabel,
   getPlayActivityStoryText,
+  getPlayColorMoodChoices,
+  getPlayColorMoodCombinedPalette,
   getPeerFromSession,
   getPlayRevealCopy,
   getPlaySessionPrompt,
+  playActivityUsesReplay,
   resolvePlayRevealOutcome,
   submitRevealDecision,
   subscribePlayEvents,
@@ -213,8 +217,16 @@ export default function PlayResultScreen() {
   const durationLabel = formatDuration(session);
   const activityLabel = getPlayActivityLabel(session?.activity ?? "draw", "neutral");
   const showDailyPrompt = session?.activity === "daily_prompt";
+  const isColorMood = session?.activity === "color_mood";
+  const activityHasReplay = playActivityUsesReplay(session?.activity ?? "draw");
   const sessionPrompt = React.useMemo(() => getPlaySessionPrompt(session), [session]);
   const sessionPromptDisplay = sessionPrompt?.text?.trim() || "Тема уточняется";
+  const combinedPalette = React.useMemo(() => getPlayColorMoodCombinedPalette(session), [session]);
+  const ownPalette = React.useMemo(() => getPlayColorMoodChoices(session, uid), [session, uid]);
+  const peerPalette = React.useMemo(
+    () => getPlayColorMoodChoices(session, peer?.uid ?? ""),
+    [peer?.uid, session]
+  );
   const revealCopy = React.useMemo(() => getPlayRevealCopy(revealOutcome), [revealOutcome]);
   const canOpenChat = Boolean(db && session && uid && peer?.uid);
   const hasReplay = replayStrokes.length > 0;
@@ -479,12 +491,22 @@ export default function PlayResultScreen() {
             {historyMode ? "Совместная история" : "Сразу после совместной сессии"}
           </Text>
           <Text style={styles.heroTitle}>
-            {historyMode ? "Ваш общий рисунок" : "Ваш общий рисунок готов"}
+            {isColorMood
+              ? historyMode
+                ? "Ваша общая палитра"
+                : "Ваша общая палитра готова"
+              : historyMode
+                ? "Ваш общий рисунок"
+                : "Ваш общий рисунок готов"}
           </Text>
           <Text style={styles.heroText}>
-            {historyMode
-              ? "Здесь хранится завершенный общий рисунок, к которому можно вернуться в любой момент."
-              : "Это итог только что завершившейся совместной сессии. Постоянный дом рисунка и replay находится в совместной истории."}{" "}
+            {isColorMood
+              ? historyMode
+                ? "Здесь хранится завершенная общая палитра, к которой можно вернуться в любой момент."
+                : "Это итог только что завершившейся палитры настроения. Постоянный дом палитры и её визуального блока находится в совместной истории."
+              : historyMode
+                ? "Здесь хранится завершенный общий рисунок, к которому можно вернуться в любой момент."
+                : "Это итог только что завершившейся совместной сессии. Постоянный дом рисунка и replay находится в совместной истории."}{" "}
             {session
               ? getPlayActivityStoryText(session.activity, sessionPrompt?.text)
               : ""}
@@ -500,8 +522,12 @@ export default function PlayResultScreen() {
               <Text style={styles.metaValue}>{peerName}</Text>
             </View>
             <View style={styles.metaItem}>
-              <Text style={styles.metaLabel}>Штрихов</Text>
-              <Text style={styles.metaValue}>{totalStrokeCount}</Text>
+              <Text style={styles.metaLabel}>
+                {isColorMood ? "Цветов в палитре" : "Штрихов"}
+              </Text>
+              <Text style={styles.metaValue}>
+                {isColorMood ? combinedPalette.length || ownPalette.length || peerPalette.length : totalStrokeCount}
+              </Text>
             </View>
             <View style={styles.metaItem}>
               <Text style={styles.metaLabel}>Длительность</Text>
@@ -515,16 +541,18 @@ export default function PlayResultScreen() {
             ) : null}
           </View>
 
-          <View style={styles.legendRow}>
-            <View style={styles.legendPill}>
-              <View style={[styles.legendDot, { backgroundColor: theme.colors.primary }]} />
-              <Text style={styles.legendText}>Твои штрихи: {myStrokeCount}</Text>
+          {!isColorMood ? (
+            <View style={styles.legendRow}>
+              <View style={styles.legendPill}>
+                <View style={[styles.legendDot, { backgroundColor: theme.colors.primary }]} />
+                <Text style={styles.legendText}>Твои штрихи: {myStrokeCount}</Text>
+              </View>
+              <View style={styles.legendPill}>
+                <View style={[styles.legendDot, { backgroundColor: theme.colors.accent }]} />
+                <Text style={styles.legendText}>Штрихи напарника: {peerStrokeCount}</Text>
+              </View>
             </View>
-            <View style={styles.legendPill}>
-              <View style={[styles.legendDot, { backgroundColor: theme.colors.accent }]} />
-              <Text style={styles.legendText}>Штрихи напарника: {peerStrokeCount}</Text>
-            </View>
-          </View>
+          ) : null}
         </View>
 
         <View style={styles.actionCard}>
@@ -576,14 +604,16 @@ export default function PlayResultScreen() {
             </>
           )}
 
-          <Pressable
-            onPress={() => setReplayOpen((prev) => !prev)}
-            style={styles.secondaryButton}
-          >
-            <Text style={styles.secondaryText}>
-              {replayOpen ? "Скрыть replay" : "Показать replay"}
-            </Text>
-          </Pressable>
+          {activityHasReplay ? (
+            <Pressable
+              onPress={() => setReplayOpen((prev) => !prev)}
+              style={styles.secondaryButton}
+            >
+              <Text style={styles.secondaryText}>
+                {replayOpen ? "Скрыть replay" : "Показать replay"}
+              </Text>
+            </Pressable>
+          ) : null}
         </View>
 
         <View style={styles.routeCard}>
@@ -591,13 +621,17 @@ export default function PlayResultScreen() {
             {historyMode ? "Где живёт эта история" : "Куда эта история перейдёт дальше"}
           </Text>
           <Text style={styles.routeText}>
-            {historyMode
-              ? "Это промежуточный взгляд на историю. Полная страница истории остаётся главным домом для replay, статуса и возврата в чат."
-              : "Итог нужен для решения сразу после сессии. Потом рисунок живёт в совместной истории, а открытая связь продолжается уже в чатах и связях."}
+            {isColorMood
+              ? historyMode
+                ? "Это промежуточный взгляд на историю. Полная страница истории остаётся главным домом для общей палитры, статуса и возврата в чат."
+                : "Итог нужен для решения сразу после сессии. Потом палитра живёт в совместной истории, а открытая связь продолжается уже в чатах и связях."
+              : historyMode
+                ? "Это промежуточный взгляд на историю. Полная страница истории остаётся главным домом для replay, статуса и возврата в чат."
+                : "Итог нужен для решения сразу после сессии. Потом рисунок живёт в совместной истории, а открытая связь продолжается уже в чатах и связях."}
           </Text>
           <View style={styles.routeActions}>
             <Pressable
-              onPress={() => goToDetail(replayOpen ? "replay" : undefined)}
+              onPress={() => goToDetail(activityHasReplay && replayOpen ? "replay" : undefined)}
               style={styles.routeButtonPrimary}
             >
               <Text style={styles.routeButtonPrimaryText}>Открыть совместную историю</Text>
@@ -614,7 +648,18 @@ export default function PlayResultScreen() {
           </View>
         </View>
 
-        {replayOpen ? (
+        {isColorMood ? (
+          <ColorMoodPaletteSummary
+            title="Ваша общая палитра"
+            body="Сначала вы выбрали цвета по отдельности, а здесь собрался общий мягкий итог этой сессии."
+            combinedPalette={combinedPalette}
+            ownPalette={ownPalette}
+            peerPalette={peerPalette}
+            peerTitle="Цвета второго участника"
+            emptyTitle="Палитра собрана не полностью"
+            emptyBody="Сессия завершилась раньше, чем успел собраться полный общий итог. Сохранённые цвета всё равно остались в истории."
+          />
+        ) : replayOpen ? (
           <View style={styles.replayBlock}>
             <View style={styles.replayHeader}>
               <View>

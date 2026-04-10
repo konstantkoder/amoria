@@ -19,6 +19,8 @@ function normalizeArtworkActivity(value: unknown): PlayActivity {
       return "chain_draw";
     case "daily_prompt":
       return "daily_prompt";
+    case "color_mood":
+      return "color_mood";
     default:
       return "draw";
   }

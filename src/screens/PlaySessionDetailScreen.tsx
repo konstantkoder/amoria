@@ -10,6 +10,7 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 
 import CoreStateCard from "@/components/CoreStateCard";
 import ScreenShell from "@/components/ScreenShell";
+import ColorMoodPaletteSummary from "@/components/play/ColorMoodPaletteSummary";
 import ReplayCanvasWebView from "@/components/play/ReplayCanvasWebView";
 import type { SharedCanvasStroke } from "@/components/play/SharedCanvasWebView";
 import { auth, db } from "@/config/firebaseConfig";
@@ -24,9 +25,12 @@ import {
 import {
   getPlayActivityLabel,
   getPlayActivityStoryText,
+  getPlayColorMoodChoices,
+  getPlayColorMoodCombinedPalette,
   getPeerFromSession,
   getPlayRevealCopy,
   getPlaySessionPrompt,
+  playActivityUsesReplay,
   resolvePlayRevealOutcome,
   subscribePlayEvents,
   subscribePlaySession,
@@ -225,8 +229,16 @@ export default function PlaySessionDetailScreen() {
     return events.reduce((sum, batch) => sum + batch.strokes.length, 0);
   }, [events, session?.resultStrokeCount]);
   const showDailyPrompt = session?.activity === "daily_prompt";
+  const isColorMood = session?.activity === "color_mood";
+  const activityHasReplay = playActivityUsesReplay(session?.activity ?? "draw");
   const sessionPrompt = React.useMemo(() => getPlaySessionPrompt(session), [session]);
   const sessionPromptDisplay = sessionPrompt?.text?.trim() || "Тема уточняется";
+  const combinedPalette = React.useMemo(() => getPlayColorMoodCombinedPalette(session), [session]);
+  const ownPalette = React.useMemo(() => getPlayColorMoodChoices(session, uid), [session, uid]);
+  const peerPalette = React.useMemo(
+    () => getPlayColorMoodChoices(session, peer?.uid ?? ""),
+    [peer?.uid, session]
+  );
   const replayStrokes = React.useMemo(() => mapReplayStrokes(events), [events]);
   const hasReplay = replayStrokes.length > 0;
   const revealOutcome = React.useMemo(
@@ -413,7 +425,8 @@ export default function PlaySessionDetailScreen() {
           <Text style={styles.heroTitle}>{peerName}</Text>
           <Text style={styles.heroText}>
             {getPlayActivityStoryText(session.activity, sessionPrompt?.text)} Здесь хранятся итог,
-            replay и вход в чат, если он уже открылся.
+            {activityHasReplay ? " replay и вход в чат," : " визуальный итог и вход в чат,"} если
+            он уже открылся.
           </Text>
 
           <View style={styles.metaGrid}>
@@ -432,8 +445,12 @@ export default function PlaySessionDetailScreen() {
               <Text style={styles.metaValue}>{formatDateTime(sortAt)}</Text>
             </View>
             <View style={styles.metaItem}>
-              <Text style={styles.metaLabel}>{tt("playDetail.strokes", "Штрихов")}</Text>
-              <Text style={styles.metaValue}>{String(totalStrokeCount)}</Text>
+              <Text style={styles.metaLabel}>
+                {isColorMood ? "Цветов" : tt("playDetail.strokes", "Штрихов")}
+              </Text>
+              <Text style={styles.metaValue}>
+                {String(isColorMood ? combinedPalette.length || ownPalette.length || peerPalette.length : totalStrokeCount)}
+              </Text>
             </View>
             {showDailyPrompt ? (
               <View style={[styles.metaItem, styles.metaItemWide]}>
@@ -505,51 +522,64 @@ export default function PlaySessionDetailScreen() {
           </View>
         </View>
 
-        <View style={styles.replayBlock}>
-          <View style={styles.replayHeader}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.replayTitle}>{tt("playDetail.replayTitle", "Replay рисунка")}</Text>
-              <Text style={styles.replayText}>
-                {tt(
-                  "playDetail.replayBody",
-                  "Здесь можно заново пройти весь рисунок по штрихам и вернуться к моменту, который вы собрали вдвоем."
-                )}
-              </Text>
-            </View>
-            <Pressable onPress={openReplay} style={styles.replayToggle}>
-              <Text style={styles.replayToggleText}>
-                {replayOpen
-                  ? tt("playDetail.hideReplay", "Скрыть replay")
-                  : tt("playDetail.openReplay", "Показать replay")}
-              </Text>
-            </Pressable>
-          </View>
-          {showDailyPrompt ? (
-            <View style={styles.contextPill}>
-              <Text style={styles.contextLabel}>Тема</Text>
-              <Text style={styles.contextText}>{sessionPromptDisplay}</Text>
-            </View>
-          ) : null}
-
-          {replayOpen ? (
-            hasReplay ? (
-              <ReplayCanvasWebView
-                key={`${sessionId}_${replayStrokes.length}`}
-                strokes={replayStrokes}
-                autoplay
-                speed={1.25}
-                showControls
-              />
-            ) : (
-              <View style={styles.emptyReplayCard}>
-                <Text style={styles.emptyReplayTitle}>Replay недоступен</Text>
-                <Text style={styles.emptyReplayText}>
-                  Эта совместная сессия сохранилась без штрихов. История и итог остались, но сам replay здесь недоступен.
+        {isColorMood ? (
+          <ColorMoodPaletteSummary
+            title="Ваша общая палитра"
+            body="Здесь сохранился мягкий визуальный итог и оба цветовых выбора этой совместной сессии."
+            combinedPalette={combinedPalette}
+            ownPalette={ownPalette}
+            peerPalette={peerPalette}
+            peerTitle="Цвета второго участника"
+            emptyTitle="Палитра собрана не полностью"
+            emptyBody="Сессия завершилась раньше, чем успела сложиться полная общая палитра. Сохранённые цвета всё равно остались в истории."
+          />
+        ) : (
+          <View style={styles.replayBlock}>
+            <View style={styles.replayHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.replayTitle}>{tt("playDetail.replayTitle", "Replay рисунка")}</Text>
+                <Text style={styles.replayText}>
+                  {tt(
+                    "playDetail.replayBody",
+                    "Здесь можно заново пройти весь рисунок по штрихам и вернуться к моменту, который вы собрали вдвоем."
+                  )}
                 </Text>
               </View>
-            )
-          ) : null}
-        </View>
+              <Pressable onPress={openReplay} style={styles.replayToggle}>
+                <Text style={styles.replayToggleText}>
+                  {replayOpen
+                    ? tt("playDetail.hideReplay", "Скрыть replay")
+                    : tt("playDetail.openReplay", "Показать replay")}
+                </Text>
+              </Pressable>
+            </View>
+            {showDailyPrompt ? (
+              <View style={styles.contextPill}>
+                <Text style={styles.contextLabel}>Тема</Text>
+                <Text style={styles.contextText}>{sessionPromptDisplay}</Text>
+              </View>
+            ) : null}
+
+            {replayOpen ? (
+              hasReplay ? (
+                <ReplayCanvasWebView
+                  key={`${sessionId}_${replayStrokes.length}`}
+                  strokes={replayStrokes}
+                  autoplay
+                  speed={1.25}
+                  showControls
+                />
+              ) : (
+                <View style={styles.emptyReplayCard}>
+                  <Text style={styles.emptyReplayTitle}>Replay недоступен</Text>
+                  <Text style={styles.emptyReplayText}>
+                    Эта совместная сессия сохранилась без штрихов. История и итог остались, но сам replay здесь недоступен.
+                  </Text>
+                </View>
+              )
+            ) : null}
+          </View>
+        )}
       </ScrollView>
     </ScreenShell>
   );

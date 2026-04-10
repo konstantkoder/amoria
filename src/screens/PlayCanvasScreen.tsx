@@ -237,10 +237,17 @@ export default function PlayCanvasScreen() {
 
   React.useEffect(() => {
     if (!session) return;
+    if (session.activity === "color_mood") {
+      if (!mountedRef.current || navigationHandledRef.current || !sessionId) return;
+      navigationHandledRef.current = true;
+      allowExitRef.current = true;
+      navigation.replace("PlayColorMood", { sessionId });
+      return;
+    }
     if (session.status === "finished" || session.status === "revealed") {
       openResultScreen();
     }
-  }, [openResultScreen, session]);
+  }, [navigation, openResultScreen, session, sessionId]);
 
   React.useEffect(() => {
     if (session?.status !== "active") return;

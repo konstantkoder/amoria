@@ -15,6 +15,7 @@ import VideoChatScreen from "@/screens/VideoChatScreen";
 import QuestionScreen from "@/screens/QuestionScreen";
 import PlayMatchScreen from "@/screens/PlayMatchScreen";
 import PlayCanvasScreen from "@/screens/PlayCanvasScreen";
+import PlayColorMoodScreen from "@/screens/PlayColorMoodScreen";
 import PlayResultScreen from "@/screens/PlayResultScreen";
 import PlayHistoryScreen from "@/screens/PlayHistoryScreen";
 import PlaySessionDetailScreen from "@/screens/PlaySessionDetailScreen";
@@ -220,6 +221,7 @@ export default function AppNavigator() {
         <RootStack.Screen name="Tabs" component={MainTabs} />
         <RootStack.Screen name="PlayMatch" component={PlayMatchScreen} />
         <RootStack.Screen name="PlayCanvas" component={PlayCanvasScreen} />
+        <RootStack.Screen name="PlayColorMood" component={PlayColorMoodScreen} />
         <RootStack.Screen name="PlayResult" component={PlayResultScreen} />
         <RootStack.Screen name="PlayHistory" component={PlayHistoryScreen} />
         <RootStack.Screen name="PlaySessionDetail" component={PlaySessionDetailScreen} />

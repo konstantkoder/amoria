@@ -101,6 +101,22 @@ function getMatchModeCopy(activity: PlayActivity | null) {
     };
   }
 
+  if (activity === "color_mood") {
+    return {
+      eyebrow: "Короткая палитра на двоих",
+      preparingBody:
+        "Сейчас поставим тебя в очередь и попробуем быстро найти человека для мягкой совместной палитры.",
+      searchingBody:
+        "Как только найдём второго участника, сразу откроем короткую сессию выбора цветов. Каждый выберет три цвета, а потом появится общая палитра.",
+      delayedBody:
+        "Обычно поиск занимает немного времени, но иногда на палитру настроения нужно подождать чуть дольше. Оставайся здесь или вернись позже.",
+      foundBody:
+        "Человек найден. Открываем палитру настроения и выбор цветов.",
+      caption:
+        "Каждый выбирает 3 цвета, а итогом станет одна общая палитра пары.",
+    };
+  }
+
   return {
     eyebrow: "7 минут на двоих",
     preparingBody:
@@ -174,9 +190,11 @@ export default function PlayMatchScreen() {
       if (!nextSessionId || matchedSessionRef.current || !mountedRef.current) return;
       matchedSessionRef.current = nextSessionId;
       allowLeaveRef.current = true;
-      navigation.replace("PlayCanvas", { sessionId: nextSessionId });
+      navigation.replace(activity === "color_mood" ? "PlayColorMood" : "PlayCanvas", {
+        sessionId: nextSessionId,
+      });
     },
-    [navigation]
+    [activity, navigation]
   );
 
   const handleCancel = React.useCallback(async () => {
