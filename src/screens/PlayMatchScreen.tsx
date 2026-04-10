@@ -13,6 +13,7 @@ import { auth, db, isFirebaseConfigured } from "@/config/firebaseConfig";
 import {
   cancelPlayRequest,
   enqueuePlayRequest,
+  getPlayMatchModeCopy,
   isPlayActivity,
   subscribeOwnQueueEntry,
   tryMatchWaitingPlayer,
@@ -68,70 +69,6 @@ function getBlockedState(reason: MatchBlockReason) {
   }
 }
 
-function getMatchModeCopy(activity: PlayActivity | null) {
-  if (activity === "chain_draw") {
-    return {
-      eyebrow: "10 ходов по 30 секунд",
-      preparingBody:
-        "Сейчас поставим тебя в очередь и попробуем быстро найти второго человека для рисунка по очереди.",
-      searchingBody:
-        "Как только найдём второго участника, сразу откроем один общий холст. Вы будете рисовать короткими ходами и по очереди собирать общий рисунок.",
-      delayedBody:
-        "Обычно это происходит быстро, но иногда поиск занимает чуть больше времени. Оставайся здесь или вернись и попробуй снова позже.",
-      foundBody:
-        "Подключаем вас к одному рисунку по очереди. Это займёт пару секунд.",
-      caption:
-        "Один общий холст, короткие ходы и передача хода после каждого раунда.",
-    };
-  }
-
-  if (activity === "daily_prompt") {
-    return {
-      eyebrow: "Одна тема на двоих",
-      preparingBody:
-        "Сейчас поставим тебя в очередь и попробуем быстро найти человека для рисунка по общей теме.",
-      searchingBody:
-        "Как только найдем второго участника, сразу откроем один общий холст и покажем сегодняшнюю тему.",
-      delayedBody:
-        "Обычно это происходит быстро, но иногда поиск человека для общей темы занимает чуть больше времени. Оставайся здесь или вернись и попробуй позже.",
-      foundBody:
-        "Человек найден. Открываем общий холст и сегодняшнюю тему. Это займет пару секунд.",
-      caption:
-        "Один рисунок на двоих, одна тема и один итог перед решением об открытии чата.",
-    };
-  }
-
-  if (activity === "color_mood") {
-    return {
-      eyebrow: "Короткая палитра на двоих",
-      preparingBody:
-        "Сейчас поставим тебя в очередь и попробуем быстро найти человека для мягкой совместной палитры.",
-      searchingBody:
-        "Как только найдём второго участника, сразу откроем короткую сессию выбора цветов. Каждый выберет три цвета, а потом появится общая палитра.",
-      delayedBody:
-        "Обычно поиск занимает немного времени, но иногда на палитру настроения нужно подождать чуть дольше. Оставайся здесь или вернись позже.",
-      foundBody:
-        "Человек найден. Открываем палитру настроения и выбор цветов.",
-      caption:
-        "Каждый выбирает 3 цвета, а итогом станет одна общая палитра пары.",
-    };
-  }
-
-  return {
-    eyebrow: "7 минут на двоих",
-    preparingBody:
-      "Сейчас поставим тебя в очередь и попробуем быстро найти второго человека для общего рисунка.",
-    searchingBody:
-      "Как только найдем второго участника, сразу откроем общий холст. На сессию будет 7 минут.",
-    delayedBody:
-      "Обычно это происходит быстро, но иногда поиск занимает чуть больше времени. Оставайся здесь или вернись и попробуй снова позже.",
-    foundBody:
-      "Подключаем вас к общему холсту. Это займет пару секунд.",
-    caption:
-      "Сначала пройдет общий опыт. После него чат откроется только если вы оба этого захотите.",
-  };
-}
-
 export default function PlayMatchScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
@@ -139,7 +76,7 @@ export default function PlayMatchScreen() {
   const activity = isPlayActivity(route.params?.activity)
     ? (route.params.activity as PlayActivity)
     : null;
-  const modeCopy = React.useMemo(() => getMatchModeCopy(activity), [activity]);
+  const modeCopy = React.useMemo(() => getPlayMatchModeCopy(activity), [activity]);
   const nickname = React.useMemo(() => makeNickname(uid), [uid]);
   const blockReason = resolveMatchBlockReason(route.params, uid);
   const blockedState = blockReason ? getBlockedState(blockReason) : null;

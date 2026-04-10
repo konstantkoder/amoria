@@ -10,26 +10,20 @@ import { useNavigation } from "@react-navigation/native";
 
 import ScreenShell from "@/components/ScreenShell";
 import { useLocale } from "@/contexts/LocaleContext";
+import {
+  getPlayLobbyModeCardCopy,
+  type PlayActivity,
+} from "@/services/playSessions";
 import { theme } from "@/theme";
 
-type ActivityCard = {
-  slug: string;
-  title: string;
-  description: string;
-  details: string;
-};
-
-const ROADMAP_CARDS: ActivityCard[] = [];
+const LIVE_MODE_ORDER: PlayActivity[] = ["draw", "chain_draw", "daily_prompt", "color_mood"];
 
 export default function PlayLobbyScreen() {
   const navigation = useNavigation<any>();
   const { t } = useLocale();
 
   return (
-    <ScreenShell
-      title={t("tabs.together")}
-      background="togetherMain"
-    >
+    <ScreenShell title={t("tabs.together")} background="togetherMain">
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}
@@ -37,11 +31,11 @@ export default function PlayLobbyScreen() {
       >
         <View style={styles.hero}>
           <View style={styles.heroTop}>
-            <Text style={styles.kicker}>Главный романтический вход</Text>
-            <Text style={styles.heroTitle}>Один общий рисунок на двоих</Text>
+            <Text style={styles.kicker}>Игровой центр знакомств</Text>
+            <Text style={styles.heroTitle}>Четыре живых режима Together</Text>
             <Text style={styles.heroText}>
-              Здесь начинается совместная сессия. Сначала вы проходите один общий опыт, потом
-              рисунок остаётся в совместной истории, а чат открывается только по взаимному желанию.
+              Здесь начинается совместная сессия. Вы проходите один общий опыт, сохраняете его в
+              совместной истории и только потом решаете, открывать ли чат по взаимному желанию.
             </Text>
           </View>
 
@@ -50,22 +44,23 @@ export default function PlayLobbyScreen() {
               onPress={() => navigation.navigate("PlayMatch", { activity: "draw" })}
               style={styles.primaryCta}
             >
-              <Text style={styles.primaryCtaTitle}>Начать совместную сессию</Text>
+              <Text style={styles.primaryCtaTitle}>Начать со свободного рисунка</Text>
             </Pressable>
             <Text style={styles.primaryCtaHint}>
-              7 минут • один общий холст • чат по взаимному желанию
+              4 режима • одна общая история • чат только по взаимному желанию
             </Text>
           </View>
         </View>
 
-          <Pressable
-            onPress={() => navigation.navigate("PlayHistory")}
-            style={styles.historyCard}
-          >
+        <Pressable
+          onPress={() => navigation.navigate("PlayHistory")}
+          style={styles.historyCard}
+        >
           <View style={styles.historyTextWrap}>
             <Text style={styles.historyTitle}>Мои совместные истории</Text>
             <Text style={styles.historyText}>
-              Здесь сохраняются итоговые рисунки, статусы открытия и вход обратно в уже начатую связь.
+              Здесь сохраняются все завершённые режимы Together: итог, статус раскрытия и вход
+              обратно в уже начатую связь.
             </Text>
           </View>
           <View style={styles.historyBadge}>
@@ -76,64 +71,31 @@ export default function PlayLobbyScreen() {
         <View style={styles.liveSection}>
           <Text style={styles.liveSectionTitle}>Живые режимы Together</Text>
           <Text style={styles.liveSectionText}>
-            Вместе уже работает в четырёх реальных состояниях: свободный общий рисунок, рисунок по
-            очереди, общая тема дня и палитра настроения.
+            Все четыре режима уже живые: свободный рисунок, рисунок по очереди, тема дня и палитра
+            настроения. У каждого свой вход, свой контекст и тот же путь до истории и чата.
           </Text>
         </View>
 
-        <Pressable
-          onPress={() => navigation.navigate("PlayMatch", { activity: "color_mood" })}
-          style={styles.liveCard}
-        >
-          <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>Палитра настроения</Text>
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>Живой режим</Text>
-            </View>
-          </View>
-          <Text style={styles.cardDescription}>
-            Каждый выбирает цвета, а вместе вы собираете общую палитру и мягкую совместную композицию.
-          </Text>
-          <Text style={styles.cardDetails}>
-            Короткая сессия выбора, одна общая палитра и тот же итог с решением об открытии чата.
-          </Text>
-        </Pressable>
+        {LIVE_MODE_ORDER.map((activity) => {
+          const copy = getPlayLobbyModeCardCopy(activity);
 
-        <Pressable
-          onPress={() => navigation.navigate("PlayMatch", { activity: "daily_prompt" })}
-          style={styles.liveCard}
-        >
-          <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>Общая тема дня</Text>
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>Живой режим</Text>
-            </View>
-          </View>
-          <Text style={styles.cardDescription}>
-            Одна тема на двоих, один общий рисунок и один итог.
-          </Text>
-          <Text style={styles.cardDetails}>
-            Сегодняшняя тема откроется после матча, а дальше вы соберете один рисунок на двоих.
-          </Text>
-        </Pressable>
-
-        <Pressable
-          onPress={() => navigation.navigate("PlayMatch", { activity: "chain_draw" })}
-          style={styles.liveCard}
-        >
-          <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>Рисунок по очереди</Text>
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>Живой режим</Text>
-            </View>
-          </View>
-          <Text style={styles.cardDescription}>
-            Вы рисуете по очереди короткими ходами и собираете один общий рисунок.
-          </Text>
-          <Text style={styles.cardDetails}>
-            10 ходов по 30 секунд, один холст и понятный ритм передачи хода.
-          </Text>
-        </Pressable>
+          return (
+            <Pressable
+              key={activity}
+              onPress={() => navigation.navigate("PlayMatch", { activity })}
+              style={styles.liveCard}
+            >
+              <View style={styles.cardHeader}>
+                <Text style={styles.cardTitle}>{copy.title}</Text>
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>Живой режим</Text>
+                </View>
+              </View>
+              <Text style={styles.cardDescription}>{copy.description}</Text>
+              <Text style={styles.cardDetails}>{copy.details}</Text>
+            </Pressable>
+          );
+        })}
 
         <View style={styles.quickRow}>
           <Pressable
@@ -156,36 +118,6 @@ export default function PlayLobbyScreen() {
             </Text>
           </Pressable>
         </View>
-
-        {ROADMAP_CARDS.length ? (
-          <>
-            <View style={styles.soonSection}>
-              <Text style={styles.soonTitle}>Что появится дальше</Text>
-              <Text style={styles.soonText}>
-                Это следующие режимы Together. Они расширят общий опыт, но останутся частью того же пути.
-              </Text>
-            </View>
-
-            {ROADMAP_CARDS.map((card) => {
-              return (
-                <Pressable
-                  key={card.slug}
-                  disabled
-                  style={[styles.card, styles.cardSoon]}
-                >
-                  <View style={styles.cardHeader}>
-                    <Text style={styles.cardTitle}>{card.title}</Text>
-                    <View style={[styles.badge, styles.badgeSoon]}>
-                      <Text style={styles.badgeText}>Скоро</Text>
-                    </View>
-                  </View>
-                  <Text style={styles.cardDescription}>{card.description}</Text>
-                  <Text style={styles.cardDetails}>{card.details}</Text>
-                </Pressable>
-              );
-            })}
-          </>
-        ) : null}
       </ScrollView>
     </ScreenShell>
   );
@@ -210,7 +142,7 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.14)",
   },
   heroTop: {
-    maxWidth: 320,
+    maxWidth: 340,
     gap: 12,
   },
   kicker: {
@@ -302,10 +234,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "800",
   },
-  quickRow: {
-    flexDirection: "row",
-    gap: 12,
-  },
   liveSection: {
     gap: 6,
     paddingHorizontal: 2,
@@ -328,6 +256,47 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.14)",
     gap: 10,
   },
+  cardHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  cardTitle: {
+    flex: 1,
+    color: theme.colors.text,
+    fontSize: 18,
+    lineHeight: 24,
+    fontWeight: "800",
+  },
+  badge: {
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    backgroundColor: "rgba(255, 122, 60, 0.16)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 122, 60, 0.24)",
+  },
+  badgeText: {
+    color: theme.colors.text,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  cardDescription: {
+    color: theme.colors.subtext,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  cardDetails: {
+    color: theme.colors.text,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "700",
+  },
+  quickRow: {
+    flexDirection: "row",
+    gap: 12,
+  },
   quickCard: {
     flex: 1,
     minWidth: 0,
@@ -347,71 +316,5 @@ const styles = StyleSheet.create({
     color: theme.colors.subtext,
     fontSize: 13,
     lineHeight: 18,
-  },
-  soonSection: {
-    gap: 6,
-  },
-  soonTitle: {
-    color: theme.colors.text,
-    fontSize: 18,
-    fontWeight: "800",
-  },
-  soonText: {
-    color: "rgba(255,255,255,0.78)",
-    fontSize: 13,
-    lineHeight: 19,
-  },
-  card: {
-    borderRadius: theme.shapes.card,
-    padding: 18,
-    borderWidth: 1,
-  },
-  cardSoon: {
-    backgroundColor: "rgba(12, 16, 30, 0.68)",
-    borderColor: "rgba(255,255,255,0.09)",
-    opacity: 0.9,
-  },
-  cardHeader: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    marginBottom: 10,
-    gap: 12,
-  },
-  cardTitle: {
-    flex: 1,
-    color: theme.colors.text,
-    fontSize: 18,
-    lineHeight: 24,
-    fontWeight: "800",
-  },
-  badge: {
-    borderRadius: theme.shapes.pill,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    backgroundColor: "rgba(255, 122, 60, 0.16)",
-    borderWidth: 1,
-    borderColor: "rgba(255, 122, 60, 0.24)",
-  },
-  badgeSoon: {
-    backgroundColor: theme.colors.pillBg,
-    borderColor: theme.colors.borderSubtle,
-  },
-  badgeText: {
-    color: theme.colors.text,
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  cardDescription: {
-    color: theme.colors.subtext,
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  cardDetails: {
-    color: theme.colors.text,
-    fontSize: 13,
-    lineHeight: 18,
-    fontWeight: "700",
-    marginTop: 10,
   },
 });

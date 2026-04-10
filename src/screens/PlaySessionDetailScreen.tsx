@@ -10,7 +10,7 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 
 import CoreStateCard from "@/components/CoreStateCard";
 import ScreenShell from "@/components/ScreenShell";
-import ColorMoodPaletteSummary from "@/components/play/ColorMoodPaletteSummary";
+import PlayModeContextCard from "@/components/play/PlayModeContextCard";
 import ReplayCanvasWebView from "@/components/play/ReplayCanvasWebView";
 import type { SharedCanvasStroke } from "@/components/play/SharedCanvasWebView";
 import { auth, db } from "@/config/firebaseConfig";
@@ -24,11 +24,13 @@ import {
 } from "@/services/dm";
 import {
   getPlayActivityLabel,
+  getPlayActivityMetricLabel,
   getPlayActivityStoryText,
   getPlayColorMoodChoices,
   getPlayColorMoodCombinedPalette,
   getPeerFromSession,
   getPlayRevealCopy,
+  getPlayReplayCopy,
   getPlaySessionPrompt,
   playActivityUsesReplay,
   resolvePlayRevealOutcome,
@@ -229,7 +231,6 @@ export default function PlaySessionDetailScreen() {
     return events.reduce((sum, batch) => sum + batch.strokes.length, 0);
   }, [events, session?.resultStrokeCount]);
   const showDailyPrompt = session?.activity === "daily_prompt";
-  const isColorMood = session?.activity === "color_mood";
   const activityHasReplay = playActivityUsesReplay(session?.activity ?? "draw");
   const sessionPrompt = React.useMemo(() => getPlaySessionPrompt(session), [session]);
   const sessionPromptDisplay = sessionPrompt?.text?.trim() || "Тема уточняется";
@@ -246,6 +247,14 @@ export default function PlaySessionDetailScreen() {
     [session]
   );
   const revealCopy = React.useMemo(() => getPlayRevealCopy(revealOutcome), [revealOutcome]);
+  const replayCopy = React.useMemo(
+    () => getPlayReplayCopy(session?.activity ?? "draw"),
+    [session?.activity]
+  );
+  const metricLabel = React.useMemo(
+    () => getPlayActivityMetricLabel(session?.activity ?? "draw", "detail"),
+    [session?.activity]
+  );
   const canOpenChat = revealOutcome === "open_open" && Boolean(detailThread?.id);
   const isLoading = loadingSession || loadingEvents || loadingThreads;
   const sortAt = session?.endedAt ?? session?.startedAt ?? session?.createdAt ?? 0;
@@ -445,11 +454,13 @@ export default function PlaySessionDetailScreen() {
               <Text style={styles.metaValue}>{formatDateTime(sortAt)}</Text>
             </View>
             <View style={styles.metaItem}>
-              <Text style={styles.metaLabel}>
-                {isColorMood ? "Цветов" : tt("playDetail.strokes", "Штрихов")}
-              </Text>
+              <Text style={styles.metaLabel}>{metricLabel}</Text>
               <Text style={styles.metaValue}>
-                {String(isColorMood ? combinedPalette.length || ownPalette.length || peerPalette.length : totalStrokeCount)}
+                {String(
+                  session.activity === "color_mood"
+                    ? combinedPalette.length || ownPalette.length || peerPalette.length
+                    : totalStrokeCount
+                )}
               </Text>
             </View>
             {showDailyPrompt ? (
@@ -460,6 +471,16 @@ export default function PlaySessionDetailScreen() {
             ) : null}
           </View>
         </View>
+
+        <PlayModeContextCard
+          activity={session.activity}
+          promptText={sessionPrompt?.text}
+          combinedPalette={combinedPalette}
+          ownPalette={ownPalette}
+          peerPalette={peerPalette}
+          peerTitle="Цвета второго участника"
+          surface="detail"
+        />
 
         <View style={styles.statusCard}>
           <Text style={styles.statusKicker}>{tt("playDetail.revealKicker", "Как закончилась сессия")}</Text>
@@ -522,28 +543,12 @@ export default function PlaySessionDetailScreen() {
           </View>
         </View>
 
-        {isColorMood ? (
-          <ColorMoodPaletteSummary
-            title="Ваша общая палитра"
-            body="Здесь сохранился мягкий визуальный итог и оба цветовых выбора этой совместной сессии."
-            combinedPalette={combinedPalette}
-            ownPalette={ownPalette}
-            peerPalette={peerPalette}
-            peerTitle="Цвета второго участника"
-            emptyTitle="Палитра собрана не полностью"
-            emptyBody="Сессия завершилась раньше, чем успела сложиться полная общая палитра. Сохранённые цвета всё равно остались в истории."
-          />
-        ) : (
+        {activityHasReplay ? (
           <View style={styles.replayBlock}>
             <View style={styles.replayHeader}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.replayTitle}>{tt("playDetail.replayTitle", "Replay рисунка")}</Text>
-                <Text style={styles.replayText}>
-                  {tt(
-                    "playDetail.replayBody",
-                    "Здесь можно заново пройти весь рисунок по штрихам и вернуться к моменту, который вы собрали вдвоем."
-                  )}
-                </Text>
+                <Text style={styles.replayTitle}>{replayCopy.title}</Text>
+                <Text style={styles.replayText}>{replayCopy.body}</Text>
               </View>
               <Pressable onPress={openReplay} style={styles.replayToggle}>
                 <Text style={styles.replayToggleText}>
@@ -571,15 +576,13 @@ export default function PlaySessionDetailScreen() {
                 />
               ) : (
                 <View style={styles.emptyReplayCard}>
-                  <Text style={styles.emptyReplayTitle}>Replay недоступен</Text>
-                  <Text style={styles.emptyReplayText}>
-                    Эта совместная сессия сохранилась без штрихов. История и итог остались, но сам replay здесь недоступен.
-                  </Text>
+                  <Text style={styles.emptyReplayTitle}>{replayCopy.emptyTitle}</Text>
+                  <Text style={styles.emptyReplayText}>{replayCopy.emptyBody}</Text>
                 </View>
               )
             ) : null}
           </View>
-        )}
+        ) : null}
       </ScrollView>
     </ScreenShell>
   );

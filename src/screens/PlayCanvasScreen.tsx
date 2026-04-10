@@ -20,6 +20,7 @@ import {
   appendStrokeBatch,
   ensureChainDrawTurnState,
   finishPlaySession,
+  getPlayCanvasModeCopy,
   getChainDrawTurnState,
   getPlayActivityLabel,
   getPlaySessionPrompt,
@@ -439,65 +440,17 @@ export default function PlayCanvasScreen() {
       ? "Сейчас рисуешь ты"
       : `Сейчас рисует ${partnerName}`;
 
-  const sessionPhaseCopy = React.useMemo(() => {
-    if (session?.activity === "chain_draw") {
-      if (session.status === "active") {
-        return {
-          eyebrow: "Рисунок по очереди",
-          title: currentTurnName || "Подключаем первый ход",
-          body:
-            chainTurnState?.currentTurnUid === uid
-              ? "У тебя короткий ход на 30 секунд. Когда закончишь раньше, можно сразу передать ход."
-              : "Ты видишь общий холст, а рисовать можно будет сразу после следующей передачи хода.",
-        };
-      }
-
-      return {
-        eyebrow: "Рисунок по очереди",
-        title: "Собираем пошаговый холст",
-        body: "Мы уже открыли один общий рисунок и синхронизируем первый ход для вас двоих.",
-      };
-    }
-
-    if (session?.activity === "daily_prompt") {
-      if (session.status === "active") {
-        return {
-          eyebrow: "Общая тема дня",
-          title: "Один рисунок на двоих",
-          body: sessionPrompt?.text
-            ? `Соберите один общий рисунок по теме «${sessionPrompt.text}». Когда время закончится, вы увидите итог и решите, открывать ли чат дальше.`
-            : "Соберите один общий рисунок по общей теме дня. Когда время закончится, вы увидите итог и решите, открывать ли чат дальше.",
-        };
-      }
-
-      return {
-        eyebrow: "Общая тема дня",
-        title: "Подключаем тему и холст",
-        body: "Мы уже открыли общий холст и сейчас синхронизируем сегодняшнюю тему для вас двоих.",
-      };
-    }
-
-    if (session?.status === "active") {
-      return {
-        eyebrow: "Сессия началась",
-        title: "Вы уже в общем холсте",
-        body: "Рисуйте вместе до конца таймера. Когда время закончится, вы увидите итог и решите, хотите ли продолжить общение.",
-      };
-    }
-
-    return {
-      eyebrow: "Подключаем сессию",
-      title: "Сейчас все соберется",
-      body: "Мы уже открыли холст и синхронизируем его для вас двоих.",
-    };
-  }, [
-    chainTurnState?.currentTurnUid,
-    currentTurnName,
-    session?.activity,
-    session?.status,
-    sessionPrompt?.text,
-    uid,
-  ]);
+  const sessionPhaseCopy = React.useMemo(
+    () =>
+      getPlayCanvasModeCopy({
+        activity: session?.activity ?? "draw",
+        status: session?.status,
+        promptText: sessionPrompt?.text,
+        isMyTurn,
+        currentTurnName,
+      }),
+    [currentTurnName, isMyTurn, session?.activity, session?.status, sessionPrompt?.text]
+  );
 
   const timerTitle = isChainDraw ? "Время хода" : "Осталось";
   const timerValue = formatRemaining(isChainDraw ? turnRemaining : drawRemaining);
@@ -518,17 +471,7 @@ export default function PlayCanvasScreen() {
         : isChainDraw && !isMyTurn
           ? `${partnerName} сейчас рисует. Холст откроется тебе на следующем ходе.`
           : undefined;
-  const helperText = isChainDraw
-    ? isMyTurn
-      ? "Ход длится 30 секунд. Когда закончил раньше, передай ход и пусть рисунок продолжится дальше."
-      : "Сейчас холст у второго участника. Ты видишь общий рисунок и сможешь продолжить его на следующем ходе."
-    : isDailyPrompt
-      ? totalStrokeCount
-        ? "У вас 7 минут на один общий рисунок по сегодняшней теме. Когда время закончится, вы сразу увидите итог и решите, хотите ли открыть чат дальше."
-        : "Тема уже задана. Первый штрих может сразу задать общий образ, который вы соберете вдвоем."
-    : totalStrokeCount
-      ? "У вас 7 минут на один общий рисунок. Когда время закончится, вы сразу увидите итог и решите, хотите ли открыть чат дальше."
-      : "Холст уже готов. Первый штрих появится сразу, как только кто-то из вас начнет рисовать.";
+  const helperText = sessionPhaseCopy.helperText;
 
   const guardState = React.useMemo<GuardState | null>(() => {
     if (!uid) {
@@ -679,60 +622,58 @@ export default function PlayCanvasScreen() {
             </View>
           </View>
 
-          {isDailyPrompt ? (
-            <>
-              <View style={styles.metaRow}>
+          <View style={styles.metaGrid}>
+            <View style={styles.metaCard}>
+              <Text style={styles.metaLabel}>Режим</Text>
+              <Text style={styles.metaValue}>{activityLabel}</Text>
+            </View>
+            <View style={styles.metaCard}>
+              <Text style={styles.metaLabel}>Напарник</Text>
+              <Text style={styles.metaValue}>{partnerName}</Text>
+            </View>
+            {isChainDraw ? (
+              <>
                 <View style={styles.metaCard}>
-                  <Text style={styles.metaLabel}>Режим</Text>
-                  <Text style={styles.metaValue}>{activityLabel}</Text>
+                  <Text style={styles.metaLabel}>Сейчас</Text>
+                  <Text style={styles.metaValue}>{currentTurnLabel}</Text>
                 </View>
                 <View style={styles.metaCard}>
-                  <Text style={styles.metaLabel}>Напарник</Text>
-                  <Text style={styles.metaValue}>{partnerName}</Text>
+                  <Text style={styles.metaLabel}>Ход</Text>
+                  <Text style={styles.metaValue}>{turnCounterLabel}</Text>
                 </View>
-              </View>
-              <View style={styles.metaRow}>
-                <View style={[styles.metaCard, styles.metaCardWide]}>
-                  <Text style={styles.metaLabel}>Сегодняшняя тема</Text>
-                  <Text style={styles.metaValue}>{sessionPromptDisplay}</Text>
-                </View>
-              </View>
-              <View style={styles.metaRow}>
                 <View style={styles.metaCard}>
                   <Text style={styles.metaLabel}>Общих штрихов</Text>
                   <Text style={styles.metaValue}>{totalStrokeCount}</Text>
                 </View>
-              </View>
-            </>
-          ) : (
-            <View style={styles.metaRow}>
-              <View style={styles.metaCard}>
-                <Text style={styles.metaLabel}>{isChainDraw ? "Режим" : "Напарник"}</Text>
-                <Text style={styles.metaValue}>
-                  {isChainDraw ? activityLabel : partnerName}
-                </Text>
-              </View>
-              <View style={styles.metaCard}>
-                <Text style={styles.metaLabel}>{isChainDraw ? "Сейчас" : "Общих штрихов"}</Text>
-                <Text style={styles.metaValue}>
-                  {isChainDraw ? currentTurnLabel : totalStrokeCount}
-                </Text>
-              </View>
-            </View>
-          )}
-
-          {isChainDraw ? (
-            <View style={styles.metaRow}>
-              <View style={styles.metaCard}>
-                <Text style={styles.metaLabel}>Ход</Text>
-                <Text style={styles.metaValue}>{turnCounterLabel}</Text>
-              </View>
-              <View style={styles.metaCard}>
-                <Text style={styles.metaLabel}>Общих штрихов</Text>
-                <Text style={styles.metaValue}>{totalStrokeCount}</Text>
-              </View>
-            </View>
-          ) : null}
+              </>
+            ) : isDailyPrompt ? (
+              <>
+                <View style={[styles.metaCard, styles.metaCardWide]}>
+                  <Text style={styles.metaLabel}>Сегодняшняя тема</Text>
+                  <Text style={styles.metaValue}>{sessionPromptDisplay}</Text>
+                </View>
+                <View style={styles.metaCard}>
+                  <Text style={styles.metaLabel}>Формат</Text>
+                  <Text style={styles.metaValue}>Один рисунок на двоих</Text>
+                </View>
+                <View style={styles.metaCard}>
+                  <Text style={styles.metaLabel}>Общих штрихов</Text>
+                  <Text style={styles.metaValue}>{totalStrokeCount}</Text>
+                </View>
+              </>
+            ) : (
+              <>
+                <View style={styles.metaCard}>
+                  <Text style={styles.metaLabel}>Формат</Text>
+                  <Text style={styles.metaValue}>Свободный ритм</Text>
+                </View>
+                <View style={styles.metaCard}>
+                  <Text style={styles.metaLabel}>Общих штрихов</Text>
+                  <Text style={styles.metaValue}>{totalStrokeCount}</Text>
+                </View>
+              </>
+            )}
+          </View>
         </View>
 
         <SharedCanvasWebView
@@ -821,12 +762,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
   },
-  metaRow: {
+  metaGrid: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: 10,
   },
   metaCard: {
-    flex: 1,
+    minWidth: "47%",
+    flexGrow: 1,
     borderRadius: theme.shapes.cardInner,
     padding: 14,
     backgroundColor: theme.colors.card,
@@ -835,7 +778,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   metaCardWide: {
-    flex: 1,
+    minWidth: "100%",
   },
   metaLabel: {
     color: theme.colors.muted,

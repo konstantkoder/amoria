@@ -11,7 +11,7 @@ import { Ionicons } from "@expo/vector-icons";
 
 import CoreStateCard from "@/components/CoreStateCard";
 import ScreenShell from "@/components/ScreenShell";
-import ColorMoodPaletteSummary from "@/components/play/ColorMoodPaletteSummary";
+import PlayModeContextCard from "@/components/play/PlayModeContextCard";
 import { auth, db } from "@/config/firebaseConfig";
 import { useLocale } from "@/contexts/LocaleContext";
 import {
@@ -28,6 +28,7 @@ import {
 } from "@/services/dm";
 import {
   getPlayActivityLabel,
+  getPlayActivityMetricLabel,
   getPlayActivityStoryText,
   getPlayRevealCopy,
   playActivityUsesReplay,
@@ -241,10 +242,9 @@ export default function PlayHistoryScreen() {
 
   const renderCard = useCallback(
     (item: HistoryCard) => {
-      const showDailyPrompt = item.activity === "daily_prompt";
       const isColorMood = item.activity === "color_mood";
       const activityHasReplay = playActivityUsesReplay(item.activity);
-      const promptDisplay = item.promptText?.trim() || "Тема уточняется";
+      const metricLabel = getPlayActivityMetricLabel(item.activity, "history");
 
       return (
         <Pressable
@@ -289,22 +289,13 @@ export default function PlayHistoryScreen() {
             {getPlayActivityStoryText(item.activity, item.promptText)}
           </Text>
 
-          {isColorMood ? (
-            <ColorMoodPaletteSummary
-              title="Ваша общая палитра"
-              combinedPalette={item.combinedPalette ?? []}
-              emptyTitle="Палитра собрана не полностью"
-              emptyBody="Эта история сохранилась без полного общего набора цветов, но итог всё равно остался в архиве."
-              compact
-            />
-          ) : null}
-
-          {showDailyPrompt ? (
-            <View style={styles.promptCard}>
-              <Text style={styles.promptLabel}>Тема</Text>
-              <Text style={styles.promptText}>{promptDisplay}</Text>
-            </View>
-          ) : null}
+          <PlayModeContextCard
+            activity={item.activity}
+            promptText={item.promptText}
+            combinedPalette={item.combinedPalette ?? []}
+            compact
+            surface="history"
+          />
 
           <View style={styles.metaGrid}>
             <View style={styles.metaChip}>
@@ -315,10 +306,8 @@ export default function PlayHistoryScreen() {
               />
               <Text style={styles.metaText}>
                 {isColorMood
-                  ? `Цветов: ${String(item.combinedPalette?.length ?? 0)}`
-                  : tt("connections.strokeCount", "Штрихов: {count}", {
-                      count: String(item.strokeCount ?? 0),
-                    })}
+                  ? `${metricLabel}: ${String(item.combinedPalette?.length ?? 0)}`
+                  : `${metricLabel}: ${String(item.strokeCount ?? 0)}`}
               </Text>
             </View>
             <View style={styles.metaChip}>
@@ -681,27 +670,6 @@ const styles = StyleSheet.create({
     color: theme.colors.subtext,
     fontSize: 14,
     lineHeight: 20,
-  },
-  promptCard: {
-    borderRadius: theme.shapes.cardInner,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    backgroundColor: theme.colors.pillBg,
-    borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
-    gap: 4,
-  },
-  promptLabel: {
-    color: theme.colors.muted,
-    fontSize: 11,
-    fontWeight: "800",
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-  },
-  promptText: {
-    color: theme.colors.text,
-    fontSize: 14,
-    fontWeight: "700",
   },
   metaGrid: {
     flexDirection: "row",
