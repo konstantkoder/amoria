@@ -26,6 +26,7 @@ import {
   getPlayActivityStoryText,
   getPeerFromSession,
   getPlayRevealCopy,
+  getPlaySessionPrompt,
   resolvePlayRevealOutcome,
   subscribePlayEvents,
   subscribePlaySession,
@@ -223,6 +224,9 @@ export default function PlaySessionDetailScreen() {
     }
     return events.reduce((sum, batch) => sum + batch.strokes.length, 0);
   }, [events, session?.resultStrokeCount]);
+  const showDailyPrompt = session?.activity === "daily_prompt";
+  const sessionPrompt = React.useMemo(() => getPlaySessionPrompt(session), [session]);
+  const sessionPromptDisplay = sessionPrompt?.text?.trim() || "Тема уточняется";
   const replayStrokes = React.useMemo(() => mapReplayStrokes(events), [events]);
   const hasReplay = replayStrokes.length > 0;
   const revealOutcome = React.useMemo(
@@ -408,8 +412,8 @@ export default function PlaySessionDetailScreen() {
           </Text>
           <Text style={styles.heroTitle}>{peerName}</Text>
           <Text style={styles.heroText}>
-            {getPlayActivityStoryText(session.activity)} Здесь хранятся итог, replay и вход в чат,
-            если он уже открылся.
+            {getPlayActivityStoryText(session.activity, sessionPrompt?.text)} Здесь хранятся итог,
+            replay и вход в чат, если он уже открылся.
           </Text>
 
           <View style={styles.metaGrid}>
@@ -431,6 +435,12 @@ export default function PlaySessionDetailScreen() {
               <Text style={styles.metaLabel}>{tt("playDetail.strokes", "Штрихов")}</Text>
               <Text style={styles.metaValue}>{String(totalStrokeCount)}</Text>
             </View>
+            {showDailyPrompt ? (
+              <View style={[styles.metaItem, styles.metaItemWide]}>
+                <Text style={styles.metaLabel}>Тема</Text>
+                <Text style={styles.metaValue}>{sessionPromptDisplay}</Text>
+              </View>
+            ) : null}
           </View>
         </View>
 
@@ -514,6 +524,12 @@ export default function PlaySessionDetailScreen() {
               </Text>
             </Pressable>
           </View>
+          {showDailyPrompt ? (
+            <View style={styles.contextPill}>
+              <Text style={styles.contextLabel}>Тема</Text>
+              <Text style={styles.contextText}>{sessionPromptDisplay}</Text>
+            </View>
+          ) : null}
 
           {replayOpen ? (
             hasReplay ? (
@@ -592,6 +608,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
     gap: 4,
+  },
+  metaItemWide: {
+    minWidth: "100%",
   },
   metaLabel: {
     color: theme.colors.muted,
@@ -693,6 +712,28 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     justifyContent: "space-between",
     gap: 12,
+  },
+  contextPill: {
+    alignSelf: "flex-start",
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: theme.colors.pillBg,
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+    gap: 4,
+  },
+  contextLabel: {
+    color: theme.colors.muted,
+    fontSize: 11,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+  },
+  contextText: {
+    color: theme.colors.text,
+    fontSize: 14,
+    fontWeight: "700",
   },
   replayTitle: {
     color: theme.colors.text,

@@ -21,6 +21,8 @@ import {
   ensureChainDrawTurnState,
   finishPlaySession,
   getChainDrawTurnState,
+  getPlayActivityLabel,
+  getPlaySessionPrompt,
   subscribePlayEvents,
   subscribePlaySession,
   type PlaySessionDoc,
@@ -182,7 +184,14 @@ export default function PlayCanvasScreen() {
     [session]
   );
   const isChainDraw = session?.activity === "chain_draw";
+  const isDailyPrompt = session?.activity === "daily_prompt";
   const isMyTurn = !isChainDraw || chainTurnState?.currentTurnUid === uid;
+  const activityLabel = React.useMemo(
+    () => getPlayActivityLabel(session?.activity ?? "draw", "neutral"),
+    [session?.activity]
+  );
+  const sessionPrompt = React.useMemo(() => getPlaySessionPrompt(session), [session]);
+  const sessionPromptDisplay = sessionPrompt?.text?.trim() || "Тема уточняется";
 
   const openResultScreen = React.useCallback(() => {
     if (!mountedRef.current || navigationHandledRef.current || !sessionId) return;
@@ -443,6 +452,24 @@ export default function PlayCanvasScreen() {
       };
     }
 
+    if (session?.activity === "daily_prompt") {
+      if (session.status === "active") {
+        return {
+          eyebrow: "Общая тема дня",
+          title: "Один рисунок на двоих",
+          body: sessionPrompt?.text
+            ? `Соберите один общий рисунок по теме «${sessionPrompt.text}». Когда время закончится, вы увидите итог и решите, открывать ли чат дальше.`
+            : "Соберите один общий рисунок по общей теме дня. Когда время закончится, вы увидите итог и решите, открывать ли чат дальше.",
+        };
+      }
+
+      return {
+        eyebrow: "Общая тема дня",
+        title: "Подключаем тему и холст",
+        body: "Мы уже открыли общий холст и сейчас синхронизируем сегодняшнюю тему для вас двоих.",
+      };
+    }
+
     if (session?.status === "active") {
       return {
         eyebrow: "Сессия началась",
@@ -456,7 +483,14 @@ export default function PlayCanvasScreen() {
       title: "Сейчас все соберется",
       body: "Мы уже открыли холст и синхронизируем его для вас двоих.",
     };
-  }, [chainTurnState?.currentTurnUid, currentTurnName, session?.activity, session?.status, uid]);
+  }, [
+    chainTurnState?.currentTurnUid,
+    currentTurnName,
+    session?.activity,
+    session?.status,
+    sessionPrompt?.text,
+    uid,
+  ]);
 
   const timerTitle = isChainDraw ? "Время хода" : "Осталось";
   const timerValue = formatRemaining(isChainDraw ? turnRemaining : drawRemaining);
@@ -481,6 +515,10 @@ export default function PlayCanvasScreen() {
     ? isMyTurn
       ? "Ход длится 30 секунд. Когда закончил раньше, передай ход и пусть рисунок продолжится дальше."
       : "Сейчас холст у второго участника. Ты видишь общий рисунок и сможешь продолжить его на следующем ходе."
+    : isDailyPrompt
+      ? totalStrokeCount
+        ? "У вас 7 минут на один общий рисунок по сегодняшней теме. Когда время закончится, вы сразу увидите итог и решите, хотите ли открыть чат дальше."
+        : "Тема уже задана. Первый штрих может сразу задать общий образ, который вы соберете вдвоем."
     : totalStrokeCount
       ? "У вас 7 минут на один общий рисунок. Когда время закончится, вы сразу увидите итог и решите, хотите ли открыть чат дальше."
       : "Холст уже готов. Первый штрих появится сразу, как только кто-то из вас начнет рисовать.";
@@ -592,7 +630,7 @@ export default function PlayCanvasScreen() {
 
   return (
     <ScreenShell
-      title={isChainDraw ? "Рисунок по очереди" : "Совместная сессия"}
+      title={session ? activityLabel : "Совместная сессия"}
       background="nightCity"
       showBack
       onBack={() => {
@@ -634,20 +672,47 @@ export default function PlayCanvasScreen() {
             </View>
           </View>
 
-          <View style={styles.metaRow}>
-            <View style={styles.metaCard}>
-              <Text style={styles.metaLabel}>{isChainDraw ? "Режим" : "Напарник"}</Text>
-              <Text style={styles.metaValue}>
-                {isChainDraw ? "Рисунок по очереди" : partnerName}
-              </Text>
+          {isDailyPrompt ? (
+            <>
+              <View style={styles.metaRow}>
+                <View style={styles.metaCard}>
+                  <Text style={styles.metaLabel}>Режим</Text>
+                  <Text style={styles.metaValue}>{activityLabel}</Text>
+                </View>
+                <View style={styles.metaCard}>
+                  <Text style={styles.metaLabel}>Напарник</Text>
+                  <Text style={styles.metaValue}>{partnerName}</Text>
+                </View>
+              </View>
+              <View style={styles.metaRow}>
+                <View style={[styles.metaCard, styles.metaCardWide]}>
+                  <Text style={styles.metaLabel}>Сегодняшняя тема</Text>
+                  <Text style={styles.metaValue}>{sessionPromptDisplay}</Text>
+                </View>
+              </View>
+              <View style={styles.metaRow}>
+                <View style={styles.metaCard}>
+                  <Text style={styles.metaLabel}>Общих штрихов</Text>
+                  <Text style={styles.metaValue}>{totalStrokeCount}</Text>
+                </View>
+              </View>
+            </>
+          ) : (
+            <View style={styles.metaRow}>
+              <View style={styles.metaCard}>
+                <Text style={styles.metaLabel}>{isChainDraw ? "Режим" : "Напарник"}</Text>
+                <Text style={styles.metaValue}>
+                  {isChainDraw ? activityLabel : partnerName}
+                </Text>
+              </View>
+              <View style={styles.metaCard}>
+                <Text style={styles.metaLabel}>{isChainDraw ? "Сейчас" : "Общих штрихов"}</Text>
+                <Text style={styles.metaValue}>
+                  {isChainDraw ? currentTurnLabel : totalStrokeCount}
+                </Text>
+              </View>
             </View>
-            <View style={styles.metaCard}>
-              <Text style={styles.metaLabel}>{isChainDraw ? "Сейчас" : "Общих штрихов"}</Text>
-              <Text style={styles.metaValue}>
-                {isChainDraw ? currentTurnLabel : totalStrokeCount}
-              </Text>
-            </View>
-          </View>
+          )}
 
           {isChainDraw ? (
             <View style={styles.metaRow}>
@@ -761,6 +826,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
     gap: 6,
+  },
+  metaCardWide: {
+    flex: 1,
   },
   metaLabel: {
     color: theme.colors.muted,

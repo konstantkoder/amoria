@@ -18,6 +18,7 @@ import {
   type DmThreadDoc,
 } from "@/services/dm";
 import { useLocale } from "@/contexts/LocaleContext";
+import type { PlayActivity } from "@/services/playSessions";
 import { theme } from "@/theme";
 
 type InboxThreadCard = {
@@ -25,7 +26,7 @@ type InboxThreadCard = {
   peerId: string;
   peerName: string;
   sourceKey: "play" | "direct";
-  activity?: "draw" | "chain_draw";
+  activity?: PlayActivity;
   previewText: string;
   dateLabel: string;
   sortAt: number;
@@ -155,6 +156,7 @@ export default function InboxScreen() {
       play: {
         draw: tt("inbox.sourcePlay", "После совместной сессии"),
         chain_draw: tt("inbox.sourcePlayChainDraw", "После рисунка по очереди"),
+        daily_prompt: tt("inbox.sourcePlayDailyPrompt", "После общей темы дня"),
       },
       direct: tt("inbox.sourceDefault", "Личный чат"),
     }),

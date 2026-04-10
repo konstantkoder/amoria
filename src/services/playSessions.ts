@@ -13,11 +13,29 @@ import {
 } from "firebase/firestore";
 import { makeNickname } from "@/services/rooms";
 
-export type PlayActivity = "draw" | "chain_draw";
+export type PlayActivity = "draw" | "chain_draw" | "daily_prompt";
 export type PlayActivityLabelTone = "action" | "history" | "neutral";
+export type PlayDailyPrompt = {
+  id: string;
+  text: string;
+};
 
 export const CHAIN_DRAW_TURN_DURATION_SEC = 30;
 export const CHAIN_DRAW_MAX_TURNS = 10;
+const DAILY_PROMPT_POOL: PlayDailyPrompt[] = [
+  { id: "dream_city", text: "Город мечты" },
+  { id: "symbol_of_joy", text: "Символ радости" },
+  { id: "night_light", text: "Ночной свет" },
+  { id: "return_place", text: "Место, куда хочется вернуться" },
+  { id: "perfect_evening", text: "Идеальный вечер" },
+  { id: "lucky_sign", text: "Знак удачи" },
+  { id: "summer_memory", text: "Воспоминание о лете" },
+  { id: "quiet_world", text: "Тихий мир" },
+  { id: "imagined_home", text: "Дом, которого не было" },
+  { id: "bridge_between_two", text: "Мост между двумя людьми" },
+  { id: "sky_after_rain", text: "Небо после дождя" },
+  { id: "color_of_hope", text: "Цвет надежды" },
+];
 
 export type PlayQueueStatus = "waiting" | "matched" | "cancelled";
 export type PlaySessionStatus = "matching" | "active" | "finished" | "revealed";
@@ -50,6 +68,8 @@ export type PlaySessionDoc = {
   createdAt: number;
   startedAt: number;
   endedAt?: number;
+  promptId?: string;
+  promptText?: string;
   participantIds: string[];
   participantNicknames: Record<string, string>;
   turnOrder?: string[];
@@ -66,6 +86,8 @@ export type PlayHistoryItem = {
   id: string;
   sessionId: string;
   activity: PlayActivity;
+  promptId?: string;
+  promptText?: string;
   peer: {
     uid: string;
     nickname: string;
@@ -113,11 +135,18 @@ export type AdvanceChainDrawTurnResult = {
 };
 
 export function isPlayActivity(value: unknown): value is PlayActivity {
-  return value === "draw" || value === "chain_draw";
+  return value === "draw" || value === "chain_draw" || value === "daily_prompt";
 }
 
 function normalizePlayActivity(value: unknown): PlayActivity {
-  return value === "chain_draw" ? "chain_draw" : "draw";
+  switch (value) {
+    case "chain_draw":
+      return "chain_draw";
+    case "daily_prompt":
+      return "daily_prompt";
+    default:
+      return "draw";
+  }
 }
 
 function normalizePositiveNumber(value: unknown, fallback: number) {
@@ -142,6 +171,91 @@ function normalizeTurnOrder(value: unknown, participantIds: string[]) {
     .filter((item, index, list) => list.indexOf(item) === index);
 
   return deduped.length ? deduped : fallback;
+}
+
+function normalizePromptString(value: unknown) {
+  if (typeof value !== "string") return "";
+  return value.trim();
+}
+
+function getUtcDaySeed(timestamp: number) {
+  if (!Number.isFinite(timestamp) || timestamp <= 0) return null;
+  const date = new Date(timestamp);
+  return Math.floor(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()) / 86400000
+  );
+}
+
+export function getPlayDailyPromptPool() {
+  return DAILY_PROMPT_POOL;
+}
+
+export function getPlayDailyPromptById(promptId: string): PlayDailyPrompt | null {
+  const stablePromptId = normalizePromptString(promptId);
+  if (!stablePromptId) return null;
+  return DAILY_PROMPT_POOL.find((item) => item.id === stablePromptId) ?? null;
+}
+
+export function getPlayDailyPromptForTimestamp(timestamp: number): PlayDailyPrompt | null {
+  const daySeed = getUtcDaySeed(timestamp);
+  if (daySeed == null || !DAILY_PROMPT_POOL.length) return null;
+
+  const index =
+    ((daySeed % DAILY_PROMPT_POOL.length) + DAILY_PROMPT_POOL.length) %
+    DAILY_PROMPT_POOL.length;
+  return DAILY_PROMPT_POOL[index] ?? DAILY_PROMPT_POOL[0] ?? null;
+}
+
+function resolvePlayPromptFromParts(
+  activity: string,
+  promptId: unknown,
+  promptText: unknown,
+  fallbackAt?: number
+): PlayDailyPrompt | null {
+  if (activity !== "daily_prompt") return null;
+
+  const stablePromptId = normalizePromptString(promptId);
+  const stablePromptText = normalizePromptString(promptText);
+  const promptById = stablePromptId ? getPlayDailyPromptById(stablePromptId) : null;
+
+  if (promptById) {
+    return stablePromptText ? { ...promptById, text: stablePromptText } : promptById;
+  }
+
+  if (stablePromptText) {
+    return {
+      id: stablePromptId || "daily_prompt",
+      text: stablePromptText,
+    };
+  }
+
+  if (fallbackAt != null) {
+    return getPlayDailyPromptForTimestamp(fallbackAt);
+  }
+
+  return null;
+}
+
+export function getPlaySessionPrompt(
+  session:
+    | Pick<PlaySessionDoc, "activity" | "promptId" | "promptText" | "createdAt" | "startedAt">
+    | null
+    | undefined
+): PlayDailyPrompt | null {
+  if (!session) return null;
+  const fallbackAt =
+    session.startedAt > 0
+      ? session.startedAt
+      : session.createdAt > 0
+        ? session.createdAt
+        : undefined;
+
+  return resolvePlayPromptFromParts(
+    session.activity,
+    session.promptId,
+    session.promptText,
+    fallbackAt
+  );
 }
 
 function buildInitialChainDrawState(
@@ -172,17 +286,23 @@ export function getPlayActivityLabel(
       return "Свободный общий рисунок";
     case "chain_draw":
       return "Рисунок по очереди";
+    case "daily_prompt":
+      return "Общая тема дня";
     default:
       return "Совместная сессия";
   }
 }
 
-export function getPlayActivityStoryText(activity: string) {
+export function getPlayActivityStoryText(activity: string, promptText?: string) {
   switch (activity) {
     case "draw":
       return "Совместный рисунок, который сохранился в вашей общей истории.";
     case "chain_draw":
       return "Общий рисунок, который вы собирали по очереди и сохранили в вашей общей истории.";
+    case "daily_prompt":
+      return promptText?.trim()
+        ? `Один рисунок на двоих по теме «${promptText.trim()}».`
+        : "Один рисунок на двоих по общей теме дня.";
     default:
       return "Совместная история";
   }
@@ -267,6 +387,8 @@ function resolveQueueNickname(queue: Pick<PlayQueueDoc, "uid" | "nickname">) {
 
 function asPlaySessionDoc(id: string, raw: unknown): PlaySessionDoc {
   const data = (raw ?? {}) as Partial<PlaySessionDoc>;
+  const promptId = normalizePromptString(data.promptId);
+  const promptText = normalizePromptString(data.promptText);
   return {
     id,
     activity: normalizePlayActivity(data.activity),
@@ -274,6 +396,8 @@ function asPlaySessionDoc(id: string, raw: unknown): PlaySessionDoc {
     createdAt: Number(data.createdAt ?? 0),
     startedAt: Number(data.startedAt ?? data.createdAt ?? 0),
     ...(data.endedAt != null ? { endedAt: Number(data.endedAt) } : {}),
+    ...(promptId ? { promptId } : {}),
+    ...(promptText ? { promptText } : {}),
     participantIds: Array.isArray(data.participantIds)
       ? data.participantIds.map((value) => String(value))
       : [],
@@ -489,6 +613,8 @@ export async function tryMatchWaitingPlayer(
     };
     const chainDrawState =
       activity === "chain_draw" ? buildInitialChainDrawState(participantIds, now) : null;
+    const prompt =
+      activity === "daily_prompt" ? getPlayDailyPromptForTimestamp(now) : null;
 
     tx.set(sessionRef, {
       id: sessionId,
@@ -496,6 +622,12 @@ export async function tryMatchWaitingPlayer(
       status: "active" satisfies PlaySessionStatus,
       createdAt: now,
       startedAt: now,
+      ...(prompt
+        ? {
+            promptId: prompt.id,
+            promptText: prompt.text,
+          }
+        : {}),
       participantIds,
       participantNicknames,
       ...(chainDrawState ? buildChainDrawPatch(chainDrawState) : {}),
@@ -603,11 +735,18 @@ export function mapPlaySessionToHistoryItem(
 ): PlayHistoryItem | null {
   const peer = getPeerFromSession(session, uid);
   if (!peer) return null;
+  const prompt = getPlaySessionPrompt(session);
 
   return {
     id: session.id,
     sessionId: session.id,
     activity: session.activity,
+    ...(prompt
+      ? {
+          promptId: prompt.id,
+          promptText: prompt.text,
+        }
+      : {}),
     peer,
     sortAt: session.endedAt ?? session.startedAt ?? session.createdAt,
     ...(session.resultStrokeCount != null ? { strokeCount: session.resultStrokeCount } : {}),

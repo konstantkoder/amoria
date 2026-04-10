@@ -14,7 +14,14 @@ import { makeNickname } from "@/services/rooms";
 import type { PlayActivity } from "@/services/playSessions";
 
 function normalizeArtworkActivity(value: unknown): PlayActivity {
-  return value === "chain_draw" ? "chain_draw" : "draw";
+  switch (value) {
+    case "chain_draw":
+      return "chain_draw";
+    case "daily_prompt":
+      return "daily_prompt";
+    default:
+      return "draw";
+  }
 }
 
 export type DmSource = "play";

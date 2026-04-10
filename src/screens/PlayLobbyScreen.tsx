@@ -21,12 +21,6 @@ type ActivityCard = {
 
 const ROADMAP_CARDS: ActivityCard[] = [
   {
-    slug: "daily_prompt",
-    title: "Общая тема дня",
-    description: "Одна тема на двоих: город, мечта, путешествие или символ, который вы собираете вместе.",
-    details: "Одна идея, два взгляда и один общий итог.",
-  },
-  {
     slug: "color_mood",
     title: "Палитра настроения",
     description: "Каждый выбирает цвета, а затем вместе вы собираете мягкую общую палитру.",
@@ -87,11 +81,30 @@ export default function PlayLobbyScreen() {
         </Pressable>
 
         <View style={styles.liveSection}>
-          <Text style={styles.liveSectionTitle}>Еще один живой формат</Text>
+          <Text style={styles.liveSectionTitle}>Живые режимы Together</Text>
           <Text style={styles.liveSectionText}>
-            Вместе теперь работает не только как свободный холст. Можно войти и в пошаговый общий рисунок.
+            Вместе уже работает в трех реальных состояниях: свободный общий рисунок, рисунок по
+            очереди и общая тема дня.
           </Text>
         </View>
+
+        <Pressable
+          onPress={() => navigation.navigate("PlayMatch", { activity: "daily_prompt" })}
+          style={styles.liveCard}
+        >
+          <View style={styles.cardHeader}>
+            <Text style={styles.cardTitle}>Общая тема дня</Text>
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>Живой режим</Text>
+            </View>
+          </View>
+          <Text style={styles.cardDescription}>
+            Одна тема на двоих, один общий рисунок и один итог.
+          </Text>
+          <Text style={styles.cardDetails}>
+            Сегодняшняя тема откроется после матча, а дальше вы соберете один рисунок на двоих.
+          </Text>
+        </Pressable>
 
         <Pressable
           onPress={() => navigation.navigate("PlayMatch", { activity: "chain_draw" })}

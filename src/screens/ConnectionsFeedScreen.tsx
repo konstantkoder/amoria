@@ -90,6 +90,9 @@ function formatActivityLabel(
   if (activity === "chain_draw") {
     return tt("connections.sourceChainDraw", getPlayActivityLabel(activity, "history"));
   }
+  if (activity === "daily_prompt") {
+    return tt("connections.sourceDailyPrompt", getPlayActivityLabel(activity, "history"));
+  }
   return getPlayActivityLabel(activity, "history");
 }
 

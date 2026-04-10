@@ -238,84 +238,102 @@ export default function PlayHistoryScreen() {
   }, [navigation]);
 
   const renderCard = useCallback(
-    (item: HistoryCard) => (
-      <Pressable
-        key={item.id}
-        onPress={() => openDetail(item.sessionId)}
-        style={styles.card}
-      >
-        <View style={styles.cardTop}>
-          <View style={styles.cardTopText}>
-            <View style={styles.cardTitleRow}>
-              <Text style={styles.cardTitle}>{item.peer.nickname}</Text>
-              {item.signalLabel ? (
-                <View
-                  style={[
-                    styles.signalBadge,
-                    item.signalTone === "fresh" ? styles.signalBadgeFresh : styles.signalBadgeRecent,
-                  ]}
-                >
-                  <Text
+    (item: HistoryCard) => {
+      const showDailyPrompt = item.activity === "daily_prompt";
+      const promptDisplay = item.promptText?.trim() || "Тема уточняется";
+
+      return (
+        <Pressable
+          key={item.id}
+          onPress={() => openDetail(item.sessionId)}
+          style={styles.card}
+        >
+          <View style={styles.cardTop}>
+            <View style={styles.cardTopText}>
+              <View style={styles.cardTitleRow}>
+                <Text style={styles.cardTitle}>{item.peer.nickname}</Text>
+                {item.signalLabel ? (
+                  <View
                     style={[
-                      styles.signalBadgeText,
+                      styles.signalBadge,
                       item.signalTone === "fresh"
-                        ? styles.signalBadgeTextFresh
-                        : styles.signalBadgeTextRecent,
+                        ? styles.signalBadgeFresh
+                        : styles.signalBadgeRecent,
                     ]}
                   >
-                    {item.signalLabel}
-                  </Text>
-                </View>
-              ) : null}
+                    <Text
+                      style={[
+                        styles.signalBadgeText,
+                        item.signalTone === "fresh"
+                          ? styles.signalBadgeTextFresh
+                          : styles.signalBadgeTextRecent,
+                      ]}
+                    >
+                      {item.signalLabel}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+              <Text style={styles.cardActivity}>
+                {getPlayActivityLabel(item.activity, "history")}
+              </Text>
             </View>
-            <Text style={styles.cardActivity}>
-              {getPlayActivityLabel(item.activity, "history")}
-            </Text>
+            <Text style={styles.cardDate}>{formatDateTime(item.sortAt)}</Text>
           </View>
-          <Text style={styles.cardDate}>{formatDateTime(item.sortAt)}</Text>
-        </View>
 
-        <Text style={styles.cardSource}>{getPlayActivityStoryText(item.activity)}</Text>
+          <Text style={styles.cardSource}>
+            {getPlayActivityStoryText(item.activity, item.promptText)}
+          </Text>
 
-        <View style={styles.metaGrid}>
-          <View style={styles.metaChip}>
-            <Ionicons name="brush-outline" size={14} color={theme.colors.accent} />
-            <Text style={styles.metaText}>
-              {tt("connections.strokeCount", "Штрихов: {count}", {
-                count: String(item.strokeCount ?? 0),
-              })}
-            </Text>
+          {showDailyPrompt ? (
+            <View style={styles.promptCard}>
+              <Text style={styles.promptLabel}>Тема</Text>
+              <Text style={styles.promptText}>{promptDisplay}</Text>
+            </View>
+          ) : null}
+
+          <View style={styles.metaGrid}>
+            <View style={styles.metaChip}>
+              <Ionicons name="brush-outline" size={14} color={theme.colors.accent} />
+              <Text style={styles.metaText}>
+                {tt("connections.strokeCount", "Штрихов: {count}", {
+                  count: String(item.strokeCount ?? 0),
+                })}
+              </Text>
+            </View>
+            <View style={styles.metaChip}>
+              <Ionicons name="sparkles-outline" size={14} color={theme.colors.primary} />
+              <Text style={styles.metaText}>
+                {getPlayRevealCopy(item.revealOutcome).shortLabel}
+              </Text>
+            </View>
           </View>
-          <View style={styles.metaChip}>
-            <Ionicons name="sparkles-outline" size={14} color={theme.colors.primary} />
-            <Text style={styles.metaText}>{getPlayRevealCopy(item.revealOutcome).shortLabel}</Text>
-          </View>
-        </View>
 
-        <Text style={styles.cardStatus}>{getPlayRevealCopy(item.revealOutcome).description}</Text>
+          <Text style={styles.cardStatus}>{getPlayRevealCopy(item.revealOutcome).description}</Text>
 
-        <View style={styles.actionsRow}>
-          <Pressable onPress={() => openReplay(item.sessionId)} style={styles.secondaryButton}>
-            <Text style={styles.secondaryButtonText}>
-              {tt("connections.openReplay", "Открыть replay")}
-            </Text>
-          </Pressable>
-          {item.revealOutcome === "open_open" ? (
-            <Pressable
-              onPress={() => void openChat(item)}
-              style={styles.primaryButton}
-              disabled={openingChatId === item.id}
-            >
-              <Text style={styles.primaryButtonText}>
-                {openingChatId === item.id
-                  ? tt("connections.openingChat", "Открываем чат…")
-                  : tt("connections.openChat", "Открыть чат")}
+          <View style={styles.actionsRow}>
+            <Pressable onPress={() => openReplay(item.sessionId)} style={styles.secondaryButton}>
+              <Text style={styles.secondaryButtonText}>
+                {tt("connections.openReplay", "Открыть replay")}
               </Text>
             </Pressable>
-          ) : null}
-        </View>
-      </Pressable>
-    ),
+            {item.revealOutcome === "open_open" ? (
+              <Pressable
+                onPress={() => void openChat(item)}
+                style={styles.primaryButton}
+                disabled={openingChatId === item.id}
+              >
+                <Text style={styles.primaryButtonText}>
+                  {openingChatId === item.id
+                    ? tt("connections.openingChat", "Открываем чат…")
+                    : tt("connections.openChat", "Открыть чат")}
+                </Text>
+              </Pressable>
+            ) : null}
+          </View>
+        </Pressable>
+      );
+    },
     [openChat, openDetail, openReplay, openingChatId, tt]
   );
 
@@ -636,6 +654,27 @@ const styles = StyleSheet.create({
     color: theme.colors.subtext,
     fontSize: 14,
     lineHeight: 20,
+  },
+  promptCard: {
+    borderRadius: theme.shapes.cardInner,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: theme.colors.pillBg,
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+    gap: 4,
+  },
+  promptLabel: {
+    color: theme.colors.muted,
+    fontSize: 11,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+  },
+  promptText: {
+    color: theme.colors.text,
+    fontSize: 14,
+    fontWeight: "700",
   },
   metaGrid: {
     flexDirection: "row",

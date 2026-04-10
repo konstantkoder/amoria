@@ -85,6 +85,22 @@ function getMatchModeCopy(activity: PlayActivity | null) {
     };
   }
 
+  if (activity === "daily_prompt") {
+    return {
+      eyebrow: "Одна тема на двоих",
+      preparingBody:
+        "Сейчас поставим тебя в очередь и попробуем быстро найти человека для рисунка по общей теме.",
+      searchingBody:
+        "Как только найдем второго участника, сразу откроем один общий холст и покажем сегодняшнюю тему.",
+      delayedBody:
+        "Обычно это происходит быстро, но иногда поиск человека для общей темы занимает чуть больше времени. Оставайся здесь или вернись и попробуй позже.",
+      foundBody:
+        "Человек найден. Открываем общий холст и сегодняшнюю тему. Это займет пару секунд.",
+      caption:
+        "Один рисунок на двоих, одна тема и один итог перед решением об открытии чата.",
+    };
+  }
+
   return {
     eyebrow: "7 минут на двоих",
     preparingBody:
@@ -316,7 +332,7 @@ export default function PlayMatchScreen() {
       return;
     }
     returnToTogether();
-  }, [blockReason, navigation, openProfile, returnToTogether]);
+  }, [blockReason, openProfile, returnToTogether]);
 
   const handleSecondaryBlockedAction = React.useCallback(() => {
     allowLeaveRef.current = true;

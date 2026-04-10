@@ -264,6 +264,9 @@ export default function DMChatScreen() {
   const canSend = text.trim().length > 0;
   const sourceTitle = useMemo(() => {
     if (thread?.source !== "play") return "";
+    if (thread.artworkSummary?.activity === "daily_prompt") {
+      return tt("dm.sourcePlayDailyPrompt", "Чат открылся после общей темы дня");
+    }
     if (thread.artworkSummary?.activity === "chain_draw") {
       return tt("dm.sourcePlayChainDraw", "Чат открылся после рисунка по очереди");
     }

@@ -16,8 +16,10 @@ import { auth, db } from "@/config/firebaseConfig";
 import { buildDmChatRouteParams, ensureDmThread } from "@/services/dm";
 import {
   getPlayActivityLabel,
+  getPlayActivityStoryText,
   getPeerFromSession,
   getPlayRevealCopy,
+  getPlaySessionPrompt,
   resolvePlayRevealOutcome,
   submitRevealDecision,
   subscribePlayEvents,
@@ -210,6 +212,9 @@ export default function PlayResultScreen() {
   const waitingForPeer = Boolean(decision) && revealOutcome === "waiting";
   const durationLabel = formatDuration(session);
   const activityLabel = getPlayActivityLabel(session?.activity ?? "draw", "neutral");
+  const showDailyPrompt = session?.activity === "daily_prompt";
+  const sessionPrompt = React.useMemo(() => getPlaySessionPrompt(session), [session]);
+  const sessionPromptDisplay = sessionPrompt?.text?.trim() || "Тема уточняется";
   const revealCopy = React.useMemo(() => getPlayRevealCopy(revealOutcome), [revealOutcome]);
   const canOpenChat = Boolean(db && session && uid && peer?.uid);
   const hasReplay = replayStrokes.length > 0;
@@ -473,11 +478,16 @@ export default function PlayResultScreen() {
           <Text style={styles.heroKicker}>
             {historyMode ? "Совместная история" : "Сразу после совместной сессии"}
           </Text>
-          <Text style={styles.heroTitle}>{historyMode ? "Ваш общий рисунок" : "Ваш общий рисунок готов"}</Text>
+          <Text style={styles.heroTitle}>
+            {historyMode ? "Ваш общий рисунок" : "Ваш общий рисунок готов"}
+          </Text>
           <Text style={styles.heroText}>
             {historyMode
               ? "Здесь хранится завершенный общий рисунок, к которому можно вернуться в любой момент."
-              : "Это итог только что завершившейся совместной сессии. Постоянный дом рисунка и replay находится в совместной истории."}
+              : "Это итог только что завершившейся совместной сессии. Постоянный дом рисунка и replay находится в совместной истории."}{" "}
+            {session
+              ? getPlayActivityStoryText(session.activity, sessionPrompt?.text)
+              : ""}
           </Text>
 
           <View style={styles.metaGrid}>
@@ -497,6 +507,12 @@ export default function PlayResultScreen() {
               <Text style={styles.metaLabel}>Длительность</Text>
               <Text style={styles.metaValue}>{durationLabel}</Text>
             </View>
+            {showDailyPrompt ? (
+              <View style={[styles.metaItem, styles.metaItemWide]}>
+                <Text style={styles.metaLabel}>Тема</Text>
+                <Text style={styles.metaValue}>{sessionPromptDisplay}</Text>
+              </View>
+            ) : null}
           </View>
 
           <View style={styles.legendRow}>
@@ -608,6 +624,12 @@ export default function PlayResultScreen() {
                 </Text>
               </View>
             </View>
+            {showDailyPrompt ? (
+              <View style={styles.contextPill}>
+                <Text style={styles.contextLabel}>Тема</Text>
+                <Text style={styles.contextText}>{sessionPromptDisplay}</Text>
+              </View>
+            ) : null}
             {!hasReplay ? (
               <View style={styles.statusCard}>
                 <Text style={styles.statusTitle}>Replay пока пустой</Text>
@@ -703,6 +725,9 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.04)",
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
+  },
+  metaItemWide: {
+    width: "100%",
   },
   metaLabel: {
     color: theme.colors.muted,
@@ -860,6 +885,28 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(18, 14, 30, 0.86)",
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
+  },
+  contextPill: {
+    alignSelf: "flex-start",
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: theme.colors.pillBg,
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+    gap: 4,
+  },
+  contextLabel: {
+    color: theme.colors.muted,
+    fontSize: 11,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+  },
+  contextText: {
+    color: theme.colors.text,
+    fontSize: 14,
+    fontWeight: "700",
   },
   replayTitle: {
     color: theme.colors.text,
