@@ -118,20 +118,21 @@ function MainTabs() {
           tabBarStyle: {
             backgroundColor: theme.colors.background,
             borderTopColor: "rgba(255,255,255,0.08)",
-            height: 66 + insets.bottom,
-            paddingBottom: 8 + insets.bottom,
-            paddingTop: 8,
+            height: 64 + insets.bottom,
+            paddingBottom: 7 + insets.bottom,
+            paddingTop: 6,
           },
           tabBarItemStyle: isTogetherTab
             ? {
-                marginTop: -6,
+                marginTop: -5,
                 paddingHorizontal: 2,
               }
             : {
+                marginTop: 2,
                 paddingHorizontal: 2,
               },
           tabBarLabelStyle: {
-            fontSize: isTogetherTab ? 12 : 11,
+            fontSize: isTogetherTab ? 11 : 10,
             fontWeight: isTogetherTab ? "800" : "600",
             marginTop: isTogetherTab ? 1 : 0,
           },
@@ -143,21 +144,21 @@ function MainTabs() {
               return (
                 <View
                   style={{
-                    minWidth: 44,
+                    minWidth: 46,
                     minHeight: focused ? 42 : 40,
                     borderRadius: 999,
                     backgroundColor: focused
-                      ? "rgba(255, 78, 138, 0.22)"
-                      : "rgba(255,255,255,0.07)",
+                      ? "rgba(255, 78, 138, 0.2)"
+                      : "rgba(255,255,255,0.05)",
                     borderWidth: 1,
                     borderColor: focused
-                      ? "rgba(255, 122, 60, 0.34)"
+                      ? "rgba(255, 122, 60, 0.3)"
                       : "rgba(255,255,255,0.08)",
                     shadowColor: focused ? theme.colors.primary : "transparent",
-                    shadowOpacity: focused ? 0.28 : 0,
-                    shadowRadius: focused ? 14 : 0,
-                    shadowOffset: { width: 0, height: 8 },
-                    elevation: focused ? 10 : 0,
+                    shadowOpacity: focused ? 0.22 : 0,
+                    shadowRadius: focused ? 12 : 0,
+                    shadowOffset: { width: 0, height: 6 },
+                    elevation: focused ? 8 : 0,
                     alignItems: "center",
                     justifyContent: "center",
                   }}

@@ -31,11 +31,11 @@ export default function PlayLobbyScreen() {
       >
         <View style={styles.hero}>
           <View style={styles.heroTop}>
-            <Text style={styles.kicker}>Игровой центр знакомств</Text>
-            <Text style={styles.heroTitle}>Начать совместную сессию</Text>
+            <Text style={styles.kicker}>Главный вход</Text>
+            <Text style={styles.heroTitle}>Together запускает знакомство через общий опыт</Text>
             <Text style={styles.heroText}>
-              Главный вход запускает свободный общий рисунок. Ниже можно сразу выбрать более
-              явный сценарий: тему дня, рисунок по очереди или палитру настроения.
+              Один тап запускает свободную совместную сессию. Если нужен более явный сценарий,
+              режим можно выбрать сразу ниже.
             </Text>
           </View>
 
@@ -47,7 +47,7 @@ export default function PlayLobbyScreen() {
               <Text style={styles.primaryCtaTitle}>Начать совместную сессию</Text>
             </Pressable>
             <Text style={styles.primaryCtaHint}>
-              Старт: свободный общий рисунок • 4 режима • чат только по взаимному желанию
+              Свободный старт, reveal и переход в чат только по взаимному желанию.
             </Text>
           </View>
         </View>
@@ -57,10 +57,9 @@ export default function PlayLobbyScreen() {
           style={styles.historyCard}
         >
           <View style={styles.historyTextWrap}>
-            <Text style={styles.historyTitle}>Мои совместные истории</Text>
+            <Text style={styles.historyTitle}>Совместные истории</Text>
             <Text style={styles.historyText}>
-              Здесь сохраняются все завершённые режимы Together: итог, статус раскрытия и вход
-              обратно в уже начатую связь.
+              Итоги, replay и быстрый вход обратно в уже открытую связь.
             </Text>
           </View>
           <View style={styles.historyBadge}>
@@ -69,10 +68,9 @@ export default function PlayLobbyScreen() {
         </Pressable>
 
         <View style={styles.liveSection}>
-          <Text style={styles.liveSectionTitle}>Другие живые режимы</Text>
+          <Text style={styles.liveSectionTitle}>Другие режимы</Text>
           <Text style={styles.liveSectionText}>
-            Если нужен более явный сценарий, запускай тему дня, рисунок по очереди или палитру
-            настроения. История, reveal и переход в чат дальше работают одинаково.
+            Если нужен более явный сценарий, выбери его сразу.
           </Text>
         </View>
 
@@ -92,7 +90,9 @@ export default function PlayLobbyScreen() {
                 </View>
               </View>
               <Text style={styles.cardDescription}>{copy.description}</Text>
-              <Text style={styles.cardDetails}>{copy.details}</Text>
+              <Text numberOfLines={2} style={styles.cardDetails}>
+                {copy.details}
+              </Text>
             </Pressable>
           );
         })}
@@ -127,15 +127,14 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   content: {
     padding: 16,
-    paddingBottom: 40,
-    gap: 16,
+    paddingBottom: 36,
+    gap: 14,
   },
   hero: {
-    minHeight: 338,
-    justifyContent: "space-between",
-    paddingHorizontal: 22,
-    paddingTop: 24,
-    paddingBottom: 22,
+    gap: 18,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 18,
     borderRadius: theme.shapes.card,
     backgroundColor: "rgba(9, 11, 24, 0.58)",
     borderWidth: 1,
@@ -143,37 +142,37 @@ const styles = StyleSheet.create({
   },
   heroTop: {
     maxWidth: 340,
-    gap: 12,
+    gap: 10,
   },
   kicker: {
     color: "#FFE0B8",
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "800",
     letterSpacing: 1,
     textTransform: "uppercase",
   },
   heroTitle: {
     color: theme.colors.text,
-    fontSize: 30,
-    lineHeight: 36,
+    fontSize: 27,
+    lineHeight: 32,
     fontWeight: "800",
   },
   heroText: {
     color: "rgba(255,255,255,0.86)",
-    fontSize: 15,
-    lineHeight: 21,
+    fontSize: 14,
+    lineHeight: 20,
   },
   heroBottom: {
-    gap: 10,
+    gap: 8,
   },
   primaryCta: {
     alignSelf: "center",
-    minHeight: 60,
+    minHeight: 56,
     width: "100%",
     maxWidth: 390,
     borderRadius: theme.shapes.pill,
-    paddingHorizontal: 30,
-    paddingVertical: 16,
+    paddingHorizontal: 24,
+    paddingVertical: 15,
     backgroundColor: theme.colors.primary,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.2)",
@@ -187,18 +186,18 @@ const styles = StyleSheet.create({
   },
   primaryCtaTitle: {
     color: "#FFFFFF",
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: "800",
   },
   primaryCtaHint: {
     color: "rgba(255,245,234,0.92)",
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 12,
+    lineHeight: 17,
     textAlign: "center",
   },
   historyCard: {
     borderRadius: theme.shapes.card,
-    padding: 18,
+    padding: 16,
     backgroundColor: "rgba(14, 16, 30, 0.72)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.12)",
@@ -209,22 +208,22 @@ const styles = StyleSheet.create({
   },
   historyTextWrap: {
     flex: 1,
-    gap: 8,
+    gap: 6,
   },
   historyTitle: {
     color: theme.colors.text,
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: "800",
   },
   historyText: {
     color: theme.colors.subtext,
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 13,
+    lineHeight: 18,
   },
   historyBadge: {
     borderRadius: theme.shapes.pill,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 11,
+    paddingVertical: 7,
     backgroundColor: "rgba(255,255,255,0.08)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.1)",
@@ -235,26 +234,26 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   liveSection: {
-    gap: 6,
+    gap: 4,
     paddingHorizontal: 2,
   },
   liveSectionTitle: {
     color: theme.colors.text,
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: "800",
   },
   liveSectionText: {
     color: theme.colors.subtext,
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 13,
+    lineHeight: 18,
   },
   liveCard: {
     borderRadius: theme.shapes.card,
-    padding: 18,
+    padding: 16,
     backgroundColor: "rgba(18, 22, 40, 0.8)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.14)",
-    gap: 10,
+    gap: 8,
   },
   cardHeader: {
     flexDirection: "row",
@@ -265,56 +264,56 @@ const styles = StyleSheet.create({
   cardTitle: {
     flex: 1,
     color: theme.colors.text,
-    fontSize: 18,
-    lineHeight: 24,
+    fontSize: 17,
+    lineHeight: 22,
     fontWeight: "800",
   },
   badge: {
     borderRadius: theme.shapes.pill,
     paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingVertical: 4,
     backgroundColor: "rgba(255, 122, 60, 0.16)",
     borderWidth: 1,
     borderColor: "rgba(255, 122, 60, 0.24)",
   },
   badgeText: {
     color: theme.colors.text,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "700",
   },
   cardDescription: {
     color: theme.colors.subtext,
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 13,
+    lineHeight: 18,
   },
   cardDetails: {
     color: theme.colors.text,
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 12,
+    lineHeight: 17,
     fontWeight: "700",
   },
   quickRow: {
     flexDirection: "row",
-    gap: 12,
+    gap: 10,
   },
   quickCard: {
     flex: 1,
     minWidth: 0,
     borderRadius: theme.shapes.card,
-    padding: 16,
+    padding: 14,
     backgroundColor: "rgba(12, 16, 30, 0.68)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.1)",
-    gap: 8,
+    gap: 6,
   },
   quickTitle: {
     color: theme.colors.text,
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "800",
   },
   quickText: {
     color: theme.colors.subtext,
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 12,
+    lineHeight: 17,
   },
 });

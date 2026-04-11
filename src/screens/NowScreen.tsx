@@ -25,7 +25,6 @@ import {
 } from "@/services/now";
 import { makeNickname } from "@/services/rooms";
 import ScreenShell from "@/components/ScreenShell";
-import NeonBorder from "@/components/NeonBorder";
 import { useLocale } from "@/contexts/LocaleContext";
 import { formatAgoLong } from "@/utils/timeAgo";
 import { translateMaybeKey } from "@/utils/i18n";
@@ -41,9 +40,9 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
     <Text
       style={{
         color: "#E5E7EB",
-        fontSize: 18,
+        fontSize: 17,
         fontWeight: "800",
-        marginBottom: 10,
+        marginBottom: 8,
       }}
     >
       {children}
@@ -236,40 +235,38 @@ export default function NowScreen() {
       style={{
         flexDirection: "row",
         flexWrap: "wrap",
-        gap: 8,
-        marginTop: 6,
+        gap: 6,
+        marginTop: 4,
       }}
     >
       {moodMeta.map((m) => {
         const active = m.key === mood;
         return (
-          <NeonBorder key={m.key} active={active}>
-            <TouchableOpacity
-              onPress={() => setMood(m.key)}
+          <TouchableOpacity
+            key={m.key}
+            onPress={() => setMood(m.key)}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              paddingHorizontal: 10,
+              paddingVertical: 7,
+              borderRadius: 999,
+              backgroundColor: active ? "rgba(255,78,138,0.18)" : "rgba(255,255,255,0.05)",
+              borderWidth: 1,
+              borderColor: active ? "rgba(255,78,138,0.28)" : theme.colors.borderSubtle,
+            }}
+          >
+            <Text style={{ fontSize: 14, marginRight: 4 }}>{m.emoji}</Text>
+            <Text
               style={{
-                flexDirection: "row",
-                alignItems: "center",
-                paddingHorizontal: 10,
-                paddingVertical: 6,
-                borderRadius: 999,
-                // Livelier mood chips: primary accent for active, subtle for inactive
-                backgroundColor: active
-                  ? "rgba(255,78,138,0.25)"
-                  : theme.colors.pillBg,
+                color: theme.colors.text,
+                fontSize: 12,
+                fontWeight: active ? "800" : "600",
               }}
             >
-              <Text style={{ fontSize: 14, marginRight: 4 }}>{m.emoji}</Text>
-              <Text
-                style={{
-                  color: active ? theme.colors.primary : theme.colors.pillText,
-                  fontSize: 12,
-                  fontWeight: active ? "800" : "600",
-                }}
-              >
-                {m.label}
-              </Text>
-            </TouchableOpacity>
-          </NeonBorder>
+              {m.label}
+            </Text>
+          </TouchableOpacity>
         );
       })}
     </View>
@@ -280,9 +277,9 @@ export default function NowScreen() {
       style={{
         flexDirection: "row",
         flexWrap: "wrap",
-        gap: 8,
+        gap: 6,
         marginTop: 6,
-        marginBottom: 8,
+        marginBottom: 6,
       }}
     >
       {RADIUS_OPTIONS.map((option, idx) => {
@@ -290,30 +287,28 @@ export default function NowScreen() {
         const label =
           option == null ? t("common.all") : `${option} ${t("units.km")}`;
         return (
-          <NeonBorder key={idx} active={active}>
-            <TouchableOpacity
-              onPress={() => setRadiusKm(option)}
+          <TouchableOpacity
+            key={idx}
+            onPress={() => setRadiusKm(option)}
+            style={{
+              paddingHorizontal: 10,
+              paddingVertical: 7,
+              borderRadius: 999,
+              backgroundColor: active ? "rgba(255,122,60,0.18)" : "rgba(255,255,255,0.05)",
+              borderWidth: 1,
+              borderColor: active ? "rgba(255,122,60,0.24)" : theme.colors.borderSubtle,
+            }}
+          >
+            <Text
               style={{
-                paddingHorizontal: 10,
-                paddingVertical: 6,
-                borderRadius: 999,
-                // Livelier radius chips: warm accent for active, subtle for inactive
-                backgroundColor: active
-                  ? "rgba(255,122,60,0.25)"
-                  : theme.colors.pillBg,
+                color: theme.colors.text,
+                fontSize: 12,
+                fontWeight: active ? "800" : "600",
               }}
             >
-              <Text
-                style={{
-                  color: active ? theme.colors.accent : theme.colors.pillText,
-                  fontSize: 12,
-                  fontWeight: active ? "800" : "600",
-                }}
-              >
-                {label}
-              </Text>
-            </TouchableOpacity>
-          </NeonBorder>
+              {label}
+            </Text>
+          </TouchableOpacity>
         );
       })}
     </View>
@@ -323,19 +318,19 @@ export default function NowScreen() {
     <View
       style={{
         borderRadius: 18,
-        padding: 14,
+        padding: 12,
         backgroundColor: theme.colors.backgroundSoft,
         borderWidth: 1,
         borderColor: theme.colors.borderSubtle,
-        marginBottom: 14,
+        marginBottom: 12,
       }}
     >
       <Text
         style={{
           color: "#E5E7EB",
-          fontSize: 15,
+          fontSize: 14,
           fontWeight: "800",
-          marginBottom: 4,
+          marginBottom: 3,
         }}
       >
         {t("now.myStatusTitle")}
@@ -344,7 +339,8 @@ export default function NowScreen() {
         style={{
           color: "#9CA3AF",
           fontSize: 12,
-          marginBottom: 6,
+          lineHeight: 17,
+          marginBottom: 4,
         }}
       >
         {t("now.myStatusBody")}
@@ -357,17 +353,16 @@ export default function NowScreen() {
         placeholderTextColor="#6B7280"
         multiline
         style={{
-          marginTop: 10,
+          marginTop: 8,
           borderRadius: 12,
           borderWidth: 1,
-          // Use a soft background and subtle border for the message input
           borderColor: theme.colors.borderSubtle,
           backgroundColor: theme.colors.backgroundSoft,
           paddingHorizontal: 10,
           paddingVertical: 8,
           color: theme.colors.pillText,
           fontSize: 14,
-          height: 80,
+          height: 72,
           textAlignVertical: "top",
         }}
       />
@@ -375,7 +370,7 @@ export default function NowScreen() {
         style={{
           flexDirection: "row",
           alignItems: "center",
-          marginTop: 10,
+          marginTop: 8,
         }}
       >
         <View style={{ flex: 1 }}>
@@ -418,7 +413,7 @@ export default function NowScreen() {
               <Text
                 style={{
                   color: "#FCA5A5",
-                  fontSize: 12,
+                  fontSize: 11,
                   textDecorationLine: "underline",
                 }}
               >
@@ -432,8 +427,8 @@ export default function NowScreen() {
           disabled={sending}
           style={{
             paddingHorizontal: 14,
-            paddingVertical: 8,
-            borderRadius: 12,
+            paddingVertical: 9,
+            borderRadius: 999,
             backgroundColor: sending
               ? "rgba(55,65,81,0.9)"
               : theme.colors.primary,
@@ -442,7 +437,7 @@ export default function NowScreen() {
           <Text
             style={{
               color: "white",
-              fontSize: 13,
+              fontSize: 12,
               fontWeight: "800",
             }}
           >
@@ -463,14 +458,13 @@ export default function NowScreen() {
         : formattedNickname;
     return (
       <View
-        style={{
-          borderRadius: 16,
-          padding: 12,
-          marginBottom: 10,
-          // Card backgrounds also use the softer theme palette with subtle border
-          backgroundColor: theme.colors.backgroundSoft,
-          borderWidth: 1,
-          borderColor: theme.colors.borderSubtle,
+      style={{
+        borderRadius: 16,
+        padding: 11,
+        marginBottom: 8,
+        backgroundColor: theme.colors.backgroundSoft,
+        borderWidth: 1,
+        borderColor: theme.colors.borderSubtle,
         }}
       >
         <View
@@ -483,7 +477,7 @@ export default function NowScreen() {
           <Text
             style={{
               color: "#E5E7EB",
-              fontSize: 14,
+              fontSize: 13,
               fontWeight: "700",
               flex: 1,
             }}
@@ -503,8 +497,8 @@ export default function NowScreen() {
         <Text
           style={{
             color: "#9CA3AF",
-            fontSize: 12,
-            marginBottom: 4,
+            fontSize: 11,
+            marginBottom: 3,
           }}
         >
           {moodInfo.label}
@@ -513,6 +507,7 @@ export default function NowScreen() {
           style={{
             color: "#D1D5DB",
             fontSize: 13,
+            lineHeight: 18,
           }}
         >
           {item.text}
@@ -525,11 +520,11 @@ export default function NowScreen() {
     <View
       style={{
         borderRadius: theme.shapes.card,
-        padding: 18,
+        padding: 16,
         backgroundColor: "rgba(12, 16, 31, 0.9)",
         borderWidth: 1,
         borderColor: "rgba(255,255,255,0.08)",
-        marginBottom: 14,
+        marginBottom: 12,
       }}
     >
       <Text
@@ -538,7 +533,7 @@ export default function NowScreen() {
           fontSize: 12,
           fontWeight: "800",
           letterSpacing: 1,
-          marginBottom: 8,
+          marginBottom: 6,
         }}
       >
         {t("now.heroKicker")}
@@ -546,10 +541,10 @@ export default function NowScreen() {
       <Text
         style={{
           color: theme.colors.text,
-          fontSize: 24,
-          lineHeight: 30,
+          fontSize: 22,
+          lineHeight: 28,
           fontWeight: "800",
-          marginBottom: 10,
+          marginBottom: 8,
         }}
       >
         {t("now.heroTitle")}
@@ -557,21 +552,21 @@ export default function NowScreen() {
       <Text
         style={{
           color: theme.colors.subtext,
-          fontSize: 14,
-          lineHeight: 21,
-          marginBottom: 14,
+          fontSize: 13,
+          lineHeight: 19,
+          marginBottom: 12,
         }}
       >
         {t("now.heroBody")}
       </Text>
 
-      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
         <Pressable
           onPress={goToTogether}
           style={{
             borderRadius: theme.shapes.pill,
             paddingHorizontal: 14,
-            paddingVertical: 10,
+            paddingVertical: 9,
             backgroundColor: theme.colors.accent,
           }}
         >
@@ -584,7 +579,7 @@ export default function NowScreen() {
           style={{
             borderRadius: theme.shapes.pill,
             paddingHorizontal: 14,
-            paddingVertical: 10,
+            paddingVertical: 9,
             backgroundColor: "rgba(255,255,255,0.06)",
             borderWidth: 1,
             borderColor: "rgba(255,255,255,0.08)",
@@ -602,17 +597,17 @@ export default function NowScreen() {
     <View
       style={{
         borderRadius: 18,
-        padding: 14,
+        padding: 12,
         backgroundColor: "rgba(17, 20, 36, 0.88)",
         borderWidth: 1,
         borderColor: theme.colors.borderSubtle,
-        marginBottom: 14,
+        marginBottom: 12,
       }}
     >
-      <Text style={{ color: theme.colors.text, fontSize: 15, fontWeight: "800", marginBottom: 4 }}>
+      <Text style={{ color: theme.colors.text, fontSize: 14, fontWeight: "800", marginBottom: 4 }}>
         {t("now.roomsCardTitle")}
       </Text>
-      <Text style={{ color: theme.colors.subtext, fontSize: 13, lineHeight: 19, marginBottom: 10 }}>
+      <Text style={{ color: theme.colors.subtext, fontSize: 12, lineHeight: 17, marginBottom: 8 }}>
         {t("now.roomsCardBody")}
       </Text>
       <Pressable
@@ -621,7 +616,7 @@ export default function NowScreen() {
           alignSelf: "flex-start",
           borderRadius: theme.shapes.pill,
           paddingHorizontal: 14,
-          paddingVertical: 10,
+          paddingVertical: 9,
           backgroundColor: theme.colors.pillBg,
           borderWidth: 1,
           borderColor: theme.colors.borderSubtle,
@@ -645,7 +640,7 @@ export default function NowScreen() {
         style={{
           flex: 1,
           paddingHorizontal: 16,
-          paddingTop: 8,
+          paddingTop: 6,
           paddingBottom: insets.bottom + 8,
         }}
       >
@@ -664,7 +659,7 @@ export default function NowScreen() {
           <Text
             style={{
               color: "#E5E7EB",
-              fontSize: 15,
+              fontSize: 14,
               fontWeight: "800",
             }}
           >
@@ -699,15 +694,15 @@ export default function NowScreen() {
             keyExtractor={(x) => String(x.id)}
             renderItem={renderPostItem}
             contentContainerStyle={{
-              paddingTop: 4,
+              paddingTop: 2,
               paddingBottom: 16,
             }}
             ListEmptyComponent={
-              <View style={{ paddingTop: 16 }}>
+              <View style={{ paddingTop: 12 }}>
                 <Text
                   style={{
                     color: "#9CA3AF",
-                    fontSize: 13,
+                    fontSize: 12,
                   }}
                 >
                   {t("now.noneNearby")}

@@ -182,9 +182,9 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
     <Text
       style={{
         color: "#E5E7EB",
-        fontSize: 18,
+        fontSize: 17,
         fontWeight: "800",
-        marginBottom: 10,
+        marginBottom: 8,
       }}
     >
       {children}
@@ -1014,26 +1014,26 @@ export default function RoomsScreen() {
     return (
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 24 }}
+        contentContainerStyle={{ paddingBottom: 20 }}
       >
-      <View style={{ paddingHorizontal: 16, paddingTop: insets.top + 8 }}>
+      <View style={{ paddingHorizontal: 16, paddingTop: insets.top + 4 }}>
         <View
           style={{
             borderRadius: theme.shapes.card,
-            padding: 18,
+            padding: 16,
             backgroundColor: "rgba(12, 16, 31, 0.92)",
             borderWidth: 1,
             borderColor: "rgba(255,255,255,0.08)",
-            marginBottom: 14,
+            marginBottom: 12,
           }}
         >
           <Text
             style={{
               color: theme.colors.accent,
-              fontSize: 12,
+              fontSize: 11,
               fontWeight: "800",
               letterSpacing: 1,
-              marginBottom: 8,
+              marginBottom: 6,
             }}
           >
             {t("rooms.heroKicker")}
@@ -1041,10 +1041,10 @@ export default function RoomsScreen() {
           <Text
             style={{
               color: theme.colors.text,
-              fontSize: 24,
-              lineHeight: 30,
+              fontSize: 22,
+              lineHeight: 28,
               fontWeight: "800",
-              marginBottom: 10,
+              marginBottom: 8,
             }}
           >
             {t("rooms.heroTitle")}
@@ -1052,27 +1052,12 @@ export default function RoomsScreen() {
           <Text
             style={{
               color: theme.colors.subtext,
-              fontSize: 14,
-              lineHeight: 21,
-              marginBottom: 14,
+              fontSize: 13,
+              lineHeight: 19,
             }}
           >
             {t("rooms.heroBody")}
           </Text>
-          <Pressable
-            onPress={goToTogetherTab}
-            style={{
-              alignSelf: "flex-start",
-              borderRadius: theme.shapes.pill,
-              paddingHorizontal: 14,
-              paddingVertical: 10,
-              backgroundColor: theme.colors.accent,
-            }}
-          >
-            <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: "800" }}>
-              {t("rooms.goToTogether")}
-            </Text>
-          </Pressable>
         </View>
 
         <SectionTitle>{t("rooms.nearbyRooms")}</SectionTitle>
@@ -1080,24 +1065,24 @@ export default function RoomsScreen() {
         <View
           style={{
             borderRadius: 18,
-            padding: 14,
+            padding: 12,
             backgroundColor: "rgba(255,255,255,0.06)",
             borderWidth: 1,
             borderColor: "rgba(255,255,255,0.08)",
-            marginBottom: 14,
+            marginBottom: 12,
           }}
         >
           <Text
             style={{
               color: "#E5E7EB",
-              fontSize: 14,
-              lineHeight: 20,
+              fontSize: 13,
+              lineHeight: 18,
             }}
           >
             {t("rooms.noPhotoChat")}
           </Text>
 
-          <View style={{ height: 10 }} />
+          <View style={{ height: 8 }} />
 
           {loadingPrefs ? (
             <View
@@ -1210,7 +1195,7 @@ export default function RoomsScreen() {
           }}
         >
           {pos ? (
-            <View style={{ height: 260, width: "100%" }}>
+            <View style={{ height: 220, width: "100%" }}>
               <OpenStreetMapWebView
                 style={{ flex: 1 }}
                 center={{ lat: pos.lat, lng: pos.lng }}
@@ -1237,7 +1222,7 @@ export default function RoomsScreen() {
           ) : (
             <View
               style={{
-                height: 260,
+                height: 220,
                 alignItems: "center",
                 justifyContent: "center",
                 paddingHorizontal: 16,
@@ -1267,18 +1252,18 @@ export default function RoomsScreen() {
           )}
         </View>
 
-        <View style={{ paddingTop: 16 }}>
+        <View style={{ paddingTop: 14 }}>
           <View
             style={{
               flexDirection: "row",
               alignItems: "center",
-              marginBottom: 10,
+              marginBottom: 8,
             }}
           >
             <Text
               style={{
                 color: "#E5E7EB",
-                fontSize: 18,
+                fontSize: 16,
                 fontWeight: "800",
               }}
             >
@@ -1305,7 +1290,7 @@ export default function RoomsScreen() {
           <View
             style={{
               borderRadius: 18,
-              padding: 12,
+              padding: 10,
               backgroundColor: "rgba(255,255,255,0.06)",
               borderWidth: 1,
               borderColor: "rgba(255,255,255,0.08)",
@@ -1337,7 +1322,7 @@ export default function RoomsScreen() {
                         end={{ x: 1, y: 1 }}
                         style={{
                           borderRadius: 999,
-                          paddingVertical: 8,
+                          paddingVertical: 7,
                           alignItems: "center",
                           justifyContent: "center",
                         }}
@@ -1356,7 +1341,7 @@ export default function RoomsScreen() {
                       <View
                         style={{
                           borderRadius: 999,
-                          paddingVertical: 8,
+                          paddingVertical: 7,
                           alignItems: "center",
                           justifyContent: "center",
                           backgroundColor: "rgba(255,255,255,0.03)",
@@ -1381,30 +1366,30 @@ export default function RoomsScreen() {
           </View>
         </View>
 
-        <View style={{ paddingTop: 16 }}>
+        <View style={{ paddingTop: 14 }}>
           <View
             style={{
               borderRadius: 18,
-              padding: 14,
-              backgroundColor: "rgba(255,255,255,0.05)",
+              padding: 12,
+              backgroundColor: "rgba(255, 78, 138, 0.08)",
               borderWidth: 1,
-              borderColor: "rgba(255,255,255,0.08)",
-              marginBottom: 16,
+              borderColor: "rgba(255, 78, 138, 0.18)",
+              marginBottom: 14,
             }}
           >
-            <Text style={{ color: "#E5E7EB", fontSize: 15, fontWeight: "800", marginBottom: 4 }}>
+            <Text style={{ color: "#E5E7EB", fontSize: 14, fontWeight: "800", marginBottom: 4 }}>
               {t("rooms.oneToOneTitle")}
             </Text>
-            <Text style={{ color: "#A3A3A3", fontSize: 13, lineHeight: 19, marginBottom: 10 }}>
+            <Text style={{ color: "#A3A3A3", fontSize: 12, lineHeight: 17, marginBottom: 8 }}>
               {t("rooms.oneToOneBody")}
             </Text>
             <TouchableOpacity
               onPress={goToTogetherTab}
               style={{
                 alignSelf: "flex-start",
-                paddingHorizontal: 12,
-                paddingVertical: 8,
-                borderRadius: 12,
+                paddingHorizontal: 14,
+                paddingVertical: 9,
+                borderRadius: 999,
                 backgroundColor: theme.colors.primary,
               }}
             >
@@ -1420,7 +1405,7 @@ export default function RoomsScreen() {
             style={{
               flexDirection: "row",
               flexWrap: "wrap",
-              gap: 10,
+              gap: 8,
             }}
           >
             {ROOM_KIND_ORDER.map((kind) => {
@@ -1438,7 +1423,7 @@ export default function RoomsScreen() {
                     flexDirection: "row",
                     alignItems: "center",
                     paddingHorizontal: 12,
-                    paddingVertical: 8,
+                    paddingVertical: 7,
                     borderRadius: 999,
                     backgroundColor: selected
                       ? "rgba(109,40,217,0.25)"
@@ -1455,7 +1440,7 @@ export default function RoomsScreen() {
                   <Text
                     style={{
                       color: selected ? "#F3F4F6" : "#E5E7EB",
-                      fontSize: 13,
+                      fontSize: 12,
                       fontWeight: selected ? "800" : "700",
                     }}
                   >
@@ -1466,7 +1451,7 @@ export default function RoomsScreen() {
             })}
           </View>
 
-          <View style={{ height: 14 }} />
+          <View style={{ height: 12 }} />
           <TouchableOpacity
             activeOpacity={0.85}
             disabled={!selectedKind || joiningKind !== null}
@@ -1478,7 +1463,7 @@ export default function RoomsScreen() {
               alignItems: "center",
               justifyContent: "center",
               gap: 8,
-              paddingVertical: 12,
+              paddingVertical: 11,
               borderRadius: 14,
               backgroundColor: !selectedKind
                 ? "rgba(255,255,255,0.06)"
@@ -1506,8 +1491,8 @@ export default function RoomsScreen() {
               color: "#71717A",
               fontSize: 12,
               lineHeight: 16,
-              marginBottom: 16,
-              marginTop: 12,
+              marginBottom: 14,
+              marginTop: 10,
             }}
           >
             {t("rooms.placeInfo")}

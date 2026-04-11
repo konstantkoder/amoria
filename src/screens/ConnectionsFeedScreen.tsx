@@ -413,6 +413,56 @@ export default function ConnectionsFeedScreen() {
     navigation.navigate("PlayMatch", { activity: "draw" });
   }, [navigation]);
 
+  const renderHeroCard = (showActions: boolean) => (
+    <View style={styles.heroCard}>
+      <Text style={styles.heroKicker}>{t("connections.heroKicker")}</Text>
+      <Text style={styles.heroTitle}>{t("connections.heroTitle")}</Text>
+      <Text style={styles.heroText}>{t("connections.heroBody")}</Text>
+      {showActions ? (
+        <View style={styles.heroActions}>
+          <Pressable onPress={startNewSession} style={styles.heroPrimaryButton}>
+            <Text style={styles.heroPrimaryButtonText}>Начать новую совместную сессию</Text>
+          </Pressable>
+          <Pressable onPress={goToHistory} style={styles.heroSecondaryButton}>
+            <Text style={styles.heroSecondaryButtonText}>Совместные истории</Text>
+          </Pressable>
+        </View>
+      ) : null}
+    </View>
+  );
+
+  const renderEmptyState = () => (
+    <ScrollView
+      style={styles.scroll}
+      contentContainerStyle={styles.content}
+      showsVerticalScrollIndicator={false}
+    >
+      {renderHeroCard(false)}
+
+      <View style={styles.emptyStateCard}>
+        <View style={styles.emptyStateIcon}>
+          <Ionicons name="git-network-outline" size={22} color={theme.colors.accent} />
+        </View>
+        <Text style={styles.emptyStateTitle}>{t("connections.emptyTitle")}</Text>
+        <Text style={styles.emptyStateText}>{t("connections.emptyBody")}</Text>
+        <View style={styles.emptyMetaRow}>
+          <View style={styles.emptyMetaPill}>
+            <Text style={styles.emptyMetaText}>Общий контекст</Text>
+          </View>
+          <View style={styles.emptyMetaPill}>
+            <Text style={styles.emptyMetaText}>Быстрый вход в чат</Text>
+          </View>
+        </View>
+        <Pressable onPress={startNewSession} style={styles.emptyPrimaryButton}>
+          <Text style={styles.emptyPrimaryButtonText}>Начать совместную сессию</Text>
+        </Pressable>
+        <Pressable onPress={goToTogether} style={styles.emptySecondaryButton}>
+          <Text style={styles.emptySecondaryButtonText}>{t("connections.goToTogether")}</Text>
+        </Pressable>
+      </View>
+    </ScrollView>
+  );
+
   const renderConnectionCard = useCallback(
     (card: HistoryCard) => (
       <View key={card.id} style={card.isFallback ? styles.storyCard : styles.card}>
@@ -553,15 +603,7 @@ export default function ConnectionsFeedScreen() {
           />
         </View>
       ) : isEmpty ? (
-        <View style={styles.emptyWrap}>
-          <CoreStateCard
-            icon="git-network-outline"
-            title={t("connections.emptyTitle")}
-            body={t("connections.emptyBody")}
-            primaryAction={{ label: "Начать совместную сессию", onPress: startNewSession }}
-            secondaryAction={{ label: t("connections.goToTogether"), onPress: goToTogether }}
-          />
-        </View>
+        renderEmptyState()
       ) : (
         <ScrollView
           style={styles.scroll}
@@ -575,19 +617,7 @@ export default function ConnectionsFeedScreen() {
             </View>
           ) : null}
 
-          <View style={styles.heroCard}>
-            <Text style={styles.heroKicker}>{t("connections.heroKicker")}</Text>
-            <Text style={styles.heroTitle}>{t("connections.heroTitle")}</Text>
-            <Text style={styles.heroText}>{t("connections.heroBody")}</Text>
-            <View style={styles.heroActions}>
-              <Pressable onPress={startNewSession} style={styles.heroPrimaryButton}>
-                <Text style={styles.heroPrimaryButtonText}>Начать новую совместную сессию</Text>
-              </Pressable>
-              <Pressable onPress={goToHistory} style={styles.heroSecondaryButton}>
-                <Text style={styles.heroSecondaryButtonText}>Совместные истории</Text>
-              </Pressable>
-            </View>
-          </View>
+          {renderHeroCard(true)}
 
           {historyCards.length ? (
             <View style={styles.section}>
@@ -621,8 +651,8 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   content: {
     padding: 16,
-    paddingBottom: 40,
-    gap: 18,
+    paddingBottom: 36,
+    gap: 16,
   },
   centerState: {
     flex: 1,
@@ -632,41 +662,40 @@ const styles = StyleSheet.create({
     paddingHorizontal: 28,
   },
   heroCard: {
-    padding: 20,
+    padding: 18,
     borderRadius: theme.shapes.card,
     backgroundColor: "rgba(13, 18, 34, 0.88)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.08)",
+    gap: 8,
   },
   heroKicker: {
     color: theme.colors.accent,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "800",
     letterSpacing: 1,
-    marginBottom: 8,
   },
   heroTitle: {
     color: theme.colors.text,
-    fontSize: 24,
-    lineHeight: 30,
+    fontSize: 22,
+    lineHeight: 28,
     fontWeight: "800",
-    marginBottom: 10,
   },
   heroText: {
     color: theme.colors.subtext,
-    fontSize: 14,
-    lineHeight: 21,
+    fontSize: 13,
+    lineHeight: 19,
   },
   heroActions: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 10,
-    marginTop: 14,
+    gap: 8,
+    marginTop: 4,
   },
   heroSecondaryButton: {
     borderRadius: theme.shapes.pill,
     paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingVertical: 9,
     backgroundColor: theme.colors.pillBg,
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
@@ -679,7 +708,7 @@ const styles = StyleSheet.create({
   heroPrimaryButton: {
     borderRadius: theme.shapes.pill,
     paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingVertical: 9,
     backgroundColor: theme.colors.primary,
   },
   heroPrimaryButtonText: {
@@ -692,13 +721,13 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     color: theme.colors.text,
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "800",
   },
   sectionText: {
     color: theme.colors.subtext,
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 13,
+    lineHeight: 18,
   },
   card: {
     borderRadius: theme.shapes.card,
@@ -827,6 +856,79 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 28,
     gap: 12,
+  },
+  emptyStateCard: {
+    borderRadius: theme.shapes.card,
+    padding: 18,
+    backgroundColor: "rgba(17, 20, 36, 0.82)",
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+    gap: 10,
+  },
+  emptyStateIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255, 122, 60, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 122, 60, 0.2)",
+  },
+  emptyStateTitle: {
+    color: theme.colors.text,
+    fontSize: 18,
+    lineHeight: 24,
+    fontWeight: "800",
+  },
+  emptyStateText: {
+    color: theme.colors.subtext,
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  emptyMetaRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 2,
+  },
+  emptyMetaPill: {
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+  },
+  emptyMetaText: {
+    color: theme.colors.pillText,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  emptyPrimaryButton: {
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: theme.colors.primary,
+    alignItems: "center",
+    marginTop: 2,
+  },
+  emptyPrimaryButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  emptySecondaryButton: {
+    alignSelf: "flex-start",
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: "rgba(255,255,255,0.04)",
+  },
+  emptySecondaryButtonText: {
+    color: theme.colors.subtext,
+    fontSize: 12,
+    fontWeight: "700",
   },
   inlineErrorCard: {
     padding: 16,

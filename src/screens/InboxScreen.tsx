@@ -170,6 +170,59 @@ export default function InboxScreen() {
     navigation.navigate("PlayMatch", { activity: "draw" });
   }, [navigation]);
 
+  const renderHeroCard = (showAction: boolean) => (
+    <View style={styles.heroCard}>
+      <View style={styles.heroHeaderRow}>
+        <Text style={styles.heroTitle}>
+          {tt("inbox.activeTitle", "Активные чаты")}
+        </Text>
+        <Text style={styles.heroCount}>{cards.length}</Text>
+      </View>
+      <Text style={styles.heroText}>
+        {tt(
+          "inbox.subheader",
+          "Здесь продолжается личный разговор. «Связи» держат контекст, а «Чаты» — сам диалог."
+        )}
+      </Text>
+      {showAction ? (
+        <Pressable
+          onPress={() => navigation.navigate("Tabs", { screen: "Connections" })}
+          style={styles.heroLinkButton}
+        >
+          <Text style={styles.heroLinkText}>
+            {tt("inbox.openConnections", "Связи")}
+          </Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+
+  const renderEmptyState = () => (
+    <View style={styles.emptyStateCard}>
+      <View style={styles.emptyStateIcon}>
+        <Text style={styles.emptyStateIconText}>💬</Text>
+      </View>
+      <Text style={styles.emptyStateTitle}>{t("chats.empty")}</Text>
+      <Text style={styles.emptyStateText}>
+        {tt(
+          "inbox.emptyBody",
+          "Когда связь перейдёт в личный диалог, чат останется здесь и будет ждать продолжения."
+        )}
+      </Text>
+      <Pressable
+        onPress={() => navigation.navigate("Tabs", { screen: "Connections" })}
+        style={styles.emptyPrimaryButton}
+      >
+        <Text style={styles.emptyPrimaryButtonText}>
+          {tt("inbox.openConnections", "Связи")}
+        </Text>
+      </Pressable>
+      <Pressable onPress={startNewSession} style={styles.emptySecondaryButton}>
+        <Text style={styles.emptySecondaryButtonText}>Начать новую совместную сессию</Text>
+      </Pressable>
+    </View>
+  );
+
   const renderCard = useCallback(
     ({ item }: { item: InboxThreadCard }) => (
       <Pressable
@@ -333,30 +386,7 @@ export default function InboxScreen() {
       <View
         style={[styles.screenContent, { paddingBottom: insets.bottom + 8 }]}
       >
-        <View style={styles.heroCard}>
-          <View style={styles.heroHeaderRow}>
-            <Text
-              style={styles.heroTitle}
-            >
-              {tt("inbox.activeTitle", "Активные чаты")}
-            </Text>
-            <Text style={styles.heroCount}>{cards.length}</Text>
-          </View>
-          <Text style={styles.heroText}>
-            {tt(
-              "inbox.subheader",
-              "Здесь идёт активная переписка. «Связи» держат общий контекст, а «Чаты» продолжают сам разговор."
-            )}
-          </Text>
-          <Pressable
-            onPress={() => navigation.navigate("Tabs", { screen: "Connections" })}
-            style={styles.heroLinkButton}
-          >
-            <Text style={styles.heroLinkText}>
-              {tt("inbox.openConnections", "Связи")}
-            </Text>
-          </Pressable>
-        </View>
+        {renderHeroCard(cards.length > 0)}
 
         {loading ? (
           <View
@@ -406,28 +436,7 @@ export default function InboxScreen() {
             showsVerticalScrollIndicator={false}
           />
         ) : (
-          <View
-            style={{
-              flex: 1,
-              alignItems: "center",
-              justifyContent: "center",
-              paddingHorizontal: 12,
-            }}
-          >
-            <CoreStateCard
-              icon="chatbubbles-outline"
-              title={tt("chats.empty", "No chats yet.")}
-              body={tt(
-                "inbox.emptyBody",
-                "After a mutual open, the personal chat will appear here and stay ready whenever you want to continue."
-              )}
-              primaryAction={{ label: "Начать новую совместную сессию", onPress: startNewSession }}
-              secondaryAction={{
-                label: tt("inbox.openConnections", "Связи"),
-                onPress: () => navigation.navigate("Tabs", { screen: "Connections" }),
-              }}
-            />
-          </View>
+          renderEmptyState()
         )}
       </View>
     </ScreenShell>
@@ -442,8 +451,8 @@ const styles = StyleSheet.create({
   },
   heroCard: {
     marginBottom: 16,
-    gap: 10,
-    padding: 18,
+    gap: 8,
+    padding: 16,
     borderRadius: theme.shapes.card,
     backgroundColor: "rgba(16, 20, 38, 0.72)",
     borderWidth: 1,
@@ -456,7 +465,7 @@ const styles = StyleSheet.create({
   },
   heroTitle: {
     color: theme.colors.text,
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: "800",
   },
   heroCount: {
@@ -465,13 +474,13 @@ const styles = StyleSheet.create({
   },
   heroText: {
     color: theme.colors.subtext,
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 13,
+    lineHeight: 18,
   },
   heroLinkButton: {
     alignSelf: "flex-start",
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 7,
     borderRadius: theme.shapes.pill,
     backgroundColor: theme.colors.pillBg,
     borderWidth: 1,
@@ -479,8 +488,65 @@ const styles = StyleSheet.create({
   },
   heroLinkText: {
     color: theme.colors.text,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "800",
+  },
+  emptyStateCard: {
+    borderRadius: theme.shapes.card,
+    padding: 18,
+    backgroundColor: "rgba(17, 20, 36, 0.82)",
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+    gap: 10,
+  },
+  emptyStateIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255, 122, 60, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 122, 60, 0.2)",
+  },
+  emptyStateIconText: {
+    fontSize: 20,
+  },
+  emptyStateTitle: {
+    color: theme.colors.text,
+    fontSize: 18,
+    lineHeight: 24,
+    fontWeight: "800",
+  },
+  emptyStateText: {
+    color: theme.colors.subtext,
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  emptyPrimaryButton: {
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: theme.colors.primary,
+    alignItems: "center",
+    marginTop: 2,
+  },
+  emptyPrimaryButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  emptySecondaryButton: {
+    alignSelf: "flex-start",
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: "rgba(255,255,255,0.04)",
+  },
+  emptySecondaryButtonText: {
+    color: theme.colors.subtext,
+    fontSize: 12,
+    fontWeight: "700",
   },
   listContent: {
     paddingTop: 8,
