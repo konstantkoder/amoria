@@ -1,7 +1,6 @@
 // FILE: src/screens/RoomsScreen.tsx
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   AppState,
   Alert,
   BackHandler,
@@ -10,28 +9,30 @@ import {
   Linking,
   Modal,
   Platform,
-  Pressable,
-  ScrollView,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
-import { KeyboardStickyView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import * as Location from "expo-location";
-import { LinearGradient } from "expo-linear-gradient";
 import { geohashForLocation } from "geofire-common";
 
-import { theme } from "@/theme";
 import { auth, db, isFirebaseConfigured } from "@/config/firebaseConfig";
+import RoomsChatStage from "@/components/rooms/RoomsChatStage";
+import RoomsChooseStage from "@/components/rooms/RoomsChooseStage";
+import type {
+  RoomMapPin,
+  RoomPosition,
+  RoomsRangePreset,
+  RoomUiMessage,
+} from "@/components/rooms/types";
 import ScreenShell from "@/components/ScreenShell";
 import { OpenStreetMapWebView } from "@/components/OpenStreetMapWebView";
 import LocationConsentModal from "@/components/LocationConsentModal";
 import { useLocale } from "@/contexts/LocaleContext";
-import { formatAgoShort } from "@/utils/timeAgo";
 import { translateMaybeKey } from "@/utils/i18n";
 import { formatNickname } from "@/utils/nickname";
 import {
@@ -65,108 +66,10 @@ import {
 
 type Stage = "choose" | "chat";
 
-type Pos = {
-  lat: number;
-  lng: number;
-  accuracy?: number | null;
-};
-
 type LatLng = {
   latitude: number;
   longitude: number;
 };
-
-type UiMessage = RoomMessage & {
-  failed?: boolean;
-};
-
-// AMORIA_FIX_ROOMS_CHAT_LAYOUT_V3
-type MessageRowProps = {
-  item: UiMessage;
-  uid: string | null;
-  t: (key: string, params?: Record<string, any>) => string;
-  onRetry: (id: string) => void;
-};
-
-// AMORIA_FIX_ROOMS_CHAT_LAYOUT_V3
-const MessageRow = React.memo(function MessageRow({
-  item,
-  uid,
-  t,
-  onRetry,
-}: MessageRowProps) {
-  const isMe = item.uid === uid;
-  const failed = item.failed === true;
-  const pending = !failed && item.pending === true;
-  const formatted = formatNickname(item.nicknameCode, t);
-  const displayName =
-    formatted === item.nicknameCode
-      ? translateMaybeKey(item.nicknameCode, t, ["common."])
-      : formatted;
-  return (
-    <View
-      style={{
-        alignSelf: isMe ? "flex-end" : "flex-start",
-        maxWidth: "82%",
-        marginBottom: 10,
-      }}
-    >
-      <Text
-        style={{
-          color: "#A3A3A3",
-          fontSize: 11,
-          marginBottom: 4,
-          textAlign: isMe ? "right" : "left",
-        }}
-      >
-        {isMe ? t("common.you") : displayName} •{" "}
-        {formatAgoShort(item.createdAt, t)}
-      </Text>
-
-      {(() => {
-        const bubble = (
-          <View
-            style={{
-              paddingHorizontal: 12,
-              paddingVertical: 10,
-              borderRadius: 16,
-              opacity: pending ? 0.55 : 1,
-              backgroundColor: isMe
-                ? "rgba(109,40,217,0.35)"
-                : "rgba(255,255,255,0.07)",
-              borderWidth: 1,
-              borderColor: isMe
-                ? "rgba(167,139,250,0.35)"
-                : "rgba(255,255,255,0.08)",
-            }}
-          >
-            <Text style={{ color: "#E5E7EB", fontSize: 14, lineHeight: 20 }}>
-              {item.text}
-            </Text>
-          </View>
-        );
-
-        return item.failed ? (
-          <TouchableOpacity activeOpacity={0.85} onPress={() => onRetry(item.id)}>
-            {bubble}
-          </TouchableOpacity>
-        ) : (
-          bubble
-        );
-      })()}
-
-      {failed ? (
-        <Text style={{ color: "#FCA5A5", fontSize: 11, marginTop: 4 }}>
-          {t("common.failed")}
-        </Text>
-      ) : pending ? (
-        <Text style={{ color: "#A1A1AA", fontSize: 11, marginTop: 4 }}>
-          {t("common.sending")}
-        </Text>
-      ) : null}
-    </View>
-  );
-});
 
 const withTimeout = async <T,>(p: Promise<T>, ms: number): Promise<T> => {
   return (await Promise.race([
@@ -175,24 +78,17 @@ const withTimeout = async <T,>(p: Promise<T>, ms: number): Promise<T> => {
   ])) as T;
 };
 
-const SEND_TIMEOUT_MS = 20000; // AMORIA_FIX_SEND_TIMEOUT_V6
+const SEND_TIMEOUT_MS = 20000;
 
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return (
-    <Text
-      style={{
-        color: "#E5E7EB",
-        fontSize: 17,
-        fontWeight: "800",
-        marginBottom: 8,
-      }}
-    >
-      {children}
-    </Text>
-  );
-}
+const RANGE_PRESETS: readonly RoomsRangePreset[] = [
+  { id: "wide", labelKey: "rooms.range.wide", delta: -1, scale: 2.1 },
+  { id: "normal", labelKey: "rooms.range.normal", delta: 0, scale: 1.0 },
+  { id: "tight", labelKey: "rooms.range.tight", delta: 1, scale: 0.55 },
+];
 
-function offsetPosition(base: Pos, eastM: number, northM: number): LatLng {
+const clamp = (n: number, a: number, b: number) => Math.max(a, Math.min(b, n));
+
+function offsetPosition(base: RoomPosition, eastM: number, northM: number): LatLng {
   const latOffset = northM / 111_320; // метры в градусы широты
   const lngOffset =
     eastM / (111_320 * Math.cos((base.lat * Math.PI) / 180));
@@ -202,7 +98,7 @@ function offsetPosition(base: Pos, eastM: number, northM: number): LatLng {
   };
 }
 
-function getRoomMarkerCoord(base: Pos, kind: RoomKind): LatLng {
+function getRoomMarkerCoord(base: RoomPosition, kind: RoomKind): LatLng {
   switch (kind) {
     case "work":
       return offsetPosition(base, 0, 200);
@@ -240,19 +136,12 @@ export default function RoomsScreen() {
   const [stage, setStage] = useState<Stage>("choose");
   const [selectedKind, setSelectedKind] = useState<RoomKind | null>(null);
   const [joiningKind, setJoiningKind] = useState<RoomKind | null>(null);
-  const RANGE_PRESETS = [
-    { id: "wide", labelKey: "rooms.range.wide", delta: -1, scale: 2.1 },
-    { id: "normal", labelKey: "rooms.range.normal", delta: 0, scale: 1.0 },
-    { id: "tight", labelKey: "rooms.range.tight", delta: 1, scale: 0.55 },
-  ] as const;
-  const clamp = (n: number, a: number, b: number) =>
-    Math.max(a, Math.min(b, n));
   const [rangeIndex, setRangeIndex] = useState<number>(1);
   const range = RANGE_PRESETS[rangeIndex];
-  const [pos, setPos] = useState<Pos | null>(null);
+  const [pos, setPos] = useState<RoomPosition | null>(null);
   const [posError, setPosError] = useState<string | null>(null);
   const [posLoading, setPosLoading] = useState(false);
-  const locInFlight = useRef<Promise<Pos | null> | null>(null);
+  const locInFlight = useRef<Promise<RoomPosition | null> | null>(null);
   const [permissionBlocked, setPermissionBlocked] = useState(false);
   const [prefs, setPrefs] = useState<LocationPrefs>({
     consent: "unknown",
@@ -279,16 +168,16 @@ export default function RoomsScreen() {
   const [messages, setMessages] = useState<RoomMessage[]>([]);
   const [failedById, setFailedById] = useState<Record<string, true>>({});
   const [members, setMembers] = useState<RoomMember[]>([]);
-  // AMORIA_FIX_UNCONTROLLED_INPUT_V5_START
   const inputRef = useRef<TextInput>(null);
   const draftRef = useRef<string>("");
   const canSendRef = useRef<boolean>(false);
   const sendGuardRef = useRef(false);
-  const ignoreDraftEventsRef = useRef(false); // AMORIA_FIX_IME_GUARD_V1
+  // Ignore late IME events that sometimes land after clear()/blur().
+  const ignoreDraftEventsRef = useRef(false);
   const [canSend, setCanSend] = useState(false);
 
   const handleDraftChange = useCallback((v: string) => {
-    if (ignoreDraftEventsRef.current) return; // AMORIA_FIX_IME_GUARD_V1
+    if (ignoreDraftEventsRef.current) return;
     draftRef.current = v;
     const next = v.trim().length > 0;
     if (next !== canSendRef.current) {
@@ -298,20 +187,18 @@ export default function RoomsScreen() {
   }, []);
 
   const clearDraft = useCallback(() => {
-    // Глушим “поздние” события IME, которые иногда прилетают после clear()/blur()
-    ignoreDraftEventsRef.current = true; // AMORIA_FIX_IME_GUARD_V1
+    ignoreDraftEventsRef.current = true;
     draftRef.current = "";
     canSendRef.current = false;
     setCanSend(false);
     inputRef.current?.clear();
     setTimeout(() => {
-      ignoreDraftEventsRef.current = false; // AMORIA_FIX_IME_GUARD_V1
+      ignoreDraftEventsRef.current = false;
     }, 180);
   }, []);
-  // AMORIA_FIX_UNCONTROLLED_INPUT_V5_END
   const [sending, setSending] = useState(false);
 
-  const listRef = useRef<FlatList<UiMessage>>(null);
+  const listRef = useRef<FlatList<RoomUiMessage>>(null);
 
   const activeMembers = useMemo(() => {
     const cutoff = Date.now() - 2 * 60 * 1000; // 2 минуты
@@ -345,10 +232,10 @@ export default function RoomsScreen() {
     }, []),
   );
 
-  const ensurePosition = useCallback(async (): Promise<Pos | null> => {
+  const ensurePosition = useCallback(async (): Promise<RoomPosition | null> => {
     if (locInFlight.current) return locInFlight.current;
 
-    const task = (async (): Promise<Pos | null> => {
+    const task = (async (): Promise<RoomPosition | null> => {
       setPosLoading(true);
       setPosError(null);
 
@@ -389,7 +276,7 @@ export default function RoomsScreen() {
         const last = await Location.getLastKnownPositionAsync();
         if (last) {
           const coords = last.coords;
-          const quick: Pos = {
+          const quick: RoomPosition = {
             lat: coords.latitude,
             lng: coords.longitude,
             accuracy: coords.accuracy,
@@ -405,7 +292,7 @@ export default function RoomsScreen() {
                 }),
                 8000
               );
-              const next: Pos = {
+              const next: RoomPosition = {
                 lat: current.coords.latitude,
                 lng: current.coords.longitude,
                 accuracy: current.coords.accuracy,
@@ -426,7 +313,7 @@ export default function RoomsScreen() {
           8000
         );
 
-        const next: Pos = {
+        const next: RoomPosition = {
           lat: current.coords.latitude,
           lng: current.coords.longitude,
           accuracy: current.coords.accuracy,
@@ -718,7 +605,7 @@ export default function RoomsScreen() {
             precision,
             radiusM,
           }),
-          20_000  // AMORIA_FIX_TIMEOUT_UI
+          20_000
         );
         setRoom(next);
         setStage("chat");
@@ -726,7 +613,6 @@ export default function RoomsScreen() {
       } catch (e: any) {
         const msg = String(e?.message ?? "");
         const lower = msg.toLowerCase();
-        // AMORIA_FIX_TIMEOUT_UI_START
         const isTimeout = lower === "timeout";
         const isOffline = lower.includes("offline") || lower.includes("unavailable") || lower.includes("network");
 
@@ -750,7 +636,6 @@ export default function RoomsScreen() {
             { text: t("common.ok") },
           ]
         );
-        // AMORIA_FIX_TIMEOUT_UI_END
       } finally {
         setJoiningKind(null);
       }
@@ -836,7 +721,6 @@ export default function RoomsScreen() {
     });
   }, [messages]);
 
-  // AMORIA_ROOMS_RELIABLE_SEND_V1
   const onSend = useCallback(() => {
     const value = (draftRef.current || "").trim();
     if (!value) return;
@@ -895,7 +779,7 @@ export default function RoomsScreen() {
           sendGuardRef.current = false;
         }, 250);
       });
-  }, [room, db, uid, nicknameCode, t]);
+  }, [room, db, uid, nicknameCode]);
 
   const retrySend = useCallback(
     async (clientId: string) => {
@@ -936,7 +820,7 @@ export default function RoomsScreen() {
     setMessages([]);
     setFailedById({});
     setMembers([]);
-    clearDraft(); // AMORIA_FIX_UNCONTROLLED_INPUT_V5
+    clearDraft();
     setStage("choose");
   }, [clearDraft]);
 
@@ -952,8 +836,8 @@ export default function RoomsScreen() {
     return () => sub.remove();
   }, [room, leaveRoom]);
 
-  const mapPins = useMemo(() => {
-    const pins: { id: string; lat: number; lng: number; label?: string }[] = [];
+  const mapPins = useMemo<RoomMapPin[]>(() => {
+    const pins: RoomMapPin[] = [];
     if (pos) {
       pins.push({
         id: "me",
@@ -987,9 +871,8 @@ export default function RoomsScreen() {
     return pins;
   }, [pos, canShowPeople, nearbyPeople, t]);
 
-  // AMORIA_ROOMS_RELIABLE_SEND_V1
-  const mergedMessages = useMemo(() => {
-    const map = new Map<string, UiMessage>();
+  const mergedMessages = useMemo<RoomUiMessage[]>(() => {
+    const map = new Map<string, RoomUiMessage>();
     for (const m of messages) {
       const id = String(m.id);
       map.set(id, {
@@ -1002,680 +885,18 @@ export default function RoomsScreen() {
     return deduped;
   }, [messages, failedById]);
 
-  const renderChoose = () => {
-    const selectedMeta = selectedKind ? getRoomMeta(selectedKind) : null;
-    const joinBase = t("rooms.joinRoom");
-    const joinLabel = selectedMeta
-      ? joinBase === "rooms.joinRoom"
-        ? `${selectedMeta.emoji} ${t(selectedMeta.labelKey)}`
-        : `${joinBase} ${selectedMeta.emoji} ${t(selectedMeta.labelKey)}`
-      : t("rooms.selectFirst");
+  const handleShowRangeInfo = useCallback(() => {
+    Alert.alert(t("rooms.range.title"), t("rooms.range.note"), [{ text: t("common.ok") }]);
+  }, [t]);
 
-    return (
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 20 }}
-      >
-      <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
-        <View
-          style={{
-            borderRadius: theme.shapes.card,
-            padding: 16,
-            backgroundColor: "rgba(12, 16, 31, 0.92)",
-            borderWidth: 1,
-            borderColor: "rgba(255,255,255,0.08)",
-            marginBottom: 12,
-          }}
-        >
-          <Text
-            style={{
-              color: theme.colors.accent,
-              fontSize: 11,
-              fontWeight: "800",
-              letterSpacing: 1,
-              marginBottom: 6,
-            }}
-          >
-            {t("rooms.heroKicker")}
-          </Text>
-          <Text
-            style={{
-              color: theme.colors.text,
-              fontSize: 22,
-              lineHeight: 28,
-              fontWeight: "800",
-              marginBottom: 8,
-            }}
-          >
-            {t("rooms.heroTitle")}
-          </Text>
-          <Text
-            style={{
-              color: theme.colors.subtext,
-              fontSize: 13,
-              lineHeight: 19,
-            }}
-          >
-            {t("rooms.heroBody")}
-          </Text>
-        </View>
+  const handleOpenSettings = useCallback(() => {
+    Linking.openSettings();
+  }, []);
 
-        <SectionTitle>{t("rooms.nearbyRooms")}</SectionTitle>
-
-        <View
-          style={{
-            borderRadius: 18,
-            padding: 12,
-            backgroundColor: "rgba(255,255,255,0.06)",
-            borderWidth: 1,
-            borderColor: "rgba(255,255,255,0.08)",
-            marginBottom: 12,
-          }}
-        >
-          <Text
-            style={{
-              color: "#E5E7EB",
-              fontSize: 13,
-              lineHeight: 18,
-            }}
-          >
-            {t("rooms.noPhotoChat")}
-          </Text>
-
-          <View style={{ height: 8 }} />
-
-          {loadingPrefs ? (
-            <View
-              style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
-            >
-              <ActivityIndicator color={theme.colors.primary} />
-              <Text style={{ color: "#A3A3A3" }}>
-                {t("rooms.getLocation")}
-              </Text>
-            </View>
-          ) : !locationEnabled ? (
-            <View>
-              <Text style={{ color: "#FBBF24", fontSize: 13 }}>
-                {t("rooms.enableForMap")}
-              </Text>
-              <View style={{ height: 8 }} />
-              <TouchableOpacity
-                onPress={handleEnableNearby}
-                style={{
-                  alignSelf: "flex-start",
-                  paddingHorizontal: 12,
-                  paddingVertical: 8,
-                  borderRadius: 12,
-                  backgroundColor: theme.colors.primary,
-                }}
-              >
-                <Text style={{ color: "white", fontWeight: "800" }}>
-                  {t("settings.nearbyEnabled")}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          ) : posLoading ? (
-            <View
-              style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
-            >
-              <ActivityIndicator color={theme.colors.primary} />
-              <Text style={{ color: "#A3A3A3" }}>
-                {t("rooms.getLocation")}
-              </Text>
-            </View>
-          ) : pos ? (
-            <View>
-              <View
-                style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
-              >
-                <Ionicons name="location-outline" size={18} color="#E5E7EB" />
-                <Text style={{ color: "#E5E7EB", fontSize: 13 }}>
-                  {t("rooms.locationReady")} (~{Math.round(pos.accuracy ?? 0)} {t("units.m")})
-                </Text>
-                <View style={{ flex: 1 }} />
-                <TouchableOpacity onPress={handleRefreshPosition} style={{ padding: 6 }}>
-                  <Ionicons
-                    name="refresh"
-                    size={18}
-                    color={theme.colors.accent}
-                  />
-                </TouchableOpacity>
-              </View>
-            </View>
-          ) : (
-            <View>
-              <Text style={{ color: "#FCA5A5", fontSize: 13 }}>
-                {posError ?? t("geo.noLocationAccess")}
-              </Text>
-              <View style={{ height: 8 }} />
-              {permissionBlocked ? (
-                <TouchableOpacity
-                  onPress={() => Linking.openSettings()}
-                  style={{
-                    alignSelf: "flex-start",
-                    paddingHorizontal: 12,
-                    paddingVertical: 8,
-                    borderRadius: 12,
-                    backgroundColor: theme.colors.primary,
-                  }}
-                >
-                  <Text style={{ color: "white", fontWeight: "800" }}>
-                    {t("geo.openSettings")}
-                  </Text>
-                </TouchableOpacity>
-              ) : (
-                <TouchableOpacity
-                  onPress={handleRefreshPosition}
-                  style={{
-                    alignSelf: "flex-start",
-                    paddingHorizontal: 12,
-                    paddingVertical: 8,
-                    borderRadius: 12,
-                    backgroundColor: theme.colors.primary,
-                  }}
-                >
-                  <Text style={{ color: "white", fontWeight: "800" }}>
-                    {t("geo.enableLocation")}
-                  </Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          )}
-        </View>
-      </View>
-
-      <View style={{ paddingHorizontal: 16 }}>
-        <View
-          style={{
-            borderRadius: 22,
-            overflow: "hidden",
-            borderWidth: 1,
-            borderColor: "rgba(255,255,255,0.12)",
-            backgroundColor: "rgba(15,23,42,0.96)",
-          }}
-        >
-          {pos ? (
-            <View style={{ height: 220, width: "100%" }}>
-              <OpenStreetMapWebView
-                style={{ flex: 1 }}
-                center={{ lat: pos.lat, lng: pos.lng }}
-                markers={mapPins}
-                zoom={14}
-                interactive={false}
-              />
-              <TouchableOpacity
-                onPress={() => setMapExpanded(true)}
-                style={{
-                  position: "absolute",
-                  right: 10,
-                  top: 10,
-                  padding: 8,
-                  borderRadius: 12,
-                  backgroundColor: "rgba(15,23,42,0.85)",
-                  borderWidth: 1,
-                  borderColor: "rgba(255,255,255,0.2)",
-                }}
-              >
-                <Ionicons name="expand-outline" size={16} color="#E5E7EB" />
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <View
-              style={{
-                height: 220,
-                alignItems: "center",
-                justifyContent: "center",
-                paddingHorizontal: 16,
-              }}
-            >
-              <Text
-                style={{
-                  color: "#E5E7EB",
-                  fontSize: 14,
-                  textAlign: "center",
-                  marginBottom: 8,
-                }}
-              >
-                {t("rooms.mapLoadingTitle")}
-              </Text>
-              <Text
-                style={{
-                  color: "#A3A3A3",
-                  fontSize: 12,
-                  textAlign: "center",
-                  lineHeight: 18,
-                }}
-              >
-                {t("rooms.mapLoadingBody")}
-              </Text>
-            </View>
-          )}
-        </View>
-
-        <View style={{ paddingTop: 14 }}>
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              marginBottom: 8,
-            }}
-          >
-            <Text
-              style={{
-                color: "#E5E7EB",
-                fontSize: 16,
-                fontWeight: "800",
-              }}
-            >
-              {t("rooms.range.title")}
-            </Text>
-            <Pressable
-              onPress={() =>
-                Alert.alert(
-                  t("rooms.range.title"),
-                  t("rooms.range.note"),
-                  [{ text: t("common.ok") }]
-                )
-              }
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              style={{ marginLeft: 8, opacity: 0.9 }}
-            >
-              <Ionicons
-                name="information-circle-outline"
-                size={18}
-                color="#E5E7EB"
-              />
-            </Pressable>
-          </View>
-          <View
-            style={{
-              borderRadius: 18,
-              padding: 10,
-              backgroundColor: "rgba(255,255,255,0.06)",
-              borderWidth: 1,
-              borderColor: "rgba(255,255,255,0.08)",
-            }}
-          >
-            <View
-              style={{
-                flexDirection: "row",
-                backgroundColor: "rgba(255,255,255,0.06)",
-                borderRadius: 999,
-                padding: 4,
-                gap: 6,
-              }}
-            >
-              {RANGE_PRESETS.map((preset, index) => {
-                const selected = index === rangeIndex;
-                const label = t(preset.labelKey);
-                return (
-                  <TouchableOpacity
-                    key={preset.id}
-                    activeOpacity={0.85}
-                    onPress={() => setRangeIndex(index)}
-                    style={{ flex: 1 }}
-                  >
-                    {selected ? (
-                      <LinearGradient
-                        colors={[theme.colors.primary, theme.colors.accent]}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={{
-                          borderRadius: 999,
-                          paddingVertical: 7,
-                          alignItems: "center",
-                          justifyContent: "center",
-                        }}
-                      >
-                        <Text
-                          style={{
-                            color: "white",
-                            fontSize: 12,
-                            fontWeight: "900",
-                          }}
-                        >
-                          {label}
-                        </Text>
-                      </LinearGradient>
-                    ) : (
-                      <View
-                        style={{
-                          borderRadius: 999,
-                          paddingVertical: 7,
-                          alignItems: "center",
-                          justifyContent: "center",
-                          backgroundColor: "rgba(255,255,255,0.03)",
-                        }}
-                      >
-                        <Text
-                          style={{
-                            color: "#E5E7EB",
-                            fontSize: 12,
-                            fontWeight: "700",
-                            opacity: 0.85,
-                          }}
-                        >
-                          {label}
-                        </Text>
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
-        </View>
-
-        <View style={{ paddingTop: 14 }}>
-          <View
-            style={{
-              borderRadius: 18,
-              padding: 12,
-              backgroundColor: "rgba(255, 78, 138, 0.08)",
-              borderWidth: 1,
-              borderColor: "rgba(255, 78, 138, 0.18)",
-              marginBottom: 14,
-            }}
-          >
-            <Text style={{ color: "#E5E7EB", fontSize: 14, fontWeight: "800", marginBottom: 4 }}>
-              {t("rooms.oneToOneTitle")}
-            </Text>
-            <Text style={{ color: "#A3A3A3", fontSize: 12, lineHeight: 17, marginBottom: 8 }}>
-              {t("rooms.oneToOneBody")}
-            </Text>
-            <TouchableOpacity
-              onPress={goToTogetherTab}
-              style={{
-                alignSelf: "flex-start",
-                paddingHorizontal: 14,
-                paddingVertical: 9,
-                borderRadius: 999,
-                backgroundColor: theme.colors.primary,
-              }}
-            >
-              <Text style={{ color: "white", fontWeight: "800" }}>
-                {t("rooms.goToTogether")}
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          <SectionTitle>{t("rooms.choosePlace")}</SectionTitle>
-
-          <View
-            style={{
-              flexDirection: "row",
-              flexWrap: "wrap",
-              gap: 8,
-            }}
-          >
-            {ROOM_KIND_ORDER.map((kind) => {
-              const meta = getRoomMeta(kind);
-              const selected = kind === selectedKind;
-              return (
-                <TouchableOpacity
-                  key={kind}
-                  activeOpacity={0.85}
-                  onPress={() => {
-                    if (posLoading || joiningKind) return;
-                    setSelectedKind(kind);
-                  }}
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    paddingHorizontal: 12,
-                    paddingVertical: 7,
-                    borderRadius: 999,
-                    backgroundColor: selected
-                      ? "rgba(109,40,217,0.25)"
-                      : "rgba(255,255,255,0.05)",
-                    borderWidth: 1,
-                    borderColor: selected
-                      ? "rgba(167,139,250,0.45)"
-                      : "rgba(255,255,255,0.10)",
-                  }}
-                >
-                  <Text style={{ fontSize: 18, marginRight: 6 }}>
-                    {meta.emoji}
-                  </Text>
-                  <Text
-                    style={{
-                      color: selected ? "#F3F4F6" : "#E5E7EB",
-                      fontSize: 12,
-                      fontWeight: selected ? "800" : "700",
-                    }}
-                  >
-                    {t(meta.labelKey)}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-
-          <View style={{ height: 12 }} />
-          <TouchableOpacity
-            activeOpacity={0.85}
-            disabled={!selectedKind || joiningKind !== null}
-            onPress={() => {
-              if (selectedKind) joinSelected(selectedKind);
-            }}
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 8,
-              paddingVertical: 11,
-              borderRadius: 14,
-              backgroundColor: !selectedKind
-                ? "rgba(255,255,255,0.06)"
-                : theme.colors.primary,
-              borderWidth: 1,
-              borderColor: !selectedKind
-                ? "rgba(255,255,255,0.10)"
-                : "rgba(167,139,250,0.45)",
-              opacity: joiningKind ? 0.8 : 1,
-            }}
-          >
-            {joiningKind ? <ActivityIndicator color="#FFFFFF" /> : null}
-            <Text
-              style={{
-                color: !selectedKind ? "#A1A1AA" : "white",
-                fontSize: 14,
-                fontWeight: "800",
-              }}
-            >
-              {joinLabel}
-            </Text>
-          </TouchableOpacity>
-          <Text
-            style={{
-              color: "#71717A",
-              fontSize: 12,
-              lineHeight: 16,
-              marginBottom: 14,
-              marginTop: 10,
-            }}
-          >
-            {t("rooms.placeInfo")}
-          </Text>
-        </View>
-      </View>
-    </ScrollView>
-    );
-  };
-
-  const renderChatHeader = () => {
-    if (!room) return null;
-    const meta = getRoomMeta(room.kind);
-    const roomTitle = `${meta.emoji} ${t(meta.labelKey)}`;
-    const area = room?.radiusM
-      ? ` · ~${Math.round(room.radiusM)} ${t("units.m")}`
-      : "";
-    return (
-      <View
-        style={{
-          paddingHorizontal: 16,
-          paddingTop: 8,
-          paddingBottom: 10,
-          borderBottomWidth: 1,
-          borderBottomColor: "rgba(255,255,255,0.08)",
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 10,
-        }}
-      >
-        <View style={{ flex: 1 }}>
-          <Text
-            style={{
-              color: "#E5E7EB",
-              fontSize: 16,
-              fontWeight: "900",
-            }}
-          >
-            {roomTitle}
-          </Text>
-          <Text
-            style={{
-              color: "#A3A3A3",
-              fontSize: 12,
-              marginTop: 2,
-            }}
-          >
-            {t("rooms.membersLine", {
-              count: String(activeMembers.length),
-              name: nicknameLabel,
-            }) + area}
-          </Text>
-        </View>
-
-        <TouchableOpacity
-          onPress={handleRefreshPosition}
-          style={{
-            paddingHorizontal: 10,
-            paddingVertical: 8,
-            borderRadius: 12,
-            backgroundColor: "rgba(255,255,255,0.06)",
-            borderWidth: 1,
-            borderColor: "rgba(255,255,255,0.08)",
-          }}
-        >
-          <Ionicons
-            name="navigate-outline"
-            size={18}
-            color={theme.colors.accent}
-          />
-        </TouchableOpacity>
-      </View>
-    );
-  };
-
-  // AMORIA_FIX_ROOMS_CHAT_LAYOUT_V3
-  const renderItem = useCallback(
-    ({ item }: { item: UiMessage }) => (
-      <MessageRow item={item} uid={uid} t={t} onRetry={retrySend} />
-    ),
-    [uid, t, retrySend]
-  );
-
-  // AMORIA_FIX_ROOMS_CHAT_LAYOUT_V3
-  const renderChat = () => {
-    const content = (
-      <View style={{ flex: 1 }}>
-        {renderChatHeader()}
-
-        <FlatList
-          ref={listRef as any}
-          data={mergedMessages as any}
-          keyExtractor={(item: any) => String(item.id)}
-          renderItem={renderItem as any}
-          inverted
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
-          style={{ flex: 1 }}
-          contentContainerStyle={{
-            paddingHorizontal: 16,
-            paddingTop: 12,
-            paddingBottom: 12,
-          }}
-          onContentSizeChange={() => {
-            listRef.current?.scrollToOffset({ offset: 0, animated: false });
-          }}
-        />
-
-        <KeyboardStickyView offset={{ closed: 0, opened: 0 }}>
-          <View
-            style={{
-              paddingHorizontal: 12,
-              paddingTop: 10,
-              paddingBottom: insets.bottom + 10,
-              backgroundColor: "rgba(10,10,10,0.55)",
-              borderTopWidth: 1,
-              borderTopColor: "rgba(255,255,255,0.08)",
-              flexDirection: "row",
-              alignItems: "flex-end",
-              gap: 10,
-            }}
-          >
-            <View
-              style={{
-                flex: 1,
-                backgroundColor: "rgba(255,255,255,0.10)",
-                borderRadius: 18,
-                paddingHorizontal: 12,
-                paddingVertical: 10,
-              }}
-            >
-              <TextInput
-                ref={inputRef}
-                onChangeText={handleDraftChange}
-                placeholder={t("rooms.messagePlaceholder")}
-                placeholderTextColor="rgba(255,255,255,0.55)"
-                onFocus={() =>
-                  requestAnimationFrame(() =>
-                    listRef.current?.scrollToOffset({ offset: 0, animated: true })
-                  )
-                }
-                style={{
-                  color: "#fff",
-                  fontSize: 16,
-                  lineHeight: 20,
-                  padding: 0,
-                  textAlignVertical: "top",
-                  maxHeight: 120,
-                }}
-                multiline
-                blurOnSubmit={false}
-              />
-            </View>
-
-            <TouchableOpacity
-              onPress={onSend}
-              disabled={!canSend || sending} // AMORIA_FIX_SEND_LOCK_V1
-              style={{
-                width: 44,
-                height: 44,
-                borderRadius: 22,
-                alignItems: "center",
-                justifyContent: "center",
-                opacity: !canSend || sending ? 0.6 : 1, // AMORIA_FIX_SEND_LOCK_V1
-                backgroundColor:
-                  canSend && !sending
-                    ? "rgba(168, 85, 247, 0.95)"
-                    : "rgba(255,255,255,0.12)",
-              }}
-            >
-              {sending ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Ionicons name="send" size={18} color="#fff" />
-              )}
-            </TouchableOpacity>
-          </View>
-        </KeyboardStickyView>
-      </View>
-    );
-
-    return content;
-  };
+  const handleJoinSelected = useCallback(() => {
+    if (!selectedKind) return;
+    void joinSelected(selectedKind);
+  }, [joinSelected, selectedKind]);
 
   const renderMapModal = () => (
     <Modal
@@ -1763,7 +984,49 @@ export default function RoomsScreen() {
       showBack={stage === "chat" || navigation.canGoBack()}
       onBack={stage === "chat" ? leaveRoom : undefined}
     >
-      {stage === "choose" ? renderChoose() : renderChat()}
+      {stage === "choose" ? (
+        <RoomsChooseStage
+          t={t}
+          loadingPrefs={loadingPrefs}
+          locationEnabled={locationEnabled}
+          posLoading={posLoading}
+          pos={pos}
+          posError={posError}
+          permissionBlocked={permissionBlocked}
+          mapPins={mapPins}
+          rangePresets={RANGE_PRESETS}
+          rangeIndex={rangeIndex}
+          selectedKind={selectedKind}
+          joiningKind={joiningKind}
+          onEnableNearby={() => void handleEnableNearby()}
+          onRefreshPosition={() => void handleRefreshPosition()}
+          onOpenSettings={handleOpenSettings}
+          onShowRangeInfo={handleShowRangeInfo}
+          onSelectRange={setRangeIndex}
+          onGoToTogether={goToTogetherTab}
+          onSelectKind={setSelectedKind}
+          onJoinSelected={handleJoinSelected}
+          onExpandMap={() => setMapExpanded(true)}
+        />
+      ) : room ? (
+        <RoomsChatStage
+          t={t}
+          uid={uid}
+          room={room}
+          activeMembers={activeMembers}
+          nicknameLabel={nicknameLabel}
+          messages={mergedMessages}
+          listRef={listRef}
+          inputRef={inputRef}
+          canSend={canSend}
+          sending={sending}
+          safeAreaBottom={insets.bottom}
+          onRetrySend={retrySend}
+          onSend={onSend}
+          onDraftChange={handleDraftChange}
+          onRefreshPosition={() => void handleRefreshPosition()}
+        />
+      ) : null}
       {renderMapModal()}
       <LocationConsentModal
         visible={consentVisible}

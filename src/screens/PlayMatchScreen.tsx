@@ -6,6 +6,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useNavigation, useRoute } from "@react-navigation/native";
 
 import ScreenShell from "@/components/ScreenShell";
@@ -40,22 +41,22 @@ function getBlockedState(reason: MatchBlockReason) {
   switch (reason) {
     case "auth":
       return {
-        title: "Сессию пока нельзя начать",
-        body: "Сначала войди в аккаунт, чтобы мы могли запустить совместную сессию и сохранить ее историю.",
+        title: "Нужен вход в аккаунт",
+        body: "Только после входа можно запустить совместную сессию и сохранить общую историю.",
         primaryLabel: "Открыть профиль",
         secondaryLabel: "Назад",
       };
     case "firebase":
       return {
-        title: "Старт Together пока недоступен",
-        body: "Мы не смогли подготовить соединение для совместной сессии. Вернись во Вместе и попробуй еще раз.",
+        title: "Together временно недоступен",
+        body: "Мы не смогли подготовить соединение для совместной сессии. Вернись в Together и попробуй еще раз.",
         primaryLabel: "Во Вместе",
         secondaryLabel: "Назад",
       };
     case "profile":
       return {
-        title: "Нужно чуть больше данных",
-        body: "Перед стартом нам нужно подготовить твой профиль для совместной сессии. Открой профиль и проверь, что он сохранен.",
+        title: "Проверь профиль перед стартом",
+        body: "Перед запуском Together нужен сохранённый профиль, чтобы мы могли собрать пару и историю сессии.",
         primaryLabel: "Открыть профиль",
         secondaryLabel: "Назад",
       };
@@ -69,6 +70,76 @@ function getBlockedState(reason: MatchBlockReason) {
   }
 }
 
+function getActivityIcon(activity: PlayActivity | null): keyof typeof Ionicons.glyphMap {
+  switch (activity) {
+    case "chain_draw":
+      return "sync-outline";
+    case "daily_prompt":
+      return "sunny-outline";
+    case "color_mood":
+      return "color-palette-outline";
+    case "draw":
+    default:
+      return "brush-outline";
+  }
+}
+
+function getBlockedIcon(reason: MatchBlockReason | null): keyof typeof Ionicons.glyphMap {
+  switch (reason) {
+    case "auth":
+    case "profile":
+      return "person-circle-outline";
+    case "firebase":
+      return "cloud-offline-outline";
+    default:
+      return "alert-circle-outline";
+  }
+}
+
+function getMatchStateMeta(
+  busy: boolean,
+  queueCancelled: boolean,
+  statusTitle: string
+) {
+  if (busy) {
+    return {
+      label: "Ищем",
+      hint: "Окно можно не закрывать: как только человек найдётся, следующий этап откроется сам.",
+      tone: "live" as const,
+    };
+  }
+
+  if (queueCancelled || statusTitle === "Поиск остановлен") {
+    return {
+      label: "Пауза",
+      hint: "Поиск уже остановлен. Можно вернуться назад или запустить его снова чуть позже.",
+      tone: "paused" as const,
+    };
+  }
+
+  if (statusTitle === "Не получилось начать поиск") {
+    return {
+      label: "Повтор",
+      hint: "Очередь не стартовала корректно. Повтори попытку или вернись в Together.",
+      tone: "error" as const,
+    };
+  }
+
+  if (statusTitle === "Напарник найден") {
+    return {
+      label: "Найден",
+      hint: "Подключаем общий этап. Это займёт всего пару секунд.",
+      tone: "ready" as const,
+    };
+  }
+
+  return {
+    label: "Старт",
+    hint: "Сейчас подготовим очередь и сразу перейдём к совместному этапу, как только найдётся человек.",
+    tone: "ready" as const,
+  };
+}
+
 export default function PlayMatchScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
@@ -77,6 +148,7 @@ export default function PlayMatchScreen() {
     ? (route.params.activity as PlayActivity)
     : null;
   const modeCopy = React.useMemo(() => getPlayMatchModeCopy(activity), [activity]);
+  const activityIcon = React.useMemo(() => getActivityIcon(activity), [activity]);
   const nickname = React.useMemo(() => makeNickname(uid), [uid]);
   const blockReason = resolveMatchBlockReason(route.params, uid);
   const blockedState = blockReason ? getBlockedState(blockReason) : null;
@@ -84,6 +156,10 @@ export default function PlayMatchScreen() {
   const [queueCancelled, setQueueCancelled] = React.useState(false);
   const [statusTitle, setStatusTitle] = React.useState("Подготовим совместную сессию");
   const [statusText, setStatusText] = React.useState(modeCopy.preparingBody);
+  const stateMeta = React.useMemo(
+    () => getMatchStateMeta(busy, queueCancelled, statusTitle),
+    [busy, queueCancelled, statusTitle]
+  );
   const mountedRef = React.useRef(true);
   const matchedSessionRef = React.useRef("");
   const cancelledRef = React.useRef(false);
@@ -97,6 +173,11 @@ export default function PlayMatchScreen() {
   const openProfile = React.useCallback(() => {
     navigation.navigate("Profile");
   }, [navigation]);
+
+  const retryMatch = React.useCallback(() => {
+    allowLeaveRef.current = true;
+    navigation.replace("PlayMatch", { activity: activity ?? "draw" });
+  }, [activity, navigation]);
 
   const setBusySafe = React.useCallback((value: boolean) => {
     if (!mountedRef.current) return;
@@ -301,26 +382,57 @@ export default function PlayMatchScreen() {
   if (blockedState) {
     return (
       <ScreenShell
-        title="Старт Together"
-        background="nightCity"
+        title="Together"
+        background="togetherMain"
+        overlayOpacity={0.24}
+        blurRadius={0}
         showBack
         onBack={handleSecondaryBlockedAction}
       >
         <View style={styles.container}>
-          <View style={styles.statusCard}>
-            <View style={styles.centerGlow}>
-              <Text style={styles.centerText}>вместе</Text>
+          <View style={styles.heroCard}>
+            <View style={styles.heroTopRow}>
+              <Text style={styles.kicker}>Together подготавливает старт</Text>
+              <View style={[styles.stateChip, styles.stateChipPaused]}>
+                <Text style={[styles.stateChipText, styles.stateChipTextPaused]}>
+                  Нужно действие
+                </Text>
+              </View>
+            </View>
+            <View style={styles.modeChip}>
+              <Text style={styles.modeChipText}>{modeCopy.eyebrow}</Text>
             </View>
             <Text style={styles.title}>{blockedState.title}</Text>
             <Text style={styles.body}>{blockedState.body}</Text>
-            <View style={styles.blockedButtons}>
-              <Pressable onPress={handlePrimaryBlockedAction} style={styles.primaryButton}>
-                <Text style={styles.primaryButtonText}>{blockedState.primaryLabel}</Text>
-              </Pressable>
-              <Pressable onPress={handleSecondaryBlockedAction} style={styles.secondaryButton}>
-                <Text style={styles.secondaryButtonText}>{blockedState.secondaryLabel}</Text>
-              </Pressable>
+          </View>
+
+          <View style={styles.signalCard}>
+            <View style={styles.signalHaloLarge} />
+            <View style={styles.signalHaloSmall} />
+            <View style={styles.signalCore}>
+              <Ionicons
+                name={getBlockedIcon(blockReason)}
+                size={28}
+                color="#FFFFFF"
+              />
             </View>
+            <Text style={styles.signalText}>
+              Этот экран теперь остаётся частью основного потока Together, а не отдельным старым модулем.
+            </Text>
+          </View>
+
+          <View style={styles.noteCard}>
+            <Text style={styles.noteTitle}>Что нужно сделать</Text>
+            <Text style={styles.caption}>{blockedState.body}</Text>
+          </View>
+
+          <View style={styles.blockedButtons}>
+            <Pressable onPress={handlePrimaryBlockedAction} style={styles.primaryButton}>
+              <Text style={styles.primaryButtonText}>{blockedState.primaryLabel}</Text>
+            </Pressable>
+            <Pressable onPress={handleSecondaryBlockedAction} style={styles.secondaryButton}>
+              <Text style={styles.secondaryButtonText}>{blockedState.secondaryLabel}</Text>
+            </Pressable>
           </View>
         </View>
       </ScreenShell>
@@ -329,46 +441,82 @@ export default function PlayMatchScreen() {
 
   return (
     <ScreenShell
-      title="Старт Together"
-      background="nightCity"
+      title="Together"
+      background="togetherMain"
+      overlayOpacity={0.24}
+      blurRadius={0}
       showBack
       onBack={handleCancel}
     >
       <View style={styles.container}>
-        <View style={styles.orbitWrap}>
-          <View style={styles.orbitLarge} />
-          <View style={styles.orbitSmall} />
-          <View style={styles.centerGlow}>
-            {busy ? (
-              <ActivityIndicator color={theme.colors.accent} />
-            ) : (
-              <Text style={styles.centerText}>вместе</Text>
-            )}
+        <View style={styles.heroCard}>
+          <View style={styles.heroTopRow}>
+            <Text style={styles.kicker}>Together подбирает пару</Text>
+            <View
+              style={[
+                styles.stateChip,
+                stateMeta.tone === "live"
+                  ? styles.stateChipLive
+                  : stateMeta.tone === "error"
+                    ? styles.stateChipError
+                    : stateMeta.tone === "paused"
+                      ? styles.stateChipPaused
+                      : styles.stateChipReady,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.stateChipText,
+                  stateMeta.tone === "live"
+                    ? styles.stateChipTextLive
+                    : stateMeta.tone === "error"
+                      ? styles.stateChipTextError
+                      : stateMeta.tone === "paused"
+                        ? styles.stateChipTextPaused
+                        : styles.stateChipTextReady,
+                ]}
+              >
+                {stateMeta.label}
+              </Text>
+            </View>
           </View>
-        </View>
 
-        <View style={styles.statusCard}>
-          <Text style={styles.eyebrow}>{modeCopy.eyebrow}</Text>
+          <View style={styles.modeChip}>
+            <Text style={styles.modeChipText}>{modeCopy.eyebrow}</Text>
+          </View>
           <Text style={styles.title}>{statusTitle}</Text>
           <Text style={styles.body}>{statusText}</Text>
-          <Text style={styles.caption}>{modeCopy.caption}</Text>
+        </View>
 
-          <View style={styles.actionRow}>
-            <Pressable onPress={handleCancel} style={styles.secondaryButton}>
-              <Text style={styles.secondaryButtonText}>Отменить</Text>
-            </Pressable>
-            {!busy ? (
-              <Pressable
-                onPress={() => {
-                  allowLeaveRef.current = true;
-                  navigation.replace("PlayMatch", { activity: activity ?? "draw" });
-                }}
-                style={styles.ghostButton}
-              >
-                <Text style={styles.ghostButtonText}>Попробовать снова</Text>
-              </Pressable>
-            ) : null}
+        <View style={styles.signalCard}>
+          <View style={styles.signalHaloLarge} />
+          <View style={styles.signalHaloSmall} />
+          <View style={styles.signalCore}>
+            {busy ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Ionicons name={activityIcon} size={28} color="#FFFFFF" />
+            )}
           </View>
+          <Text style={styles.signalText}>{stateMeta.hint}</Text>
+        </View>
+
+        <View style={styles.noteCard}>
+          <Text style={styles.noteTitle}>Что будет дальше</Text>
+          <Text style={styles.caption}>{modeCopy.caption}</Text>
+        </View>
+
+        <View style={styles.actionRow}>
+          <Pressable onPress={handleCancel} style={styles.secondaryButton}>
+            <Text style={styles.secondaryButtonText}>
+              {busy ? "Остановить поиск" : "Назад"}
+            </Text>
+          </Pressable>
+          {!busy ? (
+            <Pressable onPress={retryMatch} style={styles.ghostButton}>
+              <Text style={styles.ghostButtonText}>Попробовать снова</Text>
+            </Pressable>
+          ) : null}
         </View>
       </View>
     </ScreenShell>
@@ -380,17 +528,101 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 24,
+    paddingHorizontal: 18,
     paddingBottom: 24,
+    gap: 14,
   },
-  orbitWrap: {
-    width: 240,
-    height: 240,
+  heroCard: {
+    width: "100%",
+    maxWidth: 460,
+    borderRadius: theme.shapes.card,
+    padding: 18,
+    backgroundColor: "rgba(12, 16, 31, 0.86)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+    gap: 10,
+  },
+  heroTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  kicker: {
+    flex: 1,
+    color: "#FFE0B8",
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 1,
+    textTransform: "uppercase",
+  },
+  stateChip: {
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderWidth: 1,
+  },
+  stateChipLive: {
+    backgroundColor: "rgba(255, 78, 138, 0.16)",
+    borderColor: "rgba(255, 78, 138, 0.28)",
+  },
+  stateChipReady: {
+    backgroundColor: "rgba(255, 122, 60, 0.14)",
+    borderColor: "rgba(255, 122, 60, 0.24)",
+  },
+  stateChipPaused: {
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderColor: theme.colors.borderSubtle,
+  },
+  stateChipError: {
+    backgroundColor: "rgba(255, 77, 103, 0.14)",
+    borderColor: "rgba(255, 77, 103, 0.24)",
+  },
+  stateChipText: {
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  stateChipTextLive: {
+    color: theme.colors.primary,
+  },
+  stateChipTextReady: {
+    color: theme.colors.accent,
+  },
+  stateChipTextPaused: {
+    color: theme.colors.text,
+  },
+  stateChipTextError: {
+    color: theme.colors.danger,
+  },
+  modeChip: {
+    alignSelf: "flex-start",
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+  },
+  modeChipText: {
+    color: theme.colors.text,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  signalCard: {
+    width: "100%",
+    maxWidth: 460,
+    minHeight: 212,
+    borderRadius: theme.shapes.card,
+    paddingHorizontal: 20,
+    paddingVertical: 22,
+    backgroundColor: "rgba(10, 14, 28, 0.78)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.10)",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 18,
+    overflow: "hidden",
   },
-  orbitLarge: {
+  signalHaloLarge: {
     position: "absolute",
     width: 220,
     height: 220,
@@ -398,88 +630,89 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.08)",
   },
-  orbitSmall: {
+  signalHaloSmall: {
     position: "absolute",
-    width: 160,
-    height: 160,
-    borderRadius: 80,
+    width: 154,
+    height: 154,
+    borderRadius: 77,
     borderWidth: 1,
     borderColor: "rgba(255, 122, 60, 0.22)",
   },
-  centerGlow: {
-    width: 110,
-    height: 110,
-    borderRadius: 55,
-    backgroundColor: theme.colors.cardElevated,
+  signalCore: {
+    width: 98,
+    height: 98,
+    borderRadius: 49,
+    backgroundColor: "rgba(255, 78, 138, 0.84)",
     borderWidth: 1,
-    borderColor: "rgba(255, 78, 138, 0.28)",
+    borderColor: "rgba(255,255,255,0.22)",
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: theme.colors.accent,
-    shadowOpacity: 0.24,
+    shadowColor: theme.colors.primary,
+    shadowOpacity: 0.26,
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 10 },
+    elevation: 10,
   },
-  centerText: {
-    color: theme.colors.text,
-    fontSize: 20,
-    fontWeight: "800",
-    letterSpacing: 0.6,
-  },
-  statusCard: {
-    width: "100%",
-    borderRadius: theme.shapes.card,
-    padding: 22,
-    backgroundColor: "rgba(17, 20, 36, 0.9)",
-    borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
-    alignItems: "center",
-    gap: 10,
-  },
-  eyebrow: {
-    color: theme.colors.accent,
-    fontSize: 12,
-    fontWeight: "800",
-    letterSpacing: 1,
-    textTransform: "uppercase",
-  },
-  title: {
-    color: theme.colors.text,
-    fontSize: 28,
-    lineHeight: 32,
-    fontWeight: "800",
-    textAlign: "center",
-  },
-  body: {
-    color: theme.colors.subtext,
-    fontSize: 15,
-    textAlign: "center",
-    lineHeight: 22,
-  },
-  caption: {
-    color: theme.colors.muted,
+  signalText: {
+    marginTop: 16,
+    color: "rgba(255,255,255,0.88)",
     fontSize: 13,
     lineHeight: 19,
     textAlign: "center",
+    maxWidth: 320,
+  },
+  noteCard: {
+    width: "100%",
+    maxWidth: 460,
+    borderRadius: theme.shapes.card,
+    padding: 16,
+    backgroundColor: "rgba(17, 20, 36, 0.78)",
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+    gap: 6,
+  },
+  noteTitle: {
+    color: theme.colors.text,
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  title: {
+    color: theme.colors.text,
+    fontSize: 26,
+    lineHeight: 31,
+    fontWeight: "800",
+  },
+  body: {
+    color: theme.colors.subtext,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  caption: {
+    color: theme.colors.muted,
+    fontSize: 12,
+    lineHeight: 18,
   },
   actionRow: {
     flexDirection: "row",
-    justifyContent: "center",
+    width: "100%",
+    maxWidth: 460,
+    justifyContent: "flex-start",
     gap: 10,
-    marginTop: 8,
     flexWrap: "wrap",
   },
   blockedButtons: {
     width: "100%",
+    maxWidth: 460,
     gap: 10,
-    marginTop: 8,
   },
   primaryButton: {
     borderRadius: theme.shapes.pill,
+    minHeight: 48,
     paddingHorizontal: 18,
-    paddingVertical: 14,
+    paddingVertical: 13,
     backgroundColor: theme.colors.primary,
     alignItems: "center",
+    justifyContent: "center",
   },
   primaryButtonText: {
     color: "#FFFFFF",
@@ -488,12 +721,14 @@ const styles = StyleSheet.create({
   },
   secondaryButton: {
     borderRadius: theme.shapes.pill,
+    minHeight: 48,
     paddingHorizontal: 18,
     paddingVertical: 12,
     backgroundColor: "rgba(255,255,255,0.07)",
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
     alignItems: "center",
+    justifyContent: "center",
   },
   secondaryButtonText: {
     color: theme.colors.text,
@@ -502,11 +737,14 @@ const styles = StyleSheet.create({
   },
   ghostButton: {
     borderRadius: theme.shapes.pill,
+    minHeight: 48,
     paddingHorizontal: 18,
     paddingVertical: 12,
     backgroundColor: theme.colors.accentSoft,
     borderWidth: 1,
     borderColor: "rgba(255, 122, 60, 0.28)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   ghostButtonText: {
     color: theme.colors.text,
