@@ -222,8 +222,7 @@ export default function PlayHistoryScreen() {
             threadId,
             peerId: card.peer.uid,
             peerName: card.peer.nickname,
-            backTarget: "sessionDetail",
-            backSessionId: card.sessionId,
+            backTarget: "history",
           })
         );
         setActionError(null);

@@ -1016,7 +1016,7 @@ export default function RoomsScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 20 }}
       >
-      <View style={{ paddingHorizontal: 16, paddingTop: insets.top + 4 }}>
+      <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
         <View
           style={{
             borderRadius: theme.shapes.card,
@@ -1514,7 +1514,7 @@ export default function RoomsScreen() {
       <View
         style={{
           paddingHorizontal: 16,
-          paddingTop: insets.top + 10,
+          paddingTop: 8,
           paddingBottom: 10,
           borderBottomWidth: 1,
           borderBottomColor: "rgba(255,255,255,0.08)",
