@@ -99,7 +99,7 @@ export default function PlayLobbyScreen() {
 
         <View style={styles.quickRow}>
           <Pressable
-            onPress={() => navigation.navigate("Tabs", { screen: "Now" })}
+            onPress={() => navigation.navigate("Now")}
             style={styles.quickCard}
           >
             <Text style={styles.quickTitle}>Твой вайб</Text>
@@ -109,7 +109,7 @@ export default function PlayLobbyScreen() {
           </Pressable>
 
           <Pressable
-            onPress={() => navigation.navigate("Tabs", { screen: "Rooms" })}
+            onPress={() => navigation.navigate("Rooms")}
             style={styles.quickCard}
           >
             <Text style={styles.quickTitle}>Комнаты рядом</Text>

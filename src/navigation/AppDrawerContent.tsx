@@ -39,9 +39,13 @@ export default function AppDrawerContent({ onClose }: Props) {
   }, [onClose, t]);
 
   const navigateSafe = React.useCallback(
-    (routeName: string) => {
+    (routeName: string, params?: Record<string, unknown>) => {
       try {
-        navigation.navigate(routeName);
+        if (params) {
+          navigation.navigate(routeName, params);
+        } else {
+          navigation.navigate(routeName);
+        }
       } catch {
         // ignore navigation errors when route is missing
       } finally {
@@ -152,7 +156,7 @@ export default function AppDrawerContent({ onClose }: Props) {
           </TouchableOpacity>
 
           <TouchableOpacity
-            onPress={() => navigateSafe("Tabs")}
+            onPress={() => navigateSafe("Tabs", { screen: "Together" })}
             activeOpacity={0.85}
             style={styles.button}
           >

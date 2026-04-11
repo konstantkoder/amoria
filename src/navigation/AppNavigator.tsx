@@ -2,6 +2,7 @@ import React from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
+import { View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Drawer } from "react-native-drawer-layout";
 
@@ -93,48 +94,102 @@ function MainTabs() {
       initialRouteName="Together"
       detachInactiveScreens={false}
       sceneContainerStyle={{ backgroundColor: theme.colors.background }}
-      screenOptions={({ route }) => ({
-        headerShown: false,
-        lazy: false,
-        tabBarHideOnKeyboard: true,
-        tabBarActiveTintColor: theme.colors.accent,
-        tabBarInactiveTintColor: "#A1A1AA",
-        tabBarStyle: {
-          backgroundColor: theme.colors.background,
-          borderTopColor: "rgba(255,255,255,0.08)",
-          height: 60 + insets.bottom,
-          paddingBottom: 8 + insets.bottom,
-          paddingTop: 6,
-        },
-        tabBarLabelStyle: { fontSize: 12, fontWeight: "600" },
-        tabBarIcon: ({ color, size }) => {
-          const map: Record<string, keyof typeof Ionicons.glyphMap> = {
-            Together: "sparkles-outline",
-            Now: "flash-outline",
-            Connections: "git-network-outline",
-            Rooms: "home-outline",
-            Inbox: "chatbubbles-outline",
-          };
+      screenOptions={({ route }) => {
+        const isTogetherTab = route.name === "Together";
+        const icons: Record<
+          string,
+          {
+            active: keyof typeof Ionicons.glyphMap;
+            inactive: keyof typeof Ionicons.glyphMap;
+          }
+        > = {
+          Now: { active: "flash", inactive: "flash-outline" },
+          Together: { active: "sparkles", inactive: "sparkles-outline" },
+          Connections: { active: "git-network", inactive: "git-network-outline" },
+          Inbox: { active: "chatbubbles", inactive: "chatbubbles-outline" },
+        };
 
-          const name = map[route.name] ?? "ellipse-outline";
-          return <Ionicons name={name} size={size} color={color} />;
-        },
-      })}
+        return {
+          headerShown: false,
+          lazy: false,
+          tabBarHideOnKeyboard: true,
+          tabBarActiveTintColor: theme.colors.text,
+          tabBarInactiveTintColor: theme.colors.tabInactive,
+          tabBarStyle: {
+            backgroundColor: theme.colors.background,
+            borderTopColor: "rgba(255,255,255,0.08)",
+            height: 66 + insets.bottom,
+            paddingBottom: 8 + insets.bottom,
+            paddingTop: 8,
+          },
+          tabBarItemStyle: isTogetherTab
+            ? {
+                marginTop: -6,
+                paddingHorizontal: 2,
+              }
+            : {
+                paddingHorizontal: 2,
+              },
+          tabBarLabelStyle: {
+            fontSize: isTogetherTab ? 12 : 11,
+            fontWeight: isTogetherTab ? "800" : "600",
+            marginTop: isTogetherTab ? 1 : 0,
+          },
+          tabBarIcon: ({ color, size, focused }) => {
+            const icon = icons[route.name];
+            const name = focused ? icon?.active ?? "ellipse" : icon?.inactive ?? "ellipse-outline";
+
+            if (isTogetherTab) {
+              return (
+                <View
+                  style={{
+                    minWidth: 44,
+                    minHeight: focused ? 42 : 40,
+                    borderRadius: 999,
+                    backgroundColor: focused
+                      ? "rgba(255, 78, 138, 0.22)"
+                      : "rgba(255,255,255,0.07)",
+                    borderWidth: 1,
+                    borderColor: focused
+                      ? "rgba(255, 122, 60, 0.34)"
+                      : "rgba(255,255,255,0.08)",
+                    shadowColor: focused ? theme.colors.primary : "transparent",
+                    shadowOpacity: focused ? 0.28 : 0,
+                    shadowRadius: focused ? 14 : 0,
+                    shadowOffset: { width: 0, height: 8 },
+                    elevation: focused ? 10 : 0,
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Ionicons
+                    name={name}
+                    size={focused ? size + 4 : size + 2}
+                    color={color}
+                  />
+                </View>
+              );
+            }
+
+            return <Ionicons name={name} size={size} color={color} />;
+          },
+        };
+      }}
     >
-      <Tab.Screen
-        name="Together"
-        component={PlayLobbyScreen}
-        options={{
-          title: t("tabs.together"),
-          tabBarLabel: t("tabs.together"),
-        }}
-      />
       <Tab.Screen
         name="Now"
         component={NowScreen}
         options={{
           title: t("tabs.now"),
           tabBarLabel: t("tabs.now"),
+        }}
+      />
+      <Tab.Screen
+        name="Together"
+        component={PlayLobbyScreen}
+        options={{
+          title: t("tabs.together"),
+          tabBarLabel: t("tabs.together"),
         }}
       />
       <Tab.Screen
@@ -162,14 +217,6 @@ function MainTabs() {
                 },
               }
             : {}),
-        }}
-      />
-      <Tab.Screen
-        name="Rooms"
-        component={RoomsScreen}
-        options={{
-          title: t("tabs.rooms"),
-          tabBarLabel: t("tabs.rooms"),
         }}
       />
 
@@ -219,6 +266,7 @@ export default function AppNavigator() {
         }}
       >
         <RootStack.Screen name="Tabs" component={MainTabs} />
+        <RootStack.Screen name="Rooms" component={RoomsScreen} />
         <RootStack.Screen name="PlayMatch" component={PlayMatchScreen} />
         <RootStack.Screen name="PlayCanvas" component={PlayCanvasScreen} />
         <RootStack.Screen name="PlayColorMood" component={PlayColorMoodScreen} />

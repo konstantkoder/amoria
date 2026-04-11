@@ -262,6 +262,10 @@ export default function RoomsScreen() {
   });
   const [loadingPrefs, setLoadingPrefs] = useState(true);
   const [consentVisible, setConsentVisible] = useState(false);
+
+  const goToTogetherTab = useCallback(() => {
+    navigation.navigate("Tabs", { screen: "Together" });
+  }, [navigation]);
   const [consentAction, setConsentAction] = useState<
     | { type: "enableNearby" }
     | { type: "enterRoom"; kind: RoomKind }
@@ -1056,7 +1060,7 @@ export default function RoomsScreen() {
             {t("rooms.heroBody")}
           </Text>
           <Pressable
-            onPress={() => navigation.navigate("Together")}
+            onPress={goToTogetherTab}
             style={{
               alignSelf: "flex-start",
               borderRadius: theme.shapes.pill,
@@ -1395,7 +1399,7 @@ export default function RoomsScreen() {
               {t("rooms.oneToOneBody")}
             </Text>
             <TouchableOpacity
-              onPress={() => navigation.navigate("Together")}
+              onPress={goToTogetherTab}
               style={{
                 alignSelf: "flex-start",
                 paddingHorizontal: 12,
@@ -1771,7 +1775,7 @@ export default function RoomsScreen() {
       background="rooms"
       overlayOpacity={0.20}
       blurRadius={0}
-      showBack={stage === "chat"}
+      showBack={stage === "chat" || navigation.canGoBack()}
       onBack={stage === "chat" ? leaveRoom : undefined}
     >
       {stage === "choose" ? renderChoose() : renderChat()}
