@@ -3,6 +3,10 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 
+import {
+  type NearbyTabNavigationProp,
+  buildRoomsTarget,
+} from "@/navigation/appRoutes";
 import { theme } from "@/theme";
 import { useLocale } from "@/contexts/LocaleContext";
 
@@ -16,7 +20,7 @@ function copyOrFallback(
 }
 
 export default function NearbyRoomsSection() {
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<NearbyTabNavigationProp>();
   const { t } = useLocale();
 
   const title = copyOrFallback(t, "nearby.rooms.title", "Комнаты рядом");
@@ -74,7 +78,10 @@ export default function NearbyRoomsSection() {
             )}
           </Text>
         </View>
-        <Pressable onPress={() => navigation.navigate("Rooms")} style={styles.primaryButton}>
+        <Pressable
+          onPress={() => navigation.navigate(...buildRoomsTarget())}
+          style={styles.primaryButton}
+        >
           <Text style={styles.primaryButtonText}>{openLabel}</Text>
         </Pressable>
       </View>

@@ -8,12 +8,9 @@ import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import ScreenBackground from "@/components/ScreenBackground";
 import { useLocale } from "@/contexts/LocaleContext";
-import type { ProfileStackParamList } from "@/navigation/AppNavigator";
+import type { ProfileStackParamList } from "@/navigation/appRoutes";
 
-type ProfileNav = NativeStackNavigationProp<
-  ProfileStackParamList & Record<string, object | undefined>,
-  "ProfileMain"
->;
+type ProfileNav = NativeStackNavigationProp<ProfileStackParamList, "ProfileMain">;
 
 export default function ProfileScreen() {
   const navigation = useNavigation<ProfileNav>();

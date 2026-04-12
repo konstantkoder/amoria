@@ -11,6 +11,11 @@ import { useNavigation } from "@react-navigation/native";
 import ScreenShell from "@/components/ScreenShell";
 import { useLocale } from "@/contexts/LocaleContext";
 import {
+  type RootStackNavigationProp,
+  buildNearbySectionTarget,
+  buildRoomsTarget,
+} from "@/navigation/appRoutes";
+import {
   getPlayLobbyModeCardCopy,
   type PlayActivity,
 } from "@/services/playSessions";
@@ -19,7 +24,7 @@ import { theme } from "@/theme";
 const LIVE_MODE_ORDER: PlayActivity[] = ["daily_prompt", "chain_draw", "color_mood"];
 
 export default function PlayLobbyScreen() {
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<RootStackNavigationProp<"PlayMatch">>();
   const { t } = useLocale();
 
   return (
@@ -99,7 +104,7 @@ export default function PlayLobbyScreen() {
 
         <View style={styles.quickRow}>
           <Pressable
-            onPress={() => navigation.navigate("Tabs", { screen: "Nearby", params: { section: "now" } })}
+            onPress={() => navigation.navigate(...buildNearbySectionTarget("now"))}
             style={styles.quickCard}
           >
             <Text style={styles.quickTitle}>Рядом</Text>
@@ -109,7 +114,7 @@ export default function PlayLobbyScreen() {
           </Pressable>
 
           <Pressable
-            onPress={() => navigation.navigate("Rooms")}
+            onPress={() => navigation.navigate(...buildRoomsTarget())}
             style={styles.quickCard}
           >
             <Text style={styles.quickTitle}>Комнаты</Text>

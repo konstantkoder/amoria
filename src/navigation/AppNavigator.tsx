@@ -34,6 +34,11 @@ import LocationInfoScreen from "@/screens/LocationInfoScreen";
 
 import { theme } from "@/theme";
 import AppDrawerContent from "@/navigation/AppDrawerContent";
+import {
+  type MainTabParamList,
+  type ProfileStackParamList,
+  type RootStackParamList,
+} from "@/navigation/appRoutes";
 import { registerDrawerControls } from "@/navigation/drawerController";
 import { useLocale } from "@/contexts/LocaleContext";
 import {
@@ -42,15 +47,8 @@ import {
 } from "@/services/activityFreshness";
 import { subscribeDmThreads, type DmThreadDoc } from "@/services/dm";
 
-export type ProfileStackParamList = {
-  ProfileMain: undefined;
-  EditProfile: undefined;
-  PhotoManager: undefined;
-  FlirtSettings: undefined;
-};
-
-const Tab = createBottomTabNavigator();
-const RootStack = createNativeStackNavigator();
+const Tab = createBottomTabNavigator<MainTabParamList>();
+const RootStack = createNativeStackNavigator<RootStackParamList>();
 const ProfileStack = createNativeStackNavigator<ProfileStackParamList>();
 
 function ProfileStackNavigator() {

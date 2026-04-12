@@ -17,6 +17,10 @@ import ScreenShell from "@/components/ScreenShell";
 import { auth } from "@/config/firebaseConfig";
 import { useLocale } from "@/contexts/LocaleContext";
 import {
+  type RootStackNavigationProp,
+  buildNearbyAnnouncementsTarget,
+} from "@/navigation/appRoutes";
+import {
   NEARBY_ANNOUNCEMENT_CATEGORY_ORDER,
   createNearbyAnnouncement,
   type NearbyAnnouncementCategory,
@@ -36,7 +40,7 @@ function copyOrFallback(
 }
 
 export default function CreateAnnouncementScreen() {
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<RootStackNavigationProp<"CreateAnnouncement">>();
   const { t } = useLocale();
   const [title, setTitle] = React.useState("");
   const [description, setDescription] = React.useState("");
@@ -127,13 +131,11 @@ export default function CreateAnnouncementScreen() {
         ...(photoUri ? { photoUri } : {}),
       });
 
-      navigation.navigate("Tabs", {
-        screen: "Nearby",
-        params: {
-          section: "announcements",
+      navigation.navigate(
+        ...buildNearbyAnnouncementsTarget({
           highlightAnnouncementId: createdAnnouncement.id,
-        },
-      });
+        })
+      );
     } catch {
       Alert.alert(
         copyOrFallback(t, "nearby.create.errorTitle", "Не удалось опубликовать"),

@@ -15,6 +15,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Location from "expo-location";
 import { Ionicons } from "@expo/vector-icons";
 
+import {
+  type NearbyTabNavigationProp,
+  buildRoomsTarget,
+} from "@/navigation/appRoutes";
 import { theme } from "@/theme";
 import { auth, db, isFirebaseConfigured } from "@/config/firebaseConfig";
 import {
@@ -62,7 +66,7 @@ export default function NearbyNowSection({
   bottomInset,
 }: Props) {
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<NearbyTabNavigationProp>();
   const user = auth?.currentUser ?? null;
   const { t } = useLocale();
   const mountedRef = useRef(true);
@@ -214,7 +218,7 @@ export default function NearbyNowSection({
   }, [navigation]);
 
   const goToRooms = useCallback(() => {
-    navigation.navigate("Rooms");
+    navigation.navigate(...buildRoomsTarget());
   }, [navigation]);
 
   const visiblePosts = useMemo(() => {

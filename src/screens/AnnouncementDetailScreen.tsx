@@ -7,8 +7,13 @@ import ScreenShell from "@/components/ScreenShell";
 import { auth } from "@/config/firebaseConfig";
 import { useLocale } from "@/contexts/LocaleContext";
 import {
+  type AnnouncementDetailRouteProp,
+  type RootStackNavigationProp,
+  buildNearbyAnnouncementsTarget,
+} from "@/navigation/appRoutes";
+import {
   loadNearbyAnnouncementById,
-  loadNearbyAnnouncementResponseAt,
+  loadNearbyAnnouncementResponseState,
   markNearbyAnnouncementResponded,
   type NearbyAnnouncement,
 } from "@/services/nearbyAnnouncements";
@@ -40,8 +45,8 @@ function DetailRow({
 }
 
 export default function AnnouncementDetailScreen() {
-  const navigation = useNavigation<any>();
-  const route = useRoute<any>();
+  const navigation = useNavigation<RootStackNavigationProp<"AnnouncementDetail">>();
+  const route = useRoute<AnnouncementDetailRouteProp>();
   const { t } = useLocale();
   const announcementId = String(route.params?.announcementId ?? "");
   const initialAnnouncement = (route.params?.initialAnnouncement ?? null) as NearbyAnnouncement | null;
@@ -68,11 +73,11 @@ export default function AnnouncementDetailScreen() {
       setLoading(true);
       void Promise.all([
         loadNearbyAnnouncementById(announcementId),
-        loadNearbyAnnouncementResponseAt(announcementId, currentUid || "guest"),
-      ]).then(([nextAnnouncement, nextRespondedAt]) => {
+        loadNearbyAnnouncementResponseState(announcementId, currentUid || "guest"),
+      ]).then(([nextAnnouncement, responseState]) => {
         if (!alive) return;
         setAnnouncement(nextAnnouncement);
-        setRespondedAt(nextRespondedAt);
+        setRespondedAt(responseState.respondedAt);
         setLoading(false);
       });
 
@@ -88,10 +93,7 @@ export default function AnnouncementDetailScreen() {
       return;
     }
 
-    navigation.navigate("Tabs", {
-      screen: "Nearby",
-      params: { section: "announcements" },
-    });
+    navigation.navigate(...buildNearbyAnnouncementsTarget());
   }, [navigation]);
 
   const categoryLabels = React.useMemo(
@@ -115,11 +117,11 @@ export default function AnnouncementDetailScreen() {
     if (!announcement || responding || isOwnAnnouncement) return;
     setResponding(true);
     try {
-      const savedAt = await markNearbyAnnouncementResponded(
+      const responseState = await markNearbyAnnouncementResponded(
         announcement.id,
         currentUid || "guest"
       );
-      setRespondedAt(savedAt);
+      setRespondedAt(responseState.respondedAt);
     } finally {
       setResponding(false);
     }

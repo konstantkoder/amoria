@@ -7,6 +7,10 @@ import CoreStateCard from "@/components/CoreStateCard";
 import ScreenShell from "@/components/ScreenShell";
 import { auth, db } from "@/config/firebaseConfig";
 import { useLocale } from "@/contexts/LocaleContext";
+import {
+  type DmChatRouteProp,
+  type RootStackNavigationProp,
+} from "@/navigation/appRoutes";
 import { markDmThreadSeen } from "@/services/activityFreshness";
 import {
   buildDmThreadId,
@@ -22,7 +26,7 @@ import { theme } from "@/theme";
 type RenderMessage = DmMessageDoc & { failed?: boolean };
 
 export default function DMChatScreen() {
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<RootStackNavigationProp<"DMChat">>();
   const { t } = useLocale();
   const tt = useCallback(
     (key: string, fallback: string, params?: Record<string, string>) => {
@@ -31,7 +35,7 @@ export default function DMChatScreen() {
     },
     [t]
   );
-  const route = useRoute<any>();
+  const route = useRoute<DmChatRouteProp>();
   const myId = auth?.currentUser?.uid ?? "";
   const routePeerId = String(route.params?.peerId ?? "");
   const threadId = String(

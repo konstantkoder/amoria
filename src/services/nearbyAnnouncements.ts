@@ -22,7 +22,7 @@ export type NearbyAnnouncement = {
   photoUri?: string;
 };
 
-type StoredNearbyAnnouncementInput = {
+export type CreateNearbyAnnouncementInput = {
   title: string;
   description: string;
   category: NearbyAnnouncementCategory;
@@ -30,6 +30,11 @@ type StoredNearbyAnnouncementInput = {
   authorLabel: string;
   authorUid?: string;
   photoUri?: string;
+};
+
+export type NearbyAnnouncementResponseState = {
+  respondedAt: number | null;
+  hasResponded: boolean;
 };
 
 const STORAGE_KEY = "amoria.nearby.announcements.v1";
@@ -187,28 +192,28 @@ function getAnnouncementResponseKey(id: string, scopeId?: string) {
   return `${String(scopeId ?? "device").trim() || "device"}::${String(id ?? "").trim()}`;
 }
 
-export function getDemoNearbyAnnouncements() {
+export function getDemoNearbyAnnouncements(): NearbyAnnouncement[] {
   return [...DEMO_ANNOUNCEMENTS].sort((a, b) => b.createdAt - a.createdAt);
 }
 
-export async function loadStoredNearbyAnnouncements() {
+export async function loadStoredNearbyAnnouncements(): Promise<NearbyAnnouncement[]> {
   const stored = await readStoredAnnouncements();
   return stored.sort((a, b) => b.createdAt - a.createdAt);
 }
 
-export async function loadNearbyAnnouncements() {
+export async function loadNearbyAnnouncements(): Promise<NearbyAnnouncement[]> {
   const stored = await loadStoredNearbyAnnouncements();
   return [...stored, ...getDemoNearbyAnnouncements()].sort((a, b) => b.createdAt - a.createdAt);
 }
 
-export async function loadNearbyAnnouncementById(id: string) {
+export async function loadNearbyAnnouncementById(id: string): Promise<NearbyAnnouncement | null> {
   if (!id) return null;
   const items = await loadNearbyAnnouncements();
   return items.find((item) => item.id === id) ?? null;
 }
 
 export async function createNearbyAnnouncement(
-  input: StoredNearbyAnnouncementInput
+  input: CreateNearbyAnnouncementInput
 ): Promise<NearbyAnnouncement> {
   const announcement: NearbyAnnouncement = {
     id: `announcement_${Date.now()}_${Math.random().toString(16).slice(2)}`,
@@ -228,18 +233,40 @@ export async function createNearbyAnnouncement(
   return announcement;
 }
 
-export async function loadNearbyAnnouncementResponseAt(id: string, scopeId?: string) {
+async function loadNearbyAnnouncementResponseAt(id: string, scopeId?: string) {
   if (!id) return null;
   const map = await readAnnouncementResponses();
   const value = Number(map[getAnnouncementResponseKey(id, scopeId)] ?? 0);
   return value > 0 ? value : null;
 }
 
-export async function markNearbyAnnouncementResponded(id: string, scopeId?: string) {
-  if (!id) return null;
+export async function loadNearbyAnnouncementResponseState(
+  id: string,
+  scopeId?: string
+): Promise<NearbyAnnouncementResponseState> {
+  const respondedAt = await loadNearbyAnnouncementResponseAt(id, scopeId);
+  return {
+    respondedAt,
+    hasResponded: Boolean(respondedAt),
+  };
+}
+
+export async function markNearbyAnnouncementResponded(
+  id: string,
+  scopeId?: string
+): Promise<NearbyAnnouncementResponseState> {
+  if (!id) {
+    return {
+      respondedAt: null,
+      hasResponded: false,
+    };
+  }
   const map = await readAnnouncementResponses();
   const value = Date.now();
   map[getAnnouncementResponseKey(id, scopeId)] = value;
   await writeAnnouncementResponses(map);
-  return value;
+  return {
+    respondedAt: value,
+    hasResponded: true,
+  } satisfies NearbyAnnouncementResponseState;
 }

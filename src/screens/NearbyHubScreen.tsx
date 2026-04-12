@@ -9,13 +9,19 @@ import NearbyNowSection from "@/components/nearby/NearbyNowSection";
 import NearbyRoomsSection from "@/components/nearby/NearbyRoomsSection";
 import { useLocale } from "@/contexts/LocaleContext";
 import {
+  type NearbySection,
+  type NearbyTabNavigationProp,
+  type NearbyTabRouteProp,
+  buildAnnouncementDetailTarget,
+  buildCreateAnnouncementTarget,
+  clearNearbyRouteParams,
+} from "@/navigation/appRoutes";
+import {
   loadNearbyAnnouncements,
   type NearbyAnnouncement,
   type NearbyAnnouncementCategory,
 } from "@/services/nearbyAnnouncements";
 import { theme } from "@/theme";
-
-type NearbySection = "now" | "announcements" | "rooms";
 
 const SECTION_STORAGE_KEY = "amoria.nearby.activeSection.v1";
 
@@ -33,8 +39,8 @@ function copyOrFallback(
 }
 
 export default function NearbyHubScreen() {
-  const navigation = useNavigation<any>();
-  const route = useRoute<any>();
+  const navigation = useNavigation<NearbyTabNavigationProp>();
+  const route = useRoute<NearbyTabRouteProp>();
   const { t } = useLocale();
   const [selectedSection, setSelectedSectionState] = React.useState<NearbySection>("now");
   const [announcements, setAnnouncements] = React.useState<NearbyAnnouncement[]>([]);
@@ -48,6 +54,9 @@ export default function NearbyHubScreen() {
 
   const setSection = React.useCallback((next: NearbySection) => {
     setSelectedSectionState(next);
+    if (next !== "announcements") {
+      setHighlightedAnnouncementId(null);
+    }
     AsyncStorage.setItem(SECTION_STORAGE_KEY, next).catch(() => {});
   }, []);
 
@@ -102,12 +111,19 @@ export default function NearbyHubScreen() {
     }
 
     if (shouldClearParams) {
-      navigation.setParams({
-        section: undefined,
-        highlightAnnouncementId: undefined,
-      });
+      clearNearbyRouteParams(navigation);
     }
   }, [navigation, route.params?.highlightAnnouncementId, route.params?.section, setSection]);
+
+  React.useEffect(() => {
+    if (!highlightedAnnouncementId) return;
+    const timeout = setTimeout(() => {
+      setHighlightedAnnouncementId((current) =>
+        current === highlightedAnnouncementId ? null : current
+      );
+    }, 3000);
+    return () => clearTimeout(timeout);
+  }, [highlightedAnnouncementId]);
 
   const tabLabel = React.useMemo(() => copyOrFallback(t, "tabs.nearby", "Nearby"), [t]);
 
@@ -163,12 +179,14 @@ export default function NearbyHubScreen() {
           onCategoryChange={setAnnouncementCategory}
           onOpen={(item) => {
             setHighlightedAnnouncementId(null);
-            navigation.navigate("AnnouncementDetail", {
-              announcementId: item.id,
-              initialAnnouncement: item,
-            });
+            navigation.navigate(
+              ...buildAnnouncementDetailTarget({
+                announcementId: item.id,
+                initialAnnouncement: item,
+              })
+            );
           }}
-          onCreate={() => navigation.navigate("CreateAnnouncement")}
+          onCreate={() => navigation.navigate(...buildCreateAnnouncementTarget())}
         />
       );
     }
