@@ -9,7 +9,7 @@ export default function NowScreen() {
 
   return (
     <ScreenShell
-      title={t("now.title")}
+      title={t("nearby.segment.now")}
       background="now"
       overlayOpacity={0.18}
       blurRadius={0}

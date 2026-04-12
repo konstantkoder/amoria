@@ -41,7 +41,9 @@ export default function NearbyHubScreen() {
   const [announcementCategory, setAnnouncementCategory] = React.useState<
     NearbyAnnouncementCategory | "all"
   >("all");
-  const [expandedAnnouncementId, setExpandedAnnouncementId] = React.useState<string | null>(null);
+  const [highlightedAnnouncementId, setHighlightedAnnouncementId] = React.useState<string | null>(
+    null
+  );
   const [sectionReady, setSectionReady] = React.useState(false);
 
   const setSection = React.useCallback((next: NearbySection) => {
@@ -84,17 +86,30 @@ export default function NearbyHubScreen() {
 
   React.useEffect(() => {
     const requestedSection = route.params?.section;
-    if (!isNearbySection(requestedSection)) return;
-    setSection(requestedSection);
-    navigation.setParams({ section: undefined });
-  }, [navigation, route.params?.section, setSection]);
+    const requestedHighlightId = String(route.params?.highlightAnnouncementId ?? "").trim();
+    let shouldClearParams = false;
 
-  const tabLabel = React.useMemo(() => {
-    const nearby = t("tabs.nearby");
-    if (nearby !== "tabs.nearby") return nearby;
-    const legacy = t("tabs.now");
-    return legacy !== "tabs.now" ? legacy : "Nearby";
-  }, [t]);
+    if (isNearbySection(requestedSection)) {
+      setSection(requestedSection);
+      shouldClearParams = true;
+    }
+
+    if (requestedHighlightId) {
+      setSection("announcements");
+      setAnnouncementCategory("all");
+      setHighlightedAnnouncementId(requestedHighlightId);
+      shouldClearParams = true;
+    }
+
+    if (shouldClearParams) {
+      navigation.setParams({
+        section: undefined,
+        highlightAnnouncementId: undefined,
+      });
+    }
+  }, [navigation, route.params?.highlightAnnouncementId, route.params?.section, setSection]);
+
+  const tabLabel = React.useMemo(() => copyOrFallback(t, "tabs.nearby", "Nearby"), [t]);
 
   const sectionItems = React.useMemo(
     () => [
@@ -144,11 +159,15 @@ export default function NearbyHubScreen() {
         <NearbyAnnouncementsSection
           items={visibleAnnouncements}
           activeCategory={announcementCategory}
-          expandedId={expandedAnnouncementId}
+          highlightedId={highlightedAnnouncementId}
           onCategoryChange={setAnnouncementCategory}
-          onToggleOpen={(id) =>
-            setExpandedAnnouncementId((prev) => (prev === id ? null : id))
-          }
+          onOpen={(item) => {
+            setHighlightedAnnouncementId(null);
+            navigation.navigate("AnnouncementDetail", {
+              announcementId: item.id,
+              initialAnnouncement: item,
+            });
+          }}
           onCreate={() => navigation.navigate("CreateAnnouncement")}
         />
       );

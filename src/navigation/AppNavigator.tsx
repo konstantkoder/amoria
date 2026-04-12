@@ -22,6 +22,7 @@ import PlayHistoryScreen from "@/screens/PlayHistoryScreen";
 import PlaySessionDetailScreen from "@/screens/PlaySessionDetailScreen";
 import DMChatScreen from "@/screens/DMChatScreen";
 import CreateAnnouncementScreen from "@/screens/CreateAnnouncementScreen";
+import AnnouncementDetailScreen from "@/screens/AnnouncementDetailScreen";
 
 import ProfileScreen from "@/screens/ProfileScreen";
 import EditProfileScreen from "@/screens/EditProfileScreen";
@@ -91,9 +92,7 @@ function MainTabs() {
   );
   const nearbyTabLabel = React.useMemo(() => {
     const nearby = t("tabs.nearby");
-    if (nearby !== "tabs.nearby") return nearby;
-    const legacy = t("tabs.now");
-    return legacy !== "tabs.now" ? legacy : "Nearby";
+    return nearby === "tabs.nearby" ? "Nearby" : nearby;
   }, [t]);
 
   return (
@@ -276,6 +275,7 @@ export default function AppNavigator() {
         <RootStack.Screen name="Tabs" component={MainTabs} />
         <RootStack.Screen name="Rooms" component={RoomsScreen} />
         <RootStack.Screen name="CreateAnnouncement" component={CreateAnnouncementScreen} />
+        <RootStack.Screen name="AnnouncementDetail" component={AnnouncementDetailScreen} />
         <RootStack.Screen name="PlayMatch" component={PlayMatchScreen} />
         <RootStack.Screen name="PlayCanvas" component={PlayCanvasScreen} />
         <RootStack.Screen name="PlayColorMood" component={PlayColorMoodScreen} />

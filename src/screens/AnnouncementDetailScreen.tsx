@@ -1,0 +1,562 @@
+import React from "react";
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
+
+import ScreenShell from "@/components/ScreenShell";
+import { auth } from "@/config/firebaseConfig";
+import { useLocale } from "@/contexts/LocaleContext";
+import {
+  loadNearbyAnnouncementById,
+  loadNearbyAnnouncementResponseAt,
+  markNearbyAnnouncementResponded,
+  type NearbyAnnouncement,
+} from "@/services/nearbyAnnouncements";
+import { theme } from "@/theme";
+import { formatAgoLong } from "@/utils/timeAgo";
+
+function copyOrFallback(
+  t: (key: string, params?: Record<string, string>) => string,
+  key: string,
+  fallback: string
+) {
+  const value = t(key);
+  return value === key ? fallback : value;
+}
+
+function DetailRow({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <View style={styles.detailRow}>
+      <Text style={styles.detailLabel}>{label}</Text>
+      <Text style={styles.detailValue}>{value}</Text>
+    </View>
+  );
+}
+
+export default function AnnouncementDetailScreen() {
+  const navigation = useNavigation<any>();
+  const route = useRoute<any>();
+  const { t } = useLocale();
+  const announcementId = String(route.params?.announcementId ?? "");
+  const initialAnnouncement = (route.params?.initialAnnouncement ?? null) as NearbyAnnouncement | null;
+  const currentUid = auth?.currentUser?.uid ?? "";
+  const [announcement, setAnnouncement] = React.useState<NearbyAnnouncement | null>(
+    initialAnnouncement
+  );
+  const [loading, setLoading] = React.useState(!initialAnnouncement);
+  const [respondedAt, setRespondedAt] = React.useState<number | null>(null);
+  const [responding, setResponding] = React.useState(false);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      let alive = true;
+      if (!announcementId) {
+        setAnnouncement(null);
+        setRespondedAt(null);
+        setLoading(false);
+        return () => {
+          alive = false;
+        };
+      }
+
+      setLoading(true);
+      void Promise.all([
+        loadNearbyAnnouncementById(announcementId),
+        loadNearbyAnnouncementResponseAt(announcementId, currentUid || "guest"),
+      ]).then(([nextAnnouncement, nextRespondedAt]) => {
+        if (!alive) return;
+        setAnnouncement(nextAnnouncement);
+        setRespondedAt(nextRespondedAt);
+        setLoading(false);
+      });
+
+      return () => {
+        alive = false;
+      };
+    }, [announcementId, currentUid])
+  );
+
+  const goBackToAnnouncements = React.useCallback(() => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+      return;
+    }
+
+    navigation.navigate("Tabs", {
+      screen: "Nearby",
+      params: { section: "announcements" },
+    });
+  }, [navigation]);
+
+  const categoryLabels = React.useMemo(
+    () => ({
+      walk: copyOrFallback(t, "nearby.announcements.category.walk", "Прогулка"),
+      trip: copyOrFallback(t, "nearby.announcements.category.trip", "Поездка"),
+      coffee: copyOrFallback(t, "nearby.announcements.category.coffee", "Кофе"),
+      activity: copyOrFallback(t, "nearby.announcements.category.activity", "Активность"),
+      sport: copyOrFallback(t, "nearby.announcements.category.sport", "Спорт"),
+      ride: copyOrFallback(t, "nearby.announcements.category.ride", "Вместе по пути"),
+    }),
+    [t]
+  );
+
+  const fallbackPlaceLabel = copyOrFallback(t, "tabs.nearby", "Nearby");
+  const isOwnAnnouncement = Boolean(
+    currentUid && announcement?.authorUid && currentUid === announcement.authorUid
+  );
+
+  const handleRespond = React.useCallback(async () => {
+    if (!announcement || responding || isOwnAnnouncement) return;
+    setResponding(true);
+    try {
+      const savedAt = await markNearbyAnnouncementResponded(
+        announcement.id,
+        currentUid || "guest"
+      );
+      setRespondedAt(savedAt);
+    } finally {
+      setResponding(false);
+    }
+  }, [announcement, currentUid, isOwnAnnouncement, responding]);
+
+  const screenTitle = copyOrFallback(t, "nearby.detail.title", "Объявление");
+
+  if (!loading && !announcement) {
+    return (
+      <ScreenShell title={screenTitle} background="ads" showBack onBack={goBackToAnnouncements}>
+        <View style={styles.centerState}>
+          <View style={styles.centerCard}>
+            <Text style={styles.centerTitle}>
+              {copyOrFallback(t, "nearby.detail.missingTitle", "Объявление недоступно")}
+            </Text>
+            <Text style={styles.centerBody}>
+              {copyOrFallback(
+                t,
+                "nearby.detail.missingBody",
+                "Не удалось открыть это объявление. Можно вернуться к списку рядом."
+              )}
+            </Text>
+            <Pressable onPress={goBackToAnnouncements} style={styles.primaryButton}>
+              <Text style={styles.primaryButtonText}>
+                {copyOrFallback(t, "nearby.detail.backToList", "К объявлениям")}
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      </ScreenShell>
+    );
+  }
+
+  return (
+    <ScreenShell title={screenTitle} background="ads" showBack onBack={goBackToAnnouncements}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        {announcement ? (
+          <>
+            <View style={styles.summaryCard}>
+              <View style={styles.summaryMetaRow}>
+                <View style={styles.categoryPill}>
+                  <Text style={styles.categoryPillText}>
+                    {categoryLabels[announcement.category]}
+                  </Text>
+                </View>
+                <View style={styles.metaPill}>
+                  <Ionicons name="location-outline" size={14} color={theme.colors.subtext} />
+                  <Text style={styles.metaPillText}>
+                    {announcement.placeLabel || fallbackPlaceLabel}
+                  </Text>
+                </View>
+                {announcement.proximityLabel ? (
+                  <View style={styles.metaPill}>
+                    <Ionicons name="navigate-outline" size={14} color={theme.colors.subtext} />
+                    <Text style={styles.metaPillText}>{announcement.proximityLabel}</Text>
+                  </View>
+                ) : null}
+              </View>
+
+              <Text style={styles.summaryTitle}>{announcement.title}</Text>
+
+              <View style={styles.summaryFooter}>
+                <Text style={styles.summaryAuthor}>{announcement.authorLabel}</Text>
+                <Text style={styles.summaryDot}>•</Text>
+                <Text style={styles.summaryTime}>{formatAgoLong(announcement.createdAt, t)}</Text>
+              </View>
+            </View>
+
+            <View style={styles.mediaCard}>
+              <View style={[styles.mediaTile, announcement.hasPhoto ? styles.mediaTileActive : null]}>
+                {announcement.photoUri ? (
+                  <Image source={{ uri: announcement.photoUri }} style={styles.mediaImage} />
+                ) : (
+                  <Ionicons
+                    name={announcement.hasPhoto ? "image-outline" : "document-text-outline"}
+                    size={26}
+                    color={announcement.hasPhoto ? theme.colors.accent : theme.colors.subtext}
+                  />
+                )}
+              </View>
+              <View style={styles.mediaCopy}>
+                <Text style={styles.sectionLabel}>
+                  {copyOrFallback(t, "nearby.detail.photoLabel", "Формат")}
+                </Text>
+                <Text style={styles.mediaTitle}>
+                  {announcement.hasPhoto
+                    ? copyOrFallback(t, "nearby.detail.photoYes", "С фото")
+                    : copyOrFallback(t, "nearby.detail.photoNo", "Без фото")}
+                </Text>
+                <Text style={styles.mediaBody}>
+                  {announcement.hasPhoto
+                    ? copyOrFallback(
+                        t,
+                        "nearby.detail.photoWithBody",
+                        "У объявления есть визуальный слот. Полный media-flow подключим позже."
+                      )
+                    : copyOrFallback(
+                        t,
+                        "nearby.detail.photoWithoutBody",
+                        "Это текстовое объявление. Весь смысл уже раскрыт в описании ниже."
+                      )}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.infoCard}>
+              <Text style={styles.sectionLabel}>
+                {copyOrFallback(t, "nearby.detail.metaTitle", "Детали")}
+              </Text>
+              <DetailRow
+                label={copyOrFallback(t, "nearby.detail.categoryLabel", "Категория")}
+                value={categoryLabels[announcement.category]}
+              />
+              <DetailRow
+                label={copyOrFallback(t, "nearby.detail.placeLabel", "Место")}
+                value={announcement.placeLabel || fallbackPlaceLabel}
+              />
+              {announcement.proximityLabel ? (
+                <DetailRow
+                  label={copyOrFallback(t, "nearby.detail.distanceLabel", "Расстояние")}
+                  value={announcement.proximityLabel}
+                />
+              ) : null}
+              <DetailRow
+                label={copyOrFallback(t, "nearby.detail.authorLabel", "Автор")}
+                value={announcement.authorLabel}
+              />
+            </View>
+
+            <View style={styles.descriptionCard}>
+              <Text style={styles.sectionLabel}>
+                {copyOrFallback(t, "nearby.detail.descriptionTitle", "Описание")}
+              </Text>
+              <Text style={styles.descriptionText}>{announcement.description}</Text>
+            </View>
+
+            <View style={styles.responseCard}>
+              <Text style={styles.responseTitle}>
+                {isOwnAnnouncement
+                  ? copyOrFallback(t, "nearby.detail.ownTitle", "Это ваше объявление")
+                  : respondedAt
+                    ? copyOrFallback(t, "nearby.detail.respondedTitle", "Интерес сохранён")
+                    : copyOrFallback(t, "nearby.detail.responseTitle", "Хочешь откликнуться?")}
+              </Text>
+              <Text style={styles.responseBody}>
+                {isOwnAnnouncement
+                  ? copyOrFallback(
+                      t,
+                      "nearby.detail.ownBody",
+                      "Оно уже видно в Nearby -> Объявления. Следующим шагом сюда подключим отклики."
+                    )
+                  : respondedAt
+                    ? copyOrFallback(
+                        t,
+                        "nearby.detail.respondedBody",
+                        "Мы сохранили интерес локально. Когда response flow будет готов, следующий шаг появится здесь."
+                      )
+                    : copyOrFallback(
+                        t,
+                        "nearby.detail.responseBody",
+                        "Полноценный отклик через личный чат подключим позже. Пока можно мягко сохранить интерес к объявлению."
+                      )}
+              </Text>
+
+              {isOwnAnnouncement ? (
+                <Pressable onPress={goBackToAnnouncements} style={styles.secondaryButton}>
+                  <Text style={styles.secondaryButtonText}>
+                    {copyOrFallback(t, "nearby.detail.backToList", "К объявлениям")}
+                  </Text>
+                </Pressable>
+              ) : respondedAt ? (
+                <Pressable onPress={goBackToAnnouncements} style={styles.primaryButton}>
+                  <Text style={styles.primaryButtonText}>
+                    {copyOrFallback(t, "nearby.detail.backToList", "К объявлениям")}
+                  </Text>
+                </Pressable>
+              ) : (
+                <Pressable
+                  onPress={() => void handleRespond()}
+                  disabled={responding}
+                  style={[styles.primaryButton, responding ? styles.primaryButtonDisabled : null]}
+                >
+                  <Text style={styles.primaryButtonText}>
+                    {responding
+                      ? copyOrFallback(t, "nearby.detail.responding", "Сохраняем интерес...")
+                      : copyOrFallback(t, "nearby.detail.respond", "Откликнуться")}
+                  </Text>
+                </Pressable>
+              )}
+            </View>
+          </>
+        ) : (
+          <View style={styles.centerState}>
+            <View style={styles.centerCard}>
+              <Text style={styles.centerTitle}>
+                {copyOrFallback(t, "nearby.loading", "Собираем Nearby…")}
+              </Text>
+            </View>
+          </View>
+        )}
+      </ScrollView>
+    </ScreenShell>
+  );
+}
+
+const styles = StyleSheet.create({
+  content: {
+    padding: 16,
+    paddingBottom: 32,
+    gap: 14,
+  },
+  summaryCard: {
+    borderRadius: theme.shapes.card,
+    padding: 18,
+    backgroundColor: "rgba(16, 20, 38, 0.92)",
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+    gap: 12,
+  },
+  summaryMetaRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  categoryPill: {
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: "rgba(255, 78, 138, 0.14)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 78, 138, 0.22)",
+  },
+  categoryPillText: {
+    color: theme.colors.primary,
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  metaPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: theme.colors.pillBg,
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+  },
+  metaPillText: {
+    color: theme.colors.subtext,
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  summaryTitle: {
+    color: theme.colors.text,
+    fontSize: 24,
+    lineHeight: 30,
+    fontWeight: "800",
+  },
+  summaryFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  summaryAuthor: {
+    color: theme.colors.text,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  summaryDot: {
+    color: theme.colors.muted,
+    fontSize: 13,
+  },
+  summaryTime: {
+    color: theme.colors.muted,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  mediaCard: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    gap: 14,
+    borderRadius: theme.shapes.card,
+    padding: 16,
+    backgroundColor: "rgba(14, 18, 34, 0.92)",
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+  },
+  mediaTile: {
+    width: 108,
+    minHeight: 108,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 10,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+  },
+  mediaTileActive: {
+    backgroundColor: "rgba(255,122,60,0.08)",
+    borderColor: "rgba(255,122,60,0.18)",
+  },
+  mediaImage: {
+    width: "100%",
+    height: 86,
+    borderRadius: 16,
+  },
+  mediaCopy: {
+    flex: 1,
+    gap: 6,
+  },
+  sectionLabel: {
+    color: theme.colors.accent,
+    fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 0.8,
+  },
+  mediaTitle: {
+    color: theme.colors.text,
+    fontSize: 17,
+    fontWeight: "800",
+  },
+  mediaBody: {
+    color: theme.colors.subtext,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  infoCard: {
+    borderRadius: theme.shapes.card,
+    padding: 16,
+    backgroundColor: "rgba(17, 20, 36, 0.88)",
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+    gap: 12,
+  },
+  detailRow: {
+    gap: 4,
+  },
+  detailLabel: {
+    color: theme.colors.muted,
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+  },
+  detailValue: {
+    color: theme.colors.text,
+    fontSize: 14,
+    lineHeight: 19,
+    fontWeight: "700",
+  },
+  descriptionCard: {
+    borderRadius: theme.shapes.card,
+    padding: 16,
+    backgroundColor: "rgba(19, 19, 35, 0.92)",
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+    gap: 10,
+  },
+  descriptionText: {
+    color: theme.colors.text,
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  responseCard: {
+    borderRadius: theme.shapes.card,
+    padding: 18,
+    backgroundColor: "rgba(25, 19, 35, 0.94)",
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+    gap: 10,
+  },
+  responseTitle: {
+    color: theme.colors.text,
+    fontSize: 18,
+    fontWeight: "800",
+  },
+  responseBody: {
+    color: theme.colors.subtext,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  primaryButton: {
+    alignSelf: "flex-start",
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+    backgroundColor: theme.colors.primary,
+  },
+  primaryButtonDisabled: {
+    opacity: 0.65,
+  },
+  primaryButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  secondaryButton: {
+    alignSelf: "flex-start",
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+    backgroundColor: theme.colors.pillBg,
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+  },
+  secondaryButtonText: {
+    color: theme.colors.text,
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  centerState: {
+    flex: 1,
+    justifyContent: "center",
+    paddingVertical: 40,
+  },
+  centerCard: {
+    borderRadius: theme.shapes.card,
+    padding: 18,
+    backgroundColor: "rgba(16, 20, 38, 0.9)",
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+    gap: 10,
+  },
+  centerTitle: {
+    color: theme.colors.text,
+    fontSize: 18,
+    fontWeight: "800",
+  },
+  centerBody: {
+    color: theme.colors.subtext,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+});

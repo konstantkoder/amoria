@@ -16,6 +16,7 @@ export type NearbyAnnouncement = {
   placeLabel: string;
   proximityLabel?: string;
   authorLabel: string;
+  authorUid?: string;
   createdAt: number;
   hasPhoto: boolean;
   photoUri?: string;
@@ -27,10 +28,12 @@ type StoredNearbyAnnouncementInput = {
   category: NearbyAnnouncementCategory;
   city?: string;
   authorLabel: string;
+  authorUid?: string;
   photoUri?: string;
 };
 
 const STORAGE_KEY = "amoria.nearby.announcements.v1";
+const RESPONSE_STORAGE_KEY = "amoria.nearby.announcementResponses.v1";
 
 export const NEARBY_ANNOUNCEMENT_CATEGORY_ORDER: NearbyAnnouncementCategory[] = [
   "walk",
@@ -133,6 +136,7 @@ function asNearbyAnnouncement(raw: unknown): NearbyAnnouncement | null {
     placeLabel: String(data.placeLabel ?? "").trim(),
     ...(data.proximityLabel ? { proximityLabel: String(data.proximityLabel) } : {}),
     authorLabel: String(data.authorLabel ?? "Amoria"),
+    ...(data.authorUid ? { authorUid: String(data.authorUid) } : {}),
     createdAt: Number(data.createdAt ?? 0),
     hasPhoto: Boolean(data.hasPhoto || data.photoUri),
     ...(data.photoUri ? { photoUri: String(data.photoUri) } : {}),
@@ -159,6 +163,30 @@ async function writeStoredAnnouncements(items: NearbyAnnouncement[]) {
   } catch {}
 }
 
+async function readAnnouncementResponses() {
+  try {
+    const raw = await AsyncStorage.getItem(RESPONSE_STORAGE_KEY);
+    if (!raw) return {} as Record<string, number>;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return {} as Record<string, number>;
+    return Object.fromEntries(
+      Object.entries(parsed).map(([key, value]) => [String(key), Number(value ?? 0)])
+    ) as Record<string, number>;
+  } catch {
+    return {} as Record<string, number>;
+  }
+}
+
+async function writeAnnouncementResponses(map: Record<string, number>) {
+  try {
+    await AsyncStorage.setItem(RESPONSE_STORAGE_KEY, JSON.stringify(map));
+  } catch {}
+}
+
+function getAnnouncementResponseKey(id: string, scopeId?: string) {
+  return `${String(scopeId ?? "device").trim() || "device"}::${String(id ?? "").trim()}`;
+}
+
 export function getDemoNearbyAnnouncements() {
   return [...DEMO_ANNOUNCEMENTS].sort((a, b) => b.createdAt - a.createdAt);
 }
@@ -173,6 +201,12 @@ export async function loadNearbyAnnouncements() {
   return [...stored, ...getDemoNearbyAnnouncements()].sort((a, b) => b.createdAt - a.createdAt);
 }
 
+export async function loadNearbyAnnouncementById(id: string) {
+  if (!id) return null;
+  const items = await loadNearbyAnnouncements();
+  return items.find((item) => item.id === id) ?? null;
+}
+
 export async function createNearbyAnnouncement(
   input: StoredNearbyAnnouncementInput
 ): Promise<NearbyAnnouncement> {
@@ -183,6 +217,7 @@ export async function createNearbyAnnouncement(
     category: input.category,
     placeLabel: String(input.city ?? "").trim(),
     authorLabel: String(input.authorLabel ?? "").trim() || "Amoria",
+    ...(input.authorUid ? { authorUid: String(input.authorUid).trim() } : {}),
     createdAt: Date.now(),
     hasPhoto: Boolean(input.photoUri),
     ...(input.photoUri ? { photoUri: input.photoUri } : {}),
@@ -191,4 +226,20 @@ export async function createNearbyAnnouncement(
   const current = await readStoredAnnouncements();
   await writeStoredAnnouncements([announcement, ...current]);
   return announcement;
+}
+
+export async function loadNearbyAnnouncementResponseAt(id: string, scopeId?: string) {
+  if (!id) return null;
+  const map = await readAnnouncementResponses();
+  const value = Number(map[getAnnouncementResponseKey(id, scopeId)] ?? 0);
+  return value > 0 ? value : null;
+}
+
+export async function markNearbyAnnouncementResponded(id: string, scopeId?: string) {
+  if (!id) return null;
+  const map = await readAnnouncementResponses();
+  const value = Date.now();
+  map[getAnnouncementResponseKey(id, scopeId)] = value;
+  await writeAnnouncementResponses(map);
+  return value;
 }

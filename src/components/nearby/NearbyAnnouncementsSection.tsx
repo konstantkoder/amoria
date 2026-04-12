@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -14,9 +14,9 @@ import { formatAgoLong } from "@/utils/timeAgo";
 type Props = {
   items: NearbyAnnouncement[];
   activeCategory: NearbyAnnouncementCategory | "all";
-  expandedId?: string | null;
+  highlightedId?: string | null;
   onCategoryChange: (next: NearbyAnnouncementCategory | "all") => void;
-  onToggleOpen: (id: string) => void;
+  onOpen: (item: NearbyAnnouncement) => void;
   onCreate: () => void;
 };
 
@@ -32,12 +32,13 @@ function copyOrFallback(
 export default function NearbyAnnouncementsSection({
   items,
   activeCategory,
-  expandedId,
+  highlightedId,
   onCategoryChange,
-  onToggleOpen,
+  onOpen,
   onCreate,
 }: Props) {
   const { t } = useLocale();
+  const scrollRef = useRef<ScrollView | null>(null);
 
   const categoryLabels = useMemo(
     () => ({
@@ -53,8 +54,14 @@ export default function NearbyAnnouncementsSection({
   );
   const fallbackPlaceLabel = copyOrFallback(t, "tabs.nearby", "Nearby");
 
+  useEffect(() => {
+    if (!highlightedId) return;
+    scrollRef.current?.scrollTo({ y: 0, animated: true });
+  }, [highlightedId]);
+
   return (
     <ScrollView
+      ref={scrollRef}
       style={{ flex: 1 }}
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
@@ -124,14 +131,14 @@ export default function NearbyAnnouncementsSection({
 
       {items.length ? (
         items.map((item) => {
-          const expanded = expandedId === item.id;
+          const highlighted = highlightedId === item.id;
           return (
             <Pressable
               key={item.id}
-              onPress={() => onToggleOpen(item.id)}
+              onPress={() => onOpen(item)}
               style={({ pressed }) => [
                 styles.card,
-                expanded ? styles.cardExpanded : null,
+                highlighted ? styles.cardHighlighted : null,
                 pressed ? styles.cardPressed : null,
               ]}
             >
@@ -141,6 +148,13 @@ export default function NearbyAnnouncementsSection({
                     <View style={styles.categoryPill}>
                       <Text style={styles.categoryText}>{categoryLabels[item.category]}</Text>
                     </View>
+                    {highlighted ? (
+                      <View style={styles.newBadge}>
+                        <Text style={styles.newBadgeText}>
+                          {copyOrFallback(t, "nearby.announcements.newBadge", "Новое")}
+                        </Text>
+                      </View>
+                    ) : null}
                     <View style={styles.metaPill}>
                       <Ionicons name="location-outline" size={13} color={theme.colors.subtext} />
                       <Text style={styles.metaPillText}>{item.placeLabel || fallbackPlaceLabel}</Text>
@@ -152,10 +166,10 @@ export default function NearbyAnnouncementsSection({
                       </View>
                     ) : null}
                   </View>
-                  <Text style={styles.cardTitle} numberOfLines={expanded ? 3 : 2}>
+                  <Text style={styles.cardTitle} numberOfLines={2}>
                     {item.title}
                   </Text>
-                  <Text style={styles.cardDescription} numberOfLines={expanded ? undefined : 2}>
+                  <Text style={styles.cardDescription} numberOfLines={2}>
                     {item.description}
                   </Text>
                 </View>
@@ -185,12 +199,10 @@ export default function NearbyAnnouncementsSection({
                 </View>
                 <View style={styles.openButton}>
                   <Text style={styles.openButtonText}>
-                    {expanded
-                      ? copyOrFallback(t, "nearby.announcements.close", "Свернуть")
-                      : copyOrFallback(t, "nearby.announcements.open", "Открыть")}
+                    {copyOrFallback(t, "nearby.announcements.open", "Открыть")}
                   </Text>
                   <Ionicons
-                    name={expanded ? "chevron-up-outline" : "chevron-forward-outline"}
+                    name="chevron-forward-outline"
                     size={15}
                     color={theme.colors.text}
                   />
@@ -320,8 +332,14 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.borderSubtle,
     gap: 14,
   },
-  cardExpanded: {
-    borderColor: "rgba(255,255,255,0.14)",
+  cardHighlighted: {
+    borderColor: "rgba(255, 122, 60, 0.34)",
+    backgroundColor: "rgba(23, 20, 36, 0.96)",
+    shadowColor: theme.colors.accent,
+    shadowOpacity: 0.16,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 5,
   },
   cardPressed: {
     opacity: 0.95,
@@ -356,6 +374,19 @@ const styles = StyleSheet.create({
   },
   categoryText: {
     color: theme.colors.primary,
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  newBadge: {
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    backgroundColor: "rgba(255, 122, 60, 0.18)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 122, 60, 0.28)",
+  },
+  newBadgeText: {
+    color: theme.colors.accent,
     fontSize: 11,
     fontWeight: "800",
   },

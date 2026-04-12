@@ -117,32 +117,22 @@ export default function CreateAnnouncementScreen() {
 
     setSaving(true);
     try {
-      await createNearbyAnnouncement({
+      const createdAnnouncement = await createNearbyAnnouncement({
         title: trimmedTitle,
         description: trimmedDescription,
         category,
         city,
         authorLabel,
+        ...(auth?.currentUser?.uid ? { authorUid: auth.currentUser.uid } : {}),
         ...(photoUri ? { photoUri } : {}),
       });
 
-      Alert.alert(
-        copyOrFallback(t, "nearby.create.successTitle", "Объявление готово"),
-        copyOrFallback(
-          t,
-          "nearby.create.successBody",
-          "Оно уже добавлено в Nearby и доступно в разделе «Объявления»."
-        )
-      );
-
-      if (navigation.canGoBack()) {
-        navigation.goBack();
-        return;
-      }
-
       navigation.navigate("Tabs", {
         screen: "Nearby",
-        params: { section: "announcements" },
+        params: {
+          section: "announcements",
+          highlightAnnouncementId: createdAnnouncement.id,
+        },
       });
     } catch {
       Alert.alert(
