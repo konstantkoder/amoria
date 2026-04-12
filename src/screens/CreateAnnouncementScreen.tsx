@@ -2,8 +2,8 @@ import React from "react";
 import {
   Alert,
   Image,
-  Pressable,
   ScrollView,
+  Pressable,
   StyleSheet,
   Text,
   TextInput,
@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { useNavigation } from "@react-navigation/native";
+import { Ionicons } from "@expo/vector-icons";
 
 import ScreenShell from "@/components/ScreenShell";
 import { auth } from "@/config/firebaseConfig";
@@ -63,6 +64,17 @@ export default function CreateAnnouncementScreen() {
     [t]
   );
   const fallbackPlaceLabel = copyOrFallback(t, "tabs.nearby", "Nearby");
+  const previewTitle =
+    title.trim() ||
+    copyOrFallback(t, "nearby.create.previewTitleFallback", "Announcement title");
+  const previewBody =
+    description.trim() ||
+    copyOrFallback(
+      t,
+      "nearby.create.previewBodyFallback",
+      "A short description will appear here and explain why this announcement matters."
+    );
+  const previewPlace = city.trim() || fallbackPlaceLabel;
 
   const pickPhoto = React.useCallback(async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -157,14 +169,14 @@ export default function CreateAnnouncementScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.heroCard}>
-          <Text style={styles.heroKicker}>
+        <View style={styles.introCard}>
+          <Text style={styles.introKicker}>
             {copyOrFallback(t, "nearby.create.kicker", "Новый локальный пост")}
           </Text>
-          <Text style={styles.heroTitle}>
+          <Text style={styles.introTitle}>
             {copyOrFallback(t, "nearby.create.heroTitle", "Собери понятное объявление без перегруза")}
           </Text>
-          <Text style={styles.heroBody}>
+          <Text style={styles.introBody}>
             {copyOrFallback(
               t,
               "nearby.create.heroBody",
@@ -212,7 +224,11 @@ export default function CreateAnnouncementScreen() {
           <Text style={styles.label}>
             {copyOrFallback(t, "nearby.create.categoryLabel", "Категория")}
           </Text>
-          <View style={styles.categoryRow}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.categoryRow}
+          >
             {NEARBY_ANNOUNCEMENT_CATEGORY_ORDER.map((item) => {
               const active = item === category;
               return (
@@ -227,7 +243,7 @@ export default function CreateAnnouncementScreen() {
                 </Pressable>
               );
             })}
-          </View>
+          </ScrollView>
 
           <Text style={styles.label}>
             {copyOrFallback(t, "nearby.create.titleLabel", "Заголовок")}
@@ -284,37 +300,65 @@ export default function CreateAnnouncementScreen() {
           <Text style={styles.previewKicker}>
             {copyOrFallback(t, "nearby.create.previewKicker", "Как это увидят рядом")}
           </Text>
-          <Text style={styles.previewTitle}>
-            {title.trim() ||
-              copyOrFallback(t, "nearby.create.previewTitleFallback", "Announcement title")}
-          </Text>
-          <Text style={styles.previewMeta}>
-            {categoryLabels[category]} • {city.trim() || fallbackPlaceLabel}
-            {photoUri
-              ? ` • ${copyOrFallback(t, "nearby.announcements.photoYes", "With photo")}`
-              : ` • ${copyOrFallback(t, "nearby.announcements.photoNo", "No photo")}`}
-          </Text>
-          <Text style={styles.previewBody}>
-            {description.trim() ||
-              copyOrFallback(
-                t,
-                "nearby.create.previewBodyFallback",
-                "A short description will appear here and explain why this announcement matters."
-              )}
-          </Text>
+          <View style={styles.previewListing}>
+            <View style={styles.previewTop}>
+              <View style={styles.previewCopy}>
+                <View style={styles.previewMetaRow}>
+                  <View style={styles.previewCategoryPill}>
+                    <Text style={styles.previewCategoryText}>{categoryLabels[category]}</Text>
+                  </View>
+                  <View style={styles.previewMetaPill}>
+                    <Ionicons name="location-outline" size={13} color={theme.colors.subtext} />
+                    <Text style={styles.previewMetaPillText}>{previewPlace}</Text>
+                  </View>
+                </View>
+                <Text style={styles.previewTitle}>{previewTitle}</Text>
+                <Text style={styles.previewBody}>{previewBody}</Text>
+              </View>
+
+              <View style={[styles.previewMediaTile, photoUri ? styles.previewMediaTileActive : null]}>
+                {photoUri ? (
+                  <Image source={{ uri: photoUri }} style={styles.previewMediaImage} />
+                ) : (
+                  <Ionicons name="image-outline" size={20} color={theme.colors.subtext} />
+                )}
+                <Text style={styles.previewMediaText}>
+                  {photoUri
+                    ? copyOrFallback(t, "nearby.announcements.photoYes", "With photo")
+                    : copyOrFallback(t, "nearby.announcements.photoNo", "No photo")}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.previewFooter}>
+              <Text style={styles.previewAuthor}>{authorLabel}</Text>
+              <Text style={styles.previewAuthorHint}>
+                {copyOrFallback(t, "nearby.create.previewFooter", "Появится в Nearby → Объявления")}
+              </Text>
+            </View>
+          </View>
         </View>
 
-        <Pressable
-          onPress={() => void publish()}
-          disabled={saving}
-          style={[styles.publishButton, saving ? styles.publishButtonDisabled : null]}
-        >
-          <Text style={styles.publishButtonText}>
-            {saving
-              ? copyOrFallback(t, "common.saving", "Сохранение...")
-              : copyOrFallback(t, "nearby.create.publish", "Опубликовать объявление")}
+        <View style={styles.publishCard}>
+          <Pressable
+            onPress={() => void publish()}
+            disabled={saving}
+            style={[styles.publishButton, saving ? styles.publishButtonDisabled : null]}
+          >
+            <Text style={styles.publishButtonText}>
+              {saving
+                ? copyOrFallback(t, "common.saving", "Сохранение...")
+                : copyOrFallback(t, "nearby.create.publish", "Опубликовать объявление")}
+            </Text>
+          </Pressable>
+          <Text style={styles.publishHint}>
+            {copyOrFallback(
+              t,
+              "nearby.create.publishHint",
+              "После публикации объявление сразу появится в Nearby."
+            )}
           </Text>
-        </Pressable>
+        </View>
       </ScrollView>
     </ScreenShell>
   );
@@ -326,30 +370,30 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
     gap: 16,
   },
-  heroCard: {
+  introCard: {
     borderRadius: theme.shapes.card,
-    padding: 18,
+    padding: 16,
     backgroundColor: "rgba(17, 20, 36, 0.88)",
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
-    gap: 8,
+    gap: 6,
   },
-  heroKicker: {
+  introKicker: {
     color: theme.colors.accent,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "800",
     letterSpacing: 1,
   },
-  heroTitle: {
+  introTitle: {
     color: theme.colors.text,
-    fontSize: 22,
-    lineHeight: 28,
+    fontSize: 20,
+    lineHeight: 25,
     fontWeight: "800",
   },
-  heroBody: {
+  introBody: {
     color: theme.colors.subtext,
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 13,
+    lineHeight: 18,
   },
   formCard: {
     borderRadius: theme.shapes.card,
@@ -405,8 +449,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   categoryRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
+    paddingRight: 4,
     gap: 8,
   },
   categoryChip: {
@@ -448,27 +491,108 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(20, 18, 35, 0.92)",
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
-    gap: 8,
+    gap: 10,
   },
   previewKicker: {
     color: theme.colors.accent,
     fontSize: 12,
     fontWeight: "800",
   },
+  previewListing: {
+    gap: 12,
+  },
+  previewTop: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+  previewCopy: {
+    flex: 1,
+    gap: 8,
+  },
+  previewMetaRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  previewCategoryPill: {
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    backgroundColor: "rgba(255, 78, 138, 0.14)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 78, 138, 0.22)",
+  },
+  previewCategoryText: {
+    color: theme.colors.primary,
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  previewMetaPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    backgroundColor: theme.colors.pillBg,
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+  },
+  previewMetaPillText: {
+    color: theme.colors.subtext,
+    fontSize: 11,
+    fontWeight: "700",
+  },
   previewTitle: {
     color: theme.colors.text,
     fontSize: 18,
     fontWeight: "800",
   },
-  previewMeta: {
-    color: theme.colors.muted,
-    fontSize: 12,
-    fontWeight: "700",
-  },
   previewBody: {
     color: theme.colors.subtext,
     fontSize: 14,
     lineHeight: 20,
+  },
+  previewMediaTile: {
+    width: 86,
+    minHeight: 86,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 8,
+    gap: 6,
+  },
+  previewMediaTileActive: {
+    backgroundColor: "rgba(255,122,60,0.08)",
+    borderColor: "rgba(255,122,60,0.18)",
+  },
+  previewMediaImage: {
+    width: "100%",
+    height: 50,
+    borderRadius: 12,
+  },
+  previewMediaText: {
+    color: theme.colors.text,
+    fontSize: 11,
+    fontWeight: "800",
+    textAlign: "center",
+  },
+  previewFooter: {
+    gap: 3,
+  },
+  previewAuthor: {
+    color: theme.colors.text,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  previewAuthorHint: {
+    color: theme.colors.muted,
+    fontSize: 11,
+    fontWeight: "700",
   },
   secondaryButton: {
     borderRadius: theme.shapes.pill,
@@ -482,6 +606,9 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
     fontSize: 13,
     fontWeight: "800",
+  },
+  publishCard: {
+    gap: 8,
   },
   publishButton: {
     borderRadius: theme.shapes.pill,
@@ -497,5 +624,11 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 15,
     fontWeight: "800",
+  },
+  publishHint: {
+    color: theme.colors.subtext,
+    fontSize: 12,
+    lineHeight: 17,
+    textAlign: "center",
   },
 });

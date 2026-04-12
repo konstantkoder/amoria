@@ -104,7 +104,7 @@ export default function PlayLobbyScreen() {
           >
             <Text style={styles.quickTitle}>Рядом</Text>
             <Text style={styles.quickText}>
-              Быстрый локальный слой рядом: статус, объявления и вход в комнаты без спора с Together.
+              Локальный слой рядом: статусы, объявления и вход в комнаты.
             </Text>
           </Pressable>
 
@@ -114,7 +114,7 @@ export default function PlayLobbyScreen() {
           >
             <Text style={styles.quickTitle}>Комнаты</Text>
             <Text style={styles.quickText}>
-              Если нужен живой групповой geo-chat, открой комнаты напрямую и вернись сюда одним тапом.
+              Если нужен живой групповой geo-chat, открой Rooms напрямую и вернись сюда назад.
             </Text>
           </Pressable>
         </View>

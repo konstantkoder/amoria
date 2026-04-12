@@ -226,6 +226,7 @@ export default function NearbyNowSection({
     }
     return Array.from(deduped.values());
   }, [pos, posts, radiusKm]);
+  const showStandaloneHeading = showHero || showRoomsBridge;
 
   const renderHero = showHero ? (
     <View style={styles.heroCard}>
@@ -245,8 +246,12 @@ export default function NearbyNowSection({
 
   const renderComposer = (
     <View style={styles.composerCard}>
-      <Text style={styles.sectionTitle}>{t("now.myStatusTitle")}</Text>
-      <Text style={styles.sectionBody}>{t("now.myStatusBody")}</Text>
+      <View style={styles.composerTop}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.sectionTitle}>{t("now.myStatusTitle")}</Text>
+          <Text style={styles.sectionBody}>{t("now.myStatusBody")}</Text>
+        </View>
+      </View>
 
       <View style={styles.moodRow}>
         {moodMeta.map((item) => {
@@ -324,7 +329,9 @@ export default function NearbyNowSection({
   const header = (
     <View style={styles.headerContent}>
       {renderHero}
-      <Text style={styles.sectionHeading}>{t("now.myVibeTitle")}</Text>
+      {showStandaloneHeading ? (
+        <Text style={styles.sectionHeading}>{t("now.myVibeTitle")}</Text>
+      ) : null}
       {renderComposer}
       {renderRoomsBridge}
       <View style={styles.listHeaderRow}>
@@ -377,7 +384,9 @@ export default function NearbyNowSection({
             {distance != null ? ` • ~${distance} ${t("units.km")}` : ""}
           </Text>
         </View>
-        <Text style={styles.postMood}>{moodInfo.label}</Text>
+        <View style={styles.postMoodPill}>
+          <Text style={styles.postMoodText}>{moodInfo.label}</Text>
+        </View>
         <Text style={styles.postText}>{item.text}</Text>
       </View>
     );
@@ -417,7 +426,10 @@ export default function NearbyNowSection({
         ListHeaderComponent={header}
         ListEmptyComponent={
           <View style={styles.emptyWrap}>
-            <Text style={styles.emptyText}>{t("now.noneNearby")}</Text>
+            <View style={styles.emptyCard}>
+              <Text style={styles.emptyTitle}>{t("now.peopleNearby")}</Text>
+              <Text style={styles.emptyText}>{t("now.noneNearby")}</Text>
+            </View>
           </View>
         }
         contentContainerStyle={{
@@ -435,7 +447,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   headerContent: {
-    gap: 12,
+    gap: 10,
     paddingHorizontal: 2,
     paddingBottom: 8,
   },
@@ -497,40 +509,46 @@ const styles = StyleSheet.create({
   },
   sectionHeading: {
     color: theme.colors.text,
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: "800",
     marginTop: 2,
+    paddingHorizontal: 2,
   },
   composerCard: {
-    borderRadius: 18,
-    padding: 12,
-    backgroundColor: theme.colors.backgroundSoft,
+    borderRadius: 20,
+    padding: 14,
+    backgroundColor: "rgba(17, 20, 36, 0.9)",
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
+    gap: 10,
+  },
+  composerTop: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
   },
   sectionTitle: {
     color: "#E5E7EB",
     fontSize: 14,
     fontWeight: "800",
-    marginBottom: 3,
   },
   sectionBody: {
     color: "#9CA3AF",
     fontSize: 12,
     lineHeight: 17,
-    marginBottom: 4,
+    marginTop: 3,
   },
   moodRow: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 6,
-    marginTop: 4,
+    gap: 8,
   },
   moodChip: {
     flexDirection: "row",
     alignItems: "center",
+    minHeight: 34,
     paddingHorizontal: 10,
-    paddingVertical: 7,
+    paddingVertical: 6,
     borderRadius: theme.shapes.pill,
     backgroundColor: "rgba(255,255,255,0.05)",
     borderWidth: 1,
@@ -553,28 +571,33 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   input: {
-    marginTop: 8,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
-    backgroundColor: theme.colors.backgroundSoft,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    backgroundColor: "rgba(5, 8, 22, 0.36)",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     color: theme.colors.pillText,
     fontSize: 14,
-    height: 72,
+    minHeight: 74,
     textAlignVertical: "top",
   },
   composerFooter: {
     flexDirection: "row",
-    alignItems: "center",
-    marginTop: 8,
+    alignItems: "flex-end",
     gap: 12,
   },
   locationRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
+    minHeight: 38,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: theme.shapes.pill,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
   },
   locationText: {
     color: "#9CA3AF",
@@ -586,10 +609,13 @@ const styles = StyleSheet.create({
     textDecorationLine: "underline",
   },
   sendButton: {
-    paddingHorizontal: 14,
-    paddingVertical: 9,
+    minHeight: 40,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     borderRadius: theme.shapes.pill,
     backgroundColor: theme.colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
   },
   sendButtonDisabled: {
     backgroundColor: "rgba(55,65,81,0.9)",
@@ -601,7 +627,7 @@ const styles = StyleSheet.create({
   },
   roomsBridgeCard: {
     borderRadius: 18,
-    padding: 12,
+    padding: 14,
     backgroundColor: "rgba(17, 20, 36, 0.88)",
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
@@ -634,7 +660,7 @@ const styles = StyleSheet.create({
   },
   listHeaderRow: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-end",
     justifyContent: "space-between",
     gap: 12,
   },
@@ -651,7 +677,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 6,
-    marginBottom: 4,
   },
   radiusChip: {
     paddingHorizontal: 10,
@@ -675,16 +700,16 @@ const styles = StyleSheet.create({
   },
   postCard: {
     borderRadius: 16,
-    padding: 11,
+    padding: 12,
     marginBottom: 8,
-    backgroundColor: theme.colors.backgroundSoft,
+    backgroundColor: "rgba(17, 20, 36, 0.88)",
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
+    gap: 8,
   },
   postHeader: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 4,
     gap: 8,
   },
   postAuthor: {
@@ -697,10 +722,19 @@ const styles = StyleSheet.create({
     color: "#9CA3AF",
     fontSize: 11,
   },
-  postMood: {
-    color: "#9CA3AF",
+  postMoodPill: {
+    alignSelf: "flex-start",
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+  },
+  postMoodText: {
+    color: theme.colors.subtext,
     fontSize: 11,
-    marginBottom: 3,
+    fontWeight: "700",
   },
   postText: {
     color: "#D1D5DB",
@@ -714,10 +748,24 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   emptyWrap: {
-    paddingTop: 12,
+    paddingTop: 6,
+  },
+  emptyCard: {
+    borderRadius: 16,
+    padding: 14,
+    backgroundColor: "rgba(17, 20, 36, 0.72)",
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+    gap: 4,
+  },
+  emptyTitle: {
+    color: theme.colors.text,
+    fontSize: 14,
+    fontWeight: "800",
   },
   emptyText: {
     color: "#9CA3AF",
     fontSize: 12,
+    lineHeight: 17,
   },
 });

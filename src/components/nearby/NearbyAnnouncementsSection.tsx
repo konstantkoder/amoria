@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 import {
@@ -9,6 +9,7 @@ import {
 } from "@/services/nearbyAnnouncements";
 import { useLocale } from "@/contexts/LocaleContext";
 import { theme } from "@/theme";
+import { formatAgoLong } from "@/utils/timeAgo";
 
 type Props = {
   items: NearbyAnnouncement[];
@@ -60,12 +61,19 @@ export default function NearbyAnnouncementsSection({
     >
       <View style={styles.heroCard}>
         <View style={styles.heroTop}>
-          <View>
+          <View style={{ flex: 1, gap: 4 }}>
             <Text style={styles.heroKicker}>
               {copyOrFallback(t, "nearby.announcements.kicker", "Локальный маркетплейс")}
             </Text>
             <Text style={styles.heroTitle}>
               {copyOrFallback(t, "nearby.announcements.title", "Объявления рядом")}
+            </Text>
+            <Text style={styles.heroBody}>
+              {copyOrFallback(
+                t,
+                "nearby.announcements.body",
+                "Поездка, прогулка, кофе или совместная активность рядом."
+              )}
             </Text>
           </View>
           <View style={styles.heroCountPill}>
@@ -78,13 +86,6 @@ export default function NearbyAnnouncementsSection({
             </Text>
           </View>
         </View>
-        <Text style={styles.heroBody}>
-          {copyOrFallback(
-            t,
-            "nearby.announcements.body",
-            "Здесь люди ищут компанию на прогулку, поездку или общую активность. Это отдельный сценарий от «Сейчас» и от «Комнат»."
-          )}
-        </Text>
         <Pressable onPress={onCreate} style={styles.primaryButton}>
           <Text style={styles.primaryButtonText}>
             {copyOrFallback(t, "nearby.announcements.create", "Создать объявление")}
@@ -92,7 +93,11 @@ export default function NearbyAnnouncementsSection({
         </Pressable>
       </View>
 
-      <View style={styles.filterRow}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.filterRow}
+      >
         <Pressable
           onPress={() => onCategoryChange("all")}
           style={[styles.filterChip, activeCategory === "all" ? styles.filterChipActive : null]}
@@ -115,33 +120,57 @@ export default function NearbyAnnouncementsSection({
             </Pressable>
           );
         })}
-      </View>
+      </ScrollView>
 
       {items.length ? (
         items.map((item) => {
           const expanded = expandedId === item.id;
           return (
-            <View key={item.id} style={styles.card}>
+            <Pressable
+              key={item.id}
+              onPress={() => onToggleOpen(item.id)}
+              style={({ pressed }) => [
+                styles.card,
+                expanded ? styles.cardExpanded : null,
+                pressed ? styles.cardPressed : null,
+              ]}
+            >
               <View style={styles.cardTop}>
-                <View style={{ flex: 1, gap: 6 }}>
-                  <View style={styles.cardTitleRow}>
-                    <Text style={styles.cardTitle}>{item.title}</Text>
+                <View style={styles.cardCopy}>
+                  <View style={styles.cardMetaRow}>
                     <View style={styles.categoryPill}>
                       <Text style={styles.categoryText}>{categoryLabels[item.category]}</Text>
                     </View>
+                    <View style={styles.metaPill}>
+                      <Ionicons name="location-outline" size={13} color={theme.colors.subtext} />
+                      <Text style={styles.metaPillText}>{item.placeLabel || fallbackPlaceLabel}</Text>
+                    </View>
+                    {item.proximityLabel ? (
+                      <View style={styles.metaPill}>
+                        <Ionicons name="navigate-outline" size={13} color={theme.colors.subtext} />
+                        <Text style={styles.metaPillText}>{item.proximityLabel}</Text>
+                      </View>
+                    ) : null}
                   </View>
-                  <Text style={styles.cardMeta}>
-                    {item.placeLabel || fallbackPlaceLabel}
-                    {item.proximityLabel ? ` • ${item.proximityLabel}` : ""}
+                  <Text style={styles.cardTitle} numberOfLines={expanded ? 3 : 2}>
+                    {item.title}
+                  </Text>
+                  <Text style={styles.cardDescription} numberOfLines={expanded ? undefined : 2}>
+                    {item.description}
                   </Text>
                 </View>
-                <View style={styles.photoPill}>
-                  <Ionicons
-                    name={item.hasPhoto ? "image-outline" : "document-text-outline"}
-                    size={14}
-                    color={item.hasPhoto ? theme.colors.accent : theme.colors.text}
-                  />
-                  <Text style={styles.photoPillText}>
+
+                <View style={[styles.mediaTile, item.hasPhoto ? styles.mediaTileActive : null]}>
+                  {item.photoUri ? (
+                    <Image source={{ uri: item.photoUri }} style={styles.mediaImage} />
+                  ) : (
+                    <Ionicons
+                      name={item.hasPhoto ? "image-outline" : "document-text-outline"}
+                      size={18}
+                      color={item.hasPhoto ? theme.colors.accent : theme.colors.subtext}
+                    />
+                  )}
+                  <Text style={styles.mediaTileText}>
                     {item.hasPhoto
                       ? copyOrFallback(t, "nearby.announcements.photoYes", "С фото")
                       : copyOrFallback(t, "nearby.announcements.photoNo", "Без фото")}
@@ -149,28 +178,32 @@ export default function NearbyAnnouncementsSection({
                 </View>
               </View>
 
-              <Text
-                style={styles.cardDescription}
-                numberOfLines={expanded ? undefined : 3}
-              >
-                {item.description}
-              </Text>
-
               <View style={styles.cardFooter}>
-                <Text style={styles.cardAuthor}>{item.authorLabel}</Text>
-                <Pressable onPress={() => onToggleOpen(item.id)} style={styles.openButton}>
+                <View style={styles.authorBlock}>
+                  <Text style={styles.cardAuthor}>{item.authorLabel}</Text>
+                  <Text style={styles.cardTimestamp}>{formatAgoLong(item.createdAt, t)}</Text>
+                </View>
+                <View style={styles.openButton}>
                   <Text style={styles.openButtonText}>
                     {expanded
                       ? copyOrFallback(t, "nearby.announcements.close", "Свернуть")
                       : copyOrFallback(t, "nearby.announcements.open", "Открыть")}
                   </Text>
-                </Pressable>
+                  <Ionicons
+                    name={expanded ? "chevron-up-outline" : "chevron-forward-outline"}
+                    size={15}
+                    color={theme.colors.text}
+                  />
+                </View>
               </View>
-            </View>
+            </Pressable>
           );
         })
       ) : (
         <View style={styles.emptyCard}>
+          <View style={styles.emptyIcon}>
+            <Ionicons name="compass-outline" size={22} color={theme.colors.accent} />
+          </View>
           <Text style={styles.emptyTitle}>
             {copyOrFallback(t, "nearby.announcements.emptyTitle", "Здесь появятся объявления рядом")}
           </Text>
@@ -181,6 +214,11 @@ export default function NearbyAnnouncementsSection({
               "Смените фильтр или создайте первое объявление для своей локальной активности."
             )}
           </Text>
+          <Pressable onPress={onCreate} style={styles.emptyButton}>
+            <Text style={styles.emptyButtonText}>
+              {copyOrFallback(t, "nearby.announcements.create", "Создать объявление")}
+            </Text>
+          </Pressable>
         </View>
       )}
     </ScrollView>
@@ -191,11 +229,11 @@ const styles = StyleSheet.create({
   content: {
     paddingTop: 6,
     paddingBottom: 24,
-    gap: 14,
+    gap: 12,
   },
   heroCard: {
     borderRadius: theme.shapes.card,
-    padding: 18,
+    padding: 16,
     backgroundColor: "rgba(13, 18, 34, 0.9)",
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
@@ -216,14 +254,14 @@ const styles = StyleSheet.create({
   },
   heroTitle: {
     color: theme.colors.text,
-    fontSize: 22,
-    lineHeight: 28,
+    fontSize: 20,
+    lineHeight: 25,
     fontWeight: "800",
   },
   heroBody: {
     color: theme.colors.subtext,
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 13,
+    lineHeight: 18,
   },
   heroCountPill: {
     borderRadius: theme.shapes.pill,
@@ -242,7 +280,7 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
     borderRadius: theme.shapes.pill,
     paddingHorizontal: 16,
-    paddingVertical: 11,
+    paddingVertical: 10,
     backgroundColor: theme.colors.primary,
   },
   primaryButtonText: {
@@ -251,8 +289,7 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   filterRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
+    paddingRight: 4,
     gap: 8,
   },
   filterChip: {
@@ -281,30 +318,38 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(16, 20, 38, 0.88)",
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
-    gap: 12,
+    gap: 14,
+  },
+  cardExpanded: {
+    borderColor: "rgba(255,255,255,0.14)",
+  },
+  cardPressed: {
+    opacity: 0.95,
   },
   cardTop: {
     flexDirection: "row",
     alignItems: "flex-start",
-    justifyContent: "space-between",
     gap: 12,
   },
-  cardTitleRow: {
+  cardCopy: {
+    flex: 1,
+    gap: 8,
+  },
+  cardMetaRow: {
     flexDirection: "row",
-    alignItems: "center",
     flexWrap: "wrap",
     gap: 8,
   },
   cardTitle: {
     color: theme.colors.text,
-    fontSize: 17,
+    fontSize: 16,
+    lineHeight: 22,
     fontWeight: "800",
-    flexShrink: 1,
   },
   categoryPill: {
     borderRadius: theme.shapes.pill,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
     backgroundColor: "rgba(255, 78, 138, 0.14)",
     borderWidth: 1,
     borderColor: "rgba(255, 78, 138, 0.22)",
@@ -314,31 +359,53 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "800",
   },
-  cardMeta: {
-    color: theme.colors.muted,
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  photoPill: {
+  metaPill: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
     borderRadius: theme.shapes.pill,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
     backgroundColor: theme.colors.pillBg,
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
   },
-  photoPillText: {
-    color: theme.colors.text,
+  metaPillText: {
+    color: theme.colors.subtext,
     fontSize: 11,
-    fontWeight: "800",
+    fontWeight: "700",
   },
   cardDescription: {
     color: theme.colors.subtext,
     fontSize: 14,
-    lineHeight: 20,
+    lineHeight: 19,
+  },
+  mediaTile: {
+    width: 82,
+    minHeight: 82,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 8,
+    gap: 6,
+  },
+  mediaTileActive: {
+    backgroundColor: "rgba(255,122,60,0.08)",
+    borderColor: "rgba(255,122,60,0.18)",
+  },
+  mediaImage: {
+    width: "100%",
+    height: 48,
+    borderRadius: 12,
+  },
+  mediaTileText: {
+    color: theme.colors.text,
+    fontSize: 11,
+    fontWeight: "800",
+    textAlign: "center",
   },
   cardFooter: {
     flexDirection: "row",
@@ -346,12 +413,24 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: 12,
   },
+  authorBlock: {
+    flex: 1,
+    gap: 3,
+  },
   cardAuthor: {
     color: theme.colors.text,
     fontSize: 13,
     fontWeight: "700",
   },
+  cardTimestamp: {
+    color: theme.colors.muted,
+    fontSize: 11,
+    fontWeight: "700",
+  },
   openButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
     borderRadius: theme.shapes.pill,
     paddingHorizontal: 14,
     paddingVertical: 9,
@@ -370,16 +449,38 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(17, 20, 36, 0.82)",
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
-    gap: 8,
+    gap: 10,
+    alignItems: "flex-start",
+  },
+  emptyIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,122,60,0.10)",
+    borderWidth: 1,
+    borderColor: "rgba(255,122,60,0.20)",
   },
   emptyTitle: {
     color: theme.colors.text,
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: "800",
   },
   emptyBody: {
     color: theme.colors.subtext,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  emptyButton: {
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: theme.colors.primary,
+  },
+  emptyButtonText: {
+    color: "#FFFFFF",
     fontSize: 14,
-    lineHeight: 20,
+    fontWeight: "800",
   },
 });
