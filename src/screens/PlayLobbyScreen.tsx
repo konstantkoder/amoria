@@ -99,12 +99,12 @@ export default function PlayLobbyScreen() {
 
         <View style={styles.quickRow}>
           <Pressable
-            onPress={() => navigation.navigate("Now")}
+            onPress={() => navigation.navigate("Tabs", { screen: "Nearby", params: { section: "now" } })}
             style={styles.quickCard}
           >
-            <Text style={styles.quickTitle}>Твой вайб</Text>
+            <Text style={styles.quickTitle}>Рядом</Text>
             <Text style={styles.quickText}>
-              Раздел «Сейчас» помогает показать настроение до входа в совместную сессию.
+              Быстрый локальный слой рядом: статус, объявления и вход в комнаты без спора с Together.
             </Text>
           </Pressable>
 
@@ -112,9 +112,9 @@ export default function PlayLobbyScreen() {
             onPress={() => navigation.navigate("Rooms")}
             style={styles.quickCard}
           >
-            <Text style={styles.quickTitle}>Комнаты рядом</Text>
+            <Text style={styles.quickTitle}>Комнаты</Text>
             <Text style={styles.quickText}>
-              Если нужен живой групповой контекст, загляни в комнаты и вернись сюда одним тапом.
+              Если нужен живой групповой geo-chat, открой комнаты напрямую и вернись сюда одним тапом.
             </Text>
           </Pressable>
         </View>

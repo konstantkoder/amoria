@@ -9,7 +9,7 @@ import { Drawer } from "react-native-drawer-layout";
 import { auth, db } from "@/config/firebaseConfig";
 import PlayLobbyScreen from "@/screens/PlayLobbyScreen";
 import ConnectionsFeedScreen from "@/screens/ConnectionsFeedScreen";
-import NowScreen from "@/screens/NowScreen";
+import NearbyHubScreen from "@/screens/NearbyHubScreen";
 import RoomsScreen from "@/screens/RoomsScreen";
 import InboxScreen from "@/screens/InboxScreen";
 import VideoChatScreen from "@/screens/VideoChatScreen";
@@ -21,6 +21,7 @@ import PlayResultScreen from "@/screens/PlayResultScreen";
 import PlayHistoryScreen from "@/screens/PlayHistoryScreen";
 import PlaySessionDetailScreen from "@/screens/PlaySessionDetailScreen";
 import DMChatScreen from "@/screens/DMChatScreen";
+import CreateAnnouncementScreen from "@/screens/CreateAnnouncementScreen";
 
 import ProfileScreen from "@/screens/ProfileScreen";
 import EditProfileScreen from "@/screens/EditProfileScreen";
@@ -88,6 +89,12 @@ function MainTabs() {
       }).length,
     [freshnessState.dmThreads, threads]
   );
+  const nearbyTabLabel = React.useMemo(() => {
+    const nearby = t("tabs.nearby");
+    if (nearby !== "tabs.nearby") return nearby;
+    const legacy = t("tabs.now");
+    return legacy !== "tabs.now" ? legacy : "Nearby";
+  }, [t]);
 
   return (
     <Tab.Navigator
@@ -103,7 +110,7 @@ function MainTabs() {
             inactive: keyof typeof Ionicons.glyphMap;
           }
         > = {
-          Now: { active: "flash", inactive: "flash-outline" },
+          Nearby: { active: "location", inactive: "location-outline" },
           Together: { active: "sparkles", inactive: "sparkles-outline" },
           Connections: { active: "git-network", inactive: "git-network-outline" },
           Inbox: { active: "chatbubbles", inactive: "chatbubbles-outline" },
@@ -178,11 +185,11 @@ function MainTabs() {
       }}
     >
       <Tab.Screen
-        name="Now"
-        component={NowScreen}
+        name="Nearby"
+        component={NearbyHubScreen}
         options={{
-          title: t("tabs.now"),
-          tabBarLabel: t("tabs.now"),
+          title: nearbyTabLabel,
+          tabBarLabel: nearbyTabLabel,
         }}
       />
       <Tab.Screen
@@ -268,6 +275,7 @@ export default function AppNavigator() {
       >
         <RootStack.Screen name="Tabs" component={MainTabs} />
         <RootStack.Screen name="Rooms" component={RoomsScreen} />
+        <RootStack.Screen name="CreateAnnouncement" component={CreateAnnouncementScreen} />
         <RootStack.Screen name="PlayMatch" component={PlayMatchScreen} />
         <RootStack.Screen name="PlayCanvas" component={PlayCanvasScreen} />
         <RootStack.Screen name="PlayColorMood" component={PlayColorMoodScreen} />
