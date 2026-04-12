@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { BackHandler, FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { KeyboardStickyView } from "react-native-keyboard-controller";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 
 import CoreStateCard from "@/components/CoreStateCard";
 import ScreenShell from "@/components/ScreenShell";
@@ -265,15 +265,15 @@ export default function DMChatScreen() {
   const sourceTitle = useMemo(() => {
     if (thread?.source !== "play") return "";
     if (thread.artworkSummary?.activity === "color_mood") {
-      return tt("dm.sourcePlayColorMood", "Чат открылся после палитры настроения");
+      return tt("dm.sourcePlayColorMood", "После палитры настроения");
     }
     if (thread.artworkSummary?.activity === "daily_prompt") {
-      return tt("dm.sourcePlayDailyPrompt", "Чат открылся после общей темы дня");
+      return tt("dm.sourcePlayDailyPrompt", "После общей темы дня");
     }
     if (thread.artworkSummary?.activity === "chain_draw") {
-      return tt("dm.sourcePlayChainDraw", "Чат открылся после рисунка по очереди");
+      return tt("dm.sourcePlayChainDraw", "После рисунка по очереди");
     }
-    return tt("dm.sourcePlay", "Чат открылся после совместной сессии");
+    return tt("dm.sourcePlay", "После совместной сессии");
   }, [thread?.artworkSummary?.activity, thread?.source, tt]);
   const strokeCount = thread?.artworkSummary?.strokeCount;
   const sourceMeta = useMemo(() => {
@@ -281,44 +281,65 @@ export default function DMChatScreen() {
     if (thread.artworkSummary?.activity === "color_mood") {
       return tt(
         "dm.sourcePaletteReady",
-        "Общая палитра уже собрана и сохранена в совместной истории."
+        "Общая палитра уже сохранена в совместной истории."
       );
     }
     if (strokeCount != null) {
-      return tt("dm.sourceStrokeCount", "Штрихов: {count}", { count: String(strokeCount) });
+      return tt(
+        "dm.sourceStrokeCount",
+        "Итог этой сессии уже сохранён в истории. Штрихов: {count}",
+        { count: String(strokeCount) }
+      );
     }
-    return tt("dm.contextReady", "Контекст этой истории уже сохранен.");
+    return tt("dm.contextReady", "Итог этой сессии уже сохранён в совместной истории.");
   }, [strokeCount, thread?.artworkSummary?.activity, thread?.source, tt]);
   const isLoading = threadLoading || messagesLoading;
   const threadMissing = !isLoading && !subscriptionError && !thread && mergedMsgs.length === 0;
   const isEmpty = !isLoading && mergedMsgs.length === 0;
   const canShowComposer = Boolean(db && myId && threadId && peer.uid) && !subscriptionError && !threadMissing;
   const screenTitleName = peer.name || routePeerName || "";
-  const screenTitle = screenTitleName ? t("dm.title", { name: screenTitleName }) : tt("dm.genericTitle", "Chat");
+  const screenTitle = screenTitleName ? t("dm.title", { name: screenTitleName }) : tt("dm.genericTitle", "Чат");
+  const fallbackBack = useCallback(() => {
+    if (backTarget === "history") {
+      navigation.navigate("PlayHistory");
+      return true;
+    }
+    if (backTarget === "connections") {
+      navigation.navigate("Tabs", { screen: "Connections" });
+      return true;
+    }
+    if (backTarget === "inbox") {
+      navigation.navigate("Tabs", { screen: "Inbox" });
+      return true;
+    }
+    return false;
+  }, [backTarget, navigation]);
   const handleBack = useCallback(() => {
+    if (backTarget === "sessionDetail" && backSessionId) {
+      navigation.replace("PlaySessionDetail", { sessionId: backSessionId });
+      return;
+    }
+
     if (navigation.canGoBack()) {
       navigation.goBack();
       return;
     }
 
-    if (backTarget === "history") {
-      navigation.navigate("PlayHistory");
-      return;
-    }
-    if (backTarget === "connections") {
-      navigation.navigate("Tabs", { screen: "Connections" });
-      return;
-    }
-    if (backTarget === "inbox") {
-      navigation.navigate("Tabs", { screen: "Inbox" });
-      return;
-    }
-    if (backTarget === "sessionDetail" && backSessionId) {
-      navigation.navigate("PlaySessionDetail", { sessionId: backSessionId });
+    if (fallbackBack()) {
       return;
     }
     navigation.navigate("Tabs", { screen: "Together" });
-  }, [backSessionId, backTarget, navigation]);
+  }, [backSessionId, backTarget, fallbackBack, navigation]);
+
+  useFocusEffect(
+    useCallback(() => {
+      const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+        handleBack();
+        return true;
+      });
+      return () => sub.remove();
+    }, [handleBack])
+  );
 
   const renderSourceCard = useCallback(
     () =>

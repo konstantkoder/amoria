@@ -92,6 +92,7 @@ const styles = StyleSheet.create({
   cardCompact: {
     padding: 14,
     gap: 10,
+    backgroundColor: "rgba(10, 14, 26, 0.82)",
   },
   eyebrow: {
     color: theme.colors.accent,
@@ -155,6 +156,7 @@ const styles = StyleSheet.create({
   },
   tagCardCompact: {
     padding: 12,
+    backgroundColor: "rgba(255,255,255,0.03)",
   },
   tagLabel: {
     color: theme.colors.muted,

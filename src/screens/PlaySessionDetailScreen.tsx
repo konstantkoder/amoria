@@ -260,9 +260,38 @@ export default function PlaySessionDetailScreen() {
     () => getPlayActivityMetricLabel(session?.activity ?? "draw", "detail"),
     [session?.activity]
   );
+  const metricValue =
+    session?.activity === "color_mood"
+      ? combinedPalette.length || ownPalette.length || peerPalette.length
+      : totalStrokeCount;
   const canOpenChat = revealOutcome === "open_open" && Boolean(db && session && uid && peer?.uid);
   const isLoading = loadingSession || loadingEvents || loadingThreads;
   const sortAt = session?.endedAt ?? session?.startedAt ?? session?.createdAt ?? 0;
+  const summaryItems = React.useMemo(
+    () => [
+      { label: tt("playDetail.activity", "Режим"), value: getPlayActivityLabel(session?.activity ?? "draw", "history") },
+      { label: tt("playDetail.date", "Дата"), value: formatDateTime(sortAt) },
+      { label: metricLabel, value: String(metricValue) },
+    ],
+    [metricLabel, metricValue, session?.activity, sortAt, tt]
+  );
+  const connectionTitle = canOpenChat ? tt("playDetail.chatTitle", "Чат открыт") : revealCopy.shortLabel;
+  const connectionText = canOpenChat
+    ? tt(
+        "playDetail.chatReady",
+        "Контакт уже открылся. Можно перейти в личный чат и продолжить разговор."
+      )
+    : threadLookupError
+      ? threadLookupError
+      : !uid && revealOutcome === "open_open"
+        ? "Чат уже должен быть доступен, но для входа в него нужен активный аккаунт."
+        : revealOutcome === "open_open"
+          ? tt(
+              "playDetail.chatPending",
+              "Открытие состоялось, но чат еще не найден в этой истории. Попробуй зайти сюда чуть позже."
+            )
+          : revealCopy.description;
+  const showRetryChatLookup = Boolean(threadLookupError) || (revealOutcome === "open_open" && Boolean(uid));
 
   const openChat = React.useCallback(() => {
     if (!db || !session || !uid || !peer?.uid) return;
@@ -296,7 +325,7 @@ export default function PlaySessionDetailScreen() {
         }));
 
       if (!mountedRef.current) return;
-      navigation.navigate(
+      navigation.replace(
         "DMChat",
         buildDmChatRouteParams({
           threadId,
@@ -479,47 +508,57 @@ export default function PlaySessionDetailScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.heroCard}>
-          <Text style={styles.heroKicker}>
-            {tt("playDetail.heroKicker", "Постоянный дом этой истории")}
-          </Text>
-          <Text style={styles.heroTitle}>{peerName}</Text>
+          <View style={styles.heroHeader}>
+            <View style={styles.heroHeaderText}>
+              <Text style={styles.heroKicker}>
+                {tt("playDetail.heroKicker", "Постоянный дом этой истории")}
+              </Text>
+              <Text style={styles.heroTitle}>{peerName}</Text>
+            </View>
+            <View
+              style={[
+                styles.statusBadge,
+                revealOutcome === "open_open"
+                  ? styles.statusBadgePrimary
+                  : revealOutcome === "waiting"
+                    ? styles.statusBadgeNeutral
+                    : styles.statusBadgeMuted,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.statusBadgeText,
+                  revealOutcome === "open_open"
+                    ? styles.statusBadgeTextPrimary
+                    : revealOutcome === "waiting"
+                      ? styles.statusBadgeTextNeutral
+                      : styles.statusBadgeTextMuted,
+                ]}
+              >
+                {revealCopy.shortLabel}
+              </Text>
+            </View>
+          </View>
           <Text style={styles.heroText}>
-            {getPlayActivityStoryText(session.activity, sessionPrompt?.text)} Здесь хранятся итог,
-            {activityHasReplay ? " replay и вход в чат," : " визуальный итог и вход в чат,"} если
-            он уже открылся.
+            {getPlayActivityStoryText(session.activity, sessionPrompt?.text)}
           </Text>
-
+          {showDailyPrompt ? (
+            <View style={styles.contextPill}>
+              <Text style={styles.contextLabel}>Тема</Text>
+              <Text style={styles.contextText}>{sessionPromptDisplay}</Text>
+            </View>
+          ) : null}
           <View style={styles.metaGrid}>
             <View style={styles.metaItem}>
-              <Text style={styles.metaLabel}>{tt("playDetail.activity", "Активность")}</Text>
-              <Text style={styles.metaValue}>
-                {getPlayActivityLabel(session.activity, "history")}
-              </Text>
-            </View>
-            <View style={styles.metaItem}>
-              <Text style={styles.metaLabel}>{tt("playDetail.partner", "Второй участник")}</Text>
+              <Text style={styles.metaLabel}>{tt("playDetail.partner", "Вместе")}</Text>
               <Text style={styles.metaValue}>{peerName}</Text>
             </View>
-            <View style={styles.metaItem}>
-              <Text style={styles.metaLabel}>{tt("playDetail.date", "Дата")}</Text>
-              <Text style={styles.metaValue}>{formatDateTime(sortAt)}</Text>
-            </View>
-            <View style={styles.metaItem}>
-              <Text style={styles.metaLabel}>{metricLabel}</Text>
-              <Text style={styles.metaValue}>
-                {String(
-                  session.activity === "color_mood"
-                    ? combinedPalette.length || ownPalette.length || peerPalette.length
-                    : totalStrokeCount
-                )}
-              </Text>
-            </View>
-            {showDailyPrompt ? (
-              <View style={[styles.metaItem, styles.metaItemWide]}>
-                <Text style={styles.metaLabel}>Тема</Text>
-                <Text style={styles.metaValue}>{sessionPromptDisplay}</Text>
+            {summaryItems.map((item) => (
+              <View key={item.label} style={styles.metaItem}>
+                <Text style={styles.metaLabel}>{item.label}</Text>
+                <Text style={styles.metaValue}>{item.value}</Text>
               </View>
-            ) : null}
+            ))}
           </View>
         </View>
 
@@ -530,72 +569,9 @@ export default function PlaySessionDetailScreen() {
           ownPalette={ownPalette}
           peerPalette={peerPalette}
           peerTitle="Цвета второго участника"
+          compact
           surface="detail"
         />
-
-        <View style={styles.statusCard}>
-          <Text style={styles.statusKicker}>{tt("playDetail.revealKicker", "Как закончилась сессия")}</Text>
-          <Text style={styles.statusTitle}>{revealCopy.shortLabel}</Text>
-          <Text style={styles.statusText}>{revealCopy.description}</Text>
-        </View>
-
-        <View style={styles.actionCard}>
-          <Text style={styles.actionTitle}>{tt("playDetail.chatTitle", "Что доступно сейчас")}</Text>
-          {canOpenChat ? (
-            <>
-              <Text style={styles.actionText}>
-                {tt(
-                  "playDetail.chatReady",
-                  "Контакт уже открылся. Можно перейти в личный чат и продолжить разговор."
-                )}
-              </Text>
-              <Pressable onPress={openChat} style={styles.primaryButton} disabled={openingChat}>
-                <Text style={styles.primaryButtonText}>
-                  {openingChat
-                    ? tt("connections.openingChat", "Открываем чат…")
-                    : tt("connections.openChat", "Открыть чат")}
-                </Text>
-              </Pressable>
-              {chatActionError ? <Text style={styles.actionErrorText}>{chatActionError}</Text> : null}
-            </>
-          ) : (
-            <>
-              <Text style={styles.actionText}>
-                {threadLookupError
-                  ? threadLookupError
-                  : !uid && revealOutcome === "open_open"
-                    ? "Чат уже должен быть доступен, но для входа в него нужен активный аккаунт."
-                  : revealOutcome === "open_open"
-                    ? tt(
-                        "playDetail.chatPending",
-                        "Открытие состоялось, но чат еще не найден в этой истории. Попробуй зайти сюда чуть позже."
-                      )
-                    : tt(
-                        "playDetail.chatUnavailable",
-                        "Чат появится только там, где совместная сессия действительно открылась в личный контакт."
-                      )}
-              </Text>
-              {revealOutcome === "open_open" || threadLookupError ? (
-                <Pressable
-                  onPress={() => setReloadKey((prev) => prev + 1)}
-                  style={styles.primaryButton}
-                >
-                  <Text style={styles.primaryButtonText}>{tt("common.retry", "Повторить")}</Text>
-                </Pressable>
-              ) : null}
-            </>
-          )}
-          <View style={styles.actionRow}>
-            <Pressable onPress={goToHistory} style={styles.secondaryButton}>
-              <Text style={styles.secondaryButtonText}>Ко всем историям</Text>
-            </Pressable>
-            <Pressable onPress={startNewSession} style={styles.secondaryButton}>
-              <Text style={styles.secondaryButtonText}>
-                {tt("playDetail.startNew", "Начать новую совместную сессию")}
-              </Text>
-            </Pressable>
-          </View>
-        </View>
 
         {activityHasReplay ? (
           <View style={styles.replayBlock}>
@@ -637,6 +613,38 @@ export default function PlaySessionDetailScreen() {
             ) : null}
           </View>
         ) : null}
+
+        <View style={styles.actionCard}>
+          <Text style={styles.actionTitle}>{connectionTitle}</Text>
+          <Text style={styles.actionText}>{connectionText}</Text>
+          {chatActionError ? <Text style={styles.actionErrorText}>{chatActionError}</Text> : null}
+          {canOpenChat ? (
+            <Pressable onPress={openChat} style={styles.primaryButton} disabled={openingChat}>
+              <Text style={styles.primaryButtonText}>
+                {openingChat
+                  ? tt("connections.openingChat", "Открываем чат…")
+                  : tt("connections.openChat", "Открыть чат")}
+              </Text>
+            </Pressable>
+          ) : showRetryChatLookup ? (
+            <Pressable
+              onPress={() => setReloadKey((prev) => prev + 1)}
+              style={styles.primaryButton}
+            >
+              <Text style={styles.primaryButtonText}>{tt("common.retry", "Повторить")}</Text>
+            </Pressable>
+          ) : null}
+          <View style={styles.actionRow}>
+            <Pressable onPress={goToHistory} style={styles.secondaryButton}>
+              <Text style={styles.secondaryButtonText}>Ко всем историям</Text>
+            </Pressable>
+            <Pressable onPress={startNewSession} style={styles.secondaryButton}>
+              <Text style={styles.secondaryButtonText}>
+                {tt("playDetail.startNew", "Начать новую совместную сессию")}
+              </Text>
+            </Pressable>
+          </View>
+        </View>
       </ScrollView>
     </ScreenShell>
   );
@@ -657,12 +665,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 28,
   },
   heroCard: {
-    padding: 20,
+    padding: 18,
     borderRadius: theme.shapes.card,
     backgroundColor: "rgba(13, 18, 34, 0.9)",
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
     gap: 12,
+  },
+  heroHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  heroHeaderText: {
+    flex: 1,
+    gap: 6,
   },
   heroKicker: {
     color: theme.colors.accent,
@@ -672,73 +690,77 @@ const styles = StyleSheet.create({
   },
   heroTitle: {
     color: theme.colors.text,
-    fontSize: 28,
-    lineHeight: 34,
+    fontSize: 26,
+    lineHeight: 31,
     fontWeight: "800",
   },
   heroText: {
-    color: theme.colors.subtext,
+    color: theme.colors.text,
     fontSize: 14,
-    lineHeight: 21,
+    lineHeight: 20,
+  },
+  statusBadge: {
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderWidth: 1,
+  },
+  statusBadgePrimary: {
+    backgroundColor: "rgba(255, 78, 138, 0.14)",
+    borderColor: "rgba(255, 78, 138, 0.24)",
+  },
+  statusBadgeMuted: {
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderColor: theme.colors.borderSubtle,
+  },
+  statusBadgeNeutral: {
+    backgroundColor: "rgba(255, 122, 60, 0.12)",
+    borderColor: "rgba(255, 122, 60, 0.22)",
+  },
+  statusBadgeText: {
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  statusBadgeTextPrimary: {
+    color: theme.colors.primary,
+  },
+  statusBadgeTextMuted: {
+    color: theme.colors.text,
+  },
+  statusBadgeTextNeutral: {
+    color: theme.colors.accent,
   },
   metaGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 12,
+    gap: 8,
   },
   metaItem: {
     minWidth: "46%",
     flexGrow: 1,
-    padding: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
     borderRadius: theme.shapes.cardInner,
     backgroundColor: "rgba(255,255,255,0.04)",
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
     gap: 4,
   },
-  metaItemWide: {
-    minWidth: "100%",
-  },
   metaLabel: {
     color: theme.colors.muted,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "700",
     textTransform: "uppercase",
     letterSpacing: 0.6,
   },
   metaValue: {
     color: theme.colors.text,
-    fontSize: 15,
-    lineHeight: 20,
+    fontSize: 14,
+    lineHeight: 18,
     fontWeight: "700",
   },
-  statusCard: {
-    padding: 18,
-    borderRadius: theme.shapes.card,
-    backgroundColor: "rgba(19, 24, 45, 0.9)",
-    borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
-    gap: 8,
-  },
-  statusKicker: {
-    color: theme.colors.accent,
-    fontSize: 12,
-    fontWeight: "800",
-    letterSpacing: 0.8,
-  },
-  statusTitle: {
-    color: theme.colors.text,
-    fontSize: 22,
-    lineHeight: 28,
-    fontWeight: "800",
-  },
-  statusText: {
-    color: theme.colors.subtext,
-    fontSize: 14,
-    lineHeight: 21,
-  },
   actionCard: {
-    padding: 18,
+    padding: 16,
     borderRadius: theme.shapes.card,
     backgroundColor: "rgba(11, 16, 30, 0.92)",
     borderWidth: 1,

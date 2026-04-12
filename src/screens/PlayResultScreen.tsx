@@ -101,9 +101,6 @@ export default function PlayResultScreen() {
   const goToHistory = React.useCallback(() => {
     navigation.navigate("PlayHistory");
   }, [navigation]);
-  const goToConnections = React.useCallback(() => {
-    navigation.navigate("Tabs", { screen: "Connections" });
-  }, [navigation]);
   const startNewSession = React.useCallback(() => {
     navigation.navigate("PlayMatch", { activity: session?.activity ?? "draw" });
   }, [navigation, session?.activity]);
@@ -246,14 +243,52 @@ export default function PlayResultScreen() {
     () => getPlayActivityMetricLabel(session?.activity ?? "draw", "result"),
     [session?.activity]
   );
+  const metricValue =
+    session?.activity === "color_mood"
+      ? combinedPalette.length || ownPalette.length || peerPalette.length
+      : totalStrokeCount;
   const archiveArtifactLabel = session?.activity === "color_mood" ? "палитра" : "рисунок";
   const canOpenChat = Boolean(db && session && uid && peer?.uid);
   const hasReplay = replayStrokes.length > 0;
-  const outcomeTitle = allOpen
-    ? "Открылись оба"
-    : showSoftEnding
-      ? "Раскрытие остановилось мягко"
-      : "Решение еще не завершено";
+  const summaryItems = React.useMemo(
+    () => [
+      { label: "Режим", value: activityLabel },
+      { label: "Вместе", value: peerName },
+      { label: metricLabel, value: String(metricValue) },
+      { label: "Время", value: durationLabel },
+    ],
+    [activityLabel, durationLabel, metricLabel, metricValue, peerName]
+  );
+  const contributionText =
+    session?.activity === "color_mood"
+      ? ""
+      : `Твои штрихи: ${myStrokeCount} • ${peerName}: ${peerStrokeCount}`;
+  const nextStepTitle = historyMode
+    ? allOpen && canOpenChat
+      ? "Контакт уже открыт"
+      : "История сохранена"
+    : allOpen
+      ? "Чат уже открыт"
+      : showSoftEnding
+        ? "История сохранена"
+        : waitingForPeer
+          ? "Ждём второй ответ"
+          : "Что дальше";
+  const nextStepText = historyMode
+    ? allOpen && canOpenChat
+      ? "Можно перейти в личный чат. Полный итог этой сессии уже сохранён в совместной истории."
+      : allOpen
+        ? "Открытие уже произошло, но чат пока не подтянулся. Полный итог этой сессии уже сохранён."
+        : "Полная история этой сессии уже сохранена. Здесь можно быстро перейти к ней и при необходимости открыть replay."
+    : allOpen && !canOpenChat
+      ? "Открытие уже произошло, но чат пока не готов. Итог уже сохранён в совместной истории."
+      : allOpen
+        ? "Вы оба открыли контакт. Дальше связь продолжается в личном чате."
+        : showSoftEnding
+          ? `Сессия осталась в истории. ${archiveArtifactLabel === "палитра" ? "Палитра сохранена и останется только у вас двоих." : "Рисунок и replay сохранены в общей истории."}`
+          : waitingForPeer
+            ? "Твоё решение уже сохранено. Чат откроется только если второй участник тоже выберет открыть."
+            : `Если вы оба выберете открыть, сессия перейдёт в личный чат. Если нет, ${archiveArtifactLabel} останется в совместной истории.`;
 
   const openChat = React.useCallback(async () => {
     if (!db || !session || !uid || !peer?.uid) return;
@@ -281,7 +316,7 @@ export default function PlayResultScreen() {
       });
 
       if (!mountedRef.current) return;
-      navigation.navigate(
+      navigation.replace(
         "DMChat",
         buildDmChatRouteParams({
           threadId,
@@ -371,11 +406,48 @@ export default function PlayResultScreen() {
     }
   }, [db, decision, openingChat, sessionId, submitting, uid]);
 
-  const primaryDisabled =
+  const openCtaDisabled =
     submitting ||
     openingChat ||
-    (historyMode ? !allOpen || !canOpenChat : Boolean(decision) && !allOpen);
-  const tertiaryDisabled = submitting || openingChat || Boolean(decision);
+    (allOpen
+      ? !canOpenChat
+      : historyMode
+        ? !allOpen || !canOpenChat
+        : Boolean(decision) && !allOpen);
+  const skipDisabled = submitting || openingChat || Boolean(decision);
+  const primaryDisabled = historyMode
+    ? allOpen && canOpenChat
+      ? openCtaDisabled
+      : false
+    : allOpen && !canOpenChat
+      ? false
+      : allOpen
+        ? openCtaDisabled
+      : showSoftEnding
+        ? false
+        : waitingForPeer
+          ? true
+          : openCtaDisabled;
+  const primaryLabel = historyMode
+    ? allOpen && canOpenChat
+      ? openingChat
+        ? "Открываем чат…"
+        : "Открыть чат"
+      : "Открыть совместную историю"
+    : allOpen && !canOpenChat
+      ? "Открыть совместную историю"
+      : allOpen
+        ? openingChat
+          ? "Открываем чат…"
+          : "Открыть чат"
+      : showSoftEnding
+        ? "Открыть совместную историю"
+        : waitingForPeer
+          ? "Ждём решение второго"
+          : "Хочу открыть чат";
+  const showHistoryButton = historyMode
+    ? allOpen && canOpenChat
+    : (allOpen && canOpenChat) || waitingForPeer || showSoftEnding;
   const screenTitle = historyMode ? "Совместная история" : "Итог сессии";
   const handleBack = () => {
     if (navigation.canGoBack()) {
@@ -506,57 +578,57 @@ export default function PlayResultScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.heroCard}>
-          <Text style={styles.heroKicker}>
-            {historyMode ? "Совместная история" : "Сразу после совместной сессии"}
-          </Text>
-          <Text style={styles.heroTitle}>{resultModeCopy.heroTitle}</Text>
-          <Text style={styles.heroText}>
-            {resultModeCopy.heroBody}{" "}
-            {session
-              ? getPlayActivityStoryText(session.activity, sessionPrompt?.text)
-              : ""}
-          </Text>
-
-          <View style={styles.metaGrid}>
-            <View style={styles.metaItem}>
-              <Text style={styles.metaLabel}>Активность</Text>
-              <Text style={styles.metaValue}>{activityLabel}</Text>
+          <View style={styles.heroHeaderRow}>
+            <View style={styles.heroHeaderText}>
+              <Text style={styles.heroKicker}>
+                {historyMode ? "Совместная история" : "Сессия завершена"}
+              </Text>
+              <Text style={styles.heroTitle}>{resultModeCopy.heroTitle}</Text>
             </View>
-            <View style={styles.metaItem}>
-              <Text style={styles.metaLabel}>Напарник</Text>
-              <Text style={styles.metaValue}>{peerName}</Text>
-            </View>
-            <View style={styles.metaItem}>
-              <Text style={styles.metaLabel}>{metricLabel}</Text>
-              <Text style={styles.metaValue}>
-                {session?.activity === "color_mood"
-                  ? combinedPalette.length || ownPalette.length || peerPalette.length
-                  : totalStrokeCount}
+            <View
+              style={[
+                styles.statusBadge,
+                allOpen
+                  ? styles.statusBadgePrimary
+                  : showSoftEnding
+                    ? styles.statusBadgeMuted
+                    : styles.statusBadgeNeutral,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.statusBadgeText,
+                  allOpen
+                    ? styles.statusBadgeTextPrimary
+                    : showSoftEnding
+                      ? styles.statusBadgeTextMuted
+                      : styles.statusBadgeTextNeutral,
+                ]}
+              >
+                {revealCopy.shortLabel}
               </Text>
             </View>
-            <View style={styles.metaItem}>
-              <Text style={styles.metaLabel}>Длительность</Text>
-              <Text style={styles.metaValue}>{durationLabel}</Text>
-            </View>
-            {showDailyPrompt ? (
-              <View style={[styles.metaItem, styles.metaItemWide]}>
-                <Text style={styles.metaLabel}>Тема</Text>
-                <Text style={styles.metaValue}>{sessionPromptDisplay}</Text>
-              </View>
-            ) : null}
           </View>
-
-          {session?.activity !== "color_mood" ? (
-            <View style={styles.legendRow}>
-              <View style={styles.legendPill}>
-                <View style={[styles.legendDot, { backgroundColor: theme.colors.primary }]} />
-                <Text style={styles.legendText}>Твои штрихи: {myStrokeCount}</Text>
-              </View>
-              <View style={styles.legendPill}>
-                <View style={[styles.legendDot, { backgroundColor: theme.colors.accent }]} />
-                <Text style={styles.legendText}>Штрихи напарника: {peerStrokeCount}</Text>
-              </View>
+          <Text style={styles.heroText}>
+            {getPlayActivityStoryText(session.activity, sessionPrompt?.text)}
+          </Text>
+          <Text style={styles.heroSubtext}>{resultModeCopy.heroBody}</Text>
+          {showDailyPrompt ? (
+            <View style={styles.contextPill}>
+              <Text style={styles.contextLabel}>Тема</Text>
+              <Text style={styles.contextText}>{sessionPromptDisplay}</Text>
             </View>
+          ) : null}
+          <View style={styles.metaGrid}>
+            {summaryItems.map((item) => (
+              <View key={item.label} style={styles.metaItem}>
+                <Text style={styles.metaLabel}>{item.label}</Text>
+                <Text style={styles.metaValue}>{item.value}</Text>
+              </View>
+            ))}
+          </View>
+          {contributionText ? (
+            <Text style={styles.heroNote}>{contributionText}</Text>
           ) : null}
         </View>
 
@@ -567,94 +639,63 @@ export default function PlayResultScreen() {
           ownPalette={ownPalette}
           peerPalette={peerPalette}
           peerTitle="Цвета второго участника"
+          compact
           surface="result"
         />
 
         <View style={styles.actionCard}>
-          <Text style={styles.actionTitle}>
-            {historyMode ? outcomeTitle : "Что делать с этой сессией дальше?"}
-          </Text>
-          <Text style={styles.actionText}>
-            {historyMode
-              ? revealCopy.description
-              : allOpen && !uid
-                ? "Открытие уже произошло, но чтобы войти в личный чат, нужен активный аккаунт."
-                : allOpen && !canOpenChat
-                ? "Открытие уже произошло, но контекст чата пока не готов. Можно открыть историю или попробовать чуть позже."
-                : `Если вы оба выберете открыть чат, сессия перейдёт в личный контакт. Если нет, ${archiveArtifactLabel} останется только вашей совместной историей.`}
-          </Text>
+          <Text style={styles.actionTitle}>{nextStepTitle}</Text>
+          <Text style={styles.actionText}>{nextStepText}</Text>
           {actionError ? <Text style={styles.inlineError}>{actionError}</Text> : null}
 
-          {historyMode ? (
-            allOpen ? (
-              <Pressable
-                disabled={primaryDisabled}
-                onPress={() => void handleOpenPress()}
-                style={[styles.primaryButton, primaryDisabled && styles.disabledButton]}
-              >
-                <Text style={styles.primaryText}>
-                  {openingChat ? "Открываем чат…" : "Открыть чат"}
-                </Text>
-              </Pressable>
-            ) : null
-          ) : (
-            <>
-              <Pressable
-                disabled={primaryDisabled}
-                onPress={() => void handleOpenPress()}
-                style={[styles.primaryButton, primaryDisabled && styles.disabledButton]}
-              >
-                <Text style={styles.primaryText}>
-                  {openingChat ? "Открываем чат…" : "Хочу открыть чат"}
-                </Text>
-              </Pressable>
+          <Pressable
+            disabled={primaryDisabled}
+            onPress={() => {
+              if (historyMode && (!allOpen || !canOpenChat)) {
+                goToDetail(activityHasReplay && replayOpen ? "replay" : undefined);
+                return;
+              }
+              if (!historyMode && (showSoftEnding || (allOpen && !canOpenChat))) {
+                goToDetail(activityHasReplay && replayOpen ? "replay" : undefined);
+                return;
+              }
+              void handleOpenPress();
+            }}
+            style={[styles.primaryButton, primaryDisabled && styles.disabledButton]}
+          >
+            <Text style={styles.primaryText}>{primaryLabel}</Text>
+          </Pressable>
 
+          <View style={styles.secondaryActions}>
+            {!historyMode && !allOpen && !showSoftEnding && !waitingForPeer && !decision ? (
               <Pressable
-                disabled={tertiaryDisabled}
+                disabled={skipDisabled}
                 onPress={() => void handleSkipPress()}
-                style={[styles.tertiaryButton, tertiaryDisabled && styles.disabledButton]}
+                style={[styles.tertiaryButton, skipDisabled && styles.disabledButton]}
               >
                 <Text style={styles.tertiaryText}>Оставить как историю</Text>
               </Pressable>
-            </>
-          )}
-
-          {activityHasReplay ? (
-            <Pressable
-              onPress={() => setReplayOpen((prev) => !prev)}
-              style={styles.secondaryButton}
-            >
-              <Text style={styles.secondaryText}>
-                {replayOpen ? "Скрыть replay" : "Показать replay"}
-              </Text>
-            </Pressable>
-          ) : null}
-        </View>
-
-        <View style={styles.routeCard}>
-          <Text style={styles.routeTitle}>
-            {historyMode ? "Где живёт эта история" : "Куда эта история перейдёт дальше"}
-          </Text>
-          <Text style={styles.routeText}>
-            {resultModeCopy.routeText}
-          </Text>
-          <View style={styles.routeActions}>
-            <Pressable
-              onPress={() => goToDetail(activityHasReplay && replayOpen ? "replay" : undefined)}
-              style={styles.routeButtonPrimary}
-            >
-              <Text style={styles.routeButtonPrimaryText}>Открыть совместную историю</Text>
-            </Pressable>
-            {allOpen && !historyMode ? (
-              <Pressable onPress={goToConnections} style={styles.routeButton}>
-                <Text style={styles.routeButtonText}>Связи</Text>
+            ) : null}
+            {showHistoryButton ? (
+              <Pressable
+                onPress={() => goToDetail(activityHasReplay && replayOpen ? "replay" : undefined)}
+                style={styles.secondaryButton}
+              >
+                <Text style={styles.secondaryText}>Открыть совместную историю</Text>
               </Pressable>
-            ) : !historyMode ? (
-              <Pressable onPress={startNewSession} style={styles.routeButton}>
-                <Text style={styles.routeButtonText}>Начать новую совместную сессию</Text>
+            ) : null}
+            {activityHasReplay ? (
+              <Pressable
+                onPress={() => setReplayOpen((prev) => !prev)}
+                style={styles.secondaryButton}
+              >
+                <Text style={styles.secondaryText}>
+                  {replayOpen ? "Скрыть replay" : "Показать replay"}
+                </Text>
               </Pressable>
             ) : null}
           </View>
+          <Text style={styles.actionHint}>{resultModeCopy.routeText}</Text>
         </View>
 
         {activityHasReplay && replayOpen ? (
@@ -685,27 +726,6 @@ export default function PlayResultScreen() {
             />
           </View>
         ) : null}
-
-        {waitingForPeer ? (
-          <View style={styles.statusCard}>
-            <Text style={styles.statusTitle}>Ждем второго участника</Text>
-            <Text style={styles.statusText}>
-              Твое решение уже сохранено. Итог останется здесь, а чат откроется только после второго
-              согласия.
-            </Text>
-          </View>
-        ) : null}
-
-        {showSoftEnding ? (
-          <View style={styles.statusCard}>
-            <Text style={styles.statusTitle}>Сессия завершена мягко</Text>
-            <Text style={styles.statusText}>
-              {activityHasReplay
-                ? "Кто-то выбрал пропустить раскрытие. Рисунок и replay остаются с вами, но чат не откроется."
-                : "Кто-то выбрал пропустить раскрытие. Палитра остаётся с вами, но чат не откроется."}
-            </Text>
-          </View>
-        ) : null}
       </ScrollView>
     </ScreenShell>
   );
@@ -726,15 +746,21 @@ const styles = StyleSheet.create({
   },
   heroCard: {
     borderRadius: theme.shapes.card,
-    padding: 20,
+    padding: 18,
     backgroundColor: "rgba(20, 18, 35, 0.92)",
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
-    shadowColor: "#000000",
-    shadowOpacity: 0.28,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 12 },
-    gap: 14,
+    gap: 12,
+  },
+  heroHeaderRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  heroHeaderText: {
+    flex: 1,
+    gap: 6,
   },
   heroKicker: {
     color: theme.colors.accent,
@@ -744,71 +770,87 @@ const styles = StyleSheet.create({
   },
   heroTitle: {
     color: theme.colors.text,
-    fontSize: 28,
+    fontSize: 26,
+    lineHeight: 31,
     fontWeight: "900",
   },
   heroText: {
-    color: theme.colors.subtext,
+    color: theme.colors.text,
     fontSize: 15,
-    lineHeight: 22,
+    lineHeight: 21,
+  },
+  heroSubtext: {
+    color: theme.colors.subtext,
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  heroNote: {
+    color: theme.colors.subtext,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  statusBadge: {
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderWidth: 1,
+  },
+  statusBadgePrimary: {
+    backgroundColor: "rgba(255, 78, 138, 0.14)",
+    borderColor: "rgba(255, 78, 138, 0.24)",
+  },
+  statusBadgeMuted: {
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderColor: theme.colors.borderSubtle,
+  },
+  statusBadgeNeutral: {
+    backgroundColor: "rgba(255, 122, 60, 0.12)",
+    borderColor: "rgba(255, 122, 60, 0.22)",
+  },
+  statusBadgeText: {
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  statusBadgeTextPrimary: {
+    color: theme.colors.primary,
+  },
+  statusBadgeTextMuted: {
+    color: theme.colors.text,
+  },
+  statusBadgeTextNeutral: {
+    color: theme.colors.accent,
   },
   metaGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 10,
+    gap: 8,
   },
   metaItem: {
-    width: "47%",
+    width: "48%",
     minWidth: 140,
     borderRadius: theme.shapes.cardInner,
-    padding: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
     backgroundColor: "rgba(255,255,255,0.04)",
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
   },
-  metaItemWide: {
-    width: "100%",
-  },
   metaLabel: {
     color: theme.colors.muted,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "700",
-    marginBottom: 5,
+    marginBottom: 4,
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
   },
   metaValue: {
     color: theme.colors.text,
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "800",
-  },
-  legendRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-  },
-  legendPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    borderRadius: theme.shapes.pill,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    backgroundColor: theme.colors.pillBg,
-    borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
-  },
-  legendDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-  legendText: {
-    color: theme.colors.text,
-    fontSize: 13,
-    fontWeight: "700",
   },
   actionCard: {
     borderRadius: theme.shapes.card,
-    padding: 18,
+    padding: 16,
     backgroundColor: "rgba(24, 24, 40, 0.88)",
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
@@ -823,6 +865,11 @@ const styles = StyleSheet.create({
     color: theme.colors.subtext,
     fontSize: 14,
     lineHeight: 20,
+  },
+  actionHint: {
+    color: theme.colors.muted,
+    fontSize: 12,
+    lineHeight: 17,
   },
   inlineError: {
     color: theme.colors.danger,
@@ -841,83 +888,41 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "800",
   },
+  secondaryActions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
   secondaryButton: {
-    borderRadius: theme.shapes.cardInner,
-    paddingVertical: 15,
-    paddingHorizontal: 16,
+    borderRadius: theme.shapes.pill,
+    paddingVertical: 11,
+    paddingHorizontal: 14,
+    backgroundColor: theme.colors.pillBg,
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+    alignItems: "center",
+  },
+  secondaryText: {
+    color: theme.colors.text,
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  tertiaryButton: {
+    borderRadius: theme.shapes.pill,
+    paddingVertical: 11,
+    paddingHorizontal: 14,
     backgroundColor: theme.colors.accentSoft,
     borderWidth: 1,
     borderColor: "rgba(255, 122, 60, 0.22)",
     alignItems: "center",
   },
-  secondaryText: {
-    color: theme.colors.text,
-    fontSize: 15,
-    fontWeight: "800",
-  },
-  tertiaryButton: {
-    borderRadius: theme.shapes.cardInner,
-    paddingVertical: 15,
-    paddingHorizontal: 16,
-    backgroundColor: theme.colors.pillBg,
-    borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
-    alignItems: "center",
-  },
   tertiaryText: {
     color: theme.colors.text,
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: "700",
   },
   replayBlock: {
     gap: 10,
-  },
-  routeCard: {
-    borderRadius: theme.shapes.card,
-    padding: 18,
-    backgroundColor: "rgba(17, 20, 36, 0.88)",
-    borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
-    gap: 10,
-  },
-  routeTitle: {
-    color: theme.colors.text,
-    fontSize: 18,
-    fontWeight: "800",
-  },
-  routeText: {
-    color: theme.colors.subtext,
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  routeActions: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-  },
-  routeButton: {
-    borderRadius: theme.shapes.pill,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    backgroundColor: theme.colors.pillBg,
-    borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
-  },
-  routeButtonText: {
-    color: theme.colors.text,
-    fontSize: 13,
-    fontWeight: "800",
-  },
-  routeButtonPrimary: {
-    borderRadius: theme.shapes.pill,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    backgroundColor: theme.colors.primary,
-  },
-  routeButtonPrimaryText: {
-    color: "#fff",
-    fontSize: 13,
-    fontWeight: "800",
   },
   replayHeader: {
     borderRadius: theme.shapes.card,

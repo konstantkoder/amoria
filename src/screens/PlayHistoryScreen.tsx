@@ -7,11 +7,9 @@ import {
   View,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import { Ionicons } from "@expo/vector-icons";
 
 import CoreStateCard from "@/components/CoreStateCard";
 import ScreenShell from "@/components/ScreenShell";
-import PlayModeContextCard from "@/components/play/PlayModeContextCard";
 import { auth, db } from "@/config/firebaseConfig";
 import { useLocale } from "@/contexts/LocaleContext";
 import {
@@ -29,9 +27,7 @@ import {
 import {
   getPlayActivityLabel,
   getPlayActivityMetricLabel,
-  getPlayActivityStoryText,
   getPlayRevealCopy,
-  playActivityUsesReplay,
   subscribeMyPlayHistory,
   type PlayHistoryItem,
 } from "@/services/playSessions";
@@ -57,6 +53,22 @@ type HistoryCard = PlayHistoryItem & {
   signalLabel?: string;
   signalTone?: "fresh" | "recent";
 };
+
+function getHistoryContextText(item: HistoryCard) {
+  switch (item.activity) {
+    case "daily_prompt":
+      return item.promptText?.trim() || "Общая тема дня";
+    case "color_mood":
+      return item.combinedPalette?.length
+        ? `Общая палитра: ${String(item.combinedPalette.length)} цветов`
+        : "Общая палитра пары";
+    case "chain_draw":
+      return "Рисунок по очереди короткими ходами";
+    case "draw":
+    default:
+      return "Свободный общий рисунок";
+  }
+}
 
 export default function PlayHistoryScreen() {
   const navigation = useNavigation<any>();
@@ -188,13 +200,6 @@ export default function PlayHistoryScreen() {
     [navigation]
   );
 
-  const openReplay = useCallback(
-    (sessionId: string) => {
-      navigation.navigate("PlaySessionDetail", { sessionId, focus: "replay" });
-    },
-    [navigation]
-  );
-
   const openChat = useCallback(
     async (card: HistoryCard) => {
       if (!db || !uid || card.revealOutcome !== "open_open") return;
@@ -242,8 +247,9 @@ export default function PlayHistoryScreen() {
   const renderCard = useCallback(
     (item: HistoryCard) => {
       const isColorMood = item.activity === "color_mood";
-      const activityHasReplay = playActivityUsesReplay(item.activity);
       const metricLabel = getPlayActivityMetricLabel(item.activity, "history");
+      const revealCopy = getPlayRevealCopy(item.revealOutcome);
+      const contextText = getHistoryContextText(item);
 
       return (
         <Pressable
@@ -284,25 +290,10 @@ export default function PlayHistoryScreen() {
             <Text style={styles.cardDate}>{formatDateTime(item.sortAt)}</Text>
           </View>
 
-          <Text style={styles.cardSource}>
-            {getPlayActivityStoryText(item.activity, item.promptText)}
-          </Text>
-
-          <PlayModeContextCard
-            activity={item.activity}
-            promptText={item.promptText}
-            combinedPalette={item.combinedPalette ?? []}
-            compact
-            surface="history"
-          />
+          <Text style={styles.cardContext}>{contextText}</Text>
 
           <View style={styles.metaGrid}>
             <View style={styles.metaChip}>
-              <Ionicons
-                name={isColorMood ? "color-palette-outline" : "brush-outline"}
-                size={14}
-                color={theme.colors.accent}
-              />
               <Text style={styles.metaText}>
                 {isColorMood
                   ? `${metricLabel}: ${String(item.combinedPalette?.length ?? 0)}`
@@ -310,35 +301,21 @@ export default function PlayHistoryScreen() {
               </Text>
             </View>
             <View style={styles.metaChip}>
-              <Ionicons name="sparkles-outline" size={14} color={theme.colors.primary} />
-              <Text style={styles.metaText}>
-                {getPlayRevealCopy(item.revealOutcome).shortLabel}
-              </Text>
+              <Text style={styles.metaText}>{revealCopy.shortLabel}</Text>
             </View>
           </View>
 
-          <Text style={styles.cardStatus}>{getPlayRevealCopy(item.revealOutcome).description}</Text>
-
           <View style={styles.actionsRow}>
-            <Pressable
-              onPress={() =>
-                activityHasReplay ? openReplay(item.sessionId) : openDetail(item.sessionId)
-              }
-              style={styles.secondaryButton}
-            >
-              <Text style={styles.secondaryButtonText}>
-                {!activityHasReplay
-                  ? "Открыть палитру"
-                  : tt("connections.openReplay", "Открыть replay")}
-              </Text>
+            <Pressable onPress={() => openDetail(item.sessionId)} style={styles.primaryButton}>
+              <Text style={styles.primaryButtonText}>Открыть историю</Text>
             </Pressable>
             {item.revealOutcome === "open_open" ? (
               <Pressable
                 onPress={() => void openChat(item)}
-                style={styles.primaryButton}
+                style={styles.secondaryButton}
                 disabled={openingChatId === item.id}
               >
-                <Text style={styles.primaryButtonText}>
+                <Text style={styles.secondaryButtonText}>
                   {openingChatId === item.id
                     ? tt("connections.openingChat", "Открываем чат…")
                     : tt("connections.openChat", "Открыть чат")}
@@ -349,7 +326,7 @@ export default function PlayHistoryScreen() {
         </Pressable>
       );
     },
-    [openChat, openDetail, openReplay, openingChatId, tt]
+    [openChat, openDetail, openingChatId, tt]
   );
 
   const renderEmpty = () => (
@@ -464,17 +441,20 @@ export default function PlayHistoryScreen() {
 
           <View style={styles.heroCard}>
             <Text style={styles.heroKicker}>
-              {tt("playHistory.heroKicker", "Память продукта")}
+              {tt("playHistory.heroKicker", "Совместные истории")}
             </Text>
-            <Text style={styles.heroTitle}>
-              {tt("playHistory.heroTitle", "Все совместные моменты остаются рядом")}
-            </Text>
+            <Text style={styles.heroTitle}>{tt("playHistory.heroTitle", "Архив ваших завершённых сессий")}</Text>
             <Text style={styles.heroText}>
               {tt(
                 "playHistory.heroBody",
-                "Здесь живут ваши завершенные сессии: с кем они были, чем закончились и куда можно вернуться дальше."
+                "Здесь можно быстро увидеть режим, итог и открыть постоянную страницу каждой истории."
               )}
             </Text>
+            <View style={styles.heroCountPill}>
+              <Text style={styles.heroCountText}>
+                {cards.length === 1 ? "1 история" : `${String(cards.length)} историй`}
+              </Text>
+            </View>
             <View style={styles.heroActions}>
               <Pressable onPress={goToStart} style={styles.heroPrimaryButton}>
                 <Text style={styles.heroPrimaryButtonText}>Начать новую совместную сессию</Text>
@@ -486,15 +466,6 @@ export default function PlayHistoryScreen() {
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>
-              {tt("playHistory.sectionTitle", "Завершенные совместные сессии")}
-            </Text>
-            <Text style={styles.sectionText}>
-              {tt(
-                "playHistory.sectionBody",
-                "История хранит завершенные совместные сессии. Открой replay, перейди в страницу истории и возвращайся в чат там, где он уже открыт."
-              )}
-            </Text>
             {cards.map(renderCard)}
           </View>
         </ScrollView>
@@ -536,7 +507,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   heroCard: {
-    padding: 20,
+    padding: 18,
     borderRadius: theme.shapes.card,
     backgroundColor: "rgba(13, 18, 34, 0.9)",
     borderWidth: 1,
@@ -559,6 +530,20 @@ const styles = StyleSheet.create({
     color: theme.colors.subtext,
     fontSize: 14,
     lineHeight: 21,
+  },
+  heroCountPill: {
+    alignSelf: "flex-start",
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: theme.colors.pillBg,
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+  },
+  heroCountText: {
+    color: theme.colors.text,
+    fontSize: 12,
+    fontWeight: "800",
   },
   heroActions: {
     flexDirection: "row",
@@ -592,23 +577,13 @@ const styles = StyleSheet.create({
   section: {
     gap: 12,
   },
-  sectionTitle: {
-    color: theme.colors.text,
-    fontSize: 20,
-    fontWeight: "800",
-  },
-  sectionText: {
-    color: theme.colors.subtext,
-    fontSize: 14,
-    lineHeight: 20,
-  },
   card: {
     borderRadius: theme.shapes.card,
-    padding: 18,
+    padding: 16,
     backgroundColor: "rgba(19, 24, 45, 0.9)",
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
-    gap: 12,
+    gap: 10,
   },
   cardTop: {
     flexDirection: "row",
@@ -665,7 +640,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
   },
-  cardSource: {
+  cardContext: {
     color: theme.colors.subtext,
     fontSize: 14,
     lineHeight: 20,
@@ -673,15 +648,12 @@ const styles = StyleSheet.create({
   metaGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 10,
+    gap: 8,
   },
   metaChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
     borderRadius: theme.shapes.pill,
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 7,
     backgroundColor: theme.colors.pillBg,
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
@@ -690,11 +662,6 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
     fontSize: 13,
     fontWeight: "700",
-  },
-  cardStatus: {
-    color: theme.colors.text,
-    fontSize: 14,
-    lineHeight: 20,
   },
   actionsRow: {
     flexDirection: "row",
@@ -715,14 +682,14 @@ const styles = StyleSheet.create({
   secondaryButton: {
     borderRadius: theme.shapes.pill,
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: theme.colors.accentSoft,
+    paddingVertical: 11,
+    backgroundColor: theme.colors.pillBg,
     borderWidth: 1,
-    borderColor: "rgba(255, 122, 60, 0.22)",
+    borderColor: theme.colors.borderSubtle,
   },
   secondaryButtonText: {
     color: theme.colors.text,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "800",
   },
 });
