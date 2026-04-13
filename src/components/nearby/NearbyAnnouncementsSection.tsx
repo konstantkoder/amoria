@@ -14,7 +14,7 @@ import { formatAgoLong } from "@/utils/timeAgo";
 type Props = {
   items: NearbyAnnouncement[];
   activeCategory: NearbyAnnouncementCategory | "all";
-  highlightedId?: string | null;
+  highlightedId?: NearbyAnnouncement["id"] | null;
   onCategoryChange: (next: NearbyAnnouncementCategory | "all") => void;
   onOpen: (item: NearbyAnnouncement) => void;
   onCreate: () => void;

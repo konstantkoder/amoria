@@ -14,7 +14,7 @@ export type NearbySection = "now" | "announcements" | "rooms";
 
 export type NearbyTabParams = {
   section?: NearbySection;
-  highlightAnnouncementId?: string;
+  highlightAnnouncementId?: NearbyAnnouncement["id"];
 };
 
 export type MainTabParamList = {
@@ -33,13 +33,15 @@ export type ProfileStackParamList = {
   FlirtSettings: undefined;
 };
 
+export type TabsNavigatorParams = NavigatorScreenParams<MainTabParamList>;
+
 export type AnnouncementDetailRouteParams = {
-  announcementId: string;
-  initialAnnouncement?: NearbyAnnouncement;
+  announcementId: NearbyAnnouncement["id"];
+  initialAnnouncement?: NearbyAnnouncement | null;
 };
 
 export type RootStackParamList = {
-  Tabs: NavigatorScreenParams<MainTabParamList> | undefined;
+  Tabs: TabsNavigatorParams | undefined;
   Rooms: undefined;
   CreateAnnouncement: undefined;
   AnnouncementDetail: AnnouncementDetailRouteParams;
@@ -71,47 +73,3 @@ export type AnnouncementDetailRouteProp = RouteProp<
   "AnnouncementDetail"
 >;
 export type DmChatRouteProp = RouteProp<RootStackParamList, "DMChat">;
-
-export function buildNearbyTarget(
-  params?: NearbyTabParams
-): ["Tabs", NonNullable<RootStackParamList["Tabs"]>] {
-  return ["Tabs", params ? { screen: "Nearby", params } : { screen: "Nearby" }];
-}
-
-export function buildNearbySectionTarget(
-  section: NearbySection
-): ["Tabs", NonNullable<RootStackParamList["Tabs"]>] {
-  return buildNearbyTarget({ section });
-}
-
-export function buildNearbyAnnouncementsTarget(options?: {
-  highlightAnnouncementId?: string;
-}): ["Tabs", NonNullable<RootStackParamList["Tabs"]>] {
-  return buildNearbyTarget({
-    section: "announcements",
-    ...(options?.highlightAnnouncementId
-      ? { highlightAnnouncementId: options.highlightAnnouncementId }
-      : {}),
-  });
-}
-
-export function buildCreateAnnouncementTarget(): ["CreateAnnouncement"] {
-  return ["CreateAnnouncement"];
-}
-
-export function buildAnnouncementDetailTarget(
-  params: AnnouncementDetailRouteParams
-): ["AnnouncementDetail", AnnouncementDetailRouteParams] {
-  return ["AnnouncementDetail", params];
-}
-
-export function buildRoomsTarget(): ["Rooms"] {
-  return ["Rooms"];
-}
-
-export function clearNearbyRouteParams(navigation: NearbyTabNavigationProp) {
-  navigation.setParams({
-    section: undefined,
-    highlightAnnouncementId: undefined,
-  });
-}

@@ -10,11 +10,8 @@ import { useNavigation } from "@react-navigation/native";
 
 import ScreenShell from "@/components/ScreenShell";
 import { useLocale } from "@/contexts/LocaleContext";
-import {
-  type RootStackNavigationProp,
-  buildNearbySectionTarget,
-  buildRoomsTarget,
-} from "@/navigation/appRoutes";
+import { type RootStackNavigationProp } from "@/navigation/appRoutes";
+import { openNearbySection, openRooms } from "@/navigation/nearbyNavigation";
 import {
   getPlayLobbyModeCardCopy,
   type PlayActivity,
@@ -104,7 +101,7 @@ export default function PlayLobbyScreen() {
 
         <View style={styles.quickRow}>
           <Pressable
-            onPress={() => navigation.navigate(...buildNearbySectionTarget("now"))}
+            onPress={() => openNearbySection(navigation, "now")}
             style={styles.quickCard}
           >
             <Text style={styles.quickTitle}>Рядом</Text>
@@ -114,7 +111,7 @@ export default function PlayLobbyScreen() {
           </Pressable>
 
           <Pressable
-            onPress={() => navigation.navigate(...buildRoomsTarget())}
+            onPress={() => openRooms(navigation)}
             style={styles.quickCard}
           >
             <Text style={styles.quickTitle}>Комнаты</Text>

@@ -9,8 +9,8 @@ import { useLocale } from "@/contexts/LocaleContext";
 import {
   type AnnouncementDetailRouteProp,
   type RootStackNavigationProp,
-  buildNearbyAnnouncementsTarget,
 } from "@/navigation/appRoutes";
+import { goBackToNearbyAnnouncements } from "@/navigation/nearbyNavigation";
 import {
   loadNearbyAnnouncementById,
   loadNearbyAnnouncementResponseState,
@@ -48,8 +48,9 @@ export default function AnnouncementDetailScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"AnnouncementDetail">>();
   const route = useRoute<AnnouncementDetailRouteProp>();
   const { t } = useLocale();
-  const announcementId = String(route.params?.announcementId ?? "");
-  const initialAnnouncement = (route.params?.initialAnnouncement ?? null) as NearbyAnnouncement | null;
+  const announcementId = route.params.announcementId.trim();
+  const initialAnnouncement: NearbyAnnouncement | null =
+    route.params.initialAnnouncement ?? null;
   const currentUid = auth?.currentUser?.uid ?? "";
   const [announcement, setAnnouncement] = React.useState<NearbyAnnouncement | null>(
     initialAnnouncement
@@ -88,12 +89,7 @@ export default function AnnouncementDetailScreen() {
   );
 
   const goBackToAnnouncements = React.useCallback(() => {
-    if (navigation.canGoBack()) {
-      navigation.goBack();
-      return;
-    }
-
-    navigation.navigate(...buildNearbyAnnouncementsTarget());
+    goBackToNearbyAnnouncements(navigation);
   }, [navigation]);
 
   const categoryLabels = React.useMemo(

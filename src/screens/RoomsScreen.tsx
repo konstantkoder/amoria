@@ -33,6 +33,7 @@ import ScreenShell from "@/components/ScreenShell";
 import { OpenStreetMapWebView } from "@/components/OpenStreetMapWebView";
 import LocationConsentModal from "@/components/LocationConsentModal";
 import { useLocale } from "@/contexts/LocaleContext";
+import { type RootStackNavigationProp } from "@/navigation/appRoutes";
 import { translateMaybeKey } from "@/utils/i18n";
 import { formatNickname } from "@/utils/nickname";
 import {
@@ -120,7 +121,7 @@ function getRoomMarkerCoord(base: RoomPosition, kind: RoomKind): LatLng {
 export default function RoomsScreen() {
   const insets = useSafeAreaInsets();
   const { t } = useLocale();
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<RootStackNavigationProp<"Rooms">>();
   const uid = auth?.currentUser?.uid ?? null;
   const nicknameCode = useMemo(
     () => (uid ? makeNickname(uid) : "common.anonymous"),

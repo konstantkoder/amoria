@@ -16,10 +16,8 @@ import { Ionicons } from "@expo/vector-icons";
 import ScreenShell from "@/components/ScreenShell";
 import { auth } from "@/config/firebaseConfig";
 import { useLocale } from "@/contexts/LocaleContext";
-import {
-  type RootStackNavigationProp,
-  buildNearbyAnnouncementsTarget,
-} from "@/navigation/appRoutes";
+import { type RootStackNavigationProp } from "@/navigation/appRoutes";
+import { openNearbyAnnouncements } from "@/navigation/nearbyNavigation";
 import {
   NEARBY_ANNOUNCEMENT_CATEGORY_ORDER,
   createNearbyAnnouncement,
@@ -131,11 +129,7 @@ export default function CreateAnnouncementScreen() {
         ...(photoUri ? { photoUri } : {}),
       });
 
-      navigation.navigate(
-        ...buildNearbyAnnouncementsTarget({
-          highlightAnnouncementId: createdAnnouncement.id,
-        })
-      );
+      openNearbyAnnouncements(navigation, createdAnnouncement.id);
     } catch {
       Alert.alert(
         copyOrFallback(t, "nearby.create.errorTitle", "Не удалось опубликовать"),

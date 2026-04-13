@@ -12,10 +12,12 @@ import {
   type NearbySection,
   type NearbyTabNavigationProp,
   type NearbyTabRouteProp,
-  buildAnnouncementDetailTarget,
-  buildCreateAnnouncementTarget,
-  clearNearbyRouteParams,
 } from "@/navigation/appRoutes";
+import {
+  openAnnouncementDetail,
+  openCreateAnnouncement,
+  resetNearbyRouteParams,
+} from "@/navigation/nearbyNavigation";
 import {
   loadNearbyAnnouncements,
   type NearbyAnnouncement,
@@ -47,9 +49,9 @@ export default function NearbyHubScreen() {
   const [announcementCategory, setAnnouncementCategory] = React.useState<
     NearbyAnnouncementCategory | "all"
   >("all");
-  const [highlightedAnnouncementId, setHighlightedAnnouncementId] = React.useState<string | null>(
-    null
-  );
+  const [highlightedAnnouncementId, setHighlightedAnnouncementId] = React.useState<
+    NearbyAnnouncement["id"] | null
+  >(null);
   const [sectionReady, setSectionReady] = React.useState(false);
 
   const setSection = React.useCallback((next: NearbySection) => {
@@ -95,7 +97,7 @@ export default function NearbyHubScreen() {
 
   React.useEffect(() => {
     const requestedSection = route.params?.section;
-    const requestedHighlightId = String(route.params?.highlightAnnouncementId ?? "").trim();
+    const requestedHighlightId = route.params?.highlightAnnouncementId?.trim();
     let shouldClearParams = false;
 
     if (isNearbySection(requestedSection)) {
@@ -111,7 +113,7 @@ export default function NearbyHubScreen() {
     }
 
     if (shouldClearParams) {
-      clearNearbyRouteParams(navigation);
+      resetNearbyRouteParams(navigation);
     }
   }, [navigation, route.params?.highlightAnnouncementId, route.params?.section, setSection]);
 
@@ -179,14 +181,9 @@ export default function NearbyHubScreen() {
           onCategoryChange={setAnnouncementCategory}
           onOpen={(item) => {
             setHighlightedAnnouncementId(null);
-            navigation.navigate(
-              ...buildAnnouncementDetailTarget({
-                announcementId: item.id,
-                initialAnnouncement: item,
-              })
-            );
+            openAnnouncementDetail(navigation, item);
           }}
-          onCreate={() => navigation.navigate(...buildCreateAnnouncementTarget())}
+          onCreate={() => openCreateAnnouncement(navigation)}
         />
       );
     }

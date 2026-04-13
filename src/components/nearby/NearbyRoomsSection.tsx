@@ -3,10 +3,8 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 
-import {
-  type NearbyTabNavigationProp,
-  buildRoomsTarget,
-} from "@/navigation/appRoutes";
+import { type NearbyTabNavigationProp } from "@/navigation/appRoutes";
+import { openRooms } from "@/navigation/nearbyNavigation";
 import { theme } from "@/theme";
 import { useLocale } from "@/contexts/LocaleContext";
 
@@ -79,7 +77,7 @@ export default function NearbyRoomsSection() {
           </Text>
         </View>
         <Pressable
-          onPress={() => navigation.navigate(...buildRoomsTarget())}
+          onPress={() => openRooms(navigation)}
           style={styles.primaryButton}
         >
           <Text style={styles.primaryButtonText}>{openLabel}</Text>
