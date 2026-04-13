@@ -54,9 +54,10 @@ export default function NearbyRoomsSection() {
           </View>
         </View>
         <Text style={styles.heroBody}>{body}</Text>
-        <View style={styles.featureWrap}>
+        <View style={styles.featureList}>
           {features.map((item) => (
-            <View key={item} style={styles.featureChip}>
+            <View key={item} style={styles.featureRow}>
+              <View style={styles.featureDot} />
               <Text style={styles.featureText}>{item}</Text>
             </View>
           ))}
@@ -102,25 +103,25 @@ const styles = StyleSheet.create({
   content: {
     paddingTop: 6,
     paddingBottom: 24,
-    gap: 12,
+    gap: 10,
   },
   overviewCard: {
     borderRadius: theme.shapes.card,
-    padding: 16,
-    backgroundColor: "rgba(11, 16, 30, 0.88)",
+    padding: 14,
+    backgroundColor: "rgba(11, 16, 30, 0.82)",
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
-    gap: 12,
+    gap: 10,
   },
   overviewTop: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 10,
   },
   heroIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(255, 122, 60, 0.12)",
@@ -129,77 +130,81 @@ const styles = StyleSheet.create({
   },
   heroKicker: {
     color: theme.colors.accent,
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "800",
     letterSpacing: 0.8,
   },
   heroTitle: {
     color: theme.colors.text,
-    fontSize: 20,
-    lineHeight: 25,
+    fontSize: 18,
+    lineHeight: 23,
     fontWeight: "800",
   },
   heroBody: {
     color: theme.colors.subtext,
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 13,
+    lineHeight: 18,
   },
-  featureWrap: {
-    flexDirection: "row",
-    flexWrap: "wrap",
+  featureList: {
     gap: 8,
   },
-  featureChip: {
-    borderRadius: theme.shapes.pill,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: "rgba(255,255,255,0.05)",
-    borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
+  featureRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+  },
+  featureDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginTop: 5,
+    backgroundColor: theme.colors.accent,
   },
   featureText: {
     color: theme.colors.text,
     fontSize: 12,
-    lineHeight: 16,
-    fontWeight: "700",
+    lineHeight: 17,
+    fontWeight: "600",
+    flex: 1,
   },
   ctaCard: {
     borderRadius: theme.shapes.card,
-    padding: 16,
+    padding: 15,
     backgroundColor: "rgba(18, 20, 36, 0.92)",
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
-    gap: 12,
+    gap: 10,
   },
   ctaCopy: {
-    gap: 6,
+    gap: 5,
   },
   ctaTitle: {
     color: theme.colors.text,
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: "800",
   },
   ctaBody: {
     color: theme.colors.subtext,
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 12,
+    lineHeight: 17,
   },
   primaryButton: {
-    alignSelf: "flex-start",
+    alignSelf: "stretch",
     borderRadius: theme.shapes.pill,
     paddingHorizontal: 16,
     paddingVertical: 11,
     backgroundColor: theme.colors.primary,
+    alignItems: "center",
   },
   primaryButtonText: {
     color: "#FFFFFF",
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "800",
   },
   linkCard: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
+    alignItems: "flex-start",
+    gap: 6,
     paddingHorizontal: 4,
   },
   linkCardText: {

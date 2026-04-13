@@ -239,7 +239,7 @@ export default function NearbyHubScreen() {
                 ? activeSectionCopy.label
                 : copyOrFallback(t, "nearby.loading", "Собираем Nearby…")}
             </Text>
-            <Text style={styles.sectionNoteBody}>
+            <Text style={styles.sectionNoteBody} numberOfLines={2}>
               {sectionReady
                 ? activeSectionCopy.body
                 : copyOrFallback(t, "nearby.heroBody", "Статус, объявления и комнаты рядом.")}
@@ -257,47 +257,47 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     paddingHorizontal: 16,
-    paddingTop: 6,
-    paddingBottom: 8,
+    paddingTop: 2,
+    paddingBottom: 6,
   },
   topBlock: {
-    gap: 10,
-    paddingBottom: 8,
+    gap: 8,
+    paddingBottom: 6,
   },
   introRow: {
-    gap: 4,
+    gap: 2,
     paddingHorizontal: 2,
   },
   introKicker: {
     color: theme.colors.accent,
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "800",
-    letterSpacing: 1,
+    letterSpacing: 0.9,
   },
   introTitle: {
     color: theme.colors.text,
-    fontSize: 18,
-    lineHeight: 23,
+    fontSize: 17,
+    lineHeight: 21,
     fontWeight: "800",
   },
   segmentCard: {
-    borderRadius: 20,
-    padding: 6,
-    backgroundColor: "rgba(10, 14, 26, 0.88)",
+    borderRadius: 18,
+    padding: 4,
+    backgroundColor: "rgba(10, 14, 26, 0.82)",
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
   },
   segmentRow: {
     flexDirection: "row",
-    gap: 6,
+    gap: 4,
   },
   segmentButton: {
     flex: 1,
     minWidth: 0,
-    minHeight: 44,
-    borderRadius: 16,
-    paddingVertical: 11,
-    paddingHorizontal: 8,
+    minHeight: 42,
+    borderRadius: 14,
+    paddingVertical: 9,
+    paddingHorizontal: 6,
     backgroundColor: "rgba(255,255,255,0.04)",
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
@@ -308,38 +308,40 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255, 122, 60, 0.20)",
     borderColor: "rgba(255, 122, 60, 0.34)",
     shadowColor: theme.colors.accent,
-    shadowOpacity: 0.16,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 5,
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
   },
   segmentText: {
     color: theme.colors.subtext,
-    fontSize: 14,
+    fontSize: 12,
+    lineHeight: 16,
     fontWeight: "700",
+    textAlign: "center",
   },
   segmentTextActive: {
     color: theme.colors.text,
     fontWeight: "800",
   },
   sectionNoteCard: {
-    borderRadius: 18,
-    paddingHorizontal: 14,
-    paddingVertical: 11,
-    backgroundColor: "rgba(16, 20, 38, 0.76)",
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    backgroundColor: "rgba(16, 20, 38, 0.62)",
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
-    gap: 3,
+    gap: 2,
   },
   sectionNoteLabel: {
     color: theme.colors.text,
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "800",
   },
   sectionNoteBody: {
     color: theme.colors.subtext,
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 12,
+    lineHeight: 16,
   },
   panelArea: {
     flex: 1,

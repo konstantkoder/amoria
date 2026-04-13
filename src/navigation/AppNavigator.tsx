@@ -122,23 +122,23 @@ function MainTabs() {
           tabBarStyle: {
             backgroundColor: theme.colors.background,
             borderTopColor: "rgba(255,255,255,0.08)",
-            height: 64 + insets.bottom,
-            paddingBottom: 7 + insets.bottom,
-            paddingTop: 6,
+            height: 60 + insets.bottom,
+            paddingBottom: 5 + insets.bottom,
+            paddingTop: 4,
           },
           tabBarItemStyle: isTogetherTab
             ? {
-                marginTop: -5,
-                paddingHorizontal: 2,
+                marginTop: -3,
+                paddingHorizontal: 1,
               }
             : {
-                marginTop: 2,
-                paddingHorizontal: 2,
+                marginTop: 1,
+                paddingHorizontal: 1,
               },
           tabBarLabelStyle: {
             fontSize: isTogetherTab ? 11 : 10,
             fontWeight: isTogetherTab ? "800" : "600",
-            marginTop: isTogetherTab ? 1 : 0,
+            marginTop: 0,
           },
           tabBarIcon: ({ color, size, focused }) => {
             const icon = icons[route.name];
@@ -148,35 +148,35 @@ function MainTabs() {
               return (
                 <View
                   style={{
-                    minWidth: 46,
-                    minHeight: focused ? 42 : 40,
+                    minWidth: 44,
+                    minHeight: focused ? 40 : 38,
                     borderRadius: 999,
                     backgroundColor: focused
-                      ? "rgba(255, 78, 138, 0.2)"
-                      : "rgba(255,255,255,0.05)",
+                      ? "rgba(255, 78, 138, 0.18)"
+                      : "rgba(255,255,255,0.04)",
                     borderWidth: 1,
                     borderColor: focused
-                      ? "rgba(255, 122, 60, 0.3)"
+                      ? "rgba(255, 122, 60, 0.28)"
                       : "rgba(255,255,255,0.08)",
                     shadowColor: focused ? theme.colors.primary : "transparent",
-                    shadowOpacity: focused ? 0.22 : 0,
-                    shadowRadius: focused ? 12 : 0,
-                    shadowOffset: { width: 0, height: 6 },
-                    elevation: focused ? 8 : 0,
+                    shadowOpacity: focused ? 0.18 : 0,
+                    shadowRadius: focused ? 10 : 0,
+                    shadowOffset: { width: 0, height: 5 },
+                    elevation: focused ? 7 : 0,
                     alignItems: "center",
                     justifyContent: "center",
                   }}
                 >
                   <Ionicons
                     name={name}
-                    size={focused ? size + 4 : size + 2}
+                    size={focused ? size + 3 : size + 1}
                     color={color}
                   />
                 </View>
               );
             }
 
-            return <Ionicons name={name} size={size} color={color} />;
+            return <Ionicons name={name} size={focused ? size + 1 : size} color={color} />;
           },
         };
       }}

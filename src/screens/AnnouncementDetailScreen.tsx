@@ -190,72 +190,68 @@ export default function AnnouncementDetailScreen() {
               </View>
             </View>
 
-            <View style={styles.mediaCard}>
-              <View style={[styles.mediaTile, announcement.hasPhoto ? styles.mediaTileActive : null]}>
-                {announcement.photoUri ? (
-                  <Image source={{ uri: announcement.photoUri }} style={styles.mediaImage} />
-                ) : (
-                  <Ionicons
-                    name={announcement.hasPhoto ? "image-outline" : "document-text-outline"}
-                    size={26}
-                    color={announcement.hasPhoto ? theme.colors.accent : theme.colors.subtext}
-                  />
-                )}
+            {announcement.hasPhoto || announcement.photoUri ? (
+              <View style={styles.mediaCard}>
+                <View
+                  style={[styles.mediaTile, announcement.hasPhoto ? styles.mediaTileActive : null]}
+                >
+                  {announcement.photoUri ? (
+                    <Image source={{ uri: announcement.photoUri }} style={styles.mediaImage} />
+                  ) : (
+                    <Ionicons name="image-outline" size={24} color={theme.colors.accent} />
+                  )}
+                </View>
+                <View style={styles.mediaCopy}>
+                  <Text style={styles.sectionLabel}>
+                    {copyOrFallback(t, "nearby.detail.photoLabel", "Формат")}
+                  </Text>
+                  <Text style={styles.mediaTitle}>
+                    {copyOrFallback(t, "nearby.detail.photoYes", "С фото")}
+                  </Text>
+                  <Text style={styles.mediaBody}>
+                    {copyOrFallback(
+                      t,
+                      "nearby.detail.photoWithBody",
+                      "У объявления есть визуальный слот. Полный media-flow подключим позже."
+                    )}
+                  </Text>
+                </View>
               </View>
-              <View style={styles.mediaCopy}>
-                <Text style={styles.sectionLabel}>
-                  {copyOrFallback(t, "nearby.detail.photoLabel", "Формат")}
-                </Text>
-                <Text style={styles.mediaTitle}>
-                  {announcement.hasPhoto
-                    ? copyOrFallback(t, "nearby.detail.photoYes", "С фото")
-                    : copyOrFallback(t, "nearby.detail.photoNo", "Без фото")}
-                </Text>
-                <Text style={styles.mediaBody}>
-                  {announcement.hasPhoto
-                    ? copyOrFallback(
-                        t,
-                        "nearby.detail.photoWithBody",
-                        "У объявления есть визуальный слот. Полный media-flow подключим позже."
-                      )
-                    : copyOrFallback(
-                        t,
-                        "nearby.detail.photoWithoutBody",
-                        "Это текстовое объявление. Весь смысл уже раскрыт в описании ниже."
-                      )}
-                </Text>
-              </View>
-            </View>
+            ) : null}
 
-            <View style={styles.infoCard}>
+            <View style={styles.detailsCard}>
               <Text style={styles.sectionLabel}>
                 {copyOrFallback(t, "nearby.detail.metaTitle", "Детали")}
               </Text>
-              <DetailRow
-                label={copyOrFallback(t, "nearby.detail.categoryLabel", "Категория")}
-                value={categoryLabels[announcement.category]}
-              />
-              <DetailRow
-                label={copyOrFallback(t, "nearby.detail.placeLabel", "Место")}
-                value={announcement.placeLabel || fallbackPlaceLabel}
-              />
-              {announcement.proximityLabel ? (
+              <View style={styles.detailStack}>
                 <DetailRow
-                  label={copyOrFallback(t, "nearby.detail.distanceLabel", "Расстояние")}
-                  value={announcement.proximityLabel}
+                  label={copyOrFallback(t, "nearby.detail.categoryLabel", "Категория")}
+                  value={categoryLabels[announcement.category]}
                 />
-              ) : null}
-              <DetailRow
-                label={copyOrFallback(t, "nearby.detail.authorLabel", "Автор")}
-                value={announcement.authorLabel}
-              />
-            </View>
+                <DetailRow
+                  label={copyOrFallback(t, "nearby.detail.placeLabel", "Место")}
+                  value={announcement.placeLabel || fallbackPlaceLabel}
+                />
+                {announcement.proximityLabel ? (
+                  <DetailRow
+                    label={copyOrFallback(t, "nearby.detail.distanceLabel", "Расстояние")}
+                    value={announcement.proximityLabel}
+                  />
+                ) : null}
+                <DetailRow
+                  label={copyOrFallback(t, "nearby.detail.authorLabel", "Автор")}
+                  value={announcement.authorLabel}
+                />
+              </View>
 
-            <View style={styles.descriptionCard}>
-              <Text style={styles.sectionLabel}>
-                {copyOrFallback(t, "nearby.detail.descriptionTitle", "Описание")}
-              </Text>
-              <Text style={styles.descriptionText}>{announcement.description}</Text>
+              <View style={styles.detailsDivider} />
+
+              <View style={styles.descriptionBlock}>
+                <Text style={styles.descriptionLabel}>
+                  {copyOrFallback(t, "nearby.detail.descriptionTitle", "Описание")}
+                </Text>
+                <Text style={styles.descriptionText}>{announcement.description}</Text>
+              </View>
             </View>
 
             <View style={styles.responseCard}>
@@ -329,27 +325,27 @@ export default function AnnouncementDetailScreen() {
 
 const styles = StyleSheet.create({
   content: {
-    padding: 16,
+    padding: 14,
     paddingBottom: 32,
-    gap: 14,
+    gap: 12,
   },
   summaryCard: {
     borderRadius: theme.shapes.card,
-    padding: 18,
+    padding: 16,
     backgroundColor: "rgba(16, 20, 38, 0.92)",
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
-    gap: 12,
+    gap: 10,
   },
   summaryMetaRow: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 8,
+    gap: 6,
   },
   categoryPill: {
     borderRadius: theme.shapes.pill,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
     backgroundColor: "rgba(255, 78, 138, 0.14)",
     borderWidth: 1,
     borderColor: "rgba(255, 78, 138, 0.22)",
@@ -362,10 +358,10 @@ const styles = StyleSheet.create({
   metaPill: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 5,
     borderRadius: theme.shapes.pill,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
     backgroundColor: theme.colors.pillBg,
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
@@ -377,14 +373,15 @@ const styles = StyleSheet.create({
   },
   summaryTitle: {
     color: theme.colors.text,
-    fontSize: 24,
-    lineHeight: 30,
+    fontSize: 22,
+    lineHeight: 28,
     fontWeight: "800",
   },
   summaryFooter: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    flexWrap: "wrap",
+    gap: 4,
   },
   summaryAuthor: {
     color: theme.colors.text,
@@ -403,20 +400,20 @@ const styles = StyleSheet.create({
   mediaCard: {
     flexDirection: "row",
     alignItems: "stretch",
-    gap: 14,
+    gap: 12,
     borderRadius: theme.shapes.card,
-    padding: 16,
-    backgroundColor: "rgba(14, 18, 34, 0.92)",
+    padding: 14,
+    backgroundColor: "rgba(14, 18, 34, 0.84)",
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
   },
   mediaTile: {
-    width: 108,
-    minHeight: 108,
-    borderRadius: 22,
+    width: 96,
+    minHeight: 96,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
-    padding: 10,
+    padding: 9,
     backgroundColor: "rgba(255,255,255,0.04)",
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
@@ -427,30 +424,30 @@ const styles = StyleSheet.create({
   },
   mediaImage: {
     width: "100%",
-    height: 86,
+    height: 78,
     borderRadius: 16,
   },
   mediaCopy: {
     flex: 1,
-    gap: 6,
+    gap: 5,
   },
   sectionLabel: {
     color: theme.colors.accent,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "800",
     letterSpacing: 0.8,
   },
   mediaTitle: {
     color: theme.colors.text,
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: "800",
   },
   mediaBody: {
     color: theme.colors.subtext,
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 12,
+    lineHeight: 17,
   },
-  infoCard: {
+  detailsCard: {
     borderRadius: theme.shapes.card,
     padding: 16,
     backgroundColor: "rgba(17, 20, 36, 0.88)",
@@ -458,8 +455,11 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.borderSubtle,
     gap: 12,
   },
+  detailStack: {
+    gap: 10,
+  },
   detailRow: {
-    gap: 4,
+    gap: 3,
   },
   detailLabel: {
     color: theme.colors.muted,
@@ -474,43 +474,48 @@ const styles = StyleSheet.create({
     lineHeight: 19,
     fontWeight: "700",
   },
-  descriptionCard: {
-    borderRadius: theme.shapes.card,
-    padding: 16,
-    backgroundColor: "rgba(19, 19, 35, 0.92)",
-    borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
-    gap: 10,
+  detailsDivider: {
+    height: 1,
+    backgroundColor: theme.colors.borderSubtle,
+  },
+  descriptionBlock: {
+    gap: 8,
+  },
+  descriptionLabel: {
+    color: theme.colors.text,
+    fontSize: 13,
+    fontWeight: "800",
   },
   descriptionText: {
     color: theme.colors.text,
-    fontSize: 15,
-    lineHeight: 22,
+    fontSize: 14,
+    lineHeight: 21,
   },
   responseCard: {
     borderRadius: theme.shapes.card,
-    padding: 18,
-    backgroundColor: "rgba(25, 19, 35, 0.94)",
+    padding: 16,
+    backgroundColor: "rgba(25, 19, 35, 0.88)",
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
-    gap: 10,
+    gap: 8,
   },
   responseTitle: {
     color: theme.colors.text,
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: "800",
   },
   responseBody: {
     color: theme.colors.subtext,
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 13,
+    lineHeight: 19,
   },
   primaryButton: {
-    alignSelf: "flex-start",
+    alignSelf: "stretch",
     borderRadius: theme.shapes.pill,
     paddingHorizontal: 16,
     paddingVertical: 11,
     backgroundColor: theme.colors.primary,
+    alignItems: "center",
   },
   primaryButtonDisabled: {
     opacity: 0.65,
@@ -521,13 +526,14 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   secondaryButton: {
-    alignSelf: "flex-start",
+    alignSelf: "stretch",
     borderRadius: theme.shapes.pill,
     paddingHorizontal: 16,
     paddingVertical: 11,
     backgroundColor: theme.colors.pillBg,
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
+    alignItems: "center",
   },
   secondaryButtonText: {
     color: theme.colors.text,

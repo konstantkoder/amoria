@@ -86,20 +86,20 @@ export default function ScreenShell({
 }
 
 const styles = StyleSheet.create({
-  safe: { paddingHorizontal: 14, backgroundColor: "transparent" },
+  safe: { paddingHorizontal: 12, backgroundColor: "transparent" },
   header: {
     flexDirection: "row",
     alignItems: "center",
-    minHeight: 48,
-    paddingVertical: 8,
+    minHeight: 46,
+    paddingVertical: 6,
   },
-  headerSide: { width: 90, flexDirection: "row", alignItems: "center" },
-  titleWrap: { flex: 1, alignItems: "center", paddingHorizontal: 8 },
+  headerSide: { width: 86, flexDirection: "row", alignItems: "center" },
+  titleWrap: { flex: 1, alignItems: "center", paddingHorizontal: 6 },
   title: {
     color: "#fff",
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "800",
-    letterSpacing: 0.3,
+    letterSpacing: 0.2,
     textShadowColor: "rgba(0,0,0,0.35)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
@@ -110,7 +110,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 6,
     minWidth: 40,
-    minHeight: 40,
+    minHeight: 38,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
@@ -118,6 +118,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.14)",
   },
-  bodySafe: { flex: 1, paddingHorizontal: 14, backgroundColor: "transparent" },
+  bodySafe: { flex: 1, paddingHorizontal: 12, backgroundColor: "transparent" },
   content: { flex: 1, backgroundColor: "transparent" },
 });

@@ -68,7 +68,7 @@ export default function NearbyAnnouncementsSection({
     >
       <View style={styles.heroCard}>
         <View style={styles.heroTop}>
-          <View style={{ flex: 1, gap: 4 }}>
+          <View style={styles.heroCopy}>
             <Text style={styles.heroKicker}>
               {copyOrFallback(t, "nearby.announcements.kicker", "Локальный маркетплейс")}
             </Text>
@@ -83,6 +83,8 @@ export default function NearbyAnnouncementsSection({
               )}
             </Text>
           </View>
+        </View>
+        <View style={styles.heroFooter}>
           <View style={styles.heroCountPill}>
             <Text style={styles.heroCountText}>
               {copyOrFallback(
@@ -92,12 +94,12 @@ export default function NearbyAnnouncementsSection({
               ).replace("{count}", String(items.length))}
             </Text>
           </View>
+          <Pressable onPress={onCreate} style={styles.primaryButton}>
+            <Text style={styles.primaryButtonText}>
+              {copyOrFallback(t, "nearby.announcements.create", "Создать объявление")}
+            </Text>
+          </Pressable>
         </View>
-        <Pressable onPress={onCreate} style={styles.primaryButton}>
-          <Text style={styles.primaryButtonText}>
-            {copyOrFallback(t, "nearby.announcements.create", "Создать объявление")}
-          </Text>
-        </Pressable>
       </View>
 
       <ScrollView
@@ -241,73 +243,77 @@ const styles = StyleSheet.create({
   content: {
     paddingTop: 6,
     paddingBottom: 24,
-    gap: 12,
+    gap: 10,
   },
   heroCard: {
     borderRadius: theme.shapes.card,
-    padding: 16,
-    backgroundColor: "rgba(13, 18, 34, 0.9)",
+    padding: 14,
+    backgroundColor: "rgba(13, 18, 34, 0.86)",
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
-    gap: 12,
+    gap: 10,
   },
   heroTop: {
+    gap: 8,
+  },
+  heroCopy: {
+    gap: 4,
+  },
+  heroFooter: {
     flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    gap: 12,
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 8,
   },
   heroKicker: {
     color: theme.colors.accent,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "800",
-    letterSpacing: 1,
-    marginBottom: 6,
+    letterSpacing: 0.9,
   },
   heroTitle: {
     color: theme.colors.text,
-    fontSize: 20,
-    lineHeight: 25,
+    fontSize: 18,
+    lineHeight: 23,
     fontWeight: "800",
   },
   heroBody: {
     color: theme.colors.subtext,
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 12,
+    lineHeight: 17,
   },
   heroCountPill: {
     borderRadius: theme.shapes.pill,
     paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingVertical: 5,
     backgroundColor: theme.colors.pillBg,
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
   },
   heroCountText: {
     color: theme.colors.text,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "800",
   },
   primaryButton: {
-    alignSelf: "flex-start",
     borderRadius: theme.shapes.pill,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
     backgroundColor: theme.colors.primary,
   },
   primaryButtonText: {
     color: "#FFFFFF",
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "800",
   },
   filterRow: {
     paddingRight: 4,
-    gap: 8,
+    gap: 6,
   },
   filterChip: {
     borderRadius: theme.shapes.pill,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 11,
+    paddingVertical: 7,
     backgroundColor: "rgba(255,255,255,0.05)",
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
@@ -318,7 +324,7 @@ const styles = StyleSheet.create({
   },
   filterText: {
     color: theme.colors.text,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "700",
   },
   filterTextActive: {
@@ -326,20 +332,20 @@ const styles = StyleSheet.create({
   },
   card: {
     borderRadius: theme.shapes.card,
-    padding: 16,
+    padding: 14,
     backgroundColor: "rgba(16, 20, 38, 0.88)",
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
-    gap: 14,
+    gap: 12,
   },
   cardHighlighted: {
     borderColor: "rgba(255, 122, 60, 0.34)",
     backgroundColor: "rgba(23, 20, 36, 0.96)",
     shadowColor: theme.colors.accent,
-    shadowOpacity: 0.16,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 5,
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
   },
   cardPressed: {
     opacity: 0.95,
@@ -347,27 +353,27 @@ const styles = StyleSheet.create({
   cardTop: {
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: 12,
+    gap: 10,
   },
   cardCopy: {
     flex: 1,
-    gap: 8,
+    gap: 6,
   },
   cardMetaRow: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 8,
+    gap: 6,
   },
   cardTitle: {
     color: theme.colors.text,
-    fontSize: 16,
-    lineHeight: 22,
+    fontSize: 15,
+    lineHeight: 20,
     fontWeight: "800",
   },
   categoryPill: {
     borderRadius: theme.shapes.pill,
-    paddingHorizontal: 9,
-    paddingVertical: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     backgroundColor: "rgba(255, 78, 138, 0.14)",
     borderWidth: 1,
     borderColor: "rgba(255, 78, 138, 0.22)",
@@ -379,8 +385,8 @@ const styles = StyleSheet.create({
   },
   newBadge: {
     borderRadius: theme.shapes.pill,
-    paddingHorizontal: 9,
-    paddingVertical: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     backgroundColor: "rgba(255, 122, 60, 0.18)",
     borderWidth: 1,
     borderColor: "rgba(255, 122, 60, 0.28)",
@@ -393,10 +399,10 @@ const styles = StyleSheet.create({
   metaPill: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 5,
     borderRadius: theme.shapes.pill,
-    paddingHorizontal: 9,
-    paddingVertical: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     backgroundColor: theme.colors.pillBg,
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
@@ -408,20 +414,20 @@ const styles = StyleSheet.create({
   },
   cardDescription: {
     color: theme.colors.subtext,
-    fontSize: 14,
-    lineHeight: 19,
+    fontSize: 13,
+    lineHeight: 18,
   },
   mediaTile: {
-    width: 82,
-    minHeight: 82,
-    borderRadius: 18,
+    width: 74,
+    minHeight: 74,
+    borderRadius: 16,
     backgroundColor: "rgba(255,255,255,0.04)",
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
     alignItems: "center",
     justifyContent: "center",
-    padding: 8,
-    gap: 6,
+    padding: 7,
+    gap: 5,
   },
   mediaTileActive: {
     backgroundColor: "rgba(255,122,60,0.08)",
@@ -429,28 +435,29 @@ const styles = StyleSheet.create({
   },
   mediaImage: {
     width: "100%",
-    height: 48,
+    height: 42,
     borderRadius: 12,
   },
   mediaTileText: {
     color: theme.colors.text,
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "800",
     textAlign: "center",
   },
   cardFooter: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-end",
+    flexWrap: "wrap",
     justifyContent: "space-between",
-    gap: 12,
+    gap: 10,
   },
   authorBlock: {
     flex: 1,
-    gap: 3,
+    gap: 2,
   },
   cardAuthor: {
     color: theme.colors.text,
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "700",
   },
   cardTimestamp: {
@@ -463,20 +470,20 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 4,
     borderRadius: theme.shapes.pill,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     backgroundColor: theme.colors.pillBg,
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
   },
   openButtonText: {
     color: theme.colors.text,
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "800",
   },
   emptyCard: {
     borderRadius: theme.shapes.card,
-    padding: 18,
+    padding: 16,
     backgroundColor: "rgba(17, 20, 36, 0.82)",
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
@@ -495,23 +502,23 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     color: theme.colors.text,
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: "800",
   },
   emptyBody: {
     color: theme.colors.subtext,
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 12,
+    lineHeight: 17,
   },
   emptyButton: {
     borderRadius: theme.shapes.pill,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
     backgroundColor: theme.colors.primary,
   },
   emptyButtonText: {
     color: "#FFFFFF",
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "800",
   },
 });
