@@ -54,19 +54,24 @@ type HistoryCard = PlayHistoryItem & {
   signalTone?: "fresh" | "recent";
 };
 
-function getHistoryContextText(item: HistoryCard) {
+function getHistoryContextText(
+  item: HistoryCard,
+  tt: (key: string, fallback: string, params?: Record<string, string>) => string
+) {
   switch (item.activity) {
     case "daily_prompt":
-      return item.promptText?.trim() || "Общая тема дня";
+      return item.promptText?.trim() || tt("playHistory.contextDailyPrompt", "Shared prompt of the day");
     case "color_mood":
       return item.combinedPalette?.length
-        ? `Общая палитра: ${String(item.combinedPalette.length)} цветов`
-        : "Общая палитра пары";
+        ? tt("playHistory.contextColorMoodCount", "Shared palette: {count} colors", {
+            count: String(item.combinedPalette.length),
+          })
+        : tt("playHistory.contextColorMood", "Shared palette");
     case "chain_draw":
-      return "Рисунок по очереди короткими ходами";
+      return tt("playHistory.contextChainDraw", "Turn-based drawing in short moves");
     case "draw":
     default:
-      return "Свободный общий рисунок";
+      return tt("playHistory.contextDraw", "Free shared drawing");
   }
 }
 
@@ -232,7 +237,12 @@ export default function PlayHistoryScreen() {
         );
         setActionError(null);
       } catch {
-        setActionError("Не удалось открыть чат прямо сейчас. Попробуй еще раз чуть позже.");
+        setActionError(
+          tt(
+            "playHistory.openChatFailed",
+            "We couldn't open the chat right now. Try again a bit later."
+          )
+        );
       } finally {
         setOpeningChatId((prev) => (prev === card.id ? null : prev));
       }
@@ -249,7 +259,7 @@ export default function PlayHistoryScreen() {
       const isColorMood = item.activity === "color_mood";
       const metricLabel = getPlayActivityMetricLabel(item.activity, "history");
       const revealCopy = getPlayRevealCopy(item.revealOutcome);
-      const contextText = getHistoryContextText(item);
+      const contextText = getHistoryContextText(item, tt);
 
       return (
         <Pressable
@@ -307,7 +317,9 @@ export default function PlayHistoryScreen() {
 
           <View style={styles.actionsRow}>
             <Pressable onPress={() => openDetail(item.sessionId)} style={styles.primaryButton}>
-              <Text style={styles.primaryButtonText}>Открыть историю</Text>
+              <Text style={styles.primaryButtonText}>
+                {tt("playHistory.openStory", "Open story")}
+              </Text>
             </Pressable>
             {item.revealOutcome === "open_open" ? (
               <Pressable
@@ -374,9 +386,12 @@ export default function PlayHistoryScreen() {
         <View style={styles.centerBlock}>
           <CoreStateCard
             icon="person-circle-outline"
-            title="История доступна после входа"
-            body="Войди в аккаунт, чтобы видеть завершенные совместные сессии, replay и открытые чаты."
-            primaryAction={{ label: "Открыть профиль", onPress: () => navigation.navigate("Profile") }}
+            title={tt("playHistory.authRequiredTitle", "History requires sign-in")}
+            body={tt(
+              "playHistory.authRequiredBody",
+              "Sign in to see completed shared sessions, replay, and open chats."
+            )}
+            primaryAction={{ label: t("menu.profile"), onPress: () => navigation.navigate("Profile") }}
             secondaryAction={{ label: t("connections.goToTogether"), onPress: goToTogether }}
           />
         </View>
@@ -391,9 +406,12 @@ export default function PlayHistoryScreen() {
           <CoreStateCard
             icon="cloud-offline-outline"
             title={tt("playHistory.errorTitle", "История временно недоступна")}
-            body="Мы не смогли подключить совместные истории прямо сейчас. Попробуй позже или вернись во Вместе."
+            body={tt(
+              "playHistory.offlineBody",
+              "We couldn't connect your shared stories right now. Try again later or go back to Together."
+            )}
             primaryAction={{ label: t("connections.goToTogether"), onPress: goToTogether }}
-            secondaryAction={{ label: "Связи", onPress: goToConnections }}
+            secondaryAction={{ label: t("tabs.connections"), onPress: goToConnections }}
           />
         </View>
       </ScreenShell>
@@ -434,7 +452,9 @@ export default function PlayHistoryScreen() {
         >
           {actionError ? (
             <View style={styles.inlineErrorCard}>
-              <Text style={styles.inlineErrorTitle}>Чат пока не открылся</Text>
+              <Text style={styles.inlineErrorTitle}>
+                {tt("playHistory.inlineErrorTitle", "Chat isn't ready yet")}
+              </Text>
               <Text style={styles.inlineErrorText}>{actionError}</Text>
             </View>
           ) : null}
@@ -452,15 +472,19 @@ export default function PlayHistoryScreen() {
             </Text>
             <View style={styles.heroCountPill}>
               <Text style={styles.heroCountText}>
-                {cards.length === 1 ? "1 история" : `${String(cards.length)} историй`}
+                {tt("playHistory.count", "{count} stories", {
+                  count: String(cards.length),
+                })}
               </Text>
             </View>
             <View style={styles.heroActions}>
               <Pressable onPress={goToStart} style={styles.heroPrimaryButton}>
-                <Text style={styles.heroPrimaryButtonText}>Начать новую совместную сессию</Text>
+                <Text style={styles.heroPrimaryButtonText}>
+                  {tt("playHistory.startNewSession", "Start a new shared session")}
+                </Text>
               </Pressable>
               <Pressable onPress={goToConnections} style={styles.heroSecondaryButton}>
-                <Text style={styles.heroSecondaryButtonText}>Открыть связи</Text>
+                <Text style={styles.heroSecondaryButtonText}>{t("tabs.connections")}</Text>
               </Pressable>
             </View>
           </View>

@@ -357,7 +357,12 @@ export default function ConnectionsFeedScreen() {
       if (!card.sessionId) return;
       const session = sessionById.get(card.sessionId);
       if (!session) {
-        setActionError("Не удалось найти исходную совместную историю для этого чата. Попробуй открыть связь позже.");
+        setActionError(
+          tt(
+            "connections.storyMissingBody",
+            "We couldn't find the source shared story for this chat. Try opening the connection later."
+          )
+        );
         return;
       }
 
@@ -387,7 +392,12 @@ export default function ConnectionsFeedScreen() {
         );
         setActionError(null);
       } catch {
-        setActionError("Не удалось открыть чат прямо сейчас. Попробуй еще раз чуть позже.");
+        setActionError(
+          tt(
+            "connections.openChatFailed",
+            "We couldn't open the chat right now. Try again a bit later."
+          )
+        );
       } finally {
         setOpeningCardId((prev) => (prev === card.id ? null : prev));
       }
@@ -421,10 +431,14 @@ export default function ConnectionsFeedScreen() {
       {showActions ? (
         <View style={styles.heroActions}>
           <Pressable onPress={startNewSession} style={styles.heroPrimaryButton}>
-            <Text style={styles.heroPrimaryButtonText}>Начать новую совместную сессию</Text>
+            <Text style={styles.heroPrimaryButtonText}>
+              {tt("connections.startNewSession", "Start a new shared session")}
+            </Text>
           </Pressable>
           <Pressable onPress={goToHistory} style={styles.heroSecondaryButton}>
-            <Text style={styles.heroSecondaryButtonText}>Совместные истории</Text>
+            <Text style={styles.heroSecondaryButtonText}>
+              {tt("connections.openStories", "Shared stories")}
+            </Text>
           </Pressable>
         </View>
       ) : null}
@@ -447,14 +461,20 @@ export default function ConnectionsFeedScreen() {
         <Text style={styles.emptyStateText}>{t("connections.emptyBody")}</Text>
         <View style={styles.emptyMetaRow}>
           <View style={styles.emptyMetaPill}>
-            <Text style={styles.emptyMetaText}>Общий контекст</Text>
+            <Text style={styles.emptyMetaText}>
+              {tt("connections.emptyMetaContext", "Shared context")}
+            </Text>
           </View>
           <View style={styles.emptyMetaPill}>
-            <Text style={styles.emptyMetaText}>Быстрый вход в чат</Text>
+            <Text style={styles.emptyMetaText}>
+              {tt("connections.emptyMetaChat", "Quick chat entry")}
+            </Text>
           </View>
         </View>
         <Pressable onPress={startNewSession} style={styles.emptyPrimaryButton}>
-          <Text style={styles.emptyPrimaryButtonText}>Начать совместную сессию</Text>
+          <Text style={styles.emptyPrimaryButtonText}>
+            {tt("connections.startNewSession", "Start a shared session")}
+          </Text>
         </Pressable>
         <Pressable onPress={goToTogether} style={styles.emptySecondaryButton}>
           <Text style={styles.emptySecondaryButtonText}>{t("connections.goToTogether")}</Text>
@@ -517,7 +537,9 @@ export default function ConnectionsFeedScreen() {
         <View style={styles.actionsRow}>
           {!card.isFallback && card.sessionId ? (
             <Pressable onPress={() => openDetail(card.sessionId!)} style={styles.secondaryCta}>
-              <Text style={styles.secondaryCtaText}>Открыть историю</Text>
+              <Text style={styles.secondaryCtaText}>
+                {tt("connections.openStory", "Open story")}
+              </Text>
             </Pressable>
           ) : null}
           <Pressable
@@ -546,9 +568,12 @@ export default function ConnectionsFeedScreen() {
         <View style={styles.emptyWrap}>
           <CoreStateCard
             icon="person-circle-outline"
-            title="Связи доступны после входа"
-            body="Войди в аккаунт, чтобы видеть открытые связи, совместные истории и быстрый вход в личные чаты."
-            primaryAction={{ label: "Открыть профиль", onPress: () => navigation.navigate("Profile") }}
+            title={tt("connections.authRequiredTitle", "Connections require sign-in")}
+            body={tt(
+              "connections.authRequiredBody",
+              "Sign in to see open connections, shared stories, and quick entry into personal chats."
+            )}
+            primaryAction={{ label: t("menu.profile"), onPress: () => navigation.navigate("Profile") }}
             secondaryAction={{ label: t("connections.goToTogether"), onPress: goToTogether }}
           />
         </View>
@@ -566,9 +591,15 @@ export default function ConnectionsFeedScreen() {
           <CoreStateCard
             icon="cloud-offline-outline"
             title={tt("connections.errorTitle", "Connections are temporarily unavailable")}
-            body="Мы не смогли подключить связи прямо сейчас. Попробуй позже или вернись во Вместе."
+            body={tt(
+              "connections.offlineBody",
+              "We couldn't connect your connections right now. Try again later or go back to Together."
+            )}
             primaryAction={{ label: t("connections.goToTogether"), onPress: goToTogether }}
-            secondaryAction={{ label: "Совместные истории", onPress: goToHistory }}
+            secondaryAction={{
+              label: tt("connections.openStories", "Shared stories"),
+              onPress: goToHistory,
+            }}
           />
         </View>
       </ScreenShell>
@@ -612,7 +643,9 @@ export default function ConnectionsFeedScreen() {
         >
           {actionError ? (
             <View style={styles.inlineErrorCard}>
-              <Text style={styles.inlineErrorTitle}>Чат пока не открылся</Text>
+              <Text style={styles.inlineErrorTitle}>
+                {tt("connections.inlineErrorTitle", "Chat isn't ready yet")}
+              </Text>
               <Text style={styles.inlineErrorText}>{actionError}</Text>
             </View>
           ) : null}

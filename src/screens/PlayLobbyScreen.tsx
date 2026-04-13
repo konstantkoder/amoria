@@ -23,6 +23,13 @@ const LIVE_MODE_ORDER: PlayActivity[] = ["daily_prompt", "chain_draw", "color_mo
 export default function PlayLobbyScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"PlayMatch">>();
   const { t } = useLocale();
+  const tt = React.useCallback(
+    (key: string, fallback: string, params?: Record<string, string>) => {
+      const value = t(key, params);
+      return value === key ? fallback : value;
+    },
+    [t]
+  );
 
   return (
     <ScreenShell title={t("tabs.together")} background="togetherMain">
@@ -33,11 +40,18 @@ export default function PlayLobbyScreen() {
       >
         <View style={styles.hero}>
           <View style={styles.heroTop}>
-            <Text style={styles.kicker}>Главный вход</Text>
-            <Text style={styles.heroTitle}>Together запускает знакомство через общий опыт</Text>
+            <Text style={styles.kicker}>{tt("together.lobby.kicker", "Main entry")}</Text>
+            <Text style={styles.heroTitle}>
+              {tt(
+                "together.lobby.heroTitle",
+                "Together starts chemistry through a shared experience"
+              )}
+            </Text>
             <Text style={styles.heroText}>
-              Один тап запускает свободную совместную сессию. Если нужен более явный сценарий,
-              режим можно выбрать сразу ниже.
+              {tt(
+                "together.lobby.heroBody",
+                "One tap starts a free shared session. If you want a clearer scenario, choose a mode below."
+              )}
             </Text>
           </View>
 
@@ -46,10 +60,15 @@ export default function PlayLobbyScreen() {
               onPress={() => navigation.navigate("PlayMatch", { activity: "draw" })}
               style={styles.primaryCta}
             >
-              <Text style={styles.primaryCtaTitle}>Начать совместную сессию</Text>
+              <Text style={styles.primaryCtaTitle}>
+                {tt("together.lobby.startSession", "Start a shared session")}
+              </Text>
             </Pressable>
             <Text style={styles.primaryCtaHint}>
-              Свободный старт, reveal и переход в чат только по взаимному желанию.
+              {tt(
+                "together.lobby.startHint",
+                "Open start, reveal, and a move to chat only if both want it."
+              )}
             </Text>
           </View>
         </View>
@@ -59,20 +78,32 @@ export default function PlayLobbyScreen() {
           style={styles.historyCard}
         >
           <View style={styles.historyTextWrap}>
-            <Text style={styles.historyTitle}>Совместные истории</Text>
+            <Text style={styles.historyTitle}>
+              {tt("together.lobby.historyTitle", "Shared stories")}
+            </Text>
             <Text style={styles.historyText}>
-              Итоги, replay и быстрый вход обратно в уже открытую связь.
+              {tt(
+                "together.lobby.historyBody",
+                "See the result, replay, and jump back into an already open connection."
+              )}
             </Text>
           </View>
           <View style={styles.historyBadge}>
-            <Text style={styles.historyBadgeText}>Архив</Text>
+            <Text style={styles.historyBadgeText}>
+              {tt("together.lobby.historyBadge", "Archive")}
+            </Text>
           </View>
         </Pressable>
 
         <View style={styles.liveSection}>
-          <Text style={styles.liveSectionTitle}>Другие режимы</Text>
+          <Text style={styles.liveSectionTitle}>
+            {tt("together.lobby.otherModesTitle", "Other modes")}
+          </Text>
           <Text style={styles.liveSectionText}>
-            Если нужен более явный сценарий, выбери его сразу.
+            {tt(
+              "together.lobby.otherModesBody",
+              "If you want a more explicit scenario, choose it right away."
+            )}
           </Text>
         </View>
 
@@ -88,7 +119,9 @@ export default function PlayLobbyScreen() {
               <View style={styles.cardHeader}>
                 <Text style={styles.cardTitle}>{copy.title}</Text>
                 <View style={styles.badge}>
-                  <Text style={styles.badgeText}>Живой режим</Text>
+                  <Text style={styles.badgeText}>
+                    {tt("together.lobby.liveBadge", "Live mode")}
+                  </Text>
                 </View>
               </View>
               <Text style={styles.cardDescription}>{copy.description}</Text>
@@ -104,9 +137,14 @@ export default function PlayLobbyScreen() {
             onPress={() => openNearbySection(navigation, "now")}
             style={styles.quickCard}
           >
-            <Text style={styles.quickTitle}>Рядом</Text>
+            <Text style={styles.quickTitle}>
+              {tt("together.lobby.quickNearbyTitle", "Nearby")}
+            </Text>
             <Text style={styles.quickText}>
-              Локальный слой рядом: статусы, объявления и вход в комнаты.
+              {tt(
+                "together.lobby.quickNearbyBody",
+                "The local layer: quick status, announcements, and the entry into Rooms."
+              )}
             </Text>
           </Pressable>
 
@@ -114,9 +152,14 @@ export default function PlayLobbyScreen() {
             onPress={() => openRooms(navigation)}
             style={styles.quickCard}
           >
-            <Text style={styles.quickTitle}>Комнаты</Text>
+            <Text style={styles.quickTitle}>
+              {tt("together.lobby.quickRoomsTitle", "Rooms")}
+            </Text>
             <Text style={styles.quickText}>
-              Если нужен живой групповой geo-chat, открой Rooms напрямую и вернись сюда назад.
+              {tt(
+                "together.lobby.quickRoomsBody",
+                "If you need a live group geo-chat, open Rooms directly and come back here later."
+              )}
             </Text>
           </Pressable>
         </View>

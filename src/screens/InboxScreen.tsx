@@ -218,7 +218,9 @@ export default function InboxScreen() {
         </Text>
       </Pressable>
       <Pressable onPress={startNewSession} style={styles.emptySecondaryButton}>
-        <Text style={styles.emptySecondaryButtonText}>Начать новую совместную сессию</Text>
+        <Text style={styles.emptySecondaryButtonText}>
+          {tt("inbox.startNewSession", "Start a new shared session")}
+        </Text>
       </Pressable>
     </View>
   );
@@ -349,10 +351,13 @@ export default function InboxScreen() {
         <View style={{ flex: 1, paddingHorizontal: 16, justifyContent: "center" }}>
           <CoreStateCard
             icon="person-circle-outline"
-            title="Чаты доступны после входа"
-            body="Войди в аккаунт, чтобы видеть личные диалоги, открытые после совместных сессий."
-            primaryAction={{ label: "Открыть профиль", onPress: () => navigation.navigate("Profile") }}
-            secondaryAction={{ label: "Вернуться во Вместе", onPress: goToTogether }}
+            title={tt("inbox.authRequiredTitle", "Chats require sign-in")}
+            body={tt(
+              "inbox.authRequiredBody",
+              "Sign in to see personal chats opened after shared sessions."
+            )}
+            primaryAction={{ label: t("menu.profile"), onPress: () => navigation.navigate("Profile") }}
+            secondaryAction={{ label: t("connections.goToTogether"), onPress: goToTogether }}
           />
         </View>
       </ScreenShell>
@@ -369,9 +374,15 @@ export default function InboxScreen() {
           <CoreStateCard
             icon="cloud-offline-outline"
             title={tt("inbox.errorTitle", "Chats are temporarily unavailable")}
-            body="Мы не смогли подключить личные чаты прямо сейчас. Попробуй позже или вернись во Вместе."
-            primaryAction={{ label: "Вернуться во Вместе", onPress: goToTogether }}
-            secondaryAction={{ label: "Открыть связи", onPress: () => navigation.navigate("Tabs", { screen: "Connections" }) }}
+            body={tt(
+              "inbox.offlineBody",
+              "We couldn't connect your personal chats right now. Try later or go back to Together."
+            )}
+            primaryAction={{ label: t("connections.goToTogether"), onPress: goToTogether }}
+            secondaryAction={{
+              label: tt("inbox.openConnections", "Connections"),
+              onPress: () => navigation.navigate("Tabs", { screen: "Connections" }),
+            }}
           />
         </View>
       </ScreenShell>

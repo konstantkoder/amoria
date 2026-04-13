@@ -238,7 +238,8 @@ export default function PlaySessionDetailScreen() {
   const showDailyPrompt = session?.activity === "daily_prompt";
   const activityHasReplay = playActivityUsesReplay(session?.activity ?? "draw");
   const sessionPrompt = React.useMemo(() => getPlaySessionPrompt(session), [session]);
-  const sessionPromptDisplay = sessionPrompt?.text?.trim() || "Тема уточняется";
+  const sessionPromptDisplay =
+    sessionPrompt?.text?.trim() || tt("playDetail.pendingPrompt", "Prompt is still loading");
   const combinedPalette = React.useMemo(() => getPlayColorMoodCombinedPalette(session), [session]);
   const ownPalette = React.useMemo(() => getPlayColorMoodChoices(session, uid), [session, uid]);
   const peerPalette = React.useMemo(
@@ -284,7 +285,10 @@ export default function PlaySessionDetailScreen() {
     : threadLookupError
       ? threadLookupError
       : !uid && revealOutcome === "open_open"
-        ? "Чат уже должен быть доступен, но для входа в него нужен активный аккаунт."
+        ? tt(
+            "playDetail.chatNeedsAccount",
+            "The chat should already be available, but you need an active account to open it."
+          )
         : revealOutcome === "open_open"
           ? tt(
               "playDetail.chatPending",
@@ -340,7 +344,12 @@ export default function PlaySessionDetailScreen() {
       }
     })().catch(() => {
       if (mountedRef.current) {
-        setChatActionError("Не удалось открыть чат прямо сейчас. Попробуй ещё раз чуть позже.");
+        setChatActionError(
+          tt(
+            "playDetail.openChatFailed",
+            "We couldn't open the chat right now. Try again a bit later."
+          )
+        );
       }
     }).finally(() => {
       openChatPromiseRef.current = null;
@@ -403,7 +412,10 @@ export default function PlaySessionDetailScreen() {
           <CoreStateCard
             icon="cloud-offline-outline"
             title={tt("playDetail.errorTitle", "История временно недоступна")}
-            body="Мы не смогли подключить совместную историю прямо сейчас. Вернись назад или попробуй позже."
+            body={tt(
+              "playDetail.offlineBody",
+              "We couldn't connect this shared story right now. Go back or try again later."
+            )}
             primaryAction={{
               label: tt("playDetail.goToHistory", "Вернуться к историям"),
               onPress: goToHistory,
@@ -544,13 +556,15 @@ export default function PlaySessionDetailScreen() {
           </Text>
           {showDailyPrompt ? (
             <View style={styles.contextPill}>
-              <Text style={styles.contextLabel}>Тема</Text>
+              <Text style={styles.contextLabel}>
+                {tt("playDetail.topicLabel", "Prompt")}
+              </Text>
               <Text style={styles.contextText}>{sessionPromptDisplay}</Text>
             </View>
           ) : null}
           <View style={styles.metaGrid}>
             <View style={styles.metaItem}>
-              <Text style={styles.metaLabel}>{tt("playDetail.partner", "Вместе")}</Text>
+              <Text style={styles.metaLabel}>{tt("playDetail.partner", "Partner")}</Text>
               <Text style={styles.metaValue}>{peerName}</Text>
             </View>
             {summaryItems.map((item) => (
@@ -568,7 +582,7 @@ export default function PlaySessionDetailScreen() {
           combinedPalette={combinedPalette}
           ownPalette={ownPalette}
           peerPalette={peerPalette}
-          peerTitle="Цвета второго участника"
+          peerTitle={tt("playDetail.peerPaletteTitle", "Other person's colors")}
           compact
           surface="detail"
         />
@@ -590,7 +604,9 @@ export default function PlaySessionDetailScreen() {
             </View>
             {showDailyPrompt ? (
               <View style={styles.contextPill}>
-                <Text style={styles.contextLabel}>Тема</Text>
+                <Text style={styles.contextLabel}>
+                  {tt("playDetail.topicLabel", "Prompt")}
+                </Text>
                 <Text style={styles.contextText}>{sessionPromptDisplay}</Text>
               </View>
             ) : null}
@@ -636,7 +652,9 @@ export default function PlaySessionDetailScreen() {
           ) : null}
           <View style={styles.actionRow}>
             <Pressable onPress={goToHistory} style={styles.secondaryButton}>
-              <Text style={styles.secondaryButtonText}>Ко всем историям</Text>
+              <Text style={styles.secondaryButtonText}>
+                {tt("playDetail.allStories", "All stories")}
+              </Text>
             </Pressable>
             <Pressable onPress={startNewSession} style={styles.secondaryButton}>
               <Text style={styles.secondaryButtonText}>
