@@ -295,7 +295,7 @@ export default function NearbyNowSection({
           ) : pos ? (
             <View style={styles.locationRow}>
               <Ionicons name="location-outline" size={16} color="#A7F3D0" />
-              <Text style={styles.locationText}>
+              <Text style={styles.locationText} numberOfLines={1}>
                 {t("geo.locationReady")} (~{Math.round(pos.accuracy ?? 0)} {t("units.m")})
               </Text>
             </View>
@@ -587,6 +587,7 @@ const styles = StyleSheet.create({
   composerFooter: {
     flexDirection: "row",
     alignItems: "center",
+    flexWrap: "wrap",
     gap: 10,
   },
   locationRow: {
@@ -605,6 +606,7 @@ const styles = StyleSheet.create({
   locationText: {
     color: "#9CA3AF",
     fontSize: 11,
+    flexShrink: 1,
   },
   locationLink: {
     color: "#FCA5A5",
@@ -620,6 +622,7 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.primary,
     alignItems: "center",
     justifyContent: "center",
+    alignSelf: "flex-end",
   },
   sendButtonDisabled: {
     backgroundColor: "rgba(55,65,81,0.9)",

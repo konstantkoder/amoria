@@ -11,6 +11,7 @@ import {
   getDmThreadActivitySignal,
   useActivityFreshnessState,
 } from "@/services/activityFreshness";
+import { type RootStackNavigationProp } from "@/navigation/appRoutes";
 import {
   buildDmChatRouteParams,
   mapDmThreadToPeer,
@@ -78,7 +79,7 @@ function mapThreadToCard(
 
 export default function InboxScreen() {
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<RootStackNavigationProp>();
   const { t } = useLocale();
   const tt = useCallback(
     (key: string, fallback: string, params?: Record<string, string>) => {
@@ -210,16 +211,19 @@ export default function InboxScreen() {
         )}
       </Text>
       <Pressable
-        onPress={() => navigation.navigate("Tabs", { screen: "Connections" })}
+        onPress={startNewSession}
         style={styles.emptyPrimaryButton}
       >
         <Text style={styles.emptyPrimaryButtonText}>
-          {tt("inbox.openConnections", "Связи")}
+          {tt("inbox.startNewSession", "Start a new shared session")}
         </Text>
       </Pressable>
-      <Pressable onPress={startNewSession} style={styles.emptySecondaryButton}>
+      <Pressable
+        onPress={() => navigation.navigate("Tabs", { screen: "Connections" })}
+        style={styles.emptySecondaryButton}
+      >
         <Text style={styles.emptySecondaryButtonText}>
-          {tt("inbox.startNewSession", "Start a new shared session")}
+          {tt("inbox.openConnections", "Связи")}
         </Text>
       </Pressable>
     </View>
@@ -242,12 +246,12 @@ export default function InboxScreen() {
         style={{
           backgroundColor:
             item.signalTone === "fresh" ? "rgba(25, 20, 37, 0.94)" : "rgba(17, 20, 36, 0.9)",
-          borderRadius: 22,
-          padding: 16,
+          borderRadius: 20,
+          padding: 14,
           borderWidth: 1,
           borderColor:
             item.signalTone === "fresh" ? "rgba(255, 78, 138, 0.34)" : theme.colors.borderSubtle,
-          gap: 10,
+          gap: 8,
         }}
       >
         <View
@@ -263,7 +267,7 @@ export default function InboxScreen() {
               <Text
                 style={{
                   color: theme.colors.text,
-                  fontSize: 17,
+                  fontSize: 16,
                   fontWeight: "800",
                 }}
               >
@@ -330,8 +334,8 @@ export default function InboxScreen() {
         <Text
           style={{
             color: item.signalTone === "fresh" ? theme.colors.text : theme.colors.subtext,
-            fontSize: 14,
-            lineHeight: 20,
+            fontSize: 13,
+            lineHeight: 19,
           }}
           numberOfLines={2}
         >
@@ -457,13 +461,13 @@ export default function InboxScreen() {
 const styles = StyleSheet.create({
   screenContent: {
     flex: 1,
-    paddingHorizontal: 16,
-    paddingTop: 8,
+    paddingHorizontal: 14,
+    paddingTop: 6,
   },
   heroCard: {
-    marginBottom: 16,
-    gap: 8,
-    padding: 16,
+    marginBottom: 12,
+    gap: 7,
+    padding: 14,
     borderRadius: theme.shapes.card,
     backgroundColor: "rgba(16, 20, 38, 0.72)",
     borderWidth: 1,
@@ -476,7 +480,7 @@ const styles = StyleSheet.create({
   },
   heroTitle: {
     color: theme.colors.text,
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: "800",
   },
   heroCount: {
@@ -485,8 +489,8 @@ const styles = StyleSheet.create({
   },
   heroText: {
     color: theme.colors.subtext,
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 12,
+    lineHeight: 17,
   },
   heroLinkButton: {
     alignSelf: "flex-start",
@@ -504,7 +508,7 @@ const styles = StyleSheet.create({
   },
   emptyStateCard: {
     borderRadius: theme.shapes.card,
-    padding: 18,
+    padding: 16,
     backgroundColor: "rgba(17, 20, 36, 0.82)",
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
@@ -560,8 +564,8 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   listContent: {
-    paddingTop: 8,
+    paddingTop: 2,
     paddingBottom: 12,
-    gap: 12,
+    gap: 10,
   },
 });

@@ -12,9 +12,6 @@ type NearbyFlowNavigator = {
   navigate: RootStackNavigationProp["navigate"];
 };
 
-type NearbyBackNavigator = NearbyFlowNavigator &
-  Pick<RootStackNavigationProp, "canGoBack" | "goBack">;
-
 type NearbyParamsNavigator = Pick<NearbyTabNavigationProp, "setParams">;
 
 function buildNearbyTabsTarget(
@@ -76,11 +73,6 @@ export function resetNearbyRouteParams(navigation: NearbyParamsNavigator) {
   });
 }
 
-export function goBackToNearbyAnnouncements(navigation: NearbyBackNavigator) {
-  if (navigation.canGoBack()) {
-    navigation.goBack();
-    return;
-  }
-
+export function goBackToNearbyAnnouncements(navigation: NearbyFlowNavigator) {
   openNearbyAnnouncements(navigation);
 }

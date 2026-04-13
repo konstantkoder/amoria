@@ -1,5 +1,5 @@
 import React from "react";
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { BackHandler, Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 
@@ -91,6 +91,16 @@ export default function AnnouncementDetailScreen() {
   const goBackToAnnouncements = React.useCallback(() => {
     goBackToNearbyAnnouncements(navigation);
   }, [navigation]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+        goBackToAnnouncements();
+        return true;
+      });
+      return () => subscription.remove();
+    }, [goBackToAnnouncements])
+  );
 
   const categoryLabels = React.useMemo(
     () => ({
@@ -314,6 +324,13 @@ export default function AnnouncementDetailScreen() {
             <View style={styles.centerCard}>
               <Text style={styles.centerTitle}>
                 {copyOrFallback(t, "nearby.loading", "Собираем Nearby…")}
+              </Text>
+              <Text style={styles.centerBody}>
+                {copyOrFallback(
+                  t,
+                  "nearby.detail.loadingBody",
+                  "Подтягиваем актуальные детали объявления и вернём действие сразу после загрузки."
+                )}
               </Text>
             </View>
           </View>

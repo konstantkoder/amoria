@@ -44,6 +44,7 @@ export default function NearbyHubScreen() {
   const navigation = useNavigation<NearbyTabNavigationProp>();
   const route = useRoute<NearbyTabRouteProp>();
   const { t } = useLocale();
+  const routeRequestRef = React.useRef(false);
   const [selectedSection, setSelectedSectionState] = React.useState<NearbySection>("now");
   const [announcements, setAnnouncements] = React.useState<NearbyAnnouncement[]>([]);
   const [announcementCategory, setAnnouncementCategory] = React.useState<
@@ -53,6 +54,8 @@ export default function NearbyHubScreen() {
     NearbyAnnouncement["id"] | null
   >(null);
   const [sectionReady, setSectionReady] = React.useState(false);
+  routeRequestRef.current =
+    isNearbySection(route.params?.section) || Boolean(route.params?.highlightAnnouncementId?.trim());
 
   const setSection = React.useCallback((next: NearbySection) => {
     setSelectedSectionState(next);
@@ -68,7 +71,7 @@ export default function NearbyHubScreen() {
       try {
         const stored = await AsyncStorage.getItem(SECTION_STORAGE_KEY);
         if (!alive) return;
-        if (isNearbySection(stored)) {
+        if (isNearbySection(stored) && !routeRequestRef.current) {
           setSelectedSectionState(stored);
         }
       } finally {

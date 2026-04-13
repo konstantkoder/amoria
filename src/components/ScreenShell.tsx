@@ -2,7 +2,11 @@ import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
+import {
+  type NavigationProp,
+  type ParamListBase,
+  useNavigation,
+} from "@react-navigation/native";
 
 import ScreenBackground, {
   type ScreenBackgroundVariant,
@@ -31,7 +35,7 @@ export default function ScreenShell({
   onBack,
   children,
 }: Props) {
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<NavigationProp<ParamListBase>>();
 
   const handleBack = () => {
     if (onBack) return onBack();

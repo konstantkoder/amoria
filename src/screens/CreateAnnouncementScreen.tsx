@@ -78,6 +78,7 @@ export default function CreateAnnouncementScreen() {
     );
   const previewPlace = city.trim() || fallbackPlaceLabel;
   const showPreview = Boolean(title.trim() || description.trim() || city.trim() || photoUri);
+  const canPublish = Boolean(title.trim() && description.trim());
 
   const pickPhoto = React.useCallback(async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -283,6 +284,36 @@ export default function CreateAnnouncementScreen() {
           />
         </View>
 
+        <View style={styles.publishCard}>
+          <Pressable
+            onPress={() => void publish()}
+            disabled={!canPublish || saving}
+            style={[
+              styles.publishButton,
+              !canPublish || saving ? styles.publishButtonDisabled : null,
+            ]}
+          >
+            <Text style={styles.publishButtonText}>
+              {saving
+                ? copyOrFallback(t, "common.saving", "Сохранение...")
+                : copyOrFallback(t, "nearby.create.publish", "Опубликовать объявление")}
+            </Text>
+          </Pressable>
+          <Text style={styles.publishHint}>
+            {canPublish
+              ? copyOrFallback(
+                  t,
+                  "nearby.create.publishHint",
+                  "После публикации объявление сразу появится в Nearby."
+                )
+              : copyOrFallback(
+                  t,
+                  "nearby.create.fillBody",
+                  "Добавь заголовок и короткое описание, чтобы объявление выглядело понятным."
+                )}
+          </Text>
+        </View>
+
         {showPreview ? (
           <View style={styles.previewCard}>
             <Text style={styles.previewKicker}>
@@ -329,27 +360,6 @@ export default function CreateAnnouncementScreen() {
             </View>
           </View>
         ) : null}
-
-        <View style={styles.publishCard}>
-          <Pressable
-            onPress={() => void publish()}
-            disabled={saving}
-            style={[styles.publishButton, saving ? styles.publishButtonDisabled : null]}
-          >
-            <Text style={styles.publishButtonText}>
-              {saving
-                ? copyOrFallback(t, "common.saving", "Сохранение...")
-                : copyOrFallback(t, "nearby.create.publish", "Опубликовать объявление")}
-            </Text>
-          </Pressable>
-          <Text style={styles.publishHint}>
-            {copyOrFallback(
-              t,
-              "nearby.create.publishHint",
-              "После публикации объявление сразу появится в Nearby."
-            )}
-          </Text>
-        </View>
       </ScrollView>
     </ScreenShell>
   );

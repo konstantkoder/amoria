@@ -7,6 +7,7 @@ import CoreStateCard from "@/components/CoreStateCard";
 import ScreenShell from "@/components/ScreenShell";
 import { auth, db } from "@/config/firebaseConfig";
 import { useLocale } from "@/contexts/LocaleContext";
+import { type RootStackNavigationProp } from "@/navigation/appRoutes";
 import {
   formatActivitySignalLabel,
   getDmThreadActivitySignal,
@@ -166,7 +167,7 @@ function mapThreadToFallbackCard(
 }
 
 export default function ConnectionsFeedScreen() {
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<RootStackNavigationProp>();
   const { t } = useLocale();
   const tt = useCallback(
     (key: string, fallback: string, params?: Record<string, string>) => {
@@ -683,9 +684,9 @@ export default function ConnectionsFeedScreen() {
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
   content: {
-    padding: 16,
-    paddingBottom: 36,
-    gap: 16,
+    padding: 14,
+    paddingBottom: 32,
+    gap: 14,
   },
   centerState: {
     flex: 1,
@@ -695,12 +696,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 28,
   },
   heroCard: {
-    padding: 18,
+    padding: 15,
     borderRadius: theme.shapes.card,
     backgroundColor: "rgba(13, 18, 34, 0.88)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.08)",
-    gap: 8,
+    gap: 7,
   },
   heroKicker: {
     color: theme.colors.accent,
@@ -710,14 +711,14 @@ const styles = StyleSheet.create({
   },
   heroTitle: {
     color: theme.colors.text,
-    fontSize: 22,
-    lineHeight: 28,
+    fontSize: 20,
+    lineHeight: 25,
     fontWeight: "800",
   },
   heroText: {
     color: theme.colors.subtext,
-    fontSize: 13,
-    lineHeight: 19,
+    fontSize: 12,
+    lineHeight: 18,
   },
   heroActions: {
     flexDirection: "row",
@@ -750,33 +751,33 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   section: {
-    gap: 12,
+    gap: 10,
   },
   sectionTitle: {
     color: theme.colors.text,
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: "800",
   },
   sectionText: {
     color: theme.colors.subtext,
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 12,
+    lineHeight: 17,
   },
   card: {
     borderRadius: theme.shapes.card,
-    padding: 18,
+    padding: 15,
     backgroundColor: "rgba(19, 24, 45, 0.88)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.08)",
-    gap: 12,
+    gap: 10,
   },
   storyCard: {
     borderRadius: theme.shapes.card,
-    padding: 18,
+    padding: 15,
     backgroundColor: "rgba(12, 16, 31, 0.9)",
     borderWidth: 1,
     borderColor: "rgba(255, 122, 60, 0.16)",
-    gap: 12,
+    gap: 10,
   },
   cardTopRow: {
     flexDirection: "row",
@@ -786,9 +787,9 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     color: theme.colors.text,
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: "800",
-    marginBottom: 4,
+    marginBottom: 3,
   },
   cardTitleRow: {
     flexDirection: "row",
@@ -799,7 +800,7 @@ const styles = StyleSheet.create({
   },
   cardSource: {
     color: theme.colors.accent,
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "700",
   },
   signalBadge: {
@@ -833,8 +834,8 @@ const styles = StyleSheet.create({
   },
   previewText: {
     color: theme.colors.subtext,
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 13,
+    lineHeight: 19,
   },
   metaRow: {
     flexDirection: "row",
@@ -857,12 +858,12 @@ const styles = StyleSheet.create({
   actionsRow: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 10,
+    gap: 8,
   },
   primaryCta: {
     borderRadius: theme.shapes.pill,
     paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingVertical: 9,
     backgroundColor: theme.colors.accent,
   },
   primaryCtaText: {
@@ -873,7 +874,7 @@ const styles = StyleSheet.create({
   secondaryCta: {
     borderRadius: theme.shapes.pill,
     paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingVertical: 9,
     backgroundColor: theme.colors.pillBg,
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
@@ -892,7 +893,7 @@ const styles = StyleSheet.create({
   },
   emptyStateCard: {
     borderRadius: theme.shapes.card,
-    padding: 18,
+    padding: 16,
     backgroundColor: "rgba(17, 20, 36, 0.82)",
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,

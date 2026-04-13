@@ -548,7 +548,7 @@ export default function DMChatScreen() {
 
 const styles = StyleSheet.create({
   listContent: {
-    padding: 16,
+    padding: 14,
     gap: 8,
   },
   centerState: {
@@ -561,9 +561,9 @@ const styles = StyleSheet.create({
   sourceCard: {
     alignSelf: "center",
     borderRadius: theme.shapes.cardInner,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    marginBottom: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 8,
     backgroundColor: "rgba(11, 16, 30, 0.82)",
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
@@ -598,7 +598,7 @@ const styles = StyleSheet.create({
   },
   msgWrap: {
     width: "100%",
-    marginBottom: 8,
+    marginBottom: 6,
   },
   msgWrapOwn: {
     alignItems: "flex-end",
@@ -650,8 +650,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-end",
     paddingHorizontal: 10,
-    paddingTop: 10,
-    paddingBottom: 10,
+    paddingTop: 8,
+    paddingBottom: 8,
     gap: 8,
     backgroundColor: "rgba(9, 11, 24, 0.22)",
     borderTopWidth: 1,
