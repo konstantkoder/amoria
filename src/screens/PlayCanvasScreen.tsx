@@ -7,7 +7,11 @@ import {
   Text,
   View,
 } from "react-native";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import {
+  type EventArg,
+  useNavigation,
+  useRoute,
+} from "@react-navigation/native";
 
 import SharedCanvasWebView, {
   type SharedCanvasStroke,
@@ -15,6 +19,10 @@ import SharedCanvasWebView, {
 import CoreStateCard from "@/components/CoreStateCard";
 import ScreenShell from "@/components/ScreenShell";
 import { auth, db } from "@/config/firebaseConfig";
+import {
+  type PlayCanvasRouteProp,
+  type RootStackNavigationProp,
+} from "@/navigation/appRoutes";
 import {
   advanceChainDrawTurn,
   appendStrokeBatch,
@@ -70,9 +78,9 @@ type GuardState = {
 };
 
 export default function PlayCanvasScreen() {
-  const navigation = useNavigation<any>();
-  const route = useRoute<any>();
-  const sessionId = String(route.params?.sessionId ?? "").trim();
+  const navigation = useNavigation<RootStackNavigationProp<"PlayCanvas">>();
+  const route = useRoute<PlayCanvasRouteProp>();
+  const sessionId = route.params.sessionId.trim();
   const uid = auth?.currentUser?.uid ?? "";
   const [session, setSession] = React.useState<PlaySessionDoc | null>(null);
   const [events, setEvents] = React.useState<PlayStrokeBatch[]>([]);
@@ -355,7 +363,7 @@ export default function PlayCanvasScreen() {
   }, [advanceTurn, chainTurnState, session, turnRemaining]);
 
   React.useEffect(() => {
-    const unsubscribe = navigation.addListener("beforeRemove", (event: any) => {
+    const unsubscribe = navigation.addListener("beforeRemove", (event: EventArg<"beforeRemove", true, undefined>) => {
       if (allowExitRef.current || navigationHandledRef.current) return;
       if (session?.status !== "active") return;
 

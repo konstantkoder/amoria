@@ -7,11 +7,19 @@ import {
   Text,
   View,
 } from "react-native";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import {
+  type EventArg,
+  useNavigation,
+  useRoute,
+} from "@react-navigation/native";
 
 import CoreStateCard from "@/components/CoreStateCard";
 import ScreenShell from "@/components/ScreenShell";
 import { auth, db } from "@/config/firebaseConfig";
+import {
+  type PlayColorMoodRouteProp,
+  type RootStackNavigationProp,
+} from "@/navigation/appRoutes";
 import {
   COLOR_MOOD_SELECTION_COUNT,
   finalizeColorMoodSession,
@@ -39,9 +47,9 @@ type GuardState = {
 const COLOR_OPTIONS = getPlayColorMoodOptions();
 
 export default function PlayColorMoodScreen() {
-  const navigation = useNavigation<any>();
-  const route = useRoute<any>();
-  const sessionId = String(route.params?.sessionId ?? "").trim();
+  const navigation = useNavigation<RootStackNavigationProp<"PlayColorMood">>();
+  const route = useRoute<PlayColorMoodRouteProp>();
+  const sessionId = route.params.sessionId.trim();
   const uid = auth?.currentUser?.uid ?? "";
 
   const [session, setSession] = React.useState<PlaySessionDoc | null>(null);
@@ -211,7 +219,7 @@ export default function PlayColorMoodScreen() {
   }, [db, openResultScreen, session?.activity, session?.status, sessionId]);
 
   React.useEffect(() => {
-    const unsubscribe = navigation.addListener("beforeRemove", (event: any) => {
+    const unsubscribe = navigation.addListener("beforeRemove", (event: EventArg<"beforeRemove", true, undefined>) => {
       if (allowExitRef.current || navigationHandledRef.current) return;
       if (session?.status !== "active" || session.activity !== "color_mood") return;
 

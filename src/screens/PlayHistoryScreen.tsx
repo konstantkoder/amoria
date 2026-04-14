@@ -12,6 +12,7 @@ import CoreStateCard from "@/components/CoreStateCard";
 import ScreenShell from "@/components/ScreenShell";
 import { auth, db } from "@/config/firebaseConfig";
 import { useLocale } from "@/contexts/LocaleContext";
+import { type RootStackNavigationProp } from "@/navigation/appRoutes";
 import {
   formatActivitySignalLabel,
   getPlaySessionActivitySignal,
@@ -76,7 +77,7 @@ function getHistoryContextText(
 }
 
 export default function PlayHistoryScreen() {
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<RootStackNavigationProp<"PlayHistory">>();
   const { t } = useLocale();
   const tt = useCallback(
     (key: string, fallback: string, params?: Record<string, string>) => {

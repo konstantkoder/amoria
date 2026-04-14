@@ -14,6 +14,10 @@ import PlayModeContextCard from "@/components/play/PlayModeContextCard";
 import ReplayCanvasWebView from "@/components/play/ReplayCanvasWebView";
 import type { SharedCanvasStroke } from "@/components/play/SharedCanvasWebView";
 import { auth, db } from "@/config/firebaseConfig";
+import {
+  type PlayResultRouteProp,
+  type RootStackNavigationProp,
+} from "@/navigation/appRoutes";
 import { buildDmChatRouteParams, ensureDmThread } from "@/services/dm";
 import {
   getPlayActivityLabel,
@@ -77,10 +81,10 @@ function mapReplayStrokes(events: PlayStrokeBatch[]): SharedCanvasStroke[] {
 }
 
 export default function PlayResultScreen() {
-  const navigation = useNavigation<any>();
-  const route = useRoute<any>();
-  const sessionId = String(route.params?.sessionId ?? "");
-  const historyMode = route.params?.mode === "history";
+  const navigation = useNavigation<RootStackNavigationProp<"PlayResult">>();
+  const route = useRoute<PlayResultRouteProp>();
+  const sessionId = route.params.sessionId.trim();
+  const historyMode = route.params.mode === "history";
   const uid = auth?.currentUser?.uid ?? "";
   const [session, setSession] = React.useState<PlaySessionDoc | null>(null);
   const [events, setEvents] = React.useState<PlayStrokeBatch[]>([]);

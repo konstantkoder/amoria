@@ -7,10 +7,18 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import {
+  type EventArg,
+  useNavigation,
+  useRoute,
+} from "@react-navigation/native";
 
 import ScreenShell from "@/components/ScreenShell";
 import { auth, db, isFirebaseConfigured } from "@/config/firebaseConfig";
+import {
+  type PlayMatchRouteProp,
+  type RootStackNavigationProp,
+} from "@/navigation/appRoutes";
 import {
   cancelPlayRequest,
   enqueuePlayRequest,
@@ -29,10 +37,13 @@ type MatchBlockReason =
   | "activity"
   | "profile";
 
-function resolveMatchBlockReason(params: any, uid: string): MatchBlockReason | null {
+function resolveMatchBlockReason(
+  activity: PlayActivity | null,
+  uid: string
+): MatchBlockReason | null {
   if (!uid) return "auth";
   if (!isFirebaseConfigured() || !db) return "firebase";
-  if (!isPlayActivity(params?.activity)) return "activity";
+  if (!activity) return "activity";
   if (!makeNickname(uid).trim()) return "profile";
   return null;
 }
@@ -141,16 +152,16 @@ function getMatchStateMeta(
 }
 
 export default function PlayMatchScreen() {
-  const navigation = useNavigation<any>();
-  const route = useRoute<any>();
+  const navigation = useNavigation<RootStackNavigationProp<"PlayMatch">>();
+  const route = useRoute<PlayMatchRouteProp>();
   const uid = auth?.currentUser?.uid ?? "";
-  const activity = isPlayActivity(route.params?.activity)
-    ? (route.params.activity as PlayActivity)
+  const activity = isPlayActivity(route.params.activity)
+    ? route.params.activity
     : null;
   const modeCopy = React.useMemo(() => getPlayMatchModeCopy(activity), [activity]);
   const activityIcon = React.useMemo(() => getActivityIcon(activity), [activity]);
   const nickname = React.useMemo(() => makeNickname(uid), [uid]);
-  const blockReason = resolveMatchBlockReason(route.params, uid);
+  const blockReason = resolveMatchBlockReason(activity, uid);
   const blockedState = blockReason ? getBlockedState(blockReason) : null;
   const [busy, setBusy] = React.useState(false);
   const [queueCancelled, setQueueCancelled] = React.useState(false);
@@ -249,7 +260,7 @@ export default function PlayMatchScreen() {
   }, [busy, modeCopy.delayedBody, queueCancelled, setStatusSafe]);
 
   React.useEffect(() => {
-    const unsubscribe = navigation.addListener("beforeRemove", (event: any) => {
+    const unsubscribe = navigation.addListener("beforeRemove", (event: EventArg<"beforeRemove", true, undefined>) => {
       if (allowLeaveRef.current || matchedSessionRef.current || blockReason) return;
       event.preventDefault();
       void handleCancel();

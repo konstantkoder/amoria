@@ -43,17 +43,33 @@ export type AnnouncementDetailRouteParams = {
   initialAnnouncement?: NearbyAnnouncement | null;
 };
 
+export type PlayMatchRouteParams = {
+  activity: PlayActivity;
+};
+
+export type PlaySessionRouteParams = {
+  sessionId: string;
+};
+
+export type PlayResultRouteParams = PlaySessionRouteParams & {
+  mode?: "history";
+};
+
+export type PlaySessionDetailRouteParams = PlaySessionRouteParams & {
+  focus?: "replay";
+};
+
 export type RootStackParamList = {
   Tabs: TabsNavigatorParams | undefined;
   Rooms: undefined;
   CreateAnnouncement: undefined;
   AnnouncementDetail: AnnouncementDetailRouteParams;
-  PlayMatch: { activity?: PlayActivity } | undefined;
-  PlayCanvas: Record<string, unknown> | undefined;
-  PlayColorMood: Record<string, unknown> | undefined;
-  PlayResult: Record<string, unknown> | undefined;
+  PlayMatch: PlayMatchRouteParams;
+  PlayCanvas: PlaySessionRouteParams;
+  PlayColorMood: PlaySessionRouteParams;
+  PlayResult: PlayResultRouteParams;
   PlayHistory: undefined;
-  PlaySessionDetail: { sessionId: string };
+  PlaySessionDetail: PlaySessionDetailRouteParams;
   DMChat: DmChatRouteParams;
   Profile: NavigatorScreenParams<ProfileStackParamList> | undefined;
   Settings: undefined;
@@ -76,3 +92,14 @@ export type AnnouncementDetailRouteProp = RouteProp<
   "AnnouncementDetail"
 >;
 export type DmChatRouteProp = RouteProp<RootStackParamList, "DMChat">;
+export type PlayMatchRouteProp = RouteProp<RootStackParamList, "PlayMatch">;
+export type PlayCanvasRouteProp = RouteProp<RootStackParamList, "PlayCanvas">;
+export type PlayColorMoodRouteProp = RouteProp<
+  RootStackParamList,
+  "PlayColorMood"
+>;
+export type PlayResultRouteProp = RouteProp<RootStackParamList, "PlayResult">;
+export type PlaySessionDetailRouteProp = RouteProp<
+  RootStackParamList,
+  "PlaySessionDetail"
+>;

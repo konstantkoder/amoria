@@ -15,6 +15,10 @@ import ReplayCanvasWebView from "@/components/play/ReplayCanvasWebView";
 import type { SharedCanvasStroke } from "@/components/play/SharedCanvasWebView";
 import { auth, db } from "@/config/firebaseConfig";
 import { useLocale } from "@/contexts/LocaleContext";
+import {
+  type PlaySessionDetailRouteProp,
+  type RootStackNavigationProp,
+} from "@/navigation/appRoutes";
 import { markPlaySessionSeen } from "@/services/activityFreshness";
 import {
   buildDmChatRouteParams,
@@ -73,8 +77,8 @@ function mapReplayStrokes(events: PlayStrokeBatch[]): SharedCanvasStroke[] {
 }
 
 export default function PlaySessionDetailScreen() {
-  const navigation = useNavigation<any>();
-  const route = useRoute<any>();
+  const navigation = useNavigation<RootStackNavigationProp<"PlaySessionDetail">>();
+  const route = useRoute<PlaySessionDetailRouteProp>();
   const { t } = useLocale();
   const tt = React.useCallback(
     (key: string, fallback: string, params?: Record<string, string>) => {
@@ -83,8 +87,8 @@ export default function PlaySessionDetailScreen() {
     },
     [t]
   );
-  const sessionId = String(route.params?.sessionId ?? "");
-  const replayFocus = route.params?.focus === "replay";
+  const sessionId = route.params.sessionId.trim();
+  const replayFocus = route.params.focus === "replay";
   const uid = auth?.currentUser?.uid ?? "";
 
   const [session, setSession] = React.useState<PlaySessionDoc | null>(null);

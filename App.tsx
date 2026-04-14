@@ -50,11 +50,10 @@ type AppNavigationProps = {
 };
 
 function AppNavigation({ user, authError }: AppNavigationProps) {
-  const { locale } = useLocale();
+  const isSignedIn = Boolean(user);
 
   return (
     <NavigationContainer
-      key={`${locale}-${user ? "in" : "out"}`}
       ref={navigationRef}
       theme={navTheme}
       onReady={() => {
@@ -62,10 +61,14 @@ function AppNavigation({ user, authError }: AppNavigationProps) {
       }}
     >
       <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {user ? (
-          <Stack.Screen name="Root" component={AppNavigator} />
+        {isSignedIn ? (
+          <Stack.Screen
+            name="Root"
+            component={AppNavigator}
+            navigationKey="user"
+          />
         ) : (
-          <Stack.Screen name="Login">
+          <Stack.Screen name="Login" navigationKey="guest">
             {() => <LoginScreen authError={authError} />}
           </Stack.Screen>
         )}
