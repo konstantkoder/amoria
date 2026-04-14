@@ -12,6 +12,11 @@ import type { PlayActivity } from "@/services/playSessions";
 
 export type NearbySection = "now" | "announcements" | "rooms";
 
+export type AppStackParamList = {
+  Login: undefined;
+  Root: undefined;
+};
+
 export type NearbyTabParams = {
   section?: NearbySection;
   highlightAnnouncementId?: NearbyAnnouncement["id"];

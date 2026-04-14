@@ -17,8 +17,7 @@ import { onAuthStateChanged, User } from "firebase/auth";
 import { auth } from "@/config/firebaseConfig";
 import LoginScreen from "@/screens/LoginScreen";
 import AppNavigator from "@/navigation/AppNavigator";
-import DMChatScreen from "@/screens/DMChatScreen";
-import LegalScreen from "@/screens/legal/LegalScreen";
+import { type AppStackParamList } from "@/navigation/appRoutes";
 import { LocaleProvider, useLocale } from "@/contexts/LocaleContext";
 import { theme } from "@/theme/theme";
 import ErrorBoundary from "@/components/ErrorBoundary";
@@ -30,8 +29,8 @@ LogBox.ignoreLogs([
   "Looks like you have nested a 'NavigationContainer' inside another.",
 ]);
 
-const Stack = createNativeStackNavigator();
-const navigationRef = createNavigationContainerRef();
+const Stack = createNativeStackNavigator<AppStackParamList>();
+const navigationRef = createNavigationContainerRef<AppStackParamList>();
 
 const navTheme = {
   ...DefaultTheme,
@@ -64,11 +63,7 @@ function AppNavigation({ user, authError }: AppNavigationProps) {
     >
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {user ? (
-          <>
-            <Stack.Screen name="Root" component={AppNavigator} />
-            <Stack.Screen name="DM" component={DMChatScreen} />
-            <Stack.Screen name="Legal" component={LegalScreen} />
-          </>
+          <Stack.Screen name="Root" component={AppNavigator} />
         ) : (
           <Stack.Screen name="Login">
             {() => <LoginScreen authError={authError} />}
