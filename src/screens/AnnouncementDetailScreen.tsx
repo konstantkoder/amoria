@@ -12,9 +12,7 @@ import {
 } from "@/navigation/appRoutes";
 import { goBackToNearbyAnnouncements } from "@/navigation/nearbyNavigation";
 import {
-  loadNearbyAnnouncementById,
-  loadNearbyAnnouncementResponseState,
-  markNearbyAnnouncementResponded,
+  nearbyAnnouncementsRepository,
   type NearbyAnnouncement,
 } from "@/services/nearbyAnnouncements";
 import { theme } from "@/theme";
@@ -73,8 +71,11 @@ export default function AnnouncementDetailScreen() {
 
       setLoading(true);
       void Promise.all([
-        loadNearbyAnnouncementById(announcementId),
-        loadNearbyAnnouncementResponseState(announcementId, currentUid || "guest"),
+        nearbyAnnouncementsRepository.getAnnouncementById(announcementId),
+        nearbyAnnouncementsRepository.getAnnouncementResponseState(
+          announcementId,
+          currentUid || "guest"
+        ),
       ]).then(([nextAnnouncement, responseState]) => {
         if (!alive) return;
         setAnnouncement(nextAnnouncement);
@@ -123,7 +124,7 @@ export default function AnnouncementDetailScreen() {
     if (!announcement || responding || isOwnAnnouncement) return;
     setResponding(true);
     try {
-      const responseState = await markNearbyAnnouncementResponded(
+      const responseState = await nearbyAnnouncementsRepository.markAnnouncementResponded(
         announcement.id,
         currentUid || "guest"
       );

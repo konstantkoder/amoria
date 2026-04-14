@@ -20,7 +20,7 @@ import { type RootStackNavigationProp } from "@/navigation/appRoutes";
 import { openNearbyAnnouncements } from "@/navigation/nearbyNavigation";
 import {
   NEARBY_ANNOUNCEMENT_CATEGORY_ORDER,
-  createNearbyAnnouncement,
+  nearbyAnnouncementsRepository,
   type NearbyAnnouncementCategory,
 } from "@/services/nearbyAnnouncements";
 import { makeNickname } from "@/services/rooms";
@@ -121,7 +121,7 @@ export default function CreateAnnouncementScreen() {
 
     setSaving(true);
     try {
-      const createdAnnouncement = await createNearbyAnnouncement({
+      const createdAnnouncement = await nearbyAnnouncementsRepository.createAnnouncement({
         title: trimmedTitle,
         description: trimmedDescription,
         category,

@@ -19,7 +19,7 @@ import {
   resetNearbyRouteParams,
 } from "@/navigation/nearbyNavigation";
 import {
-  loadNearbyAnnouncements,
+  nearbyAnnouncementsRepository,
   type NearbyAnnouncement,
   type NearbyAnnouncementCategory,
 } from "@/services/nearbyAnnouncements";
@@ -88,7 +88,7 @@ export default function NearbyHubScreen() {
   useFocusEffect(
     React.useCallback(() => {
       let alive = true;
-      void loadNearbyAnnouncements().then((next) => {
+      void nearbyAnnouncementsRepository.listAnnouncements().then((next) => {
         if (!alive) return;
         setAnnouncements(next);
       });
