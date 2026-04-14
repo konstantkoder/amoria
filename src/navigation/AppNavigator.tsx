@@ -12,8 +12,6 @@ import ConnectionsFeedScreen from "@/screens/ConnectionsFeedScreen";
 import NearbyHubScreen from "@/screens/NearbyHubScreen";
 import RoomsScreen from "@/screens/RoomsScreen";
 import InboxScreen from "@/screens/InboxScreen";
-import VideoChatScreen from "@/screens/VideoChatScreen";
-import QuestionScreen from "@/screens/QuestionScreen";
 import PlayMatchScreen from "@/screens/PlayMatchScreen";
 import PlayCanvasScreen from "@/screens/PlayCanvasScreen";
 import PlayColorMoodScreen from "@/screens/PlayColorMoodScreen";
@@ -223,18 +221,6 @@ function MainTabs() {
               }
             : {}),
         }}
-      />
-
-      {/* Hidden tabs */}
-      <Tab.Screen
-        name="VideoChat"
-        component={VideoChatScreen}
-        options={{ tabBarButton: () => null, headerShown: false }}
-      />
-      <Tab.Screen
-        name="Question"
-        component={QuestionScreen}
-        options={{ tabBarButton: () => null }}
       />
     </Tab.Navigator>
   );

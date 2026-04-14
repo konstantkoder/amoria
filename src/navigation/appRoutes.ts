@@ -27,8 +27,6 @@ export type MainTabParamList = {
   Together: undefined;
   Connections: undefined;
   Inbox: undefined;
-  VideoChat: undefined;
-  Question: undefined;
 };
 
 export type ProfileStackParamList = {
