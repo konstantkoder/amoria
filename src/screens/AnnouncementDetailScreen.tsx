@@ -10,7 +10,7 @@ import {
   type AnnouncementDetailRouteProp,
   type RootStackNavigationProp,
 } from "@/navigation/appRoutes";
-import { goBackToNearbyAnnouncements } from "@/navigation/nearbyNavigation";
+import { goBackOrOpenNearbyAnnouncements } from "@/navigation/nearbyNavigation";
 import {
   nearbyAnnouncementsRepository,
   type NearbyAnnouncement,
@@ -89,18 +89,18 @@ export default function AnnouncementDetailScreen() {
     }, [announcementId, currentUid])
   );
 
-  const goBackToAnnouncements = React.useCallback(() => {
-    goBackToNearbyAnnouncements(navigation);
+  const handleBack = React.useCallback(() => {
+    goBackOrOpenNearbyAnnouncements(navigation);
   }, [navigation]);
 
   useFocusEffect(
     React.useCallback(() => {
       const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
-        goBackToAnnouncements();
+        handleBack();
         return true;
       });
       return () => subscription.remove();
-    }, [goBackToAnnouncements])
+    }, [handleBack])
   );
 
   const categoryLabels = React.useMemo(
@@ -138,7 +138,7 @@ export default function AnnouncementDetailScreen() {
 
   if (!loading && !announcement) {
     return (
-      <ScreenShell title={screenTitle} background="ads" showBack onBack={goBackToAnnouncements}>
+      <ScreenShell title={screenTitle} background="ads" showBack onBack={handleBack}>
         <View style={styles.centerState}>
           <View style={styles.centerCard}>
             <Text style={styles.centerTitle}>
@@ -151,7 +151,7 @@ export default function AnnouncementDetailScreen() {
                 "Не удалось открыть это объявление. Можно вернуться к списку рядом."
               )}
             </Text>
-            <Pressable onPress={goBackToAnnouncements} style={styles.primaryButton}>
+            <Pressable onPress={handleBack} style={styles.primaryButton}>
               <Text style={styles.primaryButtonText}>
                 {copyOrFallback(t, "nearby.detail.backToList", "К объявлениям")}
               </Text>
@@ -163,7 +163,7 @@ export default function AnnouncementDetailScreen() {
   }
 
   return (
-    <ScreenShell title={screenTitle} background="ads" showBack onBack={goBackToAnnouncements}>
+    <ScreenShell title={screenTitle} background="ads" showBack onBack={handleBack}>
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={styles.content}
@@ -294,13 +294,13 @@ export default function AnnouncementDetailScreen() {
               </Text>
 
               {isOwnAnnouncement ? (
-                <Pressable onPress={goBackToAnnouncements} style={styles.secondaryButton}>
+                <Pressable onPress={handleBack} style={styles.secondaryButton}>
                   <Text style={styles.secondaryButtonText}>
                     {copyOrFallback(t, "nearby.detail.backToList", "К объявлениям")}
                   </Text>
                 </Pressable>
               ) : respondedAt ? (
-                <Pressable onPress={goBackToAnnouncements} style={styles.primaryButton}>
+                <Pressable onPress={handleBack} style={styles.primaryButton}>
                   <Text style={styles.primaryButtonText}>
                     {copyOrFallback(t, "nearby.detail.backToList", "К объявлениям")}
                   </Text>

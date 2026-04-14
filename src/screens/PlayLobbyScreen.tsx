@@ -149,7 +149,7 @@ export default function PlayLobbyScreen() {
           </Pressable>
 
           <Pressable
-            onPress={() => openRooms(navigation)}
+            onPress={() => openRooms(navigation, "together")}
             style={styles.quickCard}
           >
             <Text style={styles.quickTitle}>

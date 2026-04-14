@@ -43,7 +43,7 @@ export default function DMChatScreen() {
   );
   const routePeerName = String(route.params?.peerName ?? "").trim();
   const peerId = routePeerId || "";
-  const backTarget = String(route.params?.backTarget ?? "");
+  const backTarget = route.params?.backTarget;
   const backSessionId = String(route.params?.backSessionId ?? "");
 
   const [text, setText] = useState("");
@@ -320,6 +320,12 @@ export default function DMChatScreen() {
   }, [backTarget, navigation]);
   const handleBack = useCallback(() => {
     if (backTarget === "sessionDetail" && backSessionId) {
+      const routes = navigation.getState().routes;
+      const previousRoute = routes[routes.length - 2];
+      if (previousRoute?.name === "PlaySessionDetail" && navigation.canGoBack()) {
+        navigation.goBack();
+        return;
+      }
       navigation.replace("PlaySessionDetail", { sessionId: backSessionId });
       return;
     }

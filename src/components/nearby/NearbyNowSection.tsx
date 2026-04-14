@@ -216,7 +216,7 @@ export default function NearbyNowSection({
   }, [navigation]);
 
   const goToRooms = useCallback(() => {
-    openRooms(navigation);
+    openRooms(navigation, "nearby");
   }, [navigation]);
 
   const visiblePosts = useMemo(() => {

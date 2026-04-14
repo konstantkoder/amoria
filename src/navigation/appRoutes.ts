@@ -11,6 +11,7 @@ import type { NearbyAnnouncement } from "@/services/nearbyAnnouncements";
 import type { PlayActivity } from "@/services/playSessions";
 
 export type NearbySection = "now" | "announcements" | "rooms";
+export type RoomsOrigin = "nearby" | "together";
 
 export type AppStackParamList = {
   Login: undefined;
@@ -43,6 +44,10 @@ export type AnnouncementDetailRouteParams = {
   initialAnnouncement?: NearbyAnnouncement | null;
 };
 
+export type RoomsRouteParams = {
+  origin?: RoomsOrigin;
+};
+
 export type PlayMatchRouteParams = {
   activity: PlayActivity;
 };
@@ -61,7 +66,7 @@ export type PlaySessionDetailRouteParams = PlaySessionRouteParams & {
 
 export type RootStackParamList = {
   Tabs: TabsNavigatorParams | undefined;
-  Rooms: undefined;
+  Rooms: RoomsRouteParams | undefined;
   CreateAnnouncement: undefined;
   AnnouncementDetail: AnnouncementDetailRouteParams;
   PlayMatch: PlayMatchRouteParams;
@@ -91,6 +96,7 @@ export type AnnouncementDetailRouteProp = RouteProp<
   RootStackParamList,
   "AnnouncementDetail"
 >;
+export type RoomsRouteProp = RouteProp<RootStackParamList, "Rooms">;
 export type DmChatRouteProp = RouteProp<RootStackParamList, "DMChat">;
 export type PlayMatchRouteProp = RouteProp<RootStackParamList, "PlayMatch">;
 export type PlayCanvasRouteProp = RouteProp<RootStackParamList, "PlayCanvas">;

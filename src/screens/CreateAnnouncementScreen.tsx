@@ -1,6 +1,7 @@
 import React from "react";
 import {
   Alert,
+  BackHandler,
   Image,
   ScrollView,
   Pressable,
@@ -10,14 +11,17 @@ import {
   View,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
-import { useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 
 import ScreenShell from "@/components/ScreenShell";
 import { auth } from "@/config/firebaseConfig";
 import { useLocale } from "@/contexts/LocaleContext";
 import { type RootStackNavigationProp } from "@/navigation/appRoutes";
-import { openNearbyAnnouncements } from "@/navigation/nearbyNavigation";
+import {
+  goBackOrOpenNearbyAnnouncements,
+  openNearbyAnnouncements,
+} from "@/navigation/nearbyNavigation";
 import {
   NEARBY_ANNOUNCEMENT_CATEGORY_ORDER,
   nearbyAnnouncementsRepository,
@@ -79,6 +83,19 @@ export default function CreateAnnouncementScreen() {
   const previewPlace = city.trim() || fallbackPlaceLabel;
   const showPreview = Boolean(title.trim() || description.trim() || city.trim() || photoUri);
   const canPublish = Boolean(title.trim() && description.trim());
+  const handleBack = React.useCallback(() => {
+    goBackOrOpenNearbyAnnouncements(navigation);
+  }, [navigation]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+        handleBack();
+        return true;
+      });
+      return () => subscription.remove();
+    }, [handleBack])
+  );
 
   const pickPhoto = React.useCallback(async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -151,6 +168,7 @@ export default function CreateAnnouncementScreen() {
       title={copyOrFallback(t, "nearby.create.title", "Создать объявление")}
       background="ads"
       showBack
+      onBack={handleBack}
     >
       <ScrollView
         style={{ flex: 1 }}

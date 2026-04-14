@@ -16,7 +16,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 import * as Location from "expo-location";
 import { geohashForLocation } from "geofire-common";
 
@@ -33,7 +33,11 @@ import ScreenShell from "@/components/ScreenShell";
 import { OpenStreetMapWebView } from "@/components/OpenStreetMapWebView";
 import LocationConsentModal from "@/components/LocationConsentModal";
 import { useLocale } from "@/contexts/LocaleContext";
-import { type RootStackNavigationProp } from "@/navigation/appRoutes";
+import {
+  type RootStackNavigationProp,
+  type RoomsRouteProp,
+} from "@/navigation/appRoutes";
+import { openNearbySection } from "@/navigation/nearbyNavigation";
 import { translateMaybeKey } from "@/utils/i18n";
 import { formatNickname } from "@/utils/nickname";
 import {
@@ -122,6 +126,8 @@ export default function RoomsScreen() {
   const insets = useSafeAreaInsets();
   const { t } = useLocale();
   const navigation = useNavigation<RootStackNavigationProp<"Rooms">>();
+  const route = useRoute<RoomsRouteProp>();
+  const origin = route.params?.origin === "together" ? "together" : "nearby";
   const uid = auth?.currentUser?.uid ?? null;
   const nicknameCode = useMemo(
     () => (uid ? makeNickname(uid) : "common.anonymous"),
@@ -155,6 +161,9 @@ export default function RoomsScreen() {
 
   const goToTogetherTab = useCallback(() => {
     navigation.navigate("Tabs", { screen: "Together" });
+  }, [navigation]);
+  const goToNearbyRooms = useCallback(() => {
+    openNearbySection(navigation, "rooms");
   }, [navigation]);
   const [consentAction, setConsentAction] = useState<
     | { type: "enableNearby" }
@@ -825,6 +834,18 @@ export default function RoomsScreen() {
     setStage("choose");
   }, [clearDraft]);
 
+  const handleChooseBack = useCallback(() => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+      return;
+    }
+    if (origin === "together") {
+      goToTogetherTab();
+      return;
+    }
+    goToNearbyRooms();
+  }, [goToNearbyRooms, goToTogetherTab, navigation, origin]);
+
   useEffect(() => {
     if (Platform.OS !== "android") return;
     const sub = BackHandler.addEventListener("hardwareBackPress", () => {
@@ -832,10 +853,11 @@ export default function RoomsScreen() {
         leaveRoom();
         return true;
       }
-      return false;
+      handleChooseBack();
+      return true;
     });
     return () => sub.remove();
-  }, [room, leaveRoom]);
+  }, [handleChooseBack, leaveRoom, room]);
 
   const mapPins = useMemo<RoomMapPin[]>(() => {
     const pins: RoomMapPin[] = [];
@@ -982,8 +1004,8 @@ export default function RoomsScreen() {
       background="rooms"
       overlayOpacity={0.20}
       blurRadius={0}
-      showBack={stage === "chat" || navigation.canGoBack()}
-      onBack={stage === "chat" ? leaveRoom : undefined}
+      showBack
+      onBack={stage === "chat" ? leaveRoom : handleChooseBack}
     >
       {stage === "choose" ? (
         <RoomsChooseStage

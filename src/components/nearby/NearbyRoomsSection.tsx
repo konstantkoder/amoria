@@ -78,7 +78,7 @@ export default function NearbyRoomsSection() {
           </Text>
         </View>
         <Pressable
-          onPress={() => openRooms(navigation)}
+          onPress={() => openRooms(navigation, "nearby")}
           style={styles.primaryButton}
         >
           <Text style={styles.primaryButtonText}>{openLabel}</Text>

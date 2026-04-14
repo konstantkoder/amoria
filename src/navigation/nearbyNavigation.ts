@@ -4,13 +4,15 @@ import type {
   NearbyTabNavigationProp,
   NearbyTabParams,
   RootStackNavigationProp,
+  RoomsOrigin,
   TabsNavigatorParams,
 } from "@/navigation/appRoutes";
 import type { NearbyAnnouncement } from "@/services/nearbyAnnouncements";
 
-type NearbyFlowNavigator = {
-  navigate: RootStackNavigationProp["navigate"];
-};
+type NearbyFlowNavigator = Pick<
+  RootStackNavigationProp,
+  "canGoBack" | "goBack" | "navigate"
+>;
 
 type NearbyParamsNavigator = Pick<NearbyTabNavigationProp, "setParams">;
 
@@ -62,8 +64,11 @@ export function openAnnouncementDetail(
   );
 }
 
-export function openRooms(navigation: NearbyFlowNavigator) {
-  navigation.navigate("Rooms");
+export function openRooms(
+  navigation: NearbyFlowNavigator,
+  origin: RoomsOrigin = "nearby"
+) {
+  navigation.navigate("Rooms", { origin });
 }
 
 export function resetNearbyRouteParams(navigation: NearbyParamsNavigator) {
@@ -73,6 +78,12 @@ export function resetNearbyRouteParams(navigation: NearbyParamsNavigator) {
   });
 }
 
-export function goBackToNearbyAnnouncements(navigation: NearbyFlowNavigator) {
+export function goBackOrOpenNearbyAnnouncements(
+  navigation: NearbyFlowNavigator
+) {
+  if (navigation.canGoBack()) {
+    navigation.goBack();
+    return;
+  }
   openNearbyAnnouncements(navigation);
 }
