@@ -55,10 +55,10 @@ import {
   type PresenceDoc,
 } from "@/services/presence";
 import {
-  RoomDoc,
-  RoomKind,
-  RoomMember,
-  RoomMessage,
+  type RoomDoc,
+  type RoomKind,
+  type RoomMember,
+  type RoomMessage,
   ROOM_KIND_ORDER,
   getRoomMeta,
   makeNickname,
@@ -69,12 +69,16 @@ import {
   touchRoomMember,
 } from "@/services/rooms";
 
-type Stage = "choose" | "chat";
-
 type LatLng = {
   latitude: number;
   longitude: number;
 };
+
+type ConsentAction =
+  | { type: "enableNearby" }
+  | { type: "enterRoom"; kind: RoomKind };
+
+type TranslateFn = (key: string) => string;
 
 const withTimeout = async <T,>(p: Promise<T>, ms: number): Promise<T> => {
   return (await Promise.race([
@@ -84,6 +88,11 @@ const withTimeout = async <T,>(p: Promise<T>, ms: number): Promise<T> => {
 };
 
 const SEND_TIMEOUT_MS = 20000;
+const POSITION_TIMEOUT_MS = 8000;
+const ROOM_OPEN_TIMEOUT_MS = 20000;
+const DRAFT_RESUME_DELAY_MS = 180;
+const SEND_DRAFT_RESUME_DELAY_MS = 200;
+const SEND_GUARD_RELEASE_MS = 250;
 
 const RANGE_PRESETS: readonly RoomsRangePreset[] = [
   { id: "wide", labelKey: "rooms.range.wide", delta: -1, scale: 2.1 },
@@ -122,6 +131,47 @@ function getRoomMarkerCoord(base: RoomPosition, kind: RoomKind): LatLng {
   }
 }
 
+function toRoomPosition(coords: {
+  latitude: number;
+  longitude: number;
+  accuracy?: number | null;
+}): RoomPosition {
+  return {
+    lat: coords.latitude,
+    lng: coords.longitude,
+    accuracy: coords.accuracy,
+  };
+}
+
+function clearTimeoutRef(
+  ref: React.MutableRefObject<ReturnType<typeof setTimeout> | null>
+) {
+  if (!ref.current) return;
+  clearTimeout(ref.current);
+  ref.current = null;
+}
+
+function buildRoomClientId(uid: string) {
+  return `m_${uid}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+}
+
+function getRoomOpenErrorBody(message: string, t: TranslateFn) {
+  const lower = message.toLowerCase();
+  if (lower === "timeout") {
+    return t("rooms.openFailed") === "rooms.openFailed"
+      ? "Сервер отвечает слишком долго. Проверь интернет и попробуй ещё раз."
+      : t("rooms.openFailed");
+  }
+  if (
+    lower.includes("offline") ||
+    lower.includes("unavailable") ||
+    lower.includes("network")
+  ) {
+    return t("rooms.mapLoadingBody");
+  }
+  return message || t("rooms.openFailed");
+}
+
 export default function RoomsScreen() {
   const insets = useSafeAreaInsets();
   const { t } = useLocale();
@@ -140,7 +190,6 @@ export default function RoomsScreen() {
       : formatted;
   }, [nicknameCode, t]);
 
-  const [stage, setStage] = useState<Stage>("choose");
   const [selectedKind, setSelectedKind] = useState<RoomKind | null>(null);
   const [joiningKind, setJoiningKind] = useState<RoomKind | null>(null);
   const [rangeIndex, setRangeIndex] = useState<number>(1);
@@ -158,6 +207,10 @@ export default function RoomsScreen() {
   });
   const [loadingPrefs, setLoadingPrefs] = useState(true);
   const [consentVisible, setConsentVisible] = useState(false);
+  const [consentAction, setConsentAction] = useState<ConsentAction | null>(null);
+  const [pendingRoomKind, setPendingRoomKind] = useState<RoomKind | null>(null);
+  const [nearbyPeople, setNearbyPeople] = useState<PresenceDoc[]>([]);
+  const [mapExpanded, setMapExpanded] = useState(false);
 
   const goToTogetherTab = useCallback(() => {
     navigation.navigate("Tabs", { screen: "Together" });
@@ -165,14 +218,6 @@ export default function RoomsScreen() {
   const goToNearbyRooms = useCallback(() => {
     openNearbySection(navigation, "rooms");
   }, [navigation]);
-  const [consentAction, setConsentAction] = useState<
-    | { type: "enableNearby" }
-    | { type: "enterRoom"; kind: RoomKind }
-    | null
-  >(null);
-  const [pendingRoomKind, setPendingRoomKind] = useState<RoomKind | null>(null);
-  const [nearbyPeople, setNearbyPeople] = useState<PresenceDoc[]>([]);
-  const [mapExpanded, setMapExpanded] = useState(false);
 
   const [room, setRoom] = useState<RoomDoc | null>(null);
   const [messages, setMessages] = useState<RoomMessage[]>([]);
@@ -180,11 +225,18 @@ export default function RoomsScreen() {
   const [members, setMembers] = useState<RoomMember[]>([]);
   const inputRef = useRef<TextInput>(null);
   const draftRef = useRef<string>("");
+  const draftResumeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const canSendRef = useRef<boolean>(false);
   const sendGuardRef = useRef(false);
+  const sendGuardReleaseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  );
   // Ignore late IME events that sometimes land after clear()/blur().
   const ignoreDraftEventsRef = useRef(false);
   const [canSend, setCanSend] = useState(false);
+  const [sending, setSending] = useState(false);
+  const listRef = useRef<FlatList<RoomUiMessage>>(null);
+  const isChatStage = room !== null;
 
   const handleDraftChange = useCallback((v: string) => {
     if (ignoreDraftEventsRef.current) return;
@@ -196,19 +248,58 @@ export default function RoomsScreen() {
     }
   }, []);
 
-  const clearDraft = useCallback(() => {
+  const resumeDraftEventsLater = useCallback((delayMs: number) => {
+    clearTimeoutRef(draftResumeTimeoutRef);
+    draftResumeTimeoutRef.current = setTimeout(() => {
+      ignoreDraftEventsRef.current = false;
+      draftResumeTimeoutRef.current = null;
+    }, delayMs);
+  }, []);
+
+  const clearDraft = useCallback((options?: { blurInput?: boolean }) => {
     ignoreDraftEventsRef.current = true;
     draftRef.current = "";
     canSendRef.current = false;
     setCanSend(false);
-    inputRef.current?.clear();
-    setTimeout(() => {
-      ignoreDraftEventsRef.current = false;
-    }, 180);
-  }, []);
-  const [sending, setSending] = useState(false);
+    inputRef.current?.setNativeProps?.({ text: "" });
+    inputRef.current?.clear?.();
+    if (options?.blurInput) {
+      inputRef.current?.blur?.();
+      Keyboard.dismiss();
+    }
+    resumeDraftEventsLater(
+      options?.blurInput ? SEND_DRAFT_RESUME_DELAY_MS : DRAFT_RESUME_DELAY_MS
+    );
+  }, [resumeDraftEventsLater]);
 
-  const listRef = useRef<FlatList<RoomUiMessage>>(null);
+  const scrollToLatestMessage = useCallback((animated: boolean) => {
+    requestAnimationFrame(() =>
+      listRef.current?.scrollToOffset({ offset: 0, animated })
+    );
+  }, []);
+
+  const clearFailedMessage = useCallback((clientId: string) => {
+    setFailedById((prev) => {
+      if (!prev[clientId]) return prev;
+      const next = { ...prev };
+      delete next[clientId];
+      return next;
+    });
+  }, []);
+
+  const markFailedMessage = useCallback((clientId: string) => {
+    setFailedById((prev) =>
+      prev[clientId] ? prev : { ...prev, [clientId]: true }
+    );
+  }, []);
+
+  const releaseSendGuardLater = useCallback(() => {
+    clearTimeoutRef(sendGuardReleaseTimeoutRef);
+    sendGuardReleaseTimeoutRef.current = setTimeout(() => {
+      sendGuardRef.current = false;
+      sendGuardReleaseTimeoutRef.current = null;
+    }, SEND_GUARD_RELEASE_MS);
+  }, []);
 
   const activeMembers = useMemo(() => {
     const cutoff = Date.now() - 2 * 60 * 1000; // 2 минуты
@@ -225,6 +316,58 @@ export default function RoomsScreen() {
     },
     []
   );
+  const locationEnabled = prefs.nearbyEnabled && prefs.consent === "accepted";
+  const canShowPeople = locationEnabled && prefs.showPeopleOnMap;
+  const canSharePresence = locationEnabled && prefs.shareMeOnMap;
+
+  const handleOpenSettings = useCallback(() => {
+    void Linking.openSettings();
+  }, []);
+
+  const openConsentFlow = useCallback((action: ConsentAction) => {
+    setConsentAction(action);
+    setConsentVisible(true);
+  }, []);
+
+  const enableNearbyPreference = useCallback(async () => {
+    if (prefs.nearbyEnabled) return;
+    await setNearbyEnabled(true);
+    updatePrefs({ nearbyEnabled: true });
+  }, [prefs.nearbyEnabled, updatePrefs]);
+
+  const clearSharedPresence = useCallback(() => {
+    if (!db || !uid) return;
+    clearPresence(db, uid).catch(() => {});
+  }, [uid]);
+
+  const ensureRealtimeReady = useCallback(() => {
+    if (!uid) {
+      Alert.alert(t("rooms.signInTitle"), t("rooms.signInBody"));
+      return false;
+    }
+    if (!isFirebaseConfigured() || !db) {
+      Alert.alert(t("rooms.firebaseTitle"), t("rooms.firebaseBody"));
+      return false;
+    }
+    return true;
+  }, [t, uid]);
+
+  const showNearbyDisabledAlert = useCallback(() => {
+    Alert.alert(t("settings.nearbyEnabled"), t("rooms.enableForMap"), [
+      {
+        text: t("menu.settings"),
+        onPress: () => navigation.navigate("Settings"),
+      },
+      { text: t("common.cancel"), style: "cancel" },
+    ]);
+  }, [navigation, t]);
+
+  useEffect(() => {
+    return () => {
+      clearTimeoutRef(draftResumeTimeoutRef);
+      clearTimeoutRef(sendGuardReleaseTimeoutRef);
+    };
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -272,7 +415,7 @@ export default function RoomsScreen() {
                 [
                   {
                     text: t("geo.enableLocation"),
-                    onPress: () => Linking.openSettings(),
+                    onPress: handleOpenSettings,
                   },
                 ]
               );
@@ -285,12 +428,7 @@ export default function RoomsScreen() {
 
         const last = await Location.getLastKnownPositionAsync();
         if (last) {
-          const coords = last.coords;
-          const quick: RoomPosition = {
-            lat: coords.latitude,
-            lng: coords.longitude,
-            accuracy: coords.accuracy,
-          };
+          const quick = toRoomPosition(last.coords);
           setPos(quick);
           setPosLoading(false);
 
@@ -300,14 +438,9 @@ export default function RoomsScreen() {
                 Location.getCurrentPositionAsync({
                   accuracy: Location.Accuracy.Balanced,
                 }),
-                8000
+                POSITION_TIMEOUT_MS
               );
-              const next: RoomPosition = {
-                lat: current.coords.latitude,
-                lng: current.coords.longitude,
-                accuracy: current.coords.accuracy,
-              };
-              setPos(next);
+              setPos(toRoomPosition(current.coords));
             } catch {
               // keep lastKnown
             }
@@ -320,14 +453,10 @@ export default function RoomsScreen() {
           Location.getCurrentPositionAsync({
             accuracy: Location.Accuracy.Balanced,
           }),
-          8000
+          POSITION_TIMEOUT_MS
         );
 
-        const next: RoomPosition = {
-          lat: current.coords.latitude,
-          lng: current.coords.longitude,
-          accuracy: current.coords.accuracy,
-        };
+        const next = toRoomPosition(current.coords);
         setPos(next);
         return next;
       } catch (e: any) {
@@ -349,7 +478,7 @@ export default function RoomsScreen() {
 
     locInFlight.current = task;
     return task;
-  }, [t]);
+  }, [handleOpenSettings, t]);
 
   const handleConsentAccept = useCallback(async () => {
     const action = consentAction;
@@ -358,20 +487,13 @@ export default function RoomsScreen() {
     await setLocationConsent("accepted");
     updatePrefs({ consent: "accepted" });
 
-    if (action?.type === "enableNearby") {
-      await setNearbyEnabled(true);
-      updatePrefs({ nearbyEnabled: true });
-      return;
-    }
-
-    if (action?.type === "enterRoom") {
-      if (!prefs.nearbyEnabled) {
-        await setNearbyEnabled(true);
-        updatePrefs({ nearbyEnabled: true });
+    if (action) {
+      await enableNearbyPreference();
+      if (action.type === "enterRoom") {
+        setPendingRoomKind(action.kind);
       }
-      setPendingRoomKind(action.kind);
     }
-  }, [consentAction, prefs.nearbyEnabled, updatePrefs]);
+  }, [consentAction, enableNearbyPreference, updatePrefs]);
 
   const handleConsentDecline = useCallback(async () => {
     setConsentVisible(false);
@@ -392,14 +514,12 @@ export default function RoomsScreen() {
 
   const handleEnableNearby = useCallback(async () => {
     if (prefs.consent !== "accepted") {
-      setConsentAction({ type: "enableNearby" });
-      setConsentVisible(true);
+      openConsentFlow({ type: "enableNearby" });
       return;
     }
-    await setNearbyEnabled(true);
-    updatePrefs({ nearbyEnabled: true });
-    ensurePosition();
-  }, [prefs.consent, ensurePosition, updatePrefs]);
+    await enableNearbyPreference();
+    void ensurePosition();
+  }, [prefs.consent, enableNearbyPreference, ensurePosition, openConsentFlow]);
 
   const handleRefreshPosition = useCallback(async () => {
     if (!prefs.nearbyEnabled) {
@@ -407,12 +527,17 @@ export default function RoomsScreen() {
       return;
     }
     if (prefs.consent !== "accepted") {
-      setConsentAction({ type: "enableNearby" });
-      setConsentVisible(true);
+      openConsentFlow({ type: "enableNearby" });
       return;
     }
     await ensurePosition();
-  }, [prefs.consent, prefs.nearbyEnabled, handleEnableNearby, ensurePosition]);
+  }, [
+    prefs.consent,
+    prefs.nearbyEnabled,
+    handleEnableNearby,
+    ensurePosition,
+    openConsentFlow,
+  ]);
 
   useEffect(() => {
     if (loadingPrefs) return;
@@ -433,81 +558,47 @@ export default function RoomsScreen() {
   useEffect(() => {
     const sub = AppState.addEventListener("change", (s) => {
       if (s === "active") {
-        if (
-          prefs.nearbyEnabled &&
-          prefs.consent === "accepted" &&
-          !pos &&
-          !posLoading
-        ) {
+        if (locationEnabled && !pos && !posLoading) {
           ensurePosition();
         }
       }
-      if (s === "background") {
-        if (prefs.shareMeOnMap && db && uid) {
-          clearPresence(db, uid).catch(() => {});
-        }
+      if (s === "background" && canSharePresence) {
+        clearSharedPresence();
       }
     });
     return () => sub.remove();
-  }, [
-    pos,
-    posLoading,
-    ensurePosition,
-    prefs.nearbyEnabled,
-    prefs.consent,
-    prefs.shareMeOnMap,
-    db,
-    uid,
-  ]);
+  }, [canSharePresence, clearSharedPresence, ensurePosition, locationEnabled, pos, posLoading]);
 
   const presencePrecision = useMemo(() => {
     const meta = getRoomMeta(selectedKind ?? "work");
     return clamp(meta.precision + range.delta, 5, 9);
-  }, [selectedKind, range.delta, clamp]);
+  }, [selectedKind, range.delta]);
 
   const presencePrefix = useMemo(() => {
     if (!pos) return null;
     return geohashForLocation([pos.lat, pos.lng]).slice(0, presencePrecision);
   }, [pos, presencePrecision]);
 
-  const locationEnabled = prefs.nearbyEnabled && prefs.consent === "accepted";
-  const canShowPeople = locationEnabled && prefs.showPeopleOnMap;
-
   useEffect(() => {
     if (
       !db ||
       !pos ||
       !presencePrefix ||
-      !prefs.nearbyEnabled ||
-      !prefs.showPeopleOnMap ||
-      prefs.consent !== "accepted"
+      !canShowPeople
     ) {
       setNearbyPeople([]);
       return;
     }
-    const unsub = subscribePresenceByPrefix(
-      db,
-      presencePrefix,
-      setNearbyPeople
-    );
+    const unsub = subscribePresenceByPrefix(db, presencePrefix, setNearbyPeople);
     return () => {
       unsub?.();
     };
-  }, [
-    db,
-    pos,
-    presencePrefix,
-    prefs.nearbyEnabled,
-    prefs.showPeopleOnMap,
-    prefs.consent,
-  ]);
+  }, [canShowPeople, db, pos, presencePrefix]);
 
   useEffect(() => {
-    if (!db || !uid) return;
-    if (!prefs.nearbyEnabled || !prefs.shareMeOnMap || prefs.consent !== "accepted") {
-      clearPresence(db, uid).catch(() => {});
-    }
-  }, [prefs.nearbyEnabled, prefs.shareMeOnMap, prefs.consent, db, uid]);
+    if (canSharePresence) return;
+    clearSharedPresence();
+  }, [canSharePresence, clearSharedPresence]);
 
   useEffect(() => {
     if (
@@ -515,9 +606,7 @@ export default function RoomsScreen() {
       !uid ||
       !pos ||
       !presencePrefix ||
-      !prefs.nearbyEnabled ||
-      !prefs.shareMeOnMap ||
-      prefs.consent !== "accepted"
+      !canSharePresence
     ) {
       return;
     }
@@ -549,120 +638,91 @@ export default function RoomsScreen() {
     pos,
     presencePrefix,
     presencePrecision,
-    prefs.nearbyEnabled,
-    prefs.shareMeOnMap,
-    prefs.consent,
+    canSharePresence,
   ]);
 
   useEffect(() => {
     return () => {
-      if (prefs.shareMeOnMap && db && uid) {
-        clearPresence(db, uid).catch(() => {});
+      if (canSharePresence) {
+        clearSharedPresence();
       }
     };
-  }, [prefs.shareMeOnMap, db, uid]);
+  }, [canSharePresence, clearSharedPresence]);
+
+  const ensureJoinPosition = useCallback(
+    async (kind: RoomKind) => {
+      if (!ensureRealtimeReady()) return null;
+      if (!prefs.nearbyEnabled) {
+        showNearbyDisabledAlert();
+        return null;
+      }
+      if (prefs.consent !== "accepted") {
+        openConsentFlow({ type: "enterRoom", kind });
+        return null;
+      }
+      return pos ?? (await ensurePosition());
+    },
+    [
+      ensurePosition,
+      ensureRealtimeReady,
+      openConsentFlow,
+      pos,
+      prefs.consent,
+      prefs.nearbyEnabled,
+      showNearbyDisabledAlert,
+    ]
+  );
+
+  const openRoomWithKind = useCallback(
+    async (kind: RoomKind, position: RoomPosition) => {
+      if (!db) throw new Error("rooms.dbUnavailable");
+      const meta = getRoomMeta(kind);
+      const precision = clamp(meta.precision + range.delta, 5, 9);
+      const radiusM = Math.max(50, Math.round(meta.radiusM * range.scale));
+      return withTimeout(
+        openOrCreateGeoRoom(db, kind, position.lat, position.lng, {
+          precision,
+          radiusM,
+        }),
+        ROOM_OPEN_TIMEOUT_MS
+      );
+    },
+    [range.delta, range.scale]
+  );
 
   const joinSelected = useCallback(
     async (kind: RoomKind) => {
       if (joiningKind) return;
       setJoiningKind(kind);
 
-      if (!uid) {
-        Alert.alert(t("rooms.signInTitle"), t("rooms.signInBody"));
-        setJoiningKind(null);
-        return;
-      }
-      if (!isFirebaseConfigured() || !db) {
-        Alert.alert(t("rooms.firebaseTitle"), t("rooms.firebaseBody"));
-        setJoiningKind(null);
-        return;
-      }
-      if (!prefs.nearbyEnabled) {
-        Alert.alert(
-          t("settings.nearbyEnabled"),
-          t("rooms.enableForMap"),
-          [
-            {
-              text: t("menu.settings"),
-              onPress: () => navigation.navigate("Settings"),
-            },
-            { text: t("common.cancel"), style: "cancel" },
-          ]
-        );
-        setJoiningKind(null);
-        return;
-      }
-      if (prefs.consent !== "accepted") {
-        setConsentAction({ type: "enterRoom", kind });
-        setConsentVisible(true);
-        setJoiningKind(null);
-        return;
-      }
-
-      let p = pos ?? null;
-      if (!p) p = await ensurePosition();
-      if (!p) {
+      const position = await ensureJoinPosition(kind);
+      if (!position) {
         setJoiningKind(null);
         return;
       }
 
       try {
-        const meta = getRoomMeta(kind);
-        const precision = clamp(meta.precision + range.delta, 5, 9);
-        const radiusM = Math.max(50, Math.round(meta.radiusM * range.scale));
-        const next = await withTimeout(
-          openOrCreateGeoRoom(db, kind, p.lat, p.lng, {
-            precision,
-            radiusM,
-          }),
-          20_000
-        );
+        const next = await openRoomWithKind(kind, position);
         setRoom(next);
-        setStage("chat");
         setSelectedKind(null);
       } catch (e: any) {
-        const msg = String(e?.message ?? "");
-        const lower = msg.toLowerCase();
-        const isTimeout = lower === "timeout";
-        const isOffline = lower.includes("offline") || lower.includes("unavailable") || lower.includes("network");
-
-        const body =
-          isTimeout
-            ? (t("rooms.openFailed") === "rooms.openFailed"
-                ? "Сервер отвечает слишком долго. Проверь интернет и попробуй ещё раз."
-                : t("rooms.openFailed"))
-            : isOffline
-              ? t("rooms.mapLoadingBody")
-              : (msg || t("rooms.openFailed"));
-
-        Alert.alert(
-          t("common.error"),
-          body,
-          [
-            {
-              text: t("common.refresh"),
-              onPress: () => joinSelected(kind),
-            },
-            { text: t("common.ok") },
-          ]
-        );
+        const message = String(e?.message ?? "");
+        Alert.alert(t("common.error"), getRoomOpenErrorBody(message, t), [
+          {
+            text: t("common.refresh"),
+            onPress: () => joinSelected(kind),
+          },
+          { text: t("common.ok") },
+        ]);
       } finally {
         setJoiningKind(null);
       }
     },
     [
+      ensureJoinPosition,
       joiningKind,
-      uid,
-      pos,
-      ensurePosition,
+      openRoomWithKind,
       t,
-      range,
-      clamp,
-      prefs.nearbyEnabled,
-      prefs.consent,
-      db,
-      navigation,
-      isFirebaseConfigured,
     ]
   );
 
@@ -731,98 +791,80 @@ export default function RoomsScreen() {
     });
   }, [messages]);
 
+  const sendCurrentRoomMessage = useCallback(
+    async (text: string, clientId: string) => {
+      if (!room || !db || !uid) return;
+      await withTimeout(
+        sendRoomMessage(db, room.id, uid, nicknameCode, text, clientId),
+        SEND_TIMEOUT_MS
+      );
+    },
+    [nicknameCode, room, uid]
+  );
+
   const onSend = useCallback(() => {
     const value = (draftRef.current || "").trim();
     if (!value) return;
     if (!room || !db || !uid) return;
     if (sendGuardRef.current) return;
     sendGuardRef.current = true;
-
     setSending(true);
+    clearDraft({ blurInput: true });
 
-    // Clean input immediately before any async work starts.
-    ignoreDraftEventsRef.current = true;
-    draftRef.current = "";
-    canSendRef.current = false;
-    setCanSend(false);
-    inputRef.current?.setNativeProps?.({ text: "" });
-    inputRef.current?.clear?.();
-    inputRef.current?.blur?.();
-    Keyboard.dismiss();
-    setTimeout(() => {
-      ignoreDraftEventsRef.current = false;
-    }, 200);
+    const clientId = buildRoomClientId(uid);
+    clearFailedMessage(clientId);
 
-    const now = Date.now();
-    const clientId = `m_${uid}_${now}_${Math.random().toString(16).slice(2)}`;
-    setFailedById((prev) => {
-      if (!prev[clientId]) return prev;
-      const next = { ...prev };
-      delete next[clientId];
-      return next;
-    });
-
-    void withTimeout(
-      sendRoomMessage(db, room.id, uid, nicknameCode, value, clientId),
-      SEND_TIMEOUT_MS
-    )
+    void sendCurrentRoomMessage(value, clientId)
       .then(() => {
-        setFailedById((prev) => {
-          if (!prev[clientId]) return prev;
-          const next = { ...prev };
-          delete next[clientId];
-          return next;
-        });
-        requestAnimationFrame(() =>
-          listRef.current?.scrollToOffset({ offset: 0, animated: true })
-        );
+        clearFailedMessage(clientId);
+        scrollToLatestMessage(true);
       })
       .catch(() => {
-        setFailedById((prev) => ({ ...prev, [clientId]: true }));
-        requestAnimationFrame(() =>
-          listRef.current?.scrollToOffset({ offset: 0, animated: true })
-        );
+        markFailedMessage(clientId);
+        scrollToLatestMessage(true);
       })
       .finally(() => {
         setSending(false);
-        setTimeout(() => {
-          sendGuardRef.current = false;
-        }, 250);
+        releaseSendGuardLater();
       });
-  }, [room, db, uid, nicknameCode]);
+  }, [
+    clearDraft,
+    clearFailedMessage,
+    db,
+    markFailedMessage,
+    releaseSendGuardLater,
+    room,
+    scrollToLatestMessage,
+    sendCurrentRoomMessage,
+    uid,
+  ]);
 
   const retrySend = useCallback(
     async (clientId: string) => {
       if (!room) return;
-      if (!uid) {
-        Alert.alert(t("rooms.signInTitle"), t("rooms.signInBody"));
-        return;
-      }
-      if (!isFirebaseConfigured() || !db) {
-        Alert.alert(t("rooms.firebaseTitle"), t("rooms.firebaseBody"));
+      if (!ensureRealtimeReady()) {
         return;
       }
 
       const target = messages.find((m) => String(m.id) === clientId);
       if (!target) return;
 
-      setFailedById((prev) => {
-        if (!prev[clientId]) return prev;
-        const next = { ...prev };
-        delete next[clientId];
-        return next;
-      });
+      clearFailedMessage(clientId);
 
       try {
-        await withTimeout(
-          sendRoomMessage(db, room.id, uid, nicknameCode, target.text, clientId),
-          SEND_TIMEOUT_MS
-        );
+        await sendCurrentRoomMessage(target.text, clientId);
       } catch {
-        setFailedById((prev) => ({ ...prev, [clientId]: true }));
+        markFailedMessage(clientId);
       }
     },
-    [room, db, uid, nicknameCode, messages, t]
+    [
+      clearFailedMessage,
+      ensureRealtimeReady,
+      markFailedMessage,
+      messages,
+      room,
+      sendCurrentRoomMessage,
+    ]
   );
 
   const leaveRoom = useCallback(() => {
@@ -831,7 +873,6 @@ export default function RoomsScreen() {
     setFailedById({});
     setMembers([]);
     clearDraft();
-    setStage("choose");
   }, [clearDraft]);
 
   const handleChooseBack = useCallback(() => {
@@ -846,18 +887,22 @@ export default function RoomsScreen() {
     goToNearbyRooms();
   }, [goToNearbyRooms, goToTogetherTab, navigation, origin]);
 
+  const handleBackPress = useCallback(() => {
+    if (room) {
+      leaveRoom();
+      return;
+    }
+    handleChooseBack();
+  }, [handleChooseBack, leaveRoom, room]);
+
   useEffect(() => {
     if (Platform.OS !== "android") return;
     const sub = BackHandler.addEventListener("hardwareBackPress", () => {
-      if (room) {
-        leaveRoom();
-        return true;
-      }
-      handleChooseBack();
+      handleBackPress();
       return true;
     });
     return () => sub.remove();
-  }, [handleChooseBack, leaveRoom, room]);
+  }, [handleBackPress]);
 
   const mapPins = useMemo<RoomMapPin[]>(() => {
     const pins: RoomMapPin[] = [];
@@ -911,10 +956,6 @@ export default function RoomsScreen() {
   const handleShowRangeInfo = useCallback(() => {
     Alert.alert(t("rooms.range.title"), t("rooms.range.note"), [{ text: t("common.ok") }]);
   }, [t]);
-
-  const handleOpenSettings = useCallback(() => {
-    Linking.openSettings();
-  }, []);
 
   const handleJoinSelected = useCallback(() => {
     if (!selectedKind) return;
@@ -993,10 +1034,11 @@ export default function RoomsScreen() {
     </Modal>
   );
 
-  const roomTitle = room
-    ? `${getRoomMeta(room.kind).emoji} ${t(getRoomMeta(room.kind).labelKey)}`
+  const activeRoomMeta = room ? getRoomMeta(room.kind) : null;
+  const roomTitle = activeRoomMeta
+    ? `${activeRoomMeta.emoji} ${t(activeRoomMeta.labelKey)}`
     : t("tabs.rooms");
-  const headerTitle = stage === "chat" ? roomTitle : t("tabs.rooms");
+  const headerTitle = isChatStage ? roomTitle : t("tabs.rooms");
 
   return (
     <ScreenShell
@@ -1005,9 +1047,9 @@ export default function RoomsScreen() {
       overlayOpacity={0.20}
       blurRadius={0}
       showBack
-      onBack={stage === "chat" ? leaveRoom : handleChooseBack}
+      onBack={handleBackPress}
     >
-      {stage === "choose" ? (
+      {!isChatStage ? (
         <RoomsChooseStage
           t={t}
           loadingPrefs={loadingPrefs}
