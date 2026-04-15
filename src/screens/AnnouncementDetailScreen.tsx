@@ -22,6 +22,16 @@ import { translateMaybeKey } from "@/utils/i18n";
 import { formatNickname } from "@/utils/nickname";
 import { formatAgoLong } from "@/utils/timeAgo";
 
+type AnnouncementResponseMode = "own" | "direct_dm" | "fallback_interest";
+
+type AnnouncementResponsePresentation = {
+  title: string;
+  body: string;
+  actionLabel: string;
+  busyLabel: string;
+  buttonVariant: "primary" | "secondary";
+};
+
 function copyOrFallback(
   t: (key: string, params?: Record<string, string>) => string,
   key: string,
@@ -29,6 +39,98 @@ function copyOrFallback(
 ) {
   const value = t(key);
   return value === key ? fallback : value;
+}
+
+function resolveAnnouncementResponseMode(params: {
+  announcement: NearbyAnnouncement | null;
+  currentUid: string;
+  hasDirectDmStack: boolean;
+  override?: AnnouncementResponseMode | null;
+}): AnnouncementResponseMode {
+  if (params.override) {
+    return params.override;
+  }
+
+  const authorUid = String(params.announcement?.authorUid ?? "").trim();
+  if (authorUid && params.currentUid && authorUid === params.currentUid) {
+    return "own";
+  }
+  if (authorUid && params.currentUid && params.hasDirectDmStack) {
+    return "direct_dm";
+  }
+  return "fallback_interest";
+}
+
+function buildAnnouncementResponsePresentation(
+  t: (key: string, params?: Record<string, string>) => string,
+  mode: AnnouncementResponseMode,
+  hasResponded: boolean
+): AnnouncementResponsePresentation {
+  switch (mode) {
+    case "own":
+      return {
+        title: copyOrFallback(t, "nearby.detail.ownTitle", "Это ваше объявление"),
+        body: copyOrFallback(
+          t,
+          "nearby.detail.ownBody",
+          "Объявление уже опубликовано в Nearby → Объявления. Отсюда можно спокойно вернуться к списку."
+        ),
+        actionLabel: copyOrFallback(t, "nearby.detail.backToList", "К объявлениям"),
+        busyLabel: copyOrFallback(t, "nearby.detail.backToList", "К объявлениям"),
+        buttonVariant: "secondary",
+      };
+    case "direct_dm":
+      return {
+        title: copyOrFallback(
+          t,
+          "nearby.detail.chatTitle",
+          "Здесь откроется личный чат"
+        ),
+        body: copyOrFallback(
+          t,
+          "nearby.detail.chatBody",
+          "Это объявление связано с реальным автором. Кнопка ниже откроет личный чат с ним."
+        ),
+        actionLabel: hasResponded
+          ? copyOrFallback(t, "nearby.detail.openChat", "Открыть чат")
+          : copyOrFallback(t, "nearby.detail.messageAuthor", "Написать автору"),
+        busyLabel: copyOrFallback(t, "nearby.detail.openingChat", "Открываем чат..."),
+        buttonVariant: "primary",
+      };
+    case "fallback_interest":
+      if (hasResponded) {
+        return {
+          title: copyOrFallback(
+            t,
+            "nearby.detail.respondedFallbackTitle",
+            "Интерес сохранён локально"
+          ),
+          body: copyOrFallback(
+            t,
+            "nearby.detail.respondedFallbackBody",
+            "Мы отметили интерес только локально на этом устройстве. Для demo-объявлений и карточек без доступного DM это пока и есть текущий fallback."
+          ),
+          actionLabel: copyOrFallback(t, "nearby.detail.backToList", "К объявлениям"),
+          busyLabel: copyOrFallback(t, "nearby.detail.responding", "Сохраняем интерес..."),
+          buttonVariant: "primary",
+        };
+      }
+      return {
+        title: copyOrFallback(
+          t,
+          "nearby.detail.responseFallbackTitle",
+          "Сейчас доступно только сохранение интереса"
+        ),
+        body: copyOrFallback(
+          t,
+          "nearby.detail.responseFallbackBody",
+          "У этой карточки сейчас нет доступного личного чата. Кнопка ниже только сохранит интерес локально на этом устройстве."
+        ),
+        actionLabel: copyOrFallback(t, "nearby.detail.saveInterest", "Сохранить интерес"),
+        busyLabel: copyOrFallback(t, "nearby.detail.responding", "Сохраняем интерес..."),
+        buttonVariant: "primary",
+      };
+  }
 }
 
 function DetailRow({
@@ -61,6 +163,8 @@ export default function AnnouncementDetailScreen() {
   const [loading, setLoading] = React.useState(!initialAnnouncement);
   const [respondedAt, setRespondedAt] = React.useState<number | null>(null);
   const [responding, setResponding] = React.useState(false);
+  const [responseModeOverride, setResponseModeOverride] =
+    React.useState<AnnouncementResponseMode | null>(null);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -75,6 +179,7 @@ export default function AnnouncementDetailScreen() {
       }
 
       setLoading(true);
+      setResponseModeOverride(null);
       void Promise.all([
         nearbyAnnouncementsRepository.getAnnouncementById(announcementId),
         nearbyAnnouncementsRepository.getAnnouncementResponseState(
@@ -121,11 +226,18 @@ export default function AnnouncementDetailScreen() {
   );
 
   const fallbackPlaceLabel = copyOrFallback(t, "tabs.nearby", "Nearby");
-  const isOwnAnnouncement = Boolean(
-    currentUid && announcement?.authorUid && currentUid === announcement.authorUid
-  );
-  const canOpenDirectChat = Boolean(
-    db && currentUid && announcement?.authorUid && currentUid !== announcement.authorUid
+  const announcementAuthorUid = String(announcement?.authorUid ?? "").trim();
+  const hasDirectDmStack = Boolean(db);
+  const hasResponded = respondedAt !== null;
+  const responseMode = React.useMemo(
+    () =>
+      resolveAnnouncementResponseMode({
+        announcement,
+        currentUid,
+        hasDirectDmStack,
+        override: responseModeOverride,
+      }),
+    [announcement, currentUid, hasDirectDmStack, responseModeOverride]
   );
   const currentNicknameCode = React.useMemo(
     () => (currentUid ? makeNickname(currentUid) : ""),
@@ -145,151 +257,91 @@ export default function AnnouncementDetailScreen() {
   }, [currentDisplayName, currentNicknameCode, formattedCurrentNickname, t]);
 
   const persistResponseInterest = React.useCallback(async () => {
-    if (respondedAt) return;
+    if (hasResponded) return;
     const responseState = await nearbyAnnouncementsRepository.markAnnouncementResponded(
       announcementId,
       currentUid || "guest"
     );
     setRespondedAt(responseState.respondedAt);
-  }, [announcementId, currentUid, respondedAt]);
+  }, [announcementId, currentUid, hasResponded]);
+
+  const responsePresentation = React.useMemo(
+    () => buildAnnouncementResponsePresentation(t, responseMode, hasResponded),
+    [hasResponded, responseMode, t]
+  );
 
   const handleRespond = React.useCallback(async () => {
-    if (!announcement || responding) return;
-    if (isOwnAnnouncement) {
-      handleBack();
-      return;
-    }
+    if (responding) return;
 
-    setResponding(true);
-    try {
-      if (canOpenDirectChat && db && currentUid && announcement.authorUid) {
-        const threadId = await ensureDmThread(db, currentUid, announcement.authorUid, {
-          memberNames: {
-            [currentUid]: currentAuthorLabel || makeNickname(currentUid),
-            [announcement.authorUid]: announcement.authorLabel,
-          },
-          source: "announcement",
-        });
-
-        navigation.navigate(
-          "DMChat",
-          buildDmChatRouteParams({
-            threadId,
-            peerId: announcement.authorUid,
-            peerName: announcement.authorLabel,
-          })
-        );
-
-        if (!respondedAt) {
-          void nearbyAnnouncementsRepository
-            .markAnnouncementResponded(announcement.id, currentUid)
-            .catch(() => {});
+    switch (responseMode) {
+      case "own":
+        handleBack();
+        return;
+      case "fallback_interest":
+        if (hasResponded) {
+          handleBack();
+          return;
+        }
+        setResponding(true);
+        try {
+          await persistResponseInterest();
+        } finally {
+          setResponding(false);
         }
         return;
-      }
+      case "direct_dm":
+        if (!announcement || !db || !currentUid || !announcementAuthorUid) {
+          setResponseModeOverride("fallback_interest");
+          setResponding(true);
+          try {
+            await persistResponseInterest();
+          } finally {
+            setResponding(false);
+          }
+          return;
+        }
 
-      await persistResponseInterest();
-    } catch {
-      await persistResponseInterest().catch(() => {});
-    } finally {
-      setResponding(false);
+        setResponding(true);
+        try {
+          const threadId = await ensureDmThread(db, currentUid, announcementAuthorUid, {
+            memberNames: {
+              [currentUid]: currentAuthorLabel || makeNickname(currentUid),
+              [announcementAuthorUid]: announcement.authorLabel,
+            },
+            source: "announcement",
+          });
+
+          navigation.navigate(
+            "DMChat",
+            buildDmChatRouteParams({
+              threadId,
+              peerId: announcementAuthorUid,
+              peerName: announcement.authorLabel,
+            })
+          );
+
+          if (!hasResponded) {
+            void persistResponseInterest().catch(() => {});
+          }
+        } catch {
+          setResponseModeOverride("fallback_interest");
+          await persistResponseInterest().catch(() => {});
+        } finally {
+          setResponding(false);
+        }
     }
   }, [
     announcement,
-    canOpenDirectChat,
+    announcementAuthorUid,
     currentAuthorLabel,
     currentUid,
     handleBack,
-    isOwnAnnouncement,
+    hasResponded,
     navigation,
     persistResponseInterest,
-    respondedAt,
     responding,
+    responseMode,
   ]);
-
-  const responseTitle = React.useMemo(() => {
-    if (isOwnAnnouncement) {
-      return copyOrFallback(t, "nearby.detail.ownTitle", "Это ваше объявление");
-    }
-    if (canOpenDirectChat && respondedAt) {
-      return copyOrFallback(
-        t,
-        "nearby.detail.chatReadyTitle",
-        "Личный чат уже доступен"
-      );
-    }
-    if (canOpenDirectChat) {
-      return copyOrFallback(
-        t,
-        "nearby.detail.chatTitle",
-        "Отклик откроет личный чат"
-      );
-    }
-    if (respondedAt) {
-      return copyOrFallback(t, "nearby.detail.respondedTitle", "Интерес сохранён");
-    }
-    return copyOrFallback(t, "nearby.detail.responseTitle", "Хочешь откликнуться?");
-  }, [canOpenDirectChat, isOwnAnnouncement, respondedAt, t]);
-
-  const responseBody = React.useMemo(() => {
-    if (isOwnAnnouncement) {
-      return copyOrFallback(
-        t,
-        "nearby.detail.ownBody",
-        "Оно уже видно в Nearby -> Объявления. Следующим шагом сюда подключим отклики."
-      );
-    }
-    if (canOpenDirectChat && respondedAt) {
-      return copyOrFallback(
-        t,
-        "nearby.detail.chatReadyBody",
-        "Интерес к объявлению уже отмечен. Можно сразу продолжить разговор с автором."
-      );
-    }
-    if (canOpenDirectChat) {
-      return copyOrFallback(
-        t,
-        "nearby.detail.chatBody",
-        "Если у объявления есть реальный автор, отклик сразу откроет личный чат с ним."
-      );
-    }
-    if (respondedAt) {
-      return copyOrFallback(
-        t,
-        "nearby.detail.respondedFallbackBody",
-        "Мы сохранили интерес локально. Для demo-объявлений и карточек без автора это пока остаётся мягким fallback."
-      );
-    }
-    return copyOrFallback(
-      t,
-      "nearby.detail.responseFallbackBody",
-      "У этого объявления пока нет реального автора для личного чата. Пока можно мягко сохранить интерес локально."
-    );
-  }, [canOpenDirectChat, isOwnAnnouncement, respondedAt, t]);
-
-  const responseActionLabel = React.useMemo(() => {
-    if (isOwnAnnouncement) {
-      return copyOrFallback(t, "nearby.detail.backToList", "К объявлениям");
-    }
-    if (canOpenDirectChat && respondedAt) {
-      return copyOrFallback(t, "nearby.detail.openChat", "Открыть чат");
-    }
-    if (canOpenDirectChat) {
-      return copyOrFallback(t, "nearby.detail.messageAuthor", "Написать автору");
-    }
-    if (respondedAt) {
-      return copyOrFallback(t, "nearby.detail.backToList", "К объявлениям");
-    }
-    return copyOrFallback(t, "nearby.detail.saveInterest", "Сохранить интерес");
-  }, [canOpenDirectChat, isOwnAnnouncement, respondedAt, t]);
-
-  const responseBusyLabel = React.useMemo(
-    () =>
-      canOpenDirectChat
-        ? copyOrFallback(t, "nearby.detail.openingChat", "Открываем чат...")
-        : copyOrFallback(t, "nearby.detail.responding", "Сохраняем интерес..."),
-    [canOpenDirectChat, t]
-  );
 
   const screenTitle = copyOrFallback(t, "nearby.detail.title", "Объявление");
 
@@ -423,30 +475,31 @@ export default function AnnouncementDetailScreen() {
             </View>
 
             <View style={styles.responseCard}>
-              <Text style={styles.responseTitle}>{responseTitle}</Text>
-              <Text style={styles.responseBody}>{responseBody}</Text>
+              <Text style={styles.responseTitle}>{responsePresentation.title}</Text>
+              <Text style={styles.responseBody}>{responsePresentation.body}</Text>
 
-              {isOwnAnnouncement ? (
-                <Pressable onPress={handleBack} style={styles.secondaryButton}>
-                  <Text style={styles.secondaryButtonText}>
-                    {responseActionLabel}
-                  </Text>
-                </Pressable>
-              ) : !canOpenDirectChat && respondedAt ? (
-                <Pressable onPress={handleBack} style={styles.primaryButton}>
-                  <Text style={styles.primaryButtonText}>{responseActionLabel}</Text>
-                </Pressable>
-              ) : (
-                <Pressable
-                  onPress={() => void handleRespond()}
-                  disabled={responding}
-                  style={[styles.primaryButton, responding ? styles.primaryButtonDisabled : null]}
+              <Pressable
+                onPress={() => void handleRespond()}
+                disabled={responding}
+                style={[
+                  responsePresentation.buttonVariant === "secondary"
+                    ? styles.secondaryButton
+                    : styles.primaryButton,
+                  responding ? styles.primaryButtonDisabled : null,
+                ]}
+              >
+                <Text
+                  style={
+                    responsePresentation.buttonVariant === "secondary"
+                      ? styles.secondaryButtonText
+                      : styles.primaryButtonText
+                  }
                 >
-                  <Text style={styles.primaryButtonText}>
-                    {responding ? responseBusyLabel : responseActionLabel}
-                  </Text>
-                </Pressable>
-              )}
+                  {responding
+                    ? responsePresentation.busyLabel
+                    : responsePresentation.actionLabel}
+                </Text>
+              </Pressable>
             </View>
           </>
         ) : (
