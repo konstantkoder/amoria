@@ -11,6 +11,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { useLocale } from "@/contexts/LocaleContext";
 import { auth } from "@/config/firebaseConfig";
+import { type RootStackNavigationProp } from "@/navigation/appRoutes";
 import { signOut } from "firebase/auth";
 
 type Props = {
@@ -18,7 +19,7 @@ type Props = {
 };
 
 export default function AppDrawerContent({ onClose }: Props) {
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<RootStackNavigationProp>();
   const { t, locale, openLanguagePicker } = useLocale();
 
   const handleClose = React.useCallback(() => {
@@ -31,29 +32,33 @@ export default function AppDrawerContent({ onClose }: Props) {
         await signOut(auth);
       }
       onClose?.();
-    } catch (err: any) {
-      console.error("[auth] signOut failed", err);
-      Alert.alert(t("common.error"), err?.message ?? t("common.error"));
+    } catch (error) {
+      console.error("[auth] signOut failed", error);
+      const message = error instanceof Error ? error.message : t("common.error");
+      Alert.alert(t("common.error"), message);
       onClose?.();
     }
   }, [onClose, t]);
 
-  const navigateSafe = React.useCallback(
-    (routeName: string, params?: Record<string, unknown>) => {
-      try {
-        if (params) {
-          navigation.navigate(routeName, params);
-        } else {
-          navigation.navigate(routeName);
-        }
-      } catch {
-        // ignore navigation errors when route is missing
-      } finally {
-        onClose?.();
-      }
-    },
-    [navigation, onClose],
-  );
+  const handleOpenProfile = React.useCallback(() => {
+    onClose?.();
+    navigation.navigate("Profile");
+  }, [navigation, onClose]);
+
+  const handleOpenSettings = React.useCallback(() => {
+    onClose?.();
+    navigation.navigate("Settings");
+  }, [navigation, onClose]);
+
+  const handleOpenPrivacyPolicy = React.useCallback(() => {
+    onClose?.();
+    navigation.navigate("PrivacyPolicy");
+  }, [navigation, onClose]);
+
+  const handleOpenTogether = React.useCallback(() => {
+    onClose?.();
+    navigation.navigate("Tabs", { screen: "Together" });
+  }, [navigation, onClose]);
 
   // AMORIA_FIX_MENU_LANGUAGE_BUTTON
   const handleLanguagePress = React.useCallback(() => {
@@ -85,7 +90,7 @@ export default function AppDrawerContent({ onClose }: Props) {
           </TouchableOpacity>
 
           <TouchableOpacity
-            onPress={() => navigateSafe("Profile")}
+            onPress={handleOpenProfile}
             activeOpacity={0.85}
             style={styles.button}
           >
@@ -96,7 +101,7 @@ export default function AppDrawerContent({ onClose }: Props) {
           </TouchableOpacity>
 
           <TouchableOpacity
-            onPress={() => navigateSafe("Settings")}
+            onPress={handleOpenSettings}
             activeOpacity={0.85}
             style={styles.button}
           >
@@ -134,7 +139,7 @@ export default function AppDrawerContent({ onClose }: Props) {
           </TouchableOpacity>
 
           <TouchableOpacity
-            onPress={() => navigateSafe("PrivacyPolicy")}
+            onPress={handleOpenPrivacyPolicy}
             activeOpacity={0.85}
             style={styles.button}
           >
@@ -156,7 +161,7 @@ export default function AppDrawerContent({ onClose }: Props) {
           </TouchableOpacity>
 
           <TouchableOpacity
-            onPress={() => navigateSafe("Tabs", { screen: "Together" })}
+            onPress={handleOpenTogether}
             activeOpacity={0.85}
             style={styles.button}
           >

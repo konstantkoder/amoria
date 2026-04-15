@@ -27,9 +27,10 @@ import {
   type LocationPrefs,
 } from "@/services/locationPrivacy";
 import { clearPresence } from "@/services/presence";
+import { type RootStackNavigationProp } from "@/navigation/appRoutes";
 
 export default function SettingsScreen() {
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<RootStackNavigationProp<"Settings">>();
   const { t, openLanguagePicker } = useLocale();
 
   const [prefs, setPrefs] = useState<LocationPrefs>({
@@ -211,13 +212,22 @@ export default function SettingsScreen() {
     await setAdultModeEnabled(value);
   }, []);
 
+  const handleOpenPrivacyPolicy = useCallback(() => {
+    navigation.navigate("PrivacyPolicy");
+  }, [navigation]);
+
+  const handleOpenLocationInfo = useCallback(() => {
+    navigation.navigate("LocationInfo");
+  }, [navigation]);
+
   const handleLogout = useCallback(async () => {
     try {
       if (auth) {
         await signOut(auth);
       }
-    } catch (err: any) {
-      Alert.alert(t("common.error"), err?.message ?? t("common.error"));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : t("common.error");
+      Alert.alert(t("common.error"), message);
     }
   }, [t]);
 
@@ -256,14 +266,14 @@ export default function SettingsScreen() {
 
           <View style={styles.card}>
             <TouchableOpacity
-              onPress={() => navigation.navigate("PrivacyPolicy")}
+              onPress={handleOpenPrivacyPolicy}
               style={styles.linkRow}
             >
               <Ionicons name="document-text-outline" size={18} color="#E5E7EB" />
               <Text style={styles.linkText}>{t("screen.privacy")}</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              onPress={() => navigation.navigate("LocationInfo")}
+              onPress={handleOpenLocationInfo}
               style={styles.linkRow}
             >
               <Ionicons name="location-outline" size={18} color="#E5E7EB" />
@@ -319,7 +329,7 @@ export default function SettingsScreen() {
         visible={consentVisible}
         onAccept={handleConsentAccept}
         onDecline={handleConsentDecline}
-        onOpenPrivacy={() => navigation.navigate("PrivacyPolicy")}
+        onOpenPrivacy={handleOpenPrivacyPolicy}
       />
     </ScreenShell>
   );

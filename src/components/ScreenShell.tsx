@@ -2,17 +2,14 @@ import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import {
-  type NavigationProp,
-  type ParamListBase,
-  useNavigation,
-} from "@react-navigation/native";
+import { useNavigation } from "@react-navigation/native";
 
 import ScreenBackground, {
   type ScreenBackgroundVariant,
 } from "@/components/ScreenBackground";
 import MenuButton from "@/components/MenuButton";
 import { openDrawer } from "@/navigation/drawerController";
+import { type RootStackNavigationProp } from "@/navigation/appRoutes";
 
 type Props = {
   title?: string;
@@ -35,7 +32,7 @@ export default function ScreenShell({
   onBack,
   children,
 }: Props) {
-  const navigation = useNavigation<NavigationProp<ParamListBase>>();
+  const navigation = useNavigation<RootStackNavigationProp>();
 
   const handleBack = () => {
     if (onBack) return onBack();
