@@ -221,7 +221,7 @@ export default function RoomsChooseStage({
         </View>
 
         <View style={styles.oneToOneCard}>
-          <Text style={styles.oneToOneKicker}>Главный путь знакомства</Text>
+          <Text style={styles.oneToOneKicker}>{t("rooms.oneToOneKicker")}</Text>
           <Text style={styles.oneToOneTitle}>{t("rooms.oneToOneTitle")}</Text>
           <Text style={styles.oneToOneBody}>{t("rooms.oneToOneBody")}</Text>
           <TouchableOpacity activeOpacity={0.85} onPress={onGoToTogether} style={styles.oneToOneButton}>

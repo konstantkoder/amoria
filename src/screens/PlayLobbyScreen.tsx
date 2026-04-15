@@ -30,6 +30,44 @@ export default function PlayLobbyScreen() {
     },
     [t]
   );
+  const getModeCardCopy = React.useCallback(
+    (activity: PlayActivity) => {
+      const fallback = getPlayLobbyModeCardCopy(activity);
+
+      switch (activity) {
+        case "daily_prompt":
+          return {
+            title: tt("together.lobby.mode.daily_prompt.title", fallback.title),
+            description: tt(
+              "together.lobby.mode.daily_prompt.description",
+              fallback.description
+            ),
+            details: tt("together.lobby.mode.daily_prompt.details", fallback.details),
+          };
+        case "chain_draw":
+          return {
+            title: tt("together.lobby.mode.chain_draw.title", fallback.title),
+            description: tt(
+              "together.lobby.mode.chain_draw.description",
+              fallback.description
+            ),
+            details: tt("together.lobby.mode.chain_draw.details", fallback.details),
+          };
+        case "color_mood":
+          return {
+            title: tt("together.lobby.mode.color_mood.title", fallback.title),
+            description: tt(
+              "together.lobby.mode.color_mood.description",
+              fallback.description
+            ),
+            details: tt("together.lobby.mode.color_mood.details", fallback.details),
+          };
+        default:
+          return fallback;
+      }
+    },
+    [tt]
+  );
 
   return (
     <ScreenShell title={t("tabs.together")} background="togetherMain">
@@ -108,7 +146,7 @@ export default function PlayLobbyScreen() {
         </View>
 
         {LIVE_MODE_ORDER.map((activity) => {
-          const copy = getPlayLobbyModeCardCopy(activity);
+          const copy = getModeCardCopy(activity);
 
           return (
             <Pressable

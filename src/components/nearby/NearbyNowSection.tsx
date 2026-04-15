@@ -42,6 +42,7 @@ import { formatNickname } from "@/utils/nickname";
 
 type Pos = { lat: number; lng: number; accuracy?: number | null };
 type RadiusOption = number | null;
+type TranslateFn = (key: string, params?: Record<string, string>) => string;
 
 type Props = {
   showHero?: boolean;
@@ -73,6 +74,20 @@ function copyOrFallback(
 ) {
   const value = t(key);
   return value === key ? fallback : value;
+}
+
+function getNearbyNowLocationError(
+  t: TranslateFn,
+  error: unknown
+): string {
+  const message = String((error as { message?: string } | null)?.message ?? "").toLowerCase();
+  if (message.includes("timeout")) {
+    return t("geo.timeout");
+  }
+  if (message.includes("permission") || message.includes("denied")) {
+    return t("geo.permissionRequired");
+  }
+  return t("geo.noLocationAccess");
 }
 
 export default function NearbyNowSection({
@@ -206,7 +221,7 @@ export default function NearbyNowSection({
       if (!mountedRef.current) return;
       setPos(null);
       setRegion(null);
-      setLocationError(error?.message ?? t("geo.noLocationAccess"));
+      setLocationError(getNearbyNowLocationError(t, error));
     } finally {
       if (mountedRef.current) {
         setPosLoading(false);
@@ -334,7 +349,7 @@ export default function NearbyNowSection({
       if (mountedRef.current) {
         setMessage(previousMessage);
       }
-      Alert.alert(t("now.sendFailedTitle"), error?.message ?? t("now.sendFailedBody"));
+      Alert.alert(t("now.sendFailedTitle"), t("now.sendFailedBody"));
     } finally {
       if (mountedRef.current) {
         setSending(false);
@@ -377,22 +392,38 @@ export default function NearbyNowSection({
 
   const locationGateTitle = useMemo(() => {
     if (prefsLoading || posLoading) {
-      return copyOrFallback(t, "nearby.now.locationLoadingTitle", "Подготавливаем Nearby -> Сейчас");
+      return copyOrFallback(
+        t,
+        "nearby.now.locationLoadingTitle",
+        "Подготавливаем людей рядом"
+      );
     }
     if (permissionBlocked) {
-      return copyOrFallback(t, "nearby.now.locationBlockedTitle", "Геолокация выключена для Nearby -> Сейчас");
+      return copyOrFallback(
+        t,
+        "nearby.now.locationBlockedTitle",
+        "Геолокация выключена"
+      );
     }
     if (locationDeclined) {
       return copyOrFallback(
         t,
         "nearby.now.locationDeclinedTitle",
-        "Nearby -> Сейчас ждёт доступ к геолокации"
+        "Нужна геолокация, чтобы показать людей рядом"
       );
     }
     if (locationEnabled) {
-      return copyOrFallback(t, "nearby.now.locationRetryTitle", "Локация нужна, чтобы Nearby -> Сейчас заработал рядом");
+      return copyOrFallback(
+        t,
+        "nearby.now.locationRetryTitle",
+        "Нужно обновить геолокацию"
+      );
     }
-    return copyOrFallback(t, "nearby.now.locationPromptTitle", "Включи геолокацию для Nearby -> Сейчас");
+    return copyOrFallback(
+      t,
+      "nearby.now.locationPromptTitle",
+      "Включи геолокацию для людей рядом"
+    );
   }, [locationDeclined, locationEnabled, permissionBlocked, posLoading, prefsLoading, t]);
 
   const locationGateBody = useMemo(() => {
@@ -400,21 +431,21 @@ export default function NearbyNowSection({
       return copyOrFallback(
         t,
         "nearby.now.locationLoadingBody",
-        "Сверяем доступ к геолокации и готовим Nearby -> Сейчас только для локального слоя рядом."
+        "Проверяем доступ к геолокации и готовим локальную ленту людей поблизости."
       );
     }
     if (permissionBlocked) {
       return copyOrFallback(
         t,
         "nearby.now.locationBlockedBody",
-        "Без геолокации раздел не сможет показать людей и статусы рядом. Доступ можно вернуть через настройки телефона."
+        "Без геолокации мы не сможем показать людей и статусы рядом. Доступ можно вернуть через настройки телефона."
       );
     }
     if (locationDeclined) {
       return copyOrFallback(
         t,
         "nearby.now.locationDeclinedBody",
-        "Ты уже отказал в доступе, поэтому Nearby -> Сейчас не пытается снова сам. Можно явно попробовать ещё раз, когда будет удобно."
+        "Без геолокации раздел не сможет показать людей поблизости. Можно включить её в любой момент."
       );
     }
     if (locationEnabled) {
@@ -430,7 +461,7 @@ export default function NearbyNowSection({
     return copyOrFallback(
       t,
       "nearby.now.locationPromptBody",
-      "Геолокация нужна только для Nearby -> Сейчас: чтобы показывать людей поблизости и публиковать твой статус примерно рядом, без резкого авто-запроса при входе."
+      "Геолокация нужна, чтобы показывать людей поблизости и публиковать твой статус примерно рядом."
     );
   }, [locationDeclined, locationEnabled, locationError, permissionBlocked, posLoading, prefsLoading, t]);
 

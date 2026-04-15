@@ -155,21 +155,19 @@ function buildRoomClientId(uid: string) {
   return `m_${uid}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
 }
 
-function getRoomOpenErrorBody(message: string, t: TranslateFn) {
+function getRoomsLocationErrorBody(message: string, t: TranslateFn) {
   const lower = message.toLowerCase();
-  if (lower === "timeout") {
-    return t("rooms.openFailed") === "rooms.openFailed"
-      ? "Сервер отвечает слишком долго. Проверь интернет и попробуй ещё раз."
-      : t("rooms.openFailed");
+  if (lower.includes("timeout")) {
+    return t("geo.timeout");
   }
-  if (
-    lower.includes("offline") ||
-    lower.includes("unavailable") ||
-    lower.includes("network")
-  ) {
-    return t("rooms.mapLoadingBody");
+  if (lower.includes("permission") || lower.includes("denied")) {
+    return t("geo.permissionRequired");
   }
-  return message || t("rooms.openFailed");
+  return t("geo.noLocationAccess");
+}
+
+function getRoomOpenErrorBody(_: string, t: TranslateFn) {
+  return t("rooms.openFailed");
 }
 
 export default function RoomsScreen() {
@@ -410,11 +408,11 @@ export default function RoomsScreen() {
 
             if (blocked) {
               Alert.alert(
-                t("geo.permissionRequired"),
-                t("geo.permissionRequired"),
+                t("geo.permissionBlocked"),
+                t("geo.permissionBlockedHelp"),
                 [
                   {
-                    text: t("geo.enableLocation"),
+                    text: t("geo.openSettings"),
                     onPress: handleOpenSettings,
                   },
                 ]
@@ -461,14 +459,7 @@ export default function RoomsScreen() {
         return next;
       } catch (e: any) {
         const msg = String(e?.message ?? "");
-        if (msg.includes("timeout")) {
-          setPosError(
-            t("geo.timeout") ??
-              "Не удалось быстро получить геолокацию. Попробуйте ещё раз."
-          );
-        } else {
-          setPosError(e?.message ?? t("geo.noLocationAccess"));
-        }
+        setPosError(getRoomsLocationErrorBody(msg, t));
         return null;
       } finally {
         setPosLoading(false);
