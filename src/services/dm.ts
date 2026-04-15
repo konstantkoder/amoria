@@ -26,7 +26,7 @@ function normalizeArtworkActivity(value: unknown): PlayActivity {
   }
 }
 
-export type DmSource = "play";
+export type DmSource = "play" | "announcement";
 
 export type DmThreadDoc = {
   id: string;
@@ -78,7 +78,9 @@ function asDmThreadDoc(id: string, raw: unknown): DmThreadDoc {
             ])
           )
         : {},
-    ...(data.source === "play" ? { source: "play" as const } : {}),
+    ...(data.source === "play" || data.source === "announcement"
+      ? { source: data.source }
+      : {}),
     ...(data.sourceSessionId ? { sourceSessionId: String(data.sourceSessionId) } : {}),
     createdAt: Number(data.createdAt ?? 0),
     updatedAt: Number(data.updatedAt ?? data.createdAt ?? 0),
