@@ -303,6 +303,18 @@ export default function DMChatScreen() {
   const canShowComposer = Boolean(db && myId && threadId && peer.uid) && !subscriptionError && !threadMissing;
   const screenTitleName = peer.name || routePeerName || "";
   const screenTitle = screenTitleName ? t("dm.title", { name: screenTitleName }) : tt("dm.genericTitle", "Чат");
+  const emptyBackLabel = useMemo(() => {
+    if (backTarget === "history") {
+      return tt("playDetail.goToHistory", "Вернуться к историям");
+    }
+    if (backTarget === "sessionDetail") {
+      return tt("dm.backToSessionStory", "Вернуться к истории сессии");
+    }
+    if (backTarget === "connections") {
+      return tt("dm.backToConnections", "Вернуться в связи");
+    }
+    return tt("common.back", "Назад");
+  }, [backTarget, tt]);
   const fallbackBack = useCallback(() => {
     if (backTarget === "history") {
       navigation.navigate("PlayHistory");
@@ -363,12 +375,14 @@ export default function DMChatScreen() {
               style={styles.sourceLink}
               activeOpacity={0.85}
             >
-              <Text style={styles.sourceLinkText}>Открыть совместную историю</Text>
+              <Text style={styles.sourceLinkText}>
+                {tt("dm.openSourceStory", "Открыть совместную историю")}
+              </Text>
             </TouchableOpacity>
           ) : null}
         </View>
       ) : null,
-    [navigation, sourceMeta, sourceTitle, thread?.sourceSessionId]
+    [navigation, sourceMeta, sourceTitle, thread?.sourceSessionId, tt]
   );
 
   const renderItem = useCallback(
@@ -415,8 +429,11 @@ export default function DMChatScreen() {
             icon="alert-circle-outline"
             title={tt("dm.unavailableTitle", "Чат недоступен")}
             body={tt("dm.unavailableBody", "Не удалось открыть переписку без корректного идентификатора диалога.")}
-            primaryAction={{ label: "Назад", onPress: handleBack }}
-            secondaryAction={{ label: "Вернуться во Вместе", onPress: () => navigation.navigate("Tabs", { screen: "Together" }) }}
+            primaryAction={{ label: tt("common.back", "Назад"), onPress: handleBack }}
+            secondaryAction={{
+              label: tt("common.backToTogether", "Вернуться во Вместе"),
+              onPress: () => navigation.navigate("Tabs", { screen: "Together" }),
+            }}
           />
         </View>
       </ScreenShell>
@@ -429,10 +446,13 @@ export default function DMChatScreen() {
         <View style={styles.centerState}>
           <CoreStateCard
             icon="person-circle-outline"
-            title="Чат доступен после входа"
-            body="Войди в аккаунт, чтобы открыть личный диалог и продолжить связь."
-            primaryAction={{ label: "Открыть профиль", onPress: () => navigation.navigate("Profile") }}
-            secondaryAction={{ label: "Назад", onPress: handleBack }}
+            title={tt("dm.authRequiredTitle", "Чат доступен после входа")}
+            body={tt("dm.authRequiredBody", "Войди в аккаунт, чтобы открыть личный диалог и продолжить связь.")}
+            primaryAction={{
+              label: tt("common.openProfile", "Открыть профиль"),
+              onPress: () => navigation.navigate("Profile"),
+            }}
+            secondaryAction={{ label: tt("common.back", "Назад"), onPress: handleBack }}
           />
         </View>
       </ScreenShell>
@@ -446,9 +466,12 @@ export default function DMChatScreen() {
           <CoreStateCard
             icon="cloud-offline-outline"
             title={tt("dm.errorTitle", "Диалог временно недоступен")}
-            body="Мы не смогли подключить личный чат прямо сейчас. Попробуй позже или вернись назад."
-            primaryAction={{ label: "Назад", onPress: handleBack }}
-            secondaryAction={{ label: "Вернуться во Вместе", onPress: () => navigation.navigate("Tabs", { screen: "Together" }) }}
+            body={tt("dm.offlineBody", "Мы не смогли подключить личный чат прямо сейчас. Попробуй позже или вернись назад.")}
+            primaryAction={{ label: tt("common.back", "Назад"), onPress: handleBack }}
+            secondaryAction={{
+              label: tt("common.backToTogether", "Вернуться во Вместе"),
+              onPress: () => navigation.navigate("Tabs", { screen: "Together" }),
+            }}
           />
         </View>
       </ScreenShell>
@@ -473,7 +496,7 @@ export default function DMChatScreen() {
             title={tt("dm.errorTitle", "Диалог временно недоступен")}
             body={subscriptionError}
             primaryAction={{ label: tt("common.retry", "Повторить"), onPress: () => setReloadKey((prev) => prev + 1) }}
-            secondaryAction={{ label: "Назад", onPress: handleBack }}
+            secondaryAction={{ label: tt("common.back", "Назад"), onPress: handleBack }}
           />
         </View>
       ) : threadMissing ? (
@@ -481,9 +504,9 @@ export default function DMChatScreen() {
           <CoreStateCard
             icon="chatbox-ellipses-outline"
             title={tt("dm.unavailableTitle", "Чат недоступен")}
-            body="Мы не нашли этот диалог в текущем контексте. Возможно, старая ссылка уже устарела или чат еще не успел появиться."
+            body={tt("dm.notFoundBody", "Мы не нашли этот диалог в текущем контексте. Возможно, старая ссылка уже устарела или чат еще не успел появиться.")}
             primaryAction={{ label: tt("common.retry", "Повторить"), onPress: () => setReloadKey((prev) => prev + 1) }}
-            secondaryAction={{ label: "Назад", onPress: handleBack }}
+            secondaryAction={{ label: tt("common.back", "Назад"), onPress: handleBack }}
           />
         </View>
       ) : isEmpty ? (
@@ -494,14 +517,7 @@ export default function DMChatScreen() {
             title={tt("dm.emptyTitle", "Связь уже открыта")}
             body={tt("dm.emptyBody", "Сообщений пока нет. Можно написать первым и мягко продолжить знакомство.")}
             primaryAction={{
-              label:
-                backTarget === "history"
-                  ? "Вернуться к истории"
-                  : backTarget === "sessionDetail"
-                    ? "Вернуться к истории сессии"
-                    : backTarget === "connections"
-                      ? "Вернуться в связи"
-                      : "Вернуться назад",
+              label: emptyBackLabel,
               onPress: handleBack,
             }}
           />

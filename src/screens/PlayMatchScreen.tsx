@@ -15,6 +15,7 @@ import {
 
 import ScreenShell from "@/components/ScreenShell";
 import { auth, db, isFirebaseConfigured } from "@/config/firebaseConfig";
+import { useLocale } from "@/contexts/LocaleContext";
 import {
   type PlayMatchRouteProp,
   type RootStackNavigationProp,
@@ -37,6 +38,16 @@ type MatchBlockReason =
   | "activity"
   | "profile";
 
+type MatchStatusKey =
+  | "preparing"
+  | "searching"
+  | "delayed"
+  | "found"
+  | "cancelled"
+  | "error";
+
+type TranslateFn = (key: string, fallback: string, params?: Record<string, string>) => string;
+
 function resolveMatchBlockReason(
   activity: PlayActivity | null,
   uid: string
@@ -48,35 +59,47 @@ function resolveMatchBlockReason(
   return null;
 }
 
-function getBlockedState(reason: MatchBlockReason) {
+function getBlockedState(reason: MatchBlockReason, tt: TranslateFn) {
   switch (reason) {
     case "auth":
       return {
-        title: "Нужен вход в аккаунт",
-        body: "Только после входа можно запустить совместную сессию и сохранить общую историю.",
-        primaryLabel: "Открыть профиль",
-        secondaryLabel: "Назад",
+        title: tt("play.match.blocked.authTitle", "Нужен вход в аккаунт"),
+        body: tt(
+          "play.match.blocked.authBody",
+          "Только после входа можно запустить совместную сессию и сохранить общую историю."
+        ),
+        primaryLabel: tt("common.openProfile", "Открыть профиль"),
+        secondaryLabel: tt("common.back", "Назад"),
       };
     case "firebase":
       return {
-        title: "Together временно недоступен",
-        body: "Мы не смогли подготовить соединение для совместной сессии. Вернись в Together и попробуй еще раз.",
-        primaryLabel: "Во Вместе",
-        secondaryLabel: "Назад",
+        title: tt("play.match.blocked.firebaseTitle", "Together временно недоступен"),
+        body: tt(
+          "play.match.blocked.firebaseBody",
+          "Мы не смогли подготовить соединение для совместной сессии. Вернись в Together и попробуй еще раз."
+        ),
+        primaryLabel: tt("common.backToTogether", "Вернуться во Вместе"),
+        secondaryLabel: tt("common.back", "Назад"),
       };
     case "profile":
       return {
-        title: "Проверь профиль перед стартом",
-        body: "Перед запуском Together нужен сохранённый профиль, чтобы мы могли собрать пару и историю сессии.",
-        primaryLabel: "Открыть профиль",
-        secondaryLabel: "Назад",
+        title: tt("play.match.blocked.profileTitle", "Проверь профиль перед стартом"),
+        body: tt(
+          "play.match.blocked.profileBody",
+          "Перед запуском Together нужен сохранённый профиль, чтобы мы могли собрать пару и историю сессии."
+        ),
+        primaryLabel: tt("common.openProfile", "Открыть профиль"),
+        secondaryLabel: tt("common.back", "Назад"),
       };
     default:
       return {
-        title: "Старт не удалось подготовить",
-        body: "Формат этой сессии не распознан. Вернись во Вместе и запусти ее заново.",
-        primaryLabel: "Во Вместе",
-        secondaryLabel: "Назад",
+        title: tt("play.match.blocked.activityTitle", "Старт не удалось подготовить"),
+        body: tt(
+          "play.match.blocked.activityBody",
+          "Формат этой сессии не распознан. Вернись во Вместе и запусти ее заново."
+        ),
+        primaryLabel: tt("common.backToTogether", "Вернуться во Вместе"),
+        secondaryLabel: tt("common.back", "Назад"),
       };
   }
 }
@@ -108,45 +131,59 @@ function getBlockedIcon(reason: MatchBlockReason | null): keyof typeof Ionicons.
 }
 
 function getMatchStateMeta(
-  busy: boolean,
-  queueCancelled: boolean,
-  statusTitle: string
+  statusKey: MatchStatusKey,
+  tt: TranslateFn
 ) {
-  if (busy) {
+  if (statusKey === "searching" || statusKey === "delayed") {
     return {
-      label: "Ищем",
-      hint: "Окно можно не закрывать: как только человек найдётся, следующий этап откроется сам.",
+      label: tt("play.match.state.searchingLabel", "Ищем"),
+      hint: tt(
+        "play.match.state.searchingHint",
+        "Окно можно не закрывать: как только человек найдётся, следующий этап откроется сам."
+      ),
       tone: "live" as const,
     };
   }
 
-  if (queueCancelled || statusTitle === "Поиск остановлен") {
+  if (statusKey === "cancelled") {
     return {
-      label: "Пауза",
-      hint: "Поиск уже остановлен. Можно вернуться назад или запустить его снова чуть позже.",
+      label: tt("play.match.state.pausedLabel", "Пауза"),
+      hint: tt(
+        "play.match.state.pausedHint",
+        "Поиск уже остановлен. Можно вернуться назад или запустить его снова чуть позже."
+      ),
       tone: "paused" as const,
     };
   }
 
-  if (statusTitle === "Не получилось начать поиск") {
+  if (statusKey === "error") {
     return {
-      label: "Повтор",
-      hint: "Очередь не стартовала корректно. Повтори попытку или вернись в Together.",
+      label: tt("play.match.state.retryLabel", "Повтор"),
+      hint: tt(
+        "play.match.state.retryHint",
+        "Очередь не стартовала корректно. Повтори попытку или вернись в Together."
+      ),
       tone: "error" as const,
     };
   }
 
-  if (statusTitle === "Напарник найден") {
+  if (statusKey === "found") {
     return {
-      label: "Найден",
-      hint: "Подключаем общий этап. Это займёт всего пару секунд.",
+      label: tt("play.match.state.foundLabel", "Найден"),
+      hint: tt(
+        "play.match.state.foundHint",
+        "Подключаем общий этап. Это займёт всего пару секунд."
+      ),
       tone: "ready" as const,
     };
   }
 
   return {
-    label: "Старт",
-    hint: "Сейчас подготовим очередь и сразу перейдём к совместному этапу, как только найдётся человек.",
+    label: tt("play.match.state.startLabel", "Старт"),
+    hint: tt(
+      "play.match.state.startHint",
+      "Сейчас подготовим очередь и сразу перейдём к совместному этапу, как только найдётся человек."
+    ),
     tone: "ready" as const,
   };
 }
@@ -154,6 +191,14 @@ function getMatchStateMeta(
 export default function PlayMatchScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"PlayMatch">>();
   const route = useRoute<PlayMatchRouteProp>();
+  const { t } = useLocale();
+  const tt = React.useCallback<TranslateFn>(
+    (key, fallback, params) => {
+      const value = t(key, params);
+      return value === key ? fallback : value;
+    },
+    [t]
+  );
   const uid = auth?.currentUser?.uid ?? "";
   const activity = isPlayActivity(route.params.activity)
     ? route.params.activity
@@ -162,14 +207,56 @@ export default function PlayMatchScreen() {
   const activityIcon = React.useMemo(() => getActivityIcon(activity), [activity]);
   const nickname = React.useMemo(() => makeNickname(uid), [uid]);
   const blockReason = resolveMatchBlockReason(activity, uid);
-  const blockedState = blockReason ? getBlockedState(blockReason) : null;
+  const blockedState = React.useMemo(
+    () => (blockReason ? getBlockedState(blockReason, tt) : null),
+    [blockReason, tt]
+  );
   const [busy, setBusy] = React.useState(false);
   const [queueCancelled, setQueueCancelled] = React.useState(false);
-  const [statusTitle, setStatusTitle] = React.useState("Подготовим совместную сессию");
-  const [statusText, setStatusText] = React.useState(modeCopy.preparingBody);
+  const [statusKey, setStatusKey] = React.useState<MatchStatusKey>("preparing");
+  const statusTitle = React.useMemo(() => {
+    switch (statusKey) {
+      case "searching":
+        return tt("play.match.status.searchingTitle", "Ищем человека");
+      case "delayed":
+        return tt("play.match.status.delayedTitle", "Все еще ищем человека");
+      case "found":
+        return tt("play.match.status.foundTitle", "Напарник найден");
+      case "cancelled":
+        return tt("play.match.status.cancelledTitle", "Поиск остановлен");
+      case "error":
+        return tt("play.match.status.errorTitle", "Не получилось начать поиск");
+      case "preparing":
+      default:
+        return tt("play.match.status.preparingTitle", "Подготовим совместную сессию");
+    }
+  }, [statusKey, tt]);
+  const statusText = React.useMemo(() => {
+    switch (statusKey) {
+      case "searching":
+        return modeCopy.searchingBody;
+      case "delayed":
+        return modeCopy.delayedBody;
+      case "found":
+        return modeCopy.foundBody;
+      case "cancelled":
+        return tt(
+          "play.match.status.cancelledBody",
+          "Очередь уже очищена. Можно спокойно вернуться назад и попробовать снова, когда будешь готов."
+        );
+      case "error":
+        return tt(
+          "play.match.status.errorBody",
+          "Мы не смогли подготовить очередь прямо сейчас. Попробуй снова через пару секунд или вернись назад."
+        );
+      case "preparing":
+      default:
+        return modeCopy.preparingBody;
+    }
+  }, [modeCopy.delayedBody, modeCopy.foundBody, modeCopy.preparingBody, modeCopy.searchingBody, statusKey, tt]);
   const stateMeta = React.useMemo(
-    () => getMatchStateMeta(busy, queueCancelled, statusTitle),
-    [busy, queueCancelled, statusTitle]
+    () => getMatchStateMeta(statusKey, tt),
+    [statusKey, tt]
   );
   const mountedRef = React.useRef(true);
   const matchedSessionRef = React.useRef("");
@@ -195,10 +282,9 @@ export default function PlayMatchScreen() {
     setBusy(value);
   }, []);
 
-  const setStatusSafe = React.useCallback((nextTitle: string, nextBody: string) => {
+  const setStatusSafe = React.useCallback((nextStatusKey: MatchStatusKey) => {
     if (!mountedRef.current) return;
-    setStatusTitle(nextTitle);
-    setStatusText(nextBody);
+    setStatusKey(nextStatusKey);
   }, []);
 
   const cancelQueue = React.useCallback(async () => {
@@ -232,10 +318,7 @@ export default function PlayMatchScreen() {
     allowLeaveRef.current = true;
     cancelledRef.current = true;
     setQueueCancelled(true);
-    setStatusSafe(
-      "Поиск остановлен",
-      "Очередь уже очищена. Можно спокойно вернуться назад и попробовать снова, когда будешь готов."
-    );
+    setStatusSafe("cancelled");
     await cancelQueue();
 
     if (navigation.canGoBack()) {
@@ -250,14 +333,11 @@ export default function PlayMatchScreen() {
     if (!busy || queueCancelled) return;
 
     const timer = setTimeout(() => {
-      setStatusSafe(
-        "Все еще ищем человека",
-        modeCopy.delayedBody
-      );
+      setStatusSafe("delayed");
     }, 8000);
 
     return () => clearTimeout(timer);
-  }, [busy, modeCopy.delayedBody, queueCancelled, setStatusSafe]);
+  }, [busy, queueCancelled, setStatusSafe]);
 
   React.useEffect(() => {
     const unsubscribe = navigation.addListener("beforeRemove", (event: EventArg<"beforeRemove", true, undefined>) => {
@@ -275,10 +355,7 @@ export default function PlayMatchScreen() {
     matchedSessionRef.current = "";
     allowLeaveRef.current = false;
     setQueueCancelled(false);
-    setStatusSafe(
-      "Подготовим совместную сессию",
-      modeCopy.preparingBody
-    );
+    setStatusSafe("preparing");
 
     if (blockReason || !activity) {
       setBusySafe(false);
@@ -288,27 +365,18 @@ export default function PlayMatchScreen() {
     }
 
     setBusySafe(true);
-    setStatusSafe(
-      "Ищем человека",
-      modeCopy.searchingBody
-    );
+    setStatusSafe("searching");
 
     const unsubscribe = subscribeOwnQueueEntry(db!, uid, (entry) => {
       if (entry?.status === "cancelled" && !matchedSessionRef.current) {
         setQueueCancelled(true);
-        setStatusSafe(
-          "Поиск остановлен",
-          "Очередь больше не активна. Можно спокойно вернуться и запустить новую совместную сессию."
-        );
+        setStatusSafe("cancelled");
         setBusySafe(false);
         return;
       }
 
       if (entry?.sessionId) {
-        setStatusSafe(
-          "Напарник найден",
-          modeCopy.foundBody
-        );
+        setStatusSafe("found");
         enterSession(entry.sessionId);
       }
     });
@@ -330,19 +398,13 @@ export default function PlayMatchScreen() {
         }
 
         if (result.sessionId) {
-          setStatusSafe(
-            "Напарник найден",
-            modeCopy.foundBody
-          );
+          setStatusSafe("found");
           enterSession(result.sessionId);
         }
       } catch {
         if (!mountedRef.current || cancelledRef.current) return;
         setBusySafe(false);
-        setStatusSafe(
-          "Не получилось начать поиск",
-          "Мы не смогли подготовить очередь прямо сейчас. Попробуй снова через пару секунд или вернись назад."
-        );
+        setStatusSafe("error");
       } finally {
         setBusySafe(false);
       }
@@ -359,9 +421,6 @@ export default function PlayMatchScreen() {
     blockReason,
     cancelQueue,
     enterSession,
-    modeCopy.foundBody,
-    modeCopy.preparingBody,
-    modeCopy.searchingBody,
     nickname,
     setBusySafe,
     setStatusSafe,
@@ -393,7 +452,7 @@ export default function PlayMatchScreen() {
   if (blockedState) {
     return (
       <ScreenShell
-        title="Together"
+        title={t("tabs.together")}
         background="togetherMain"
         overlayOpacity={0.24}
         blurRadius={0}
@@ -403,10 +462,12 @@ export default function PlayMatchScreen() {
         <View style={styles.container}>
           <View style={styles.heroCard}>
             <View style={styles.heroTopRow}>
-              <Text style={styles.kicker}>Together подготавливает старт</Text>
+              <Text style={styles.kicker}>
+                {tt("play.match.blockedHeroKicker", "Together подготавливает старт")}
+              </Text>
               <View style={[styles.stateChip, styles.stateChipPaused]}>
                 <Text style={[styles.stateChipText, styles.stateChipTextPaused]}>
-                  Нужно действие
+                  {tt("play.match.blockedHeroBadge", "Нужно действие")}
                 </Text>
               </View>
             </View>
@@ -428,12 +489,15 @@ export default function PlayMatchScreen() {
               />
             </View>
             <Text style={styles.signalText}>
-              Этот экран теперь остаётся частью основного потока Together, а не отдельным старым модулем.
+              {tt(
+                "play.match.blockedSignalText",
+                "Этот экран теперь остаётся частью основного потока Together, а не отдельным старым модулем."
+              )}
             </Text>
           </View>
 
           <View style={styles.noteCard}>
-            <Text style={styles.noteTitle}>Что нужно сделать</Text>
+            <Text style={styles.noteTitle}>{tt("play.match.blockedNoteTitle", "Что нужно сделать")}</Text>
             <Text style={styles.caption}>{blockedState.body}</Text>
           </View>
 
@@ -452,7 +516,7 @@ export default function PlayMatchScreen() {
 
   return (
     <ScreenShell
-      title="Together"
+      title={t("tabs.together")}
       background="togetherMain"
       overlayOpacity={0.24}
       blurRadius={0}
@@ -462,7 +526,9 @@ export default function PlayMatchScreen() {
       <View style={styles.container}>
         <View style={styles.heroCard}>
           <View style={styles.heroTopRow}>
-            <Text style={styles.kicker}>Together подбирает пару</Text>
+            <Text style={styles.kicker}>
+              {tt("play.match.heroKicker", "Together подбирает пару")}
+            </Text>
             <View
               style={[
                 styles.stateChip,
@@ -513,19 +579,21 @@ export default function PlayMatchScreen() {
         </View>
 
         <View style={styles.noteCard}>
-          <Text style={styles.noteTitle}>Что будет дальше</Text>
+          <Text style={styles.noteTitle}>{tt("play.match.noteTitle", "Что будет дальше")}</Text>
           <Text style={styles.caption}>{modeCopy.caption}</Text>
         </View>
 
         <View style={styles.actionRow}>
           <Pressable onPress={handleCancel} style={styles.secondaryButton}>
             <Text style={styles.secondaryButtonText}>
-              {busy ? "Остановить поиск" : "Назад"}
+              {busy
+                ? tt("play.match.stopSearch", "Остановить поиск")
+                : tt("common.back", "Назад")}
             </Text>
           </Pressable>
           {!busy ? (
             <Pressable onPress={retryMatch} style={styles.ghostButton}>
-              <Text style={styles.ghostButtonText}>Попробовать снова</Text>
+              <Text style={styles.ghostButtonText}>{tt("common.retry", "Повторить")}</Text>
             </Pressable>
           ) : null}
         </View>

@@ -16,6 +16,7 @@ import {
 import CoreStateCard from "@/components/CoreStateCard";
 import ScreenShell from "@/components/ScreenShell";
 import { auth, db } from "@/config/firebaseConfig";
+import { useLocale } from "@/contexts/LocaleContext";
 import {
   type PlayColorMoodRouteProp,
   type RootStackNavigationProp,
@@ -49,6 +50,14 @@ const COLOR_OPTIONS = getPlayColorMoodOptions();
 export default function PlayColorMoodScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"PlayColorMood">>();
   const route = useRoute<PlayColorMoodRouteProp>();
+  const { t } = useLocale();
+  const tt = React.useCallback(
+    (key: string, fallback: string, params?: Record<string, string>) => {
+      const value = t(key, params);
+      return value === key ? fallback : value;
+    },
+    [t]
+  );
   const sessionId = route.params.sessionId.trim();
   const uid = auth?.currentUser?.uid ?? "";
 
@@ -117,7 +126,12 @@ export default function PlayColorMoodScreen() {
       },
       () => {
         if (!mountedRef.current) return;
-        setLoadError("Не получилось открыть палитру настроения. Попробуй зайти в неё ещё раз.");
+        setLoadError(
+          tt(
+            "play.colorMood.loadError",
+            "Не получилось открыть палитру настроения. Попробуй зайти в неё ещё раз."
+          )
+        );
         setLoadingSession(false);
       }
     );
@@ -126,7 +140,7 @@ export default function PlayColorMoodScreen() {
       mountedRef.current = false;
       unsubscribeSession();
     };
-  }, [sessionId, uid]);
+  }, [sessionId, tt, uid]);
 
   const partnerId = React.useMemo(
     () => session?.participantIds.find((participantId) => participantId !== uid) ?? "",
@@ -225,14 +239,20 @@ export default function PlayColorMoodScreen() {
 
       event.preventDefault();
       Alert.alert(
-        "Завершить палитру?",
+        tt("play.colorMood.leaveTitle", "Завершить палитру?"),
         ownSelectionLocked
-          ? "Если выйти сейчас, мы мягко завершим сессию с теми цветами, которые уже собраны, и сразу откроем итог."
-          : "Если выйти сейчас, незакреплённые цвета не сохранятся. Мы мягко завершим сессию и сразу откроем итог.",
+          ? tt(
+              "play.colorMood.leaveLockedBody",
+              "Если выйти сейчас, мы мягко завершим сессию с теми цветами, которые уже собраны, и сразу откроем итог."
+            )
+          : tt(
+              "play.colorMood.leaveDraftBody",
+              "Если выйти сейчас, незакреплённые цвета не сохранятся. Мы мягко завершим сессию и сразу откроем итог."
+            ),
         [
-          { text: "Остаться", style: "cancel" },
+          { text: tt("common.stay", "Остаться"), style: "cancel" },
           {
-            text: "Завершить",
+            text: tt("common.finish", "Завершить"),
             style: "destructive",
             onPress: () => {
               void completeSession();
@@ -243,7 +263,7 @@ export default function PlayColorMoodScreen() {
     });
 
     return unsubscribe;
-  }, [completeSession, navigation, ownSelectionLocked, session?.activity, session?.status]);
+  }, [completeSession, navigation, ownSelectionLocked, session?.activity, session?.status, tt]);
 
   const toggleColor = React.useCallback(
     (hex: string) => {
@@ -266,7 +286,12 @@ export default function PlayColorMoodScreen() {
   const handleSubmit = React.useCallback(async () => {
     if (!db || !uid || !sessionId || ownSelectionLocked || submitting || finishing) return;
     if (selectedColors.length !== COLOR_MOOD_SELECTION_COUNT) {
-      setActionError("Нужно выбрать ровно 3 цвета, чтобы закрепить палитру.");
+      setActionError(
+        tt(
+          "play.colorMood.selectExact",
+          "Нужно выбрать ровно 3 цвета, чтобы закрепить палитру."
+        )
+      );
       return;
     }
 
@@ -282,28 +307,38 @@ export default function PlayColorMoodScreen() {
       }
 
       if (result.state === "ignored") {
-        setActionError("Сейчас не получилось сохранить выбор. Попробуй еще раз.");
+        setActionError(
+          tt(
+            "play.colorMood.saveIgnored",
+            "Сейчас не получилось сохранить выбор. Попробуй еще раз."
+          )
+        );
       }
     } catch {
       if (mountedRef.current) {
-        setActionError("Не удалось сохранить цвета. Попробуй еще раз.");
+        setActionError(
+          tt(
+            "play.colorMood.saveFailed",
+            "Не удалось сохранить цвета. Попробуй еще раз."
+          )
+        );
       }
     } finally {
       if (mountedRef.current) {
         setSubmitting(false);
       }
     }
-  }, [db, finishing, openResultScreen, ownSelectionLocked, selectedColors, sessionId, submitting, uid]);
+  }, [db, finishing, openResultScreen, ownSelectionLocked, selectedColors, sessionId, submitting, tt, uid]);
 
   const guardState = React.useMemo<GuardState | null>(() => {
     if (!uid) {
       return {
         icon: "person-circle-outline",
-        title: "Не удалось открыть палитру",
-        body: "Чтобы войти в совместную палитру, нужен активный аккаунт.",
-        primaryLabel: "Открыть профиль",
+        title: tt("play.colorMood.guardAuthTitle", "Не удалось открыть палитру"),
+        body: tt("play.colorMood.guardAuthBody", "Чтобы войти в совместную палитру, нужен активный аккаунт."),
+        primaryLabel: tt("common.openProfile", "Открыть профиль"),
         primaryAction: () => navigation.navigate("Profile"),
-        secondaryLabel: "Назад",
+        secondaryLabel: tt("common.back", "Назад"),
         secondaryAction: handleSafeBack,
       };
     }
@@ -311,11 +346,14 @@ export default function PlayColorMoodScreen() {
     if (!db) {
       return {
         icon: "cloud-offline-outline",
-        title: "Палитра пока недоступна",
-        body: "Мы не смогли подготовить подключение к этой сессии. Вернись назад или попробуй позже.",
-        primaryLabel: "Во Вместе",
+        title: tt("play.colorMood.guardOfflineTitle", "Палитра пока недоступна"),
+        body: tt(
+          "play.colorMood.guardOfflineBody",
+          "Мы не смогли подготовить подключение к этой сессии. Вернись назад или попробуй позже."
+        ),
+        primaryLabel: tt("common.backToTogether", "Вернуться во Вместе"),
         primaryAction: goToTogether,
-        secondaryLabel: "Назад",
+        secondaryLabel: tt("common.back", "Назад"),
         secondaryAction: handleSafeBack,
       };
     }
@@ -323,11 +361,14 @@ export default function PlayColorMoodScreen() {
     if (!sessionId) {
       return {
         icon: "alert-circle-outline",
-        title: "Сессия не найдена",
-        body: "Не получилось открыть палитру настроения без идентификатора сессии.",
-        primaryLabel: "Во Вместе",
+        title: tt("play.colorMood.guardMissingTitle", "Сессия не найдена"),
+        body: tt(
+          "play.colorMood.guardMissingBody",
+          "Не получилось открыть палитру настроения без идентификатора сессии."
+        ),
+        primaryLabel: tt("common.backToTogether", "Вернуться во Вместе"),
         primaryAction: goToTogether,
-        secondaryLabel: "Назад",
+        secondaryLabel: tt("common.back", "Назад"),
         secondaryAction: handleSafeBack,
       };
     }
@@ -335,11 +376,11 @@ export default function PlayColorMoodScreen() {
     if (loadError) {
       return {
         icon: "cloud-offline-outline",
-        title: "Подключение прервалось",
+        title: tt("play.colorMood.guardErrorTitle", "Подключение прервалось"),
         body: loadError,
-        primaryLabel: "Попробовать снова",
+        primaryLabel: tt("common.retry", "Повторить"),
         primaryAction: retryEntry,
-        secondaryLabel: "Во Вместе",
+        secondaryLabel: tt("common.backToTogether", "Вернуться во Вместе"),
         secondaryAction: goToTogether,
       };
     }
@@ -347,21 +388,29 @@ export default function PlayColorMoodScreen() {
     if (!loadingSession && !session) {
       return {
         icon: "albums-outline",
-        title: "Сессия больше недоступна",
-        body: "Её уже закрыли или она не успела сохраниться. Можно вернуться во Вместе и начать заново.",
-        primaryLabel: "Во Вместе",
+        title: tt("play.colorMood.guardNotFoundTitle", "Сессия больше недоступна"),
+        body: tt(
+          "play.colorMood.guardNotFoundBody",
+          "Её уже закрыли или она не успела сохраниться. Можно вернуться во Вместе и начать заново."
+        ),
+        primaryLabel: tt("common.backToTogether", "Вернуться во Вместе"),
         primaryAction: goToTogether,
-        secondaryLabel: "Назад",
+        secondaryLabel: tt("common.back", "Назад"),
         secondaryAction: handleSafeBack,
       };
     }
 
     return null;
-  }, [goToTogether, handleSafeBack, loadError, loadingSession, navigation, retryEntry, session, sessionId, uid]);
+  }, [goToTogether, handleSafeBack, loadError, loadingSession, navigation, retryEntry, session, sessionId, tt, uid]);
 
   if (guardState) {
     return (
-      <ScreenShell title="Палитра настроения" background="togetherStory" showBack onBack={handleSafeBack}>
+      <ScreenShell
+        title={tt("play.colorMood.title", "Палитра настроения")}
+        background="togetherStory"
+        showBack
+        onBack={handleSafeBack}
+      >
         <View style={styles.centerState}>
           <CoreStateCard
             icon={guardState.icon}
@@ -387,13 +436,21 @@ export default function PlayColorMoodScreen() {
 
   if (loadingSession) {
     return (
-      <ScreenShell title="Палитра настроения" background="togetherStory" showBack onBack={handleSafeBack}>
+      <ScreenShell
+        title={tt("play.colorMood.title", "Палитра настроения")}
+        background="togetherStory"
+        showBack
+        onBack={handleSafeBack}
+      >
         <View style={styles.centerState}>
           <CoreStateCard
             loading
             icon="color-palette-outline"
-            title="Подключаем палитру"
-            body="Сейчас загрузим совместную сессию и покажем цвета для выбора."
+            title={tt("play.colorMood.loadingTitle", "Подключаем палитру")}
+            body={tt(
+              "play.colorMood.loadingBody",
+              "Сейчас загрузим совместную сессию и покажем цвета для выбора."
+            )}
           />
         </View>
       </ScreenShell>
@@ -403,18 +460,27 @@ export default function PlayColorMoodScreen() {
   const modeLabel = getPlayActivityLabel(session?.activity ?? "color_mood", "neutral");
   const phaseTitle = ownSelectionLocked
     ? waitingForPeer
-      ? "Ждём выбор второго участника"
-      : "Цвета уже собраны"
-    : "Выбери 3 цвета";
+      ? tt("play.colorMood.phaseWaitingTitle", "Ждём выбор второго участника")
+      : tt("play.colorMood.phaseDoneTitle", "Цвета уже собраны")
+    : tt("play.colorMood.phasePickTitle", "Выбери 3 цвета");
   const phaseText = ownSelectionLocked
     ? waitingForPeer
-      ? "Твой выбор уже закреплён. Как только второй участник закончит, мы сразу соберём общую палитру и откроем итог."
-      : "Твой выбор уже закреплён. Остаётся дождаться перехода к итогу."
-    : "Каждый выбирает по три цвета. Потом мы соберём общую палитру пары и мягкую совместную композицию.";
+      ? tt(
+          "play.colorMood.phaseWaitingBody",
+          "Твой выбор уже закреплён. Как только второй участник закончит, мы сразу соберём общую палитру и откроем итог."
+        )
+      : tt(
+          "play.colorMood.phaseDoneBody",
+          "Твой выбор уже закреплён. Остаётся дождаться перехода к итогу."
+        )
+    : tt(
+        "play.colorMood.phasePickBody",
+        "Каждый выбирает по три цвета. Потом мы соберём общую палитру пары и мягкую совместную композицию."
+      );
 
   return (
     <ScreenShell
-      title="Палитра настроения"
+      title={tt("play.colorMood.title", "Палитра настроения")}
       background="togetherStory"
       showBack
       onBack={() => {
@@ -423,14 +489,20 @@ export default function PlayColorMoodScreen() {
           return;
         }
         Alert.alert(
-          "Завершить палитру?",
+          tt("play.colorMood.leaveTitle", "Завершить палитру?"),
           ownSelectionLocked
-            ? "Если выйти сейчас, мы завершим палитру с тем, что уже успело собраться."
-            : "Если выйти сейчас, незакреплённые цвета не сохранятся.",
+            ? tt(
+                "play.colorMood.leaveCompactLockedBody",
+                "Если выйти сейчас, мы завершим палитру с тем, что уже успело собраться."
+              )
+            : tt(
+                "play.colorMood.leaveCompactDraftBody",
+                "Если выйти сейчас, незакреплённые цвета не сохранятся."
+              ),
           [
-            { text: "Остаться", style: "cancel" },
+            { text: tt("common.stay", "Остаться"), style: "cancel" },
             {
-              text: "Завершить",
+              text: tt("common.finish", "Завершить"),
               style: "destructive",
               onPress: () => {
                 void completeSession();
@@ -452,17 +524,19 @@ export default function PlayColorMoodScreen() {
 
           <View style={styles.metaRow}>
             <View style={styles.metaCard}>
-              <Text style={styles.metaLabel}>Напарник</Text>
+              <Text style={styles.metaLabel}>{tt("playDetail.partner", "Партнёр")}</Text>
               <Text style={styles.metaValue}>{partnerName}</Text>
             </View>
             <View style={styles.metaCard}>
-              <Text style={styles.metaLabel}>Осталось выбрать</Text>
+              <Text style={styles.metaLabel}>{tt("play.colorMood.metaRemaining", "Осталось выбрать")}</Text>
               <Text style={styles.metaValue}>{remainingCount}</Text>
             </View>
           </View>
 
           <View style={styles.selectionSummary}>
-            <Text style={styles.selectionTitle}>Твои выбранные цвета</Text>
+            <Text style={styles.selectionTitle}>
+              {tt("play.colorMood.selectionTitle", "Твои выбранные цвета")}
+            </Text>
             <View style={styles.selectionRow}>
               {displaySelection.length ? (
                 displaySelection.map((hex) => (
@@ -474,16 +548,21 @@ export default function PlayColorMoodScreen() {
                   </View>
                 ))
               ) : (
-                <Text style={styles.selectionHint}>Пока пусто. Выбери ровно 3 цвета.</Text>
+                <Text style={styles.selectionHint}>
+                  {tt("play.colorMood.selectionHint", "Пока пусто. Выбери ровно 3 цвета.")}
+                </Text>
               )}
             </View>
           </View>
         </View>
 
         <View style={styles.paletteCard}>
-          <Text style={styles.paletteTitle}>Доступные цвета</Text>
+          <Text style={styles.paletteTitle}>{tt("play.colorMood.paletteTitle", "Доступные цвета")}</Text>
           <Text style={styles.paletteText}>
-            После подтверждения выбор фиксируется. Повторно ломать flow не придётся.
+            {tt(
+              "play.colorMood.paletteBody",
+              "После подтверждения выбор фиксируется. Повторно ломать flow не придётся."
+            )}
           </Text>
 
           <View style={styles.grid}>
@@ -535,30 +614,40 @@ export default function PlayColorMoodScreen() {
             <Text style={styles.primaryButtonText}>
               {ownSelectionLocked
                 ? waitingForPeer
-                  ? "Ждём выбор второго участника"
-                  : "Цвета уже собраны"
+                  ? tt("play.colorMood.primaryWaiting", "Ждём выбор второго участника")
+                  : tt("play.colorMood.primaryDone", "Цвета уже собраны")
                 : submitting
-                  ? "Сохраняем…"
-                  : "Готово"}
+                  ? tt("common.saving", "Сохраняем…")
+                  : tt("common.done", "Готово")}
             </Text>
           </Pressable>
         </View>
 
         {waitingForPeer ? (
           <View style={styles.waitingCard}>
-            <Text style={styles.waitingTitle}>Ждём выбор второго участника</Text>
+            <Text style={styles.waitingTitle}>
+              {tt("play.colorMood.waitingTitle", "Ждём выбор второго участника")}
+            </Text>
             <Text style={styles.waitingText}>
-              Твои 3 цвета уже сохранены. Как только {partnerName} закончит, мы сразу соберём вашу
-              общую палитру.
+              {tt(
+                "play.colorMood.waitingBody",
+                "Твои 3 цвета уже сохранены. Как только {name} закончит, мы сразу соберём вашу общую палитру.",
+                { name: partnerName }
+              )}
             </Text>
           </View>
         ) : null}
 
         {peerSavedChoices.length === COLOR_MOOD_SELECTION_COUNT && !waitingForPeer ? (
           <View style={styles.waitingCard}>
-            <Text style={styles.waitingTitle}>Второй участник уже выбрал цвета</Text>
+            <Text style={styles.waitingTitle}>
+              {tt("play.colorMood.peerReadyTitle", "Второй участник уже выбрал цвета")}
+            </Text>
             <Text style={styles.waitingText}>
-              Палитра почти готова. Мы откроем итог, как только сессия окончательно соберётся.
+              {tt(
+                "play.colorMood.peerReadyBody",
+                "Палитра почти готова. Мы откроем итог, как только сессия окончательно соберётся."
+              )}
             </Text>
           </View>
         ) : null}

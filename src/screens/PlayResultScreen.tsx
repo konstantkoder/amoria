@@ -14,6 +14,7 @@ import PlayModeContextCard from "@/components/play/PlayModeContextCard";
 import ReplayCanvasWebView from "@/components/play/ReplayCanvasWebView";
 import type { SharedCanvasStroke } from "@/components/play/SharedCanvasWebView";
 import { auth, db } from "@/config/firebaseConfig";
+import { useLocale } from "@/contexts/LocaleContext";
 import {
   type PlayResultRouteProp,
   type RootStackNavigationProp,
@@ -44,25 +45,41 @@ import { theme } from "@/theme";
 
 const SESSION_DURATION_SEC = 420;
 
-function formatDuration(session: PlaySessionDoc | null) {
+function formatDuration(
+  session: PlaySessionDoc | null,
+  tt: (key: string, fallback: string, params?: Record<string, string>) => string
+) {
   if (!session?.startedAt || !session?.endedAt) {
     if (session?.activity === "chain_draw" && session.turnDurationSec && session.maxTurns) {
       const totalSec = session.turnDurationSec * session.maxTurns;
       const minutes = Math.max(Math.round(totalSec / 60), 1);
-      return `${minutes} мин`;
+      return tt("play.result.durationMinutes", "{count} min", {
+        count: String(minutes),
+      });
     }
-    return "7 минут";
+    return tt("play.result.durationDefault", "7 min");
   }
 
   const diffSec = Math.max(Math.round((session.endedAt - session.startedAt) / 1000), 0);
-  if (!diffSec) return "7 минут";
-  if (diffSec >= SESSION_DURATION_SEC) return "7 минут";
+  if (!diffSec) return tt("play.result.durationDefault", "7 min");
+  if (diffSec >= SESSION_DURATION_SEC) return tt("play.result.durationDefault", "7 min");
 
   const minutes = Math.floor(diffSec / 60);
   const seconds = diffSec % 60;
-  if (!minutes) return `${seconds} сек`;
-  if (!seconds) return `${minutes} мин`;
-  return `${minutes} мин ${seconds} сек`;
+  if (!minutes) {
+    return tt("play.result.durationSeconds", "{count} sec", {
+      count: String(seconds),
+    });
+  }
+  if (!seconds) {
+    return tt("play.result.durationMinutes", "{count} min", {
+      count: String(minutes),
+    });
+  }
+  return tt("play.result.durationMinutesSeconds", "{minutes} min {seconds} sec", {
+    minutes: String(minutes),
+    seconds: String(seconds),
+  });
 }
 
 function mapReplayStrokes(events: PlayStrokeBatch[]): SharedCanvasStroke[] {
@@ -83,6 +100,14 @@ function mapReplayStrokes(events: PlayStrokeBatch[]): SharedCanvasStroke[] {
 export default function PlayResultScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"PlayResult">>();
   const route = useRoute<PlayResultRouteProp>();
+  const { t } = useLocale();
+  const tt = React.useCallback(
+    (key: string, fallback: string, params?: Record<string, string>) => {
+      const value = t(key, params);
+      return value === key ? fallback : value;
+    },
+    [t]
+  );
   const sessionId = route.params.sessionId.trim();
   const historyMode = route.params.mode === "history";
   const uid = auth?.currentUser?.uid ?? "";
@@ -152,7 +177,12 @@ export default function PlayResultScreen() {
       },
       () => {
         if (!mountedRef.current) return;
-        setLoadError("Не удалось собрать итог этой совместной сессии. Попробуй открыть его еще раз.");
+        setLoadError(
+          tt(
+            "play.result.loadError",
+            "Не удалось собрать итог этой совместной сессии. Попробуй открыть его еще раз."
+          )
+        );
         setLoadingSession(false);
       }
     );
@@ -166,7 +196,12 @@ export default function PlayResultScreen() {
       },
       () => {
         if (!mountedRef.current) return;
-        setLoadError("Мы не смогли загрузить replay этой сессии целиком. Попробуй еще раз.");
+        setLoadError(
+          tt(
+            "play.result.replayLoadError",
+            "Мы не смогли загрузить replay этой сессии целиком. Попробуй еще раз."
+          )
+        );
         setLoadingEvents(false);
       }
     );
@@ -175,7 +210,7 @@ export default function PlayResultScreen() {
       unsubscribeSession();
       unsubscribeEvents();
     };
-  }, [historyMode, reloadKey, sessionId]);
+  }, [historyMode, reloadKey, sessionId, tt]);
 
   React.useEffect(() => {
     const ownDecision = session?.revealDecisions?.[uid];
@@ -218,12 +253,13 @@ export default function PlayResultScreen() {
   const allOpen = revealOutcome === "open_open";
   const showSoftEnding = revealOutcome === "open_skip" || revealOutcome === "skip_skip";
   const waitingForPeer = Boolean(decision) && revealOutcome === "waiting";
-  const durationLabel = formatDuration(session);
+  const durationLabel = formatDuration(session, tt);
   const activityLabel = getPlayActivityLabel(session?.activity ?? "draw", "neutral");
   const showDailyPrompt = session?.activity === "daily_prompt";
   const activityHasReplay = playActivityUsesReplay(session?.activity ?? "draw");
   const sessionPrompt = React.useMemo(() => getPlaySessionPrompt(session), [session]);
-  const sessionPromptDisplay = sessionPrompt?.text?.trim() || "Тема уточняется";
+  const sessionPromptDisplay =
+    sessionPrompt?.text?.trim() || tt("playDetail.pendingPrompt", "Тема уточняется");
   const combinedPalette = React.useMemo(() => getPlayColorMoodCombinedPalette(session), [session]);
   const ownPalette = React.useMemo(() => getPlayColorMoodChoices(session, uid), [session, uid]);
   const peerPalette = React.useMemo(
@@ -251,48 +287,85 @@ export default function PlayResultScreen() {
     session?.activity === "color_mood"
       ? combinedPalette.length || ownPalette.length || peerPalette.length
       : totalStrokeCount;
-  const archiveArtifactLabel = session?.activity === "color_mood" ? "палитра" : "рисунок";
   const canOpenChat = Boolean(db && session && uid && peer?.uid);
   const hasReplay = replayStrokes.length > 0;
   const summaryItems = React.useMemo(
     () => [
-      { label: "Режим", value: activityLabel },
-      { label: "Вместе", value: peerName },
+      { label: tt("playDetail.activity", "Режим"), value: activityLabel },
+      { label: tt("playDetail.partner", "Партнёр"), value: peerName },
       { label: metricLabel, value: String(metricValue) },
-      { label: "Время", value: durationLabel },
+      { label: tt("play.result.timeLabel", "Время"), value: durationLabel },
     ],
-    [activityLabel, durationLabel, metricLabel, metricValue, peerName]
+    [activityLabel, durationLabel, metricLabel, metricValue, peerName, tt]
   );
   const contributionText =
     session?.activity === "color_mood"
       ? ""
-      : `Твои штрихи: ${myStrokeCount} • ${peerName}: ${peerStrokeCount}`;
+      : tt("play.result.contribution", "Твои штрихи: {mine} • {name}: {peer}", {
+          mine: String(myStrokeCount),
+          name: peerName,
+          peer: String(peerStrokeCount),
+        });
   const nextStepTitle = historyMode
     ? allOpen && canOpenChat
-      ? "Контакт уже открыт"
-      : "История сохранена"
+      ? tt("play.result.nextContactOpenTitle", "Контакт уже открыт")
+      : tt("play.result.nextStorySavedTitle", "История сохранена")
     : allOpen
-      ? "Чат уже открыт"
+      ? tt("play.result.nextChatOpenTitle", "Чат уже открыт")
       : showSoftEnding
-        ? "История сохранена"
+        ? tt("play.result.nextStorySavedTitle", "История сохранена")
         : waitingForPeer
-          ? "Ждём второй ответ"
-          : "Что дальше";
+          ? tt("play.result.nextWaitingTitle", "Ждём второй ответ")
+          : tt("play.result.nextDefaultTitle", "Что дальше");
   const nextStepText = historyMode
     ? allOpen && canOpenChat
-      ? "Можно перейти в личный чат. Полный итог этой сессии уже сохранён в совместной истории."
+      ? tt(
+          "play.result.nextHistoryChatReadyBody",
+          "Можно перейти в личный чат. Полный итог этой сессии уже сохранён в совместной истории."
+        )
       : allOpen
-        ? "Открытие уже произошло, но чат пока не подтянулся. Полный итог этой сессии уже сохранён."
-        : "Полная история этой сессии уже сохранена. Здесь можно быстро перейти к ней и при необходимости открыть replay."
+        ? tt(
+            "play.result.nextHistoryChatPendingBody",
+            "Открытие уже произошло, но чат пока не подтянулся. Полный итог этой сессии уже сохранён."
+          )
+        : tt(
+            "play.result.nextHistorySavedBody",
+            "Полная история этой сессии уже сохранена. Здесь можно быстро перейти к ней и при необходимости открыть replay."
+          )
     : allOpen && !canOpenChat
-      ? "Открытие уже произошло, но чат пока не готов. Итог уже сохранён в совместной истории."
+      ? tt(
+          "play.result.nextChatPendingBody",
+          "Открытие уже произошло, но чат пока не готов. Итог уже сохранён в совместной истории."
+        )
       : allOpen
-        ? "Вы оба открыли контакт. Дальше связь продолжается в личном чате."
+        ? tt(
+            "play.result.nextChatReadyBody",
+            "Вы оба открыли контакт. Дальше связь продолжается в личном чате."
+          )
         : showSoftEnding
-          ? `Сессия осталась в истории. ${archiveArtifactLabel === "палитра" ? "Палитра сохранена и останется только у вас двоих." : "Рисунок и replay сохранены в общей истории."}`
+          ? session?.activity === "color_mood"
+            ? tt(
+                "play.result.nextSoftEndingPaletteBody",
+                "Сессия осталась в истории. Палитра сохранена и останется только у вас двоих."
+              )
+            : tt(
+                "play.result.nextSoftEndingDrawingBody",
+                "Сессия осталась в истории. Рисунок и replay сохранены в общей истории."
+              )
           : waitingForPeer
-            ? "Твоё решение уже сохранено. Чат откроется только если второй участник тоже выберет открыть."
-            : `Если вы оба выберете открыть, сессия перейдёт в личный чат. Если нет, ${archiveArtifactLabel} останется в совместной истории.`;
+            ? tt(
+                "play.result.nextWaitingBody",
+                "Твоё решение уже сохранено. Чат откроется только если второй участник тоже выберет открыть."
+              )
+            : session?.activity === "color_mood"
+              ? tt(
+                  "play.result.nextDefaultPaletteBody",
+                  "Если вы оба выберете открыть, сессия перейдёт в личный чат. Если нет, палитра останется в совместной истории."
+                )
+              : tt(
+                  "play.result.nextDefaultDrawingBody",
+                  "Если вы оба выберете открыть, сессия перейдёт в личный чат. Если нет, рисунок останется в совместной истории."
+                );
 
   const openChat = React.useCallback(async () => {
     if (!db || !session || !uid || !peer?.uid) return;
@@ -345,10 +418,15 @@ export default function PlayResultScreen() {
       await task;
     } catch {
       if (mountedRef.current) {
-        setActionError("Не удалось открыть чат прямо сейчас. Попробуй еще раз чуть позже.");
+        setActionError(
+          tt(
+            "play.result.openChatFailed",
+            "Не удалось открыть чат прямо сейчас. Попробуй еще раз чуть позже."
+          )
+        );
       }
     }
-  }, [db, navigation, peer?.uid, peerName, session, sessionId, totalStrokeCount, uid]);
+  }, [db, navigation, peer?.uid, peerName, session, sessionId, totalStrokeCount, tt, uid]);
 
   const handleOpenPress = React.useCallback(async () => {
     if (submitting || openingChat) return;
@@ -361,7 +439,12 @@ export default function PlayResultScreen() {
     if (historyMode) return;
     if (!db || !sessionId || !uid || decision) {
       if (mountedRef.current) {
-        setActionError("Сейчас не получилось сохранить решение. Вернись назад или попробуй снова.");
+        setActionError(
+          tt(
+            "play.result.saveDecisionRetry",
+            "Сейчас не получилось сохранить решение. Вернись назад или попробуй снова."
+          )
+        );
       }
       return;
     }
@@ -375,19 +458,29 @@ export default function PlayResultScreen() {
     } catch {
       if (mountedRef.current) {
         setDecision(null);
-        setActionError("Не удалось сохранить выбор. Попробуй еще раз.");
+        setActionError(
+          tt(
+            "play.result.saveDecisionFailed",
+            "Не удалось сохранить выбор. Попробуй еще раз."
+          )
+        );
       }
     } finally {
       if (mountedRef.current) {
         setSubmitting(false);
       }
     }
-  }, [allOpen, db, decision, historyMode, openChat, openingChat, sessionId, submitting, uid]);
+  }, [allOpen, db, decision, historyMode, openChat, openingChat, sessionId, submitting, tt, uid]);
 
   const handleSkipPress = React.useCallback(async () => {
     if (!db || !sessionId || !uid || submitting || decision || openingChat) {
       if (mountedRef.current && !submitting && !openingChat) {
-        setActionError("Сейчас не получилось сохранить решение. Попробуй еще раз.");
+        setActionError(
+          tt(
+            "play.result.saveDecisionRetry",
+            "Сейчас не получилось сохранить решение. Попробуй еще раз."
+          )
+        );
       }
       return;
     }
@@ -401,14 +494,19 @@ export default function PlayResultScreen() {
     } catch {
       if (mountedRef.current) {
         setDecision(null);
-        setActionError("Не удалось сохранить выбор. Попробуй еще раз.");
+        setActionError(
+          tt(
+            "play.result.saveDecisionFailed",
+            "Не удалось сохранить выбор. Попробуй еще раз."
+          )
+        );
       }
     } finally {
       if (mountedRef.current) {
         setSubmitting(false);
       }
     }
-  }, [db, decision, openingChat, sessionId, submitting, uid]);
+  }, [db, decision, openingChat, sessionId, submitting, tt, uid]);
 
   const openCtaDisabled =
     submitting ||
@@ -435,24 +533,26 @@ export default function PlayResultScreen() {
   const primaryLabel = historyMode
     ? allOpen && canOpenChat
       ? openingChat
-        ? "Открываем чат…"
-        : "Открыть чат"
-      : "Открыть совместную историю"
+        ? tt("connections.openingChat", "Открываем чат…")
+        : tt("connections.openChat", "Открыть чат")
+      : tt("playHistory.openStory", "Открыть историю")
     : allOpen && !canOpenChat
-      ? "Открыть совместную историю"
+      ? tt("playHistory.openStory", "Открыть историю")
       : allOpen
         ? openingChat
-          ? "Открываем чат…"
-          : "Открыть чат"
+          ? tt("connections.openingChat", "Открываем чат…")
+          : tt("connections.openChat", "Открыть чат")
       : showSoftEnding
-        ? "Открыть совместную историю"
+        ? tt("playHistory.openStory", "Открыть историю")
         : waitingForPeer
-          ? "Ждём решение второго"
-          : "Хочу открыть чат";
+          ? tt("play.result.primaryWaiting", "Ждём решение второго")
+          : tt("play.result.primaryOpenChat", "Хочу открыть чат");
   const showHistoryButton = historyMode
     ? allOpen && canOpenChat
     : (allOpen && canOpenChat) || waitingForPeer || showSoftEnding;
-  const screenTitle = historyMode ? "Совместная история" : "Итог сессии";
+  const screenTitle = historyMode
+    ? tt("play.result.storyTitle", "Совместная история")
+    : tt("play.result.title", "Итог сессии");
   const handleBack = () => {
     if (navigation.canGoBack()) {
       navigation.goBack();
@@ -476,10 +576,13 @@ export default function PlayResultScreen() {
         <View style={styles.centerState}>
           <CoreStateCard
             icon="alert-circle-outline"
-            title="Сессия не найдена"
-            body="Не удалось открыть итог без идентификатора совместной сессии."
-            primaryAction={{ label: "Вернуться во Вместе", onPress: goToTogether }}
-            secondaryAction={{ label: "Назад", onPress: handleBack }}
+            title={tt("play.result.stateMissingTitle", "Сессия не найдена")}
+            body={tt(
+              "play.result.stateMissingBody",
+              "Не удалось открыть итог без идентификатора совместной сессии."
+            )}
+            primaryAction={{ label: tt("common.backToTogether", "Вернуться во Вместе"), onPress: goToTogether }}
+            secondaryAction={{ label: tt("common.back", "Назад"), onPress: handleBack }}
           />
         </View>
       </ScreenShell>
@@ -497,10 +600,13 @@ export default function PlayResultScreen() {
         <View style={styles.centerState}>
           <CoreStateCard
             icon="cloud-offline-outline"
-            title="Итог пока недоступен"
-            body="Мы не смогли подключить итог этой сессии прямо сейчас. Вернись назад или попробуй открыть его еще раз позже."
-            primaryAction={{ label: "Вернуться во Вместе", onPress: goToTogether }}
-            secondaryAction={{ label: "Назад", onPress: handleBack }}
+            title={tt("play.result.stateOfflineTitle", "Итог пока недоступен")}
+            body={tt(
+              "play.result.stateOfflineBody",
+              "Мы не смогли подключить итог этой сессии прямо сейчас. Вернись назад или попробуй открыть его еще раз позже."
+            )}
+            primaryAction={{ label: tt("common.backToTogether", "Вернуться во Вместе"), onPress: goToTogether }}
+            secondaryAction={{ label: tt("common.back", "Назад"), onPress: handleBack }}
           />
         </View>
       </ScreenShell>
@@ -519,8 +625,11 @@ export default function PlayResultScreen() {
           <CoreStateCard
             loading
             icon="sparkles-outline"
-            title="Собираем итог"
-            body="Еще пара секунд, и здесь появится результат вашей совместной сессии."
+            title={tt("play.result.stateLoadingTitle", "Собираем итог")}
+            body={tt(
+              "play.result.stateLoadingBody",
+              "Еще пара секунд, и здесь появится результат вашей совместной сессии."
+            )}
           />
         </View>
       </ScreenShell>
@@ -538,10 +647,10 @@ export default function PlayResultScreen() {
         <View style={styles.centerState}>
           <CoreStateCard
             icon="cloud-offline-outline"
-            title="Итог временно недоступен"
+            title={tt("play.result.stateErrorTitle", "Итог временно недоступен")}
             body={loadError}
-            primaryAction={{ label: "Повторить", onPress: () => setReloadKey((prev) => prev + 1) }}
-            secondaryAction={{ label: "Назад", onPress: handleBack }}
+            primaryAction={{ label: tt("common.retry", "Повторить"), onPress: () => setReloadKey((prev) => prev + 1) }}
+            secondaryAction={{ label: tt("common.back", "Назад"), onPress: handleBack }}
           />
         </View>
       </ScreenShell>
@@ -559,10 +668,13 @@ export default function PlayResultScreen() {
         <View style={styles.centerState}>
           <CoreStateCard
             icon="albums-outline"
-            title="Итог больше недоступен"
-            body="Сессия уже исчезла или не успела сохраниться. Можно вернуться во Вместе и начать новую."
-            primaryAction={{ label: "Вернуться во Вместе", onPress: goToTogether }}
-            secondaryAction={{ label: "Начать новую совместную сессию", onPress: startNewSession }}
+            title={tt("play.result.stateNotFoundTitle", "Итог больше недоступен")}
+            body={tt(
+              "play.result.stateNotFoundBody",
+              "Сессия уже исчезла или не успела сохраниться. Можно вернуться во Вместе и начать новую."
+            )}
+            primaryAction={{ label: tt("common.backToTogether", "Вернуться во Вместе"), onPress: goToTogether }}
+            secondaryAction={{ label: tt("playHistory.startNewSession", "Начать новую совместную сессию"), onPress: startNewSession }}
           />
         </View>
       </ScreenShell>
@@ -585,7 +697,9 @@ export default function PlayResultScreen() {
           <View style={styles.heroHeaderRow}>
             <View style={styles.heroHeaderText}>
               <Text style={styles.heroKicker}>
-                {historyMode ? "Совместная история" : "Сессия завершена"}
+                {historyMode
+                  ? tt("play.result.storyTitle", "Совместная история")
+                  : tt("play.result.finishedKicker", "Сессия завершена")}
               </Text>
               <Text style={styles.heroTitle}>{resultModeCopy.heroTitle}</Text>
             </View>
@@ -619,7 +733,7 @@ export default function PlayResultScreen() {
           <Text style={styles.heroSubtext}>{resultModeCopy.heroBody}</Text>
           {showDailyPrompt ? (
             <View style={styles.contextPill}>
-              <Text style={styles.contextLabel}>Тема</Text>
+              <Text style={styles.contextLabel}>{tt("playDetail.topicLabel", "Тема")}</Text>
               <Text style={styles.contextText}>{sessionPromptDisplay}</Text>
             </View>
           ) : null}
@@ -642,7 +756,7 @@ export default function PlayResultScreen() {
           combinedPalette={combinedPalette}
           ownPalette={ownPalette}
           peerPalette={peerPalette}
-          peerTitle="Цвета второго участника"
+          peerTitle={tt("playDetail.peerPaletteTitle", "Цвета второго участника")}
           compact
           surface="result"
         />
@@ -677,7 +791,9 @@ export default function PlayResultScreen() {
                 onPress={() => void handleSkipPress()}
                 style={[styles.tertiaryButton, skipDisabled && styles.disabledButton]}
               >
-                <Text style={styles.tertiaryText}>Оставить как историю</Text>
+                <Text style={styles.tertiaryText}>
+                  {tt("play.result.keepAsStory", "Оставить как историю")}
+                </Text>
               </Pressable>
             ) : null}
             {showHistoryButton ? (
@@ -685,7 +801,9 @@ export default function PlayResultScreen() {
                 onPress={() => goToDetail(activityHasReplay && replayOpen ? "replay" : undefined)}
                 style={styles.secondaryButton}
               >
-                <Text style={styles.secondaryText}>Открыть совместную историю</Text>
+                <Text style={styles.secondaryText}>
+                  {tt("playHistory.openStory", "Открыть историю")}
+                </Text>
               </Pressable>
             ) : null}
             {activityHasReplay ? (
@@ -694,7 +812,9 @@ export default function PlayResultScreen() {
                 style={styles.secondaryButton}
               >
                 <Text style={styles.secondaryText}>
-                  {replayOpen ? "Скрыть replay" : "Показать replay"}
+                  {replayOpen
+                    ? tt("playDetail.hideReplay", "Скрыть replay")
+                    : tt("playDetail.openReplay", "Показать replay")}
                 </Text>
               </Pressable>
             ) : null}
@@ -712,7 +832,7 @@ export default function PlayResultScreen() {
             </View>
             {showDailyPrompt ? (
               <View style={styles.contextPill}>
-                <Text style={styles.contextLabel}>Тема</Text>
+                <Text style={styles.contextLabel}>{tt("playDetail.topicLabel", "Тема")}</Text>
                 <Text style={styles.contextText}>{sessionPromptDisplay}</Text>
               </View>
             ) : null}

@@ -19,6 +19,7 @@ import SharedCanvasWebView, {
 import CoreStateCard from "@/components/CoreStateCard";
 import ScreenShell from "@/components/ScreenShell";
 import { auth, db } from "@/config/firebaseConfig";
+import { useLocale } from "@/contexts/LocaleContext";
 import {
   type PlayCanvasRouteProp,
   type RootStackNavigationProp,
@@ -80,6 +81,14 @@ type GuardState = {
 export default function PlayCanvasScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"PlayCanvas">>();
   const route = useRoute<PlayCanvasRouteProp>();
+  const { t } = useLocale();
+  const tt = React.useCallback(
+    (key: string, fallback: string, params?: Record<string, string>) => {
+      const value = t(key, params);
+      return value === key ? fallback : value;
+    },
+    [t]
+  );
   const sessionId = route.params.sessionId.trim();
   const uid = auth?.currentUser?.uid ?? "";
   const [session, setSession] = React.useState<PlaySessionDoc | null>(null);
@@ -151,7 +160,12 @@ export default function PlayCanvasScreen() {
       },
       () => {
         if (!mountedRef.current) return;
-        setLoadError("Не получилось подключить совместную сессию. Попробуй открыть ее еще раз.");
+        setLoadError(
+          tt(
+            "play.canvas.connectError",
+            "Не получилось подключить совместную сессию. Попробуй открыть ее еще раз."
+          )
+        );
         setLoadingSession(false);
       }
     );
@@ -166,7 +180,12 @@ export default function PlayCanvasScreen() {
       },
       () => {
         if (!mountedRef.current) return;
-        setLoadError("Мы не смогли загрузить общий холст целиком. Попробуй переподключиться.");
+        setLoadError(
+          tt(
+            "play.canvas.eventsError",
+            "Мы не смогли загрузить общий холст целиком. Попробуй переподключиться."
+          )
+        );
         setLoadingEvents(false);
       }
     );
@@ -176,7 +195,7 @@ export default function PlayCanvasScreen() {
       unsubscribeSession();
       unsubscribeEvents();
     };
-  }, [sessionId, uid]);
+  }, [sessionId, tt, uid]);
 
   const allStrokes = React.useMemo(
     () => events.flatMap((batch) => mapBatchStroke(batch)),
@@ -200,7 +219,8 @@ export default function PlayCanvasScreen() {
     [session?.activity]
   );
   const sessionPrompt = React.useMemo(() => getPlaySessionPrompt(session), [session]);
-  const sessionPromptDisplay = sessionPrompt?.text?.trim() || "Тема уточняется";
+  const sessionPromptDisplay =
+    sessionPrompt?.text?.trim() || tt("playDetail.pendingPrompt", "Тема уточняется");
 
   const openResultScreen = React.useCallback(() => {
     if (!mountedRef.current || navigationHandledRef.current || !sessionId) return;
@@ -369,12 +389,15 @@ export default function PlayCanvasScreen() {
 
       event.preventDefault();
       Alert.alert(
-        "Завершить сессию?",
-        "Если выйти сейчас, мы мягко завершим общий рисунок и сразу откроем итог.",
+        tt("play.canvas.leaveTitle", "Завершить сессию?"),
+        tt(
+          "play.canvas.leaveBody",
+          "Если выйти сейчас, мы мягко завершим общий рисунок и сразу откроем итог."
+        ),
         [
-          { text: "Остаться", style: "cancel" },
+          { text: tt("common.stay", "Остаться"), style: "cancel" },
           {
-            text: "Завершить",
+            text: tt("common.finish", "Завершить"),
             style: "destructive",
             onPress: () => {
               void completeSession();
@@ -385,7 +408,7 @@ export default function PlayCanvasScreen() {
     });
 
     return unsubscribe;
-  }, [completeSession, navigation, session?.status]);
+  }, [completeSession, navigation, session?.status, tt]);
 
   const handleLocalBatch = React.useCallback(
     async (strokes: SharedCanvasStroke[]) => {
@@ -440,13 +463,15 @@ export default function PlayCanvasScreen() {
   const currentTurnLabel = !chainTurnState
     ? ""
     : chainTurnState.currentTurnUid === uid
-      ? "Твой ход"
-      : "Ход партнера";
+      ? tt("play.canvas.currentTurnMine", "Твой ход")
+      : tt("play.canvas.currentTurnPartner", "Ход партнера");
   const currentTurnName = !chainTurnState
     ? ""
     : chainTurnState.currentTurnUid === uid
-      ? "Сейчас рисуешь ты"
-      : `Сейчас рисует ${partnerName}`;
+      ? tt("play.canvas.currentTurnMineLong", "Сейчас рисуешь ты")
+      : tt("play.canvas.currentTurnPartnerLong", "Сейчас рисует {name}", {
+          name: partnerName,
+        });
 
   const sessionPhaseCopy = React.useMemo(
     () =>
@@ -460,24 +485,30 @@ export default function PlayCanvasScreen() {
     [currentTurnName, isMyTurn, session?.activity, session?.status, sessionPrompt?.text]
   );
 
-  const timerTitle = isChainDraw ? "Время хода" : "Осталось";
+  const timerTitle = isChainDraw
+    ? tt("play.canvas.timerTurn", "Время хода")
+    : tt("play.canvas.timerRemaining", "Осталось");
   const timerValue = formatRemaining(isChainDraw ? turnRemaining : drawRemaining);
   const canvasDisabled = session?.status !== "active" || finishing || passingTurn || !isMyTurn;
   const canvasDisabledTitle =
     finishing
-      ? "Завершаем сессию"
+      ? tt("play.canvas.disabledFinishingTitle", "Завершаем сессию")
       : passingTurn
-        ? "Передаем ход"
+        ? tt("play.canvas.disabledPassingTitle", "Передаем ход")
         : isChainDraw && !isMyTurn
-          ? "Ход партнера"
-          : "Холст закрыт";
+          ? tt("play.canvas.currentTurnPartner", "Ход партнера")
+          : tt("play.canvas.disabledClosedTitle", "Холст закрыт");
   const canvasDisabledBody =
     finishing
-      ? "Сейчас откроем итог вашей совместной сессии."
+      ? tt("play.canvas.disabledFinishingBody", "Сейчас откроем итог вашей совместной сессии.")
       : passingTurn
-        ? "Холст синхронизируется и откроется на следующем ходу."
+        ? tt("play.canvas.disabledPassingBody", "Холст синхронизируется и откроется на следующем ходу.")
         : isChainDraw && !isMyTurn
-          ? `${partnerName} сейчас рисует. Холст откроется тебе на следующем ходе.`
+          ? tt(
+              "play.canvas.disabledPartnerTurnBody",
+              "{name} сейчас рисует. Холст откроется тебе на следующем ходе.",
+              { name: partnerName }
+            )
           : undefined;
   const helperText = sessionPhaseCopy.helperText;
 
@@ -485,11 +516,11 @@ export default function PlayCanvasScreen() {
     if (!uid) {
       return {
         icon: "person-circle-outline",
-        title: "Не удалось открыть сессию",
-        body: "Чтобы войти в совместный холст, нужен активный аккаунт.",
-        primaryLabel: "Открыть профиль",
+        title: tt("play.canvas.guardAuthTitle", "Не удалось открыть сессию"),
+        body: tt("play.canvas.guardAuthBody", "Чтобы войти в совместный холст, нужен активный аккаунт."),
+        primaryLabel: tt("common.openProfile", "Открыть профиль"),
         primaryAction: () => navigation.navigate("Profile"),
-        secondaryLabel: "Назад",
+        secondaryLabel: tt("common.back", "Назад"),
         secondaryAction: handleSafeBack,
       };
     }
@@ -497,11 +528,14 @@ export default function PlayCanvasScreen() {
     if (!db) {
       return {
         icon: "cloud-offline-outline",
-        title: "Холст пока недоступен",
-        body: "Мы не смогли подготовить подключение к сессии. Вернись назад или открой Together заново позже.",
-        primaryLabel: "Во Вместе",
+        title: tt("play.canvas.guardOfflineTitle", "Холст пока недоступен"),
+        body: tt(
+          "play.canvas.guardOfflineBody",
+          "Мы не смогли подготовить подключение к сессии. Вернись назад или открой Together заново позже."
+        ),
+        primaryLabel: tt("common.backToTogether", "Вернуться во Вместе"),
         primaryAction: goToTogether,
-        secondaryLabel: "Назад",
+        secondaryLabel: tt("common.back", "Назад"),
         secondaryAction: handleSafeBack,
       };
     }
@@ -509,11 +543,14 @@ export default function PlayCanvasScreen() {
     if (!sessionId) {
       return {
         icon: "alert-circle-outline",
-        title: "Сессия не найдена",
-        body: "Не получилось открыть совместный холст без контекста сессии. Вернись во Вместе и начни заново.",
-        primaryLabel: "Во Вместе",
+        title: tt("play.canvas.guardMissingTitle", "Сессия не найдена"),
+        body: tt(
+          "play.canvas.guardMissingBody",
+          "Не получилось открыть совместный холст без контекста сессии. Вернись во Вместе и начни заново."
+        ),
+        primaryLabel: tt("common.backToTogether", "Вернуться во Вместе"),
         primaryAction: goToTogether,
-        secondaryLabel: "Назад",
+        secondaryLabel: tt("common.back", "Назад"),
         secondaryAction: handleSafeBack,
       };
     }
@@ -521,11 +558,11 @@ export default function PlayCanvasScreen() {
     if (loadError) {
       return {
         icon: "cloud-offline-outline",
-        title: "Подключение прервалось",
+        title: tt("play.canvas.guardErrorTitle", "Подключение прервалось"),
         body: loadError,
-        primaryLabel: "Попробовать снова",
+        primaryLabel: tt("common.retry", "Повторить"),
         primaryAction: retryCanvasEntry,
-        secondaryLabel: "Во Вместе",
+        secondaryLabel: tt("common.backToTogether", "Вернуться во Вместе"),
         secondaryAction: goToTogether,
       };
     }
@@ -533,21 +570,29 @@ export default function PlayCanvasScreen() {
     if (!loadingSession && !loadingEvents && !session) {
       return {
         icon: "albums-outline",
-        title: "Сессия больше недоступна",
-        body: "Она уже завершилась или была закрыта. Можно спокойно вернуться и начать новую.",
-        primaryLabel: "Во Вместе",
+        title: tt("play.canvas.guardNotFoundTitle", "Сессия больше недоступна"),
+        body: tt(
+          "play.canvas.guardNotFoundBody",
+          "Она уже завершилась или была закрыта. Можно спокойно вернуться и начать новую."
+        ),
+        primaryLabel: tt("common.backToTogether", "Вернуться во Вместе"),
         primaryAction: goToTogether,
-        secondaryLabel: "Назад",
+        secondaryLabel: tt("common.back", "Назад"),
         secondaryAction: handleSafeBack,
       };
     }
 
     return null;
-  }, [goToTogether, handleSafeBack, loadError, loadingEvents, loadingSession, navigation, retryCanvasEntry, session, sessionId, uid]);
+  }, [goToTogether, handleSafeBack, loadError, loadingEvents, loadingSession, navigation, retryCanvasEntry, session, sessionId, tt, uid]);
 
   if (guardState) {
     return (
-      <ScreenShell title="Совместная сессия" background="nightCity" showBack onBack={handleSafeBack}>
+      <ScreenShell
+        title={tt("play.canvas.title", "Совместная сессия")}
+        background="nightCity"
+        showBack
+        onBack={handleSafeBack}
+      >
         <View style={styles.centerState}>
           <CoreStateCard
             icon={guardState.icon}
@@ -573,13 +618,21 @@ export default function PlayCanvasScreen() {
 
   if (loadingSession || loadingEvents) {
     return (
-      <ScreenShell title="Совместная сессия" background="nightCity" showBack onBack={handleSafeBack}>
+      <ScreenShell
+        title={tt("play.canvas.title", "Совместная сессия")}
+        background="nightCity"
+        showBack
+        onBack={handleSafeBack}
+      >
         <View style={styles.centerState}>
           <CoreStateCard
             loading
             icon="brush-outline"
-            title="Подключаем общий холст"
-            body="Сессия уже готовится. Еще пара секунд, и вы окажетесь в одном пространстве."
+            title={tt("play.canvas.loadingTitle", "Подключаем общий холст")}
+            body={tt(
+              "play.canvas.loadingBody",
+              "Сессия уже готовится. Еще пара секунд, и вы окажетесь в одном пространстве."
+            )}
           />
         </View>
       </ScreenShell>
@@ -588,7 +641,7 @@ export default function PlayCanvasScreen() {
 
   return (
     <ScreenShell
-      title={session ? activityLabel : "Совместная сессия"}
+      title={session ? activityLabel : tt("play.canvas.title", "Совместная сессия")}
       background="nightCity"
       showBack
       onBack={() => {
@@ -597,12 +650,15 @@ export default function PlayCanvasScreen() {
           return;
         }
         Alert.alert(
-          "Завершить сессию?",
-          "Если выйти сейчас, мы мягко завершим общий рисунок и сразу откроем итог.",
+          tt("play.canvas.leaveTitle", "Завершить сессию?"),
+          tt(
+            "play.canvas.leaveBody",
+            "Если выйти сейчас, мы мягко завершим общий рисунок и сразу откроем итог."
+          ),
           [
-            { text: "Остаться", style: "cancel" },
+            { text: tt("common.stay", "Остаться"), style: "cancel" },
             {
-              text: "Завершить",
+              text: tt("common.finish", "Завершить"),
               style: "destructive",
               onPress: () => {
                 void completeSession();
@@ -632,51 +688,51 @@ export default function PlayCanvasScreen() {
 
           <View style={styles.metaGrid}>
             <View style={styles.metaCard}>
-              <Text style={styles.metaLabel}>Режим</Text>
+              <Text style={styles.metaLabel}>{tt("playDetail.activity", "Режим")}</Text>
               <Text style={styles.metaValue}>{activityLabel}</Text>
             </View>
             <View style={styles.metaCard}>
-              <Text style={styles.metaLabel}>Напарник</Text>
+              <Text style={styles.metaLabel}>{tt("playDetail.partner", "Партнёр")}</Text>
               <Text style={styles.metaValue}>{partnerName}</Text>
             </View>
             {isChainDraw ? (
               <>
                 <View style={styles.metaCard}>
-                  <Text style={styles.metaLabel}>Сейчас</Text>
+                  <Text style={styles.metaLabel}>{tt("play.canvas.metaCurrent", "Сейчас")}</Text>
                   <Text style={styles.metaValue}>{currentTurnLabel}</Text>
                 </View>
                 <View style={styles.metaCard}>
-                  <Text style={styles.metaLabel}>Ход</Text>
+                  <Text style={styles.metaLabel}>{tt("play.canvas.metaTurn", "Ход")}</Text>
                   <Text style={styles.metaValue}>{turnCounterLabel}</Text>
                 </View>
                 <View style={styles.metaCard}>
-                  <Text style={styles.metaLabel}>Общих штрихов</Text>
+                  <Text style={styles.metaLabel}>{tt("play.canvas.metaTotalStrokes", "Общих штрихов")}</Text>
                   <Text style={styles.metaValue}>{totalStrokeCount}</Text>
                 </View>
               </>
             ) : isDailyPrompt ? (
               <>
                 <View style={[styles.metaCard, styles.metaCardWide]}>
-                  <Text style={styles.metaLabel}>Сегодняшняя тема</Text>
+                  <Text style={styles.metaLabel}>{tt("play.canvas.metaPrompt", "Сегодняшняя тема")}</Text>
                   <Text style={styles.metaValue}>{sessionPromptDisplay}</Text>
                 </View>
                 <View style={styles.metaCard}>
-                  <Text style={styles.metaLabel}>Формат</Text>
-                  <Text style={styles.metaValue}>Один рисунок на двоих</Text>
+                  <Text style={styles.metaLabel}>{tt("play.canvas.metaFormat", "Формат")}</Text>
+                  <Text style={styles.metaValue}>{tt("play.canvas.formatShared", "Один рисунок на двоих")}</Text>
                 </View>
                 <View style={styles.metaCard}>
-                  <Text style={styles.metaLabel}>Общих штрихов</Text>
+                  <Text style={styles.metaLabel}>{tt("play.canvas.metaTotalStrokes", "Общих штрихов")}</Text>
                   <Text style={styles.metaValue}>{totalStrokeCount}</Text>
                 </View>
               </>
             ) : (
               <>
                 <View style={styles.metaCard}>
-                  <Text style={styles.metaLabel}>Формат</Text>
-                  <Text style={styles.metaValue}>Свободный ритм</Text>
+                  <Text style={styles.metaLabel}>{tt("play.canvas.metaFormat", "Формат")}</Text>
+                  <Text style={styles.metaValue}>{tt("play.canvas.formatFree", "Свободный ритм")}</Text>
                 </View>
                 <View style={styles.metaCard}>
-                  <Text style={styles.metaLabel}>Общих штрихов</Text>
+                  <Text style={styles.metaLabel}>{tt("play.canvas.metaTotalStrokes", "Общих штрихов")}</Text>
                   <Text style={styles.metaValue}>{totalStrokeCount}</Text>
                 </View>
               </>
@@ -706,7 +762,9 @@ export default function PlayCanvasScreen() {
                 ]}
               >
                 <Text style={styles.finishText}>
-                  {passingTurn ? "Передаем…" : "Передать ход"}
+                  {passingTurn
+                    ? tt("play.canvas.passing", "Передаем…")
+                    : tt("play.canvas.passTurn", "Передать ход")}
                 </Text>
               </Pressable>
             ) : null
@@ -717,7 +775,9 @@ export default function PlayCanvasScreen() {
               style={[styles.finishButton, finishing ? styles.finishButtonDisabled : null]}
             >
               <Text style={styles.finishText}>
-                {finishing ? "Завершаем…" : "Завершить раньше"}
+                {finishing
+                  ? tt("play.canvas.finishing", "Завершаем…")
+                  : tt("play.canvas.finishEarly", "Завершить раньше")}
               </Text>
             </Pressable>
           )}
