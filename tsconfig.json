@@ -10,18 +10,17 @@
     "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true,
     "strict": false,
-    "baseUrl": "./",
     "paths": {
-      "@/*": ["src/*"],
-      "@/assets/*": ["src/assets/*"],
-      "@src/*": ["src/*"],
-      "@screens/*": ["src/screens/*"],
-      "@components/*": ["src/components/*"],
-      "@services/*": ["src/services/*"],
-      "@models/*": ["src/models/*"],
-      "@theme/*": ["src/theme/*"],
-      "@navigation/*": ["src/navigation/*"],
-      "firebase/auth": ["node_modules/firebase/auth/dist/auth/index.d.ts"]
+      "@/*": ["./src/*"],
+      "@/assets/*": ["./src/assets/*"],
+      "@src/*": ["./src/*"],
+      "@screens/*": ["./src/screens/*"],
+      "@components/*": ["./src/components/*"],
+      "@services/*": ["./src/services/*"],
+      "@models/*": ["./src/models/*"],
+      "@theme/*": ["./src/theme/*"],
+      "@navigation/*": ["./src/navigation/*"],
+      "firebase/auth": ["./node_modules/firebase/auth/dist/auth/index.d.ts"]
     },
     "customConditions": ["react-native"]
   },

@@ -34,8 +34,8 @@
       "usesAppleSignIn": false,
       "supportsTablet": false,
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "Мы используем вашу геолокацию, чтобы показывать комнаты рядом.",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "Геолокация нужна для поиска комнат поблизости.",
+        "NSLocationWhenInUseUsageDescription": "Мы используем вашу геолокацию, чтобы показывать статусы, людей и комнаты рядом.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Геолокация нужна для Nearby-сценариев рядом: статусов, людей и комнат поблизости.",
         "NSPhotoLibraryUsageDescription": "Нужен доступ к фотобиблиотеке для выбора фотографий.",
         "NSPhotoLibraryAddUsageDescription": "Нужен доступ для сохранения фото в библиотеку."
       }

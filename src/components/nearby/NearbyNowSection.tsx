@@ -2,7 +2,9 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ActivityIndicator,
   Alert,
+  AppState,
   FlatList,
+  Linking,
   Pressable,
   StyleSheet,
   Text,
@@ -10,7 +12,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Location from "expo-location";
 import { Ionicons } from "@expo/vector-icons";
@@ -26,6 +28,12 @@ import {
   makeRegion,
   subscribeNowPosts,
 } from "@/services/now";
+import {
+  loadLocationPrefs,
+  setLocationConsent,
+  setNearbyEnabled,
+  type LocationPrefs,
+} from "@/services/locationPrivacy";
 import { makeNickname } from "@/services/rooms";
 import { useLocale } from "@/contexts/LocaleContext";
 import { formatAgoLong } from "@/utils/timeAgo";
@@ -58,6 +66,15 @@ function distanceKm(pos: Pos | null, item: { lat?: number; lng?: number }): numb
   return Math.round(earthRadiusKm * c * 10) / 10;
 }
 
+function copyOrFallback(
+  t: (key: string, params?: Record<string, string>) => string,
+  key: string,
+  fallback: string
+) {
+  const value = t(key);
+  return value === key ? fallback : value;
+}
+
 export default function NearbyNowSection({
   showHero = false,
   showRoomsBridge = false,
@@ -71,8 +88,17 @@ export default function NearbyNowSection({
   const sendResetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sendGuardRef = useRef(false);
 
+  const [prefs, setPrefs] = useState<LocationPrefs>({
+    consent: "unknown",
+    nearbyEnabled: false,
+    showPeopleOnMap: false,
+    shareMeOnMap: false,
+  });
+  const [prefsLoading, setPrefsLoading] = useState(true);
   const [pos, setPos] = useState<Pos | null>(null);
   const [posLoading, setPosLoading] = useState(false);
+  const [permissionBlocked, setPermissionBlocked] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
   const [region, setRegion] = useState<string | null>(null);
   const [posts, setPosts] = useState<NowPost[]>([]);
   const [loading, setLoading] = useState(false);
@@ -108,39 +134,147 @@ export default function NearbyNowSection({
     return makeNickname(user.uid);
   }, [user?.uid]);
 
-  const ensurePosition = useCallback(async () => {
+  const updatePrefs = useCallback((patch: Partial<LocationPrefs>) => {
+    setPrefs((prev) => ({ ...prev, ...patch }));
+  }, []);
+
+  const ensurePosition = useCallback(async (options?: { allowPermissionPrompt?: boolean }) => {
     if (!mountedRef.current) return;
     setPosLoading(true);
+    setLocationError(null);
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
-        throw new Error(t("geo.permissionRequired"));
+      const currentPermission = await Location.getForegroundPermissionsAsync();
+      let granted = currentPermission.status === "granted";
+      let canAskAgain = currentPermission.canAskAgain;
+
+      if (!granted && options?.allowPermissionPrompt !== false) {
+        const nextPermission = await Location.requestForegroundPermissionsAsync();
+        granted = nextPermission.status === "granted";
+        canAskAgain = nextPermission.canAskAgain;
+
+        if (granted) {
+          await Promise.all([
+            setLocationConsent("accepted"),
+            setNearbyEnabled(true),
+          ]).catch(() => {});
+          if (!mountedRef.current) return;
+          updatePrefs({
+            consent: "accepted",
+            nearbyEnabled: true,
+          });
+        } else {
+          await Promise.all([
+            setLocationConsent("declined"),
+            setNearbyEnabled(false),
+          ]).catch(() => {});
+          if (!mountedRef.current) return;
+          updatePrefs({
+            consent: "declined",
+            nearbyEnabled: false,
+          });
+        }
       }
-      const current = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
+
+      if (!granted) {
+        setPermissionBlocked(canAskAgain === false);
+        setPos(null);
+        setRegion(null);
+        setLocationError(
+          canAskAgain === false ? t("geo.permissionBlockedHelp") : t("geo.permissionRequired")
+        );
+        return;
+      }
+
+      setPermissionBlocked(false);
+
+      const lastKnown = await Location.getLastKnownPositionAsync();
+      const source =
+        lastKnown ??
+        (await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        }));
       const nextPos: Pos = {
-        lat: current.coords.latitude,
-        lng: current.coords.longitude,
-        accuracy: current.coords.accuracy,
+        lat: source.coords.latitude,
+        lng: source.coords.longitude,
+        accuracy: source.coords.accuracy,
       };
       if (!mountedRef.current) return;
       setPos(nextPos);
       setRegion(makeRegion(nextPos.lat, nextPos.lng));
-    } catch {
+      setLocationError(null);
+    } catch (error: any) {
       if (!mountedRef.current) return;
       setPos(null);
       setRegion(null);
+      setLocationError(error?.message ?? t("geo.noLocationAccess"));
     } finally {
       if (mountedRef.current) {
         setPosLoading(false);
       }
     }
-  }, [t]);
+  }, [t, updatePrefs]);
+
+  const syncLocationState = useCallback(async () => {
+    if (!mountedRef.current) return;
+
+    try {
+      const [nextPrefs, permission] = await Promise.all([
+        loadLocationPrefs(),
+        Location.getForegroundPermissionsAsync(),
+      ]);
+      if (!mountedRef.current) return;
+
+      setPrefs(nextPrefs);
+      const granted = permission.status === "granted";
+      const blocked = !granted && permission.canAskAgain === false;
+      setPermissionBlocked(blocked);
+
+      if (!granted) {
+        setPos(null);
+        setRegion(null);
+        setLocationError(
+          blocked
+            ? t("geo.permissionBlockedHelp")
+            : nextPrefs.consent === "accepted" && nextPrefs.nearbyEnabled
+              ? t("geo.permissionRequired")
+              : null
+        );
+        return;
+      }
+
+      if (nextPrefs.consent !== "accepted" || !nextPrefs.nearbyEnabled) {
+        setPos(null);
+        setRegion(null);
+        setLocationError(null);
+        return;
+      }
+
+      setLocationError(null);
+
+      if (!pos && !posLoading) {
+        void ensurePosition({ allowPermissionPrompt: false });
+      }
+    } finally {
+      if (mountedRef.current) {
+        setPrefsLoading(false);
+      }
+    }
+  }, [ensurePosition, pos, posLoading, t]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void syncLocationState();
+    }, [syncLocationState])
+  );
 
   useEffect(() => {
-    void ensurePosition();
-  }, [ensurePosition]);
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      if (nextState === "active") {
+        void syncLocationState();
+      }
+    });
+    return () => subscription.remove();
+  }, [syncLocationState]);
 
   useEffect(() => {
     if (!region || !db || !isFirebaseConfigured()) {
@@ -174,7 +308,7 @@ export default function NearbyNowSection({
       return;
     }
     if (!pos) {
-      Alert.alert(t("now.noLocationTitle"), t("now.noLocationBody"));
+      Alert.alert(t("now.noLocationTitle"), locationError ?? t("now.noLocationBody"));
       return;
     }
 
@@ -209,7 +343,7 @@ export default function NearbyNowSection({
         sendGuardRef.current = false;
       }, 250);
     }
-  }, [message, mood, nickname, pos, t, user]);
+  }, [locationError, message, mood, nickname, pos, t, user]);
 
   const goToTogether = useCallback(() => {
     navigation.navigate("Tabs", { screen: "Together" });
@@ -218,6 +352,17 @@ export default function NearbyNowSection({
   const goToRooms = useCallback(() => {
     openRooms(navigation, "nearby");
   }, [navigation]);
+
+  const locationEnabled = prefs.consent === "accepted" && prefs.nearbyEnabled;
+  const locationDeclined = prefs.consent === "declined" && !locationEnabled;
+
+  const handleEnableLocation = useCallback(async () => {
+    await ensurePosition({ allowPermissionPrompt: true });
+  }, [ensurePosition]);
+
+  const handleLocationSettings = useCallback(() => {
+    Linking.openSettings().catch(() => {});
+  }, []);
 
   const visiblePosts = useMemo(() => {
     const deduped = new Map<string, NowPost>();
@@ -229,6 +374,109 @@ export default function NearbyNowSection({
     return Array.from(deduped.values());
   }, [pos, posts, radiusKm]);
   const showStandaloneHeading = showHero || showRoomsBridge;
+
+  const locationGateTitle = useMemo(() => {
+    if (prefsLoading || posLoading) {
+      return copyOrFallback(t, "nearby.now.locationLoadingTitle", "Подготавливаем Nearby -> Сейчас");
+    }
+    if (permissionBlocked) {
+      return copyOrFallback(t, "nearby.now.locationBlockedTitle", "Геолокация выключена для Nearby -> Сейчас");
+    }
+    if (locationDeclined) {
+      return copyOrFallback(
+        t,
+        "nearby.now.locationDeclinedTitle",
+        "Nearby -> Сейчас ждёт доступ к геолокации"
+      );
+    }
+    if (locationEnabled) {
+      return copyOrFallback(t, "nearby.now.locationRetryTitle", "Локация нужна, чтобы Nearby -> Сейчас заработал рядом");
+    }
+    return copyOrFallback(t, "nearby.now.locationPromptTitle", "Включи геолокацию для Nearby -> Сейчас");
+  }, [locationDeclined, locationEnabled, permissionBlocked, posLoading, prefsLoading, t]);
+
+  const locationGateBody = useMemo(() => {
+    if (prefsLoading || posLoading) {
+      return copyOrFallback(
+        t,
+        "nearby.now.locationLoadingBody",
+        "Сверяем доступ к геолокации и готовим Nearby -> Сейчас только для локального слоя рядом."
+      );
+    }
+    if (permissionBlocked) {
+      return copyOrFallback(
+        t,
+        "nearby.now.locationBlockedBody",
+        "Без геолокации раздел не сможет показать людей и статусы рядом. Доступ можно вернуть через настройки телефона."
+      );
+    }
+    if (locationDeclined) {
+      return copyOrFallback(
+        t,
+        "nearby.now.locationDeclinedBody",
+        "Ты уже отказал в доступе, поэтому Nearby -> Сейчас не пытается снова сам. Можно явно попробовать ещё раз, когда будет удобно."
+      );
+    }
+    if (locationEnabled) {
+      return (
+        locationError ??
+        copyOrFallback(
+          t,
+          "nearby.now.locationRetryBody",
+          "Доступ уже включён, но координаты пока не обновились. Попробуй запросить их ещё раз."
+        )
+      );
+    }
+    return copyOrFallback(
+      t,
+      "nearby.now.locationPromptBody",
+      "Геолокация нужна только для Nearby -> Сейчас: чтобы показывать людей поблизости и публиковать твой статус примерно рядом, без резкого авто-запроса при входе."
+    );
+  }, [locationDeclined, locationEnabled, locationError, permissionBlocked, posLoading, prefsLoading, t]);
+
+  const locationGateActionLabel = useMemo(() => {
+    if (prefsLoading || posLoading) return "";
+    if (permissionBlocked) return t("geo.openSettings");
+    if (locationDeclined) return t("common.retry");
+    if (locationEnabled) return t("geo.refreshLocation");
+    return t("geo.enableLocation");
+  }, [locationDeclined, locationEnabled, permissionBlocked, posLoading, prefsLoading, t]);
+
+  const handleLocationGateAction = useCallback(() => {
+    if (permissionBlocked) {
+      handleLocationSettings();
+      return;
+    }
+    void handleEnableLocation();
+  }, [handleEnableLocation, handleLocationSettings, permissionBlocked]);
+
+  const renderLocationGate = !pos ? (
+    <View style={styles.locationGateCard}>
+      <View style={styles.locationGateIconWrap}>
+        <Ionicons
+          name={permissionBlocked ? "location" : "location-outline"}
+          size={18}
+          color={permissionBlocked ? "#FCA5A5" : theme.colors.accent}
+        />
+      </View>
+      <View style={styles.locationGateCopy}>
+        <Text style={styles.locationGateTitle}>{locationGateTitle}</Text>
+        <Text style={styles.locationGateBody}>{locationGateBody}</Text>
+      </View>
+      {!prefsLoading && !posLoading ? (
+        <View style={styles.locationGateActions}>
+          <Pressable onPress={handleLocationGateAction} style={styles.locationGatePrimaryButton}>
+            <Text style={styles.locationGatePrimaryButtonText}>{locationGateActionLabel}</Text>
+          </Pressable>
+          {permissionBlocked ? (
+            <Pressable onPress={() => void syncLocationState()} style={styles.locationGateSecondaryButton}>
+              <Text style={styles.locationGateSecondaryButtonText}>{t("common.retry")}</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
+    </View>
+  ) : null;
 
   const renderHero = showHero ? (
     <View style={styles.heroCard}>
@@ -300,9 +548,19 @@ export default function NearbyNowSection({
               </Text>
             </View>
           ) : (
-            <TouchableOpacity onPress={ensurePosition} style={styles.locationRow}>
-              <Ionicons name="location-outline" size={16} color="#F97373" />
-              <Text style={styles.locationLink}>{t("geo.enableForNow")}</Text>
+            <TouchableOpacity onPress={handleLocationGateAction} style={styles.locationRow}>
+              <Ionicons
+                name={permissionBlocked ? "settings-outline" : "location-outline"}
+                size={16}
+                color="#F97373"
+              />
+              <Text style={styles.locationLink}>
+                {permissionBlocked
+                  ? t("geo.openSettings")
+                  : locationEnabled
+                    ? t("geo.refreshLocation")
+                    : t("geo.enableForNow")}
+              </Text>
             </TouchableOpacity>
           )}
         </View>
@@ -331,38 +589,43 @@ export default function NearbyNowSection({
   const header = (
     <View style={styles.headerContent}>
       {renderHero}
+      {renderLocationGate}
       {showStandaloneHeading ? (
         <Text style={styles.sectionHeading}>{t("now.myVibeTitle")}</Text>
       ) : null}
       {renderComposer}
       {renderRoomsBridge}
-      <View style={styles.listHeaderRow}>
-        <Text style={styles.listTitle}>{t("now.peopleNearby")}</Text>
-        <Text style={styles.listMeta}>
-          {t("common.radius")}:{" "}
-          {radiusKm == null
-            ? t("now.radiusAll")
-            : t("now.radiusUpTo", { km: String(radiusKm) })}
-        </Text>
-      </View>
+      {pos ? (
+        <>
+          <View style={styles.listHeaderRow}>
+            <Text style={styles.listTitle}>{t("now.peopleNearby")}</Text>
+            <Text style={styles.listMeta}>
+              {t("common.radius")}:{" "}
+              {radiusKm == null
+                ? t("now.radiusAll")
+                : t("now.radiusUpTo", { km: String(radiusKm) })}
+            </Text>
+          </View>
 
-      <View style={styles.radiusRow}>
-        {RADIUS_OPTIONS.map((option, index) => {
-          const active = radiusKm === option;
-          const label = option == null ? t("common.all") : `${option} ${t("units.km")}`;
-          return (
-            <TouchableOpacity
-              key={`${String(option)}_${index}`}
-              onPress={() => setRadiusKm(option)}
-              style={[styles.radiusChip, active ? styles.radiusChipActive : null]}
-            >
-              <Text style={[styles.radiusText, active ? styles.radiusTextActive : null]}>
-                {label}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+          <View style={styles.radiusRow}>
+            {RADIUS_OPTIONS.map((option, index) => {
+              const active = radiusKm === option;
+              const label = option == null ? t("common.all") : `${option} ${t("units.km")}`;
+              return (
+                <TouchableOpacity
+                  key={`${String(option)}_${index}`}
+                  onPress={() => setRadiusKm(option)}
+                  style={[styles.radiusChip, active ? styles.radiusChipActive : null]}
+                >
+                  <Text style={[styles.radiusText, active ? styles.radiusTextActive : null]}>
+                    {label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </>
+      ) : null}
     </View>
   );
 
@@ -426,14 +689,14 @@ export default function NearbyNowSection({
         keyExtractor={(item) => String(item.id)}
         renderItem={renderPostItem}
         ListHeaderComponent={header}
-        ListEmptyComponent={
+        ListEmptyComponent={pos ? (
           <View style={styles.emptyWrap}>
             <View style={styles.emptyCard}>
               <Text style={styles.emptyTitle}>{t("now.peopleNearby")}</Text>
               <Text style={styles.emptyText}>{t("now.noneNearby")}</Text>
             </View>
           </View>
-        }
+        ) : null}
         contentContainerStyle={{
           paddingTop: 6,
           paddingBottom: bottomInset ?? insets.bottom + 16,
@@ -515,6 +778,66 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     marginTop: 1,
     paddingHorizontal: 2,
+  },
+  locationGateCard: {
+    borderRadius: 18,
+    padding: 12,
+    backgroundColor: "rgba(14, 18, 33, 0.92)",
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+    gap: 10,
+  },
+  locationGateIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+  },
+  locationGateCopy: {
+    gap: 5,
+  },
+  locationGateTitle: {
+    color: theme.colors.text,
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  locationGateBody: {
+    color: theme.colors.subtext,
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  locationGateActions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  locationGatePrimaryButton: {
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 13,
+    paddingVertical: 9,
+    backgroundColor: theme.colors.accent,
+  },
+  locationGatePrimaryButtonText: {
+    color: theme.colors.text,
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  locationGateSecondaryButton: {
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 13,
+    paddingVertical: 9,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+  },
+  locationGateSecondaryButtonText: {
+    color: theme.colors.text,
+    fontSize: 12,
+    fontWeight: "700",
   },
   composerCard: {
     borderRadius: 18,
