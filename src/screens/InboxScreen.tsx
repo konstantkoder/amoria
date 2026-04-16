@@ -155,10 +155,10 @@ export default function InboxScreen() {
   const sourceLabels = useMemo(
     () => ({
       play: {
-        draw: tt("inbox.sourcePlay", "После совместной сессии"),
-        chain_draw: tt("inbox.sourcePlayChainDraw", "После рисунка по очереди"),
-        daily_prompt: tt("inbox.sourcePlayDailyPrompt", "После общей темы дня"),
-        color_mood: tt("inbox.sourcePlayColorMood", "После палитры настроения"),
+        draw: tt("inbox.sourcePlay", "Открылось после общей сессии"),
+        chain_draw: tt("inbox.sourcePlayChainDraw", "Открылось после рисунка по очереди"),
+        daily_prompt: tt("inbox.sourcePlayDailyPrompt", "Открылось после общей темы дня"),
+        color_mood: tt("inbox.sourcePlayColorMood", "Открылось после палитры настроения"),
       },
       direct: tt("inbox.sourceDefault", "Личный чат"),
     }),
@@ -175,14 +175,14 @@ export default function InboxScreen() {
     <View style={styles.heroCard}>
       <View style={styles.heroHeaderRow}>
         <Text style={styles.heroTitle}>
-          {tt("inbox.activeTitle", "Активные чаты")}
+          {tt("inbox.activeTitle", "Личные чаты после Together")}
         </Text>
         <Text style={styles.heroCount}>{cards.length}</Text>
       </View>
       <Text style={styles.heroText}>
         {tt(
           "inbox.subheader",
-          "Здесь продолжается личный разговор. «Связи» держат контекст, а «Чаты» — сам диалог."
+          "Когда связь уже открылась, разговор продолжается здесь. «Связи» держат общий контекст, а «Чаты» — сам личный диалог."
         )}
       </Text>
       {showAction ? (
@@ -191,7 +191,7 @@ export default function InboxScreen() {
           style={styles.heroLinkButton}
         >
           <Text style={styles.heroLinkText}>
-            {tt("inbox.openConnections", "Связи")}
+            {tt("inbox.openConnections", "Открытые связи")}
           </Text>
         </Pressable>
       ) : null}
@@ -207,7 +207,7 @@ export default function InboxScreen() {
       <Text style={styles.emptyStateText}>
         {tt(
           "inbox.emptyBody",
-          "Когда связь перейдёт в личный диалог, чат останется здесь и будет ждать продолжения."
+          "Когда после общей сессии контакт откроется взаимно, личный чат появится здесь и будет ждать продолжения."
         )}
       </Text>
       <Pressable
@@ -215,7 +215,7 @@ export default function InboxScreen() {
         style={styles.emptyPrimaryButton}
       >
         <Text style={styles.emptyPrimaryButtonText}>
-          {tt("inbox.startNewSession", "Start a new shared session")}
+          {tt("inbox.startNewSession", "Начать новую совместную сессию")}
         </Text>
       </Pressable>
       <Pressable
@@ -223,7 +223,7 @@ export default function InboxScreen() {
         style={styles.emptySecondaryButton}
       >
         <Text style={styles.emptySecondaryButtonText}>
-          {tt("inbox.openConnections", "Связи")}
+          {tt("inbox.openConnections", "Открытые связи")}
         </Text>
       </Pressable>
     </View>

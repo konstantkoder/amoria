@@ -426,19 +426,31 @@ export default function ConnectionsFeedScreen() {
 
   const renderHeroCard = (showActions: boolean) => (
     <View style={styles.heroCard}>
-      <Text style={styles.heroKicker}>{t("connections.heroKicker")}</Text>
-      <Text style={styles.heroTitle}>{t("connections.heroTitle")}</Text>
-      <Text style={styles.heroText}>{t("connections.heroBody")}</Text>
+      <Text style={styles.heroKicker}>
+        {tt("connections.coreLoopKicker", "Открывшиеся связи")}
+      </Text>
+      <Text style={styles.heroTitle}>
+        {tt(
+          "connections.coreLoopTitle",
+          "Здесь остаются люди, с которыми Together уже перешёл из общей сессии в реальный контакт"
+        )}
+      </Text>
+      <Text style={styles.heroText}>
+        {tt(
+          "connections.coreLoopBody",
+          "Связи держат общий контекст после результата: отсюда можно открыть совместную историю или сразу перейти в личный чат."
+        )}
+      </Text>
       {showActions ? (
         <View style={styles.heroActions}>
           <Pressable onPress={startNewSession} style={styles.heroPrimaryButton}>
             <Text style={styles.heroPrimaryButtonText}>
-              {tt("connections.startNewSession", "Start a new shared session")}
+              {tt("connections.startNewSession", "Начать новую совместную сессию")}
             </Text>
           </Pressable>
           <Pressable onPress={goToHistory} style={styles.heroSecondaryButton}>
             <Text style={styles.heroSecondaryButtonText}>
-              {tt("connections.openStories", "Shared stories")}
+              {tt("connections.openStories", "Общие истории")}
             </Text>
           </Pressable>
         </View>
@@ -459,22 +471,27 @@ export default function ConnectionsFeedScreen() {
           <Ionicons name="git-network-outline" size={22} color={theme.colors.accent} />
         </View>
         <Text style={styles.emptyStateTitle}>{t("connections.emptyTitle")}</Text>
-        <Text style={styles.emptyStateText}>{t("connections.emptyBody")}</Text>
+        <Text style={styles.emptyStateText}>
+          {tt(
+            "connections.emptyBodyCoreLoop",
+            "Когда после общей сессии контакт откроется взаимно, человек появится здесь как естественное продолжение Together."
+          )}
+        </Text>
         <View style={styles.emptyMetaRow}>
           <View style={styles.emptyMetaPill}>
             <Text style={styles.emptyMetaText}>
-              {tt("connections.emptyMetaContext", "Shared context")}
+              {tt("connections.emptyMetaContext", "Общая история")}
             </Text>
           </View>
           <View style={styles.emptyMetaPill}>
             <Text style={styles.emptyMetaText}>
-              {tt("connections.emptyMetaChat", "Quick chat entry")}
+              {tt("connections.emptyMetaChat", "Вход в личный чат")}
             </Text>
           </View>
         </View>
         <Pressable onPress={startNewSession} style={styles.emptyPrimaryButton}>
           <Text style={styles.emptyPrimaryButtonText}>
-            {tt("connections.startNewSession", "Start a shared session")}
+            {tt("connections.startNewSession", "Начать совместную сессию")}
           </Text>
         </Pressable>
         <Pressable onPress={goToTogether} style={styles.emptySecondaryButton}>
@@ -530,7 +547,9 @@ export default function ConnectionsFeedScreen() {
           ) : null}
           <View style={styles.metaPill}>
             <Text style={styles.metaPillText}>
-              {card.isFallback ? t("connections.connectionOpen") : t("connections.mutualOpen")}
+              {card.isFallback
+                ? tt("connections.chatAlreadyLive", "Личный чат уже жив")
+                : tt("connections.sharedStoryAndChat", "Общая история уже открыла связь")}
             </Text>
           </View>
         </View>
@@ -539,7 +558,7 @@ export default function ConnectionsFeedScreen() {
           {!card.isFallback && card.sessionId ? (
             <Pressable onPress={() => openDetail(card.sessionId!)} style={styles.secondaryCta}>
               <Text style={styles.secondaryCtaText}>
-                {tt("connections.openStory", "Open story")}
+                {tt("connections.openStory", "Открыть общую историю")}
               </Text>
             </Pressable>
           ) : null}
@@ -551,7 +570,7 @@ export default function ConnectionsFeedScreen() {
             <Text style={styles.primaryCtaText}>
               {openingCardId === card.id
                 ? tt("connections.openingChat", "Открываем чат…")
-                : t("connections.openChat")}
+                : tt("connections.continueInChat", "Продолжить в чате")}
             </Text>
           </Pressable>
         </View>
@@ -645,7 +664,7 @@ export default function ConnectionsFeedScreen() {
           {actionError ? (
             <View style={styles.inlineErrorCard}>
               <Text style={styles.inlineErrorTitle}>
-                {tt("connections.inlineErrorTitle", "Chat isn't ready yet")}
+                {tt("connections.inlineErrorTitle", "Личный чат пока не прикрепился")}
               </Text>
               <Text style={styles.inlineErrorText}>{actionError}</Text>
             </View>
@@ -655,8 +674,15 @@ export default function ConnectionsFeedScreen() {
 
           {historyCards.length ? (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>{t("connections.openConnectionsTitle")}</Text>
-              <Text style={styles.sectionText}>{t("connections.openConnectionsBody")}</Text>
+              <Text style={styles.sectionTitle}>
+                {tt("connections.openConnectionsTitleCoreLoop", "Открывшиеся после Together связи")}
+              </Text>
+              <Text style={styles.sectionText}>
+                {tt(
+                  "connections.openConnectionsBodyCoreLoop",
+                  "Эти люди уже прошли главный loop Together: общая сессия, результат и взаимное открытие контакта."
+                )}
+              </Text>
               {historyCards.map(renderConnectionCard)}
             </View>
           ) : null}
@@ -664,12 +690,12 @@ export default function ConnectionsFeedScreen() {
           {fallbackCards.length ? (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>
-                {tt("connections.fallbackTitle", "Открытые чаты без сохраненной истории")}
+                {tt("connections.fallbackTitle", "Личные чаты, которые уже живут дальше")}
               </Text>
               <Text style={styles.sectionText}>
                 {tt(
                   "connections.fallbackBody",
-                  "Здесь остаются связи, у которых чат уже жив, но полная история совместной сессии еще не подтянулась."
+                  "Здесь остаются связи, где личный чат уже жив, даже если полная страница общей истории ещё не успела подтянуться."
                 )}
               </Text>
               {fallbackCards.map(renderConnectionCard)}

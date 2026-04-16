@@ -454,7 +454,7 @@ export default function PlayHistoryScreen() {
           {actionError ? (
             <View style={styles.inlineErrorCard}>
               <Text style={styles.inlineErrorTitle}>
-                {tt("playHistory.inlineErrorTitle", "Chat isn't ready yet")}
+                {tt("playHistory.inlineErrorTitle", "Личный чат пока не прикрепился")}
               </Text>
               <Text style={styles.inlineErrorText}>{actionError}</Text>
             </View>

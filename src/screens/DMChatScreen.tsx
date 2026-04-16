@@ -269,15 +269,15 @@ export default function DMChatScreen() {
   const sourceTitle = useMemo(() => {
     if (thread?.source !== "play") return "";
     if (thread.artworkSummary?.activity === "color_mood") {
-      return tt("dm.sourcePlayColorMood", "После палитры настроения");
+      return tt("dm.sourcePlayColorMood", "Этот чат вырос из вашей общей палитры");
     }
     if (thread.artworkSummary?.activity === "daily_prompt") {
-      return tt("dm.sourcePlayDailyPrompt", "После общей темы дня");
+      return tt("dm.sourcePlayDailyPrompt", "Этот чат вырос из вашей общей темы дня");
     }
     if (thread.artworkSummary?.activity === "chain_draw") {
-      return tt("dm.sourcePlayChainDraw", "После рисунка по очереди");
+      return tt("dm.sourcePlayChainDraw", "Этот чат вырос из рисунка по очереди");
     }
-    return tt("dm.sourcePlay", "После совместной сессии");
+    return tt("dm.sourcePlay", "Этот чат вырос из вашей совместной сессии");
   }, [thread?.artworkSummary?.activity, thread?.source, tt]);
   const strokeCount = thread?.artworkSummary?.strokeCount;
   const sourceMeta = useMemo(() => {
@@ -285,17 +285,20 @@ export default function DMChatScreen() {
     if (thread.artworkSummary?.activity === "color_mood") {
       return tt(
         "dm.sourcePaletteReady",
-        "Общая палитра уже сохранена в совместной истории."
+        "Общая палитра уже сохранена в истории, а здесь начинается её личное продолжение."
       );
     }
     if (strokeCount != null) {
       return tt(
         "dm.sourceStrokeCount",
-        "Итог этой сессии уже сохранён в истории. Штрихов: {count}",
+        "Общий результат уже сохранён в истории. Replay и итог остаются там, а разговор продолжается здесь. Штрихов: {count}",
         { count: String(strokeCount) }
       );
     }
-    return tt("dm.contextReady", "Итог этой сессии уже сохранён в совместной истории.");
+    return tt(
+      "dm.contextReady",
+      "Общая история уже сохранена. К ней можно вернуться в любой момент, а сам диалог продолжается здесь."
+    );
   }, [strokeCount, thread?.artworkSummary?.activity, thread?.source, tt]);
   const isLoading = threadLoading || messagesLoading;
   const threadMissing = !isLoading && !subscriptionError && !thread && mergedMsgs.length === 0;
@@ -303,6 +306,18 @@ export default function DMChatScreen() {
   const canShowComposer = Boolean(db && myId && threadId && peer.uid) && !subscriptionError && !threadMissing;
   const screenTitleName = peer.name || routePeerName || "";
   const screenTitle = screenTitleName ? t("dm.title", { name: screenTitleName }) : tt("dm.genericTitle", "Чат");
+  const missingChatBody = useMemo(() => {
+    if (backTarget === "sessionDetail" || backTarget === "history" || backTarget === "connections") {
+      return tt(
+        "dm.notFoundFromStoryBody",
+        "Связь могла уже открыться, но сам личный чат ещё не успел прикрепиться к общей истории. Попробуй ещё раз чуть позже или вернись к истории."
+      );
+    }
+    return tt(
+      "dm.notFoundBody",
+      "Мы не нашли этот диалог в текущем контексте. Возможно, старая ссылка уже устарела или чат еще не успел появиться."
+    );
+  }, [backTarget, tt]);
   const emptyBackLabel = useMemo(() => {
     if (backTarget === "history") {
       return tt("playDetail.goToHistory", "Вернуться к историям");
@@ -486,7 +501,7 @@ export default function DMChatScreen() {
             loading
             icon="chatbubble-ellipses-outline"
             title={screenTitle}
-            body={tt("dm.loading", "Подключаем чат…")}
+            body={tt("dm.loading", "Подключаем личный чат…")}
           />
         </View>
       ) : subscriptionError ? (
@@ -503,8 +518,8 @@ export default function DMChatScreen() {
         <View style={styles.centerState}>
           <CoreStateCard
             icon="chatbox-ellipses-outline"
-            title={tt("dm.unavailableTitle", "Чат недоступен")}
-            body={tt("dm.notFoundBody", "Мы не нашли этот диалог в текущем контексте. Возможно, старая ссылка уже устарела или чат еще не успел появиться.")}
+            title={tt("dm.unavailableTitle", "Чат пока не прикрепился")}
+            body={missingChatBody}
             primaryAction={{ label: tt("common.retry", "Повторить"), onPress: () => setReloadKey((prev) => prev + 1) }}
             secondaryAction={{ label: tt("common.back", "Назад"), onPress: handleBack }}
           />
@@ -515,7 +530,17 @@ export default function DMChatScreen() {
           <CoreStateCard
             icon="chatbubbles-outline"
             title={tt("dm.emptyTitle", "Связь уже открыта")}
-            body={tt("dm.emptyBody", "Сообщений пока нет. Можно написать первым и мягко продолжить знакомство.")}
+            body={
+              sourceTitle
+                ? tt(
+                    "dm.emptyBodyWithSource",
+                    "Личный чат уже готов. Можно написать первым ниже и продолжить то, что началось в общей истории."
+                  )
+                : tt(
+                    "dm.emptyBody",
+                    "Личный чат уже готов. Можно написать первым ниже и мягко продолжить знакомство."
+                  )
+            }
             primaryAction={{
               label: emptyBackLabel,
               onPress: handleBack,

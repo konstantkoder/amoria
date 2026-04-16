@@ -78,19 +78,33 @@ export default function PlayLobbyScreen() {
       >
         <View style={styles.hero}>
           <View style={styles.heroTop}>
-            <Text style={styles.kicker}>{tt("together.lobby.kicker", "Main entry")}</Text>
+            <Text style={styles.kicker}>
+              {tt("together.lobby.kicker", "Главный one-to-one вход")}
+            </Text>
             <Text style={styles.heroTitle}>
               {tt(
                 "together.lobby.heroTitle",
-                "Together starts chemistry through a shared experience"
+                "Together — это место, где Amoria переводит общий момент в реальную связь"
               )}
             </Text>
             <Text style={styles.heroText}>
               {tt(
                 "together.lobby.heroBody",
-                "One tap starts a free shared session. If you want a clearer scenario, choose a mode below."
+                "Начни с одной совместной сессии, дойди до общего итога и переходи в личный чат только если открытие оказалось взаимным."
               )}
             </Text>
+            <View style={styles.heroLoop}>
+              {[
+                tt("together.lobby.loopSession", "Совместная сессия"),
+                tt("together.lobby.loopResult", "Итог"),
+                tt("together.lobby.loopOpen", "Взаимное открытие"),
+                tt("together.lobby.loopChat", "Личный чат"),
+              ].map((item) => (
+                <View key={item} style={styles.heroLoopChip}>
+                  <Text style={styles.heroLoopChipText}>{item}</Text>
+                </View>
+              ))}
+            </View>
           </View>
 
           <View style={styles.heroBottom}>
@@ -99,13 +113,13 @@ export default function PlayLobbyScreen() {
               style={styles.primaryCta}
             >
               <Text style={styles.primaryCtaTitle}>
-                {tt("together.lobby.startSession", "Start a shared session")}
+                {tt("together.lobby.startSession", "Начать совместную сессию")}
               </Text>
             </Pressable>
             <Text style={styles.primaryCtaHint}>
               {tt(
                 "together.lobby.startHint",
-                "Open start, reveal, and a move to chat only if both want it."
+                "Это самый прямой путь через ядро продукта: общее действие, честный итог и личный чат только если оба хотят продолжения."
               )}
             </Text>
           </View>
@@ -117,30 +131,30 @@ export default function PlayLobbyScreen() {
         >
           <View style={styles.historyTextWrap}>
             <Text style={styles.historyTitle}>
-              {tt("together.lobby.historyTitle", "Shared stories")}
+              {tt("together.lobby.historyTitle", "Уже есть общая история?")}
             </Text>
             <Text style={styles.historyText}>
               {tt(
                 "together.lobby.historyBody",
-                "See the result, replay, and jump back into an already open connection."
+                "Открой сохранённый итог, пересмотри, что произошло между вами, и вернись в связь, которая уже успела открыться."
               )}
             </Text>
           </View>
           <View style={styles.historyBadge}>
             <Text style={styles.historyBadgeText}>
-              {tt("together.lobby.historyBadge", "Archive")}
+              {tt("together.lobby.historyBadge", "Истории")}
             </Text>
           </View>
         </Pressable>
 
         <View style={styles.liveSection}>
           <Text style={styles.liveSectionTitle}>
-            {tt("together.lobby.otherModesTitle", "Other modes")}
+            {tt("together.lobby.otherModesTitle", "Выбери более конкретный совместный формат")}
           </Text>
           <Text style={styles.liveSectionText}>
             {tt(
               "together.lobby.otherModesBody",
-              "If you want a more explicit scenario, choose it right away."
+              "Эти режимы всё равно ведут через тот же core loop. Они просто задают совместной сессии более явную форму уже с первого тапа."
             )}
           </Text>
         </View>
@@ -158,7 +172,7 @@ export default function PlayLobbyScreen() {
                 <Text style={styles.cardTitle}>{copy.title}</Text>
                 <View style={styles.badge}>
                   <Text style={styles.badgeText}>
-                    {tt("together.lobby.liveBadge", "Live mode")}
+                    {tt("together.lobby.liveBadge", "Live-режим")}
                   </Text>
                 </View>
               </View>
@@ -170,18 +184,30 @@ export default function PlayLobbyScreen() {
           );
         })}
 
+        <View style={styles.supportingSection}>
+          <Text style={styles.supportingSectionTitle}>
+            {tt("together.lobby.supportingTitle", "Поддерживающие пути рядом с Together")}
+          </Text>
+          <Text style={styles.supportingSectionText}>
+            {tt(
+              "together.lobby.supportingBody",
+              "Nearby и Rooms остаются полезными, но именно Together остаётся главным местом для one-to-one химии, итога и открытия контакта."
+            )}
+          </Text>
+        </View>
+
         <View style={styles.quickRow}>
           <Pressable
             onPress={() => openNearbySection(navigation, "now")}
             style={styles.quickCard}
           >
             <Text style={styles.quickTitle}>
-              {tt("together.lobby.quickNearbyTitle", "Nearby")}
+              {tt("together.lobby.quickNearbyTitle", "Слой Nearby")}
             </Text>
             <Text style={styles.quickText}>
               {tt(
                 "together.lobby.quickNearbyBody",
-                "The local layer: quick status, announcements, and the entry into Rooms."
+                "Используй это для локального пульса, коротких обновлений и nearby-контекста вне главного one-to-one loop."
               )}
             </Text>
           </Pressable>
@@ -191,12 +217,12 @@ export default function PlayLobbyScreen() {
             style={styles.quickCard}
           >
             <Text style={styles.quickTitle}>
-              {tt("together.lobby.quickRoomsTitle", "Rooms")}
+              {tt("together.lobby.quickRoomsTitle", "Live-chat Rooms")}
             </Text>
             <Text style={styles.quickText}>
               {tt(
                 "together.lobby.quickRoomsBody",
-                "If you need a live group geo-chat, open Rooms directly and come back here later."
+                "Если нужен живой групповой geo-chat, открой Rooms отдельно и вернись сюда, когда снова захочешь прямой one-to-one путь."
               )}
             </Text>
           </Pressable>
@@ -247,6 +273,24 @@ const styles = StyleSheet.create({
   },
   heroBottom: {
     gap: 8,
+  },
+  heroLoop: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  heroLoopChip: {
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+  },
+  heroLoopChipText: {
+    color: "#FFF5EA",
+    fontSize: 11,
+    fontWeight: "800",
   },
   primaryCta: {
     alignSelf: "center",
@@ -330,6 +374,21 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
   },
+  supportingSection: {
+    gap: 4,
+    paddingHorizontal: 2,
+    paddingTop: 2,
+  },
+  supportingSectionTitle: {
+    color: theme.colors.text,
+    fontSize: 16,
+    fontWeight: "800",
+  },
+  supportingSectionText: {
+    color: theme.colors.subtext,
+    fontSize: 12,
+    lineHeight: 18,
+  },
   liveCard: {
     borderRadius: theme.shapes.card,
     padding: 16,
@@ -384,7 +443,7 @@ const styles = StyleSheet.create({
     minWidth: 0,
     borderRadius: theme.shapes.card,
     padding: 14,
-    backgroundColor: "rgba(12, 16, 30, 0.68)",
+    backgroundColor: "rgba(12, 16, 30, 0.54)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.1)",
     gap: 6,

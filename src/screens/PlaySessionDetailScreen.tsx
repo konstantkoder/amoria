@@ -76,6 +76,95 @@ function mapReplayStrokes(events: PlayStrokeBatch[]): SharedCanvasStroke[] {
   );
 }
 
+type StoryConnectionPrimaryIntent = "open_chat" | "start_new" | "open_profile";
+
+type StoryConnectionCopy = {
+  title: string;
+  body: string;
+  hint: string;
+  primaryIntent: StoryConnectionPrimaryIntent;
+  primaryLabel: string;
+};
+
+function getStoryConnectionCopy(options: {
+  revealOutcome: ReturnType<typeof resolvePlayRevealOutcome>;
+  canOpenChat: boolean;
+  hasAccount: boolean;
+  chatLookupError: string | null;
+  tt: (key: string, fallback: string, params?: Record<string, string>) => string;
+}): StoryConnectionCopy {
+  const { canOpenChat, chatLookupError, hasAccount, revealOutcome, tt } = options;
+
+  if (revealOutcome === "open_open") {
+    if (!hasAccount) {
+      return {
+        title: tt("playDetail.bridgeChatNeedsAccountTitle", "Связь уже открылась, но нужен вход"),
+        body: tt(
+          "playDetail.bridgeChatNeedsAccountBody",
+          "После этой общей истории личный контакт уже открылся. Чтобы зайти в чат, сначала нужен активный аккаунт."
+        ),
+        hint: tt(
+          "playDetail.bridgeChatNeedsAccountHint",
+          "Сама история никуда не исчезает: после входа можно будет вернуться и открыть чат отсюда."
+        ),
+        primaryIntent: "open_profile",
+        primaryLabel: tt("common.openProfile", "Открыть профиль"),
+      };
+    }
+
+    return {
+      title: tt("playDetail.bridgeChatReadyTitle", "Эта история уже стала связью"),
+      body: chatLookupError
+        ? tt(
+            "playDetail.bridgeChatReadyLookupBody",
+            "Контакт уже открылся после общей сессии. Если чат не подтянулся сразу, попробуй открыть его ещё раз отсюда."
+          )
+        : tt(
+            "playDetail.bridgeChatReadyBody",
+            "После этой общей истории между вами уже открылся личный контакт. Отсюда можно сразу перейти в чат."
+          ),
+      hint: tt(
+        "playDetail.bridgeChatReadyHint",
+        "Эта страница остаётся вашим общим контекстом: сюда можно вернуться из чата в любой момент."
+      ),
+      primaryIntent: "open_chat",
+      primaryLabel: canOpenChat
+        ? tt("playDetail.openPrivateChat", "Открыть личный чат")
+        : tt("playDetail.checkChatAgain", "Проверить чат ещё раз"),
+    };
+  }
+
+  if (revealOutcome === "waiting") {
+    return {
+      title: tt("playDetail.bridgeWaitingTitle", "Один ответ ещё не пришёл"),
+      body: tt(
+        "playDetail.bridgeWaitingBody",
+        "Общая история уже сохранена. Если второй человек тоже откроет контакт, личный чат появится как продолжение этой сессии."
+      ),
+      hint: tt(
+        "playDetail.bridgeWaitingHint",
+        "Пока можно спокойно оставить эту историю в архиве и вернуться во Вместе за новой сессией."
+      ),
+      primaryIntent: "start_new",
+      primaryLabel: tt("playDetail.startAnotherSession", "Начать ещё одну совместную сессию"),
+    };
+  }
+
+  return {
+    title: tt("playDetail.bridgeStoryOnlyTitle", "Этот момент остался общей историей"),
+    body: tt(
+      "playDetail.bridgeStoryOnlyBody",
+      "Контакт не перешёл в личный чат, но весь общий результат остался здесь: с replay, контекстом и итогом между вами."
+    ),
+    hint: tt(
+      "playDetail.bridgeStoryOnlyHint",
+      "Если хочешь ещё один шанс на продолжение, лучшее следующее действие — новая совместная сессия во Вместе."
+    ),
+    primaryIntent: "start_new",
+    primaryLabel: tt("playDetail.startAnotherSession", "Начать ещё одну совместную сессию"),
+  };
+}
+
 export default function PlaySessionDetailScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"PlaySessionDetail">>();
   const route = useRoute<PlaySessionDetailRouteProp>();
@@ -280,26 +369,17 @@ export default function PlaySessionDetailScreen() {
     ],
     [metricLabel, metricValue, session?.activity, sortAt, tt]
   );
-  const connectionTitle = canOpenChat ? tt("playDetail.chatTitle", "Чат открыт") : revealCopy.shortLabel;
-  const connectionText = canOpenChat
-    ? tt(
-        "playDetail.chatReady",
-        "Контакт уже открылся. Можно перейти в личный чат и продолжить разговор."
-      )
-    : threadLookupError
-      ? threadLookupError
-      : !uid && revealOutcome === "open_open"
-        ? tt(
-            "playDetail.chatNeedsAccount",
-            "The chat should already be available, but you need an active account to open it."
-          )
-        : revealOutcome === "open_open"
-          ? tt(
-              "playDetail.chatPending",
-              "Открытие состоялось, но чат еще не найден в этой истории. Попробуй зайти сюда чуть позже."
-            )
-          : revealCopy.description;
-  const showRetryChatLookup = Boolean(threadLookupError) || (revealOutcome === "open_open" && Boolean(uid));
+  const connectionCopy = React.useMemo(
+    () =>
+      getStoryConnectionCopy({
+        revealOutcome,
+        canOpenChat,
+        hasAccount: Boolean(uid),
+        chatLookupError: threadLookupError,
+        tt,
+      }),
+    [canOpenChat, revealOutcome, threadLookupError, tt, uid]
+  );
 
   const openChat = React.useCallback(() => {
     if (!db || !session || !uid || !peer?.uid) return;
@@ -351,7 +431,7 @@ export default function PlaySessionDetailScreen() {
         setChatActionError(
           tt(
             "playDetail.openChatFailed",
-            "We couldn't open the chat right now. Try again a bit later."
+            "Не удалось открыть личный чат прямо сейчас. Попробуй ещё раз чуть позже."
           )
         );
       }
@@ -364,7 +444,7 @@ export default function PlaySessionDetailScreen() {
 
     openChatPromiseRef.current = task;
     void task;
-  }, [db, detailThread?.id, navigation, peer?.uid, peerName, session, sessionId, totalStrokeCount, uid]);
+  }, [db, detailThread?.id, navigation, peer?.uid, peerName, session, sessionId, totalStrokeCount, tt, uid]);
 
   const startNewSession = React.useCallback(() => {
     navigation.navigate("PlayMatch", { activity: session?.activity ?? "draw" });
@@ -418,7 +498,7 @@ export default function PlaySessionDetailScreen() {
             title={tt("playDetail.errorTitle", "История временно недоступна")}
             body={tt(
               "playDetail.offlineBody",
-              "We couldn't connect this shared story right now. Go back or try again later."
+              "Мы не смогли подключить эту общую историю прямо сейчас. Вернись назад или попробуй ещё раз позже."
             )}
             primaryAction={{
               label: tt("playDetail.goToHistory", "Вернуться к историям"),
@@ -635,36 +715,43 @@ export default function PlaySessionDetailScreen() {
         ) : null}
 
         <View style={styles.actionCard}>
-          <Text style={styles.actionTitle}>{connectionTitle}</Text>
-          <Text style={styles.actionText}>{connectionText}</Text>
+          <Text style={styles.actionEyebrow}>
+            {tt("playDetail.actionEyebrow", "Что эта история открывает дальше")}
+          </Text>
+          <Text style={styles.actionTitle}>{connectionCopy.title}</Text>
+          <Text style={styles.actionText}>{connectionCopy.body}</Text>
           {chatActionError ? <Text style={styles.actionErrorText}>{chatActionError}</Text> : null}
-          {canOpenChat ? (
-            <Pressable onPress={openChat} style={styles.primaryButton} disabled={openingChat}>
-              <Text style={styles.primaryButtonText}>
-                {openingChat
-                  ? tt("connections.openingChat", "Открываем чат…")
-                  : tt("connections.openChat", "Открыть чат")}
-              </Text>
-            </Pressable>
-          ) : showRetryChatLookup ? (
-            <Pressable
-              onPress={() => setReloadKey((prev) => prev + 1)}
-              style={styles.primaryButton}
-            >
-              <Text style={styles.primaryButtonText}>{tt("common.retry", "Повторить")}</Text>
-            </Pressable>
-          ) : null}
+          <Pressable
+            onPress={
+              connectionCopy.primaryIntent === "open_chat"
+                ? openChat
+                : connectionCopy.primaryIntent === "open_profile"
+                  ? () => navigation.navigate("Profile")
+                  : startNewSession
+            }
+            style={styles.primaryButton}
+            disabled={connectionCopy.primaryIntent === "open_chat" ? openingChat : false}
+          >
+            <Text style={styles.primaryButtonText}>
+              {connectionCopy.primaryIntent === "open_chat" && openingChat
+                ? tt("connections.openingChat", "Открываем чат…")
+                : connectionCopy.primaryLabel}
+            </Text>
+          </Pressable>
+          <Text style={styles.actionHint}>{connectionCopy.hint}</Text>
           <View style={styles.actionRow}>
             <Pressable onPress={goToHistory} style={styles.secondaryButton}>
               <Text style={styles.secondaryButtonText}>
-                {tt("playDetail.allStories", "All stories")}
+                {tt("playDetail.allStories", "Все общие истории")}
               </Text>
             </Pressable>
-            <Pressable onPress={startNewSession} style={styles.secondaryButton}>
-              <Text style={styles.secondaryButtonText}>
-                {tt("playDetail.startNew", "Начать новую совместную сессию")}
-              </Text>
-            </Pressable>
+            {connectionCopy.primaryIntent === "open_chat" ? (
+              <Pressable onPress={startNewSession} style={styles.secondaryButton}>
+                <Text style={styles.secondaryButtonText}>
+                  {tt("playDetail.startNew", "Начать новую совместную сессию")}
+                </Text>
+              </Pressable>
+            ) : null}
           </View>
         </View>
       </ScrollView>
@@ -789,6 +876,13 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.borderSubtle,
     gap: 12,
   },
+  actionEyebrow: {
+    color: theme.colors.accent,
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.9,
+    textTransform: "uppercase",
+  },
   actionTitle: {
     color: theme.colors.text,
     fontSize: 20,
@@ -798,6 +892,11 @@ const styles = StyleSheet.create({
     color: theme.colors.subtext,
     fontSize: 14,
     lineHeight: 21,
+  },
+  actionHint: {
+    color: theme.colors.muted,
+    fontSize: 12,
+    lineHeight: 18,
   },
   actionErrorText: {
     color: theme.colors.danger,

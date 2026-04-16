@@ -97,6 +97,194 @@ function mapReplayStrokes(events: PlayStrokeBatch[]): SharedCanvasStroke[] {
   );
 }
 
+type ResultPrimaryIntent =
+  | "open_chat"
+  | "open_story"
+  | "save_open_decision"
+  | "waiting";
+
+type ResultBridgeCopy = {
+  happenedTitle: string;
+  happenedBody: string;
+  nextTitle: string;
+  nextBody: string;
+  hint: string;
+  primaryIntent: ResultPrimaryIntent;
+  primaryLabel: string;
+};
+
+function getResultBridgeCopy(options: {
+  historyMode: boolean;
+  revealOutcome: ReturnType<typeof resolvePlayRevealOutcome>;
+  canOpenChat: boolean;
+  hasOwnDecision: boolean;
+  activity: PlaySessionDoc["activity"] | "draw";
+  tt: (key: string, fallback: string, params?: Record<string, string>) => string;
+}): ResultBridgeCopy {
+  const { activity, canOpenChat, hasOwnDecision, historyMode, revealOutcome, tt } = options;
+  const savedStoryLabel =
+    activity === "color_mood"
+      ? tt("play.result.storyLabelPalette", "общая палитра")
+      : tt("play.result.storyLabelDrawing", "общая история");
+
+  if (revealOutcome === "open_open" && canOpenChat) {
+    return {
+      happenedTitle: historyMode
+        ? tt("play.result.bridgeHistoryChatReadyTitle", "Эта история уже стала связью")
+        : tt("play.result.bridgeChatReadyTitle", "Вы оба открыли контакт"),
+      happenedBody: historyMode
+        ? tt(
+            "play.result.bridgeHistoryChatReadyBody",
+            "После этого общего результата между вами уже открылся личный контакт."
+          )
+        : tt(
+            "play.result.bridgeChatReadyBody",
+            "Общий результат уже перевёл вас в личный контакт, а эта история осталась вашим общим контекстом."
+          ),
+      nextTitle: tt("play.result.bridgeChatReadyNextTitle", "Перейти в личный чат"),
+      nextBody: tt(
+        "play.result.bridgeChatReadyNextBody",
+        "Открой личный чат и продолжи с того момента, который только что произошёл между вами."
+      ),
+      hint: tt(
+        "play.result.bridgeChatReadyHint",
+        "Совместная история никуда не исчезает: к ней всегда можно вернуться из связи или из архива."
+      ),
+      primaryIntent: "open_chat",
+      primaryLabel: tt("play.result.openPrivateChat", "Открыть личный чат"),
+    };
+  }
+
+  if (revealOutcome === "open_open" && !canOpenChat) {
+    return {
+      happenedTitle: tt("play.result.bridgeChatPendingTitle", "Контакт уже взаимный"),
+      happenedBody: historyMode
+        ? tt(
+            "play.result.bridgeHistoryChatPendingBody",
+            "Открытие уже произошло, но сам чат ещё не прикрепился к этой истории."
+          )
+        : tt(
+            "play.result.bridgeChatPendingBody",
+            "Вы оба уже открыли контакт после общего результата, но личный чат ещё не успел подтянуться."
+          ),
+      nextTitle: tt("play.result.bridgeChatPendingNextTitle", "Пока открыть общую историю"),
+      nextBody: tt(
+        "play.result.bridgeChatPendingNextBody",
+        "Открой сохранённую историю сейчас и вернись чуть позже: сам контакт уже не потеряется."
+      ),
+      hint: tt(
+        "play.result.bridgeChatPendingHint",
+        "Это не сбрасывает открытие. История уже сохранена, а чат должен появиться сразу после синхронизации."
+      ),
+      primaryIntent: "open_story",
+      primaryLabel: tt("play.result.openSharedStory", "Открыть общую историю"),
+    };
+  }
+
+  if (historyMode) {
+    return {
+      happenedTitle: tt("play.result.bridgeHistoryStoryStateTitle", "Общий результат уже сохранён"),
+      happenedBody:
+        revealOutcome === "waiting"
+          ? tt(
+              "play.result.bridgeHistoryWaitingBody",
+              "Эта история уже сохранена, а решение об открытии ещё не дошло от обоих людей."
+            )
+          : tt(
+              "play.result.bridgeHistoryStoryStateBody",
+              "Этот общий момент уже остался в архиве как история, к которой можно возвращаться без спешки."
+            ),
+      nextTitle: tt("play.result.bridgeHistoryStoryNextTitle", "Открыть полную страницу истории"),
+      nextBody: tt(
+        "play.result.bridgeHistoryStoryNextBody",
+        "Открой постоянную страницу истории, если хочешь replay, контекст и более спокойный возврат к этому результату."
+      ),
+      hint: tt(
+        "play.result.bridgeHistoryStoryHint",
+        "История уже сохранена независимо от того, открылся ли личный чат."
+      ),
+      primaryIntent: "open_story",
+      primaryLabel: tt("play.result.openSharedStory", "Открыть общую историю"),
+    };
+  }
+
+  if (revealOutcome === "waiting" && hasOwnDecision) {
+    return {
+      happenedTitle: tt("play.result.bridgeWaitingTitle", "Твой ответ уже сохранён"),
+      happenedBody: tt(
+        "play.result.bridgeWaitingBody",
+        "После общего результата ты уже сделал свой выбор, а второй человек ещё не ответил."
+      ),
+      nextTitle: tt("play.result.bridgeWaitingNextTitle", "Дальше можно просто подождать"),
+      nextBody: tt(
+        "play.result.bridgeWaitingNextBody",
+        "Если второй человек тоже выберет открыть, здесь появится переход в личный чат. Если нет, всё останется в общей истории."
+      ),
+      hint: tt(
+        "play.result.bridgeWaitingHint",
+        "Можно спокойно уходить с этого экрана: общий результат уже сохранён, а решение догонит тебя позже."
+      ),
+      primaryIntent: "waiting",
+      primaryLabel: tt("play.result.primaryWaiting", "Ждём решение второго"),
+    };
+  }
+
+  if (revealOutcome === "open_skip" || revealOutcome === "skip_skip") {
+    return {
+      happenedTitle: historyMode
+        ? tt("play.result.bridgeHistoryStoryOnlyTitle", "Эта история осталась между вами")
+        : tt("play.result.bridgeStoryOnlyTitle", "Этот момент остался общей историей"),
+      happenedBody:
+        revealOutcome === "open_skip"
+          ? tt(
+              "play.result.bridgeOpenSkipBody",
+              "Один человек был готов открыть контакт, но этот момент всё же остался только в общей истории."
+            )
+          : tt(
+              "play.result.bridgeSkipSkipBody",
+              "Вы оба решили оставить этот момент в общей истории и не переводить его в личный чат."
+            ),
+      nextTitle: tt("play.result.bridgeStoryOnlyNextTitle", "Вернуться к истории или начать заново"),
+      nextBody: tt(
+        "play.result.bridgeStoryOnlyNextBody",
+        "Открой сохранённую историю, replay или начни новую совместную сессию, если хочешь дать связи ещё один шанс."
+      ),
+      hint: tt(
+        "play.result.bridgeStoryOnlyHint",
+        "Даже без личного чата этот общий итог не пропадает: {story} остаётся в архиве.",
+        { story: savedStoryLabel }
+      ),
+      primaryIntent: "open_story",
+      primaryLabel: tt("play.result.openSharedStory", "Открыть общую историю"),
+    };
+  }
+
+  return {
+    happenedTitle: tt("play.result.bridgeDecisionTitle", "Сначала был общий результат"),
+    happenedBody: tt(
+      "play.result.bridgeDecisionBody",
+      "Теперь можно решить, останется ли этот момент только общей историей или станет шагом к личному контакту."
+    ),
+    nextTitle: tt("play.result.bridgeDecisionNextTitle", "Решить, хочешь ли открыть контакт"),
+    nextBody:
+      activity === "color_mood"
+        ? tt(
+            "play.result.bridgeDecisionPaletteNextBody",
+            "Если вы оба выберете открыть, палитра приведёт в личный чат. Если нет, она просто останется вашей общей историей."
+          )
+        : tt(
+            "play.result.bridgeDecisionDrawingNextBody",
+            "Если вы оба выберете открыть, этот результат приведёт в личный чат. Если нет, рисунок останется общей историей."
+          ),
+    hint: tt(
+      "play.result.bridgeDecisionHint",
+      "Решение не стирает итог: общая история сохраняется в любом случае."
+    ),
+    primaryIntent: "save_open_decision",
+    primaryLabel: tt("play.result.primaryOpenChat", "Хочу открыть чат"),
+  };
+}
+
 export default function PlayResultScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"PlayResult">>();
   const route = useRoute<PlayResultRouteProp>();
@@ -306,66 +494,18 @@ export default function PlayResultScreen() {
           name: peerName,
           peer: String(peerStrokeCount),
         });
-  const nextStepTitle = historyMode
-    ? allOpen && canOpenChat
-      ? tt("play.result.nextContactOpenTitle", "Контакт уже открыт")
-      : tt("play.result.nextStorySavedTitle", "История сохранена")
-    : allOpen
-      ? tt("play.result.nextChatOpenTitle", "Чат уже открыт")
-      : showSoftEnding
-        ? tt("play.result.nextStorySavedTitle", "История сохранена")
-        : waitingForPeer
-          ? tt("play.result.nextWaitingTitle", "Ждём второй ответ")
-          : tt("play.result.nextDefaultTitle", "Что дальше");
-  const nextStepText = historyMode
-    ? allOpen && canOpenChat
-      ? tt(
-          "play.result.nextHistoryChatReadyBody",
-          "Можно перейти в личный чат. Полный итог этой сессии уже сохранён в совместной истории."
-        )
-      : allOpen
-        ? tt(
-            "play.result.nextHistoryChatPendingBody",
-            "Открытие уже произошло, но чат пока не подтянулся. Полный итог этой сессии уже сохранён."
-          )
-        : tt(
-            "play.result.nextHistorySavedBody",
-            "Полная история этой сессии уже сохранена. Здесь можно быстро перейти к ней и при необходимости открыть replay."
-          )
-    : allOpen && !canOpenChat
-      ? tt(
-          "play.result.nextChatPendingBody",
-          "Открытие уже произошло, но чат пока не готов. Итог уже сохранён в совместной истории."
-        )
-      : allOpen
-        ? tt(
-            "play.result.nextChatReadyBody",
-            "Вы оба открыли контакт. Дальше связь продолжается в личном чате."
-          )
-        : showSoftEnding
-          ? session?.activity === "color_mood"
-            ? tt(
-                "play.result.nextSoftEndingPaletteBody",
-                "Сессия осталась в истории. Палитра сохранена и останется только у вас двоих."
-              )
-            : tt(
-                "play.result.nextSoftEndingDrawingBody",
-                "Сессия осталась в истории. Рисунок и replay сохранены в общей истории."
-              )
-          : waitingForPeer
-            ? tt(
-                "play.result.nextWaitingBody",
-                "Твоё решение уже сохранено. Чат откроется только если второй участник тоже выберет открыть."
-              )
-            : session?.activity === "color_mood"
-              ? tt(
-                  "play.result.nextDefaultPaletteBody",
-                  "Если вы оба выберете открыть, сессия перейдёт в личный чат. Если нет, палитра останется в совместной истории."
-                )
-              : tt(
-                  "play.result.nextDefaultDrawingBody",
-                  "Если вы оба выберете открыть, сессия перейдёт в личный чат. Если нет, рисунок останется в совместной истории."
-                );
+  const bridgeCopy = React.useMemo(
+    () =>
+      getResultBridgeCopy({
+        historyMode,
+        revealOutcome,
+        canOpenChat,
+        hasOwnDecision: Boolean(decision),
+        activity: session?.activity ?? "draw",
+        tt,
+      }),
+    [canOpenChat, decision, historyMode, revealOutcome, session?.activity, tt]
+  );
 
   const openChat = React.useCallback(async () => {
     if (!db || !session || !uid || !peer?.uid) return;
@@ -508,48 +648,24 @@ export default function PlayResultScreen() {
     }
   }, [db, decision, openingChat, sessionId, submitting, tt, uid]);
 
-  const openCtaDisabled =
-    submitting ||
-    openingChat ||
-    (allOpen
-      ? !canOpenChat
-      : historyMode
-        ? !allOpen || !canOpenChat
-        : Boolean(decision) && !allOpen);
+  const openChatDisabled = submitting || openingChat || !canOpenChat;
+  const saveOpenDecisionDisabled = submitting || openingChat || Boolean(decision);
   const skipDisabled = submitting || openingChat || Boolean(decision);
-  const primaryDisabled = historyMode
-    ? allOpen && canOpenChat
-      ? openCtaDisabled
-      : false
-    : allOpen && !canOpenChat
-      ? false
-      : allOpen
-        ? openCtaDisabled
-      : showSoftEnding
-        ? false
-        : waitingForPeer
-          ? true
-          : openCtaDisabled;
-  const primaryLabel = historyMode
-    ? allOpen && canOpenChat
-      ? openingChat
-        ? tt("connections.openingChat", "Открываем чат…")
-        : tt("connections.openChat", "Открыть чат")
-      : tt("playHistory.openStory", "Открыть историю")
-    : allOpen && !canOpenChat
-      ? tt("playHistory.openStory", "Открыть историю")
-      : allOpen
-        ? openingChat
-          ? tt("connections.openingChat", "Открываем чат…")
-          : tt("connections.openChat", "Открыть чат")
-      : showSoftEnding
-        ? tt("playHistory.openStory", "Открыть историю")
-        : waitingForPeer
-          ? tt("play.result.primaryWaiting", "Ждём решение второго")
-          : tt("play.result.primaryOpenChat", "Хочу открыть чат");
-  const showHistoryButton = historyMode
-    ? allOpen && canOpenChat
-    : (allOpen && canOpenChat) || waitingForPeer || showSoftEnding;
+  const primaryDisabled =
+    bridgeCopy.primaryIntent === "waiting"
+      ? true
+      : bridgeCopy.primaryIntent === "open_chat"
+        ? openChatDisabled
+        : bridgeCopy.primaryIntent === "save_open_decision"
+          ? saveOpenDecisionDisabled
+          : false;
+  const primaryLabel =
+    bridgeCopy.primaryIntent === "open_chat" && openingChat
+      ? tt("connections.openingChat", "Открываем чат…")
+      : bridgeCopy.primaryLabel;
+  const showHistoryButton =
+    bridgeCopy.primaryIntent !== "open_story" &&
+    ((allOpen && canOpenChat) || waitingForPeer || showSoftEnding);
   const screenTitle = historyMode
     ? tt("play.result.storyTitle", "Совместная история")
     : tt("play.result.title", "Итог сессии");
@@ -762,22 +878,40 @@ export default function PlayResultScreen() {
         />
 
         <View style={styles.actionCard}>
-          <Text style={styles.actionTitle}>{nextStepTitle}</Text>
-          <Text style={styles.actionText}>{nextStepText}</Text>
+          <View style={styles.actionSection}>
+            <Text style={styles.actionEyebrow}>
+              {tt("play.result.happenedLabel", "Что произошло между вами")}
+            </Text>
+            <Text style={styles.actionTitle}>{bridgeCopy.happenedTitle}</Text>
+            <Text style={styles.actionText}>{bridgeCopy.happenedBody}</Text>
+          </View>
+
+          <View style={styles.actionDivider} />
+
+          <View style={styles.actionSection}>
+            <Text style={styles.actionEyebrow}>
+              {tt("play.result.nextLabel", "Что делать дальше")}
+            </Text>
+            <Text style={styles.actionTitle}>{bridgeCopy.nextTitle}</Text>
+            <Text style={styles.actionText}>{bridgeCopy.nextBody}</Text>
+          </View>
+
           {actionError ? <Text style={styles.inlineError}>{actionError}</Text> : null}
 
           <Pressable
             disabled={primaryDisabled}
             onPress={() => {
-              if (historyMode && (!allOpen || !canOpenChat)) {
+              if (bridgeCopy.primaryIntent === "open_story") {
                 goToDetail(activityHasReplay && replayOpen ? "replay" : undefined);
                 return;
               }
-              if (!historyMode && (showSoftEnding || (allOpen && !canOpenChat))) {
-                goToDetail(activityHasReplay && replayOpen ? "replay" : undefined);
+              if (bridgeCopy.primaryIntent === "open_chat") {
+                void openChat();
                 return;
               }
-              void handleOpenPress();
+              if (bridgeCopy.primaryIntent === "save_open_decision") {
+                void handleOpenPress();
+              }
             }}
             style={[styles.primaryButton, primaryDisabled && styles.disabledButton]}
           >
@@ -819,7 +953,7 @@ export default function PlayResultScreen() {
               </Pressable>
             ) : null}
           </View>
-          <Text style={styles.actionHint}>{resultModeCopy.routeText}</Text>
+          <Text style={styles.actionHint}>{bridgeCopy.hint}</Text>
         </View>
 
         {activityHasReplay && replayOpen ? (
@@ -979,6 +1113,21 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
     gap: 12,
+  },
+  actionSection: {
+    gap: 6,
+  },
+  actionEyebrow: {
+    color: theme.colors.accent,
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.9,
+    textTransform: "uppercase",
+  },
+  actionDivider: {
+    height: 1,
+    backgroundColor: theme.colors.borderSubtle,
+    opacity: 0.7,
   },
   actionTitle: {
     color: theme.colors.text,
