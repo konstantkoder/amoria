@@ -13,18 +13,7 @@ import {
   updateDoc,
 } from "firebase/firestore";
 
-function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const t = setTimeout(() => reject(new Error(`Timeout: ${label}`)), ms);
-    p.then((v) => {
-      clearTimeout(t);
-      resolve(v);
-    }).catch((e) => {
-      clearTimeout(t);
-      reject(e);
-    });
-  });
-}
+import { withTimeout } from "@/utils/withTimeout";
 
 export type RoomKind = "work" | "bar" | "cafe" | "gym" | "park" | "home";
 
