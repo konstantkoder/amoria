@@ -121,7 +121,7 @@ export default function DMChatScreen() {
       },
       () => {
         if (!mountedRef.current || activeThreadRef.current !== threadId) return;
-        setSubscriptionError(tt("dm.errorBody", "We couldn't connect this chat right now. Try again."));
+        setSubscriptionError(tt("dm.errorBody", "We couldn't connect this conversation right now. Try again."));
         setThreadLoading(false);
       }
     );
@@ -148,7 +148,7 @@ export default function DMChatScreen() {
       },
       () => {
         if (!mountedRef.current || activeThreadRef.current !== threadId) return;
-        setSubscriptionError(tt("dm.errorBody", "We couldn't connect this chat right now. Try again."));
+        setSubscriptionError(tt("dm.errorBody", "We couldn't connect this conversation right now. Try again."));
         setMessagesLoading(false);
       }
     );
@@ -266,18 +266,29 @@ export default function DMChatScreen() {
   }, []);
 
   const canSend = text.trim().length > 0;
+  const openSourceStory = useCallback(() => {
+    if (!thread?.sourceSessionId) return;
+    navigation.navigate("PlaySessionDetail", { sessionId: thread.sourceSessionId });
+  }, [navigation, thread?.sourceSessionId]);
+  const sourceEyebrow = useMemo(
+    () =>
+      thread?.source === "play"
+        ? tt("dm.sourceEyebrow", "То, что уже случилось между вами")
+        : "",
+    [thread?.source, tt]
+  );
   const sourceTitle = useMemo(() => {
     if (thread?.source !== "play") return "";
     if (thread.artworkSummary?.activity === "color_mood") {
-      return tt("dm.sourcePlayColorMood", "Этот чат вырос из вашей общей палитры");
+      return tt("dm.sourcePlayColorMood", "Ваш личный разговор после общей палитры");
     }
     if (thread.artworkSummary?.activity === "daily_prompt") {
-      return tt("dm.sourcePlayDailyPrompt", "Этот чат вырос из вашей общей темы дня");
+      return tt("dm.sourcePlayDailyPrompt", "Ваш личный разговор после общей темы дня");
     }
     if (thread.artworkSummary?.activity === "chain_draw") {
-      return tt("dm.sourcePlayChainDraw", "Этот чат вырос из рисунка по очереди");
+      return tt("dm.sourcePlayChainDraw", "Ваш личный разговор после рисунка по очереди");
     }
-    return tt("dm.sourcePlay", "Этот чат вырос из вашей совместной сессии");
+    return tt("dm.sourcePlay", "Ваш личный разговор после совместной сессии");
   }, [thread?.artworkSummary?.activity, thread?.source, tt]);
   const strokeCount = thread?.artworkSummary?.strokeCount;
   const sourceMeta = useMemo(() => {
@@ -285,19 +296,19 @@ export default function DMChatScreen() {
     if (thread.artworkSummary?.activity === "color_mood") {
       return tt(
         "dm.sourcePaletteReady",
-        "Общая палитра уже сохранена в истории, а здесь начинается её личное продолжение."
+        "Общая палитра уже сохранена как история вашей связи. Она остаётся общим фоном, а здесь начинается ваш личный разговор."
       );
     }
     if (strokeCount != null) {
       return tt(
         "dm.sourceStrokeCount",
-        "Общий результат уже сохранён в истории. Replay и итог остаются там, а разговор продолжается здесь. Штрихов: {count}",
+        "Общий результат уже сохранён в истории связи. Он остаётся вашим контекстом, а здесь разговор продолжается уже лично. Штрихов: {count}",
         { count: String(strokeCount) }
       );
     }
     return tt(
       "dm.contextReady",
-      "Общая история уже сохранена. К ней можно вернуться в любой момент, а сам диалог продолжается здесь."
+      "Общий момент уже сохранён в истории связи. К нему можно вернуться в любой момент, а здесь продолжается ваш личный разговор."
     );
   }, [strokeCount, thread?.artworkSummary?.activity, thread?.source, tt]);
   const isLoading = threadLoading || messagesLoading;
@@ -305,17 +316,31 @@ export default function DMChatScreen() {
   const isEmpty = !isLoading && mergedMsgs.length === 0;
   const canShowComposer = Boolean(db && myId && threadId && peer.uid) && !subscriptionError && !threadMissing;
   const screenTitleName = peer.name || routePeerName || "";
-  const screenTitle = screenTitleName ? t("dm.title", { name: screenTitleName }) : tt("dm.genericTitle", "Чат");
+  const screenTitle = screenTitleName
+    ? t("dm.title", { name: screenTitleName })
+    : tt("dm.genericTitle", "Разговор");
   const missingChatBody = useMemo(() => {
-    if (backTarget === "sessionDetail" || backTarget === "history" || backTarget === "connections") {
+    if (backTarget === "connections") {
+      return tt(
+        "dm.notFoundFromConnectionBody",
+        "Связь уже могла открыться, но сам личный разговор ещё не успел прикрепиться. Вернись в связи или попробуй ещё раз чуть позже."
+      );
+    }
+    if (backTarget === "sessionDetail" || backTarget === "history") {
       return tt(
         "dm.notFoundFromStoryBody",
-        "Связь могла уже открыться, но сам личный чат ещё не успел прикрепиться к общей истории. Попробуй ещё раз чуть позже или вернись к истории."
+        "Связь могла уже открыться после общей истории, но сам личный разговор ещё не успел прикрепиться. Попробуй ещё раз чуть позже или вернись к истории."
+      );
+    }
+    if (backTarget === "inbox") {
+      return tt(
+        "dm.notFoundFromInboxBody",
+        "Этот личный разговор ещё не успел появиться в списке. Вернись к диалогам или попробуй открыть его чуть позже."
       );
     }
     return tt(
       "dm.notFoundBody",
-      "Мы не нашли этот диалог в текущем контексте. Возможно, старая ссылка уже устарела или чат еще не успел появиться."
+      "Мы не нашли этот разговор в текущем контексте. Возможно, старая ссылка уже устарела или он ещё не успел появиться."
     );
   }, [backTarget, tt]);
   const emptyBackLabel = useMemo(() => {
@@ -323,10 +348,13 @@ export default function DMChatScreen() {
       return tt("playDetail.goToHistory", "Вернуться к историям");
     }
     if (backTarget === "sessionDetail") {
-      return tt("dm.backToSessionStory", "Вернуться к истории сессии");
+      return tt("dm.backToSessionStory", "Вернуться к общей истории");
     }
     if (backTarget === "connections") {
       return tt("dm.backToConnections", "Вернуться в связи");
+    }
+    if (backTarget === "inbox") {
+      return tt("dm.backToInbox", "Вернуться к диалогам");
     }
     return tt("common.back", "Назад");
   }, [backTarget, tt]);
@@ -382,22 +410,25 @@ export default function DMChatScreen() {
     () =>
       sourceTitle ? (
         <View style={styles.sourceCard}>
+          {sourceEyebrow ? (
+            <Text style={styles.sourceEyebrow}>{sourceEyebrow}</Text>
+          ) : null}
           <Text style={styles.sourceTitle}>{sourceTitle}</Text>
           <Text style={styles.sourceMeta}>{sourceMeta}</Text>
           {thread?.sourceSessionId ? (
             <TouchableOpacity
-              onPress={() => navigation.navigate("PlaySessionDetail", { sessionId: thread.sourceSessionId })}
+              onPress={openSourceStory}
               style={styles.sourceLink}
               activeOpacity={0.85}
             >
               <Text style={styles.sourceLinkText}>
-                {tt("dm.openSourceStory", "Открыть совместную историю")}
+                {tt("dm.openSourceStory", "Открыть общую историю")}
               </Text>
             </TouchableOpacity>
           ) : null}
         </View>
       ) : null,
-    [navigation, sourceMeta, sourceTitle, thread?.sourceSessionId, tt]
+    [openSourceStory, sourceEyebrow, sourceMeta, sourceTitle, thread?.sourceSessionId, tt]
   );
 
   const renderItem = useCallback(
@@ -442,8 +473,8 @@ export default function DMChatScreen() {
         <View style={styles.centerState}>
           <CoreStateCard
             icon="alert-circle-outline"
-            title={tt("dm.unavailableTitle", "Чат недоступен")}
-            body={tt("dm.unavailableBody", "Не удалось открыть переписку без корректного идентификатора диалога.")}
+            title={tt("dm.unavailableTitle", "Разговор недоступен")}
+            body={tt("dm.unavailableBody", "Не удалось открыть личный разговор без корректного идентификатора диалога.")}
             primaryAction={{ label: tt("common.back", "Назад"), onPress: handleBack }}
             secondaryAction={{
               label: tt("common.backToTogether", "Вернуться во Вместе"),
@@ -461,8 +492,8 @@ export default function DMChatScreen() {
         <View style={styles.centerState}>
           <CoreStateCard
             icon="person-circle-outline"
-            title={tt("dm.authRequiredTitle", "Чат доступен после входа")}
-            body={tt("dm.authRequiredBody", "Войди в аккаунт, чтобы открыть личный диалог и продолжить связь.")}
+            title={tt("dm.authRequiredTitle", "Личный разговор доступен после входа")}
+            body={tt("dm.authRequiredBody", "Войди в аккаунт, чтобы открыть личный разговор и продолжить уже открытую связь.")}
             primaryAction={{
               label: tt("common.openProfile", "Открыть профиль"),
               onPress: () => navigation.navigate("Profile"),
@@ -480,8 +511,8 @@ export default function DMChatScreen() {
         <View style={styles.centerState}>
           <CoreStateCard
             icon="cloud-offline-outline"
-            title={tt("dm.errorTitle", "Диалог временно недоступен")}
-            body={tt("dm.offlineBody", "Мы не смогли подключить личный чат прямо сейчас. Попробуй позже или вернись назад.")}
+            title={tt("dm.errorTitle", "Разговор временно недоступен")}
+            body={tt("dm.offlineBody", "Мы не смогли подключить этот личный разговор прямо сейчас. Попробуй позже или вернись назад.")}
             primaryAction={{ label: tt("common.back", "Назад"), onPress: handleBack }}
             secondaryAction={{
               label: tt("common.backToTogether", "Вернуться во Вместе"),
@@ -501,27 +532,27 @@ export default function DMChatScreen() {
             loading
             icon="chatbubble-ellipses-outline"
             title={screenTitle}
-            body={tt("dm.loading", "Подключаем личный чат…")}
+            body={tt("dm.loading", "Подключаем личный разговор…")}
           />
         </View>
       ) : subscriptionError ? (
         <View style={styles.centerState}>
           <CoreStateCard
             icon="cloud-offline-outline"
-            title={tt("dm.errorTitle", "Диалог временно недоступен")}
+            title={tt("dm.errorTitle", "Разговор временно недоступен")}
             body={subscriptionError}
             primaryAction={{ label: tt("common.retry", "Повторить"), onPress: () => setReloadKey((prev) => prev + 1) }}
-            secondaryAction={{ label: tt("common.back", "Назад"), onPress: handleBack }}
+            secondaryAction={{ label: emptyBackLabel, onPress: handleBack }}
           />
         </View>
       ) : threadMissing ? (
         <View style={styles.centerState}>
           <CoreStateCard
             icon="chatbox-ellipses-outline"
-            title={tt("dm.unavailableTitle", "Чат пока не прикрепился")}
+            title={tt("dm.unavailableTitle", "Разговор пока не прикрепился")}
             body={missingChatBody}
             primaryAction={{ label: tt("common.retry", "Повторить"), onPress: () => setReloadKey((prev) => prev + 1) }}
-            secondaryAction={{ label: tt("common.back", "Назад"), onPress: handleBack }}
+            secondaryAction={{ label: emptyBackLabel, onPress: handleBack }}
           />
         </View>
       ) : isEmpty ? (
@@ -529,22 +560,33 @@ export default function DMChatScreen() {
           {renderSourceCard()}
           <CoreStateCard
             icon="chatbubbles-outline"
-            title={tt("dm.emptyTitle", "Связь уже открыта")}
+            title={tt("dm.emptyTitle", "Личный разговор уже открыт")}
             body={
               sourceTitle
                 ? tt(
-                    "dm.emptyBodyWithSource",
-                    "Личный чат уже готов. Можно написать первым ниже и продолжить то, что началось в общей истории."
+                    "dm.emptyBodyWithSourceCoreLoop",
+                    "Вы уже не с нуля: общий опыт сохранён в истории связи, а первый личный шаг можно сделать прямо ниже."
                   )
                 : tt(
-                    "dm.emptyBody",
-                    "Личный чат уже готов. Можно написать первым ниже и мягко продолжить знакомство."
+                    "dm.emptyBodyCoreLoop",
+                    "Разговор уже открыт. Можно написать первым ниже и мягко задать тон этому личному продолжению."
                   )
             }
             primaryAction={{
-              label: emptyBackLabel,
-              onPress: handleBack,
+              label:
+                thread?.sourceSessionId && backTarget !== "sessionDetail"
+                  ? tt("dm.openSourceStory", "Открыть общую историю")
+                  : emptyBackLabel,
+              onPress:
+                thread?.sourceSessionId && backTarget !== "sessionDetail"
+                  ? openSourceStory
+                  : handleBack,
             }}
+            secondaryAction={
+              thread?.sourceSessionId && backTarget !== "sessionDetail"
+                ? { label: emptyBackLabel, onPress: handleBack }
+                : undefined
+            }
           />
         </View>
       ) : (
@@ -606,7 +648,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   sourceCard: {
-    alignSelf: "center",
+    alignSelf: "stretch",
     borderRadius: theme.shapes.cardInner,
     paddingHorizontal: 14,
     paddingVertical: 12,
@@ -615,21 +657,30 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
   },
+  sourceEyebrow: {
+    color: theme.colors.accent,
+    fontSize: 11,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+    marginBottom: 6,
+  },
   sourceTitle: {
     color: theme.colors.text,
     fontSize: 14,
     fontWeight: "800",
     marginBottom: 4,
-    textAlign: "center",
+    textAlign: "left",
   },
   sourceMeta: {
     color: theme.colors.subtext,
     fontSize: 12,
     fontWeight: "600",
-    textAlign: "center",
+    lineHeight: 18,
+    textAlign: "left",
   },
   sourceLink: {
-    alignSelf: "center",
+    alignSelf: "flex-start",
     marginTop: 10,
     paddingHorizontal: 12,
     paddingVertical: 8,

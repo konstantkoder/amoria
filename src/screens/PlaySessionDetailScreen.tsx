@@ -101,11 +101,11 @@ function getStoryConnectionCopy(options: {
         title: tt("playDetail.bridgeChatNeedsAccountTitle", "Связь уже открылась, но нужен вход"),
         body: tt(
           "playDetail.bridgeChatNeedsAccountBody",
-          "После этой общей истории связь уже открылась и живёт в разделе «Связи». Чтобы зайти в чат, сначала нужен активный аккаунт."
+          "После этой общей истории связь уже открылась и живёт в разделе «Связи». Чтобы зайти в личный разговор, сначала нужен активный аккаунт."
         ),
         hint: tt(
           "playDetail.bridgeChatNeedsAccountHint",
-          "Сама история никуда не исчезает: после входа можно будет вернуться сюда, открыть связь и перейти в чат."
+          "Сама история никуда не исчезает: после входа можно будет вернуться сюда, открыть связь и перейти в разговор."
         ),
         primaryIntent: "open_profile",
         primaryLabel: tt("common.openProfile", "Открыть профиль"),
@@ -117,20 +117,20 @@ function getStoryConnectionCopy(options: {
       body: chatLookupError
         ? tt(
             "playDetail.bridgeChatReadyLookupBody",
-            "Связь уже открылась после общей сессии и живёт в «Связях». Если чат не подтянулся сразу, попробуй открыть его ещё раз отсюда."
+            "Связь уже открылась после общей сессии и живёт в «Связях». Если разговор не подтянулся сразу, попробуй открыть его ещё раз отсюда."
           )
         : tt(
             "playDetail.bridgeChatReadyBody",
-            "После этой общей истории между вами уже открылась связь. Отсюда можно сразу перейти в чат или сначала открыть саму связь."
+            "После этой общей истории между вами уже открылась связь. Отсюда можно сразу перейти в разговор или сначала открыть саму связь."
           ),
       hint: tt(
         "playDetail.bridgeChatReadyHint",
-        "Эта страница остаётся вашим общим контекстом: к ней можно вернуться и из чата, и из самой связи."
+        "Эта страница остаётся вашим общим контекстом: к ней можно вернуться и из разговора, и из самой связи."
       ),
       primaryIntent: "open_chat",
       primaryLabel: canOpenChat
-        ? tt("playDetail.openPrivateChat", "Открыть личный чат")
-        : tt("playDetail.checkChatAgain", "Проверить чат ещё раз"),
+        ? tt("playDetail.openPrivateChat", "Открыть личный разговор")
+        : tt("playDetail.checkChatAgain", "Проверить разговор ещё раз"),
     };
   }
 
@@ -139,7 +139,7 @@ function getStoryConnectionCopy(options: {
       title: tt("playDetail.bridgeWaitingTitle", "Один ответ ещё не пришёл"),
       body: tt(
         "playDetail.bridgeWaitingBody",
-        "Общая история уже сохранена. Если второй человек тоже откроет контакт, личный чат появится как продолжение этой сессии."
+        "Общая история уже сохранена. Если второй человек тоже откроет контакт, личный разговор появится как продолжение этой сессии."
       ),
       hint: tt(
         "playDetail.bridgeWaitingHint",
@@ -154,7 +154,7 @@ function getStoryConnectionCopy(options: {
     title: tt("playDetail.bridgeStoryOnlyTitle", "Этот момент остался общей историей"),
     body: tt(
       "playDetail.bridgeStoryOnlyBody",
-      "Контакт не перешёл в личный чат, но весь общий результат остался здесь: с replay, контекстом и итогом между вами."
+      "Контакт не перешёл в личный разговор, но весь общий результат остался здесь: с replay, контекстом и итогом между вами."
     ),
     hint: tt(
       "playDetail.bridgeStoryOnlyHint",
@@ -295,7 +295,7 @@ export default function PlaySessionDetailScreen() {
               setThreadLookupError(
                 tt(
                   "playDetail.chatLookupError",
-                  "Не удалось проверить, готов ли чат. Попробуй открыть страницу еще раз."
+                  "Не удалось проверить, готов ли разговор. Попробуй открыть страницу еще раз."
                 )
               );
             }
@@ -435,7 +435,7 @@ export default function PlaySessionDetailScreen() {
         setChatActionError(
           tt(
             "playDetail.openChatFailed",
-            "Не удалось открыть личный чат прямо сейчас. Попробуй ещё раз чуть позже."
+            "Не удалось открыть личный разговор прямо сейчас. Попробуй ещё раз чуть позже."
           )
         );
       }
@@ -738,7 +738,7 @@ export default function PlaySessionDetailScreen() {
           >
             <Text style={styles.primaryButtonText}>
               {connectionCopy.primaryIntent === "open_chat" && openingChat
-                ? tt("connections.openingChat", "Открываем чат…")
+                ? tt("connections.openingChat", "Открываем разговор…")
                 : connectionCopy.primaryLabel}
             </Text>
           </Pressable>

@@ -248,11 +248,11 @@ function mapSessionToHistoryCard(
       linkedThread?.lastMessageText?.trim() ||
       tt(
         "connections.connectionPreviewFallbackCoreLoop",
-        "Личный чат уже готов продолжить этот общий момент, даже если сообщений там ещё не было."
+        "Личный разговор уже готов продолжить этот общий момент, даже если сообщений там ещё не было."
       ),
     continuationLabel: hasContinuationPreview
-      ? tt("connections.chatContinuationLabel", "Как связь продолжается сейчас")
-      : tt("connections.chatReadyLabel", "Что уже открыто дальше"),
+      ? tt("connections.chatContinuationLabel", "Что уже происходит в разговоре")
+      : tt("connections.chatReadyLabel", "Что уже открыто в разговоре"),
     sharedMomentText: buildSessionSharedMomentText(session, tt),
     freshnessLabel: formatFreshness(sortAt, now, t),
     resultLabel: buildSessionResultLabel(session, tt),
@@ -290,11 +290,11 @@ function mapThreadToFallbackCard(
       thread.lastMessageText?.trim() ||
       tt(
         "connections.fallbackPreviewFallback",
-        "Личный чат уже живёт дальше, а страница общей истории ещё не успела прикрепиться."
+        "Личный разговор уже живёт дальше, а страница общей истории ещё не успела прикрепиться."
       ),
     continuationLabel: hasContinuationPreview
-      ? tt("connections.chatContinuationLabel", "Как связь продолжается сейчас")
-      : tt("connections.chatReadyLabel", "Что уже открыто дальше"),
+      ? tt("connections.chatContinuationLabel", "Что уже происходит в разговоре")
+      : tt("connections.chatReadyLabel", "Что уже открыто в разговоре"),
     sharedMomentText: buildFallbackSharedMomentText(thread, tt),
     freshnessLabel: formatFreshness(sortAt, now, t),
     resultLabel: buildFallbackResultLabel(thread, tt),
@@ -499,7 +499,7 @@ export default function ConnectionsFeedScreen() {
         setActionError(
           tt(
             "connections.storyMissingBody",
-            "We couldn't find the source shared story for this chat. Try opening the connection later."
+            "We couldn't find the source shared story for this conversation. Try opening the connection later."
           )
         );
         return;
@@ -534,7 +534,7 @@ export default function ConnectionsFeedScreen() {
         setActionError(
           tt(
             "connections.openChatFailed",
-            "We couldn't open the chat right now. Try again a bit later."
+            "We couldn't open the conversation right now. Try again a bit later."
           )
         );
       } finally {
@@ -572,7 +572,7 @@ export default function ConnectionsFeedScreen() {
       <Text style={styles.heroText}>
         {tt(
           "connections.coreLoopBody",
-          "Это не новая лента и не каталог людей. Каждая связь здесь уже выросла из конкретной совместной сессии: можно вернуться в историю, открыть личный чат или снова уйти во Вместе."
+          "Это не новая лента и не каталог людей. Каждая связь здесь уже выросла из конкретной совместной сессии: можно вернуться в историю, открыть личный разговор или снова уйти во Вместе."
         )}
       </Text>
       {showActions ? (
@@ -613,7 +613,7 @@ export default function ConnectionsFeedScreen() {
         <Text style={styles.emptyStateText}>
           {tt(
             "connections.emptyBodyCoreLoop",
-            "Когда общий результат во Вместе действительно откроет контакт, связь появится здесь вместе со своей историей и входом в личный чат."
+            "Когда общий результат во Вместе действительно откроет контакт, связь появится здесь вместе со своей историей и входом в личный разговор."
           )}
         </Text>
         <View style={styles.emptyMetaRow}>
@@ -698,7 +698,7 @@ export default function ConnectionsFeedScreen() {
           <View style={styles.metaPill}>
             <Text style={styles.metaPillText}>
               {card.isFallback
-                ? tt("connections.chatAlreadyLive", "Личный чат уже живёт как продолжение")
+                ? tt("connections.chatAlreadyLive", "Личный разговор уже живёт как продолжение")
                 : tt("connections.sharedStoryAndChat", "Связь уже держится на этой общей истории")}
             </Text>
           </View>
@@ -719,10 +719,10 @@ export default function ConnectionsFeedScreen() {
           >
             <Text style={styles.primaryCtaText}>
               {openingCardId === card.id
-                ? tt("connections.openingChat", "Открываем чат…")
+                ? tt("connections.openingChat", "Открываем разговор…")
                 : card.threadId
-                  ? tt("connections.continueInChat", "Продолжить в личном чате")
-                  : tt("connections.openPrivateChat", "Открыть личный чат")}
+                  ? tt("connections.continueInChat", "Продолжить разговор")
+                  : tt("connections.openPrivateChat", "Открыть разговор")}
             </Text>
           </Pressable>
         </View>
