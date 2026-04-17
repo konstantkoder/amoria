@@ -131,24 +131,24 @@ function getResultBridgeCopy(options: {
     return {
       happenedTitle: historyMode
         ? tt("play.result.bridgeHistoryChatReadyTitle", "Эта история уже стала связью")
-        : tt("play.result.bridgeChatReadyTitle", "Вы оба открыли контакт"),
+        : tt("play.result.bridgeChatReadyTitle", "Общий результат уже стал связью"),
       happenedBody: historyMode
         ? tt(
             "play.result.bridgeHistoryChatReadyBody",
-            "После этого общего результата между вами уже открылся личный контакт."
+            "После этого общего результата связь уже открылась и теперь живёт в разделе «Связи» вместе с этой историей."
           )
         : tt(
             "play.result.bridgeChatReadyBody",
-            "Общий результат уже перевёл вас в личный контакт, а эта история осталась вашим общим контекстом."
+            "Общий результат уже открыл между вами связь. Теперь она живёт в разделе «Связи», а отсюда можно сразу перейти в личный чат."
           ),
-      nextTitle: tt("play.result.bridgeChatReadyNextTitle", "Перейти в личный чат"),
+      nextTitle: tt("play.result.bridgeChatReadyNextTitle", "Продолжить связь дальше"),
       nextBody: tt(
         "play.result.bridgeChatReadyNextBody",
-        "Открой личный чат и продолжи с того момента, который только что произошёл между вами."
+        "Можно сразу открыть личный чат или сначала зайти в саму связь, где остаются эта история, общий контекст и вход в разговор."
       ),
       hint: tt(
         "play.result.bridgeChatReadyHint",
-        "Совместная история никуда не исчезает: к ней всегда можно вернуться из связи или из архива."
+        "После выхода с этого экрана связь останется в «Связях», а совместная история останется в архиве."
       ),
       primaryIntent: "open_chat",
       primaryLabel: tt("play.result.openPrivateChat", "Открыть личный чат"),
@@ -161,20 +161,20 @@ function getResultBridgeCopy(options: {
       happenedBody: historyMode
         ? tt(
             "play.result.bridgeHistoryChatPendingBody",
-            "Открытие уже произошло, но сам чат ещё не прикрепился к этой истории."
+            "Открытие уже произошло: связь уже живёт в «Связях», но сам чат ещё не прикрепился к этой истории."
           )
         : tt(
             "play.result.bridgeChatPendingBody",
-            "Вы оба уже открыли контакт после общего результата, но личный чат ещё не успел подтянуться."
+            "Вы оба уже открыли связь после общего результата, но личный чат ещё не успел подтянуться к ней."
           ),
       nextTitle: tt("play.result.bridgeChatPendingNextTitle", "Пока открыть общую историю"),
       nextBody: tt(
         "play.result.bridgeChatPendingNextBody",
-        "Открой сохранённую историю сейчас и вернись чуть позже: сам контакт уже не потеряется."
+        "Открой сохранённую историю сейчас или зайди в «Связи» чуть позже: сама связь уже не потеряется."
       ),
       hint: tt(
         "play.result.bridgeChatPendingHint",
-        "Это не сбрасывает открытие. История уже сохранена, а чат должен появиться сразу после синхронизации."
+        "Это не сбрасывает открытие. История уже сохранена, связь уже открыта, а чат должен появиться сразу после синхронизации."
       ),
       primaryIntent: "open_story",
       primaryLabel: tt("play.result.openSharedStory", "Открыть общую историю"),
@@ -317,6 +317,9 @@ export default function PlayResultScreen() {
   }, [navigation]);
   const goToHistory = React.useCallback(() => {
     navigation.navigate("PlayHistory");
+  }, [navigation]);
+  const goToConnections = React.useCallback(() => {
+    navigation.navigate("Tabs", { screen: "Connections" });
   }, [navigation]);
   const startNewSession = React.useCallback(() => {
     navigation.navigate("PlayMatch", { activity: session?.activity ?? "draw" });
@@ -666,6 +669,7 @@ export default function PlayResultScreen() {
   const showHistoryButton =
     bridgeCopy.primaryIntent !== "open_story" &&
     ((allOpen && canOpenChat) || waitingForPeer || showSoftEnding);
+  const showConnectionsButton = revealOutcome === "open_open";
   const screenTitle = historyMode
     ? tt("play.result.storyTitle", "Совместная история")
     : tt("play.result.title", "Итог сессии");
@@ -919,6 +923,13 @@ export default function PlayResultScreen() {
           </Pressable>
 
           <View style={styles.secondaryActions}>
+            {showConnectionsButton ? (
+              <Pressable onPress={goToConnections} style={styles.secondaryButton}>
+                <Text style={styles.secondaryText}>
+                  {tt("play.result.openConnection", "Открыть связь")}
+                </Text>
+              </Pressable>
+            ) : null}
             {!historyMode && !allOpen && !showSoftEnding && !waitingForPeer && !decision ? (
               <Pressable
                 disabled={skipDisabled}

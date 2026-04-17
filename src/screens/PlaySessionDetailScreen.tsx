@@ -101,11 +101,11 @@ function getStoryConnectionCopy(options: {
         title: tt("playDetail.bridgeChatNeedsAccountTitle", "Связь уже открылась, но нужен вход"),
         body: tt(
           "playDetail.bridgeChatNeedsAccountBody",
-          "После этой общей истории личный контакт уже открылся. Чтобы зайти в чат, сначала нужен активный аккаунт."
+          "После этой общей истории связь уже открылась и живёт в разделе «Связи». Чтобы зайти в чат, сначала нужен активный аккаунт."
         ),
         hint: tt(
           "playDetail.bridgeChatNeedsAccountHint",
-          "Сама история никуда не исчезает: после входа можно будет вернуться и открыть чат отсюда."
+          "Сама история никуда не исчезает: после входа можно будет вернуться сюда, открыть связь и перейти в чат."
         ),
         primaryIntent: "open_profile",
         primaryLabel: tt("common.openProfile", "Открыть профиль"),
@@ -117,15 +117,15 @@ function getStoryConnectionCopy(options: {
       body: chatLookupError
         ? tt(
             "playDetail.bridgeChatReadyLookupBody",
-            "Контакт уже открылся после общей сессии. Если чат не подтянулся сразу, попробуй открыть его ещё раз отсюда."
+            "Связь уже открылась после общей сессии и живёт в «Связях». Если чат не подтянулся сразу, попробуй открыть его ещё раз отсюда."
           )
         : tt(
             "playDetail.bridgeChatReadyBody",
-            "После этой общей истории между вами уже открылся личный контакт. Отсюда можно сразу перейти в чат."
+            "После этой общей истории между вами уже открылась связь. Отсюда можно сразу перейти в чат или сначала открыть саму связь."
           ),
       hint: tt(
         "playDetail.bridgeChatReadyHint",
-        "Эта страница остаётся вашим общим контекстом: сюда можно вернуться из чата в любой момент."
+        "Эта страница остаётся вашим общим контекстом: к ней можно вернуться и из чата, и из самой связи."
       ),
       primaryIntent: "open_chat",
       primaryLabel: canOpenChat
@@ -201,6 +201,9 @@ export default function PlaySessionDetailScreen() {
 
   const goToHistory = React.useCallback(() => {
     navigation.navigate("PlayHistory");
+  }, [navigation]);
+  const goToConnections = React.useCallback(() => {
+    navigation.navigate("Tabs", { screen: "Connections" });
   }, [navigation]);
 
   const handleBack = React.useCallback(() => {
@@ -380,6 +383,7 @@ export default function PlaySessionDetailScreen() {
       }),
     [canOpenChat, revealOutcome, threadLookupError, tt, uid]
   );
+  const showConnectionsButton = revealOutcome === "open_open";
 
   const openChat = React.useCallback(() => {
     if (!db || !session || !uid || !peer?.uid) return;
@@ -607,7 +611,7 @@ export default function PlaySessionDetailScreen() {
           <View style={styles.heroHeader}>
             <View style={styles.heroHeaderText}>
               <Text style={styles.heroKicker}>
-                {tt("playDetail.heroKicker", "Постоянный дом этой истории")}
+                {tt("playDetail.heroConnectionKicker", "Общий контекст вашей связи")}
               </Text>
               <Text style={styles.heroTitle}>{peerName}</Text>
             </View>
@@ -716,7 +720,7 @@ export default function PlaySessionDetailScreen() {
 
         <View style={styles.actionCard}>
           <Text style={styles.actionEyebrow}>
-            {tt("playDetail.actionEyebrow", "Что эта история открывает дальше")}
+            {tt("playDetail.actionEyebrowCoreLoop", "Как эта история продолжается дальше")}
           </Text>
           <Text style={styles.actionTitle}>{connectionCopy.title}</Text>
           <Text style={styles.actionText}>{connectionCopy.body}</Text>
@@ -745,10 +749,10 @@ export default function PlaySessionDetailScreen() {
                 {tt("playDetail.allStories", "Все общие истории")}
               </Text>
             </Pressable>
-            {connectionCopy.primaryIntent === "open_chat" ? (
-              <Pressable onPress={startNewSession} style={styles.secondaryButton}>
+            {showConnectionsButton ? (
+              <Pressable onPress={goToConnections} style={styles.secondaryButton}>
                 <Text style={styles.secondaryButtonText}>
-                  {tt("playDetail.startNew", "Начать новую совместную сессию")}
+                  {tt("playDetail.openConnection", "Открытая связь")}
                 </Text>
               </Pressable>
             ) : null}

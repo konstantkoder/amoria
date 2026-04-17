@@ -22,8 +22,10 @@ import {
   type DmThreadDoc,
 } from "@/services/dm";
 import {
+  getPlayColorMoodCombinedPalette,
   getPlayActivityLabel,
   getPeerFromSession,
+  getPlaySessionPrompt,
   subscribeRecentMutualPlaySessions,
   type PlaySessionDoc,
 } from "@/services/playSessions";
@@ -37,8 +39,10 @@ type HistoryCard = {
   peerName: string;
   activityLabel: string;
   previewText: string;
+  continuationLabel: string;
+  sharedMomentText: string;
   freshnessLabel: string;
-  strokeCount?: number;
+  resultLabel: string;
   sortAt: number;
   isFallback: boolean;
   signalLabel?: string;
@@ -100,6 +104,122 @@ function formatActivityLabel(
   return getPlayActivityLabel(activity, "history");
 }
 
+function buildSessionResultLabel(
+  session: PlaySessionDoc,
+  tt: (key: string, fallback: string, params?: Record<string, string>) => string
+) {
+  if (session.activity === "color_mood") {
+    const paletteCount = getPlayColorMoodCombinedPalette(session).length;
+    return paletteCount
+      ? tt("connections.sharedPaletteCount", "Общая палитра: {count} цветов", {
+          count: String(paletteCount),
+        })
+      : tt("connections.sharedPaletteReady", "Общая палитра уже собрана");
+  }
+
+  if (session.resultStrokeCount != null) {
+    return tt("connections.sharedStrokeCount", "Общий итог: {count} штрихов", {
+      count: String(session.resultStrokeCount),
+    });
+  }
+
+  const prompt = getPlaySessionPrompt(session);
+  if (session.activity === "daily_prompt" && prompt?.text?.trim()) {
+    return tt("connections.sharedPrompt", "Тема: «{prompt}»", {
+      prompt: prompt.text.trim(),
+    });
+  }
+
+  return tt("connections.sharedResultReady", "Общий результат уже сохранён");
+}
+
+function buildSessionSharedMomentText(
+  session: PlaySessionDoc,
+  tt: (key: string, fallback: string, params?: Record<string, string>) => string
+) {
+  const prompt = getPlaySessionPrompt(session);
+
+  switch (session.activity) {
+    case "chain_draw":
+      return tt(
+        "connections.sharedMomentChainDraw",
+        "Вы собрали один рисунок по очереди, и именно эта совместная сессия открыла между вами связь."
+      );
+    case "daily_prompt":
+      return prompt?.text?.trim()
+        ? tt(
+            "connections.sharedMomentDailyPromptWithTopic",
+            "Вы вместе ответили на тему «{prompt}», и этот общий рисунок стал началом связи.",
+            { prompt: prompt.text.trim() }
+          )
+        : tt(
+            "connections.sharedMomentDailyPrompt",
+            "Вы вместе ответили рисунком на общую тему дня, и этот момент стал началом связи."
+          );
+    case "color_mood":
+      return tt(
+        "connections.sharedMomentColorMood",
+        "Вы собрали общую палитру настроения, и этот мягкий общий итог стал точкой входа в связь."
+      );
+    case "draw":
+    default:
+      return tt(
+        "connections.sharedMomentDraw",
+        "Вы собрали один общий рисунок на двоих, и именно после него между вами открылась связь."
+      );
+  }
+}
+
+function buildFallbackResultLabel(
+  thread: DmThreadDoc,
+  tt: (key: string, fallback: string, params?: Record<string, string>) => string
+) {
+  if (thread.artworkSummary?.activity === "color_mood") {
+    return tt("connections.sharedPaletteReady", "Общая палитра уже собрана");
+  }
+
+  if (thread.artworkSummary?.strokeCount != null) {
+    return tt("connections.sharedStrokeCount", "Общий итог: {count} штрихов", {
+      count: String(thread.artworkSummary.strokeCount),
+    });
+  }
+
+  return tt("connections.sharedResultReady", "Общий результат уже сохранён");
+}
+
+function buildFallbackSharedMomentText(
+  thread: DmThreadDoc,
+  tt: (key: string, fallback: string, params?: Record<string, string>) => string
+) {
+  switch (thread.artworkSummary?.activity) {
+    case "chain_draw":
+      return tt(
+        "connections.fallbackSharedMomentChainDraw",
+        "Эта связь уже выросла из рисунка по очереди, даже если полная страница общей истории ещё не подтянулась."
+      );
+    case "daily_prompt":
+      return tt(
+        "connections.fallbackSharedMomentDailyPrompt",
+        "Эта связь уже выросла из вашего общего ответа на тему дня, а подробная история подтянется чуть позже."
+      );
+    case "color_mood":
+      return tt(
+        "connections.fallbackSharedMomentColorMood",
+        "Эта связь уже выросла из общей палитры настроения, а полный контекст истории ещё догружается."
+      );
+    case "draw":
+      return tt(
+        "connections.fallbackSharedMomentDraw",
+        "Эта связь уже выросла из общего рисунка, даже если полная страница истории ещё не появилась здесь."
+      );
+    default:
+      return tt(
+        "connections.fallbackSharedMomentDefault",
+        "Эта связь уже выросла из общего опыта. Полная страница истории подтянется чуть позже."
+      );
+  }
+}
+
 function mapSessionToHistoryCard(
   session: PlaySessionDoc,
   uid: string,
@@ -115,6 +235,7 @@ function mapSessionToHistoryCard(
 
   const linkedThread = threadBySessionId.get(session.id);
   const sortAt = session.endedAt ?? session.startedAt ?? session.createdAt;
+  const hasContinuationPreview = Boolean(linkedThread?.lastMessageText?.trim());
 
   return {
     id: session.id,
@@ -123,9 +244,18 @@ function mapSessionToHistoryCard(
     peerId: peer.uid,
     peerName: peer.nickname,
     activityLabel: formatActivityLabel(session.activity, t, tt),
-    previewText: linkedThread?.lastMessageText?.trim() || t("connections.connectionPreviewFallback"),
+    previewText:
+      linkedThread?.lastMessageText?.trim() ||
+      tt(
+        "connections.connectionPreviewFallbackCoreLoop",
+        "Личный чат уже готов продолжить этот общий момент, даже если сообщений там ещё не было."
+      ),
+    continuationLabel: hasContinuationPreview
+      ? tt("connections.chatContinuationLabel", "Как связь продолжается сейчас")
+      : tt("connections.chatReadyLabel", "Что уже открыто дальше"),
+    sharedMomentText: buildSessionSharedMomentText(session, tt),
     freshnessLabel: formatFreshness(sortAt, now, t),
-    ...(session.resultStrokeCount != null ? { strokeCount: session.resultStrokeCount } : {}),
+    resultLabel: buildSessionResultLabel(session, tt),
     sortAt,
     isFallback: false,
     ...(signalLabel ? { signalLabel, signalTone } : {}),
@@ -146,6 +276,7 @@ function mapThreadToFallbackCard(
   if (!peer) return null;
 
   const sortAt = thread.lastMessageAt ?? thread.updatedAt ?? thread.createdAt;
+  const hasContinuationPreview = Boolean(thread.lastMessageText?.trim());
   return {
     id: thread.id,
     threadId: thread.id,
@@ -155,11 +286,18 @@ function mapThreadToFallbackCard(
       thread.source === "play"
         ? formatActivityLabel(thread.artworkSummary?.activity ?? "draw", t, tt)
         : t("connections.sourceOpened"),
-    previewText: thread.lastMessageText?.trim() || t("connections.connectionPreviewFallback"),
+    previewText:
+      thread.lastMessageText?.trim() ||
+      tt(
+        "connections.fallbackPreviewFallback",
+        "Личный чат уже живёт дальше, а страница общей истории ещё не успела прикрепиться."
+      ),
+    continuationLabel: hasContinuationPreview
+      ? tt("connections.chatContinuationLabel", "Как связь продолжается сейчас")
+      : tt("connections.chatReadyLabel", "Что уже открыто дальше"),
+    sharedMomentText: buildFallbackSharedMomentText(thread, tt),
     freshnessLabel: formatFreshness(sortAt, now, t),
-    ...(thread.artworkSummary?.strokeCount != null
-      ? { strokeCount: thread.artworkSummary.strokeCount }
-      : {}),
+    resultLabel: buildFallbackResultLabel(thread, tt),
     sortAt,
     isFallback: true,
     ...(signalLabel ? { signalLabel, signalTone } : {}),
@@ -420,32 +558,28 @@ export default function ConnectionsFeedScreen() {
   const goToHistory = useCallback(() => {
     navigation.navigate("PlayHistory");
   }, [navigation]);
-  const startNewSession = useCallback(() => {
-    navigation.navigate("PlayMatch", { activity: "draw" });
-  }, [navigation]);
-
   const renderHeroCard = (showActions: boolean) => (
     <View style={styles.heroCard}>
       <Text style={styles.heroKicker}>
-        {tt("connections.coreLoopKicker", "Открывшиеся связи")}
+        {tt("connections.coreLoopKicker", "После Together")}
       </Text>
       <Text style={styles.heroTitle}>
         {tt(
           "connections.coreLoopTitle",
-          "Здесь остаются люди, с которыми Together уже перешёл из общей сессии в реальный контакт"
+          "Здесь живут связи, у которых уже есть общая история"
         )}
       </Text>
       <Text style={styles.heroText}>
         {tt(
           "connections.coreLoopBody",
-          "Связи держат общий контекст после результата: отсюда можно открыть совместную историю или сразу перейти в личный чат."
+          "Это не новая лента и не каталог людей. Каждая связь здесь уже выросла из конкретной совместной сессии: можно вернуться в историю, открыть личный чат или снова уйти во Вместе."
         )}
       </Text>
       {showActions ? (
         <View style={styles.heroActions}>
-          <Pressable onPress={startNewSession} style={styles.heroPrimaryButton}>
+          <Pressable onPress={goToTogether} style={styles.heroPrimaryButton}>
             <Text style={styles.heroPrimaryButtonText}>
-              {tt("connections.startNewSession", "Начать новую совместную сессию")}
+              {tt("connections.returnToTogether", "Вернуться во Вместе")}
             </Text>
           </Pressable>
           <Pressable onPress={goToHistory} style={styles.heroSecondaryButton}>
@@ -470,32 +604,42 @@ export default function ConnectionsFeedScreen() {
         <View style={styles.emptyStateIcon}>
           <Ionicons name="git-network-outline" size={22} color={theme.colors.accent} />
         </View>
-        <Text style={styles.emptyStateTitle}>{t("connections.emptyTitle")}</Text>
+        <Text style={styles.emptyStateTitle}>
+          {tt(
+            "connections.emptyTitleCoreLoop",
+            "Здесь появятся связи, у которых уже есть общая история"
+          )}
+        </Text>
         <Text style={styles.emptyStateText}>
           {tt(
             "connections.emptyBodyCoreLoop",
-            "Когда после общей сессии контакт откроется взаимно, человек появится здесь как естественное продолжение Together."
+            "Когда общий результат во Вместе действительно откроет контакт, связь появится здесь вместе со своей историей и входом в личный чат."
           )}
         </Text>
         <View style={styles.emptyMetaRow}>
           <View style={styles.emptyMetaPill}>
             <Text style={styles.emptyMetaText}>
-              {tt("connections.emptyMetaContext", "Общая история")}
+              {tt("connections.emptyMetaContext", "Общий результат")}
             </Text>
           </View>
           <View style={styles.emptyMetaPill}>
             <Text style={styles.emptyMetaText}>
-              {tt("connections.emptyMetaChat", "Вход в личный чат")}
+              {tt("connections.emptyMetaChat", "Личное продолжение")}
             </Text>
           </View>
         </View>
-        <Pressable onPress={startNewSession} style={styles.emptyPrimaryButton}>
+        <Pressable onPress={goToTogether} style={styles.emptyPrimaryButton}>
           <Text style={styles.emptyPrimaryButtonText}>
-            {tt("connections.startNewSession", "Начать совместную сессию")}
+            {tt("connections.returnToTogether", "Вернуться во Вместе")}
           </Text>
         </Pressable>
-        <Pressable onPress={goToTogether} style={styles.emptySecondaryButton}>
-          <Text style={styles.emptySecondaryButtonText}>{t("connections.goToTogether")}</Text>
+        <Pressable
+          onPress={() => navigation.navigate("PlayMatch", { activity: "draw" })}
+          style={styles.emptySecondaryButton}
+        >
+          <Text style={styles.emptySecondaryButtonText}>
+            {tt("connections.startNewSession", "Начать новую совместную сессию")}
+          </Text>
         </Pressable>
       </View>
     </ScrollView>
@@ -533,23 +677,29 @@ export default function ConnectionsFeedScreen() {
           <Text style={styles.cardDate}>{card.freshnessLabel}</Text>
         </View>
 
-        <Text style={styles.previewText} numberOfLines={2}>
-          {card.previewText}
-        </Text>
+        <View style={styles.contextBlock}>
+          <Text style={styles.contextLabel}>
+            {tt("connections.sharedMomentLabel", "Что уже произошло между вами")}
+          </Text>
+          <Text style={styles.contextText}>{card.sharedMomentText}</Text>
+        </View>
+
+        <View style={styles.contextBlock}>
+          <Text style={styles.contextLabel}>{card.continuationLabel}</Text>
+          <Text style={styles.previewText} numberOfLines={2}>
+            {card.previewText}
+          </Text>
+        </View>
 
         <View style={styles.metaRow}>
-          {card.strokeCount != null ? (
-            <View style={styles.metaPill}>
-              <Text style={styles.metaPillText}>
-                {t("connections.strokeCount", { count: String(card.strokeCount) })}
-              </Text>
-            </View>
-          ) : null}
+          <View style={styles.metaPill}>
+            <Text style={styles.metaPillText}>{card.resultLabel}</Text>
+          </View>
           <View style={styles.metaPill}>
             <Text style={styles.metaPillText}>
               {card.isFallback
-                ? tt("connections.chatAlreadyLive", "Личный чат уже жив")
-                : tt("connections.sharedStoryAndChat", "Общая история уже открыла связь")}
+                ? tt("connections.chatAlreadyLive", "Личный чат уже живёт как продолжение")
+                : tt("connections.sharedStoryAndChat", "Связь уже держится на этой общей истории")}
             </Text>
           </View>
         </View>
@@ -558,7 +708,7 @@ export default function ConnectionsFeedScreen() {
           {!card.isFallback && card.sessionId ? (
             <Pressable onPress={() => openDetail(card.sessionId!)} style={styles.secondaryCta}>
               <Text style={styles.secondaryCtaText}>
-                {tt("connections.openStory", "Открыть общую историю")}
+                {tt("connections.openStory", "Вернуться к общей истории")}
               </Text>
             </Pressable>
           ) : null}
@@ -570,13 +720,15 @@ export default function ConnectionsFeedScreen() {
             <Text style={styles.primaryCtaText}>
               {openingCardId === card.id
                 ? tt("connections.openingChat", "Открываем чат…")
-                : tt("connections.continueInChat", "Продолжить в чате")}
+                : card.threadId
+                  ? tt("connections.continueInChat", "Продолжить в личном чате")
+                  : tt("connections.openPrivateChat", "Открыть личный чат")}
             </Text>
           </Pressable>
         </View>
       </View>
     ),
-    [openChat, openDetail, openingCardId, t, tt]
+    [openChat, openDetail, openingCardId, tt]
   );
 
   if (!uid) {
@@ -588,10 +740,10 @@ export default function ConnectionsFeedScreen() {
         <View style={styles.emptyWrap}>
           <CoreStateCard
             icon="person-circle-outline"
-            title={tt("connections.authRequiredTitle", "Connections require sign-in")}
+            title={tt("connections.authRequiredTitle", "Войдите, чтобы увидеть свои связи")}
             body={tt(
-              "connections.authRequiredBody",
-              "Sign in to see open connections, shared stories, and quick entry into personal chats."
+              "connections.authRequiredBodyCoreLoop",
+              "После входа здесь будут собираться связи, которые уже выросли из ваших совместных сессий во Вместе."
             )}
             primaryAction={{ label: t("menu.profile"), onPress: () => navigation.navigate("Profile") }}
             secondaryAction={{ label: t("connections.goToTogether"), onPress: goToTogether }}
@@ -612,8 +764,8 @@ export default function ConnectionsFeedScreen() {
             icon="cloud-offline-outline"
             title={tt("connections.errorTitle", "Connections are temporarily unavailable")}
             body={tt(
-              "connections.offlineBody",
-              "We couldn't connect your connections right now. Try again later or go back to Together."
+              "connections.offlineBodyCoreLoop",
+              "Сейчас не получается собрать связи и их общие истории. Попробуй позже или вернись во Вместе."
             )}
             primaryAction={{ label: t("connections.goToTogether"), onPress: goToTogether }}
             secondaryAction={{
@@ -675,12 +827,12 @@ export default function ConnectionsFeedScreen() {
           {historyCards.length ? (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>
-                {tt("connections.openConnectionsTitleCoreLoop", "Открывшиеся после Together связи")}
+                {tt("connections.openConnectionsTitleCoreLoop", "Связи с уже прожитым общим контекстом")}
               </Text>
               <Text style={styles.sectionText}>
                 {tt(
                   "connections.openConnectionsBodyCoreLoop",
-                  "Эти люди уже прошли главный loop Together: общая сессия, результат и взаимное открытие контакта."
+                  "Каждая связь здесь уже привязана к конкретной совместной сессии, её результату и следующему личному шагу между вами."
                 )}
               </Text>
               {historyCards.map(renderConnectionCard)}
@@ -690,12 +842,12 @@ export default function ConnectionsFeedScreen() {
           {fallbackCards.length ? (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>
-                {tt("connections.fallbackTitle", "Личные чаты, которые уже живут дальше")}
+                {tt("connections.fallbackTitleCoreLoop", "Связи, где чат уже продолжает историю")}
               </Text>
               <Text style={styles.sectionText}>
                 {tt(
-                  "connections.fallbackBody",
-                  "Здесь остаются связи, где личный чат уже жив, даже если полная страница общей истории ещё не успела подтянуться."
+                  "connections.fallbackBodyCoreLoop",
+                  "Личный чат здесь уже живёт как продолжение общего момента, даже если полная страница истории ещё не успела прикрепиться."
                 )}
               </Text>
               {fallbackCards.map(renderConnectionCard)}
@@ -857,6 +1009,27 @@ const styles = StyleSheet.create({
     color: theme.colors.muted,
     fontSize: 12,
     fontWeight: "700",
+  },
+  contextBlock: {
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+    borderRadius: theme.shapes.cardInner,
+    backgroundColor: "rgba(255,255,255,0.03)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.05)",
+  },
+  contextLabel: {
+    color: theme.colors.muted,
+    fontSize: 11,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 0.7,
+  },
+  contextText: {
+    color: theme.colors.text,
+    fontSize: 13,
+    lineHeight: 19,
   },
   previewText: {
     color: theme.colors.subtext,

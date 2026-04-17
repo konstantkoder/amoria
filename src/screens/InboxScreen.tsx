@@ -135,7 +135,7 @@ export default function InboxScreen() {
             thread,
             uid,
             t("common.user"),
-            tt("inbox.previewFallback", "The connection is open. You can write first."),
+            tt("inbox.previewFallback", "Связь уже открыта. Здесь можно продолжить личный разговор."),
             freshnessState.dmThreads[thread.id] ?? 0,
             (currentThread) =>
               formatActivitySignalLabel(
@@ -155,10 +155,10 @@ export default function InboxScreen() {
   const sourceLabels = useMemo(
     () => ({
       play: {
-        draw: tt("inbox.sourcePlay", "Открылось после общей сессии"),
-        chain_draw: tt("inbox.sourcePlayChainDraw", "Открылось после рисунка по очереди"),
-        daily_prompt: tt("inbox.sourcePlayDailyPrompt", "Открылось после общей темы дня"),
-        color_mood: tt("inbox.sourcePlayColorMood", "Открылось после палитры настроения"),
+        draw: tt("inbox.sourcePlay", "Выросло из общей сессии"),
+        chain_draw: tt("inbox.sourcePlayChainDraw", "Выросло из рисунка по очереди"),
+        daily_prompt: tt("inbox.sourcePlayDailyPrompt", "Выросло из общей темы дня"),
+        color_mood: tt("inbox.sourcePlayColorMood", "Выросло из общей палитры"),
       },
       direct: tt("inbox.sourceDefault", "Личный чат"),
     }),
@@ -175,14 +175,14 @@ export default function InboxScreen() {
     <View style={styles.heroCard}>
       <View style={styles.heroHeaderRow}>
         <Text style={styles.heroTitle}>
-          {tt("inbox.activeTitle", "Личные чаты после Together")}
+          {tt("inbox.activeTitleCoreLoop", "Личное продолжение открытых связей")}
         </Text>
         <Text style={styles.heroCount}>{cards.length}</Text>
       </View>
       <Text style={styles.heroText}>
         {tt(
-          "inbox.subheader",
-          "Когда связь уже открылась, разговор продолжается здесь. «Связи» держат общий контекст, а «Чаты» — сам личный диалог."
+          "inbox.subheaderCoreLoop",
+          "Сначала общий результат открывает связь в «Связях», а здесь уже живёт сам личный разговор. История остаётся там, продолжение — здесь."
         )}
       </Text>
       {showAction ? (
@@ -206,8 +206,8 @@ export default function InboxScreen() {
       <Text style={styles.emptyStateTitle}>{t("chats.empty")}</Text>
       <Text style={styles.emptyStateText}>
         {tt(
-          "inbox.emptyBody",
-          "Когда после общей сессии контакт откроется взаимно, личный чат появится здесь и будет ждать продолжения."
+          "inbox.emptyBodyCoreLoop",
+          "Когда после общей сессии связь откроется взаимно, она сначала появится в «Связях», а личный чат будет ждать продолжения здесь."
         )}
       </Text>
       <Pressable
@@ -357,8 +357,8 @@ export default function InboxScreen() {
             icon="person-circle-outline"
             title={tt("inbox.authRequiredTitle", "Chats require sign-in")}
             body={tt(
-              "inbox.authRequiredBody",
-              "Sign in to see personal chats opened after shared sessions."
+              "inbox.authRequiredBodyCoreLoop",
+              "Войдите, чтобы увидеть личные чаты, которые выросли из уже открытых связей после общих сессий."
             )}
             primaryAction={{ label: t("menu.profile"), onPress: () => navigation.navigate("Profile") }}
             secondaryAction={{ label: t("connections.goToTogether"), onPress: goToTogether }}
@@ -379,8 +379,8 @@ export default function InboxScreen() {
             icon="cloud-offline-outline"
             title={tt("inbox.errorTitle", "Chats are temporarily unavailable")}
             body={tt(
-              "inbox.offlineBody",
-              "We couldn't connect your personal chats right now. Try later or go back to Together."
+              "inbox.offlineBodyCoreLoop",
+              "Сейчас не получается открыть личные продолжения ваших связей. Попробуй позже или вернись во Вместе."
             )}
             primaryAction={{ label: t("connections.goToTogether"), onPress: goToTogether }}
             secondaryAction={{
