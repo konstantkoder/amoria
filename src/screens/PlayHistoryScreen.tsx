@@ -76,6 +76,30 @@ function getHistoryContextText(
   }
 }
 
+function getHistoryRelationshipText(
+  item: HistoryCard,
+  tt: (key: string, fallback: string, params?: Record<string, string>) => string
+) {
+  if (item.revealOutcome === "open_open") {
+    return tt(
+      "playHistory.storyStatusOpen",
+      "Эта история уже стала открытой связью. Отсюда можно вернуться и к самому моменту, и в личный разговор."
+    );
+  }
+
+  if (item.revealOutcome === "waiting") {
+    return tt(
+      "playHistory.storyStatusWaiting",
+      "История уже сохранена. Если открытие станет взаимным, личный разговор вырастет именно из этого общего момента."
+    );
+  }
+
+  return tt(
+    "playHistory.storyStatusStoryOnly",
+    "Этот момент остался общей историей. Он сохранён здесь даже без личного разговора и никуда не исчезнет."
+  );
+}
+
 export default function PlayHistoryScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"PlayHistory">>();
   const { t } = useLocale();
@@ -261,6 +285,7 @@ export default function PlayHistoryScreen() {
       const metricLabel = getPlayActivityMetricLabel(item.activity, "history");
       const revealCopy = getPlayRevealCopy(item.revealOutcome);
       const contextText = getHistoryContextText(item, tt);
+      const relationshipText = getHistoryRelationshipText(item, tt);
 
       return (
         <Pressable
@@ -302,6 +327,7 @@ export default function PlayHistoryScreen() {
           </View>
 
           <Text style={styles.cardContext}>{contextText}</Text>
+          <Text style={styles.cardStatus}>{relationshipText}</Text>
 
           <View style={styles.metaGrid}>
             <View style={styles.metaChip}>
@@ -349,7 +375,7 @@ export default function PlayHistoryScreen() {
         title={tt("playHistory.emptyTitle", "Общие истории появятся здесь")}
         body={tt(
           "playHistory.emptyBody",
-          "После первой совместной сессии здесь появятся ваши общие истории."
+          "После первой совместной сессии её история останется здесь: с общим итогом, replay или палитрой и дальнейшим путём связи."
         )}
         primaryAction={{
           label: tt("playHistory.startCta", "Начать совместную сессию"),
@@ -390,7 +416,7 @@ export default function PlayHistoryScreen() {
             title={tt("playHistory.authRequiredTitle", "History requires sign-in")}
             body={tt(
               "playHistory.authRequiredBody",
-              "Sign in to see completed shared sessions, replay, and open chats."
+              "Sign in to return to your shared stories, open replay or the palette, and continue into conversation when a connection is already open."
             )}
             primaryAction={{ label: t("menu.profile"), onPress: () => navigation.navigate("Profile") }}
             secondaryAction={{ label: t("connections.goToTogether"), onPress: goToTogether }}
@@ -409,7 +435,7 @@ export default function PlayHistoryScreen() {
             title={tt("playHistory.errorTitle", "История временно недоступна")}
             body={tt(
               "playHistory.offlineBody",
-              "We couldn't connect your shared stories right now. Try again later or go back to Together."
+              "We couldn't connect your shared-story archive right now. Try again later or go back to Together."
             )}
             primaryAction={{ label: t("connections.goToTogether"), onPress: goToTogether }}
             secondaryAction={{ label: t("tabs.connections"), onPress: goToConnections }}
@@ -454,7 +480,7 @@ export default function PlayHistoryScreen() {
           {actionError ? (
             <View style={styles.inlineErrorCard}>
               <Text style={styles.inlineErrorTitle}>
-                {tt("playHistory.inlineErrorTitle", "Личный чат пока не прикрепился")}
+                {tt("playHistory.inlineErrorTitle", "Личный разговор ещё не прикрепился к этой истории")}
               </Text>
               <Text style={styles.inlineErrorText}>{actionError}</Text>
             </View>
@@ -468,7 +494,7 @@ export default function PlayHistoryScreen() {
             <Text style={styles.heroText}>
               {tt(
                 "playHistory.heroBody",
-                "Здесь можно быстро увидеть режим, итог и открыть постоянную страницу каждой истории."
+                "Здесь остаётся всё, что уже произошло между вами: общий итог, путь к разговору и спокойный способ вернуться к каждой истории."
               )}
             </Text>
             <View style={styles.heroCountPill}>
@@ -491,6 +517,17 @@ export default function PlayHistoryScreen() {
           </View>
 
           <View style={styles.section}>
+            <View style={styles.sectionIntro}>
+              <Text style={styles.sectionTitle}>
+                {tt("playHistory.sectionTitle", "Истории, которые уже случились между вами")}
+              </Text>
+              <Text style={styles.sectionText}>
+                {tt(
+                  "playHistory.sectionBody",
+                  "Открывай detail, возвращайся в разговор, если связь уже открылась, или начинай новую совместную сессию из этого же общего контекста."
+                )}
+              </Text>
+            </View>
             {cards.map(renderCard)}
           </View>
         </ScrollView>
@@ -602,6 +639,20 @@ const styles = StyleSheet.create({
   section: {
     gap: 12,
   },
+  sectionIntro: {
+    paddingHorizontal: 2,
+    gap: 6,
+  },
+  sectionTitle: {
+    color: theme.colors.text,
+    fontSize: 17,
+    fontWeight: "800",
+  },
+  sectionText: {
+    color: theme.colors.subtext,
+    fontSize: 14,
+    lineHeight: 20,
+  },
   card: {
     borderRadius: theme.shapes.card,
     padding: 16,
@@ -669,6 +720,12 @@ const styles = StyleSheet.create({
     color: theme.colors.subtext,
     fontSize: 14,
     lineHeight: 20,
+  },
+  cardStatus: {
+    color: theme.colors.text,
+    fontSize: 13,
+    lineHeight: 19,
+    fontWeight: "600",
   },
   metaGrid: {
     flexDirection: "row",
