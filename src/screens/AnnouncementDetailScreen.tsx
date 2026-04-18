@@ -100,20 +100,20 @@ function buildAnnouncementResponsePresentation(
     case "fallback_interest":
       if (hasResponded) {
         return {
-          title: copyOrFallback(
-            t,
-            "nearby.detail.respondedFallbackTitle",
-            "Интерес сохранён локально"
-          ),
-          body: copyOrFallback(
-            t,
-            "nearby.detail.respondedFallbackBody",
-            "Мы отметили интерес только локально на этом устройстве. Для demo-объявлений и карточек без доступного DM это пока и есть текущий fallback."
-          ),
-          actionLabel: copyOrFallback(t, "nearby.detail.backToList", "К объявлениям"),
-          busyLabel: copyOrFallback(t, "nearby.detail.responding", "Сохраняем интерес..."),
-          buttonVariant: "primary",
-        };
+        title: copyOrFallback(
+          t,
+          "nearby.detail.respondedFallbackTitle",
+          "Интерес сохранён локально"
+        ),
+        body: copyOrFallback(
+          t,
+          "nearby.detail.respondedFallbackBody",
+          "Интерес сохранён на этом устройстве. Для объявлений без доступного личного чата это пока доступное действие."
+        ),
+        actionLabel: copyOrFallback(t, "nearby.detail.backToList", "К объявлениям"),
+        busyLabel: copyOrFallback(t, "nearby.detail.responding", "Сохраняем интерес..."),
+        buttonVariant: "primary",
+      };
       }
       return {
         title: copyOrFallback(
@@ -124,7 +124,7 @@ function buildAnnouncementResponsePresentation(
         body: copyOrFallback(
           t,
           "nearby.detail.responseFallbackBody",
-          "У этой карточки сейчас нет доступного личного чата. Кнопка ниже только сохранит интерес локально на этом устройстве."
+          "Сейчас для этого объявления доступно только сохранение интереса на устройстве."
         ),
         actionLabel: copyOrFallback(t, "nearby.detail.saveInterest", "Сохранить интерес"),
         busyLabel: copyOrFallback(t, "nearby.detail.responding", "Сохраняем интерес..."),
@@ -381,6 +381,9 @@ export default function AnnouncementDetailScreen() {
         {announcement ? (
           <>
             <View style={styles.summaryCard}>
+              <Text style={styles.summaryKicker}>
+                {copyOrFallback(t, "nearby.create.kicker", "Оформленный запрос")}
+              </Text>
               <View style={styles.summaryMetaRow}>
                 <View style={styles.categoryPill}>
                   <Text style={styles.categoryPillText}>
@@ -432,7 +435,7 @@ export default function AnnouncementDetailScreen() {
                     {copyOrFallback(
                       t,
                       "nearby.detail.photoWithBody",
-                      "У объявления есть визуальный слот. Полный media-flow подключим позже."
+                      "Фото помогает быстрее понять формат объявления и контекст встречи."
                     )}
                   </Text>
                 </View>
@@ -536,6 +539,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
     gap: 10,
+  },
+  summaryKicker: {
+    color: theme.colors.accent,
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.9,
+    textTransform: "uppercase",
   },
   summaryMetaRow: {
     flexDirection: "row",

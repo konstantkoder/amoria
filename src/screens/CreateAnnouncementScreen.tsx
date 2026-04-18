@@ -82,7 +82,7 @@ export default function CreateAnnouncementScreen() {
     copyOrFallback(
       t,
       "nearby.create.previewBodyFallback",
-      "A short description will appear here and explain why this announcement matters."
+      "Здесь будет видно, кого ты ищешь, где это актуально и зачем откликаться."
     );
   const previewPlace = city.trim() || fallbackPlaceLabel;
   const showPreview = Boolean(title.trim() || description.trim() || city.trim() || photoUri);
@@ -203,16 +203,16 @@ export default function CreateAnnouncementScreen() {
       >
         <View style={styles.introCard}>
           <Text style={styles.introKicker}>
-            {copyOrFallback(t, "nearby.create.kicker", "Новый локальный пост")}
+            {copyOrFallback(t, "nearby.create.kicker", "Оформленный запрос")}
           </Text>
           <Text style={styles.introTitle}>
-            {copyOrFallback(t, "nearby.create.heroTitle", "Собери понятное объявление без перегруза")}
+            {copyOrFallback(t, "nearby.create.heroTitle", "Опубликуй понятное объявление")}
           </Text>
           <Text style={styles.introBody}>
             {copyOrFallback(
               t,
               "nearby.create.heroBody",
-              "Фото можно добавить, но это не обязательно. Главное — коротко объяснить, что ты ищешь и где это актуально."
+              "Это не моментный статус. Коротко и ясно напиши, кого ищешь, где и ради чего встречаетесь."
             )}
           </Text>
         </View>
@@ -361,12 +361,12 @@ export default function CreateAnnouncementScreen() {
               ? copyOrFallback(
                   t,
                   "nearby.create.publishHint",
-                  "После публикации объявление сразу появится в Nearby."
+                  "После публикации объявление сразу появится в Nearby → Объявления как оформленный запрос."
                 )
               : copyOrFallback(
                   t,
                   "nearby.create.fillBody",
-                  "Добавь заголовок и короткое описание, чтобы объявление выглядело понятным."
+                  "Добавь заголовок и короткое описание, чтобы было ясно, кого и для чего ты ищешь."
                 )}
           </Text>
         </View>
@@ -411,8 +411,8 @@ export default function CreateAnnouncementScreen() {
                   )}
                   <Text style={styles.previewMediaText}>
                     {photoUri
-                      ? copyOrFallback(t, "nearby.announcements.photoYes", "With photo")
-                      : copyOrFallback(t, "nearby.announcements.photoNo", "No photo")}
+                      ? copyOrFallback(t, "nearby.announcements.photoYes", "С фото")
+                      : copyOrFallback(t, "nearby.announcements.photoNo", "Без фото")}
                   </Text>
                 </View>
               </View>
@@ -420,7 +420,11 @@ export default function CreateAnnouncementScreen() {
               <View style={styles.previewFooter}>
                 <Text style={styles.previewAuthor}>{authorLabel}</Text>
                 <Text style={styles.previewAuthorHint}>
-                  {copyOrFallback(t, "nearby.create.previewFooter", "Появится в Nearby → Объявления")}
+                  {copyOrFallback(
+                    t,
+                    "nearby.create.previewFooter",
+                    "Появится в Nearby → Объявления как оформленный запрос"
+                  )}
                 </Text>
               </View>
             </View>

@@ -70,7 +70,7 @@ export default function NearbyAnnouncementsSection({
         <View style={styles.heroTop}>
           <View style={styles.heroCopy}>
             <Text style={styles.heroKicker}>
-              {copyOrFallback(t, "nearby.announcements.kicker", "Локальный маркетплейс")}
+              {copyOrFallback(t, "nearby.announcements.kicker", "Оформленные запросы")}
             </Text>
             <Text style={styles.heroTitle}>
               {copyOrFallback(t, "nearby.announcements.title", "Объявления рядом")}
@@ -79,7 +79,7 @@ export default function NearbyAnnouncementsSection({
               {copyOrFallback(
                 t,
                 "nearby.announcements.body",
-                "Поездка, прогулка, кофе или совместная активность рядом."
+                "Более явные объявления: кого ты ищешь, где встречаться и какой формат нужен."
               )}
             </Text>
           </View>
@@ -158,28 +158,35 @@ export default function NearbyAnnouncementsSection({
                       </View>
                     ) : null}
                   </View>
-                  <View style={styles.cardFactsRow}>
-                    <View style={styles.metaPill}>
-                      <Ionicons name="person-outline" size={13} color={theme.colors.subtext} />
-                      <Text style={styles.metaPillText}>{item.authorLabel}</Text>
-                    </View>
-                    <View style={styles.metaPill}>
-                      <Ionicons name="location-outline" size={13} color={theme.colors.subtext} />
-                      <Text style={styles.metaPillText}>{item.placeLabel || fallbackPlaceLabel}</Text>
-                    </View>
-                    {item.proximityLabel ? (
-                      <View style={styles.metaPill}>
-                        <Ionicons name="navigate-outline" size={13} color={theme.colors.subtext} />
-                        <Text style={styles.metaPillText}>{item.proximityLabel}</Text>
-                      </View>
-                    ) : null}
-                  </View>
+                  <Text style={styles.cardLabel}>
+                    {copyOrFallback(t, "nearby.create.kicker", "Оформленный запрос")}
+                  </Text>
                   <Text style={styles.cardTitle} numberOfLines={2}>
                     {item.title}
                   </Text>
                   <Text style={styles.cardDescription} numberOfLines={2}>
                     {item.description}
                   </Text>
+                  <View style={styles.cardFactsPanel}>
+                    <View style={styles.cardFactsRow}>
+                      <View style={styles.metaPill}>
+                        <Ionicons name="person-outline" size={13} color={theme.colors.subtext} />
+                        <Text style={styles.metaPillText}>{item.authorLabel}</Text>
+                      </View>
+                      <View style={styles.metaPill}>
+                        <Ionicons name="location-outline" size={13} color={theme.colors.subtext} />
+                        <Text style={styles.metaPillText}>
+                          {item.placeLabel || fallbackPlaceLabel}
+                        </Text>
+                      </View>
+                      {item.proximityLabel ? (
+                        <View style={styles.metaPill}>
+                          <Ionicons name="navigate-outline" size={13} color={theme.colors.subtext} />
+                          <Text style={styles.metaPillText}>{item.proximityLabel}</Text>
+                        </View>
+                      ) : null}
+                    </View>
+                  </View>
                 </View>
 
                 <View style={[styles.mediaTile, item.hasPhoto ? styles.mediaTileActive : null]}>
@@ -204,7 +211,7 @@ export default function NearbyAnnouncementsSection({
                 <Text style={styles.cardTimestamp}>{formatAgoLong(item.createdAt, t)}</Text>
                 <View style={styles.openButton}>
                   <Text style={styles.openButtonText}>
-                    {copyOrFallback(t, "nearby.announcements.open", "Открыть")}
+                    {copyOrFallback(t, "nearby.announcements.open", "Открыть объявление")}
                   </Text>
                   <Ionicons
                     name="chevron-forward-outline"
@@ -228,7 +235,7 @@ export default function NearbyAnnouncementsSection({
             {copyOrFallback(
               t,
               "nearby.announcements.emptyBody",
-              "Смените фильтр или создайте первое объявление для своей локальной активности."
+              "Смени фильтр или размести первое объявление, если ищешь компанию, попутчика или более конкретный формат встречи."
             )}
           </Text>
           <Pressable onPress={onCreate} style={styles.emptyButton}>
@@ -378,6 +385,13 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     fontWeight: "800",
   },
+  cardLabel: {
+    color: theme.colors.accent,
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
+  },
   categoryPill: {
     borderRadius: theme.shapes.pill,
     paddingHorizontal: 8,
@@ -424,6 +438,13 @@ const styles = StyleSheet.create({
     color: theme.colors.subtext,
     fontSize: 13,
     lineHeight: 18,
+  },
+  cardFactsPanel: {
+    borderRadius: 14,
+    padding: 8,
+    backgroundColor: "rgba(255,255,255,0.03)",
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
   },
   mediaTile: {
     width: 74,

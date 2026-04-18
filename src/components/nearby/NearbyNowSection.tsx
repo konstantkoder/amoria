@@ -395,7 +395,7 @@ export default function NearbyNowSection({
       return copyOrFallback(
         t,
         "nearby.now.locationLoadingTitle",
-        "Подготавливаем людей рядом"
+        "Подготавливаем nearby pulse"
       );
     }
     if (permissionBlocked) {
@@ -431,21 +431,21 @@ export default function NearbyNowSection({
       return copyOrFallback(
         t,
         "nearby.now.locationLoadingBody",
-        "Проверяем доступ к геолокации и готовим локальную ленту людей поблизости."
+        "Проверяем геолокацию. Без неё Сейчас не покажет nearby pulse и не откроет публикацию."
       );
     }
     if (permissionBlocked) {
       return copyOrFallback(
         t,
         "nearby.now.locationBlockedBody",
-        "Без геолокации мы не сможем показать людей и статусы рядом. Доступ можно вернуть через настройки телефона."
+        "Без геолокации Сейчас не работает честно: не показывает nearby pulse и не публикует моментный статус."
       );
     }
     if (locationDeclined) {
       return copyOrFallback(
         t,
         "nearby.now.locationDeclinedBody",
-        "Без геолокации раздел не сможет показать людей поблизости. Можно включить её в любой момент."
+        "Без геолокации Сейчас не покажет nearby pulse и не даст опубликовать моментный статус. Её можно включить в любой момент."
       );
     }
     if (locationEnabled) {
@@ -454,14 +454,14 @@ export default function NearbyNowSection({
         copyOrFallback(
           t,
           "nearby.now.locationRetryBody",
-          "Доступ уже включён, но координаты пока не обновились. Попробуй запросить их ещё раз."
+          "Доступ уже включён, но координаты ещё не обновились. Пока Сейчас не показывает nearby pulse и не публикует статус."
         )
       );
     }
     return copyOrFallback(
       t,
       "nearby.now.locationPromptBody",
-      "Геолокация нужна, чтобы показывать людей поблизости и публиковать твой статус примерно рядом."
+      "Геолокация нужна, потому что Сейчас привязан к live nearby pulse: без неё не будет ни ленты, ни публикации."
     );
   }, [locationDeclined, locationEnabled, locationError, permissionBlocked, posLoading, prefsLoading, t]);
 
@@ -656,19 +656,23 @@ export default function NearbyNowSection({
 
     return (
       <View style={styles.postCard}>
-        <View style={styles.postHeader}>
-          <Text style={styles.postAuthor}>
-            {moodInfo.emoji} {authorLabel}
-          </Text>
-          <Text style={styles.postMeta}>
-            {formatAgoLong(item.createdAt, t)}
-            {distance != null ? ` • ~${distance} ${t("units.km")}` : ""}
-          </Text>
-        </View>
-        <View style={styles.postMoodPill}>
-          <Text style={styles.postMoodText}>{moodInfo.label}</Text>
+        <View style={styles.postTopRow}>
+          <View style={styles.postMoodPill}>
+            <Text style={styles.postMoodEmoji}>{moodInfo.emoji}</Text>
+            <Text style={styles.postMoodText}>{moodInfo.label}</Text>
+          </View>
+          <View style={styles.postMetaPill}>
+            <Text style={styles.postMetaText}>
+              {formatAgoLong(item.createdAt, t)}
+              {distance != null ? ` • ~${distance} ${t("units.km")}` : ""}
+            </Text>
+          </View>
         </View>
         <Text style={styles.postText}>{item.text}</Text>
+        <View style={styles.postFooter}>
+          <Ionicons name="person-outline" size={13} color={theme.colors.subtext} />
+          <Text style={styles.postAuthor}>{authorLabel}</Text>
+        </View>
       </View>
     );
   };
@@ -1042,48 +1046,68 @@ const styles = StyleSheet.create({
   },
   postCard: {
     borderRadius: 16,
-    padding: 11,
+    padding: 12,
     marginBottom: 6,
-    backgroundColor: "rgba(17, 20, 36, 0.88)",
+    backgroundColor: "rgba(15, 21, 30, 0.88)",
     borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
-    gap: 7,
+    borderColor: "rgba(110, 231, 183, 0.12)",
+    gap: 8,
   },
-  postHeader: {
+  postTopRow: {
     flexDirection: "row",
     alignItems: "flex-start",
     justifyContent: "space-between",
     flexWrap: "wrap",
     gap: 8,
   },
-  postAuthor: {
-    color: "#E5E7EB",
-    fontSize: 13,
-    fontWeight: "700",
-    flex: 1,
-  },
-  postMeta: {
-    color: "#9CA3AF",
-    fontSize: 11,
-  },
-  postMoodPill: {
-    alignSelf: "flex-start",
+  postMetaPill: {
     borderRadius: theme.shapes.pill,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    backgroundColor: "rgba(255,255,255,0.05)",
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    backgroundColor: "rgba(255,255,255,0.04)",
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
   },
-  postMoodText: {
-    color: theme.colors.subtext,
+  postMetaText: {
+    color: "#9CA3AF",
     fontSize: 11,
     fontWeight: "700",
   },
-  postText: {
-    color: "#D1D5DB",
+  postMoodPill: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    backgroundColor: "rgba(110, 231, 183, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(110, 231, 183, 0.18)",
+  },
+  postMoodEmoji: {
     fontSize: 13,
-    lineHeight: 18,
+  },
+  postMoodText: {
+    color: "#CFFAE9",
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  postText: {
+    color: "#E5E7EB",
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  postFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+  },
+  postAuthor: {
+    color: theme.colors.subtext,
+    fontSize: 12,
+    fontWeight: "700",
+    flex: 1,
   },
   loadingWrap: {
     paddingTop: 24,

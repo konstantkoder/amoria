@@ -140,7 +140,7 @@ export default function NearbyHubScreen() {
         body: copyOrFallback(
           t,
           "nearby.segment.nowBody",
-          "Быстрый статусный слой и люди рядом."
+          "Моментный nearby pulse: короткий статус и желание прямо сейчас."
         ),
       },
       {
@@ -149,7 +149,7 @@ export default function NearbyHubScreen() {
         body: copyOrFallback(
           t,
           "nearby.segment.announcementsBody",
-          "Локальный marketplace для совместных планов."
+          "Оформленные запросы: кого ищешь, где и для чего."
         ),
       },
       {
@@ -164,6 +164,26 @@ export default function NearbyHubScreen() {
     ],
     [t]
   );
+  const sectionNoteTone = React.useMemo(() => {
+    switch (selectedSection) {
+      case "announcements":
+        return {
+          card: styles.sectionNoteAnnouncements,
+          label: styles.sectionNoteLabelAnnouncements,
+        };
+      case "rooms":
+        return {
+          card: styles.sectionNoteRooms,
+          label: styles.sectionNoteLabelRooms,
+        };
+      case "now":
+      default:
+        return {
+          card: styles.sectionNoteNow,
+          label: styles.sectionNoteLabelNow,
+        };
+    }
+  }, [selectedSection]);
 
   const activeSectionCopy = sectionItems.find((item) => item.id === selectedSection) ?? sectionItems[0];
   const visibleAnnouncements = React.useMemo(
@@ -204,10 +224,17 @@ export default function NearbyHubScreen() {
         <View style={styles.topBlock}>
           <View style={styles.introRow}>
             <Text style={styles.introKicker}>
-              {copyOrFallback(t, "nearby.heroKicker", "Локальная social layer")}
+              {copyOrFallback(t, "nearby.heroKicker", "Nearby по темпу")}
             </Text>
             <Text style={styles.introTitle}>
-              {copyOrFallback(t, "nearby.heroTitle", "Всё рядом, в одном месте")}
+              {copyOrFallback(t, "nearby.heroTitle", "Сейчас, запросы и комнаты рядом")}
+            </Text>
+            <Text style={styles.introBody}>
+              {copyOrFallback(
+                t,
+                "nearby.heroBody",
+                "Используй «Сейчас» для быстрого nearby pulse, «Объявления» для оформленного запроса, а «Комнаты» для живого группового контекста."
+              )}
             </Text>
           </View>
 
@@ -236,8 +263,8 @@ export default function NearbyHubScreen() {
             </View>
           </View>
 
-          <View style={styles.sectionNoteCard}>
-            <Text style={styles.sectionNoteLabel}>
+          <View style={[styles.sectionNoteCard, sectionNoteTone.card]}>
+            <Text style={[styles.sectionNoteLabel, sectionNoteTone.label]}>
               {sectionReady
                 ? activeSectionCopy.label
                 : copyOrFallback(t, "nearby.loading", "Собираем Nearby…")}
@@ -282,6 +309,12 @@ const styles = StyleSheet.create({
     fontSize: 17,
     lineHeight: 21,
     fontWeight: "800",
+  },
+  introBody: {
+    color: theme.colors.subtext,
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 2,
   },
   segmentCard: {
     borderRadius: 18,
@@ -340,6 +373,27 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
     fontSize: 12,
     fontWeight: "800",
+  },
+  sectionNoteNow: {
+    backgroundColor: "rgba(21, 33, 34, 0.82)",
+    borderColor: "rgba(110, 231, 183, 0.18)",
+  },
+  sectionNoteLabelNow: {
+    color: "#CFFAE9",
+  },
+  sectionNoteAnnouncements: {
+    backgroundColor: "rgba(31, 20, 35, 0.84)",
+    borderColor: "rgba(255, 122, 60, 0.2)",
+  },
+  sectionNoteLabelAnnouncements: {
+    color: "#FFD9C8",
+  },
+  sectionNoteRooms: {
+    backgroundColor: "rgba(17, 23, 41, 0.84)",
+    borderColor: "rgba(96, 165, 250, 0.2)",
+  },
+  sectionNoteLabelRooms: {
+    color: "#D7E7FF",
   },
   sectionNoteBody: {
     color: theme.colors.subtext,
