@@ -17,6 +17,10 @@ import ScreenShell from "@/components/ScreenShell";
 import LocationConsentModal from "@/components/LocationConsentModal";
 import { useLocale } from "@/contexts/LocaleContext";
 import { auth, db } from "@/config/firebaseConfig";
+import {
+  clearSingleDeviceDemo,
+  prepareSingleDeviceDemo,
+} from "@/dev/seedDemoFlow";
 import { loadAdultModeEnabled, setAdultModeEnabled } from "@/services/adultMode";
 import {
   loadLocationPrefs,
@@ -45,6 +49,7 @@ export default function SettingsScreen() {
   const [consentAction, setConsentAction] = useState<
     "nearby" | "showPeople" | "shareMe" | null
   >(null);
+  const [devDemoAction, setDevDemoAction] = useState<"prepare" | "clear" | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -231,6 +236,47 @@ export default function SettingsScreen() {
     }
   }, [t]);
 
+  const showDevDemoSummary = useCallback(
+    (title: string, details: { prepared: string[]; cleared: string[]; warnings: string[] }) => {
+      const lines = [
+        ...details.prepared.map((item) => `- ${item}`),
+        ...details.cleared.map((item) => `- ${item}`),
+        ...details.warnings.map((item) => `- ${item}`),
+      ];
+
+      Alert.alert(title, lines.length ? lines.join("\n") : "No changes were made.");
+    },
+    []
+  );
+
+  const handlePrepareDemoData = useCallback(async () => {
+    if (devDemoAction) return;
+    setDevDemoAction("prepare");
+    try {
+      const summary = await prepareSingleDeviceDemo();
+      showDevDemoSummary("Demo data prepared", summary);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : t("common.error");
+      Alert.alert("Demo seed failed", message);
+    } finally {
+      setDevDemoAction(null);
+    }
+  }, [devDemoAction, showDevDemoSummary, t]);
+
+  const handleClearDemoData = useCallback(async () => {
+    if (devDemoAction) return;
+    setDevDemoAction("clear");
+    try {
+      const summary = await clearSingleDeviceDemo();
+      showDevDemoSummary("Demo data cleared", summary);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : t("common.error");
+      Alert.alert("Demo clear failed", message);
+    } finally {
+      setDevDemoAction(null);
+    }
+  }, [devDemoAction, showDevDemoSummary, t]);
+
   return (
     <ScreenShell title={t("screen.settings")} background="profile">
       <ScrollView showsVerticalScrollIndicator={false}>
@@ -322,6 +368,39 @@ export default function SettingsScreen() {
               <Text style={styles.linkText}>{t("menu.logout")}</Text>
             </TouchableOpacity>
           </View>
+
+          {__DEV__ ? (
+            <>
+              <Text style={styles.sectionTitle}>Dev demo</Text>
+              <View style={styles.card}>
+                <Text style={styles.devHintText}>
+                  Manual single-device seed for Announcements, Inbox, DM, Connections, and shared story review.
+                </Text>
+                <TouchableOpacity
+                  onPress={() => void handlePrepareDemoData()}
+                  style={styles.linkRow}
+                  disabled={devDemoAction !== null}
+                >
+                  <Ionicons name="sparkles-outline" size={18} color="#E5E7EB" />
+                  <Text style={styles.linkText}>
+                    {devDemoAction === "prepare"
+                      ? "Preparing demo data..."
+                      : "Prepare demo data"}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => void handleClearDemoData()}
+                  style={styles.linkRow}
+                  disabled={devDemoAction !== null}
+                >
+                  <Ionicons name="trash-bin-outline" size={18} color="#E5E7EB" />
+                  <Text style={styles.linkText}>
+                    {devDemoAction === "clear" ? "Clearing demo data..." : "Clear demo data"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </>
+          ) : null}
         </View>
       </ScrollView>
 
@@ -375,5 +454,11 @@ const styles = {
     color: "#E5E7EB",
     fontSize: 14,
     fontWeight: "700" as const,
+  },
+  devHintText: {
+    color: "#CBD5E1",
+    fontSize: 13,
+    lineHeight: 18,
+    paddingVertical: 8,
   },
 };

@@ -62,8 +62,9 @@ type CreateAsyncStorageNearbyAnnouncementsRepositoryOptions = {
   demoAnnouncements?: NearbyAnnouncement[];
 };
 
-const DEFAULT_ANNOUNCEMENTS_STORAGE_KEY = "amoria.nearby.announcements.v1";
-const DEFAULT_RESPONSES_STORAGE_KEY = "amoria.nearby.announcementResponses.v1";
+export const NEARBY_ANNOUNCEMENTS_STORAGE_KEY = "amoria.nearby.announcements.v1";
+export const NEARBY_ANNOUNCEMENT_RESPONSES_STORAGE_KEY =
+  "amoria.nearby.announcementResponses.v1";
 const DEFAULT_RESPONSE_SCOPE_ID = "device";
 
 export const NEARBY_ANNOUNCEMENT_CATEGORY_ORDER: NearbyAnnouncementCategory[] = [
@@ -257,9 +258,9 @@ export function createAsyncStorageNearbyAnnouncementsRepository(
 ): NearbyAnnouncementsRepository {
   const storage = options.storage ?? AsyncStorage;
   const announcementsStorageKey =
-    options.announcementsStorageKey ?? DEFAULT_ANNOUNCEMENTS_STORAGE_KEY;
+    options.announcementsStorageKey ?? NEARBY_ANNOUNCEMENTS_STORAGE_KEY;
   const responsesStorageKey =
-    options.responsesStorageKey ?? DEFAULT_RESPONSES_STORAGE_KEY;
+    options.responsesStorageKey ?? NEARBY_ANNOUNCEMENT_RESPONSES_STORAGE_KEY;
   const demoAnnouncements = mergeNearbyAnnouncementCollections(
     ...(options.demoAnnouncements ?? DEFAULT_DEMO_ANNOUNCEMENTS).map((item) => {
       const normalized = normalizeNearbyAnnouncement(item);
