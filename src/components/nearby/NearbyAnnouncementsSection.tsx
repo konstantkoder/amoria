@@ -157,6 +157,12 @@ export default function NearbyAnnouncementsSection({
                         </Text>
                       </View>
                     ) : null}
+                  </View>
+                  <View style={styles.cardFactsRow}>
+                    <View style={styles.metaPill}>
+                      <Ionicons name="person-outline" size={13} color={theme.colors.subtext} />
+                      <Text style={styles.metaPillText}>{item.authorLabel}</Text>
+                    </View>
                     <View style={styles.metaPill}>
                       <Ionicons name="location-outline" size={13} color={theme.colors.subtext} />
                       <Text style={styles.metaPillText}>{item.placeLabel || fallbackPlaceLabel}</Text>
@@ -195,10 +201,7 @@ export default function NearbyAnnouncementsSection({
               </View>
 
               <View style={styles.cardFooter}>
-                <View style={styles.authorBlock}>
-                  <Text style={styles.cardAuthor}>{item.authorLabel}</Text>
-                  <Text style={styles.cardTimestamp}>{formatAgoLong(item.createdAt, t)}</Text>
-                </View>
+                <Text style={styles.cardTimestamp}>{formatAgoLong(item.createdAt, t)}</Text>
                 <View style={styles.openButton}>
                   <Text style={styles.openButtonText}>
                     {copyOrFallback(t, "nearby.announcements.open", "Открыть")}
@@ -364,6 +367,11 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: 6,
   },
+  cardFactsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+  },
   cardTitle: {
     color: theme.colors.text,
     fontSize: 15,
@@ -446,19 +454,10 @@ const styles = StyleSheet.create({
   },
   cardFooter: {
     flexDirection: "row",
-    alignItems: "flex-end",
+    alignItems: "center",
     flexWrap: "wrap",
     justifyContent: "space-between",
     gap: 10,
-  },
-  authorBlock: {
-    flex: 1,
-    gap: 2,
-  },
-  cardAuthor: {
-    color: theme.colors.text,
-    fontSize: 12,
-    fontWeight: "700",
   },
   cardTimestamp: {
     color: theme.colors.muted,

@@ -1,5 +1,6 @@
 import React from "react";
 import {
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -12,6 +13,7 @@ import ScreenShell from "@/components/ScreenShell";
 import { useLocale } from "@/contexts/LocaleContext";
 import { type RootStackNavigationProp } from "@/navigation/appRoutes";
 import { openNearbySection, openRooms } from "@/navigation/nearbyNavigation";
+import { prepareTogetherCoreLoopDemo } from "@/dev/seedDemoFlow";
 import {
   getPlayLobbyModeCardCopy,
   type PlayActivity,
@@ -23,6 +25,7 @@ const LIVE_MODE_ORDER: PlayActivity[] = ["daily_prompt", "chain_draw", "color_mo
 export default function PlayLobbyScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"PlayMatch">>();
   const { t } = useLocale();
+  const [preparingDemo, setPreparingDemo] = React.useState(false);
   const tt = React.useCallback(
     (key: string, fallback: string, params?: Record<string, string>) => {
       const value = t(key, params);
@@ -68,6 +71,54 @@ export default function PlayLobbyScreen() {
     },
     [tt]
   );
+
+  const handleOpenDemoCoreLoop = React.useCallback(async () => {
+    if (!__DEV__ || preparingDemo) return;
+
+    setPreparingDemo(true);
+    try {
+      const demo = await prepareTogetherCoreLoopDemo();
+      const messageLines = [
+        "Prepared for one-phone review:",
+        "• demo result",
+        "• shared story in history",
+        "• connection card",
+        "• inbox / DM continuation",
+      ];
+
+      const authWarning = demo.summary.warnings.find((warning) =>
+        warning.includes("authenticated user") || warning.includes("Firestore")
+      );
+      if (authWarning) {
+        messageLines.push("");
+        messageLines.push(authWarning);
+      }
+
+      const buttons = demo.sessionId
+        ? [
+            {
+              text: tt("common.close", "Close"),
+              style: "cancel" as const,
+            },
+            {
+              text: tt("together.lobby.historyBadge", "History"),
+              onPress: () => navigation.navigate("PlayHistory"),
+            },
+            {
+              text: "Open demo result",
+              onPress: () =>
+                navigation.navigate("PlayResult", {
+                  sessionId: demo.sessionId!,
+                }),
+            },
+          ]
+        : [{ text: tt("common.close", "Close"), style: "cancel" as const }];
+
+      Alert.alert("Together demo path", messageLines.join("\n"), buttons);
+    } finally {
+      setPreparingDemo(false);
+    }
+  }, [navigation, preparingDemo, tt]);
 
   return (
     <ScreenShell title={t("tabs.together")} background="togetherMain">
@@ -146,6 +197,38 @@ export default function PlayLobbyScreen() {
             </Text>
           </View>
         </Pressable>
+
+        {__DEV__ ? (
+          <View style={styles.devDemoCard}>
+            <Text style={styles.devDemoKicker}>DEV ONLY</Text>
+            <Text style={styles.devDemoTitle}>
+              {tt(
+                "together.lobby.devDemoTitle",
+                "Open the core Together loop on one phone"
+              )}
+            </Text>
+            <Text style={styles.devDemoBody}>
+              {tt(
+                "together.lobby.devDemoBody",
+                "This prepares a finished demo result, a shared story in history, a connection card, and DM continuation without touching the live matching flow."
+              )}
+            </Text>
+            <Pressable
+              onPress={() => void handleOpenDemoCoreLoop()}
+              disabled={preparingDemo}
+              style={[
+                styles.devDemoButton,
+                preparingDemo ? styles.devDemoButtonDisabled : null,
+              ]}
+            >
+              <Text style={styles.devDemoButtonText}>
+                {preparingDemo
+                  ? tt("common.saving", "Preparing...")
+                  : tt("together.lobby.devDemoAction", "Open demo core loop")}
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
 
         <View style={styles.liveSection}>
           <Text style={styles.liveSectionTitle}>
@@ -356,6 +439,48 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.1)",
   },
   historyBadgeText: {
+    color: theme.colors.text,
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  devDemoCard: {
+    borderRadius: theme.shapes.card,
+    padding: 16,
+    backgroundColor: "rgba(22, 26, 44, 0.84)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 190, 92, 0.24)",
+    gap: 8,
+  },
+  devDemoKicker: {
+    color: "#FFDDAA",
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 1,
+  },
+  devDemoTitle: {
+    color: theme.colors.text,
+    fontSize: 17,
+    lineHeight: 22,
+    fontWeight: "800",
+  },
+  devDemoBody: {
+    color: theme.colors.subtext,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  devDemoButton: {
+    alignSelf: "flex-start",
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    backgroundColor: "rgba(255, 122, 60, 0.18)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 122, 60, 0.28)",
+  },
+  devDemoButtonDisabled: {
+    opacity: 0.6,
+  },
+  devDemoButtonText: {
     color: theme.colors.text,
     fontSize: 12,
     fontWeight: "800",

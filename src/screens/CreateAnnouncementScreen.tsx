@@ -345,6 +345,10 @@ export default function CreateAnnouncementScreen() {
                       <Text style={styles.previewCategoryText}>{categoryLabels[category]}</Text>
                     </View>
                     <View style={styles.previewMetaPill}>
+                      <Ionicons name="person-outline" size={13} color={theme.colors.subtext} />
+                      <Text style={styles.previewMetaPillText}>{authorLabel}</Text>
+                    </View>
+                    <View style={styles.previewMetaPill}>
                       <Ionicons name="location-outline" size={13} color={theme.colors.subtext} />
                       <Text style={styles.previewMetaPillText}>{previewPlace}</Text>
                     </View>

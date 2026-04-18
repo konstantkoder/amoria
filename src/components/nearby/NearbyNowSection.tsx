@@ -525,7 +525,7 @@ export default function NearbyNowSection({
     </View>
   ) : null;
 
-  const renderComposer = (
+  const renderComposer = pos ? (
     <View style={styles.composerCard}>
       <View style={styles.composerTop}>
         <View style={{ flex: 1 }}>
@@ -571,28 +571,13 @@ export default function NearbyNowSection({
               <ActivityIndicator size="small" color={theme.colors.primary} />
               <Text style={styles.locationText}>{t("geo.locationUpdating")}</Text>
             </View>
-          ) : pos ? (
+          ) : (
             <View style={styles.locationRow}>
               <Ionicons name="location-outline" size={16} color="#A7F3D0" />
               <Text style={styles.locationText} numberOfLines={1}>
                 {t("geo.locationReady")} (~{Math.round(pos.accuracy ?? 0)} {t("units.m")})
               </Text>
             </View>
-          ) : (
-            <TouchableOpacity onPress={handleLocationGateAction} style={styles.locationRow}>
-              <Ionicons
-                name={permissionBlocked ? "settings-outline" : "location-outline"}
-                size={16}
-                color="#F97373"
-              />
-              <Text style={styles.locationLink}>
-                {permissionBlocked
-                  ? t("geo.openSettings")
-                  : locationEnabled
-                    ? t("geo.refreshLocation")
-                    : t("geo.enableForNow")}
-              </Text>
-            </TouchableOpacity>
           )}
         </View>
 
@@ -605,7 +590,7 @@ export default function NearbyNowSection({
         </TouchableOpacity>
       </View>
     </View>
-  );
+  ) : null;
 
   const renderRoomsBridge = showRoomsBridge ? (
     <View style={styles.roomsBridgeCard}>
@@ -961,11 +946,6 @@ const styles = StyleSheet.create({
     color: "#9CA3AF",
     fontSize: 11,
     flexShrink: 1,
-  },
-  locationLink: {
-    color: "#FCA5A5",
-    fontSize: 11,
-    textDecorationLine: "underline",
   },
   sendButton: {
     minWidth: 92,

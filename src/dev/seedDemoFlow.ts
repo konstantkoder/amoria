@@ -20,6 +20,14 @@ export type DemoSeedResult = {
   warnings: string[];
 };
 
+export type TogetherCoreLoopDemo = {
+  summary: DemoSeedResult;
+  sessionId: string | null;
+  threadId: string | null;
+  peerUid: string | null;
+  peerName: string | null;
+};
+
 type DemoThreadSeed = {
   threadId: string;
   memberIds: string[];
@@ -66,6 +74,8 @@ type DemoIds = {
 const DEMO_ANNOUNCEMENT_PREFIX = "dev_demo_single_device_announcement_";
 const DEMO_RESPONSE_PREFIX = `${DEMO_ANNOUNCEMENT_PREFIX}`;
 const DEMO_SESSION_PREFIX = "dev_demo_single_device_session_";
+const DEMO_ANNOUNCEMENT_PEER_NAME = "Лея";
+const DEMO_STORY_PEER_NAME = "Ник";
 
 function buildDemoIds(uid: string): DemoIds {
   const stableUid = String(uid ?? "").trim();
@@ -153,22 +163,22 @@ function buildDemoAnnouncements(params: {
   return [
     {
       id: ids.announcementIds[0],
-      title: "Кофе после работы и короткая прогулка",
+      title: "Ищу компанию на кофе после работы",
       description:
-        "Буду возле центра после 19:00. Можно взять кофе, пройтись 30 минут и без неловких формальностей понять, хочется ли продолжать.",
+        "Буду возле центра после 19:00. Хочу встретиться на 30-40 минут, взять кофе и спокойно понять, хочется ли продолжить знакомство.",
       category: "coffee",
       placeLabel: "Centrum",
       proximityLabel: "~900 м",
-      authorLabel: "Лея",
+      authorLabel: DEMO_ANNOUNCEMENT_PEER_NAME,
       authorUid: ids.announcementPeerUid,
       createdAt: now - 6 * 60 * 1000,
       hasPhoto: true,
     },
     {
       id: ids.announcementIds[1],
-      title: "Лёгкая прогулка у реки без жёсткого плана",
+      title: "Ищу человека на прогулку у реки сегодня",
       description:
-        "Demo-card без прямого DM. Нужна именно для проверки fallback flow: можно сохранить интерес локально и вернуться к списку.",
+        "Demo-card без прямого DM. Нужна для проверки fallback flow: оформленный запрос виден в списке, а интерес можно сохранить локально и вернуться позже.",
       category: "walk",
       placeLabel: "Bulwary",
       proximityLabel: "сегодня",
@@ -178,9 +188,9 @@ function buildDemoAnnouncements(params: {
     },
     {
       id: ids.announcementIds[2],
-      title: "Мой тестовый анонс для single-device review",
+      title: "Мой dev-запрос для single-device review",
       description:
-        "Эта карточка нужна, чтобы быстро проверить own-announcement state и не трогать реальный flow публикации.",
+        "Эта карточка нужна, чтобы быстро проверить own-announcement state на оформленном запросе и не трогать реальный flow публикации.",
       category: "activity",
       placeLabel: "Nearby",
       proximityLabel: "только dev",
@@ -472,7 +482,7 @@ export async function prepareSingleDeviceDemo(): Promise<DemoSeedResult> {
   const storySessionSeed: DemoSessionSeed = {
     sessionId: ids.sessionId,
     peerUid: ids.storyPeerUid,
-    peerName: "Ник",
+    peerName: DEMO_STORY_PEER_NAME,
     activity: "daily_prompt",
     createdAt: now - 95 * 60 * 1000,
     startedAt: now - 92 * 60 * 1000,
@@ -485,7 +495,7 @@ export async function prepareSingleDeviceDemo(): Promise<DemoSeedResult> {
     memberIds: [uid, ids.announcementPeerUid],
     memberNames: {
       [uid]: currentName,
-      [ids.announcementPeerUid]: "Лея",
+      [ids.announcementPeerUid]: DEMO_ANNOUNCEMENT_PEER_NAME,
     },
     source: "announcement",
     createdAt: now - 34 * 60 * 1000,
@@ -557,6 +567,7 @@ export async function prepareSingleDeviceDemo(): Promise<DemoSeedResult> {
   result.prepared.push("demo inbox threads ready");
 
   if (sessionOk) {
+    result.prepared.push("Together core loop result ready");
     result.prepared.push("shared story / history ready");
     result.prepared.push("connections card ready");
     result.prepared.push("session detail example ready");
@@ -577,4 +588,29 @@ export async function prepareSingleDeviceDemo(): Promise<DemoSeedResult> {
   );
 
   return result;
+}
+
+export async function prepareTogetherCoreLoopDemo(): Promise<TogetherCoreLoopDemo> {
+  const summary = await prepareSingleDeviceDemo();
+  const uid = auth?.currentUser?.uid ?? "";
+
+  if (!__DEV__ || !uid || !db) {
+    return {
+      summary,
+      sessionId: null,
+      threadId: null,
+      peerUid: null,
+      peerName: null,
+    };
+  }
+
+  const ids = buildDemoIds(uid);
+
+  return {
+    summary,
+    sessionId: ids.sessionId,
+    threadId: ids.storyThreadId,
+    peerUid: ids.storyPeerUid,
+    peerName: DEMO_STORY_PEER_NAME,
+  };
 }
