@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { deleteDoc, doc, setDoc } from "firebase/firestore";
 
 import { auth, db } from "@/config/firebaseConfig";
+import { isTogetherQaDemoEnabled } from "@/dev/runtimeFlags";
 import { buildDmThreadId } from "@/services/dm";
 import {
   NEARBY_ANNOUNCEMENTS_STORAGE_KEY,
@@ -13,6 +14,7 @@ import {
   type PlayActivity,
   type PlayStroke,
 } from "@/services/playSessions";
+import { makeNickname } from "@/services/rooms";
 
 export type DemoSeedResult = {
   prepared: string[];
@@ -32,9 +34,9 @@ type DemoThreadSeed = {
   threadId: string;
   memberIds: string[];
   memberNames: Record<string, string>;
-  source: "play" | "announcement";
-  sourceSessionId?: string;
-  artworkSummary?: {
+  source: "play";
+  sourceSessionId: string;
+  artworkSummary: {
     activity: PlayActivity;
     strokeCount?: number;
   };
@@ -57,52 +59,45 @@ type DemoSessionSeed = {
   startedAt: number;
   endedAt: number;
   strokeCount: number;
+  promptId: string;
+  promptText: string;
 };
 
 type DemoIds = {
-  announcementPeerUid: string;
-  storyPeerUid: string;
-  announcementIds: string[];
-  announcementThreadId: string;
-  storyThreadId: string;
+  peerUid: string;
   sessionId: string;
+  threadId: string;
   threadMessageIds: string[];
-  announcementMessageIds: string[];
   eventIds: string[];
+  legacyAnnouncementThreadId: string;
+  legacyAnnouncementMessageIds: string[];
 };
 
 const DEMO_ANNOUNCEMENT_PREFIX = "dev_demo_single_device_announcement_";
-const DEMO_RESPONSE_PREFIX = `${DEMO_ANNOUNCEMENT_PREFIX}`;
+const DEMO_RESPONSE_PREFIX = DEMO_ANNOUNCEMENT_PREFIX;
 const DEMO_SESSION_PREFIX = "dev_demo_single_device_session_";
-const DEMO_ANNOUNCEMENT_PEER_NAME = "Лея";
-const DEMO_STORY_PEER_NAME = "Ник";
+const DEMO_PEER_NAME = "Ник";
 
 function buildDemoIds(uid: string): DemoIds {
   const stableUid = String(uid ?? "").trim();
-  const announcementPeerUid = `dev_demo_peer_announcement_${stableUid}`;
-  const storyPeerUid = `dev_demo_peer_story_${stableUid}`;
+  const peerUid = `dev_demo_peer_story_${stableUid}`;
+  const legacyAnnouncementPeerUid = `dev_demo_peer_announcement_${stableUid}`;
 
   return {
-    announcementPeerUid,
-    storyPeerUid,
-    announcementIds: [
-      `${DEMO_ANNOUNCEMENT_PREFIX}respond_${stableUid}`,
-      `${DEMO_ANNOUNCEMENT_PREFIX}fallback_${stableUid}`,
-      `${DEMO_ANNOUNCEMENT_PREFIX}own_${stableUid}`,
-    ],
-    announcementThreadId: buildDmThreadId(stableUid, announcementPeerUid),
-    storyThreadId: buildDmThreadId(stableUid, storyPeerUid),
+    peerUid,
     sessionId: `${DEMO_SESSION_PREFIX}shared_story_${stableUid}`,
+    threadId: buildDmThreadId(stableUid, peerUid),
     threadMessageIds: [
       "dev_demo_story_msg_1",
       "dev_demo_story_msg_2",
       "dev_demo_story_msg_3",
     ],
-    announcementMessageIds: [
+    eventIds: ["dev_demo_story_event_1", "dev_demo_story_event_2"],
+    legacyAnnouncementThreadId: buildDmThreadId(stableUid, legacyAnnouncementPeerUid),
+    legacyAnnouncementMessageIds: [
       "dev_demo_announcement_msg_1",
       "dev_demo_announcement_msg_2",
     ],
-    eventIds: ["dev_demo_story_event_1", "dev_demo_story_event_2"],
   };
 }
 
@@ -152,65 +147,7 @@ async function writeResponseMap(map: Record<string, number>) {
   );
 }
 
-function buildDemoAnnouncements(params: {
-  uid: string;
-  currentName: string;
-  ids: DemoIds;
-  now: number;
-}): NearbyAnnouncement[] {
-  const { currentName, ids, now, uid } = params;
-
-  return [
-    {
-      id: ids.announcementIds[0],
-      title: "Ищу компанию на кофе после работы",
-      description:
-        "Буду возле центра после 19:00. Хочу встретиться на 30-40 минут, взять кофе и спокойно понять, хочется ли продолжить знакомство.",
-      category: "coffee",
-      placeLabel: "Centrum",
-      proximityLabel: "~900 м",
-      authorLabel: DEMO_ANNOUNCEMENT_PEER_NAME,
-      authorUid: ids.announcementPeerUid,
-      createdAt: now - 6 * 60 * 1000,
-      hasPhoto: true,
-    },
-    {
-      id: ids.announcementIds[1],
-      title: "Ищу человека на прогулку у реки сегодня",
-      description:
-        "Demo-card без прямого DM. Нужна для проверки fallback flow: оформленный запрос виден в списке, а интерес можно сохранить локально и вернуться позже.",
-      category: "walk",
-      placeLabel: "Bulwary",
-      proximityLabel: "сегодня",
-      authorLabel: "Demo card",
-      createdAt: now - 14 * 60 * 1000,
-      hasPhoto: false,
-    },
-    {
-      id: ids.announcementIds[2],
-      title: "Мой dev-запрос для single-device review",
-      description:
-        "Эта карточка нужна, чтобы быстро проверить own-announcement state на оформленном запросе и не трогать реальный flow публикации.",
-      category: "activity",
-      placeLabel: "Nearby",
-      proximityLabel: "только dev",
-      authorLabel: currentName,
-      createdAt: now - 22 * 60 * 1000,
-      hasPhoto: false,
-      ...(uid ? { authorUid: uid } : {}),
-    },
-  ];
-}
-
-async function upsertDemoAnnouncements(announcements: NearbyAnnouncement[]) {
-  const existing = await readStoredAnnouncements();
-  const withoutDemo = existing.filter(
-    (item) => !String(item?.id ?? "").startsWith(DEMO_ANNOUNCEMENT_PREFIX)
-  );
-  await writeStoredAnnouncements([...announcements, ...withoutDemo]);
-}
-
-async function clearDemoAnnouncements() {
+async function clearLegacyDemoAnnouncements() {
   const existing = await readStoredAnnouncements();
   const filtered = existing.filter(
     (item) => !String(item?.id ?? "").startsWith(DEMO_ANNOUNCEMENT_PREFIX)
@@ -226,7 +163,7 @@ async function clearDemoAnnouncements() {
   await writeResponseMap(nextResponseMap);
 }
 
-function buildStoryStrokes(): Array<{ uid: string; strokes: PlayStroke[] }> {
+function buildStoryStrokes(): Array<{ uid: "local" | "peer"; strokes: PlayStroke[] }> {
   return [
     {
       uid: "local",
@@ -283,8 +220,70 @@ function buildStoryStrokes(): Array<{ uid: string; strokes: PlayStroke[] }> {
   ];
 }
 
+function buildDemoSessionSeed(uid: string, currentName: string, now: number, ids: DemoIds) {
+  const prompt =
+    getPlayDailyPromptForTimestamp(now) ?? {
+      id: "ideal_evening",
+      text: "Идеальный вечер",
+    };
+
+  const seed: DemoSessionSeed = {
+    sessionId: ids.sessionId,
+    peerUid: ids.peerUid,
+    peerName: DEMO_PEER_NAME,
+    activity: "daily_prompt",
+    createdAt: now - 34 * 60 * 1000,
+    startedAt: now - 29 * 60 * 1000,
+    endedAt: now - 22 * 60 * 1000,
+    strokeCount: 4,
+    promptId: prompt.id,
+    promptText: prompt.text,
+  };
+
+  const threadSeed: DemoThreadSeed = {
+    threadId: ids.threadId,
+    memberIds: [uid, ids.peerUid],
+    memberNames: {
+      [uid]: currentName,
+      [ids.peerUid]: seed.peerName,
+    },
+    source: "play",
+    sourceSessionId: seed.sessionId,
+    artworkSummary: {
+      activity: seed.activity,
+      strokeCount: seed.strokeCount,
+    },
+    createdAt: seed.endedAt,
+    messages: [
+      {
+        id: ids.threadMessageIds[0],
+        from: ids.peerUid,
+        to: uid,
+        text: `Удивительно, как тема «${seed.promptText}» у нас сразу стала общей.`,
+        createdAt: now - 14 * 60 * 1000,
+      },
+      {
+        id: ids.threadMessageIds[1],
+        from: uid,
+        to: ids.peerUid,
+        text: "Да. И хорошо, что этот момент остался и в истории, и здесь в разговоре.",
+        createdAt: now - 10 * 60 * 1000,
+      },
+      {
+        id: ids.threadMessageIds[2],
+        from: ids.peerUid,
+        to: uid,
+        text: "Тогда вернёмся к replay позже, а продолжим уже отсюда.",
+        createdAt: now - 6 * 60 * 1000,
+      },
+    ],
+  };
+
+  return { seed, threadSeed };
+}
+
 async function writeDemoThread(seed: DemoThreadSeed) {
-  if (!db) return false;
+  if (!db) return { messagesReady: false };
 
   const latestMessage =
     [...seed.messages].sort((left, right) => right.createdAt - left.createdAt)[0] ?? null;
@@ -295,8 +294,8 @@ async function writeDemoThread(seed: DemoThreadSeed) {
       memberIds: [...seed.memberIds].sort(),
       memberNames: seed.memberNames,
       source: seed.source,
-      ...(seed.sourceSessionId ? { sourceSessionId: seed.sourceSessionId } : {}),
-      ...(seed.artworkSummary ? { artworkSummary: seed.artworkSummary } : {}),
+      sourceSessionId: seed.sourceSessionId,
+      artworkSummary: seed.artworkSummary,
       createdAt: seed.createdAt,
       updatedAt: latestMessage?.createdAt ?? seed.createdAt,
       ...(latestMessage
@@ -325,7 +324,9 @@ async function writeDemoThread(seed: DemoThreadSeed) {
     )
   );
 
-  return results.every((item) => item.status === "fulfilled");
+  return {
+    messagesReady: results.every((item) => item.status === "fulfilled"),
+  };
 }
 
 async function writeDemoSession(params: {
@@ -334,14 +335,9 @@ async function writeDemoSession(params: {
   eventIds: string[];
   seed: DemoSessionSeed;
 }) {
-  if (!db) return false;
+  if (!db) return { replayReady: false };
 
   const { currentName, eventIds, seed, uid } = params;
-  const prompt =
-    getPlayDailyPromptForTimestamp(seed.startedAt) ?? {
-      id: "ideal_evening",
-      text: "Идеальный вечер",
-    };
   const strokeGroups = buildStoryStrokes();
 
   await setDoc(
@@ -353,8 +349,8 @@ async function writeDemoSession(params: {
       createdAt: seed.createdAt,
       startedAt: seed.startedAt,
       endedAt: seed.endedAt,
-      promptId: prompt.id,
-      promptText: prompt.text,
+      promptId: seed.promptId,
+      promptText: seed.promptText,
       participantIds: [uid, seed.peerUid],
       participantNicknames: {
         [uid]: currentName,
@@ -377,7 +373,7 @@ async function writeDemoSession(params: {
           id: eventIds[index],
           uid: group.uid === "local" ? uid : seed.peerUid,
           kind: "stroke_batch",
-          createdAt: seed.startedAt + (index + 1) * 45_000,
+          createdAt: seed.startedAt + (index + 1) * 90_000,
           strokes: group.strokes,
         },
         { merge: true }
@@ -385,7 +381,9 @@ async function writeDemoSession(params: {
     )
   );
 
-  return results.every((item) => item.status === "fulfilled");
+  return {
+    replayReady: results.every((item) => item.status === "fulfilled"),
+  };
 }
 
 async function clearCurrentUserDemoDocs(uid: string) {
@@ -393,208 +391,99 @@ async function clearCurrentUserDemoDocs(uid: string) {
 
   const ids = buildDemoIds(uid);
   const deletions = [
-    ...ids.announcementMessageIds.map((messageId) =>
-      deleteDoc(doc(db, "dmThreads", ids.announcementThreadId, "messages", messageId))
+    ...ids.legacyAnnouncementMessageIds.map((messageId) =>
+      deleteDoc(
+        doc(db, "dmThreads", ids.legacyAnnouncementThreadId, "messages", messageId)
+      )
     ),
     ...ids.threadMessageIds.map((messageId) =>
-      deleteDoc(doc(db, "dmThreads", ids.storyThreadId, "messages", messageId))
+      deleteDoc(doc(db, "dmThreads", ids.threadId, "messages", messageId))
     ),
     ...ids.eventIds.map((eventId) =>
       deleteDoc(doc(db, "playSessions", ids.sessionId, "events", eventId))
     ),
-    deleteDoc(doc(db, "dmThreads", ids.announcementThreadId)),
-    deleteDoc(doc(db, "dmThreads", ids.storyThreadId)),
+    deleteDoc(doc(db, "dmThreads", ids.legacyAnnouncementThreadId)),
+    deleteDoc(doc(db, "dmThreads", ids.threadId)),
     deleteDoc(doc(db, "playSessions", ids.sessionId)),
   ];
 
   await Promise.allSettled(deletions);
 }
 
-export async function clearSingleDeviceDemo(): Promise<DemoSeedResult> {
+async function prepareTogetherCoreLoopSeed(): Promise<DemoSeedResult> {
   const result: DemoSeedResult = {
     prepared: [],
     cleared: [],
     warnings: [],
   };
 
-  if (!__DEV__) {
-    result.warnings.push("Demo seed is disabled outside __DEV__.");
-    return result;
-  }
-
-  await clearDemoAnnouncements();
-  result.cleared.push("announcements cleared");
-
-  const uid = auth?.currentUser?.uid ?? "";
-  if (!uid || !db) {
+  if (!isTogetherQaDemoEnabled()) {
     result.warnings.push(
-      "DM / shared story demo docs were not cleared because there is no active signed-in Firestore session."
+      "Together QA demo is disabled outside development and internal QA builds."
     );
     return result;
   }
 
-  await clearCurrentUserDemoDocs(uid);
-  result.cleared.push("demo inbox / DM cleared");
-  result.cleared.push("demo shared story cleared");
-  return result;
-}
+  await clearLegacyDemoAnnouncements();
+  result.cleared.push("legacy Nearby demo leftovers cleared");
 
-export async function prepareSingleDeviceDemo(): Promise<DemoSeedResult> {
-  const result: DemoSeedResult = {
-    prepared: [],
-    cleared: [],
-    warnings: [],
-  };
-
-  if (!__DEV__) {
-    result.warnings.push("Demo seed is disabled outside __DEV__.");
+  const uid = auth?.currentUser?.uid ?? "";
+  if (!uid) {
+    result.warnings.push(
+      "Sign in on this device before opening the Together QA demo."
+    );
     return result;
   }
 
-  const uid = auth?.currentUser?.uid ?? "";
-  const currentName = auth?.currentUser?.displayName?.trim() || "You";
+  if (!db) {
+    result.warnings.push(
+      "Firebase is not available in this build, so the Together QA demo cannot prepare Result, History, Connections, Inbox, or DM."
+    );
+    return result;
+  }
+
+  const currentName =
+    auth?.currentUser?.displayName?.trim() || makeNickname(uid) || "You";
   const now = Date.now();
-  const ids = buildDemoIds(uid || "guest");
-
-  await clearDemoAnnouncements();
-  await upsertDemoAnnouncements(
-    buildDemoAnnouncements({
-      uid,
-      currentName,
-      ids,
-      now,
-    })
-  );
-  result.prepared.push("announcements ready");
-
-  if (!uid || !db) {
-    result.warnings.push(
-      "Inbox / DM / shared story were skipped because Firestore or an authenticated user is not available in this dev build."
-    );
-    result.warnings.push(
-      "Nearby Now was not seeded because it depends on live location region and should stay tied to real geolocation."
-    );
-    return result;
-  }
+  const ids = buildDemoIds(uid);
 
   await clearCurrentUserDemoDocs(uid);
+  result.cleared.push("previous Together QA demo cleared");
 
-  const storySessionSeed: DemoSessionSeed = {
-    sessionId: ids.sessionId,
-    peerUid: ids.storyPeerUid,
-    peerName: DEMO_STORY_PEER_NAME,
-    activity: "daily_prompt",
-    createdAt: now - 95 * 60 * 1000,
-    startedAt: now - 92 * 60 * 1000,
-    endedAt: now - 85 * 60 * 1000,
-    strokeCount: 4,
-  };
-
-  const announcementThreadOk = await writeDemoThread({
-    threadId: ids.announcementThreadId,
-    memberIds: [uid, ids.announcementPeerUid],
-    memberNames: {
-      [uid]: currentName,
-      [ids.announcementPeerUid]: DEMO_ANNOUNCEMENT_PEER_NAME,
-    },
-    source: "announcement",
-    createdAt: now - 34 * 60 * 1000,
-    messages: [
-      {
-        id: ids.announcementMessageIds[0],
-        from: ids.announcementPeerUid,
-        to: uid,
-        text: "Привет. Я как раз буду рядом после 19:00, так что можно спокойно продолжить здесь.",
-        createdAt: now - 31 * 60 * 1000,
-      },
-      {
-        id: ids.announcementMessageIds[1],
-        from: uid,
-        to: ids.announcementPeerUid,
-        text: "Супер. Я открою чат позже вечером, чтобы не потеряться.",
-        createdAt: now - 28 * 60 * 1000,
-      },
-    ],
-  });
-
-  const storyThreadOk = await writeDemoThread({
-    threadId: ids.storyThreadId,
-    memberIds: [uid, ids.storyPeerUid],
-    memberNames: {
-      [uid]: currentName,
-      [ids.storyPeerUid]: storySessionSeed.peerName,
-    },
-    source: "play",
-    sourceSessionId: storySessionSeed.sessionId,
-    artworkSummary: {
-      activity: storySessionSeed.activity,
-      strokeCount: storySessionSeed.strokeCount,
-    },
-    createdAt: storySessionSeed.endedAt,
-    messages: [
-      {
-        id: ids.threadMessageIds[0],
-        from: ids.storyPeerUid,
-        to: uid,
-        text: "Неожиданно понравилось, как у нас собрался общий рисунок.",
-        createdAt: now - 18 * 60 * 1000,
-      },
-      {
-        id: ids.threadMessageIds[1],
-        from: uid,
-        to: ids.storyPeerUid,
-        text: "Да, и тема получилась живой. Оставлю эту историю в деталях, чтобы потом пересмотреть replay.",
-        createdAt: now - 14 * 60 * 1000,
-      },
-      {
-        id: ids.threadMessageIds[2],
-        from: ids.storyPeerUid,
-        to: uid,
-        text: "Тогда потом вернусь сюда же. Удобно, что чат уже привязан к общей истории.",
-        createdAt: now - 9 * 60 * 1000,
-      },
-    ],
-  });
-
-  const sessionOk = await writeDemoSession({
+  const { seed, threadSeed } = buildDemoSessionSeed(uid, currentName, now, ids);
+  const sessionWrite = await writeDemoSession({
     uid,
     currentName,
     eventIds: ids.eventIds,
-    seed: storySessionSeed,
+    seed,
   });
+  const threadWrite = await writeDemoThread(threadSeed);
 
-  result.prepared.push("announcement respond -> DM ready");
-  result.prepared.push("demo inbox threads ready");
+  result.prepared.push(`demo result ready with ${seed.peerName}`);
+  result.prepared.push("shared story visible in History");
+  result.prepared.push("connection card visible in Connections");
+  result.prepared.push("inbox thread and DM continuation visible in Inbox");
 
-  if (sessionOk) {
-    result.prepared.push("Together core loop result ready");
-    result.prepared.push("shared story / history ready");
-    result.prepared.push("connections card ready");
-    result.prepared.push("session detail example ready");
-  } else {
+  if (!sessionWrite.replayReady) {
     result.warnings.push(
-      "The shared story seed was only partially written. Inbox / DM should still be available."
+      "The shared replay was only partially written. Result, History, Connections, Inbox, and DM should still be available."
     );
   }
 
-  if (!announcementThreadOk || !storyThreadOk) {
+  if (!threadWrite.messagesReady) {
     result.warnings.push(
-      "One or more demo messages could not be written completely. The threads themselves should still exist."
+      "The DM thread was created, but one or more seeded messages did not finish writing."
     );
   }
-
-  result.warnings.push(
-    "Nearby Now was not seeded because it depends on live location region and should stay tied to real geolocation."
-  );
 
   return result;
 }
 
 export async function prepareTogetherCoreLoopDemo(): Promise<TogetherCoreLoopDemo> {
-  const summary = await prepareSingleDeviceDemo();
+  const summary = await prepareTogetherCoreLoopSeed();
   const uid = auth?.currentUser?.uid ?? "";
 
-  if (!__DEV__ || !uid || !db) {
+  if (!isTogetherQaDemoEnabled() || !uid || !db) {
     return {
       summary,
       sessionId: null,
@@ -609,8 +498,8 @@ export async function prepareTogetherCoreLoopDemo(): Promise<TogetherCoreLoopDem
   return {
     summary,
     sessionId: ids.sessionId,
-    threadId: ids.storyThreadId,
-    peerUid: ids.storyPeerUid,
-    peerName: DEMO_STORY_PEER_NAME,
+    threadId: ids.threadId,
+    peerUid: ids.peerUid,
+    peerName: DEMO_PEER_NAME,
   };
 }

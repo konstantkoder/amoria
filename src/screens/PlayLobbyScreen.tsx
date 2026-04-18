@@ -10,6 +10,7 @@ import {
 import { useNavigation } from "@react-navigation/native";
 
 import ScreenShell from "@/components/ScreenShell";
+import { isTogetherQaDemoEnabled } from "@/dev/runtimeFlags";
 import { useLocale } from "@/contexts/LocaleContext";
 import { type RootStackNavigationProp } from "@/navigation/appRoutes";
 import { openNearbySection, openRooms } from "@/navigation/nearbyNavigation";
@@ -26,6 +27,7 @@ export default function PlayLobbyScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"PlayMatch">>();
   const { t } = useLocale();
   const [preparingDemo, setPreparingDemo] = React.useState(false);
+  const qaDemoEnabled = React.useMemo(() => isTogetherQaDemoEnabled(), []);
   const tt = React.useCallback(
     (key: string, fallback: string, params?: Record<string, string>) => {
       const value = t(key, params);
@@ -73,52 +75,50 @@ export default function PlayLobbyScreen() {
   );
 
   const handleOpenDemoCoreLoop = React.useCallback(async () => {
-    if (!__DEV__ || preparingDemo) return;
+    if (!qaDemoEnabled || preparingDemo) return;
 
     setPreparingDemo(true);
     try {
       const demo = await prepareTogetherCoreLoopDemo();
       const messageLines = [
-        "Prepared for one-phone review:",
+        "Prepared for one-phone core-loop review:",
         "• demo result",
         "• shared story in history",
         "• connection card",
         "• inbox / DM continuation",
       ];
 
-      const authWarning = demo.summary.warnings.find((warning) =>
-        warning.includes("authenticated user") || warning.includes("Firestore")
-      );
-      if (authWarning) {
+      if (demo.peerName) {
         messageLines.push("");
-        messageLines.push(authWarning);
+        messageLines.push(`Linked to one shared context with ${demo.peerName}.`);
       }
 
-      const buttons = demo.sessionId
-        ? [
-            {
-              text: tt("common.close", "Close"),
-              style: "cancel" as const,
-            },
-            {
-              text: tt("together.lobby.historyBadge", "History"),
-              onPress: () => navigation.navigate("PlayHistory"),
-            },
-            {
-              text: "Open demo result",
-              onPress: () =>
-                navigation.navigate("PlayResult", {
-                  sessionId: demo.sessionId!,
-                }),
-            },
-          ]
-        : [{ text: tt("common.close", "Close"), style: "cancel" as const }];
+      if (demo.summary.warnings.length) {
+        messageLines.push("");
+        messageLines.push(...demo.summary.warnings);
+      }
 
-      Alert.alert("Together demo path", messageLines.join("\n"), buttons);
+      if (demo.sessionId) {
+        navigation.navigate("PlayResult", {
+          sessionId: demo.sessionId,
+        });
+      }
+
+      Alert.alert(
+        demo.sessionId ? "Together QA demo ready" : "Together QA demo unavailable",
+        messageLines.join("\n"),
+        [
+          {
+            text: demo.sessionId
+              ? "Continue to demo result"
+              : tt("common.close", "Close"),
+          },
+        ]
+      );
     } finally {
       setPreparingDemo(false);
     }
-  }, [navigation, preparingDemo, tt]);
+  }, [navigation, preparingDemo, qaDemoEnabled, tt]);
 
   return (
     <ScreenShell title={t("tabs.together")} background="togetherMain">
@@ -198,19 +198,19 @@ export default function PlayLobbyScreen() {
           </View>
         </Pressable>
 
-        {__DEV__ ? (
+        {qaDemoEnabled ? (
           <View style={styles.devDemoCard}>
-            <Text style={styles.devDemoKicker}>DEV ONLY</Text>
+            <Text style={styles.devDemoKicker}>INTERNAL QA</Text>
             <Text style={styles.devDemoTitle}>
               {tt(
                 "together.lobby.devDemoTitle",
-                "Open the core Together loop on one phone"
+                "Open the Together core loop on one phone"
               )}
             </Text>
             <Text style={styles.devDemoBody}>
               {tt(
                 "together.lobby.devDemoBody",
-                "This prepares a finished demo result, a shared story in history, a connection card, and DM continuation without touching the live matching flow."
+                "This prepares one coherent Together story with a finished result, shared history, connection card, Inbox thread, and DM continuation without touching live matching."
               )}
             </Text>
             <Pressable
@@ -224,7 +224,7 @@ export default function PlayLobbyScreen() {
               <Text style={styles.devDemoButtonText}>
                 {preparingDemo
                   ? tt("common.saving", "Preparing...")
-                  : tt("together.lobby.devDemoAction", "Open demo core loop")}
+                  : tt("together.lobby.devDemoAction", "Open Together QA demo")}
               </Text>
             </Pressable>
           </View>
