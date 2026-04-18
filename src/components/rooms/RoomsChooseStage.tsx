@@ -26,6 +26,7 @@ type Props = {
   loadingPrefs: boolean;
   locationEnabled: boolean;
   posLoading: boolean;
+  posRefreshing: boolean;
   pos: RoomPosition | null;
   posError: string | null;
   permissionBlocked: boolean;
@@ -54,6 +55,7 @@ export default function RoomsChooseStage({
   loadingPrefs,
   locationEnabled,
   posLoading,
+  posRefreshing,
   pos,
   posError,
   permissionBlocked,
@@ -118,21 +120,38 @@ export default function RoomsChooseStage({
                 </Text>
               </TouchableOpacity>
             </View>
+          ) : pos ? (
+            <View style={styles.readyWrap}>
+              <View style={styles.readyRow}>
+                <Ionicons name="location-outline" size={18} color="#E5E7EB" />
+                <Text style={styles.readyText}>
+                  {t("rooms.locationReady")} (~{Math.round(pos.accuracy ?? 0)} {t("units.m")})
+                </Text>
+                <View style={styles.readySpacer} />
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  onPress={onRefreshPosition}
+                  disabled={posRefreshing}
+                  style={styles.iconGhostButton}
+                >
+                  {posRefreshing ? (
+                    <ActivityIndicator size="small" color={theme.colors.accent} />
+                  ) : (
+                    <Ionicons name="refresh" size={18} color={theme.colors.accent} />
+                  )}
+                </TouchableOpacity>
+              </View>
+              {posRefreshing ? (
+                <View style={styles.inlineStatusRow}>
+                  <ActivityIndicator size="small" color={theme.colors.primary} />
+                  <Text style={styles.mutedText}>{t("geo.locationUpdating")}</Text>
+                </View>
+              ) : null}
+            </View>
           ) : posLoading ? (
             <View style={styles.inlineStatusRow}>
               <ActivityIndicator color={theme.colors.primary} />
               <Text style={styles.mutedText}>{t("rooms.getLocation")}</Text>
-            </View>
-          ) : pos ? (
-            <View style={styles.readyRow}>
-              <Ionicons name="location-outline" size={18} color="#E5E7EB" />
-              <Text style={styles.readyText}>
-                {t("rooms.locationReady")} (~{Math.round(pos.accuracy ?? 0)} {t("units.m")})
-              </Text>
-              <View style={styles.readySpacer} />
-              <TouchableOpacity activeOpacity={0.85} onPress={onRefreshPosition} style={styles.iconGhostButton}>
-                <Ionicons name="refresh" size={18} color={theme.colors.accent} />
-              </TouchableOpacity>
             </View>
           ) : (
             <View>
@@ -366,6 +385,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
+  },
+  readyWrap: {
+    gap: 8,
   },
   readyText: {
     color: "#E5E7EB",

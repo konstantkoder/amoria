@@ -197,6 +197,7 @@ export default function RoomsScreen() {
   const [pos, setPos] = useState<RoomPosition | null>(null);
   const [posError, setPosError] = useState<string | null>(null);
   const [posLoading, setPosLoading] = useState(false);
+  const [posRefreshing, setPosRefreshing] = useState(false);
   const locInFlight = useRef<Promise<RoomPosition | null> | null>(null);
   const locationRequestIdRef = useRef(0);
   const locationInFlightRequestIdRef = useRef<number | null>(null);
@@ -435,15 +436,31 @@ export default function RoomsScreen() {
 
       const requestId = locationRequestIdRef.current + 1;
       const allowPermissionPrompt = options?.allowPermissionPrompt !== false;
+      const hadStablePosition = Boolean(pos);
       locationRequestIdRef.current = requestId;
       locationInFlightRequestIdRef.current = requestId;
 
       let task: Promise<RoomPosition | null>;
       task = (async (): Promise<RoomPosition | null> => {
+        let backgroundRefreshStarted = false;
+        let appliedPosition: RoomPosition | null = null;
+
         if (isLocationRequestActive(requestId)) {
-          setPosLoading(true);
           setPosError(null);
+          if (hadStablePosition) {
+            setPosRefreshing(true);
+          } else {
+            setPosLoading(true);
+          }
         }
+
+        const applyPosition = (next: RoomPosition) => {
+          appliedPosition = next;
+          if (!isLocationRequestActive(requestId)) return;
+          setPos(next);
+          setPosError(null);
+          setPermissionBlocked(false);
+        };
 
         try {
           const currentPerm = await Location.getForegroundPermissionsAsync();
@@ -461,6 +478,8 @@ export default function RoomsScreen() {
             const blocked = canAskAgain === false;
             if (isLocationRequestActive(requestId)) {
               setPermissionBlocked(blocked);
+              setPosRefreshing(false);
+              setPosLoading(false);
               setPos(null);
               setPosError(
                 blocked ? t("geo.permissionBlockedHelp") : t("geo.permissionRequired")
@@ -486,12 +505,6 @@ export default function RoomsScreen() {
             setPermissionBlocked(false);
           }
 
-          const applyPosition = (next: RoomPosition) => {
-            if (!isLocationRequestActive(requestId)) return;
-            setPos(next);
-            setPosError(null);
-          };
-
           const last = await Location.getLastKnownPositionAsync();
           if (last) {
             const quick = toRoomPosition(last.coords);
@@ -499,8 +512,10 @@ export default function RoomsScreen() {
 
             if (isLocationRequestActive(requestId)) {
               setPosLoading(false);
+              setPosRefreshing(true);
             }
 
+            backgroundRefreshStarted = true;
             void (async () => {
               try {
                 const current = await withTimeout(
@@ -511,8 +526,14 @@ export default function RoomsScreen() {
                   "rooms.position"
                 );
                 applyPosition(toRoomPosition(current.coords));
-              } catch {
-                // Keep the last known position if the fresh fix arrives too late.
+              } catch (e: any) {
+                if (!isLocationRequestActive(requestId) || appliedPosition) return;
+                const msg = String(e?.message ?? "");
+                setPosError(getRoomsLocationErrorBody(msg, t));
+              } finally {
+                if (isLocationRequestActive(requestId)) {
+                  setPosRefreshing(false);
+                }
               }
             })();
 
@@ -531,11 +552,11 @@ export default function RoomsScreen() {
           applyPosition(next);
           return next;
         } catch (e: any) {
-          if (isLocationRequestActive(requestId)) {
+          if (isLocationRequestActive(requestId) && !appliedPosition) {
             const msg = String(e?.message ?? "");
             setPosError(getRoomsLocationErrorBody(msg, t));
           }
-          return null;
+          return appliedPosition;
         } finally {
           if (locationInFlightRequestIdRef.current === requestId) {
             locationInFlightRequestIdRef.current = null;
@@ -545,6 +566,9 @@ export default function RoomsScreen() {
           }
           if (isLocationRequestActive(requestId)) {
             setPosLoading(false);
+            if (!backgroundRefreshStarted) {
+              setPosRefreshing(false);
+            }
           }
         }
       })();
@@ -552,7 +576,7 @@ export default function RoomsScreen() {
       locInFlight.current = task;
       return task;
     },
-    [handleOpenSettings, isLocationRequestActive, t]
+    [handleOpenSettings, isLocationRequestActive, pos, t]
   );
 
   const handleConsentAccept = useCallback(async () => {
@@ -631,6 +655,7 @@ export default function RoomsScreen() {
       if (pos) setPos(null);
       if (posError) setPosError(null);
       if (posLoading) setPosLoading(false);
+      if (posRefreshing) setPosRefreshing(false);
       if (permissionBlocked) setPermissionBlocked(false);
       return;
     }
@@ -646,13 +671,14 @@ export default function RoomsScreen() {
     pos,
     posError,
     posLoading,
+    posRefreshing,
   ]);
 
   useEffect(() => {
     const sub = AppState.addEventListener("change", (s) => {
       if (s === "active") {
         if (loadingPrefs) return;
-        if (locationEnabled && !pos && !posLoading) {
+        if (locationEnabled && !pos && !posLoading && !posRefreshing) {
           void ensurePosition({ allowPermissionPrompt: false });
         }
       }
@@ -669,6 +695,7 @@ export default function RoomsScreen() {
     locationEnabled,
     pos,
     posLoading,
+    posRefreshing,
   ]);
 
   const presencePrecision = useMemo(() => {
@@ -1218,6 +1245,7 @@ export default function RoomsScreen() {
           loadingPrefs={loadingPrefs}
           locationEnabled={locationEnabled}
           posLoading={posLoading}
+          posRefreshing={posRefreshing}
           pos={pos}
           posError={posError}
           permissionBlocked={permissionBlocked}

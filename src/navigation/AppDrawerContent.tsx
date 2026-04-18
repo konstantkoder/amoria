@@ -13,6 +13,7 @@ import { useLocale } from "@/contexts/LocaleContext";
 import { auth } from "@/config/firebaseConfig";
 import { type RootStackNavigationProp } from "@/navigation/appRoutes";
 import { signOut } from "firebase/auth";
+import { theme } from "@/theme";
 
 type Props = {
   onClose?: () => void;
@@ -84,7 +85,7 @@ export default function AppDrawerContent({ onClose }: Props) {
             style={styles.button}
           >
             <View style={styles.iconWrap}>
-              <Ionicons name="close-outline" size={20} color="#E5E7EB" />
+              <Ionicons name="close-outline" size={20} color={theme.colors.text} />
             </View>
             <Text style={styles.buttonText}>{t("menu.close")}</Text>
           </TouchableOpacity>
@@ -95,7 +96,7 @@ export default function AppDrawerContent({ onClose }: Props) {
             style={styles.button}
           >
             <View style={styles.iconWrap}>
-              <Ionicons name="person-outline" size={20} color="#E5E7EB" />
+              <Ionicons name="person-outline" size={20} color={theme.colors.text} />
             </View>
             <Text style={styles.buttonText}>{t("menu.profile")}</Text>
           </TouchableOpacity>
@@ -106,7 +107,7 @@ export default function AppDrawerContent({ onClose }: Props) {
             style={styles.button}
           >
             <View style={styles.iconWrap}>
-              <Ionicons name="settings-outline" size={20} color="#E5E7EB" />
+              <Ionicons name="settings-outline" size={20} color={theme.colors.text} />
             </View>
             <Text style={styles.buttonText}>{t("menu.settings")}</Text>
           </TouchableOpacity>
@@ -118,21 +119,11 @@ export default function AppDrawerContent({ onClose }: Props) {
             style={styles.button}
           >
             <View style={styles.iconWrap}>
-              <Ionicons name="globe-outline" size={20} color="#E5E7EB" />
+              <Ionicons name="globe-outline" size={20} color={theme.colors.text} />
             </View>
             <Text style={styles.buttonText}>{t("menu.language")}</Text>
-            <View
-              style={{
-                marginLeft: "auto",
-                paddingHorizontal: 10,
-                paddingVertical: 4,
-                borderRadius: 999,
-                backgroundColor: "rgba(255,255,255,0.10)",
-                borderWidth: 1,
-                borderColor: "rgba(255,255,255,0.12)",
-              }}
-            >
-              <Text style={{ color: "#E5E7EB", fontSize: 12, fontWeight: "800" }}>
+            <View style={styles.localeBadge}>
+              <Text style={styles.localeBadgeText}>
                 {locale.toUpperCase()}
               </Text>
             </View>
@@ -144,7 +135,7 @@ export default function AppDrawerContent({ onClose }: Props) {
             style={styles.button}
           >
             <View style={styles.iconWrap}>
-              <Ionicons name="document-text-outline" size={20} color="#E5E7EB" />
+              <Ionicons name="document-text-outline" size={20} color={theme.colors.text} />
             </View>
             <Text style={styles.buttonText}>{t("screen.privacy")}</Text>
           </TouchableOpacity>
@@ -155,7 +146,7 @@ export default function AppDrawerContent({ onClose }: Props) {
             style={styles.button}
           >
             <View style={styles.iconWrap}>
-              <Ionicons name="log-out-outline" size={20} color="#E5E7EB" />
+              <Ionicons name="log-out-outline" size={20} color={theme.colors.text} />
             </View>
             <Text style={styles.buttonText}>{t("menu.logout")}</Text>
           </TouchableOpacity>
@@ -166,7 +157,7 @@ export default function AppDrawerContent({ onClose }: Props) {
             style={styles.button}
           >
             <View style={styles.iconWrap}>
-              <Ionicons name="home-outline" size={20} color="#E5E7EB" />
+              <Ionicons name="home-outline" size={20} color={theme.colors.text} />
             </View>
             <Text style={styles.buttonText}>{t("tabs.together")}</Text>
           </TouchableOpacity>
@@ -179,62 +170,47 @@ export default function AppDrawerContent({ onClose }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "transparent",
+    backgroundColor: "rgba(6, 9, 18, 0.18)",
   },
   panel: {
-    backgroundColor: "transparent",
-    borderRadius: 18,
-    padding: 16,
+    backgroundColor: "rgba(8, 11, 22, 0.94)",
+    borderRadius: 26,
+    paddingHorizontal: 14,
+    paddingTop: 16,
+    paddingBottom: 12,
     margin: 12,
-    borderWidth: 0,
-    borderColor: "transparent",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.14)",
     flex: 1,
     alignSelf: "stretch",
     justifyContent: "flex-start",
+    shadowColor: "#000000",
+    shadowOpacity: 0.35,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 14 },
+    elevation: 14,
   },
   titlePill: {
     alignSelf: "flex-start",
-    backgroundColor: "rgba(0,0,0,0.55)",
-    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderRadius: 20,
     paddingHorizontal: 14,
-    paddingVertical: 10,
-    marginBottom: 10,
+    paddingVertical: 9,
+    marginBottom: 12,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
+    borderColor: "rgba(255,255,255,0.14)",
   },
   title: {
-    color: "#FFFFFF",
-    fontSize: 22,
+    color: theme.colors.text,
+    fontSize: 20,
     fontWeight: "800",
-    marginBottom: 12,
-    textShadowColor: "rgba(0,0,0,0.75)",
-    textShadowRadius: 6,
-    textShadowOffset: { width: 0, height: 2 },
-  },
-  subtitlePill: {
-    alignSelf: "flex-start",
-    backgroundColor: "rgba(0,0,0,0.42)",
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
-  },
-  subtitle: {
-    color: "rgba(255,255,255,0.82)",
-    fontSize: 12,
-    fontWeight: "600",
-    marginBottom: 12,
-    textShadowColor: "rgba(0,0,0,0.65)",
-    textShadowRadius: 6,
-    textShadowOffset: { width: 0, height: 1 },
   },
   content: {
-    gap: 10,
+    gap: 12,
     paddingBottom: 20,
   },
   panelContent: {
+    paddingTop: 2,
     paddingBottom: 24,
   },
   panelScroll: {
@@ -244,24 +220,40 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 14,
-    paddingVertical: 12,
-    marginHorizontal: 12,
-    marginVertical: 8,
+    paddingVertical: 13,
     borderRadius: 18,
-    backgroundColor: "rgba(0,0,0,0.68)",
+    backgroundColor: "rgba(255,255,255,0.10)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
+    borderColor: "rgba(255,255,255,0.14)",
   },
   iconWrap: {
+    width: 36,
+    height: 36,
     marginRight: 10,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.10)",
   },
   buttonText: {
-    color: "#FFFFFF",
+    color: theme.colors.text,
     fontSize: 15,
     fontWeight: "800",
-    opacity: 0.95,
-    textShadowColor: "rgba(0,0,0,0.85)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 6,
+  },
+  localeBadge: {
+    marginLeft: "auto",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: theme.shapes.pill,
+    backgroundColor: "rgba(255,255,255,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.14)",
+  },
+  localeBadgeText: {
+    color: theme.colors.text,
+    fontSize: 12,
+    fontWeight: "800",
   },
 });

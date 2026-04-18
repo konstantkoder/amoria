@@ -44,6 +44,10 @@ function copyOrFallback(
 export default function CreateAnnouncementScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"CreateAnnouncement">>();
   const { t } = useLocale();
+  const scrollRef = React.useRef<ScrollView>(null);
+  const photoSectionYRef = React.useRef(0);
+  const previewCardYRef = React.useRef(0);
+  const pendingPhotoRevealRef = React.useRef(false);
   const [title, setTitle] = React.useState("");
   const [description, setDescription] = React.useState("");
   const [city, setCity] = React.useState("");
@@ -86,6 +90,14 @@ export default function CreateAnnouncementScreen() {
   const handleBack = React.useCallback(() => {
     goBackOrOpenNearbyAnnouncements(navigation);
   }, [navigation]);
+  const revealPhotoFeedback = React.useCallback(() => {
+    const targetY =
+      previewCardYRef.current > 0 ? previewCardYRef.current : photoSectionYRef.current;
+    scrollRef.current?.scrollTo({
+      y: Math.max(targetY - 16, 0),
+      animated: true,
+    });
+  }, []);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -96,6 +108,15 @@ export default function CreateAnnouncementScreen() {
       return () => subscription.remove();
     }, [handleBack])
   );
+
+  React.useEffect(() => {
+    if (!photoUri || !pendingPhotoRevealRef.current) return;
+    pendingPhotoRevealRef.current = false;
+    const timeoutId = setTimeout(() => {
+      revealPhotoFeedback();
+    }, 80);
+    return () => clearTimeout(timeoutId);
+  }, [photoUri, revealPhotoFeedback]);
 
   const pickPhoto = React.useCallback(async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -112,12 +133,16 @@ export default function CreateAnnouncementScreen() {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      quality: 0.8,
-      allowsEditing: true,
+      quality: 0.65,
+      allowsEditing: false,
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      selectionLimit: 1,
     });
     if (result.canceled) return;
-    setPhotoUri(result.assets[0]?.uri ?? "");
+    const nextUri = result.assets[0]?.uri ?? "";
+    if (!nextUri) return;
+    pendingPhotoRevealRef.current = true;
+    setPhotoUri(nextUri);
   }, [t]);
 
   const publish = React.useCallback(async () => {
@@ -171,6 +196,7 @@ export default function CreateAnnouncementScreen() {
       onBack={handleBack}
     >
       <ScrollView
+        ref={scrollRef}
         style={{ flex: 1 }}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
@@ -192,40 +218,53 @@ export default function CreateAnnouncementScreen() {
         </View>
 
         <View style={styles.formCard}>
-          <Text style={styles.label}>
-            {copyOrFallback(t, "nearby.create.photoLabel", "Фото")}
-          </Text>
-          {photoUri ? (
-            <View style={styles.photoPreviewWrap}>
-              <Image source={{ uri: photoUri }} style={styles.photoPreview} />
-              <View style={styles.photoActions}>
-                <Pressable onPress={pickPhoto} style={styles.secondaryButton}>
-                  <Text style={styles.secondaryButtonText}>
-                    {copyOrFallback(t, "nearby.create.changePhoto", "Заменить фото")}
-                  </Text>
-                </Pressable>
-                <Pressable onPress={() => setPhotoUri("")} style={styles.secondaryButton}>
-                  <Text style={styles.secondaryButtonText}>
-                    {copyOrFallback(t, "nearby.create.removePhoto", "Убрать фото")}
-                  </Text>
-                </Pressable>
+          <View
+            onLayout={(event) => {
+              photoSectionYRef.current = event.nativeEvent.layout.y;
+            }}
+          >
+            <Text style={styles.label}>
+              {copyOrFallback(t, "nearby.create.photoLabel", "Фото")}
+            </Text>
+            {photoUri ? (
+              <View style={styles.photoPreviewWrap}>
+                <Image source={{ uri: photoUri }} style={styles.photoPreview} />
+                <Text style={styles.photoAttachedHint}>
+                  {copyOrFallback(
+                    t,
+                    "nearby.create.photoAttachedHint",
+                    "Фото прикрепилось. Ниже можно сразу проверить preview объявления."
+                  )}
+                </Text>
+                <View style={styles.photoActions}>
+                  <Pressable onPress={pickPhoto} style={styles.secondaryButton}>
+                    <Text style={styles.secondaryButtonText}>
+                      {copyOrFallback(t, "nearby.create.changePhoto", "Заменить фото")}
+                    </Text>
+                  </Pressable>
+                  <Pressable onPress={() => setPhotoUri("")} style={styles.secondaryButton}>
+                    <Text style={styles.secondaryButtonText}>
+                      {copyOrFallback(t, "nearby.create.removePhoto", "Убрать фото")}
+                    </Text>
+                  </Pressable>
+                </View>
               </View>
-            </View>
-          ) : (
-            <Pressable onPress={pickPhoto} style={styles.photoPlaceholder}>
-              <Text style={styles.photoPlaceholderIcon}>＋</Text>
-              <Text style={styles.photoPlaceholderTitle}>
-                {copyOrFallback(t, "nearby.create.addPhoto", "Добавить фото")}
-              </Text>
-              <Text style={styles.photoPlaceholderBody}>
-                {copyOrFallback(
-                  t,
-                  "nearby.create.photoBody",
-                  "Опционально. Объявление всё равно можно опубликовать без изображения."
-                )}
-              </Text>
-            </Pressable>
-          )}
+            ) : (
+              <Pressable onPress={pickPhoto} style={styles.photoPlaceholder}>
+                <Text style={styles.photoPlaceholderIcon}>＋</Text>
+                <Text style={styles.photoPlaceholderTitle}>
+                  {copyOrFallback(t, "nearby.create.addPhoto", "Добавить фото")}
+                </Text>
+                <Text style={styles.photoPlaceholderBody}>
+                  {copyOrFallback(
+                    t,
+                    "nearby.create.photoBody",
+                    "Опционально. Объявление всё равно можно опубликовать без изображения."
+                  )}
+                </Text>
+              </Pressable>
+            )}
+          </View>
 
           <Text style={styles.label}>
             {copyOrFallback(t, "nearby.create.categoryLabel", "Категория")}
@@ -333,7 +372,12 @@ export default function CreateAnnouncementScreen() {
         </View>
 
         {showPreview ? (
-          <View style={styles.previewCard}>
+          <View
+            style={styles.previewCard}
+            onLayout={(event) => {
+              previewCardYRef.current = event.nativeEvent.layout.y;
+            }}
+          >
             <Text style={styles.previewKicker}>
               {copyOrFallback(t, "nearby.create.previewKicker", "Как это увидят рядом")}
             </Text>
@@ -459,6 +503,12 @@ const styles = StyleSheet.create({
   },
   photoPreviewWrap: {
     gap: 8,
+  },
+  photoAttachedHint: {
+    color: theme.colors.accent,
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: "700",
   },
   photoPreview: {
     width: "100%",
