@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { deleteDoc, doc, setDoc } from "firebase/firestore";
+import { collection, deleteDoc, doc, getDocs, setDoc } from "firebase/firestore";
 
 import { auth, db } from "@/config/firebaseConfig";
 import { isTogetherQaDemoEnabled } from "@/dev/runtimeFlags";
@@ -28,6 +28,13 @@ export type TogetherCoreLoopDemo = {
   threadId: string | null;
   peerUid: string | null;
   peerName: string | null;
+};
+
+export type TogetherLiveQaSession = {
+  sessionId: string | null;
+  peerUid: string | null;
+  peerName: string | null;
+  warnings: string[];
 };
 
 type DemoThreadSeed = {
@@ -73,9 +80,16 @@ type DemoIds = {
   legacyAnnouncementMessageIds: string[];
 };
 
+type LiveQaIds = {
+  peerUid: string;
+  sessionId: string;
+  threadId: string;
+};
+
 const DEMO_ANNOUNCEMENT_PREFIX = "dev_demo_single_device_announcement_";
 const DEMO_RESPONSE_PREFIX = DEMO_ANNOUNCEMENT_PREFIX;
 const DEMO_SESSION_PREFIX = "dev_demo_single_device_session_";
+const DEMO_LIVE_SESSION_PREFIX = "dev_demo_single_device_live_session_";
 const DEMO_PEER_NAME = "Ник";
 
 function buildDemoIds(uid: string): DemoIds {
@@ -98,6 +112,17 @@ function buildDemoIds(uid: string): DemoIds {
       "dev_demo_announcement_msg_1",
       "dev_demo_announcement_msg_2",
     ],
+  };
+}
+
+function buildLiveQaIds(uid: string): LiveQaIds {
+  const stableUid = String(uid ?? "").trim();
+  const peerUid = `dev_demo_peer_live_${stableUid}`;
+
+  return {
+    peerUid,
+    sessionId: `${DEMO_LIVE_SESSION_PREFIX}draw_${stableUid}`,
+    threadId: buildDmThreadId(stableUid, peerUid),
   };
 }
 
@@ -410,6 +435,28 @@ async function clearCurrentUserDemoDocs(uid: string) {
   await Promise.allSettled(deletions);
 }
 
+async function clearTogetherLiveQaDocs(uid: string) {
+  if (!db || !uid) return;
+
+  const ids = buildLiveQaIds(uid);
+  const [eventSnapshot, messageSnapshot] = await Promise.all([
+    getDocs(collection(db, "playSessions", ids.sessionId, "events")),
+    getDocs(collection(db, "dmThreads", ids.threadId, "messages")),
+  ]);
+
+  const deletions = [
+    ...eventSnapshot.docs.map((item) => deleteDoc(item.ref)),
+    ...messageSnapshot.docs.map((item) => deleteDoc(item.ref)),
+    deleteDoc(doc(db, "dmThreads", ids.threadId)),
+    deleteDoc(doc(db, "playSessions", ids.sessionId)),
+  ];
+
+  const results = await Promise.allSettled(deletions);
+  if (results.some((item) => item.status === "rejected")) {
+    throw new Error("Failed to clear live Together QA leftovers.");
+  }
+}
+
 async function prepareTogetherCoreLoopSeed(): Promise<DemoSeedResult> {
   const result: DemoSeedResult = {
     prepared: [],
@@ -501,5 +548,86 @@ export async function prepareTogetherCoreLoopDemo(): Promise<TogetherCoreLoopDem
     threadId: ids.threadId,
     peerUid: ids.peerUid,
     peerName: DEMO_PEER_NAME,
+  };
+}
+
+export async function prepareTogetherLiveQaSession(): Promise<TogetherLiveQaSession> {
+  const warnings: string[] = [];
+
+  if (!isTogetherQaDemoEnabled()) {
+    warnings.push(
+      "Together live QA is disabled outside development and internal QA builds."
+    );
+    return {
+      sessionId: null,
+      peerUid: null,
+      peerName: null,
+      warnings,
+    };
+  }
+
+  const uid = auth?.currentUser?.uid ?? "";
+  if (!uid) {
+    warnings.push(
+      "Sign in on this device before opening the live Together QA session."
+    );
+    return {
+      sessionId: null,
+      peerUid: null,
+      peerName: null,
+      warnings,
+    };
+  }
+
+  if (!db) {
+    warnings.push(
+      "Firebase is not available in this build, so the live Together QA session cannot be created."
+    );
+    return {
+      sessionId: null,
+      peerUid: null,
+      peerName: null,
+      warnings,
+    };
+  }
+
+  const ids = buildLiveQaIds(uid);
+  const currentName =
+    auth?.currentUser?.displayName?.trim() || makeNickname(uid) || "You";
+  const now = Date.now();
+
+  try {
+    await clearTogetherLiveQaDocs(uid);
+    await setDoc(doc(db, "playSessions", ids.sessionId), {
+      id: ids.sessionId,
+      activity: "draw",
+      status: "active",
+      createdAt: now,
+      startedAt: now,
+      participantIds: [uid, ids.peerUid],
+      participantNicknames: {
+        [uid]: currentName,
+        [ids.peerUid]: DEMO_PEER_NAME,
+      },
+      qaSolo: true,
+      qaPeerUid: ids.peerUid,
+    });
+  } catch {
+    warnings.push(
+      "We couldn't prepare a fresh live Together QA session on this device."
+    );
+    return {
+      sessionId: null,
+      peerUid: null,
+      peerName: null,
+      warnings,
+    };
+  }
+
+  return {
+    sessionId: ids.sessionId,
+    peerUid: ids.peerUid,
+    peerName: DEMO_PEER_NAME,
+    warnings,
   };
 }

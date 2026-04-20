@@ -14,7 +14,10 @@ import { isTogetherQaDemoEnabled } from "@/dev/runtimeFlags";
 import { useLocale } from "@/contexts/LocaleContext";
 import { type RootStackNavigationProp } from "@/navigation/appRoutes";
 import { openNearbySection, openRooms } from "@/navigation/nearbyNavigation";
-import { prepareTogetherCoreLoopDemo } from "@/dev/seedDemoFlow";
+import {
+  prepareTogetherCoreLoopDemo,
+  prepareTogetherLiveQaSession,
+} from "@/dev/seedDemoFlow";
 import {
   getPlayLobbyModeCardCopy,
   type PlayActivity,
@@ -26,8 +29,11 @@ const LIVE_MODE_ORDER: PlayActivity[] = ["daily_prompt", "chain_draw", "color_mo
 export default function PlayLobbyScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"PlayMatch">>();
   const { t } = useLocale();
-  const [preparingDemo, setPreparingDemo] = React.useState(false);
+  const [preparingDemoKind, setPreparingDemoKind] = React.useState<"core" | "live" | null>(
+    null
+  );
   const qaDemoEnabled = React.useMemo(() => isTogetherQaDemoEnabled(), []);
+  const preparingDemo = preparingDemoKind !== null;
   const tt = React.useCallback(
     (key: string, fallback: string, params?: Record<string, string>) => {
       const value = t(key, params);
@@ -77,7 +83,7 @@ export default function PlayLobbyScreen() {
   const handleOpenDemoCoreLoop = React.useCallback(async () => {
     if (!qaDemoEnabled || preparingDemo) return;
 
-    setPreparingDemo(true);
+    setPreparingDemoKind("core");
     try {
       const demo = await prepareTogetherCoreLoopDemo();
       const messageLines = [
@@ -116,9 +122,30 @@ export default function PlayLobbyScreen() {
         ]
       );
     } finally {
-      setPreparingDemo(false);
+      setPreparingDemoKind(null);
     }
   }, [navigation, preparingDemo, qaDemoEnabled, tt]);
+
+  const handleOpenLiveQaSession = React.useCallback(async () => {
+    if (!qaDemoEnabled || preparingDemo) return;
+
+    setPreparingDemoKind("live");
+    try {
+      const liveSession = await prepareTogetherLiveQaSession();
+      if (liveSession.sessionId) {
+        navigation.navigate("PlayCanvas", { sessionId: liveSession.sessionId });
+        return;
+      }
+
+      Alert.alert(
+        "Together live QA unavailable",
+        liveSession.warnings.join("\n") ||
+          "We couldn't create the live Together QA session on this device."
+      );
+    } finally {
+      setPreparingDemoKind(null);
+    }
+  }, [navigation, preparingDemo, qaDemoEnabled]);
 
   return (
     <ScreenShell title={t("tabs.together")} background="togetherMain">
@@ -213,20 +240,37 @@ export default function PlayLobbyScreen() {
                 "This prepares one coherent Together story with a finished result, shared history, connection card, Inbox thread, and DM continuation without touching live matching."
               )}
             </Text>
-            <Pressable
-              onPress={() => void handleOpenDemoCoreLoop()}
-              disabled={preparingDemo}
-              style={[
-                styles.devDemoButton,
-                preparingDemo ? styles.devDemoButtonDisabled : null,
-              ]}
-            >
-              <Text style={styles.devDemoButtonText}>
-                {preparingDemo
-                  ? tt("common.saving", "Preparing...")
-                  : tt("together.lobby.devDemoAction", "Open Together QA demo")}
-              </Text>
-            </Pressable>
+            <View style={styles.devDemoActions}>
+              <Pressable
+                onPress={() => void handleOpenDemoCoreLoop()}
+                disabled={preparingDemo}
+                style={[
+                  styles.devDemoButton,
+                  preparingDemo ? styles.devDemoButtonDisabled : null,
+                ]}
+              >
+                <Text style={styles.devDemoButtonText}>
+                  {preparingDemoKind === "core"
+                    ? tt("common.saving", "Preparing...")
+                    : tt("together.lobby.devDemoAction", "Open Together QA demo")}
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => void handleOpenLiveQaSession()}
+                disabled={preparingDemo}
+                style={[
+                  styles.devDemoButton,
+                  styles.devDemoButtonSecondary,
+                  preparingDemo ? styles.devDemoButtonDisabled : null,
+                ]}
+              >
+                <Text style={styles.devDemoButtonText}>
+                  {preparingDemoKind === "live"
+                    ? tt("common.saving", "Preparing...")
+                    : "Open live Together QA session"}
+                </Text>
+              </Pressable>
+            </View>
           </View>
         ) : null}
 
@@ -468,6 +512,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
   },
+  devDemoActions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
   devDemoButton: {
     alignSelf: "flex-start",
     borderRadius: theme.shapes.pill,
@@ -476,6 +525,10 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255, 122, 60, 0.18)",
     borderWidth: 1,
     borderColor: "rgba(255, 122, 60, 0.28)",
+  },
+  devDemoButtonSecondary: {
+    backgroundColor: "rgba(96, 165, 250, 0.16)",
+    borderColor: "rgba(96, 165, 250, 0.28)",
   },
   devDemoButtonDisabled: {
     opacity: 0.6,

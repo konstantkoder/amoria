@@ -108,6 +108,8 @@ export type PlaySessionDoc = {
   turnStartedAt?: number;
   revealDecisions?: Record<string, PlayRevealDecision>;
   resultStrokeCount?: number;
+  qaSolo?: boolean;
+  qaPeerUid?: string;
 };
 
 export type PlayHistoryItem = {
@@ -961,6 +963,10 @@ function asPlaySessionDoc(id: string, raw: unknown): PlaySessionDoc {
     ...(data.resultStrokeCount != null
       ? { resultStrokeCount: Number(data.resultStrokeCount) }
       : {}),
+    ...(data.qaSolo === true ? { qaSolo: true } : {}),
+    ...(normalizePromptString(data.qaPeerUid)
+      ? { qaPeerUid: normalizePromptString(data.qaPeerUid) }
+      : {}),
   };
 }
 
@@ -1658,9 +1664,18 @@ export async function submitRevealDecision(
     if (!snapshot.exists()) return;
 
     const session = asPlaySessionDoc(snapshot.id, snapshot.data());
+    const qaPeerUid =
+      session.qaSolo &&
+      session.participantIds.includes(uid) &&
+      session.qaPeerUid &&
+      session.participantIds.includes(session.qaPeerUid) &&
+      session.qaPeerUid !== uid
+        ? session.qaPeerUid
+        : "";
     const revealDecisions: Record<string, PlayRevealDecision> = {
       ...(session.revealDecisions ?? {}),
       [uid]: decision,
+      ...(qaPeerUid ? { [qaPeerUid]: decision } : {}),
     };
     const allSubmitted =
       session.participantIds.length > 0 &&
@@ -1670,7 +1685,7 @@ export async function submitRevealDecision(
       sessionRef,
       {
         revealDecisions,
-        status: allSubmitted
+        status: qaPeerUid || allSubmitted
           ? ("revealed" satisfies PlaySessionStatus)
           : session.status,
       },
