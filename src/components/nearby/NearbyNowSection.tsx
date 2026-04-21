@@ -395,21 +395,21 @@ export default function NearbyNowSection({
       return copyOrFallback(
         t,
         "nearby.now.locationLoadingTitle",
-        "Подготавливаем nearby pulse"
+        "Подготавливаем Nearby → Сейчас"
       );
     }
     if (permissionBlocked) {
       return copyOrFallback(
         t,
         "nearby.now.locationBlockedTitle",
-        "Геолокация выключена"
+        "Без геолокации «Сейчас» не откроется честно"
       );
     }
     if (locationDeclined) {
       return copyOrFallback(
         t,
         "nearby.now.locationDeclinedTitle",
-        "Нужна геолокация, чтобы показать людей рядом"
+        "Чтобы открыть «Сейчас», включи геолокацию"
       );
     }
     if (locationEnabled) {
@@ -431,21 +431,21 @@ export default function NearbyNowSection({
       return copyOrFallback(
         t,
         "nearby.now.locationLoadingBody",
-        "Проверяем геолокацию. Без неё Сейчас не покажет nearby pulse и не откроет публикацию."
+        "Проверяем геолокацию. Без неё раздел не сможет честно показать nearby pulse и не откроет отправку моментного статуса."
       );
     }
     if (permissionBlocked) {
       return copyOrFallback(
         t,
         "nearby.now.locationBlockedBody",
-        "Без геолокации Сейчас не работает честно: не показывает nearby pulse и не публикует моментный статус."
+        "«Сейчас» зависит от того, кто рядом в этот момент. Пока доступ к геолокации выключен, не будет ни nearby pulse, ни публикации твоего сигнала."
       );
     }
     if (locationDeclined) {
       return copyOrFallback(
         t,
         "nearby.now.locationDeclinedBody",
-        "Без геолокации Сейчас не покажет nearby pulse и не даст опубликовать моментный статус. Её можно включить в любой момент."
+        "Без геолокации раздел не показывает людей рядом и не публикует моментный статус. После включения сразу откроются лента и отправка."
       );
     }
     if (locationEnabled) {
@@ -454,21 +454,21 @@ export default function NearbyNowSection({
         copyOrFallback(
           t,
           "nearby.now.locationRetryBody",
-          "Доступ уже включён, но координаты ещё не обновились. Пока Сейчас не показывает nearby pulse и не публикует статус."
+          "Доступ уже включён, но координаты ещё не обновились. Пока nearby pulse и отправка статуса остаются недоступны."
         )
       );
     }
     return copyOrFallback(
       t,
       "nearby.now.locationPromptBody",
-      "Геолокация нужна, потому что Сейчас привязан к live nearby pulse: без неё не будет ни ленты, ни публикации."
+      "Это моментный nearby pulse вокруг твоего места. Без геолокации раздел не может честно показать людей рядом или принять твой статус."
     );
   }, [locationDeclined, locationEnabled, locationError, permissionBlocked, posLoading, prefsLoading, t]);
 
   const locationGateActionLabel = useMemo(() => {
     if (prefsLoading || posLoading) return "";
     if (permissionBlocked) return t("geo.openSettings");
-    if (locationDeclined) return t("common.retry");
+    if (locationDeclined) return t("geo.enableLocation");
     if (locationEnabled) return t("geo.refreshLocation");
     return t("geo.enableLocation");
   }, [locationDeclined, locationEnabled, permissionBlocked, posLoading, prefsLoading, t]);
@@ -712,7 +712,9 @@ export default function NearbyNowSection({
         ListEmptyComponent={pos ? (
           <View style={styles.emptyWrap}>
             <View style={styles.emptyCard}>
-              <Text style={styles.emptyTitle}>{t("now.peopleNearby")}</Text>
+              <Text style={styles.emptyTitle}>
+                {copyOrFallback(t, "nearby.now.emptyTitle", "Пока рядом тихо")}
+              </Text>
               <Text style={styles.emptyText}>{t("now.noneNearby")}</Text>
             </View>
           </View>

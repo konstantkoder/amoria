@@ -140,7 +140,7 @@ export default function NearbyHubScreen() {
         body: copyOrFallback(
           t,
           "nearby.segment.nowBody",
-          "Моментный nearby pulse: короткий статус и желание прямо сейчас."
+          "Моментный сигнал поблизости: короткий статус и желание на ближайший момент."
         ),
       },
       {
@@ -149,7 +149,7 @@ export default function NearbyHubScreen() {
         body: copyOrFallback(
           t,
           "nearby.segment.announcementsBody",
-          "Оформленные запросы: кого ищешь, где и для чего."
+          "Оформленный запрос: кого ищешь, где это актуально и какой формат нужен."
         ),
       },
       {
@@ -158,7 +158,7 @@ export default function NearbyHubScreen() {
         body: copyOrFallback(
           t,
           "nearby.segment.roomsBody",
-          "Групповой geo-chat и живой контекст рядом."
+          "Вход в live-групповой сценарий: место, карта nearby и общий чат рядом."
         ),
       },
     ],
@@ -227,13 +227,17 @@ export default function NearbyHubScreen() {
               {copyOrFallback(t, "nearby.heroKicker", "Nearby по темпу")}
             </Text>
             <Text style={styles.introTitle}>
-              {copyOrFallback(t, "nearby.heroTitle", "Сейчас, запросы и комнаты рядом")}
+              {copyOrFallback(
+                t,
+                "nearby.heroTitle",
+                "Что рядом сейчас, что ищут и где уже идёт общий чат"
+              )}
             </Text>
             <Text style={styles.introBody}>
               {copyOrFallback(
                 t,
                 "nearby.heroBody",
-                "Используй «Сейчас» для быстрого nearby pulse, «Объявления» для оформленного запроса, а «Комнаты» для живого группового контекста."
+                "«Сейчас» даёт моментный сигнал поблизости. «Объявления» нужны для оформленного поиска. «Комнаты» ведут в живой групповой сценарий по месту."
               )}
             </Text>
           </View>

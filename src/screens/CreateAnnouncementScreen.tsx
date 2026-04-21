@@ -75,6 +75,7 @@ export default function CreateAnnouncementScreen() {
     [t]
   );
   const fallbackPlaceLabel = copyOrFallback(t, "tabs.nearby", "Nearby");
+  const trimmedCity = city.trim();
   const previewTitle =
     title.trim() ||
     copyOrFallback(t, "nearby.create.previewTitleFallback", "Announcement title");
@@ -85,8 +86,8 @@ export default function CreateAnnouncementScreen() {
       "nearby.create.previewBodyFallback",
       "Здесь будет видно, кого ты ищешь, где это актуально и зачем откликаться."
     );
-  const previewPlace = city.trim() || fallbackPlaceLabel;
-  const showPreview = Boolean(title.trim() || description.trim() || city.trim() || photoUri);
+  const previewPlace = trimmedCity || fallbackPlaceLabel;
+  const showPreview = Boolean(title.trim() || description.trim() || trimmedCity || photoUri);
   const canPublish = Boolean(currentUid && title.trim() && description.trim());
   const handleBack = React.useCallback(() => {
     goBackOrOpenNearbyAnnouncements(navigation);
@@ -180,7 +181,7 @@ export default function CreateAnnouncementScreen() {
         title: trimmedTitle,
         description: trimmedDescription,
         category,
-        city,
+        city: trimmedCity,
         authorLabel,
         authorUid: currentUid,
         ...(photoUri ? { photoUri } : {}),
@@ -199,7 +200,7 @@ export default function CreateAnnouncementScreen() {
     } finally {
       setSaving(false);
     }
-  }, [authorLabel, category, city, currentUid, description, navigation, photoUri, t, title]);
+  }, [authorLabel, category, trimmedCity, currentUid, description, navigation, photoUri, t, title]);
 
   return (
     <ScreenShell
@@ -225,7 +226,7 @@ export default function CreateAnnouncementScreen() {
             {copyOrFallback(
               t,
               "nearby.create.heroBody",
-              "Это не моментный статус. Коротко и ясно напиши, кого ищешь, где и ради чего встречаетесь."
+              "Это оформленный запрос, а не моментный статус из «Сейчас». Коротко и понятно напиши, кого ищешь, где и какой формат нужен."
             )}
           </Text>
         </View>
@@ -246,7 +247,7 @@ export default function CreateAnnouncementScreen() {
                   {copyOrFallback(
                     t,
                     "nearby.create.photoAttachedHint",
-                    "Фото прикрепилось. Ниже можно сразу проверить preview объявления."
+                    "Фото прикрепилось. Ниже уже видно, как карточка будет выглядеть в списке объявлений."
                   )}
                 </Text>
                 <View style={styles.photoActions}>
@@ -365,7 +366,7 @@ export default function CreateAnnouncementScreen() {
           >
             <Text style={styles.publishButtonText}>
               {saving
-                ? copyOrFallback(t, "common.saving", "Сохранение...")
+                ? copyOrFallback(t, "nearby.create.publishing", "Публикуем...")
                 : copyOrFallback(t, "nearby.create.publish", "Опубликовать объявление")}
             </Text>
           </Pressable>
@@ -379,13 +380,13 @@ export default function CreateAnnouncementScreen() {
               : canPublish
               ? copyOrFallback(
                   t,
-                  "nearby.create.publishHint",
-                  "После публикации объявление сразу появится в Nearby → Объявления как оформленный запрос."
+                  "nearby.create.publishReadyHint",
+                  "После публикации вернёшься в Nearby → Объявления, где карточка сразу появится в списке."
                 )
               : copyOrFallback(
                   t,
-                  "nearby.create.fillBody",
-                  "Добавь заголовок и короткое описание, чтобы было ясно, кого и для чего ты ищешь."
+                  "nearby.create.publishHint",
+                  "Заполни заголовок и описание. Ниже preview покажет, как объявление увидят рядом."
                 )}
           </Text>
         </View>
@@ -442,7 +443,7 @@ export default function CreateAnnouncementScreen() {
                   {copyOrFallback(
                     t,
                     "nearby.create.previewFooter",
-                    "Появится в Nearby → Объявления как оформленный запрос"
+                    "После публикации появится в Nearby → Объявления и откроется как обычная карточка"
                   )}
                 </Text>
               </View>

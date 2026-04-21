@@ -406,25 +406,6 @@ export default function RoomsScreen() {
     activeRoomIdRef.current = room?.id ?? null;
   }, [room]);
 
-  useFocusEffect(
-    useCallback(() => {
-      let alive = true;
-      if (!hasLoadedPrefsRef.current) {
-        setLoadingPrefs(true);
-      }
-      (async () => {
-        const next = await loadLocationPrefs();
-        if (!alive) return;
-        setPrefs(next);
-        hasLoadedPrefsRef.current = true;
-        setLoadingPrefs(false);
-      })();
-      return () => {
-        alive = false;
-      };
-    }, []),
-  );
-
   const ensurePosition = useCallback(
     async (options?: { allowPermissionPrompt?: boolean }): Promise<RoomPosition | null> => {
       if (
@@ -579,6 +560,83 @@ export default function RoomsScreen() {
     [handleOpenSettings, isLocationRequestActive, pos, t]
   );
 
+  const resetLocationState = useCallback((options?: {
+    error?: string | null;
+    blocked?: boolean;
+  }) => {
+    invalidateLocationRequests();
+    setPos(null);
+    setPosError(options?.error ?? null);
+    setPosLoading(false);
+    setPosRefreshing(false);
+    setPermissionBlocked(Boolean(options?.blocked));
+    setSelectedKind(null);
+  }, [invalidateLocationRequests]);
+
+  const syncLocationState = useCallback(async (options?: { refreshIfReady?: boolean }) => {
+    if (!mountedRef.current) return;
+
+    try {
+      const [nextPrefs, permission] = await Promise.all([
+        loadLocationPrefs(),
+        Location.getForegroundPermissionsAsync(),
+      ]);
+      if (!mountedRef.current) return;
+
+      setPrefs(nextPrefs);
+      hasLoadedPrefsRef.current = true;
+
+      const granted = permission.status === "granted";
+      const blocked = !granted && permission.canAskAgain === false;
+      const nextLocationEnabled =
+        nextPrefs.nearbyEnabled && nextPrefs.consent === "accepted";
+
+      if (!granted) {
+        resetLocationState({
+          blocked,
+          error:
+            nextLocationEnabled || nextPrefs.consent === "accepted"
+              ? blocked
+                ? t("geo.permissionBlockedHelp")
+                : t("geo.permissionRequired")
+              : null,
+        });
+        return;
+      }
+
+      setPermissionBlocked(false);
+
+      if (!nextLocationEnabled) {
+        resetLocationState();
+        return;
+      }
+
+      setPosError(null);
+
+      if (!pos && !posLoading && !posRefreshing) {
+        void ensurePosition({ allowPermissionPrompt: false });
+        return;
+      }
+
+      if (options?.refreshIfReady && !posLoading && !posRefreshing) {
+        void ensurePosition({ allowPermissionPrompt: false });
+      }
+    } finally {
+      if (mountedRef.current) {
+        setLoadingPrefs(false);
+      }
+    }
+  }, [ensurePosition, pos, posLoading, posRefreshing, resetLocationState, t]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!hasLoadedPrefsRef.current) {
+        setLoadingPrefs(true);
+      }
+      void syncLocationState();
+    }, [syncLocationState]),
+  );
+
   const handleConsentAccept = useCallback(async () => {
     const action = consentAction;
     if (mountedRef.current) {
@@ -605,6 +663,7 @@ export default function RoomsScreen() {
       setConsentVisible(false);
       setConsentAction(null);
       setPendingRoomKind(null);
+      setSelectedKind(null);
     }
     await Promise.all([
       setLocationConsent("declined"),
@@ -651,36 +710,26 @@ export default function RoomsScreen() {
   useEffect(() => {
     if (loadingPrefs) return;
     if (!locationEnabled) {
-      invalidateLocationRequests();
-      if (pos) setPos(null);
-      if (posError) setPosError(null);
-      if (posLoading) setPosLoading(false);
-      if (posRefreshing) setPosRefreshing(false);
-      if (permissionBlocked) setPermissionBlocked(false);
+      resetLocationState();
       return;
     }
-    if (!pos && !posLoading) {
+    if (!pos && !posLoading && !posRefreshing) {
       void ensurePosition({ allowPermissionPrompt: false });
     }
   }, [
     ensurePosition,
-    invalidateLocationRequests,
     loadingPrefs,
     locationEnabled,
-    permissionBlocked,
     pos,
-    posError,
     posLoading,
     posRefreshing,
+    resetLocationState,
   ]);
 
   useEffect(() => {
     const sub = AppState.addEventListener("change", (s) => {
       if (s === "active") {
-        if (loadingPrefs) return;
-        if (locationEnabled && !pos && !posLoading && !posRefreshing) {
-          void ensurePosition({ allowPermissionPrompt: false });
-        }
+        void syncLocationState({ refreshIfReady: true });
       }
       if (s === "background" && canSharePresence) {
         clearSharedPresence();
@@ -690,12 +739,7 @@ export default function RoomsScreen() {
   }, [
     canSharePresence,
     clearSharedPresence,
-    ensurePosition,
-    loadingPrefs,
-    locationEnabled,
-    pos,
-    posLoading,
-    posRefreshing,
+    syncLocationState,
   ]);
 
   const presencePrecision = useMemo(() => {

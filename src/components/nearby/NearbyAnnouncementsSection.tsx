@@ -53,6 +53,37 @@ export default function NearbyAnnouncementsSection({
     [t]
   );
   const fallbackPlaceLabel = copyOrFallback(t, "tabs.nearby", "Nearby");
+  const emptyState = useMemo(() => {
+    if (activeCategory === "all") {
+      return {
+        title: copyOrFallback(
+          t,
+          "nearby.announcements.emptyTitle",
+          "Пока рядом нет оформленных объявлений"
+        ),
+        body: copyOrFallback(
+          t,
+          "nearby.announcements.emptyBody",
+          "Объявления нужны для более понятного запроса: кого ты ищешь, где и на какой формат встречи рассчитываешь. Можно разместить первое и задать тон разделу."
+        ),
+      };
+    }
+
+    const categoryLabel = categoryLabels[activeCategory];
+    const filteredTitle = copyOrFallback(
+      t,
+      "nearby.announcements.emptyFilteredTitle",
+      "В категории «{category}» пока пусто"
+    ).replace("{category}", categoryLabel);
+    return {
+      title: filteredTitle,
+      body: copyOrFallback(
+        t,
+        "nearby.announcements.emptyFilteredBody",
+        "Попробуй другой фильтр или размести первое объявление в этом формате."
+      ),
+    };
+  }, [activeCategory, categoryLabels, t]);
 
   useEffect(() => {
     if (!highlightedId) return;
@@ -79,7 +110,7 @@ export default function NearbyAnnouncementsSection({
               {copyOrFallback(
                 t,
                 "nearby.announcements.body",
-                "Более явные объявления: кого ты ищешь, где встречаться и какой формат нужен."
+                "Это не моментный статус. Здесь остаются более оформленные запросы: кого ты ищешь, где и на какой формат встречи рассчитываешь."
               )}
             </Text>
           </View>
@@ -228,16 +259,11 @@ export default function NearbyAnnouncementsSection({
           <View style={styles.emptyIcon}>
             <Ionicons name="compass-outline" size={22} color={theme.colors.accent} />
           </View>
-          <Text style={styles.emptyTitle}>
-            {copyOrFallback(t, "nearby.announcements.emptyTitle", "Здесь появятся объявления рядом")}
+          <Text style={styles.emptyKicker}>
+            {copyOrFallback(t, "nearby.announcements.kicker", "Оформленные запросы")}
           </Text>
-          <Text style={styles.emptyBody}>
-            {copyOrFallback(
-              t,
-              "nearby.announcements.emptyBody",
-              "Смени фильтр или размести первое объявление, если ищешь компанию, попутчика или более конкретный формат встречи."
-            )}
-          </Text>
+          <Text style={styles.emptyTitle}>{emptyState.title}</Text>
+          <Text style={styles.emptyBody}>{emptyState.body}</Text>
           <Pressable onPress={onCreate} style={styles.emptyButton}>
             <Text style={styles.emptyButtonText}>
               {copyOrFallback(t, "nearby.announcements.create", "Создать объявление")}
@@ -519,6 +545,12 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,122,60,0.10)",
     borderWidth: 1,
     borderColor: "rgba(255,122,60,0.20)",
+  },
+  emptyKicker: {
+    color: theme.colors.accent,
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.8,
   },
   emptyTitle: {
     color: theme.colors.text,

@@ -25,14 +25,14 @@ export default function NearbyRoomsSection() {
   const body = copyOrFallback(
     t,
     "nearby.rooms.body",
-    "Живой групповой geo-chat для людей поблизости. Здесь важны место, момент и быстрый вход в общий разговор."
+    "Это вход в live-сценарий по геолокации: карта nearby, выбор места и общий чат рядом."
   );
   const openLabel = copyOrFallback(t, "nearby.rooms.open", "Открыть комнаты");
 
   const features = [
-    copyOrFallback(t, "nearby.rooms.featureOne", "Групповой чат, привязанный к месту"),
-    copyOrFallback(t, "nearby.rooms.featureTwo", "Люди и контекст рядом прямо сейчас"),
-    copyOrFallback(t, "nearby.rooms.featureThree", "Полный live experience открывается отдельным экраном"),
+    copyOrFallback(t, "nearby.rooms.featureOne", "Карта nearby и текущая точка входа"),
+    copyOrFallback(t, "nearby.rooms.featureTwo", "Выбор места перед входом в комнату"),
+    copyOrFallback(t, "nearby.rooms.featureThree", "Общий live chat уже внутри полного экрана Rooms"),
   ];
 
   return (
@@ -73,7 +73,7 @@ export default function NearbyRoomsSection() {
             {copyOrFallback(
               t,
               "nearby.rooms.ctaBody",
-              "Внутри Nearby это только вход. Полный выбор места и live chat остаются в Rooms."
+              "В Nearby остаётся только точка входа. Полная карта, выбор места и сам чат открываются на экране Rooms."
             )}
           </Text>
         </View>
@@ -91,7 +91,7 @@ export default function NearbyRoomsSection() {
           {copyOrFallback(
             t,
             "nearby.rooms.linkBody",
-            "Откроется полноценный экран комнат, а назад ты вернёшься в Nearby."
+            "Откроется полный сценарий Rooms, а после выхода ты вернёшься обратно в Nearby."
           )}
         </Text>
       </View>

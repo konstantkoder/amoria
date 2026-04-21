@@ -21,6 +21,15 @@ import type {
 import { getRoomMeta, ROOM_KIND_ORDER, type RoomKind } from "@/services/rooms";
 import { theme } from "@/theme";
 
+function copyOrFallback(
+  t: RoomsTranslate,
+  key: string,
+  fallback: string
+) {
+  const value = t(key);
+  return value === key ? fallback : value;
+}
+
 type Props = {
   t: RoomsTranslate;
   loadingPrefs: boolean;
@@ -78,6 +87,65 @@ export default function RoomsChooseStage({
     () => (selectedKind ? getRoomMeta(selectedKind) : null),
     [selectedKind]
   );
+  const canPickPlace = locationEnabled && Boolean(pos) && !posLoading && joiningKind === null;
+  const joinDisabled = !selectedKind || !locationEnabled || !pos || joiningKind !== null;
+  const mapEmptyState = useMemo(() => {
+    if (loadingPrefs || posLoading) {
+      return {
+        title: copyOrFallback(t, "rooms.mapLoadingTitle", "Загружаем карту nearby"),
+        body: copyOrFallback(
+          t,
+          "rooms.mapLoadingBody",
+          "Как только геолокация определится, здесь появятся nearby комнаты и точка входа."
+        ),
+      };
+    }
+
+    if (!locationEnabled) {
+      return {
+        title: copyOrFallback(
+          t,
+          "rooms.mapLockedTitle",
+          "Карта Rooms ждёт геолокацию"
+        ),
+        body: copyOrFallback(
+          t,
+          "rooms.mapLockedBody",
+          "Без геолокации Rooms не может честно показать nearby комнаты и открыть вход в live room."
+        ),
+      };
+    }
+
+    if (permissionBlocked) {
+      return {
+        title: copyOrFallback(
+          t,
+          "rooms.mapBlockedTitle",
+          "Доступ к геолокации заблокирован"
+        ),
+        body: copyOrFallback(
+          t,
+          "rooms.mapBlockedBody",
+          "Открой настройки устройства, чтобы вернуть карту nearby и вход в комнаты рядом."
+        ),
+      };
+    }
+
+    return {
+      title: copyOrFallback(
+        t,
+        "rooms.mapRetryTitle",
+        "Нужно обновить карту nearby"
+      ),
+      body:
+        posError ??
+        copyOrFallback(
+          t,
+          "rooms.mapRetryBody",
+          "Rooms показывает nearby комнаты только после определения текущей позиции."
+        ),
+    };
+  }, [loadingPrefs, locationEnabled, permissionBlocked, posError, posLoading, t]);
   const joinBase = t("rooms.joinRoom");
   const joinLabel = selectedMeta
     ? joinBase === "rooms.joinRoom"
@@ -116,7 +184,7 @@ export default function RoomsChooseStage({
                 style={styles.primaryInlineButton}
               >
                 <Text style={styles.primaryInlineButtonText}>
-                  {t("settings.nearbyEnabled")}
+                  {t("geo.enableLocation")}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -162,7 +230,7 @@ export default function RoomsChooseStage({
                 style={styles.primaryInlineButton}
               >
                 <Text style={styles.primaryInlineButtonText}>
-                  {permissionBlocked ? t("geo.openSettings") : t("geo.enableLocation")}
+                  {permissionBlocked ? t("geo.openSettings") : t("geo.refreshLocation")}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -187,8 +255,8 @@ export default function RoomsChooseStage({
             </View>
           ) : (
             <View style={styles.mapEmpty}>
-              <Text style={styles.mapEmptyTitle}>{t("rooms.mapLoadingTitle")}</Text>
-              <Text style={styles.mapEmptyBody}>{t("rooms.mapLoadingBody")}</Text>
+              <Text style={styles.mapEmptyTitle}>{mapEmptyState.title}</Text>
+              <Text style={styles.mapEmptyBody}>{mapEmptyState.body}</Text>
             </View>
           )}
         </View>
@@ -260,11 +328,12 @@ export default function RoomsChooseStage({
               <TouchableOpacity
                 key={kind}
                 activeOpacity={0.85}
-                disabled={disabled}
+                disabled={disabled || !canPickPlace}
                 onPress={() => onSelectKind(kind)}
                 style={[
                   styles.placeChip,
                   selected ? styles.placeChipSelected : null,
+                  disabled || !canPickPlace ? styles.placeChipDisabled : null,
                 ]}
               >
                 <Text style={styles.placeEmoji}>{meta.emoji}</Text>
@@ -278,20 +347,34 @@ export default function RoomsChooseStage({
 
         <TouchableOpacity
           activeOpacity={0.85}
-          disabled={!selectedKind || joiningKind !== null}
+          disabled={joinDisabled}
           onPress={onJoinSelected}
           style={[
             styles.joinButton,
-            !selectedKind ? styles.joinButtonDisabled : styles.joinButtonActive,
+            joinDisabled ? styles.joinButtonDisabled : styles.joinButtonActive,
           ]}
         >
           {joiningKind ? <ActivityIndicator color="#FFFFFF" /> : null}
-          <Text style={[styles.joinButtonText, !selectedKind ? styles.joinButtonTextDisabled : null]}>
+          <Text style={[styles.joinButtonText, joinDisabled ? styles.joinButtonTextDisabled : null]}>
             {joinLabel}
           </Text>
         </TouchableOpacity>
 
-        <Text style={styles.placeInfo}>{t("rooms.placeInfo")}</Text>
+        <Text style={styles.placeInfo}>
+          {!locationEnabled
+            ? copyOrFallback(
+                t,
+                "rooms.placeInfoDisabled",
+                "Сначала включи геолокацию: тогда появятся карта nearby и вход в комнаты рядом."
+              )
+            : !pos
+              ? copyOrFallback(
+                  t,
+                  "rooms.placeInfoLoading",
+                  "Ждём текущую позицию. После этого можно выбрать место и войти в комнату."
+                )
+              : t("rooms.placeInfo")}
+        </Text>
       </View>
     </ScrollView>
   );
@@ -561,6 +644,9 @@ const styles = StyleSheet.create({
   placeChipSelected: {
     backgroundColor: "rgba(109,40,217,0.25)",
     borderColor: "rgba(167,139,250,0.45)",
+  },
+  placeChipDisabled: {
+    opacity: 0.52,
   },
   placeEmoji: {
     fontSize: 18,
