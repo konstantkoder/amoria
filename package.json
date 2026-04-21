@@ -20,7 +20,6 @@
     "dev:usb": "powershell -NoLogo -NonInteractive -ExecutionPolicy Bypass -File scripts\\dev_usb.ps1",
     "i18n:pack": "powershell -ExecutionPolicy Bypass -File scripts\\make-i18n-translation-pack.ps1",
     "i18n:audit": "node scripts/i18n_audit.js",
-    "i18n:rooms:patch": "node scripts/i18n_rooms_patch.js",
     "i18n:ui-risk": "node scripts/i18n_ui_risk.js"
   },
   "dependencies": {

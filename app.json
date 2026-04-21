@@ -35,9 +35,7 @@
       "supportsTablet": false,
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Мы используем вашу геолокацию, чтобы показывать статусы, людей и комнаты рядом.",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "Геолокация нужна для Nearby-сценариев рядом: статусов, людей и комнат поблизости.",
-        "NSPhotoLibraryUsageDescription": "Нужен доступ к фотобиблиотеке для выбора фотографий.",
-        "NSPhotoLibraryAddUsageDescription": "Нужен доступ для сохранения фото в библиотеку."
+        "NSPhotoLibraryUsageDescription": "Нужен доступ к фотобиблиотеке для выбора фотографий."
       }
     },
     "android": {
@@ -45,7 +43,6 @@
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
         "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE",
         "NOTIFICATIONS"
       ],
       "package": "com.anonymous.amoria",
