@@ -12,6 +12,15 @@ export type LocationPrefs = {
   shareMeOnMap: boolean;
 };
 
+const DEFAULT_LOCATION_PREFS: LocationPrefs = {
+  consent: "unknown",
+  nearbyEnabled: false,
+  showPeopleOnMap: false,
+  shareMeOnMap: false,
+};
+
+let cachedLocationPrefs: LocationPrefs = DEFAULT_LOCATION_PREFS;
+
 function parseBool(value: string | null): boolean {
   return value === "1";
 }
@@ -31,23 +40,21 @@ export async function loadLocationPrefs(): Promise<LocationPrefs> {
       SHARE_ME_KEY,
     ]);
     const map = new Map(entries);
-    return {
+    const nextPrefs = {
       consent: parseConsent(map.get(CONSENT_KEY) ?? null),
       nearbyEnabled: parseBool(map.get(NEARBY_KEY) ?? null),
       showPeopleOnMap: parseBool(map.get(SHOW_PEOPLE_KEY) ?? null),
       shareMeOnMap: parseBool(map.get(SHARE_ME_KEY) ?? null),
     };
+    cachedLocationPrefs = nextPrefs;
+    return nextPrefs;
   } catch {
-    return {
-      consent: "unknown",
-      nearbyEnabled: false,
-      showPeopleOnMap: false,
-      shareMeOnMap: false,
-    };
+    return cachedLocationPrefs;
   }
 }
 
 export async function setNearbyEnabled(value: boolean): Promise<void> {
+  cachedLocationPrefs = { ...cachedLocationPrefs, nearbyEnabled: value };
   try {
     await AsyncStorage.setItem(NEARBY_KEY, value ? "1" : "0");
   } catch {
@@ -56,6 +63,7 @@ export async function setNearbyEnabled(value: boolean): Promise<void> {
 }
 
 export async function setShowPeopleOnMap(value: boolean): Promise<void> {
+  cachedLocationPrefs = { ...cachedLocationPrefs, showPeopleOnMap: value };
   try {
     await AsyncStorage.setItem(SHOW_PEOPLE_KEY, value ? "1" : "0");
   } catch {
@@ -64,6 +72,7 @@ export async function setShowPeopleOnMap(value: boolean): Promise<void> {
 }
 
 export async function setShareMeOnMap(value: boolean): Promise<void> {
+  cachedLocationPrefs = { ...cachedLocationPrefs, shareMeOnMap: value };
   try {
     await AsyncStorage.setItem(SHARE_ME_KEY, value ? "1" : "0");
   } catch {
@@ -74,6 +83,7 @@ export async function setShareMeOnMap(value: boolean): Promise<void> {
 export async function setLocationConsent(
   value: "accepted" | "declined"
 ): Promise<void> {
+  cachedLocationPrefs = { ...cachedLocationPrefs, consent: value };
   try {
     await AsyncStorage.setItem(CONSENT_KEY, value === "accepted" ? "1" : "0");
   } catch {
@@ -82,6 +92,7 @@ export async function setLocationConsent(
 }
 
 export async function clearLocationConsent(): Promise<void> {
+  cachedLocationPrefs = { ...cachedLocationPrefs, consent: "unknown" };
   try {
     await AsyncStorage.removeItem(CONSENT_KEY);
   } catch {

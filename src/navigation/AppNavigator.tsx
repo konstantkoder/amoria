@@ -243,7 +243,7 @@ export default function AppNavigator() {
       onClose={() => setDrawerOpen(false)}
       drawerType="front"
       swipeEnabled
-      overlayStyle={{ backgroundColor: "rgba(4, 7, 18, 0.34)" }}
+      overlayStyle={{ backgroundColor: "rgba(2, 5, 14, 0.44)" }}
       drawerStyle={{ backgroundColor: "transparent", width: 300 }}
       style={{ backgroundColor: "transparent" }}
       renderDrawerContent={() => (

@@ -495,6 +495,28 @@ export default function NearbyNowSection({
         <Text style={styles.locationGateBody}>{locationGateBody}</Text>
       </View>
       {!prefsLoading && !posLoading ? (
+        <View style={styles.locationGateFacts}>
+          <View style={styles.locationGateFactPill}>
+            <Text style={styles.locationGateFactText}>
+              {copyOrFallback(
+                t,
+                "nearby.now.feedLocked",
+                "Лента nearby недоступна"
+              )}
+            </Text>
+          </View>
+          <View style={styles.locationGateFactPill}>
+            <Text style={styles.locationGateFactText}>
+              {copyOrFallback(
+                t,
+                "nearby.now.postLocked",
+                "Отправка сигнала недоступна"
+              )}
+            </Text>
+          </View>
+        </View>
+      ) : null}
+      {!prefsLoading && !posLoading ? (
         <View style={styles.locationGateActions}>
           <Pressable onPress={handleLocationGateAction} style={styles.locationGatePrimaryButton}>
             <Text style={styles.locationGatePrimaryButtonText}>{locationGateActionLabel}</Text>
@@ -741,12 +763,12 @@ const styles = StyleSheet.create({
   heroCard: {
     borderRadius: theme.shapes.card,
     padding: 14,
-    backgroundColor: "rgba(12, 16, 31, 0.9)",
+    backgroundColor: "rgba(9, 22, 24, 0.92)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
+    borderColor: "rgba(70,224,200,0.18)",
   },
   heroKicker: {
-    color: theme.colors.accent,
+    color: "#A9FFF0",
     fontSize: 11,
     fontWeight: "800",
     letterSpacing: 0.9,
@@ -774,10 +796,10 @@ const styles = StyleSheet.create({
     borderRadius: theme.shapes.pill,
     paddingHorizontal: 13,
     paddingVertical: 8,
-    backgroundColor: theme.colors.accent,
+    backgroundColor: theme.colors.success,
   },
   heroPrimaryButtonText: {
-    color: theme.colors.text,
+    color: "#042A26",
     fontSize: 12,
     fontWeight: "800",
   },
@@ -785,9 +807,9 @@ const styles = StyleSheet.create({
     borderRadius: theme.shapes.pill,
     paddingHorizontal: 13,
     paddingVertical: 8,
-    backgroundColor: "rgba(255,255,255,0.06)",
+    backgroundColor: "rgba(70,224,200,0.08)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
+    borderColor: "rgba(70,224,200,0.16)",
   },
   heroSecondaryButtonText: {
     color: theme.colors.text,
@@ -804,9 +826,9 @@ const styles = StyleSheet.create({
   locationGateCard: {
     borderRadius: 18,
     padding: 12,
-    backgroundColor: "rgba(14, 18, 33, 0.92)",
+    backgroundColor: "rgba(10, 21, 24, 0.94)",
     borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
+    borderColor: "rgba(70,224,200,0.14)",
     gap: 10,
   },
   locationGateIconWrap: {
@@ -815,9 +837,9 @@ const styles = StyleSheet.create({
     borderRadius: 17,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.05)",
+    backgroundColor: "rgba(70,224,200,0.08)",
     borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
+    borderColor: "rgba(70,224,200,0.14)",
   },
   locationGateCopy: {
     gap: 5,
@@ -832,6 +854,24 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
   },
+  locationGateFacts: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  locationGateFactPill: {
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderWidth: 1,
+    borderColor: "rgba(70,224,200,0.12)",
+  },
+  locationGateFactText: {
+    color: "#D7FDF5",
+    fontSize: 11,
+    fontWeight: "700",
+  },
   locationGateActions: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -841,10 +881,10 @@ const styles = StyleSheet.create({
     borderRadius: theme.shapes.pill,
     paddingHorizontal: 13,
     paddingVertical: 9,
-    backgroundColor: theme.colors.accent,
+    backgroundColor: theme.colors.success,
   },
   locationGatePrimaryButtonText: {
-    color: theme.colors.text,
+    color: "#042A26",
     fontSize: 12,
     fontWeight: "800",
   },
@@ -864,9 +904,9 @@ const styles = StyleSheet.create({
   composerCard: {
     borderRadius: 18,
     padding: 12,
-    backgroundColor: "rgba(17, 20, 36, 0.9)",
+    backgroundColor: "rgba(10, 19, 24, 0.92)",
     borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
+    borderColor: "rgba(70,224,200,0.12)",
     gap: 8,
   },
   composerTop: {
@@ -902,8 +942,8 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.borderSubtle,
   },
   moodChipActive: {
-    backgroundColor: "rgba(255,78,138,0.18)",
-    borderColor: "rgba(255,78,138,0.28)",
+    backgroundColor: "rgba(70,224,200,0.14)",
+    borderColor: "rgba(70,224,200,0.24)",
   },
   moodEmoji: {
     fontSize: 14,
@@ -943,9 +983,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 7,
     borderRadius: theme.shapes.pill,
-    backgroundColor: "rgba(255,255,255,0.04)",
+    backgroundColor: "rgba(70,224,200,0.08)",
     borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
+    borderColor: "rgba(70,224,200,0.14)",
     flexShrink: 1,
   },
   locationText: {
@@ -959,16 +999,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 9,
     borderRadius: theme.shapes.pill,
-    backgroundColor: theme.colors.primary,
+    backgroundColor: theme.colors.success,
     alignItems: "center",
     justifyContent: "center",
     alignSelf: "flex-end",
   },
   sendButtonDisabled: {
-    backgroundColor: "rgba(55,65,81,0.9)",
+    backgroundColor: "rgba(70,224,200,0.28)",
   },
   sendButtonText: {
-    color: "#FFFFFF",
+    color: "#042A26",
     fontSize: 12,
     fontWeight: "800",
   },
@@ -1035,8 +1075,8 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.borderSubtle,
   },
   radiusChipActive: {
-    backgroundColor: "rgba(255,122,60,0.18)",
-    borderColor: "rgba(255,122,60,0.24)",
+    backgroundColor: "rgba(70,224,200,0.16)",
+    borderColor: "rgba(70,224,200,0.24)",
   },
   radiusText: {
     color: theme.colors.text,
@@ -1123,9 +1163,9 @@ const styles = StyleSheet.create({
   emptyCard: {
     borderRadius: 16,
     padding: 12,
-    backgroundColor: "rgba(17, 20, 36, 0.72)",
+    backgroundColor: "rgba(10, 19, 24, 0.82)",
     borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
+    borderColor: "rgba(70,224,200,0.14)",
     gap: 4,
   },
   emptyTitle: {

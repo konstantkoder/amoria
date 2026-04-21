@@ -570,7 +570,6 @@ export default function RoomsScreen() {
     setPosLoading(false);
     setPosRefreshing(false);
     setPermissionBlocked(Boolean(options?.blocked));
-    setSelectedKind(null);
   }, [invalidateLocationRequests]);
 
   const syncLocationState = useCallback(async (options?: { refreshIfReady?: boolean }) => {
@@ -698,13 +697,14 @@ export default function RoomsScreen() {
       openConsentFlow({ type: "enableNearby" });
       return;
     }
-    await ensurePosition({ allowPermissionPrompt: true });
+    await ensurePosition({ allowPermissionPrompt: !pos });
   }, [
     prefs.consent,
     prefs.nearbyEnabled,
     handleEnableNearby,
     ensurePosition,
     openConsentFlow,
+    pos,
   ]);
 
   useEffect(() => {

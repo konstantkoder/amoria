@@ -110,7 +110,7 @@ export default function NearbyAnnouncementsSection({
               {copyOrFallback(
                 t,
                 "nearby.announcements.body",
-                "Это не моментный статус. Здесь остаются более оформленные запросы: кого ты ищешь, где и на какой формат встречи рассчитываешь."
+                "Это не моментный статус. Здесь остаются более оформленные запросы: кого ты ищешь, где, для какого плана и на какой формат встречи рассчитываешь."
               )}
             </Text>
           </View>
@@ -284,9 +284,9 @@ const styles = StyleSheet.create({
   heroCard: {
     borderRadius: theme.shapes.card,
     padding: 14,
-    backgroundColor: "rgba(13, 18, 34, 0.86)",
+    backgroundColor: "rgba(28, 17, 23, 0.9)",
     borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
+    borderColor: "rgba(255,122,60,0.16)",
     gap: 10,
   },
   heroTop: {
@@ -322,9 +322,9 @@ const styles = StyleSheet.create({
     borderRadius: theme.shapes.pill,
     paddingHorizontal: 10,
     paddingVertical: 5,
-    backgroundColor: theme.colors.pillBg,
+    backgroundColor: "rgba(255,122,60,0.12)",
     borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
+    borderColor: "rgba(255,122,60,0.18)",
   },
   heroCountText: {
     color: theme.colors.text,
@@ -350,13 +350,13 @@ const styles = StyleSheet.create({
     borderRadius: theme.shapes.pill,
     paddingHorizontal: 11,
     paddingVertical: 7,
-    backgroundColor: "rgba(255,255,255,0.05)",
+    backgroundColor: "rgba(255,255,255,0.04)",
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
   },
   filterChipActive: {
-    backgroundColor: "rgba(255,122,60,0.18)",
-    borderColor: "rgba(255,122,60,0.26)",
+    backgroundColor: "rgba(255,122,60,0.22)",
+    borderColor: "rgba(255,122,60,0.3)",
   },
   filterText: {
     color: theme.colors.text,
@@ -369,9 +369,9 @@ const styles = StyleSheet.create({
   card: {
     borderRadius: theme.shapes.card,
     padding: 14,
-    backgroundColor: "rgba(16, 20, 38, 0.88)",
+    backgroundColor: "rgba(26, 17, 22, 0.9)",
     borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
+    borderColor: "rgba(255,122,60,0.12)",
     gap: 12,
   },
   cardHighlighted: {
@@ -468,9 +468,9 @@ const styles = StyleSheet.create({
   cardFactsPanel: {
     borderRadius: 14,
     padding: 8,
-    backgroundColor: "rgba(255,255,255,0.03)",
+    backgroundColor: "rgba(255,122,60,0.05)",
     borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
+    borderColor: "rgba(255,122,60,0.1)",
   },
   mediaTile: {
     width: 74,
@@ -518,9 +518,9 @@ const styles = StyleSheet.create({
     borderRadius: theme.shapes.pill,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: theme.colors.pillBg,
+    backgroundColor: "rgba(255,122,60,0.1)",
     borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
+    borderColor: "rgba(255,122,60,0.16)",
   },
   openButtonText: {
     color: theme.colors.text,
@@ -530,9 +530,9 @@ const styles = StyleSheet.create({
   emptyCard: {
     borderRadius: theme.shapes.card,
     padding: 16,
-    backgroundColor: "rgba(17, 20, 36, 0.82)",
+    backgroundColor: "rgba(28, 18, 24, 0.9)",
     borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
+    borderColor: "rgba(255,122,60,0.14)",
     gap: 10,
     alignItems: "flex-start",
   },

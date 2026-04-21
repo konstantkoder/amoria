@@ -140,7 +140,7 @@ export default function NearbyHubScreen() {
         body: copyOrFallback(
           t,
           "nearby.segment.nowBody",
-          "Моментный сигнал поблизости: короткий статус и желание на ближайший момент."
+          "Моментный nearby pulse: короткий сигнал о том, что тебе нужно прямо сейчас и только на ближайший момент."
         ),
       },
       {
@@ -149,7 +149,7 @@ export default function NearbyHubScreen() {
         body: copyOrFallback(
           t,
           "nearby.segment.announcementsBody",
-          "Оформленный запрос: кого ищешь, где это актуально и какой формат нужен."
+          "Оформленный запрос: кого ищешь, где это актуально и какой формат встречи или компании нужен."
         ),
       },
       {
@@ -164,6 +164,26 @@ export default function NearbyHubScreen() {
     ],
     [t]
   );
+  const getSegmentTone = React.useCallback((section: NearbySection) => {
+    switch (section) {
+      case "announcements":
+        return {
+          button: styles.segmentButtonAnnouncementsActive,
+          text: styles.segmentTextAnnouncementsActive,
+        };
+      case "rooms":
+        return {
+          button: styles.segmentButtonRoomsActive,
+          text: styles.segmentTextRoomsActive,
+        };
+      case "now":
+      default:
+        return {
+          button: styles.segmentButtonNowActive,
+          text: styles.segmentTextNowActive,
+        };
+    }
+  }, []);
   const sectionNoteTone = React.useMemo(() => {
     switch (selectedSection) {
       case "announcements":
@@ -230,14 +250,14 @@ export default function NearbyHubScreen() {
               {copyOrFallback(
                 t,
                 "nearby.heroTitle",
-                "Что происходит прямо сейчас, что ищут и где уже открыты комнаты рядом"
+                "Nearby делится на три разных сценария рядом"
               )}
             </Text>
             <Text style={styles.introBody}>
               {copyOrFallback(
                 t,
                 "nearby.heroBody",
-                "«Сейчас» — для сигналов на ближайший момент. «Объявления» — для понятных запросов. «Комнаты» открывают живое общее пространство рядом."
+                "«Сейчас» — для того, что происходит прямо сейчас. «Объявления» — для более явного поиска человека, компании или плана. «Комнаты» — для живого общего пространства рядом."
               )}
             </Text>
           </View>
@@ -246,17 +266,23 @@ export default function NearbyHubScreen() {
             <View style={styles.segmentRow}>
               {sectionItems.map((item) => {
                 const active = selectedSection === item.id;
+                const tone = getSegmentTone(item.id);
                 return (
                   <Pressable
                     key={item.id}
                     onPress={() => setSection(item.id)}
-                    style={[styles.segmentButton, active ? styles.segmentButtonActive : null]}
+                    style={[
+                      styles.segmentButton,
+                      active ? styles.segmentButtonActive : null,
+                      active ? tone.button : null,
+                    ]}
                     hitSlop={4}
                   >
                     <Text
                       style={[
                         styles.segmentText,
                         active ? styles.segmentTextActive : null,
+                        active ? tone.text : null,
                       ]}
                     >
                       {item.label}
@@ -273,7 +299,7 @@ export default function NearbyHubScreen() {
                 ? activeSectionCopy.label
                 : copyOrFallback(t, "nearby.loading", "Собираем Nearby…")}
             </Text>
-            <Text style={styles.sectionNoteBody} numberOfLines={2}>
+            <Text style={styles.sectionNoteBody} numberOfLines={3}>
               {sectionReady
                 ? activeSectionCopy.body
                 : copyOrFallback(t, "nearby.heroBody", "Сигналы, объявления и комнаты рядом.")}
@@ -345,13 +371,23 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   segmentButtonActive: {
-    backgroundColor: "rgba(255, 122, 60, 0.20)",
-    borderColor: "rgba(255, 122, 60, 0.34)",
     shadowColor: theme.colors.accent,
     shadowOpacity: 0.1,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 4 },
     elevation: 4,
+  },
+  segmentButtonNowActive: {
+    backgroundColor: "rgba(70,224,200,0.16)",
+    borderColor: "rgba(70,224,200,0.28)",
+  },
+  segmentButtonAnnouncementsActive: {
+    backgroundColor: "rgba(255, 122, 60, 0.20)",
+    borderColor: "rgba(255, 122, 60, 0.34)",
+  },
+  segmentButtonRoomsActive: {
+    backgroundColor: "rgba(96,165,250,0.18)",
+    borderColor: "rgba(96,165,250,0.28)",
   },
   segmentText: {
     color: theme.colors.subtext,
@@ -363,6 +399,15 @@ const styles = StyleSheet.create({
   segmentTextActive: {
     color: theme.colors.text,
     fontWeight: "800",
+  },
+  segmentTextNowActive: {
+    color: "#D9FFF6",
+  },
+  segmentTextAnnouncementsActive: {
+    color: "#FFF2EB",
+  },
+  segmentTextRoomsActive: {
+    color: "#E7F1FF",
   },
   sectionNoteCard: {
     borderRadius: 16,

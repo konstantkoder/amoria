@@ -101,21 +101,6 @@ export default function RoomsChooseStage({
       };
     }
 
-    if (!locationEnabled) {
-      return {
-        title: copyOrFallback(
-          t,
-          "rooms.mapLockedTitle",
-          "Карта Rooms ждёт геолокацию"
-        ),
-        body: copyOrFallback(
-          t,
-          "rooms.mapLockedBody",
-          "Без геолокации Rooms не может честно показать nearby комнаты и открыть вход в live room."
-        ),
-      };
-    }
-
     if (permissionBlocked) {
       return {
         title: copyOrFallback(
@@ -127,6 +112,21 @@ export default function RoomsChooseStage({
           t,
           "rooms.mapBlockedBody",
           "Открой настройки устройства, чтобы вернуть карту nearby и вход в комнаты рядом."
+        ),
+      };
+    }
+
+    if (!locationEnabled) {
+      return {
+        title: copyOrFallback(
+          t,
+          "rooms.mapLockedTitle",
+          "Карта Rooms ждёт геолокацию"
+        ),
+        body: copyOrFallback(
+          t,
+          "rooms.mapLockedBody",
+          "Без геолокации Rooms не может честно показать nearby комнаты и открыть вход в live room."
         ),
       };
     }
@@ -174,6 +174,21 @@ export default function RoomsChooseStage({
             <View style={styles.inlineStatusRow}>
               <ActivityIndicator color={theme.colors.primary} />
               <Text style={styles.mutedText}>{t("rooms.getLocation")}</Text>
+            </View>
+          ) : permissionBlocked ? (
+            <View>
+              <Text style={styles.errorText}>
+                {posError ?? copyOrFallback(t, "rooms.mapBlockedBody", "Открой настройки устройства, чтобы вернуть карту nearby и вход в комнаты рядом.")}
+              </Text>
+              <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={onOpenSettings}
+                style={styles.primaryInlineButton}
+              >
+                <Text style={styles.primaryInlineButtonText}>
+                  {t("geo.openSettings")}
+                </Text>
+              </TouchableOpacity>
             </View>
           ) : !locationEnabled ? (
             <View>
@@ -226,11 +241,11 @@ export default function RoomsChooseStage({
               <Text style={styles.errorText}>{posError ?? t("geo.noLocationAccess")}</Text>
               <TouchableOpacity
                 activeOpacity={0.85}
-                onPress={permissionBlocked ? onOpenSettings : onRefreshPosition}
+                onPress={onRefreshPosition}
                 style={styles.primaryInlineButton}
               >
                 <Text style={styles.primaryInlineButtonText}>
-                  {permissionBlocked ? t("geo.openSettings") : t("geo.refreshLocation")}
+                  {t("geo.refreshLocation")}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -361,7 +376,13 @@ export default function RoomsChooseStage({
         </TouchableOpacity>
 
         <Text style={styles.placeInfo}>
-          {!locationEnabled
+          {permissionBlocked
+            ? copyOrFallback(
+                t,
+                "rooms.placeInfoBlocked",
+                "Доступ к геолокации заблокирован. Открой настройки устройства, чтобы вернуть карту и вход в комнаты."
+              )
+            : !locationEnabled
             ? copyOrFallback(
                 t,
                 "rooms.placeInfoDisabled",

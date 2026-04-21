@@ -3,6 +3,7 @@ import {
   Alert,
   BackHandler,
   Image,
+  Keyboard,
   ScrollView,
   Pressable,
   StyleSheet,
@@ -92,14 +93,24 @@ export default function CreateAnnouncementScreen() {
   const handleBack = React.useCallback(() => {
     goBackOrOpenNearbyAnnouncements(navigation);
   }, [navigation]);
-  const revealPhotoFeedback = React.useCallback(() => {
-    const targetY =
-      previewCardYRef.current > 0 ? previewCardYRef.current : photoSectionYRef.current;
-    scrollRef.current?.scrollTo({
-      y: Math.max(targetY - 16, 0),
-      animated: true,
+  const revealPreviewFeedback = React.useCallback((targetY?: number) => {
+    if (!pendingPhotoRevealRef.current) return;
+    pendingPhotoRevealRef.current = false;
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollTo({
+        y: Math.max((targetY ?? photoSectionYRef.current) - 20, 0),
+        animated: true,
+      });
     });
   }, []);
+
+  React.useEffect(() => {
+    if (!photoUri || !pendingPhotoRevealRef.current || previewCardYRef.current <= 0) return;
+    const timeoutId = setTimeout(() => {
+      revealPreviewFeedback(previewCardYRef.current);
+    }, 80);
+    return () => clearTimeout(timeoutId);
+  }, [photoUri, revealPreviewFeedback]);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -111,16 +122,8 @@ export default function CreateAnnouncementScreen() {
     }, [handleBack])
   );
 
-  React.useEffect(() => {
-    if (!photoUri || !pendingPhotoRevealRef.current) return;
-    pendingPhotoRevealRef.current = false;
-    const timeoutId = setTimeout(() => {
-      revealPhotoFeedback();
-    }, 80);
-    return () => clearTimeout(timeoutId);
-  }, [photoUri, revealPhotoFeedback]);
-
   const pickPhoto = React.useCallback(async () => {
+    Keyboard.dismiss();
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
       Alert.alert(
@@ -242,6 +245,16 @@ export default function CreateAnnouncementScreen() {
             </Text>
             {photoUri ? (
               <View style={styles.photoPreviewWrap}>
+                <View style={styles.photoAttachedBadge}>
+                  <Ionicons name="checkmark-circle" size={14} color={theme.colors.success} />
+                  <Text style={styles.photoAttachedBadgeText}>
+                    {copyOrFallback(
+                      t,
+                      "nearby.create.photoAttachedBadge",
+                      "Фото прикреплено"
+                    )}
+                  </Text>
+                </View>
                 <Image source={{ uri: photoUri }} style={styles.photoPreview} />
                 <Text style={styles.photoAttachedHint}>
                   {copyOrFallback(
@@ -355,47 +368,13 @@ export default function CreateAnnouncementScreen() {
           />
         </View>
 
-        <View style={styles.publishCard}>
-          <Pressable
-            onPress={() => void publish()}
-            disabled={!canPublish || saving}
-            style={[
-              styles.publishButton,
-              !canPublish || saving ? styles.publishButtonDisabled : null,
-            ]}
-          >
-            <Text style={styles.publishButtonText}>
-              {saving
-                ? copyOrFallback(t, "nearby.create.publishing", "Публикуем...")
-                : copyOrFallback(t, "nearby.create.publish", "Опубликовать объявление")}
-            </Text>
-          </Pressable>
-          <Text style={styles.publishHint}>
-            {!currentUid
-              ? copyOrFallback(
-                  t,
-                  "nearby.create.signInBody",
-                  "Чтобы опубликовать объявление с реальным автором и личным чатом, сначала войди в аккаунт."
-                )
-              : canPublish
-              ? copyOrFallback(
-                  t,
-                  "nearby.create.publishReadyHint",
-                  "После публикации вернёшься в раздел «Объявления» рядом, где карточка сразу появится в списке."
-                )
-              : copyOrFallback(
-                  t,
-                  "nearby.create.publishHint",
-                  "Заполни заголовок и описание. Ниже видно, как объявление увидят рядом."
-                )}
-          </Text>
-        </View>
-
         {showPreview ? (
           <View
-            style={styles.previewCard}
+            style={[styles.previewCard, photoUri ? styles.previewCardWithPhoto : null]}
             onLayout={(event) => {
               previewCardYRef.current = event.nativeEvent.layout.y;
+              if (!pendingPhotoRevealRef.current || !photoUri) return;
+              revealPreviewFeedback(event.nativeEvent.layout.y);
             }}
           >
             <Text style={styles.previewKicker}>
@@ -450,6 +429,42 @@ export default function CreateAnnouncementScreen() {
             </View>
           </View>
         ) : null}
+
+        <View style={styles.publishCard}>
+          <Pressable
+            onPress={() => void publish()}
+            disabled={!canPublish || saving}
+            style={[
+              styles.publishButton,
+              !canPublish || saving ? styles.publishButtonDisabled : null,
+            ]}
+          >
+            <Text style={styles.publishButtonText}>
+              {saving
+                ? copyOrFallback(t, "nearby.create.publishing", "Публикуем...")
+                : copyOrFallback(t, "nearby.create.publish", "Опубликовать объявление")}
+            </Text>
+          </Pressable>
+          <Text style={styles.publishHint}>
+            {!currentUid
+              ? copyOrFallback(
+                  t,
+                  "nearby.create.signInBody",
+                  "Чтобы опубликовать объявление с реальным автором и личным чатом, сначала войди в аккаунт."
+                )
+              : canPublish
+              ? copyOrFallback(
+                  t,
+                  "nearby.create.publishReadyHint",
+                  "После публикации вернёшься в раздел «Объявления» рядом, где карточка сразу появится в списке."
+                )
+              : copyOrFallback(
+                  t,
+                  "nearby.create.publishHint",
+                  "Заполни заголовок и описание. Ниже видно, как объявление увидят рядом."
+                )}
+          </Text>
+        </View>
       </ScrollView>
     </ScreenShell>
   );
@@ -526,7 +541,29 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   photoPreviewWrap: {
+    borderRadius: theme.shapes.cardInner,
+    padding: 10,
+    backgroundColor: "rgba(255,122,60,0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(255,122,60,0.18)",
     gap: 8,
+  },
+  photoAttachedBadge: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    backgroundColor: "rgba(70,224,200,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(70,224,200,0.22)",
+  },
+  photoAttachedBadgeText: {
+    color: "#D8FFF6",
+    fontSize: 11,
+    fontWeight: "800",
   },
   photoAttachedHint: {
     color: theme.colors.accent,
@@ -589,6 +626,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
     gap: 8,
+  },
+  previewCardWithPhoto: {
+    borderColor: "rgba(255,122,60,0.2)",
+    backgroundColor: "rgba(28, 18, 24, 0.84)",
   },
   previewKicker: {
     color: theme.colors.accent,
