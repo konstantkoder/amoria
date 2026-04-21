@@ -1,6 +1,7 @@
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 
+import { useLocale } from "@/contexts/LocaleContext";
 import {
   getPlayColorMoodOption,
   type PlayColorMoodOption,
@@ -69,12 +70,28 @@ export default function ColorMoodPaletteSummary({
   combinedPalette = [],
   ownPalette,
   peerPalette,
-  ownTitle = "Твои цвета",
-  peerTitle = "Цвета второго участника",
-  emptyTitle = "Цвета уже собраны не полностью",
-  emptyBody = "Палитра сохранилась, но часть цветового выбора не успела дойти до итога.",
+  ownTitle,
+  peerTitle,
+  emptyTitle,
+  emptyBody,
   compact = false,
 }: Props) {
+  const { locale } = useLocale();
+  const copy = React.useCallback(
+    (en: string, ru: string) => (locale === "ru" ? ru : en),
+    [locale]
+  );
+  const resolvedOwnTitle = ownTitle ?? copy("Your colors", "Твои цвета");
+  const resolvedPeerTitle =
+    peerTitle ?? copy("The other person's colors", "Цвета второго участника");
+  const resolvedEmptyTitle =
+    emptyTitle ?? copy("The palette is only partially assembled", "Цвета уже собраны не полностью");
+  const resolvedEmptyBody =
+    emptyBody ??
+    copy(
+      "The palette stayed saved, but part of the color choice did not reach the final result in time.",
+      "Палитра сохранилась, но часть цветового выбора не успела дойти до итога."
+    );
   const compositionColors = combinedPalette.length
     ? combinedPalette
     : [theme.colors.primary, theme.colors.accent, "#C8A9FF"];
@@ -122,31 +139,38 @@ export default function ColorMoodPaletteSummary({
 
       {combinedPalette.length ? (
         <PaletteSection
-          title="Ваша общая палитра"
+          title={copy("Your shared palette", "Ваша общая палитра")}
           palette={combinedPalette}
-          emptyText={emptyBody}
+          emptyText={resolvedEmptyBody}
           compact={compact}
         />
       ) : (
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, compact && styles.sectionTitleCompact]}>{emptyTitle}</Text>
-          <Text style={[styles.emptyText, compact && styles.emptyTextCompact]}>{emptyBody}</Text>
+          <Text style={[styles.sectionTitle, compact && styles.sectionTitleCompact]}>
+            {resolvedEmptyTitle}
+          </Text>
+          <Text style={[styles.emptyText, compact && styles.emptyTextCompact]}>
+            {resolvedEmptyBody}
+          </Text>
         </View>
       )}
 
       {ownPalette ? (
         <PaletteSection
-          title={ownTitle}
+          title={resolvedOwnTitle}
           palette={ownPalette}
-          emptyText="Твой выбор еще не закрепился."
+          emptyText={copy("Your choice is not locked in yet.", "Твой выбор еще не закрепился.")}
           compact={compact}
         />
       ) : null}
       {peerPalette ? (
         <PaletteSection
-          title={peerTitle}
+          title={resolvedPeerTitle}
           palette={peerPalette}
-          emptyText="Выбор второго участника еще не закрепился."
+          emptyText={copy(
+            "The other person's choice is not locked in yet.",
+            "Выбор второго участника еще не закрепился."
+          )}
           compact={compact}
         />
       ) : null}

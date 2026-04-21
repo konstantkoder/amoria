@@ -395,7 +395,7 @@ export default function NearbyNowSection({
       return copyOrFallback(
         t,
         "nearby.now.locationLoadingTitle",
-        "Подготавливаем Nearby → Сейчас"
+        "Подготавливаем раздел «Сейчас»"
       );
     }
     if (permissionBlocked) {
@@ -431,14 +431,14 @@ export default function NearbyNowSection({
       return copyOrFallback(
         t,
         "nearby.now.locationLoadingBody",
-        "Проверяем геолокацию. Без неё раздел не сможет честно показать nearby pulse и не откроет отправку моментного статуса."
+        "Проверяем геолокацию. Без неё раздел не сможет честно показать людей рядом и не откроет отправку моментного статуса."
       );
     }
     if (permissionBlocked) {
       return copyOrFallback(
         t,
         "nearby.now.locationBlockedBody",
-        "«Сейчас» зависит от того, кто рядом в этот момент. Пока доступ к геолокации выключен, не будет ни nearby pulse, ни публикации твоего сигнала."
+        "«Сейчас» зависит от того, кто рядом в этот момент. Пока доступ к геолокации выключен, не будет ни ленты рядом, ни публикации твоего сигнала."
       );
     }
     if (locationDeclined) {
@@ -454,14 +454,14 @@ export default function NearbyNowSection({
         copyOrFallback(
           t,
           "nearby.now.locationRetryBody",
-          "Доступ уже включён, но координаты ещё не обновились. Пока nearby pulse и отправка статуса остаются недоступны."
+          "Доступ уже включён, но координаты ещё не обновились. Пока лента рядом и отправка статуса остаются недоступны."
         )
       );
     }
     return copyOrFallback(
       t,
       "nearby.now.locationPromptBody",
-      "Это моментный nearby pulse вокруг твоего места. Без геолокации раздел не может честно показать людей рядом или принять твой статус."
+      "Это моментный сигнал вокруг твоего места. Без геолокации раздел не может честно показать людей рядом или принять твой статус."
     );
   }, [locationDeclined, locationEnabled, locationError, permissionBlocked, posLoading, prefsLoading, t]);
 

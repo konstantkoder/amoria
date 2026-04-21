@@ -1,5 +1,3 @@
-import type { } from "react";
-
 import en from "./locales/en.json";
 import ru from "./locales/ru.json";
 import hr from "./locales/hr.json";

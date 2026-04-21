@@ -45,8 +45,6 @@ type GuardState = {
   secondaryAction?: () => void;
 };
 
-const COLOR_OPTIONS = getPlayColorMoodOptions();
-
 export default function PlayColorMoodScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"PlayColorMood">>();
   const route = useRoute<PlayColorMoodRouteProp>();
@@ -60,6 +58,7 @@ export default function PlayColorMoodScreen() {
   );
   const sessionId = route.params.sessionId.trim();
   const uid = auth?.currentUser?.uid ?? "";
+  const colorOptions = React.useMemo(() => getPlayColorMoodOptions(), [t]);
 
   const [session, setSession] = React.useState<PlaySessionDoc | null>(null);
   const [loadingSession, setLoadingSession] = React.useState(true);
@@ -194,8 +193,10 @@ export default function PlayColorMoodScreen() {
 
   React.useEffect(() => {
     if (ownSelectionLocked || !selectedColors.length) return;
-    setSelectedColors((prev) => prev.filter((hex) => COLOR_OPTIONS.some((option) => option.hex === hex)));
-  }, [ownSelectionLocked, selectedColors.length]);
+    setSelectedColors((prev) =>
+      prev.filter((hex) => colorOptions.some((option) => option.hex === hex))
+    );
+  }, [colorOptions, ownSelectionLocked, selectedColors.length]);
 
   const completeSession = React.useCallback(async () => {
     if (!db || !sessionId) {
@@ -543,7 +544,7 @@ export default function PlayColorMoodScreen() {
                   <View key={hex} style={styles.selectionChip}>
                     <View style={[styles.selectionDot, { backgroundColor: hex }]} />
                     <Text style={styles.selectionChipText}>
-                      {COLOR_OPTIONS.find((option) => option.hex === hex)?.label ?? hex}
+                      {colorOptions.find((option) => option.hex === hex)?.label ?? hex}
                     </Text>
                   </View>
                 ))
@@ -566,7 +567,7 @@ export default function PlayColorMoodScreen() {
           </Text>
 
           <View style={styles.grid}>
-            {COLOR_OPTIONS.map((option) => {
+            {colorOptions.map((option) => {
               const selected = displaySelection.includes(option.hex);
               const disabled =
                 (!selected && displaySelection.length >= COLOR_MOOD_SELECTION_COUNT) ||

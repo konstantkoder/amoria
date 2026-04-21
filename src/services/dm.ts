@@ -58,7 +58,7 @@ export type DmChatRouteParams = {
   threadId: string;
   peerId: string;
   peerName?: string;
-  backTarget?: "together" | "history" | "connections" | "inbox" | "sessionDetail";
+  backTarget?: "history" | "connections" | "inbox" | "sessionDetail";
   backSessionId?: string;
 };
 
@@ -337,21 +337,6 @@ export async function sendDmMessage(
       { merge: true }
     );
   });
-
-  // Keep the legacy mirror write as a silent fallback for older readers, while
-  // the current UI relies only on `dmThreads/.../messages`.
-  setDoc(
-    doc(collection(db, "dm", threadId, "messages"), stableClientId),
-    {
-      clientId: stableClientId,
-      from,
-      to,
-      text: value,
-      createdAt: now,
-      createdAtServer: serverTimestamp(),
-    },
-    { merge: true }
-  ).catch(() => {});
 
   return msgRef.id;
 }

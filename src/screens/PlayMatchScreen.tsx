@@ -491,7 +491,7 @@ export default function PlayMatchScreen() {
             <Text style={styles.signalText}>
               {tt(
                 "play.match.blockedSignalText",
-                "Этот экран теперь остаётся частью основного потока Together, а не отдельным старым модулем."
+                "Этот экран остаётся частью основного пути Together: здесь готовится пара и открывается общий этап."
               )}
             </Text>
           </View>

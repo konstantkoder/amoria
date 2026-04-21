@@ -30,36 +30,36 @@ export type PlayColorMoodOption = {
 export const CHAIN_DRAW_TURN_DURATION_SEC = 30;
 export const CHAIN_DRAW_MAX_TURNS = 10;
 export const COLOR_MOOD_SELECTION_COUNT = 3;
-const DAILY_PROMPT_POOL: PlayDailyPrompt[] = [
-  { id: "dream_city", text: "Город мечты" },
-  { id: "symbol_of_joy", text: "Символ радости" },
-  { id: "night_light", text: "Ночной свет" },
-  { id: "return_place", text: "Место, куда хочется вернуться" },
-  { id: "perfect_evening", text: "Идеальный вечер" },
-  { id: "lucky_sign", text: "Знак удачи" },
-  { id: "summer_memory", text: "Воспоминание о лете" },
-  { id: "quiet_world", text: "Тихий мир" },
-  { id: "imagined_home", text: "Дом, которого не было" },
-  { id: "bridge_between_two", text: "Мост между двумя людьми" },
-  { id: "sky_after_rain", text: "Небо после дождя" },
-  { id: "color_of_hope", text: "Цвет надежды" },
-];
-const COLOR_MOOD_OPTIONS: PlayColorMoodOption[] = [
-  { id: "soft_pink", label: "Мягкий розовый", hex: "#FF8FB1" },
-  { id: "peach", label: "Персиковый", hex: "#FFB48A" },
-  { id: "golden", label: "Золотистый", hex: "#F4C86A" },
-  { id: "lavender", label: "Лавандовый", hex: "#C8A9FF" },
-  { id: "deep_violet", label: "Глубокий фиолетовый", hex: "#7350B8" },
-  { id: "night_blue", label: "Ночной синий", hex: "#395DB9" },
-  { id: "powder", label: "Пудровый", hex: "#F1C9D8" },
-  { id: "warm_orange", label: "Тёплый оранжевый", hex: "#FF9150" },
-  { id: "soft_coral", label: "Нежный коралл", hex: "#FF7D78" },
-  { id: "light_lilac", label: "Светлый сиреневый", hex: "#DAC8FF" },
-  { id: "star_indigo", label: "Звёздный индиго", hex: "#4E61D3" },
-  { id: "morning_cream", label: "Утренний кремовый", hex: "#F8E9CC" },
-];
+const DAILY_PROMPT_DEFS = [
+  { id: "dream_city", en: "Dream city", ru: "Город мечты" },
+  { id: "symbol_of_joy", en: "Symbol of joy", ru: "Символ радости" },
+  { id: "night_light", en: "Night light", ru: "Ночной свет" },
+  { id: "return_place", en: "A place you want to return to", ru: "Место, куда хочется вернуться" },
+  { id: "perfect_evening", en: "Perfect evening", ru: "Идеальный вечер" },
+  { id: "lucky_sign", en: "Lucky sign", ru: "Знак удачи" },
+  { id: "summer_memory", en: "Summer memory", ru: "Воспоминание о лете" },
+  { id: "quiet_world", en: "Quiet world", ru: "Тихий мир" },
+  { id: "imagined_home", en: "A home that never existed", ru: "Дом, которого не было" },
+  { id: "bridge_between_two", en: "Bridge between two people", ru: "Мост между двумя людьми" },
+  { id: "sky_after_rain", en: "Sky after rain", ru: "Небо после дождя" },
+  { id: "color_of_hope", en: "Color of hope", ru: "Цвет надежды" },
+] as const;
+const COLOR_MOOD_OPTION_DEFS = [
+  { id: "soft_pink", en: "Soft pink", ru: "Мягкий розовый", hex: "#FF8FB1" },
+  { id: "peach", en: "Peach", ru: "Персиковый", hex: "#FFB48A" },
+  { id: "golden", en: "Golden", ru: "Золотистый", hex: "#F4C86A" },
+  { id: "lavender", en: "Lavender", ru: "Лавандовый", hex: "#C8A9FF" },
+  { id: "deep_violet", en: "Deep violet", ru: "Глубокий фиолетовый", hex: "#7350B8" },
+  { id: "night_blue", en: "Night blue", ru: "Ночной синий", hex: "#395DB9" },
+  { id: "powder", en: "Powder", ru: "Пудровый", hex: "#F1C9D8" },
+  { id: "warm_orange", en: "Warm orange", ru: "Тёплый оранжевый", hex: "#FF9150" },
+  { id: "soft_coral", en: "Soft coral", ru: "Нежный коралл", hex: "#FF7D78" },
+  { id: "light_lilac", en: "Light lilac", ru: "Светлый сиреневый", hex: "#DAC8FF" },
+  { id: "star_indigo", en: "Star indigo", ru: "Звёздный индиго", hex: "#4E61D3" },
+  { id: "morning_cream", en: "Morning cream", ru: "Утренний кремовый", hex: "#F8E9CC" },
+] as const;
 const COLOR_MOOD_OPTIONS_BY_HEX = new Map(
-  COLOR_MOOD_OPTIONS.map((option) => [option.hex.toLowerCase(), option])
+  COLOR_MOOD_OPTION_DEFS.map((option) => [option.hex.toLowerCase(), option])
 );
 
 export type PlayQueueStatus = "waiting" | "matched" | "cancelled";
@@ -218,16 +218,23 @@ export type PlayReplayCopy = {
 
 type PlayCopyParams = Record<string, string>;
 
-function playText(key: string, fallback: string, params?: PlayCopyParams) {
-  const value = translate(getRuntimeLocale(), key, params);
-  if (value !== key) return value;
-  if (!params) return fallback;
-
-  let output = fallback;
+function fillCopy(template: string, params?: PlayCopyParams) {
+  if (!params) return template;
+  let output = template;
   for (const [name, nextValue] of Object.entries(params)) {
     output = output.replaceAll(`{${name}}`, String(nextValue));
   }
   return output;
+}
+
+function playText(key: string, fallback: string, params?: PlayCopyParams) {
+  const value = translate(getRuntimeLocale(), key, params);
+  if (value !== key) return value;
+  return fillCopy(fallback, params);
+}
+
+function releaseCopy(en: string, ru: string, params?: PlayCopyParams) {
+  return fillCopy(getRuntimeLocale() === "ru" ? ru : en, params);
 }
 
 export function isPlayActivity(value: unknown): value is PlayActivity {
@@ -320,17 +327,30 @@ function getUtcDaySeed(timestamp: number) {
 }
 
 export function getPlayDailyPromptPool() {
-  return DAILY_PROMPT_POOL;
+  return DAILY_PROMPT_DEFS.map((item) => ({
+    id: item.id,
+    text: releaseCopy(item.en, item.ru),
+  }));
 }
 
 export function getPlayColorMoodOptions() {
-  return COLOR_MOOD_OPTIONS;
+  return COLOR_MOOD_OPTION_DEFS.map((item) => ({
+    id: item.id,
+    label: releaseCopy(item.en, item.ru),
+    hex: item.hex,
+  }));
 }
 
 export function getPlayColorMoodOption(hex: string): PlayColorMoodOption | null {
   const stableHex = normalizeColorMoodChoiceHex(hex);
   if (!stableHex) return null;
-  return COLOR_MOOD_OPTIONS_BY_HEX.get(stableHex.toLowerCase()) ?? null;
+  const option = COLOR_MOOD_OPTIONS_BY_HEX.get(stableHex.toLowerCase()) ?? null;
+  if (!option) return null;
+  return {
+    id: option.id,
+    label: releaseCopy(option.en, option.ru),
+    hex: option.hex,
+  };
 }
 
 function buildCombinedColorMoodPalette(
@@ -350,7 +370,7 @@ export function getPlayColorMoodCombinedPalette(
   if (!session || session.activity !== "color_mood") return [];
   const combinedPalette = normalizeColorMoodPalette(
     session.combinedPalette,
-    COLOR_MOOD_OPTIONS.length
+    COLOR_MOOD_OPTION_DEFS.length
   );
   if (combinedPalette.length) return combinedPalette;
   return buildCombinedColorMoodPalette(
@@ -390,17 +410,27 @@ export function playActivityUsesReplay(activity: string) {
 export function getPlayDailyPromptById(promptId: string): PlayDailyPrompt | null {
   const stablePromptId = normalizePromptString(promptId);
   if (!stablePromptId) return null;
-  return DAILY_PROMPT_POOL.find((item) => item.id === stablePromptId) ?? null;
+  const prompt = DAILY_PROMPT_DEFS.find((item) => item.id === stablePromptId) ?? null;
+  if (!prompt) return null;
+  return {
+    id: prompt.id,
+    text: releaseCopy(prompt.en, prompt.ru),
+  };
 }
 
 export function getPlayDailyPromptForTimestamp(timestamp: number): PlayDailyPrompt | null {
   const daySeed = getUtcDaySeed(timestamp);
-  if (daySeed == null || !DAILY_PROMPT_POOL.length) return null;
+  if (daySeed == null || !DAILY_PROMPT_DEFS.length) return null;
 
   const index =
-    ((daySeed % DAILY_PROMPT_POOL.length) + DAILY_PROMPT_POOL.length) %
-    DAILY_PROMPT_POOL.length;
-  return DAILY_PROMPT_POOL[index] ?? DAILY_PROMPT_POOL[0] ?? null;
+    ((daySeed % DAILY_PROMPT_DEFS.length) + DAILY_PROMPT_DEFS.length) %
+    DAILY_PROMPT_DEFS.length;
+  const prompt = DAILY_PROMPT_DEFS[index] ?? DAILY_PROMPT_DEFS[0] ?? null;
+  if (!prompt) return null;
+  return {
+    id: prompt.id,
+    text: releaseCopy(prompt.en, prompt.ru),
+  };
 }
 
 function resolvePlayPromptFromParts(
@@ -536,37 +566,60 @@ export function getPlayLobbyModeCardCopy(activity: PlayActivity): PlayLobbyModeC
   switch (activity) {
     case "draw":
       return {
-        title: "Свободный общий рисунок",
-        description: "Один общий холст, свободный ритм и один итог на двоих.",
-        details:
-          "7 минут на совместный рисунок, а после завершения вы решаете, открывать ли чат дальше.",
+        title: releaseCopy("Free shared drawing", "Свободный общий рисунок"),
+        description: releaseCopy(
+          "One shared canvas, a free rhythm, and one result for two.",
+          "Один общий холст, свободный ритм и один итог на двоих."
+        ),
+        details: releaseCopy(
+          "Seven minutes for one shared drawing. After it ends, you decide whether this should move into chat.",
+          "7 минут на совместный рисунок, а после завершения вы решаете, открывать ли чат дальше."
+        ),
       };
     case "chain_draw":
       return {
-        title: "Рисунок по очереди",
-        description: "Вы рисуете по очереди короткими ходами и собираете один общий рисунок.",
-        details: "10 ходов по 30 секунд, один холст и понятный ритм передачи хода.",
+        title: releaseCopy("Turn-based drawing", "Рисунок по очереди"),
+        description: releaseCopy(
+          "You draw in short turns and build one shared result together.",
+          "Вы рисуете по очереди короткими ходами и собираете один общий рисунок."
+        ),
+        details: releaseCopy(
+          "Ten turns, 30 seconds each, one canvas, and a clear handoff rhythm.",
+          "10 ходов по 30 секунд, один холст и понятный ритм передачи хода."
+        ),
       };
     case "daily_prompt":
       return {
-        title: "Общая тема дня",
-        description: "Одна тема на двоих, один общий рисунок и один итог.",
-        details:
-          "Сегодняшняя тема откроется после матча, а дальше вы соберёте один рисунок на двоих.",
+        title: releaseCopy("Shared prompt of the day", "Общая тема дня"),
+        description: releaseCopy(
+          "One shared prompt, one drawing together, and one final result.",
+          "Одна тема на двоих, один общий рисунок и один итог."
+        ),
+        details: releaseCopy(
+          "Today's prompt opens after the match, and then you build one shared drawing together.",
+          "Сегодняшняя тема откроется после матча, а дальше вы соберёте один рисунок на двоих."
+        ),
       };
     case "color_mood":
       return {
-        title: "Палитра настроения",
-        description:
-          "Каждый выбирает цвета, а вместе вы собираете общую палитру и мягкую совместную композицию.",
-        details:
-          "Короткая сессия выбора, одна общая палитра и тот же итог с решением об открытии чата.",
+        title: releaseCopy("Mood palette", "Палитра настроения"),
+        description: releaseCopy(
+          "Each of you chooses colors, and together you assemble one shared palette and a softer visual composition.",
+          "Каждый выбирает цвета, а вместе вы собираете общую палитру и мягкую совместную композицию."
+        ),
+        details: releaseCopy(
+          "A short color-picking session, one shared palette, and the same final step into the open decision.",
+          "Короткая сессия выбора, одна общая палитра и тот же итог с решением об открытии чата."
+        ),
       };
     default:
       return {
-        title: "Совместная сессия",
-        description: "Один общий опыт на двоих.",
-        details: "После завершения история сохранится, а чат откроется только по взаимному желанию.",
+        title: releaseCopy("Shared session", "Совместная сессия"),
+        description: releaseCopy("One shared experience for two.", "Один общий опыт на двоих."),
+        details: releaseCopy(
+          "After the session ends, the story stays saved and chat opens only if both of you want it.",
+          "После завершения история сохранится, а чат откроется только по взаимному желанию."
+        ),
       };
   }
 }
@@ -575,52 +628,100 @@ export function getPlayMatchModeCopy(activity: PlayActivity | null): PlayMatchMo
   switch (activity) {
     case "chain_draw":
       return {
-        eyebrow: "Рисунок по очереди",
-        preparingBody:
-          "Сейчас поставим тебя в очередь и попробуем быстро найти второго человека для рисунка по очереди.",
-        searchingBody:
-          "Как только найдём второго участника, сразу откроем один общий холст. Вы будете рисовать короткими ходами и по очереди собирать общий рисунок.",
-        delayedBody:
-          "Обычно это происходит быстро, но иногда поиск занимает чуть больше времени. Оставайся здесь или вернись и попробуй снова позже.",
-        foundBody: "Подключаем вас к одному рисунку по очереди. Это займёт пару секунд.",
-        caption: "10 ходов по 30 секунд, один общий холст и передача хода после каждого раунда.",
+        eyebrow: releaseCopy("Turn-based drawing", "Рисунок по очереди"),
+        preparingBody: releaseCopy(
+          "We'll put you in line now and try to find the second person for a turn-based drawing.",
+          "Сейчас поставим тебя в очередь и попробуем быстро найти второго человека для рисунка по очереди."
+        ),
+        searchingBody: releaseCopy(
+          "As soon as we find the second person, we'll open one shared canvas. You will build one drawing together in short turns.",
+          "Как только найдём второго участника, сразу откроем один общий холст. Вы будете рисовать короткими ходами и по очереди собирать общий рисунок."
+        ),
+        delayedBody: releaseCopy(
+          "This usually happens quickly, but sometimes the search takes a little longer. Stay here or come back and try again later.",
+          "Обычно это происходит быстро, но иногда поиск занимает чуть больше времени. Оставайся здесь или вернись и попробуй снова позже."
+        ),
+        foundBody: releaseCopy(
+          "We're connecting you to the shared turn-based drawing now. It will take a couple of seconds.",
+          "Подключаем вас к одному рисунку по очереди. Это займёт пару секунд."
+        ),
+        caption: releaseCopy(
+          "10 turns, 30 seconds each, one shared canvas, and a clean handoff after every round.",
+          "10 ходов по 30 секунд, один общий холст и передача хода после каждого раунда."
+        ),
       };
     case "daily_prompt":
       return {
-        eyebrow: "Рисунок по теме дня",
-        preparingBody:
-          "Сейчас поставим тебя в очередь и попробуем быстро найти человека для рисунка по общей теме.",
-        searchingBody:
-          "Как только найдём второго участника, сразу откроем один общий холст и покажем сегодняшнюю тему.",
-        delayedBody:
-          "Обычно это происходит быстро, но иногда поиск человека для общей темы занимает чуть больше времени. Оставайся здесь или вернись и попробуй позже.",
-        foundBody: "Человек найден. Открываем общий холст и сегодняшнюю тему. Это займёт пару секунд.",
-        caption: "Один рисунок на двоих, одна тема и один итог перед решением об открытии чата.",
+        eyebrow: releaseCopy("Shared prompt drawing", "Рисунок по теме дня"),
+        preparingBody: releaseCopy(
+          "We'll put you in line now and try to find someone for the shared prompt drawing.",
+          "Сейчас поставим тебя в очередь и попробуем быстро найти человека для рисунка по общей теме."
+        ),
+        searchingBody: releaseCopy(
+          "As soon as we find the second person, we'll open one shared canvas and reveal today's prompt.",
+          "Как только найдём второго участника, сразу откроем один общий холст и покажем сегодняшнюю тему."
+        ),
+        delayedBody: releaseCopy(
+          "This usually happens quickly, but sometimes finding someone for the shared prompt takes a bit longer. Stay here or come back later.",
+          "Обычно это происходит быстро, но иногда поиск человека для общей темы занимает чуть больше времени. Оставайся здесь или вернись и попробуй позже."
+        ),
+        foundBody: releaseCopy(
+          "We found the second person. Opening the shared canvas and today's prompt now.",
+          "Человек найден. Открываем общий холст и сегодняшнюю тему. Это займёт пару секунд."
+        ),
+        caption: releaseCopy(
+          "One drawing for two, one shared prompt, and one result before the open decision.",
+          "Один рисунок на двоих, одна тема и один итог перед решением об открытии чата."
+        ),
       };
     case "color_mood":
       return {
-        eyebrow: "Общая палитра на двоих",
-        preparingBody:
-          "Сейчас поставим тебя в очередь и попробуем быстро найти человека для мягкой совместной палитры.",
-        searchingBody:
-          "Как только найдём второго участника, сразу откроем короткую сессию выбора цветов. Каждый выберет три цвета, а потом появится общая палитра.",
-        delayedBody:
-          "Обычно поиск занимает немного времени, но иногда на палитру настроения нужно подождать чуть дольше. Оставайся здесь или вернись позже.",
-        foundBody: "Человек найден. Открываем палитру настроения и выбор цветов.",
-        caption: "Каждый выбирает 3 цвета, а итогом станет одна общая палитра пары.",
+        eyebrow: releaseCopy("Shared palette for two", "Общая палитра на двоих"),
+        preparingBody: releaseCopy(
+          "We'll put you in line now and try to find someone for a softer shared palette session.",
+          "Сейчас поставим тебя в очередь и попробуем быстро найти человека для мягкой совместной палитры."
+        ),
+        searchingBody: releaseCopy(
+          "As soon as we find the second person, we'll open a short color-picking session. Each of you chooses three colors, then the shared palette appears.",
+          "Как только найдём второго участника, сразу откроем короткую сессию выбора цветов. Каждый выберет три цвета, а потом появится общая палитра."
+        ),
+        delayedBody: releaseCopy(
+          "This usually takes only a moment, but sometimes the mood palette needs a little more waiting. Stay here or come back later.",
+          "Обычно поиск занимает немного времени, но иногда на палитру настроения нужно подождать чуть дольше. Оставайся здесь или вернись позже."
+        ),
+        foundBody: releaseCopy(
+          "We found the second person. Opening the palette and color choices now.",
+          "Человек найден. Открываем палитру настроения и выбор цветов."
+        ),
+        caption: releaseCopy(
+          "Each person chooses 3 colors, and the result becomes one shared palette for the pair.",
+          "Каждый выбирает 3 цвета, а итогом станет одна общая палитра пары."
+        ),
       };
     case "draw":
     default:
       return {
-        eyebrow: "Свободный общий рисунок",
-        preparingBody:
-          "Сейчас поставим тебя в очередь и попробуем быстро найти второго человека для общего свободного рисунка.",
-        searchingBody:
-          "Как только найдём второго участника, сразу откроем один общий холст. Вы будете рисовать вместе в свободном ритме.",
-        delayedBody:
-          "Обычно это происходит быстро, но иногда поиск занимает чуть больше времени. Оставайся здесь или вернись и попробуй снова позже.",
-        foundBody: "Подключаем вас к общему холсту. Это займёт пару секунд.",
-        caption: "7 минут, один общий холст, свободный ритм и один итог перед решением об открытии чата.",
+        eyebrow: releaseCopy("Free shared drawing", "Свободный общий рисунок"),
+        preparingBody: releaseCopy(
+          "We'll put you in line now and try to find the second person for a free shared drawing.",
+          "Сейчас поставим тебя в очередь и попробуем быстро найти второго человека для общего свободного рисунка."
+        ),
+        searchingBody: releaseCopy(
+          "As soon as we find the second person, we'll open one shared canvas. You will draw together in a free rhythm.",
+          "Как только найдём второго участника, сразу откроем один общий холст. Вы будете рисовать вместе в свободном ритме."
+        ),
+        delayedBody: releaseCopy(
+          "This usually happens quickly, but sometimes the search takes a little longer. Stay here or come back and try again later.",
+          "Обычно это происходит быстро, но иногда поиск занимает чуть больше времени. Оставайся здесь или вернись и попробуй снова позже."
+        ),
+        foundBody: releaseCopy(
+          "We're connecting you to the shared canvas now. It will take a couple of seconds.",
+          "Подключаем вас к общему холсту. Это займёт пару секунд."
+        ),
+        caption: releaseCopy(
+          "Seven minutes, one shared canvas, a free rhythm, and one result before the open decision.",
+          "7 минут, один общий холст, свободный ритм и один итог перед решением об открытии чата."
+        ),
       };
   }
 }
@@ -634,59 +735,98 @@ export function getPlayCanvasModeCopy(options: {
 }): PlayCanvasModeCopy {
   const { activity, currentTurnName, isMyTurn, promptText, status } = options;
   const isActive = status === "active";
-  const promptValue = promptText?.trim() || "Тема уточняется";
+  const promptValue =
+    promptText?.trim() || releaseCopy("Prompt is still loading", "Тема уточняется");
 
   switch (activity) {
     case "chain_draw":
       return isActive
         ? {
-            eyebrow: "Рисунок по очереди",
-            title: currentTurnName || "Подключаем первый ход",
+            eyebrow: releaseCopy("Turn-based drawing", "Рисунок по очереди"),
+            title: currentTurnName || releaseCopy("Preparing the first turn", "Подключаем первый ход"),
             body: isMyTurn
-              ? "У тебя короткий ход на 30 секунд. Когда закончишь раньше, можно сразу передать холст дальше."
-              : "Сейчас рисует второй участник. Ты видишь общий холст и сможешь продолжить его на следующем ходе.",
+              ? releaseCopy(
+                  "You have a short 30-second turn. If you finish early, you can pass the canvas right away.",
+                  "У тебя короткий ход на 30 секунд. Когда закончишь раньше, можно сразу передать холст дальше."
+                )
+              : releaseCopy(
+                  "The other person is drawing now. You can see the shared canvas and continue it on the next turn.",
+                  "Сейчас рисует второй участник. Ты видишь общий холст и сможешь продолжить его на следующем ходе."
+                ),
             helperText: isMyTurn
-              ? "Ход длится 30 секунд. Когда закончил раньше, передай ход и пусть рисунок продолжится дальше."
-              : "Сейчас холст у второго участника. Ты видишь общий рисунок и сможешь продолжить его на следующем ходе.",
+              ? releaseCopy(
+                  "Each turn lasts 30 seconds. If you finish early, pass it on and let the drawing keep moving.",
+                  "Ход длится 30 секунд. Когда закончил раньше, передай ход и пусть рисунок продолжится дальше."
+                )
+              : releaseCopy(
+                  "The canvas is with the other person right now. You can see the shared drawing and continue it on your next turn.",
+                  "Сейчас холст у второго участника. Ты видишь общий рисунок и сможешь продолжить его на следующем ходе."
+                ),
           }
         : {
-            eyebrow: "Рисунок по очереди",
-            title: "Собираем пошаговый холст",
-            body: "Мы уже открыли один общий рисунок и синхронизируем первый ход для вас двоих.",
-            helperText: "Сейчас сессия откроется и вы начнёте собирать рисунок короткими ходами.",
+            eyebrow: releaseCopy("Turn-based drawing", "Рисунок по очереди"),
+            title: releaseCopy("Preparing the turn-by-turn canvas", "Собираем пошаговый холст"),
+            body: releaseCopy(
+              "The shared drawing is already open. We're syncing the first turn for both of you.",
+              "Мы уже открыли один общий рисунок и синхронизируем первый ход для вас двоих."
+            ),
+            helperText: releaseCopy(
+              "The session is about to open and you'll start building the drawing in short turns.",
+              "Сейчас сессия откроется и вы начнёте собирать рисунок короткими ходами."
+            ),
           };
     case "daily_prompt":
       return isActive
         ? {
-            eyebrow: "Общая тема дня",
+            eyebrow: releaseCopy("Shared prompt of the day", "Общая тема дня"),
             title: promptValue,
-            body:
-              "Один рисунок на двоих по сегодняшней теме. Когда время закончится, вы увидите итог и решите, открывать ли чат дальше.",
-            helperText:
-              "У вас 7 минут на один общий рисунок по сегодняшней теме. Первый штрих может сразу задать общий образ.",
+            body: releaseCopy(
+              "One drawing for two around today's prompt. When time ends, you'll see the result and decide whether this should move into chat.",
+              "Один рисунок на двоих по сегодняшней теме. Когда время закончится, вы увидите итог и решите, открывать ли чат дальше."
+            ),
+            helperText: releaseCopy(
+              "You have seven minutes for one shared drawing around today's prompt. The first stroke can set the mood right away.",
+              "У вас 7 минут на один общий рисунок по сегодняшней теме. Первый штрих может сразу задать общий образ."
+            ),
           }
         : {
-            eyebrow: "Общая тема дня",
-            title: "Подключаем тему и холст",
-            body: "Мы уже открыли общий холст и сейчас синхронизируем сегодняшнюю тему для вас двоих.",
-            helperText: "Сейчас тема появится у вас обоих, и можно будет начать один общий рисунок.",
+            eyebrow: releaseCopy("Shared prompt of the day", "Общая тема дня"),
+            title: releaseCopy("Connecting the prompt and canvas", "Подключаем тему и холст"),
+            body: releaseCopy(
+              "The shared canvas is already open. We're syncing today's prompt for both of you now.",
+              "Мы уже открыли общий холст и сейчас синхронизируем сегодняшнюю тему для вас двоих."
+            ),
+            helperText: releaseCopy(
+              "The prompt will appear for both of you in a moment, and then the shared drawing can begin.",
+              "Сейчас тема появится у вас обоих, и можно будет начать один общий рисунок."
+            ),
           };
     case "draw":
     default:
       return isActive
         ? {
-            eyebrow: "Свободный общий рисунок",
-            title: "Один общий холст",
-            body:
-              "Рисуйте вместе в свободном ритме. Когда время закончится, вы увидите итог и решите, хотите ли продолжить общение.",
-            helperText:
-              "У вас 7 минут на один общий рисунок. Когда время закончится, вы сразу увидите итог и решите, хотите ли открыть чат дальше.",
+            eyebrow: releaseCopy("Free shared drawing", "Свободный общий рисунок"),
+            title: releaseCopy("One shared canvas", "Один общий холст"),
+            body: releaseCopy(
+              "Draw together in a free rhythm. When time ends, you'll see the result and decide whether you want to continue.",
+              "Рисуйте вместе в свободном ритме. Когда время закончится, вы увидите итог и решите, хотите ли продолжить общение."
+            ),
+            helperText: releaseCopy(
+              "You have seven minutes for one shared drawing. When time ends, you'll see the result right away and decide whether to open chat.",
+              "У вас 7 минут на один общий рисунок. Когда время закончится, вы сразу увидите итог и решите, хотите ли открыть чат дальше."
+            ),
           }
         : {
-            eyebrow: "Свободный общий рисунок",
-            title: "Подключаем общий холст",
-            body: "Мы уже открыли холст и синхронизируем его для вас двоих.",
-            helperText: "Сейчас общий холст появится и можно будет начать рисовать вместе.",
+            eyebrow: releaseCopy("Free shared drawing", "Свободный общий рисунок"),
+            title: releaseCopy("Connecting the shared canvas", "Подключаем общий холст"),
+            body: releaseCopy(
+              "The canvas is already open. We're syncing it for both of you now.",
+              "Мы уже открыли холст и синхронизируем его для вас двоих."
+            ),
+            helperText: releaseCopy(
+              "The shared canvas is about to appear, and then you can start drawing together.",
+              "Сейчас общий холст появится и можно будет начать рисовать вместе."
+            ),
           };
   }
 }
@@ -699,7 +839,8 @@ export function getPlayModeContextCardCopy(
   }
 ): PlayModeContextCardCopy {
   const surface = options?.surface ?? "history";
-  const promptValue = options?.promptText?.trim() || "Тема уточняется";
+  const promptValue =
+    options?.promptText?.trim() || releaseCopy("Prompt is still loading", "Тема уточняется");
 
   switch (activity) {
     case "chain_draw":
@@ -779,7 +920,7 @@ export function getPlayModeContextCardCopy(
           surface === "history"
             ? playText(
                 "play.modeContext.colorMood.emptyBody.history",
-                "This story was saved without the full shared palette, but the result still stayed in your archive."
+                "This story was saved without the full shared palette, but the result still stayed in your history."
               )
             : playText(
                 "play.modeContext.colorMood.emptyBody.default",
@@ -1068,7 +1209,7 @@ function asPlaySessionDoc(id: string, raw: unknown): PlaySessionDoc {
   const paletteChoices = normalizeColorMoodChoices(data.paletteChoices);
   const combinedPalette = normalizeColorMoodPalette(
     data.combinedPalette,
-    COLOR_MOOD_OPTIONS.length
+    COLOR_MOOD_OPTION_DEFS.length
   );
   return {
     id,
