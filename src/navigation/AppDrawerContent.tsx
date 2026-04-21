@@ -35,8 +35,7 @@ export default function AppDrawerContent({ onClose }: Props) {
       onClose?.();
     } catch (error) {
       console.error("[auth] signOut failed", error);
-      const message = error instanceof Error ? error.message : t("common.error");
-      Alert.alert(t("common.error"), message);
+      Alert.alert(t("common.error"), t("menu.logoutFailed"));
       onClose?.();
     }
   }, [onClose, t]);
@@ -61,7 +60,6 @@ export default function AppDrawerContent({ onClose }: Props) {
     navigation.navigate("Tabs", { screen: "Together" });
   }, [navigation, onClose]);
 
-  // AMORIA_FIX_MENU_LANGUAGE_BUTTON
   const handleLanguagePress = React.useCallback(() => {
     openLanguagePicker();
     onClose?.();
@@ -73,7 +71,6 @@ export default function AppDrawerContent({ onClose }: Props) {
         <View style={styles.titlePill}>
           <Text style={styles.title}>{t("menu.title")}</Text>
         </View>
-        {/* AMORIA_FIX_MENU_LANG_DUPLICATE */}
         <ScrollView
           style={styles.panelScroll}
           contentContainerStyle={[styles.content, styles.panelContent]}
@@ -113,7 +110,6 @@ export default function AppDrawerContent({ onClose }: Props) {
           </TouchableOpacity>
 
           <TouchableOpacity
-            // AMORIA_FIX_MENU_LANGUAGE_BUTTON
             onPress={handleLanguagePress}
             activeOpacity={0.85}
             style={styles.button}

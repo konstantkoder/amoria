@@ -19,7 +19,7 @@ Sharing
 - No selling. Service providers (e.g., Firebase) only, as needed.
 
 Retention & Deletion
-- Until the account is deleted by the user (in-app).
+- We keep account data until the user deletes the account in the app.
 
 Contact
 - support@amoria.app`,
@@ -41,7 +41,7 @@ Contact
 - Присутствие обновляется; устаревшие данные (например, старше 5 минут) не показываются
 
 Передача третьим лицам
-- Не продаём данные. Делаемся данными только с сервисами-провайдерами (например, Firebase) в рамках оказания услуг.
+- Не продаём данные. Делимся ими только с сервисами-провайдерами (например, Firebase), когда это нужно для работы приложения.
 
 Хранение и удаление
 - До удаления аккаунта пользователем. Удаление доступно внутри приложения.

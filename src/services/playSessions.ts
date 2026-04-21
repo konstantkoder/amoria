@@ -11,6 +11,7 @@ import {
   setDoc,
   where,
 } from "firebase/firestore";
+import { getRuntimeLocale, translate } from "@/i18n/translations";
 import { makeNickname } from "@/services/rooms";
 
 export type PlayActivity = "draw" | "chain_draw" | "daily_prompt" | "color_mood";
@@ -214,6 +215,20 @@ export type PlayReplayCopy = {
   emptyTitle: string;
   emptyBody: string;
 };
+
+type PlayCopyParams = Record<string, string>;
+
+function playText(key: string, fallback: string, params?: PlayCopyParams) {
+  const value = translate(getRuntimeLocale(), key, params);
+  if (value !== key) return value;
+  if (!params) return fallback;
+
+  let output = fallback;
+  for (const [name, nextValue] of Object.entries(params)) {
+    output = output.replaceAll(`{${name}}`, String(nextValue));
+  }
+  return output;
+}
 
 export function isPlayActivity(value: unknown): value is PlayActivity {
   return (
@@ -463,35 +478,57 @@ export function getPlayActivityLabel(
 ) {
   switch (activity) {
     case "draw":
-      if (tone === "action") return "Нарисовать вместе";
-      if (tone === "history") return "Нарисовали вместе";
-      return "Свободный общий рисунок";
+      if (tone === "action") {
+        return playText("play.activity.draw.action", "Draw together");
+      }
+      if (tone === "history") {
+        return playText("play.activity.draw.history", "Drew together");
+      }
+      return playText("play.activity.draw.neutral", "Free shared drawing");
     case "chain_draw":
-      return "Рисунок по очереди";
+      return playText("play.activity.chainDraw", "Turn-based drawing");
     case "daily_prompt":
-      return "Общая тема дня";
+      return playText("play.activity.dailyPrompt", "Shared prompt of the day");
     case "color_mood":
-      if (tone === "action") return "Собрать палитру вместе";
-      return "Палитра настроения";
+      if (tone === "action") {
+        return playText("play.activity.colorMood.action", "Build a palette together");
+      }
+      return playText("play.activity.colorMood.neutral", "Mood palette");
     default:
-      return "Совместная сессия";
+      return playText("play.activity.session", "Shared session");
   }
 }
 
 export function getPlayActivityStoryText(activity: string, promptText?: string) {
   switch (activity) {
     case "draw":
-      return "Свободный общий рисунок на одном холсте.";
+      return playText(
+        "play.activityStory.draw",
+        "One shared drawing on a single canvas."
+      );
     case "chain_draw":
-      return "Общий рисунок, собранный по очереди короткими ходами.";
+      return playText(
+        "play.activityStory.chainDraw",
+        "One drawing built together in short turns."
+      );
     case "daily_prompt":
       return promptText?.trim()
-        ? `Один рисунок на двоих по теме «${promptText.trim()}».`
-        : "Один рисунок на двоих по общей теме дня.";
+        ? playText(
+            "play.activityStory.dailyPromptWithPrompt",
+            "One shared drawing around “{prompt}”.",
+            { prompt: promptText.trim() }
+          )
+        : playText(
+            "play.activityStory.dailyPrompt",
+            "One shared drawing around the prompt of the day."
+          );
     case "color_mood":
-      return "Общая палитра и мягкий визуальный итог этой сессии.";
+      return playText(
+        "play.activityStory.colorMood",
+        "A shared palette and the soft visual result of this session."
+      );
     default:
-      return "Совместная история";
+      return playText("play.activityStory.default", "Shared story");
   }
 }
 
@@ -667,55 +704,112 @@ export function getPlayModeContextCardCopy(
   switch (activity) {
     case "chain_draw":
       return {
-        title: "Рисунок по очереди",
+        title: playText("play.modeContext.chainDraw.title", "Turn-based drawing"),
         body:
           surface === "result"
-            ? "Этот итог собран короткими ходами: по очереди и на одном общем холсте."
+            ? playText(
+                "play.modeContext.chainDraw.body.result",
+                "This result was built in short turns on one shared canvas."
+              )
             : surface === "detail"
-              ? "Здесь хранится ваш рисунок по очереди: один холст, короткие ходы и понятный ритм передачи."
-              : "Один общий рисунок, который вы собирали короткими ходами по очереди.",
-        facts: ["10 ходов", "30 сек на ход", "Один общий холст"],
+              ? playText(
+                  "play.modeContext.chainDraw.body.detail",
+                  "This is where your turn-based drawing stays: one canvas, short turns, and a clear handoff rhythm."
+                )
+              : playText(
+                  "play.modeContext.chainDraw.body.history",
+                  "One shared drawing you built together in short turns."
+                ),
+        facts: [
+          playText("play.modeContext.chainDraw.factTurns", "10 turns"),
+          playText("play.modeContext.chainDraw.factTurnDuration", "30 sec per turn"),
+          playText("play.modeContext.chainDraw.factCanvas", "One shared canvas"),
+        ],
       };
     case "daily_prompt":
       return {
-        title: "Общая тема дня",
+        title: playText("play.modeContext.dailyPrompt.title", "Shared prompt of the day"),
         body:
           surface === "result"
-            ? "Этот итог вырос из одной общей темы дня и одного общего холста."
+            ? playText(
+                "play.modeContext.dailyPrompt.body.result",
+                "This result grew out of one shared prompt and one shared canvas."
+              )
             : surface === "detail"
-              ? "Здесь хранится рисунок по общей теме дня: одна тема, один холст и один итог."
-              : "Один общий рисунок на двоих вокруг сегодняшней темы.",
-        facts: ["7 минут", "Одна тема", "Один общий рисунок"],
-        tagLabel: "Тема",
+              ? playText(
+                  "play.modeContext.dailyPrompt.body.detail",
+                  "This is where the drawing from your shared prompt stays: one prompt, one canvas, one result."
+                )
+              : playText(
+                  "play.modeContext.dailyPrompt.body.history",
+                  "One shared drawing the two of you made around the prompt of the day."
+                ),
+        facts: [
+          playText("play.modeContext.dailyPrompt.factDuration", "7 min"),
+          playText("play.modeContext.dailyPrompt.factPrompt", "One prompt"),
+          playText("play.modeContext.dailyPrompt.factDrawing", "One shared drawing"),
+        ],
+        tagLabel: playText("play.modeContext.topicLabel", "Topic"),
         tagValue: promptValue,
       };
     case "color_mood":
       return {
-        title: "Ваша общая палитра",
+        title: playText("play.modeContext.colorMood.title", "Your shared palette"),
         body:
           surface === "result"
-            ? "Сначала вы выбрали цвета по отдельности, а здесь собрался общий итог."
+            ? playText(
+                "play.modeContext.colorMood.body.result",
+                "You each chose colors first, and the shared palette came together here."
+              )
             : surface === "detail"
-              ? "Здесь сохранились общая палитра и оба цветовых выбора этой сессии."
-              : "Здесь сохранились общие цвета пары и итог этой палитры.",
+              ? playText(
+                  "play.modeContext.colorMood.body.detail",
+                  "This page keeps the shared palette and both color choices from this session."
+                )
+              : playText(
+                  "play.modeContext.colorMood.body.history",
+                  "This is where the shared colors and the result of this palette stay."
+                ),
         facts: [],
-        emptyTitle: "Палитра собрана не полностью",
+        emptyTitle: playText(
+          "play.modeContext.colorMood.emptyTitle",
+          "The palette wasn't fully assembled"
+        ),
         emptyBody:
           surface === "history"
-            ? "Эта история сохранилась без полного общего набора цветов, но итог всё равно остался в архиве."
-            : "Сессия завершилась раньше, чем успела собраться полная общая палитра. Сохранённые цвета всё равно остались в истории.",
+            ? playText(
+                "play.modeContext.colorMood.emptyBody.history",
+                "This story was saved without the full shared palette, but the result still stayed in your archive."
+              )
+            : playText(
+                "play.modeContext.colorMood.emptyBody.default",
+                "This session ended before the full shared palette came together. The colors that were saved still remain in the story."
+              ),
       };
     case "draw":
     default:
       return {
-        title: "Свободный общий рисунок",
+        title: playText("play.modeContext.draw.title", "Free shared drawing"),
         body:
           surface === "result"
-            ? "Это один свободный рисунок на двоих: один холст и общий итог."
+            ? playText(
+                "play.modeContext.draw.body.result",
+                "This is one free shared drawing for two people: one canvas and one result."
+              )
             : surface === "detail"
-              ? "Здесь хранится ваш свободный общий рисунок: один холст и общий ритм."
-              : "Один общий холст, свободный ритм и общий рисунок в вашей истории.",
-        facts: ["7 минут", "Один общий холст", "Свободный ритм"],
+              ? playText(
+                  "play.modeContext.draw.body.detail",
+                  "This is where your free shared drawing stays: one canvas and one shared rhythm."
+                )
+              : playText(
+                  "play.modeContext.draw.body.history",
+                  "One shared canvas, a free rhythm, and the drawing that stayed in your story."
+                ),
+        facts: [
+          playText("play.modeContext.draw.factDuration", "7 min"),
+          playText("play.modeContext.draw.factCanvas", "One shared canvas"),
+          playText("play.modeContext.draw.factRhythm", "Free rhythm"),
+        ],
       };
   }
 }
@@ -725,9 +819,11 @@ export function getPlayActivityMetricLabel(
   tone: "result" | "detail" | "history" = "detail"
 ) {
   if (activity === "color_mood") {
-    return tone === "result" ? "Цветов в палитре" : "Цветов";
+    return tone === "result"
+      ? playText("play.metric.colors.result", "Colors in palette")
+      : playText("play.metric.colors.default", "Colors");
   }
-  return "Штрихов";
+  return playText("play.metric.strokes", "Strokes");
 }
 
 export function getPlayResultModeCopy(
@@ -742,44 +838,103 @@ export function getPlayResultModeCopy(
   switch (activity) {
     case "chain_draw":
       return {
-        heroTitle: historyMode ? "Ваш рисунок по очереди" : "Рисунок по очереди готов",
+        heroTitle: historyMode
+          ? playText("play.resultMode.chainDraw.heroTitle.history", "Your turn-based drawing")
+          : playText("play.resultMode.chainDraw.heroTitle.result", "Turn-based drawing is ready"),
         heroBody: historyMode
-          ? "Здесь хранится завершённый рисунок по очереди."
-          : "Итог только что завершившегося рисунка по очереди.",
+          ? playText(
+              "play.resultMode.chainDraw.heroBody.history",
+              "This is where the finished turn-based drawing stays."
+            )
+          : playText(
+              "play.resultMode.chainDraw.heroBody.result",
+              "The result of the turn-based drawing that just finished."
+            ),
         routeText: historyMode
-          ? "Здесь остаётся общий контекст: replay, статус связи и быстрый возврат в личный чат."
-          : "Отсюда общий результат либо переходит в личный контакт, либо остаётся сохранённой историей.",
+          ? playText(
+              "play.resultMode.chainDraw.route.history",
+              "This page keeps the shared context, the replay, and the way back into personal chat."
+            )
+          : playText(
+              "play.resultMode.chainDraw.route.result",
+              "From here, the shared result either moves into a personal connection or stays as a saved story."
+            ),
       };
     case "daily_prompt":
       return {
-        heroTitle: historyMode ? "Ваш рисунок по теме дня" : "Рисунок по теме дня готов",
+        heroTitle: historyMode
+          ? playText("play.resultMode.dailyPrompt.heroTitle.history", "Your shared prompt drawing")
+          : playText(
+              "play.resultMode.dailyPrompt.heroTitle.result",
+              "Shared prompt drawing is ready"
+            ),
         heroBody: historyMode
-          ? "Здесь хранится завершённый рисунок по общей теме дня."
-          : "Итог только что завершившегося рисунка по общей теме дня.",
+          ? playText(
+              "play.resultMode.dailyPrompt.heroBody.history",
+              "This is where the finished drawing from your shared prompt stays."
+            )
+          : playText(
+              "play.resultMode.dailyPrompt.heroBody.result",
+              "The result of the drawing around your shared prompt that just finished."
+            ),
         routeText: historyMode
-          ? "Здесь остаётся общий контекст: replay, статус связи и быстрый возврат в личный чат."
-          : "Отсюда общий результат либо переходит в личный контакт, либо остаётся сохранённой историей.",
+          ? playText(
+              "play.resultMode.dailyPrompt.route.history",
+              "This page keeps the shared context, the replay, and the way back into personal chat."
+            )
+          : playText(
+              "play.resultMode.dailyPrompt.route.result",
+              "From here, the shared result either moves into a personal connection or stays as a saved story."
+            ),
       };
     case "color_mood":
       return {
-        heroTitle: historyMode ? "Ваша общая палитра" : "Ваша общая палитра готова",
+        heroTitle: historyMode
+          ? playText("play.resultMode.colorMood.heroTitle.history", "Your shared palette")
+          : playText("play.resultMode.colorMood.heroTitle.result", "Your shared palette is ready"),
         heroBody: historyMode
-          ? "Здесь хранится завершённая общая палитра."
-          : "Итог только что завершившейся палитры настроения.",
+          ? playText(
+              "play.resultMode.colorMood.heroBody.history",
+              "This is where the finished shared palette stays."
+            )
+          : playText(
+              "play.resultMode.colorMood.heroBody.result",
+              "The result of the mood palette that just finished."
+            ),
         routeText: historyMode
-          ? "Здесь остаётся общий контекст: палитра, статус связи и быстрый возврат в личный чат."
-          : "Отсюда общий результат либо переходит в личный контакт, либо остаётся сохранённой историей.",
+          ? playText(
+              "play.resultMode.colorMood.route.history",
+              "This page keeps the shared context, the palette, and the way back into personal chat."
+            )
+          : playText(
+              "play.resultMode.colorMood.route.result",
+              "From here, the shared result either moves into a personal connection or stays as a saved story."
+            ),
       };
     case "draw":
     default:
       return {
-        heroTitle: historyMode ? "Ваш общий рисунок" : "Ваш общий рисунок готов",
+        heroTitle: historyMode
+          ? playText("play.resultMode.draw.heroTitle.history", "Your shared drawing")
+          : playText("play.resultMode.draw.heroTitle.result", "Your shared drawing is ready"),
         heroBody: historyMode
-          ? "Здесь хранится завершённый общий рисунок."
-          : "Итог только что завершившейся совместной сессии.",
+          ? playText(
+              "play.resultMode.draw.heroBody.history",
+              "This is where the finished shared drawing stays."
+            )
+          : playText(
+              "play.resultMode.draw.heroBody.result",
+              "The result of the shared session that just finished."
+            ),
         routeText: historyMode
-          ? "Здесь остаётся общий контекст: replay, статус связи и быстрый возврат в личный чат."
-          : "Отсюда общий результат либо переходит в личный контакт, либо остаётся сохранённой историей.",
+          ? playText(
+              "play.resultMode.draw.route.history",
+              "This page keeps the shared context, the replay, and the way back into personal chat."
+            )
+          : playText(
+              "play.resultMode.draw.route.result",
+              "From here, the shared result either moves into a personal connection or stays as a saved story."
+            ),
       };
   }
 }
@@ -788,28 +943,43 @@ export function getPlayReplayCopy(activity: string): PlayReplayCopy {
   switch (activity) {
     case "chain_draw":
       return {
-        title: "Replay рисунка по очереди",
-        body: "Ходы идут в исходном порядке, чтобы можно было быстро вернуться к ритму этой сессии.",
-        emptyTitle: "Replay пока пустой",
-        emptyBody:
-          "Эта сессия сохранилась без штрихов. Итог и статус связи остались, но сам replay рисунка по очереди здесь недоступен.",
+        title: playText("play.replay.chainDraw.title", "Replay of the turn-based drawing"),
+        body: playText(
+          "play.replay.chainDraw.body",
+          "The turns run in their original order so you can quickly return to the rhythm of this session."
+        ),
+        emptyTitle: playText("play.replay.emptyTitle", "Replay is empty for now"),
+        emptyBody: playText(
+          "play.replay.chainDraw.emptyBody",
+          "This session was saved without strokes. The result and connection status stayed, but the replay of the turn-based drawing is unavailable here."
+        ),
       };
     case "daily_prompt":
       return {
-        title: "Replay рисунка по теме дня",
-        body: "Штрихи идут в исходном порядке, чтобы быстро вернуться к рисунку по этой теме.",
-        emptyTitle: "Replay пока пустой",
-        emptyBody:
-          "Эта сессия сохранилась без штрихов. Итог и тема остались, но сам replay рисунка здесь недоступен.",
+        title: playText("play.replay.dailyPrompt.title", "Replay of the shared prompt drawing"),
+        body: playText(
+          "play.replay.dailyPrompt.body",
+          "The strokes run in their original order so you can quickly return to this drawing."
+        ),
+        emptyTitle: playText("play.replay.emptyTitle", "Replay is empty for now"),
+        emptyBody: playText(
+          "play.replay.dailyPrompt.emptyBody",
+          "This session was saved without strokes. The result and the prompt stayed, but the replay of the drawing is unavailable here."
+        ),
       };
     case "draw":
     default:
       return {
-        title: "Replay общего рисунка",
-        body: "Штрихи идут в исходном порядке, чтобы можно было быстро вернуться к этому моменту.",
-        emptyTitle: "Replay пока пустой",
-        emptyBody:
-          "Эта сессия сохранилась без штрихов. Итог и статус связи остались, но сам replay здесь недоступен.",
+        title: playText("play.replay.draw.title", "Replay of the shared drawing"),
+        body: playText(
+          "play.replay.draw.body",
+          "The strokes run in their original order so you can quickly return to this shared moment."
+        ),
+        emptyTitle: playText("play.replay.emptyTitle", "Replay is empty for now"),
+        emptyBody: playText(
+          "play.replay.draw.emptyBody",
+          "This session was saved without strokes. The result and connection status stayed, but the replay is unavailable here."
+        ),
       };
   }
 }
@@ -1232,23 +1402,35 @@ export function getPlayRevealCopy(outcome: PlayRevealOutcome): PlayRevealCopy {
   switch (outcome) {
     case "open_open":
       return {
-        shortLabel: "Связь открыта",
-        description: "После этого общего результата вы оба открыли контакт и перевели связь в личный чат.",
+        shortLabel: playText("play.reveal.openOpen.shortLabel", "Connection is open"),
+        description: playText(
+          "play.reveal.openOpen.description",
+          "After this shared result, both of you opened the connection and moved it into personal chat."
+        ),
       };
     case "open_skip":
       return {
-        shortLabel: "Осталось историей",
-        description: "Один человек был готов открыть контакт, но этот момент всё же остался только общей историей.",
+        shortLabel: playText("play.reveal.openSkip.shortLabel", "Stayed a story"),
+        description: playText(
+          "play.reveal.openSkip.description",
+          "One person was ready to open the connection, but this moment still remained only a shared story."
+        ),
       };
     case "skip_skip":
       return {
-        shortLabel: "История сохранена",
-        description: "Вы оба решили оставить этот момент только в общей истории и не переводить его в личный чат.",
+        shortLabel: playText("play.reveal.skipSkip.shortLabel", "Story is saved"),
+        description: playText(
+          "play.reveal.skipSkip.description",
+          "Both of you chose to keep this moment as a shared story and not move it into personal chat."
+        ),
       };
     default:
       return {
-        shortLabel: "Ждём решение второго",
-        description: "Один ответ уже сохранён. Мы ждём второй, чтобы понять, откроется ли личный чат.",
+        shortLabel: playText("play.reveal.waiting.shortLabel", "Waiting for the second answer"),
+        description: playText(
+          "play.reveal.waiting.description",
+          "One answer is already saved. We are waiting for the second one to see whether the personal chat opens."
+        ),
       };
   }
 }

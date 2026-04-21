@@ -25,14 +25,14 @@ export default function NearbyRoomsSection() {
   const body = copyOrFallback(
     t,
     "nearby.rooms.body",
-    "Это вход в live-сценарий по геолокации: карта nearby, выбор места и общий чат рядом."
+    "Это вход в живое общее пространство рядом: сначала карта, потом место и общий чат."
   );
   const openLabel = copyOrFallback(t, "nearby.rooms.open", "Открыть комнаты");
 
   const features = [
-    copyOrFallback(t, "nearby.rooms.featureOne", "Карта nearby и текущая точка входа"),
+    copyOrFallback(t, "nearby.rooms.featureOne", "Карта рядом и текущая точка входа"),
     copyOrFallback(t, "nearby.rooms.featureTwo", "Выбор места перед входом в комнату"),
-    copyOrFallback(t, "nearby.rooms.featureThree", "Общий live chat уже внутри полного экрана Rooms"),
+    copyOrFallback(t, "nearby.rooms.featureThree", "Общий чат открывается уже внутри полного сценария Rooms"),
   ];
 
   return (

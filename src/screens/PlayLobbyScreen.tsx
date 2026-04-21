@@ -73,18 +73,18 @@ export default function PlayLobbyScreen() {
         <View style={styles.hero}>
           <View style={styles.heroTop}>
             <Text style={styles.kicker}>
-              {tt("together.lobby.kicker", "Главный one-to-one вход")}
+              {tt("together.lobby.kicker", "Главный путь")}
             </Text>
             <Text style={styles.heroTitle}>
               {tt(
                 "together.lobby.heroTitle",
-                "Together — это место, где Amoria переводит общий момент в реальную связь"
+                "«Вместе» открывает знакомство через общий опыт"
               )}
             </Text>
             <Text style={styles.heroText}>
               {tt(
                 "together.lobby.heroBody",
-                "Начни с одной совместной сессии, дойди до общего итога и переходи в личный чат только если открытие оказалось взаимным."
+                "Начни с одной совместной сессии и переходи в личный разговор только если открытие оказалось взаимным."
               )}
             </Text>
             <View style={styles.heroLoop}>
@@ -113,7 +113,7 @@ export default function PlayLobbyScreen() {
             <Text style={styles.primaryCtaHint}>
               {tt(
                 "together.lobby.startHint",
-                "Это самый прямой путь через ядро продукта: общее действие, честный итог и личный чат только если оба хотят продолжения."
+                "Одна совместная сессия, один общий итог и личный разговор только если вы оба этого хотите."
               )}
             </Text>
           </View>
@@ -125,12 +125,12 @@ export default function PlayLobbyScreen() {
         >
           <View style={styles.historyTextWrap}>
             <Text style={styles.historyTitle}>
-              {tt("together.lobby.historyTitle", "Уже есть общая история?")}
+              {tt("together.lobby.historyTitle", "Совместные истории")}
             </Text>
             <Text style={styles.historyText}>
               {tt(
                 "together.lobby.historyBody",
-                "Открой сохранённый итог, пересмотри, что произошло между вами, и вернись в связь, которая уже успела открыться."
+                "Вернись к сохранённому итогу, повтору рисунка и уже открытой связи."
               )}
             </Text>
           </View>
@@ -148,7 +148,7 @@ export default function PlayLobbyScreen() {
           <Text style={styles.liveSectionText}>
             {tt(
               "together.lobby.otherModesBody",
-              "Эти режимы всё равно ведут через тот же core loop. Они просто задают совместной сессии более явную форму уже с первого тапа."
+              "Это тот же путь, просто с более явной совместной рамкой уже с первого тапа."
             )}
           </Text>
         </View>
@@ -166,7 +166,7 @@ export default function PlayLobbyScreen() {
                 <Text style={styles.cardTitle}>{copy.title}</Text>
                 <View style={styles.badge}>
                   <Text style={styles.badgeText}>
-                    {tt("together.lobby.liveBadge", "Live-режим")}
+                    {tt("together.lobby.liveBadge", "Режим")}
                   </Text>
                 </View>
               </View>
@@ -180,12 +180,12 @@ export default function PlayLobbyScreen() {
 
         <View style={styles.supportingSection}>
           <Text style={styles.supportingSectionTitle}>
-            {tt("together.lobby.supportingTitle", "Поддерживающие пути рядом с Together")}
+            {tt("together.lobby.supportingTitle", "Другие живые пути рядом")}
           </Text>
           <Text style={styles.supportingSectionText}>
             {tt(
               "together.lobby.supportingBody",
-              "Nearby и Rooms остаются полезными, но именно Together остаётся главным местом для one-to-one химии, итога и открытия контакта."
+              "Nearby помогает с сигналом на ближайший момент. Rooms открывает живое общее пространство. «Вместе» остаётся местом для химии один на один и следующего шага в связь."
             )}
           </Text>
         </View>
@@ -196,12 +196,12 @@ export default function PlayLobbyScreen() {
             style={styles.quickCard}
           >
             <Text style={styles.quickTitle}>
-              {tt("together.lobby.quickNearbyTitle", "Слой Nearby")}
+              {tt("together.lobby.quickNearbyTitle", "Nearby")}
             </Text>
             <Text style={styles.quickText}>
               {tt(
                 "together.lobby.quickNearbyBody",
-                "Используй это для локального пульса, коротких обновлений и nearby-контекста вне главного one-to-one loop."
+                "Посмотри пульс рядом, оставь статус на ближайший момент или открой объявления."
               )}
             </Text>
           </Pressable>
@@ -211,12 +211,12 @@ export default function PlayLobbyScreen() {
             style={styles.quickCard}
           >
             <Text style={styles.quickTitle}>
-              {tt("together.lobby.quickRoomsTitle", "Live-chat Rooms")}
+              {tt("together.lobby.quickRoomsTitle", "Rooms")}
             </Text>
             <Text style={styles.quickText}>
               {tt(
                 "together.lobby.quickRoomsBody",
-                "Если нужен живой групповой geo-chat, открой Rooms отдельно и вернись сюда, когда снова захочешь прямой one-to-one путь."
+                "Если нужен живой групповой сценарий рядом, открой Rooms и вернись сюда, когда захочется пути один на один."
               )}
             </Text>
           </Pressable>

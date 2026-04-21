@@ -158,7 +158,7 @@ export default function NearbyHubScreen() {
         body: copyOrFallback(
           t,
           "nearby.segment.roomsBody",
-          "Вход в live-групповой сценарий: место, карта nearby и общий чат рядом."
+          "Вход в живое общее пространство рядом: карта, место и общий чат."
         ),
       },
     ],
@@ -224,20 +224,20 @@ export default function NearbyHubScreen() {
         <View style={styles.topBlock}>
           <View style={styles.introRow}>
             <Text style={styles.introKicker}>
-              {copyOrFallback(t, "nearby.heroKicker", "Nearby по темпу")}
+              {copyOrFallback(t, "nearby.heroKicker", "Рядом")}
             </Text>
             <Text style={styles.introTitle}>
               {copyOrFallback(
                 t,
                 "nearby.heroTitle",
-                "Что рядом сейчас, что ищут и где уже идёт общий чат"
+                "Что происходит прямо сейчас, что ищут и где уже открыты комнаты рядом"
               )}
             </Text>
             <Text style={styles.introBody}>
               {copyOrFallback(
                 t,
                 "nearby.heroBody",
-                "«Сейчас» даёт моментный сигнал поблизости. «Объявления» нужны для оформленного поиска. «Комнаты» ведут в живой групповой сценарий по месту."
+                "«Сейчас» — для сигналов на ближайший момент. «Объявления» — для понятных запросов. «Комнаты» открывают живое общее пространство рядом."
               )}
             </Text>
           </View>
@@ -276,7 +276,7 @@ export default function NearbyHubScreen() {
             <Text style={styles.sectionNoteBody} numberOfLines={2}>
               {sectionReady
                 ? activeSectionCopy.body
-                : copyOrFallback(t, "nearby.heroBody", "Статус, объявления и комнаты рядом.")}
+                : copyOrFallback(t, "nearby.heroBody", "Сигналы, объявления и комнаты рядом.")}
             </Text>
           </View>
         </View>

@@ -435,7 +435,7 @@ export default function PlayHistoryScreen() {
             title={tt("playHistory.errorTitle", "История временно недоступна")}
             body={tt(
               "playHistory.offlineBody",
-              "We couldn't connect your shared-story archive right now. Try again later or go back to Together."
+              "We couldn't connect your shared stories right now. Try again later or go back to Together."
             )}
             primaryAction={{ label: t("connections.goToTogether"), onPress: goToTogether }}
             secondaryAction={{ label: t("tabs.connections"), onPress: goToConnections }}

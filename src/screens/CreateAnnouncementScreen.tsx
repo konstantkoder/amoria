@@ -381,12 +381,12 @@ export default function CreateAnnouncementScreen() {
               ? copyOrFallback(
                   t,
                   "nearby.create.publishReadyHint",
-                  "После публикации вернёшься в Nearby → Объявления, где карточка сразу появится в списке."
+                  "После публикации вернёшься в раздел «Объявления» рядом, где карточка сразу появится в списке."
                 )
               : copyOrFallback(
                   t,
                   "nearby.create.publishHint",
-                  "Заполни заголовок и описание. Ниже preview покажет, как объявление увидят рядом."
+                  "Заполни заголовок и описание. Ниже видно, как объявление увидят рядом."
                 )}
           </Text>
         </View>
@@ -443,7 +443,7 @@ export default function CreateAnnouncementScreen() {
                   {copyOrFallback(
                     t,
                     "nearby.create.previewFooter",
-                    "После публикации появится в Nearby → Объявления и откроется как обычная карточка"
+                    "После публикации карточка появится в разделе «Объявления» рядом и откроется как обычная запись."
                   )}
                 </Text>
               </View>

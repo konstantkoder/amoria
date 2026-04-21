@@ -73,7 +73,7 @@ function buildAnnouncementResponsePresentation(
         body: copyOrFallback(
           t,
           "nearby.detail.ownBody",
-          "Объявление уже опубликовано в Nearby → Объявления. Отсюда можно спокойно вернуться к списку."
+          "Это объявление уже опубликовано в разделе «Объявления» рядом. Отсюда можно спокойно вернуться к списку."
         ),
         actionLabel: copyOrFallback(t, "nearby.detail.backToList", "К объявлениям"),
         busyLabel: copyOrFallback(t, "nearby.detail.backToList", "К объявлениям"),
@@ -83,13 +83,15 @@ function buildAnnouncementResponsePresentation(
       return {
         title: copyOrFallback(
           t,
-          "nearby.detail.chatTitle",
-          "Здесь откроется личный чат"
+          hasResponded ? "nearby.detail.chatReadyTitle" : "nearby.detail.chatTitle",
+          hasResponded ? "Личный чат уже доступен" : "Здесь откроется личный чат"
         ),
         body: copyOrFallback(
           t,
-          "nearby.detail.chatBody",
-          "Это объявление связано с реальным автором. Кнопка ниже откроет личный чат с ним."
+          hasResponded ? "nearby.detail.chatReadyBody" : "nearby.detail.chatBody",
+          hasResponded
+            ? "Интерес к объявлению уже отмечен. Можно сразу продолжить разговор с автором."
+            : "Это объявление связано с реальным автором. Кнопка ниже откроет личный чат с ним."
         ),
         actionLabel: hasResponded
           ? copyOrFallback(t, "nearby.detail.openChat", "Открыть чат")

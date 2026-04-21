@@ -226,8 +226,7 @@ export default function SettingsScreen() {
         await signOut(auth);
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : t("common.error");
-      Alert.alert(t("common.error"), message);
+      Alert.alert(t("common.error"), t("menu.logoutFailed"));
     }
   }, [t]);
 

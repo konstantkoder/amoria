@@ -549,7 +549,7 @@ export default function DMChatScreen() {
         <View style={styles.centerState}>
           <CoreStateCard
             icon="chatbox-ellipses-outline"
-            title={tt("dm.unavailableTitle", "Разговор пока не прикрепился")}
+            title={tt("dm.notReadyTitle", "Разговор пока не прикрепился")}
             body={missingChatBody}
             primaryAction={{ label: tt("common.retry", "Повторить"), onPress: () => setReloadKey((prev) => prev + 1) }}
             secondaryAction={{ label: emptyBackLabel, onPress: handleBack }}
