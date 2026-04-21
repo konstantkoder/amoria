@@ -196,10 +196,6 @@ const VoiceIntroModal: React.FC<VoiceIntroModalProps> = ({
             <Text style={styles.hintItem}>{t("voiceIntro.hint2")}</Text>
             <Text style={styles.hintItem}>{t("voiceIntro.hint3")}</Text>
           </View>
-
-          <Text style={styles.demoNote}>
-            {t("voiceIntro.demoNote")}
-          </Text>
         </View>
       </View>
     </Modal>
@@ -312,11 +308,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: theme.colors.subtext,
     marginBottom: 2,
-  },
-  demoNote: {
-    fontSize: 11,
-    color: theme.colors.muted,
-    marginTop: 4,
   },
 });
 

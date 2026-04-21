@@ -22,7 +22,7 @@ import { translateMaybeKey } from "@/utils/i18n";
 import { formatNickname } from "@/utils/nickname";
 import { formatAgoLong } from "@/utils/timeAgo";
 
-type AnnouncementResponseMode = "own" | "direct_dm" | "fallback_interest";
+type AnnouncementResponseMode = "own" | "direct_dm" | "unavailable";
 
 type AnnouncementResponsePresentation = {
   title: string;
@@ -58,7 +58,7 @@ function resolveAnnouncementResponseMode(params: {
   if (authorUid && params.currentUid && params.hasDirectDmStack) {
     return "direct_dm";
   }
-  return "fallback_interest";
+  return "unavailable";
 }
 
 function buildAnnouncementResponsePresentation(
@@ -97,38 +97,21 @@ function buildAnnouncementResponsePresentation(
         busyLabel: copyOrFallback(t, "nearby.detail.openingChat", "Открываем чат..."),
         buttonVariant: "primary",
       };
-    case "fallback_interest":
-      if (hasResponded) {
-        return {
-        title: copyOrFallback(
-          t,
-          "nearby.detail.respondedFallbackTitle",
-          "Интерес сохранён локально"
-        ),
-        body: copyOrFallback(
-          t,
-          "nearby.detail.respondedFallbackBody",
-          "Интерес сохранён на этом устройстве. Для объявлений без доступного личного чата это пока доступное действие."
-        ),
-        actionLabel: copyOrFallback(t, "nearby.detail.backToList", "К объявлениям"),
-        busyLabel: copyOrFallback(t, "nearby.detail.responding", "Сохраняем интерес..."),
-        buttonVariant: "primary",
-      };
-      }
+    case "unavailable":
       return {
         title: copyOrFallback(
           t,
-          "nearby.detail.responseFallbackTitle",
-          "Сейчас доступно только сохранение интереса"
+          "nearby.detail.unavailableTitle",
+          "Личный отклик сейчас недоступен"
         ),
         body: copyOrFallback(
           t,
-          "nearby.detail.responseFallbackBody",
-          "Сейчас для этого объявления доступно только сохранение интереса на устройстве."
+          "nearby.detail.unavailableBody",
+          "Для этого объявления сейчас нет реального пути в личный чат. Можно вернуться к списку и открыть другое объявление."
         ),
-        actionLabel: copyOrFallback(t, "nearby.detail.saveInterest", "Сохранить интерес"),
-        busyLabel: copyOrFallback(t, "nearby.detail.responding", "Сохраняем интерес..."),
-        buttonVariant: "primary",
+        actionLabel: copyOrFallback(t, "nearby.detail.backToList", "К объявлениям"),
+        busyLabel: copyOrFallback(t, "nearby.detail.backToList", "К объявлениям"),
+        buttonVariant: "secondary",
       };
   }
 }
@@ -257,10 +240,10 @@ export default function AnnouncementDetailScreen() {
   }, [currentDisplayName, currentNicknameCode, formattedCurrentNickname, t]);
 
   const persistResponseInterest = React.useCallback(async () => {
-    if (hasResponded) return;
+    if (hasResponded || !currentUid) return;
     const responseState = await nearbyAnnouncementsRepository.markAnnouncementResponded(
       announcementId,
-      currentUid || "guest"
+      currentUid
     );
     setRespondedAt(responseState.respondedAt);
   }, [announcementId, currentUid, hasResponded]);
@@ -277,27 +260,12 @@ export default function AnnouncementDetailScreen() {
       case "own":
         handleBack();
         return;
-      case "fallback_interest":
-        if (hasResponded) {
-          handleBack();
-          return;
-        }
-        setResponding(true);
-        try {
-          await persistResponseInterest();
-        } finally {
-          setResponding(false);
-        }
+      case "unavailable":
+        handleBack();
         return;
       case "direct_dm":
         if (!announcement || !db || !currentUid || !announcementAuthorUid) {
-          setResponseModeOverride("fallback_interest");
-          setResponding(true);
-          try {
-            await persistResponseInterest();
-          } finally {
-            setResponding(false);
-          }
+          setResponseModeOverride("unavailable");
           return;
         }
 
@@ -324,8 +292,7 @@ export default function AnnouncementDetailScreen() {
             void persistResponseInterest().catch(() => {});
           }
         } catch {
-          setResponseModeOverride("fallback_interest");
-          await persistResponseInterest().catch(() => {});
+          setResponseModeOverride("unavailable");
         } finally {
           setResponding(false);
         }

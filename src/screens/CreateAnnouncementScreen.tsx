@@ -54,8 +54,9 @@ export default function CreateAnnouncementScreen() {
   const [photoUri, setPhotoUri] = React.useState("");
   const [saving, setSaving] = React.useState(false);
   const [category, setCategory] = React.useState<NearbyAnnouncementCategory>("walk");
+  const currentUid = auth?.currentUser?.uid ?? "";
 
-  const authorCode = auth?.currentUser?.uid ? makeNickname(auth.currentUser.uid) : "common.user";
+  const authorCode = currentUid ? makeNickname(currentUid) : "common.user";
   const formattedAuthor = formatNickname(authorCode, t);
   const authorLabel =
     formattedAuthor === authorCode
@@ -86,7 +87,7 @@ export default function CreateAnnouncementScreen() {
     );
   const previewPlace = city.trim() || fallbackPlaceLabel;
   const showPreview = Boolean(title.trim() || description.trim() || city.trim() || photoUri);
-  const canPublish = Boolean(title.trim() && description.trim());
+  const canPublish = Boolean(currentUid && title.trim() && description.trim());
   const handleBack = React.useCallback(() => {
     goBackOrOpenNearbyAnnouncements(navigation);
   }, [navigation]);
@@ -146,6 +147,18 @@ export default function CreateAnnouncementScreen() {
   }, [t]);
 
   const publish = React.useCallback(async () => {
+    if (!currentUid) {
+      Alert.alert(
+        copyOrFallback(t, "nearby.create.signInTitle", "Нужен вход"),
+        copyOrFallback(
+          t,
+          "nearby.create.signInBody",
+          "Чтобы опубликовать объявление с реальным автором и личным чатом, сначала войди в аккаунт."
+        )
+      );
+      return;
+    }
+
     const trimmedTitle = title.trim();
     const trimmedDescription = description.trim();
 
@@ -169,7 +182,7 @@ export default function CreateAnnouncementScreen() {
         category,
         city,
         authorLabel,
-        ...(auth?.currentUser?.uid ? { authorUid: auth.currentUser.uid } : {}),
+        authorUid: currentUid,
         ...(photoUri ? { photoUri } : {}),
       });
 
@@ -186,7 +199,7 @@ export default function CreateAnnouncementScreen() {
     } finally {
       setSaving(false);
     }
-  }, [authorLabel, category, city, description, navigation, photoUri, t, title]);
+  }, [authorLabel, category, city, currentUid, description, navigation, photoUri, t, title]);
 
   return (
     <ScreenShell
@@ -357,7 +370,13 @@ export default function CreateAnnouncementScreen() {
             </Text>
           </Pressable>
           <Text style={styles.publishHint}>
-            {canPublish
+            {!currentUid
+              ? copyOrFallback(
+                  t,
+                  "nearby.create.signInBody",
+                  "Чтобы опубликовать объявление с реальным автором и личным чатом, сначала войди в аккаунт."
+                )
+              : canPublish
               ? copyOrFallback(
                   t,
                   "nearby.create.publishHint",

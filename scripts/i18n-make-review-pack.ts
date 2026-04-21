@@ -33,7 +33,6 @@ const CSV_LOCALES = [
 const PREFIXES = ["auth.", "drawer.", "tabs."];
 const HIGH_RISK_KEYS = [
   "voiceIntro.subtitle",
-  "voiceIntro.demoNote",
   "now.promptSubtitle",
   "now.placeholder",
   "chats.empty",

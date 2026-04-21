@@ -17,6 +17,7 @@ build/
 # Expo
 # =========================
 .expo/
+.expo_pid
 .expo-shared/
 web-build/
 
@@ -42,7 +43,9 @@ web-build/
 Thumbs.db
 .idea/
 .vscode/
+.vscode/.git/
 *.swp
+*.bak
 
 # =========================
 # React Native / Expo managed
@@ -88,3 +91,4 @@ i18n_review_pack/
 i18n_audit_latest.txt
 i18n_core_review.csv
 glossary_template.json
+i18n_ui_risk.txt

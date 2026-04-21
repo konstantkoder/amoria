@@ -1,6 +1,3 @@
-import type { } from "react";
-
-// Типы настроения и целей знакомства
 export type Mood = "happy" | "chill" | "active" | "serious" | "party";
 
 export type Goal =
@@ -12,7 +9,6 @@ export type Goal =
   | "casual"
   | "sex";
 
-// Базовая модель пользователя Amoria
 export interface UserProfile {
   uid: string;
   displayName: string;
@@ -30,16 +26,15 @@ export interface UserProfile {
     lng: number;
     geohash: string;
   };
-
-  // Новые поля для Amoria 1.0 MAX
-  trustLevel?: number;       // 0–100, уровень доверия
-  revealStage?: number;      // 0–3, этап раскрытия профиля/фото
-  allowAdultMode?: boolean;  // включён ли 18+ / casual режим
-  mysteryMode?: boolean;     // включён ли режим "фото позже"
-  voiceIntroUrl?: string;    // URL голосового интро
-  hasVoiceIntro?: boolean;   // есть ли голосовое интро
-  voiceIntroDurationSec?: number; // длительность голосового интро, сек
-  lastActive?: number;       // timestamp последней активности
-  greenFlags?: string[];     // что ок
-  redFlags?: string[];       // что не ок
+  trustLevel?: number;
+  revealStage?: number;
+  allowAdultMode?: boolean;
+  flirtEnabled?: boolean;
+  mysteryMode?: boolean;
+  voiceIntroUrl?: string;
+  hasVoiceIntro?: boolean;
+  voiceIntroDurationSec?: number;
+  lastActive?: number;
+  greenFlags?: string[];
+  redFlags?: string[];
 }

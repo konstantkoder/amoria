@@ -28,7 +28,7 @@ export type CreateNearbyAnnouncementInput = {
   category: NearbyAnnouncementCategory;
   city?: string;
   authorLabel: string;
-  authorUid?: string;
+  authorUid: string;
   photoUri?: string;
 };
 
@@ -59,7 +59,6 @@ type CreateAsyncStorageNearbyAnnouncementsRepositoryOptions = {
   storage?: NearbyAnnouncementsStorage;
   announcementsStorageKey?: string;
   responsesStorageKey?: string;
-  demoAnnouncements?: NearbyAnnouncement[];
 };
 
 export const NEARBY_ANNOUNCEMENTS_STORAGE_KEY = "amoria.nearby.announcements.v1";
@@ -74,81 +73,6 @@ export const NEARBY_ANNOUNCEMENT_CATEGORY_ORDER: NearbyAnnouncementCategory[] = 
   "activity",
   "sport",
   "ride",
-];
-
-const DEFAULT_DEMO_ANNOUNCEMENTS: NearbyAnnouncement[] = [
-  {
-    id: "demo_walk_evening",
-    title: "Ищу компанию на вечернюю прогулку по центру",
-    description:
-      "Свободна после работы и хочу пройтись 40-60 минут без длинной переписки. Если тебе тоже хочется спокойного знакомства вживую, откликайся.",
-    category: "walk",
-    placeLabel: "Центр",
-    proximityLabel: "~1.2 км",
-    authorLabel: "Мия",
-    createdAt: 1760208000000,
-    hasPhoto: true,
-  },
-  {
-    id: "demo_trip_weekend",
-    title: "Ищу попутчика за город на выходных",
-    description:
-      "План простой: озеро, кофе в термосе и без сложной организации. Ищу одного спокойного человека, с кем можно заранее договориться по формату поездки.",
-    category: "trip",
-    placeLabel: "Варшава",
-    proximityLabel: "на эти выходные",
-    authorLabel: "Лука",
-    createdAt: 1760182800000,
-    hasPhoto: true,
-  },
-  {
-    id: "demo_coffee_morning",
-    title: "Ищу компанию на кофе до офиса",
-    description:
-      "Если ты рядом с метро утром, давай возьмём кофе и коротко познакомимся по дороге. Ищу лёгкий формат на 20 минут перед работой.",
-    category: "coffee",
-    placeLabel: "Mokotow",
-    proximityLabel: "~2.4 км",
-    authorLabel: "Анна",
-    createdAt: 1760157600000,
-    hasPhoto: false,
-  },
-  {
-    id: "demo_sport_tennis",
-    title: "Ищу партнёра на лёгкий теннис вечером",
-    description:
-      "Не турнир и не жесткий уровень. Нужен человек, который хочет спокойно вернуться на корт вечером и заранее понимает формат встречи.",
-    category: "sport",
-    placeLabel: "Żoliborz",
-    proximityLabel: "~4.1 км",
-    authorLabel: "Макс",
-    createdAt: 1760143200000,
-    hasPhoto: true,
-  },
-  {
-    id: "demo_activity_exhibition",
-    title: "Ищу человека на выставку и разговор после",
-    description:
-      "Хочу выбрать одну из новых выставок и потом спокойно обсудить впечатления. Ищу человека, которому правда интересен такой формат встречи.",
-    category: "activity",
-    placeLabel: "Praga",
-    proximityLabel: "~3.6 км",
-    authorLabel: "Софи",
-    createdAt: 1760128800000,
-    hasPhoto: false,
-  },
-  {
-    id: "demo_ride_airport",
-    title: "Ищу попутчика в аэропорт поздно вечером",
-    description:
-      "Еду поздно вечером и ищу одного попутчика, чтобы разделить дорогу без хаоса. Если тебе по пути, можно заранее договориться о времени и точке встречи.",
-    category: "ride",
-    placeLabel: "Okecie",
-    proximityLabel: "сегодня ночью",
-    authorLabel: "Илья",
-    createdAt: 1760114400000,
-    hasPhoto: false,
-  },
 ];
 
 function normalizeNearbyAnnouncement(raw: unknown): NearbyAnnouncement | null {
@@ -169,6 +93,7 @@ function normalizeNearbyAnnouncement(raw: unknown): NearbyAnnouncement | null {
   const proximityLabel = String(data.proximityLabel ?? "").trim();
   const authorLabel = String(data.authorLabel ?? "Amoria").trim() || "Amoria";
   const authorUid = String(data.authorUid ?? "").trim();
+  if (!authorUid) return null;
   const photoUri = String(data.photoUri ?? "").trim();
   const createdAt = Number(data.createdAt ?? 0);
 
@@ -180,7 +105,7 @@ function normalizeNearbyAnnouncement(raw: unknown): NearbyAnnouncement | null {
     placeLabel,
     ...(proximityLabel ? { proximityLabel } : {}),
     authorLabel,
-    ...(authorUid ? { authorUid } : {}),
+    authorUid,
     createdAt: Number.isFinite(createdAt) ? createdAt : 0,
     hasPhoto: Boolean(data.hasPhoto || photoUri),
     ...(photoUri ? { photoUri } : {}),
@@ -246,7 +171,7 @@ function buildCreatedAnnouncement(
     category,
     placeLabel: String(input.city ?? "").trim(),
     authorLabel: String(input.authorLabel ?? "").trim() || "Amoria",
-    ...(input.authorUid ? { authorUid: String(input.authorUid).trim() } : {}),
+    authorUid: String(input.authorUid).trim(),
     createdAt,
     hasPhoto: Boolean(photoUri),
     ...(photoUri ? { photoUri } : {}),
@@ -261,12 +186,6 @@ export function createAsyncStorageNearbyAnnouncementsRepository(
     options.announcementsStorageKey ?? NEARBY_ANNOUNCEMENTS_STORAGE_KEY;
   const responsesStorageKey =
     options.responsesStorageKey ?? NEARBY_ANNOUNCEMENT_RESPONSES_STORAGE_KEY;
-  const demoAnnouncements = mergeNearbyAnnouncementCollections(
-    ...(options.demoAnnouncements ?? DEFAULT_DEMO_ANNOUNCEMENTS).map((item) => {
-      const normalized = normalizeNearbyAnnouncement(item);
-      return normalized ? [normalized] : [];
-    })
-  );
 
   async function readStoredAnnouncements(): Promise<NearbyAnnouncement[]> {
     try {
@@ -312,8 +231,7 @@ export function createAsyncStorageNearbyAnnouncementsRepository(
   }
 
   async function listAnnouncements() {
-    const storedAnnouncements = await readStoredAnnouncements();
-    return mergeNearbyAnnouncementCollections(storedAnnouncements, demoAnnouncements);
+    return readStoredAnnouncements();
   }
 
   return {

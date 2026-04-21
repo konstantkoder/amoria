@@ -1,18 +1,22 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import {
-  View,
-  Text,
-  TextInput,
-  ScrollView,
-  Switch,
-  TouchableOpacity,
   ActivityIndicator,
   Alert,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import { theme } from "@/theme";
-import type { Goal, Mood, UserProfile } from "../models/User";
-import { getUserProfile, updateUserFields } from "../services/user";
+import { useFocusEffect } from "@react-navigation/native";
+
+import ScreenShell from "@/components/ScreenShell";
 import { useLocale } from "@/contexts/LocaleContext";
+import type { Goal, Mood, UserProfile } from "@/models/User";
+import { theme } from "@/theme";
+import { getUserProfile, updateUserFields } from "@/services/user";
 
 const GOAL_OPTIONS: Goal[] = [
   "dating",
@@ -24,13 +28,7 @@ const GOAL_OPTIONS: Goal[] = [
   "sex",
 ];
 
-const MOOD_OPTIONS: Mood[] = [
-  "happy",
-  "chill",
-  "active",
-  "serious",
-  "party",
-];
+const MOOD_OPTIONS: Mood[] = ["happy", "chill", "active", "serious", "party"];
 
 const GOAL_LABEL_KEYS: Record<Goal, string> = {
   dating: "profile.goal.dating",
@@ -52,53 +50,62 @@ const MOOD_LABEL_KEYS: Record<Mood, string> = {
 
 export default function EditProfileScreen() {
   const { t } = useLocale();
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = React.useState(true);
+  const [saving, setSaving] = React.useState(false);
+  const [displayName, setDisplayName] = React.useState("");
+  const [about, setAbout] = React.useState("");
+  const [interestsText, setInterestsText] = React.useState("");
+  const [goal, setGoal] = React.useState<Goal>("dating");
+  const [mood, setMood] = React.useState<Mood>("happy");
+  const [allowAdultMode, setAllowAdultMode] = React.useState(false);
+  const [mysteryMode, setMysteryMode] = React.useState(false);
 
-  const [displayName, setDisplayName] = useState("");
-  const [about, setAbout] = useState("");
-  const [interestsText, setInterestsText] = useState("");
-  const [goal, setGoal] = useState<Goal>("dating");
-  const [mood, setMood] = useState<Mood>("happy");
-
-  const [allowAdultMode, setAllowAdultMode] = useState(false);
-  const [mysteryMode, setMysteryMode] = useState(false);
-
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const profile: UserProfile | null = await getUserProfile();
-        if (!profile) {
-          setLoading(false);
-          return;
-        }
-
-        setDisplayName(profile.displayName ?? "");
-        setAbout(profile.about ?? "");
-        setInterestsText((profile.interests ?? []).join(", "));
-        setGoal(profile.goal ?? "dating");
-        setMood(profile.mood ?? "happy");
-        setAllowAdultMode(profile.allowAdultMode ?? false);
-        setMysteryMode(profile.mysteryMode ?? false);
-      } catch {
-        Alert.alert(t("common.error"), t("editProfile.loadErrorBody"));
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    load();
+  const applyProfile = React.useCallback((profile: UserProfile) => {
+    setDisplayName(profile.displayName ?? "");
+    setAbout(profile.about ?? "");
+    setInterestsText((profile.interests ?? []).join(", "));
+    setGoal(profile.goal ?? "dating");
+    setMood(profile.mood ?? "happy");
+    setAllowAdultMode(profile.allowAdultMode ?? false);
+    setMysteryMode(profile.mysteryMode ?? false);
   }, []);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      let active = true;
+      setLoading(true);
+
+      void getUserProfile()
+        .then((profile) => {
+          if (!active) return;
+          applyProfile(profile);
+        })
+        .catch(() => {
+          if (active) {
+            Alert.alert(t("common.error"), t("editProfile.loadErrorBody"));
+          }
+        })
+        .finally(() => {
+          if (active) {
+            setLoading(false);
+          }
+        });
+
+      return () => {
+        active = false;
+      };
+    }, [applyProfile, t])
+  );
 
   const handleSave = async () => {
     try {
       setSaving(true);
       const interestsArray = interestsText
         .split(",")
-        .map((s) => s.trim())
+        .map((item) => item.trim())
         .filter(Boolean);
 
-      await updateUserFields({
+      const savedProfile = await updateUserFields({
         displayName,
         about,
         interests: interestsArray,
@@ -107,7 +114,7 @@ export default function EditProfileScreen() {
         allowAdultMode,
         mysteryMode,
       });
-
+      applyProfile(savedProfile);
       Alert.alert(t("common.done"), t("editProfile.saveSuccessBody"));
     } catch {
       Alert.alert(t("common.error"), t("editProfile.saveErrorBody"));
@@ -118,334 +125,257 @@ export default function EditProfileScreen() {
 
   if (loading) {
     return (
-      <View
-        style={{
-          flex: 1,
-          backgroundColor: theme.colors.background,
-          alignItems: "center",
-          justifyContent: "center",
-        }}
+      <ScreenShell
+        title={t("editProfile.title")}
+        background="profile"
+        overlayOpacity={0.16}
+        showBack
       >
-        <ActivityIndicator color={theme.colors.primary} />
-        <Text
-          style={{
-            marginTop: 8,
-            color: theme.colors.subtext,
-          }}
-        >
-          {t("editProfile.loading")}
-        </Text>
-      </View>
+        <View style={styles.loader}>
+          <ActivityIndicator color={theme.colors.primary} />
+          <Text style={styles.loaderText}>{t("editProfile.loading")}</Text>
+        </View>
+      </ScreenShell>
     );
   }
 
   return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: theme.colors.background }}
-      contentContainerStyle={{
-        padding: theme.spacing,
-        paddingBottom: theme.spacing * 2,
-      }}
-      keyboardShouldPersistTaps="handled"
+    <ScreenShell
+      title={t("editProfile.title")}
+      background="profile"
+      overlayOpacity={0.16}
+      showBack
     >
-      <Text
-        style={{
-          fontSize: 24,
-          fontWeight: "800",
-          color: theme.colors.text,
-          marginBottom: 16,
-        }}
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
-        {t("editProfile.title")}
-      </Text>
-
-      {/* Имя */}
-      <Text
-        style={{
-          color: theme.colors.subtext,
-          fontSize: 12,
-          marginBottom: 4,
-        }}
-      >
-        {t("editProfile.nameLabel")}
-      </Text>
-      <TextInput
-        value={displayName}
-        onChangeText={setDisplayName}
-        placeholder={t("editProfile.namePlaceholder")}
-        placeholderTextColor={theme.colors.muted}
-        style={{
-          backgroundColor: theme.colors.card,
-          borderRadius: theme.radius,
-          paddingHorizontal: 14,
-          paddingVertical: 10,
-          color: theme.colors.text,
-          borderWidth: 1,
-          borderColor: theme.colors.borderSubtle,
-          marginBottom: 12,
-        }}
-      />
-
-      {/* О себе */}
-      <Text
-        style={{
-          color: theme.colors.subtext,
-          fontSize: 12,
-          marginBottom: 4,
-        }}
-      >
-        {t("editProfile.aboutLabel")}
-      </Text>
-      <TextInput
-        value={about}
-        onChangeText={setAbout}
-        multiline
-        placeholder={t("editProfile.aboutPlaceholder")}
-        placeholderTextColor={theme.colors.muted}
-        style={{
-          backgroundColor: theme.colors.card,
-          borderRadius: theme.radius,
-          paddingHorizontal: 14,
-          paddingVertical: 10,
-          color: theme.colors.text,
-          borderWidth: 1,
-          borderColor: theme.colors.borderSubtle,
-          minHeight: 80,
-          textAlignVertical: "top",
-          marginBottom: 12,
-        }}
-      />
-
-      {/* Интересы */}
-      <Text
-        style={{
-          color: theme.colors.subtext,
-          fontSize: 12,
-          marginBottom: 4,
-        }}
-      >
-        {t("editProfile.interestsLabel")}
-      </Text>
-      <TextInput
-        value={interestsText}
-        onChangeText={setInterestsText}
-        placeholder={t("editProfile.interestsPlaceholder")}
-        placeholderTextColor={theme.colors.muted}
-        style={{
-          backgroundColor: theme.colors.card,
-          borderRadius: theme.radius,
-          paddingHorizontal: 14,
-          paddingVertical: 10,
-          color: theme.colors.text,
-          borderWidth: 1,
-          borderColor: theme.colors.borderSubtle,
-          marginBottom: 16,
-        }}
-      />
-
-      {/* Цель знакомства */}
-      <Text
-        style={{
-          color: theme.colors.subtext,
-          fontSize: 12,
-          marginBottom: 4,
-        }}
-      >
-        {t("editProfile.goalLabel")}
-      </Text>
-      <View
-        style={{
-          flexDirection: "row",
-          flexWrap: "wrap",
-          marginBottom: 16,
-        }}
-      >
-        {GOAL_OPTIONS.map((g) => {
-          const active = goal === g;
-          return (
-            <TouchableOpacity
-              key={g}
-              onPress={() => setGoal(g)}
-              style={{
-                paddingHorizontal: 12,
-                paddingVertical: 6,
-                borderRadius: theme.shapes.pill,
-                marginRight: 8,
-                marginBottom: 8,
-                backgroundColor: active
-                  ? theme.colors.primary
-                  : theme.colors.pillBg,
-              }}
-            >
-              <Text
-                style={{
-                  color: active ? "#FFFFFF" : theme.colors.pillText,
-                fontSize: 12,
-                fontWeight: "600",
-              }}
-            >
-                {t(GOAL_LABEL_KEYS[g])}
-            </Text>
-          </TouchableOpacity>
-        );
-      })}
-      </View>
-
-      {/* Настроение */}
-      <Text
-        style={{
-          color: theme.colors.subtext,
-          fontSize: 12,
-          marginBottom: 4,
-        }}
-      >
-        {t("editProfile.moodLabel")}
-      </Text>
-      <View
-        style={{
-          flexDirection: "row",
-          flexWrap: "wrap",
-          marginBottom: 16,
-        }}
-      >
-        {MOOD_OPTIONS.map((m) => {
-          const active = mood === m;
-          return (
-            <TouchableOpacity
-              key={m}
-              onPress={() => setMood(m)}
-              style={{
-                paddingHorizontal: 12,
-                paddingVertical: 6,
-                borderRadius: theme.shapes.pill,
-                marginRight: 8,
-                marginBottom: 8,
-                backgroundColor: active
-                  ? theme.colors.accent
-                  : theme.colors.pillBg,
-              }}
-            >
-              <Text
-                style={{
-                  color: active ? "#FFFFFF" : theme.colors.pillText,
-                fontSize: 12,
-                fontWeight: "600",
-              }}
-            >
-                {t(MOOD_LABEL_KEYS[m])}
-            </Text>
-          </TouchableOpacity>
-        );
-      })}
-      </View>
-
-      {/* Переключатели 18+ и Mystery */}
-      <View
-        style={{
-          marginTop: 8,
-          paddingTop: 12,
-          borderTopWidth: 1,
-          borderTopColor: theme.colors.borderSubtle,
-        }}
-      >
-        {/* 18+ / casual */}
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "space-between",
-            marginBottom: 16,
-          }}
-        >
-          <View style={{ flex: 1, paddingRight: 12 }}>
-            <Text
-              style={{
-                color: theme.colors.text,
-                fontSize: 14,
-                fontWeight: "600",
-                marginBottom: 2,
-              }}
-            >
-              {t("editProfile.adultModeTitle")}
-            </Text>
-            <Text
-              style={{
-                color: theme.colors.subtext,
-                fontSize: 12,
-              }}
-            >
-              {t("editProfile.adultModeDescription")}
-            </Text>
-          </View>
-          <Switch
-            value={allowAdultMode}
-            onValueChange={setAllowAdultMode}
+        <View style={styles.card}>
+          <Text style={styles.label}>{t("editProfile.nameLabel")}</Text>
+          <TextInput
+            value={displayName}
+            onChangeText={setDisplayName}
+            placeholder={t("editProfile.namePlaceholder")}
+            placeholderTextColor={theme.colors.muted}
+            style={styles.input}
           />
-        </View>
 
-        {/* Mystery-режим */}
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "space-between",
-          }}
-        >
-          <View style={{ flex: 1, paddingRight: 12 }}>
-            <Text
-              style={{
-                color: theme.colors.text,
-                fontSize: 14,
-                fontWeight: "600",
-                marginBottom: 2,
-              }}
-            >
-              {t("profile.mysteryBadge")}
-            </Text>
-            <Text
-              style={{
-                color: theme.colors.subtext,
-                fontSize: 12,
-              }}
-            >
-              {t("editProfile.mysteryDescription")}
-            </Text>
-          </View>
-          <Switch
-            value={mysteryMode}
-            onValueChange={setMysteryMode}
+          <Text style={styles.label}>{t("editProfile.aboutLabel")}</Text>
+          <TextInput
+            value={about}
+            onChangeText={setAbout}
+            multiline
+            placeholder={t("editProfile.aboutPlaceholder")}
+            placeholderTextColor={theme.colors.muted}
+            style={[styles.input, styles.multilineInput]}
           />
-        </View>
-      </View>
 
-      {/* Кнопка сохранения */}
-      <TouchableOpacity
-        onPress={handleSave}
-        disabled={saving}
-        style={{
-          marginTop: 24,
-          backgroundColor: theme.colors.primary,
-          borderRadius: theme.radius,
-          paddingVertical: 12,
-          alignItems: "center",
-          justifyContent: "center",
-          opacity: saving ? 0.7 : 1,
-        }}
-      >
-        {saving ? (
-          <ActivityIndicator color="#FFFFFF" />
-        ) : (
-          <Text
-            style={{
-              color: "#FFFFFF",
-              fontSize: 16,
-              fontWeight: "700",
-            }}
+          <Text style={styles.label}>{t("editProfile.interestsLabel")}</Text>
+          <TextInput
+            value={interestsText}
+            onChangeText={setInterestsText}
+            placeholder={t("editProfile.interestsPlaceholder")}
+            placeholderTextColor={theme.colors.muted}
+            style={styles.input}
+          />
+
+          <Text style={styles.label}>{t("editProfile.goalLabel")}</Text>
+          <View style={styles.optionsWrap}>
+            {GOAL_OPTIONS.map((option) => {
+              const active = goal === option;
+              return (
+                <TouchableOpacity
+                  key={option}
+                  onPress={() => setGoal(option)}
+                  style={[
+                    styles.optionButton,
+                    active ? styles.goalOptionButtonActive : null,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.optionButtonText,
+                      active ? styles.optionButtonTextActive : null,
+                    ]}
+                  >
+                    {t(GOAL_LABEL_KEYS[option])}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          <Text style={styles.label}>{t("editProfile.moodLabel")}</Text>
+          <View style={styles.optionsWrap}>
+            {MOOD_OPTIONS.map((option) => {
+              const active = mood === option;
+              return (
+                <TouchableOpacity
+                  key={option}
+                  onPress={() => setMood(option)}
+                  style={[
+                    styles.optionButton,
+                    active ? styles.moodOptionButtonActive : null,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.optionButtonText,
+                      active ? styles.optionButtonTextActive : null,
+                    ]}
+                  >
+                    {t(MOOD_LABEL_KEYS[option])}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          <View style={styles.toggleCard}>
+            <Text style={styles.toggleTitle}>{t("editProfile.adultModeTitle")}</Text>
+            <Text style={styles.toggleBody}>{t("editProfile.adultModeDescription")}</Text>
+            <Switch
+              value={allowAdultMode}
+              onValueChange={setAllowAdultMode}
+              thumbColor={allowAdultMode ? theme.colors.primary : "#999"}
+              trackColor={{
+                false: "#444",
+                true: `${theme.colors.primary}88`,
+              }}
+            />
+          </View>
+
+          <View style={styles.toggleCard}>
+            <Text style={styles.toggleTitle}>{t("profile.mysteryBadge")}</Text>
+            <Text style={styles.toggleBody}>{t("editProfile.mysteryDescription")}</Text>
+            <Switch
+              value={mysteryMode}
+              onValueChange={setMysteryMode}
+              thumbColor={mysteryMode ? theme.colors.accent : "#999"}
+              trackColor={{
+                false: "#444",
+                true: `${theme.colors.accent}88`,
+              }}
+            />
+          </View>
+
+          <TouchableOpacity
+            onPress={() => void handleSave()}
+            disabled={saving}
+            style={[styles.saveButton, saving ? styles.saveButtonDisabled : null]}
           >
-            {t("common.save")}
-          </Text>
-        )}
-      </TouchableOpacity>
-    </ScrollView>
+            <Text style={styles.saveButtonText}>
+              {saving ? t("common.saving") : t("common.save")}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </ScreenShell>
   );
 }
+
+const styles = StyleSheet.create({
+  scroll: {
+    flex: 1,
+  },
+  content: {
+    paddingBottom: theme.spacing * 2,
+  },
+  loader: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+  },
+  loaderText: {
+    color: theme.colors.subtext,
+  },
+  card: {
+    backgroundColor: "rgba(8, 12, 24, 0.78)",
+    borderRadius: 24,
+    padding: theme.spacing,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+  },
+  label: {
+    color: theme.colors.subtext,
+    fontSize: 12,
+    marginBottom: 6,
+  },
+  input: {
+    backgroundColor: theme.colors.card,
+    borderRadius: theme.radius,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    color: theme.colors.text,
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+    marginBottom: 14,
+  },
+  multilineInput: {
+    minHeight: 88,
+    textAlignVertical: "top",
+  },
+  optionsWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    marginBottom: 16,
+    gap: 8,
+  },
+  optionButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: theme.shapes.pill,
+    backgroundColor: theme.colors.pillBg,
+  },
+  goalOptionButtonActive: {
+    backgroundColor: theme.colors.primary,
+  },
+  moodOptionButtonActive: {
+    backgroundColor: theme.colors.accent,
+  },
+  optionButtonText: {
+    color: theme.colors.pillText,
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  optionButtonTextActive: {
+    color: "#FFFFFF",
+  },
+  toggleCard: {
+    backgroundColor: theme.colors.card,
+    borderRadius: theme.radius,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+    marginBottom: 12,
+  },
+  toggleTitle: {
+    color: theme.colors.text,
+    fontWeight: "700",
+    marginBottom: 4,
+  },
+  toggleBody: {
+    color: theme.colors.subtext,
+    marginBottom: 8,
+  },
+  saveButton: {
+    backgroundColor: theme.colors.primary,
+    borderRadius: theme.radius,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 14,
+    marginTop: 8,
+  },
+  saveButtonDisabled: {
+    opacity: 0.65,
+  },
+  saveButtonText: {
+    color: "#FFFFFF",
+    fontWeight: "800",
+    fontSize: 15,
+  },
+});

@@ -1,23 +1,11 @@
 import React from "react";
-import {
-  Alert,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 
 import ScreenShell from "@/components/ScreenShell";
-import { isTogetherQaDemoEnabled } from "@/dev/runtimeFlags";
 import { useLocale } from "@/contexts/LocaleContext";
 import { type RootStackNavigationProp } from "@/navigation/appRoutes";
 import { openNearbySection, openRooms } from "@/navigation/nearbyNavigation";
-import {
-  prepareTogetherCoreLoopDemo,
-  prepareTogetherLiveQaSession,
-} from "@/dev/seedDemoFlow";
 import {
   getPlayLobbyModeCardCopy,
   type PlayActivity,
@@ -29,11 +17,6 @@ const LIVE_MODE_ORDER: PlayActivity[] = ["daily_prompt", "chain_draw", "color_mo
 export default function PlayLobbyScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"PlayMatch">>();
   const { t } = useLocale();
-  const [preparingDemoKind, setPreparingDemoKind] = React.useState<"core" | "live" | null>(
-    null
-  );
-  const qaDemoEnabled = React.useMemo(() => isTogetherQaDemoEnabled(), []);
-  const preparingDemo = preparingDemoKind !== null;
   const tt = React.useCallback(
     (key: string, fallback: string, params?: Record<string, string>) => {
       const value = t(key, params);
@@ -79,73 +62,6 @@ export default function PlayLobbyScreen() {
     },
     [tt]
   );
-
-  const handleOpenDemoCoreLoop = React.useCallback(async () => {
-    if (!qaDemoEnabled || preparingDemo) return;
-
-    setPreparingDemoKind("core");
-    try {
-      const demo = await prepareTogetherCoreLoopDemo();
-      const messageLines = [
-        "Prepared for one-phone core-loop review:",
-        "• demo result",
-        "• shared story in history",
-        "• connection card",
-        "• inbox / DM continuation",
-      ];
-
-      if (demo.peerName) {
-        messageLines.push("");
-        messageLines.push(`Linked to one shared context with ${demo.peerName}.`);
-      }
-
-      if (demo.summary.warnings.length) {
-        messageLines.push("");
-        messageLines.push(...demo.summary.warnings);
-      }
-
-      if (demo.sessionId) {
-        navigation.navigate("PlayResult", {
-          sessionId: demo.sessionId,
-        });
-      }
-
-      Alert.alert(
-        demo.sessionId ? "Together QA demo ready" : "Together QA demo unavailable",
-        messageLines.join("\n"),
-        [
-          {
-            text: demo.sessionId
-              ? "Continue to demo result"
-              : tt("common.close", "Close"),
-          },
-        ]
-      );
-    } finally {
-      setPreparingDemoKind(null);
-    }
-  }, [navigation, preparingDemo, qaDemoEnabled, tt]);
-
-  const handleOpenLiveQaSession = React.useCallback(async () => {
-    if (!qaDemoEnabled || preparingDemo) return;
-
-    setPreparingDemoKind("live");
-    try {
-      const liveSession = await prepareTogetherLiveQaSession();
-      if (liveSession.sessionId) {
-        navigation.navigate("PlayCanvas", { sessionId: liveSession.sessionId });
-        return;
-      }
-
-      Alert.alert(
-        "Together live QA unavailable",
-        liveSession.warnings.join("\n") ||
-          "We couldn't create the live Together QA session on this device."
-      );
-    } finally {
-      setPreparingDemoKind(null);
-    }
-  }, [navigation, preparingDemo, qaDemoEnabled]);
 
   return (
     <ScreenShell title={t("tabs.together")} background="togetherMain">
@@ -224,55 +140,6 @@ export default function PlayLobbyScreen() {
             </Text>
           </View>
         </Pressable>
-
-        {qaDemoEnabled ? (
-          <View style={styles.devDemoCard}>
-            <Text style={styles.devDemoKicker}>INTERNAL QA</Text>
-            <Text style={styles.devDemoTitle}>
-              {tt(
-                "together.lobby.devDemoTitle",
-                "Open the Together core loop on one phone"
-              )}
-            </Text>
-            <Text style={styles.devDemoBody}>
-              {tt(
-                "together.lobby.devDemoBody",
-                "This prepares one coherent Together story with a finished result, shared history, connection card, Inbox thread, and DM continuation without touching live matching."
-              )}
-            </Text>
-            <View style={styles.devDemoActions}>
-              <Pressable
-                onPress={() => void handleOpenDemoCoreLoop()}
-                disabled={preparingDemo}
-                style={[
-                  styles.devDemoButton,
-                  preparingDemo ? styles.devDemoButtonDisabled : null,
-                ]}
-              >
-                <Text style={styles.devDemoButtonText}>
-                  {preparingDemoKind === "core"
-                    ? tt("common.saving", "Preparing...")
-                    : tt("together.lobby.devDemoAction", "Open Together QA demo")}
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={() => void handleOpenLiveQaSession()}
-                disabled={preparingDemo}
-                style={[
-                  styles.devDemoButton,
-                  styles.devDemoButtonSecondary,
-                  preparingDemo ? styles.devDemoButtonDisabled : null,
-                ]}
-              >
-                <Text style={styles.devDemoButtonText}>
-                  {preparingDemoKind === "live"
-                    ? tt("common.saving", "Preparing...")
-                    : "Open live Together QA session"}
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-        ) : null}
 
         <View style={styles.liveSection}>
           <Text style={styles.liveSectionTitle}>
@@ -483,57 +350,6 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.1)",
   },
   historyBadgeText: {
-    color: theme.colors.text,
-    fontSize: 12,
-    fontWeight: "800",
-  },
-  devDemoCard: {
-    borderRadius: theme.shapes.card,
-    padding: 16,
-    backgroundColor: "rgba(22, 26, 44, 0.84)",
-    borderWidth: 1,
-    borderColor: "rgba(255, 190, 92, 0.24)",
-    gap: 8,
-  },
-  devDemoKicker: {
-    color: "#FFDDAA",
-    fontSize: 10,
-    fontWeight: "900",
-    letterSpacing: 1,
-  },
-  devDemoTitle: {
-    color: theme.colors.text,
-    fontSize: 17,
-    lineHeight: 22,
-    fontWeight: "800",
-  },
-  devDemoBody: {
-    color: theme.colors.subtext,
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  devDemoActions: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-  },
-  devDemoButton: {
-    alignSelf: "flex-start",
-    borderRadius: theme.shapes.pill,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    backgroundColor: "rgba(255, 122, 60, 0.18)",
-    borderWidth: 1,
-    borderColor: "rgba(255, 122, 60, 0.28)",
-  },
-  devDemoButtonSecondary: {
-    backgroundColor: "rgba(96, 165, 250, 0.16)",
-    borderColor: "rgba(96, 165, 250, 0.28)",
-  },
-  devDemoButtonDisabled: {
-    opacity: 0.6,
-  },
-  devDemoButtonText: {
     color: theme.colors.text,
     fontSize: 12,
     fontWeight: "800",
