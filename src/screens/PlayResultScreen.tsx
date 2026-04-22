@@ -114,14 +114,13 @@ type ResultBridgeCopy = {
 };
 
 function getResultBridgeCopy(options: {
-  historyMode: boolean;
   revealOutcome: ReturnType<typeof resolvePlayRevealOutcome>;
   canOpenChat: boolean;
   hasOwnDecision: boolean;
   activity: PlaySessionDoc["activity"] | "draw";
   tt: (key: string, fallback: string, params?: Record<string, string>) => string;
 }): ResultBridgeCopy {
-  const { activity, canOpenChat, hasOwnDecision, historyMode, revealOutcome, tt } = options;
+  const { activity, canOpenChat, hasOwnDecision, revealOutcome, tt } = options;
   const savedStoryLabel =
     activity === "color_mood"
       ? tt("play.result.storyLabelPalette", "общая палитра")
@@ -129,18 +128,11 @@ function getResultBridgeCopy(options: {
 
   if (revealOutcome === "open_open" && canOpenChat) {
     return {
-      happenedTitle: historyMode
-        ? tt("play.result.bridgeHistoryChatReadyTitle", "Эта история уже стала связью")
-        : tt("play.result.bridgeChatReadyTitle", "Общий результат уже стал связью"),
-      happenedBody: historyMode
-        ? tt(
-            "play.result.bridgeHistoryChatReadyBody",
-            "После этого общего результата связь уже открылась и теперь живёт в разделе «Связи» вместе с этой историей."
-          )
-        : tt(
-            "play.result.bridgeChatReadyBody",
-            "Общий результат уже открыл между вами связь. Теперь она живёт в разделе «Связи», а отсюда можно сразу перейти в личный разговор."
-          ),
+      happenedTitle: tt("play.result.bridgeChatReadyTitle", "Общий результат уже стал связью"),
+      happenedBody: tt(
+        "play.result.bridgeChatReadyBody",
+        "Общий результат уже открыл между вами связь. Теперь она живёт в разделе «Связи», а отсюда можно сразу перейти в личный разговор."
+      ),
       nextTitle: tt("play.result.bridgeChatReadyNextTitle", "Продолжить связь дальше"),
       nextBody: tt(
         "play.result.bridgeChatReadyNextBody",
@@ -158,15 +150,10 @@ function getResultBridgeCopy(options: {
   if (revealOutcome === "open_open" && !canOpenChat) {
     return {
       happenedTitle: tt("play.result.bridgeChatPendingTitle", "Контакт уже взаимный"),
-      happenedBody: historyMode
-        ? tt(
-            "play.result.bridgeHistoryChatPendingBody",
-            "Открытие уже произошло: связь уже живёт в «Связях», но сам чат ещё не прикрепился к этой истории."
-          )
-        : tt(
-            "play.result.bridgeChatPendingBody",
-            "Вы оба уже открыли связь после общего результата, но личный разговор ещё не успел подтянуться к ней."
-          ),
+      happenedBody: tt(
+        "play.result.bridgeChatPendingBody",
+        "Вы оба уже открыли связь после общего результата, но личный разговор ещё не успел подтянуться к ней."
+      ),
       nextTitle: tt("play.result.bridgeChatPendingNextTitle", "Пока открыть общую историю"),
       nextBody: tt(
         "play.result.bridgeChatPendingNextBody",
@@ -175,33 +162,6 @@ function getResultBridgeCopy(options: {
       hint: tt(
         "play.result.bridgeChatPendingHint",
         "Это не сбрасывает открытие. История уже сохранена, связь уже открыта, а разговор должен появиться сразу после синхронизации."
-      ),
-      primaryIntent: "open_story",
-      primaryLabel: tt("play.result.openSharedStory", "Открыть общую историю"),
-    };
-  }
-
-  if (historyMode) {
-    return {
-      happenedTitle: tt("play.result.bridgeHistoryStoryStateTitle", "Общий результат уже сохранён"),
-      happenedBody:
-        revealOutcome === "waiting"
-          ? tt(
-              "play.result.bridgeHistoryWaitingBody",
-              "Эта история уже сохранена, а решение об открытии ещё не дошло от обоих людей."
-            )
-          : tt(
-              "play.result.bridgeHistoryStoryStateBody",
-              "Этот общий момент уже остался в архиве как история, к которой можно возвращаться без спешки."
-            ),
-      nextTitle: tt("play.result.bridgeHistoryStoryNextTitle", "Открыть полную страницу истории"),
-      nextBody: tt(
-        "play.result.bridgeHistoryStoryNextBody",
-        "Открой постоянную страницу истории, если хочешь replay, контекст и более спокойный возврат к этому результату."
-      ),
-      hint: tt(
-        "play.result.bridgeHistoryStoryHint",
-        "История уже сохранена независимо от того, открылся ли личный разговор."
       ),
       primaryIntent: "open_story",
       primaryLabel: tt("play.result.openSharedStory", "Открыть общую историю"),
@@ -231,9 +191,7 @@ function getResultBridgeCopy(options: {
 
   if (revealOutcome === "open_skip" || revealOutcome === "skip_skip") {
     return {
-      happenedTitle: historyMode
-        ? tt("play.result.bridgeHistoryStoryOnlyTitle", "Эта история осталась между вами")
-        : tt("play.result.bridgeStoryOnlyTitle", "Этот момент остался общей историей"),
+      happenedTitle: tt("play.result.bridgeStoryOnlyTitle", "Этот момент остался общей историей"),
       happenedBody:
         revealOutcome === "open_skip"
           ? tt(
@@ -275,7 +233,7 @@ function getResultBridgeCopy(options: {
         : tt(
             "play.result.bridgeDecisionDrawingNextBody",
             "Если вы оба выберете открыть, этот результат приведёт в личный разговор. Если нет, рисунок останется общей историей."
-    ),
+          ),
     hint: tt(
       "play.result.bridgeDecisionHint",
       "Решение не стирает итог: общая история сохраняется в любом случае."
@@ -297,7 +255,6 @@ export default function PlayResultScreen() {
     [t]
   );
   const sessionId = route.params.sessionId.trim();
-  const historyMode = route.params.mode === "history";
   const uid = auth?.currentUser?.uid ?? "";
   const [session, setSession] = React.useState<PlaySessionDoc | null>(null);
   const [events, setEvents] = React.useState<PlayStrokeBatch[]>([]);
@@ -314,9 +271,6 @@ export default function PlayResultScreen() {
   const openChatPromiseRef = React.useRef<Promise<void> | null>(null);
   const goToTogether = React.useCallback(() => {
     navigation.navigate("Tabs", { screen: "Together" });
-  }, [navigation]);
-  const goToHistory = React.useCallback(() => {
-    navigation.navigate("PlayHistory");
   }, [navigation]);
   const goToConnections = React.useCallback(() => {
     navigation.navigate("Tabs", { screen: "Connections" });
@@ -341,7 +295,7 @@ export default function PlayResultScreen() {
     setEvents([]);
     setDecision(null);
     setSubmitting(false);
-    setReplayOpen(historyMode);
+    setReplayOpen(false);
     setOpeningChat(false);
     setLoadError("");
     setActionError("");
@@ -401,7 +355,7 @@ export default function PlayResultScreen() {
       unsubscribeSession();
       unsubscribeEvents();
     };
-  }, [historyMode, reloadKey, sessionId, tt]);
+  }, [reloadKey, sessionId, tt]);
 
   React.useEffect(() => {
     const ownDecision = session?.revealDecisions?.[uid];
@@ -459,12 +413,8 @@ export default function PlayResultScreen() {
   );
   const revealCopy = React.useMemo(() => getPlayRevealCopy(revealOutcome), [revealOutcome]);
   const resultModeCopy = React.useMemo(
-    () =>
-      getPlayResultModeCopy(session?.activity ?? "draw", {
-        historyMode,
-        promptText: sessionPrompt?.text,
-      }),
-    [historyMode, session?.activity, sessionPrompt?.text]
+    () => getPlayResultModeCopy(session?.activity ?? "draw"),
+    [session?.activity]
   );
   const replayCopy = React.useMemo(
     () => getPlayReplayCopy(session?.activity ?? "draw"),
@@ -500,14 +450,13 @@ export default function PlayResultScreen() {
   const bridgeCopy = React.useMemo(
     () =>
       getResultBridgeCopy({
-        historyMode,
         revealOutcome,
         canOpenChat,
         hasOwnDecision: Boolean(decision),
         activity: session?.activity ?? "draw",
         tt,
       }),
-    [canOpenChat, decision, historyMode, revealOutcome, session?.activity, tt]
+    [canOpenChat, decision, revealOutcome, session?.activity, tt]
   );
 
   const openChat = React.useCallback(async () => {
@@ -544,7 +493,7 @@ export default function PlayResultScreen() {
           peerName,
           backTarget: "sessionDetail",
           backSessionId: sessionId,
-          })
+        })
       );
       if (mountedRef.current) {
         setActionError("");
@@ -579,7 +528,6 @@ export default function PlayResultScreen() {
       return;
     }
 
-    if (historyMode) return;
     if (!db || !sessionId || !uid || decision) {
       if (mountedRef.current) {
         setActionError(
@@ -613,7 +561,7 @@ export default function PlayResultScreen() {
         setSubmitting(false);
       }
     }
-  }, [allOpen, db, decision, historyMode, openChat, openingChat, sessionId, submitting, tt, uid]);
+  }, [allOpen, db, decision, openChat, openingChat, sessionId, submitting, tt, uid]);
 
   const handleSkipPress = React.useCallback(async () => {
     if (!db || !sessionId || !uid || submitting || decision || openingChat) {
@@ -670,16 +618,10 @@ export default function PlayResultScreen() {
     bridgeCopy.primaryIntent !== "open_story" &&
     ((allOpen && canOpenChat) || waitingForPeer || showSoftEnding);
   const showConnectionsButton = revealOutcome === "open_open";
-  const screenTitle = historyMode
-    ? tt("play.result.storyTitle", "Совместная история")
-    : tt("play.result.title", "Итог сессии");
+  const screenTitle = tt("play.result.title", "Итог сессии");
   const handleBack = () => {
     if (navigation.canGoBack()) {
       navigation.goBack();
-      return;
-    }
-    if (historyMode) {
-      goToHistory();
       return;
     }
     goToTogether();
@@ -817,9 +759,7 @@ export default function PlayResultScreen() {
           <View style={styles.heroHeaderRow}>
             <View style={styles.heroHeaderText}>
               <Text style={styles.heroKicker}>
-                {historyMode
-                  ? tt("play.result.storyTitle", "Совместная история")
-                  : tt("play.result.finishedKicker", "Сессия завершена")}
+                {tt("play.result.finishedKicker", "Сессия завершена")}
               </Text>
               <Text style={styles.heroTitle}>{resultModeCopy.heroTitle}</Text>
             </View>
@@ -930,7 +870,7 @@ export default function PlayResultScreen() {
                 </Text>
               </Pressable>
             ) : null}
-            {!historyMode && !allOpen && !showSoftEnding && !waitingForPeer && !decision ? (
+            {!allOpen && !showSoftEnding && !waitingForPeer && !decision ? (
               <Pressable
                 disabled={skipDisabled}
                 onPress={() => void handleSkipPress()}

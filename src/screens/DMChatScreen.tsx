@@ -181,6 +181,10 @@ export default function DMChatScreen() {
       name: routePeerName || t("common.user"),
     };
   }, [myId, peerId, routePeerName, t, thread]);
+  const storySessionId =
+    backTarget === "sessionDetail"
+      ? String(backSessionId || thread?.sourceSessionId || "")
+      : "";
 
   const mergedMsgs = useMemo(() => {
     const byId = new Map<string, RenderMessage>();
@@ -374,14 +378,14 @@ export default function DMChatScreen() {
     return false;
   }, [backTarget, navigation]);
   const handleBack = useCallback(() => {
-    if (backTarget === "sessionDetail" && backSessionId) {
+    if (backTarget === "sessionDetail" && storySessionId) {
       const routes = navigation.getState().routes;
       const previousRoute = routes[routes.length - 2];
       if (previousRoute?.name === "PlaySessionDetail" && navigation.canGoBack()) {
         navigation.goBack();
         return;
       }
-      navigation.replace("PlaySessionDetail", { sessionId: backSessionId });
+      navigation.replace("PlaySessionDetail", { sessionId: storySessionId });
       return;
     }
 
@@ -394,7 +398,7 @@ export default function DMChatScreen() {
       return;
     }
     navigation.navigate("Tabs", { screen: "Together" });
-  }, [backSessionId, backTarget, fallbackBack, navigation]);
+  }, [backTarget, fallbackBack, navigation, storySessionId]);
 
   useFocusEffect(
     useCallback(() => {

@@ -206,7 +206,6 @@ export type PlayCanvasModeCopy = {
 export type PlayResultModeCopy = {
   heroTitle: string;
   heroBody: string;
-  routeText: string;
 };
 
 export type PlayReplayCopy = {
@@ -967,115 +966,52 @@ export function getPlayActivityMetricLabel(
   return playText("play.metric.strokes", "Strokes");
 }
 
-export function getPlayResultModeCopy(
-  activity: string,
-  options?: {
-    historyMode?: boolean;
-    promptText?: string;
-  }
-): PlayResultModeCopy {
-  const historyMode = Boolean(options?.historyMode);
-
+export function getPlayResultModeCopy(activity: string): PlayResultModeCopy {
   switch (activity) {
     case "chain_draw":
       return {
-        heroTitle: historyMode
-          ? playText("play.resultMode.chainDraw.heroTitle.history", "Your turn-based drawing")
-          : playText("play.resultMode.chainDraw.heroTitle.result", "Turn-based drawing is ready"),
-        heroBody: historyMode
-          ? playText(
-              "play.resultMode.chainDraw.heroBody.history",
-              "This is where the finished turn-based drawing stays."
-            )
-          : playText(
-              "play.resultMode.chainDraw.heroBody.result",
-              "The result of the turn-based drawing that just finished."
-            ),
-        routeText: historyMode
-          ? playText(
-              "play.resultMode.chainDraw.route.history",
-              "This page keeps the shared context, the replay, and the way back into personal chat."
-            )
-          : playText(
-              "play.resultMode.chainDraw.route.result",
-              "From here, the shared result either moves into a personal connection or stays as a saved story."
-            ),
+        heroTitle: playText(
+          "play.resultMode.chainDraw.heroTitle.result",
+          "Turn-based drawing is ready"
+        ),
+        heroBody: playText(
+          "play.resultMode.chainDraw.heroBody.result",
+          "The result of the turn-based drawing that just finished."
+        ),
       };
     case "daily_prompt":
       return {
-        heroTitle: historyMode
-          ? playText("play.resultMode.dailyPrompt.heroTitle.history", "Your shared prompt drawing")
-          : playText(
-              "play.resultMode.dailyPrompt.heroTitle.result",
-              "Shared prompt drawing is ready"
-            ),
-        heroBody: historyMode
-          ? playText(
-              "play.resultMode.dailyPrompt.heroBody.history",
-              "This is where the finished drawing from your shared prompt stays."
-            )
-          : playText(
-              "play.resultMode.dailyPrompt.heroBody.result",
-              "The result of the drawing around your shared prompt that just finished."
-            ),
-        routeText: historyMode
-          ? playText(
-              "play.resultMode.dailyPrompt.route.history",
-              "This page keeps the shared context, the replay, and the way back into personal chat."
-            )
-          : playText(
-              "play.resultMode.dailyPrompt.route.result",
-              "From here, the shared result either moves into a personal connection or stays as a saved story."
-            ),
+        heroTitle: playText(
+          "play.resultMode.dailyPrompt.heroTitle.result",
+          "Shared prompt drawing is ready"
+        ),
+        heroBody: playText(
+          "play.resultMode.dailyPrompt.heroBody.result",
+          "The result of the drawing around your shared prompt that just finished."
+        ),
       };
     case "color_mood":
       return {
-        heroTitle: historyMode
-          ? playText("play.resultMode.colorMood.heroTitle.history", "Your shared palette")
-          : playText("play.resultMode.colorMood.heroTitle.result", "Your shared palette is ready"),
-        heroBody: historyMode
-          ? playText(
-              "play.resultMode.colorMood.heroBody.history",
-              "This is where the finished shared palette stays."
-            )
-          : playText(
-              "play.resultMode.colorMood.heroBody.result",
-              "The result of the mood palette that just finished."
-            ),
-        routeText: historyMode
-          ? playText(
-              "play.resultMode.colorMood.route.history",
-              "This page keeps the shared context, the palette, and the way back into personal chat."
-            )
-          : playText(
-              "play.resultMode.colorMood.route.result",
-              "From here, the shared result either moves into a personal connection or stays as a saved story."
-            ),
+        heroTitle: playText(
+          "play.resultMode.colorMood.heroTitle.result",
+          "Your shared palette is ready"
+        ),
+        heroBody: playText(
+          "play.resultMode.colorMood.heroBody.result",
+          "The result of the mood palette that just finished."
+        ),
       };
     case "draw":
     default:
       return {
-        heroTitle: historyMode
-          ? playText("play.resultMode.draw.heroTitle.history", "Your shared drawing")
-          : playText("play.resultMode.draw.heroTitle.result", "Your shared drawing is ready"),
-        heroBody: historyMode
-          ? playText(
-              "play.resultMode.draw.heroBody.history",
-              "This is where the finished shared drawing stays."
-            )
-          : playText(
-              "play.resultMode.draw.heroBody.result",
-              "The result of the shared session that just finished."
-            ),
-        routeText: historyMode
-          ? playText(
-              "play.resultMode.draw.route.history",
-              "This page keeps the shared context, the replay, and the way back into personal chat."
-            )
-          : playText(
-              "play.resultMode.draw.route.result",
-              "From here, the shared result either moves into a personal connection or stays as a saved story."
-            ),
+        heroTitle: playText(
+          "play.resultMode.draw.heroTitle.result",
+          "Your shared drawing is ready"
+        ),
+        heroBody: playText(
+          "play.resultMode.draw.heroBody.result",
+          "The result of the shared session that just finished."
+        ),
       };
   }
 }

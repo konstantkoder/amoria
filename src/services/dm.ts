@@ -54,13 +54,21 @@ export type DmMessageDoc = {
   pending?: boolean;
 };
 
+type DmChatBackRouteParams =
+  | {
+      backTarget?: "history" | "connections" | "inbox";
+      backSessionId?: never;
+    }
+  | {
+      backTarget: "sessionDetail";
+      backSessionId: string;
+    };
+
 export type DmChatRouteParams = {
   threadId: string;
   peerId: string;
   peerName?: string;
-  backTarget?: "history" | "connections" | "inbox" | "sessionDetail";
-  backSessionId?: string;
-};
+} & DmChatBackRouteParams;
 
 function asDmThreadDoc(id: string, raw: unknown): DmThreadDoc {
   const data = (raw ?? {}) as Partial<DmThreadDoc>;
@@ -119,15 +127,26 @@ export function buildDmThreadId(uidA: string, uidB: string): string {
 }
 
 export function buildDmChatRouteParams(params: DmChatRouteParams): DmChatRouteParams {
-  return {
+  const baseParams = {
     threadId: String(params.threadId ?? ""),
     peerId: String(params.peerId ?? ""),
     ...(params.peerName?.trim() ? { peerName: params.peerName.trim() } : {}),
-    ...(params.backTarget ? { backTarget: params.backTarget } : {}),
-    ...(params.backTarget === "sessionDetail" && params.backSessionId
-      ? { backSessionId: String(params.backSessionId) }
-      : {}),
   };
+
+  if (params.backTarget === "sessionDetail") {
+    return {
+      ...baseParams,
+      backTarget: "sessionDetail",
+      backSessionId: String(params.backSessionId),
+    };
+  }
+
+  return params.backTarget
+    ? {
+        ...baseParams,
+        backTarget: params.backTarget,
+      }
+    : baseParams;
 }
 
 export function findDmThreadBySourceSessionId(

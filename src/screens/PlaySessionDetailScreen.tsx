@@ -437,7 +437,7 @@ export default function PlaySessionDetailScreen() {
         }));
 
       if (!mountedRef.current) return;
-      navigation.replace(
+      navigation.push(
         "DMChat",
         buildDmChatRouteParams({
           threadId,

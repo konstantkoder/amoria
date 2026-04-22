@@ -56,10 +56,6 @@ export type PlaySessionRouteParams = {
   sessionId: string;
 };
 
-export type PlayResultRouteParams = PlaySessionRouteParams & {
-  mode?: "history";
-};
-
 export type PlaySessionDetailRouteParams = PlaySessionRouteParams & {
   focus?: "replay";
 };
@@ -72,7 +68,7 @@ export type RootStackParamList = {
   PlayMatch: PlayMatchRouteParams;
   PlayCanvas: PlaySessionRouteParams;
   PlayColorMood: PlaySessionRouteParams;
-  PlayResult: PlayResultRouteParams;
+  PlayResult: PlaySessionRouteParams;
   PlayHistory: undefined;
   PlaySessionDetail: PlaySessionDetailRouteParams;
   DMChat: DmChatRouteParams;
