@@ -1,4 +1,3 @@
-// FILE: src/screens/RoomsScreen.tsx
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AppState,

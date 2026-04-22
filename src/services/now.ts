@@ -1,4 +1,3 @@
-// FILE: src/services/now.ts
 import {
   Firestore,
   QueryConstraint,
@@ -21,7 +20,6 @@ export type NowPost = {
   nickname: string;
   text: string;
   mood: NowMood;
-  region: string;
   createdAt: number;
   lat?: number;
   lng?: number;
@@ -72,7 +70,6 @@ export function subscribeNowPosts(
         nickname: String(x.nickname ?? "common.anonymous"),
         text: String(x.text ?? ""),
         mood: (x.mood as NowMood) ?? "other",
-        region: String(x.region ?? ""),
         createdAt: Number(x.createdAt ?? 0),
         lat,
         lng,

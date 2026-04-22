@@ -16,7 +16,7 @@ export type NearbyAnnouncement = {
   placeLabel: string;
   proximityLabel?: string;
   authorLabel: string;
-  authorUid?: string;
+  authorUid: string;
   createdAt: number;
   hasPhoto: boolean;
   photoUri?: string;
@@ -26,7 +26,7 @@ export type CreateNearbyAnnouncementInput = {
   title: string;
   description: string;
   category: NearbyAnnouncementCategory;
-  city?: string;
+  placeLabel?: string;
   authorLabel: string;
   authorUid: string;
   photoUri?: string;
@@ -169,7 +169,7 @@ function buildCreatedAnnouncement(
     title: String(input.title ?? "").trim(),
     description: String(input.description ?? "").trim(),
     category,
-    placeLabel: String(input.city ?? "").trim(),
+    placeLabel: String(input.placeLabel ?? "").trim(),
     authorLabel: String(input.authorLabel ?? "").trim() || "Amoria",
     authorUid: String(input.authorUid).trim(),
     createdAt,

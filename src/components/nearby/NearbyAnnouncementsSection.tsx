@@ -52,7 +52,11 @@ export default function NearbyAnnouncementsSection({
     }),
     [t]
   );
-  const fallbackPlaceLabel = copyOrFallback(t, "tabs.nearby", "Nearby");
+  const fallbackPlaceLabel = copyOrFallback(
+    t,
+    "nearby.placeFallback",
+    "Место не указано"
+  );
   const emptyState = useMemo(() => {
     if (activeCategory === "all") {
       return {

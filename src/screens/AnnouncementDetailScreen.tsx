@@ -44,7 +44,7 @@ function copyOrFallback(
 function resolveAnnouncementResponseMode(params: {
   announcement: NearbyAnnouncement | null;
   currentUid: string;
-  hasDirectDmStack: boolean;
+  canOpenDirectChat: boolean;
   override?: AnnouncementResponseMode | null;
 }): AnnouncementResponseMode {
   if (params.override) {
@@ -55,7 +55,7 @@ function resolveAnnouncementResponseMode(params: {
   if (authorUid && params.currentUid && authorUid === params.currentUid) {
     return "own";
   }
-  if (authorUid && params.currentUid && params.hasDirectDmStack) {
+  if (authorUid && params.currentUid && params.canOpenDirectChat) {
     return "direct_dm";
   }
   return "unavailable";
@@ -210,19 +210,23 @@ export default function AnnouncementDetailScreen() {
     [t]
   );
 
-  const fallbackPlaceLabel = copyOrFallback(t, "tabs.nearby", "Nearby");
+  const fallbackPlaceLabel = copyOrFallback(
+    t,
+    "nearby.placeFallback",
+    "Место не указано"
+  );
   const announcementAuthorUid = String(announcement?.authorUid ?? "").trim();
-  const hasDirectDmStack = Boolean(db);
+  const canOpenDirectChat = Boolean(db);
   const hasResponded = respondedAt !== null;
   const responseMode = React.useMemo(
     () =>
       resolveAnnouncementResponseMode({
         announcement,
         currentUid,
-        hasDirectDmStack,
+        canOpenDirectChat,
         override: responseModeOverride,
       }),
-    [announcement, currentUid, hasDirectDmStack, responseModeOverride]
+    [announcement, canOpenDirectChat, currentUid, responseModeOverride]
   );
   const currentNicknameCode = React.useMemo(
     () => (currentUid ? makeNickname(currentUid) : ""),

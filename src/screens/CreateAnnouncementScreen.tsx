@@ -51,7 +51,7 @@ export default function CreateAnnouncementScreen() {
   const pendingPhotoRevealRef = React.useRef(false);
   const [title, setTitle] = React.useState("");
   const [description, setDescription] = React.useState("");
-  const [city, setCity] = React.useState("");
+  const [placeLabel, setPlaceLabel] = React.useState("");
   const [photoUri, setPhotoUri] = React.useState("");
   const [saving, setSaving] = React.useState(false);
   const [category, setCategory] = React.useState<NearbyAnnouncementCategory>("walk");
@@ -75,8 +75,12 @@ export default function CreateAnnouncementScreen() {
     }),
     [t]
   );
-  const fallbackPlaceLabel = copyOrFallback(t, "tabs.nearby", "Nearby");
-  const trimmedCity = city.trim();
+  const fallbackPlaceLabel = copyOrFallback(
+    t,
+    "nearby.placeFallback",
+    "Место не указано"
+  );
+  const trimmedPlaceLabel = placeLabel.trim();
   const previewTitle =
     title.trim() ||
     copyOrFallback(t, "nearby.create.previewTitleFallback", "Announcement title");
@@ -87,8 +91,10 @@ export default function CreateAnnouncementScreen() {
       "nearby.create.previewBodyFallback",
       "Здесь будет видно, кого ты ищешь, где это актуально и зачем откликаться."
     );
-  const previewPlace = trimmedCity || fallbackPlaceLabel;
-  const showPreview = Boolean(title.trim() || description.trim() || trimmedCity || photoUri);
+  const previewPlace = trimmedPlaceLabel || fallbackPlaceLabel;
+  const showPreview = Boolean(
+    title.trim() || description.trim() || trimmedPlaceLabel || photoUri
+  );
   const canPublish = Boolean(currentUid && title.trim() && description.trim());
   const handleBack = React.useCallback(() => {
     goBackOrOpenNearbyAnnouncements(navigation);
@@ -180,15 +186,15 @@ export default function CreateAnnouncementScreen() {
 
     setSaving(true);
     try {
-      const createdAnnouncement = await nearbyAnnouncementsRepository.createAnnouncement({
-        title: trimmedTitle,
-        description: trimmedDescription,
-        category,
-        city: trimmedCity,
-        authorLabel,
-        authorUid: currentUid,
-        ...(photoUri ? { photoUri } : {}),
-      });
+        const createdAnnouncement = await nearbyAnnouncementsRepository.createAnnouncement({
+          title: trimmedTitle,
+          description: trimmedDescription,
+          category,
+          placeLabel: trimmedPlaceLabel,
+          authorLabel,
+          authorUid: currentUid,
+          ...(photoUri ? { photoUri } : {}),
+        });
 
       openNearbyAnnouncements(navigation, createdAnnouncement.id);
     } catch {
@@ -203,7 +209,17 @@ export default function CreateAnnouncementScreen() {
     } finally {
       setSaving(false);
     }
-  }, [authorLabel, category, trimmedCity, currentUid, description, navigation, photoUri, t, title]);
+  }, [
+    authorLabel,
+    category,
+    trimmedPlaceLabel,
+    currentUid,
+    description,
+    navigation,
+    photoUri,
+    t,
+    title,
+  ]);
 
   return (
     <ScreenShell
@@ -355,8 +371,8 @@ export default function CreateAnnouncementScreen() {
             {copyOrFallback(t, "nearby.create.cityLabel", "Город или район")}
           </Text>
           <TextInput
-            value={city}
-            onChangeText={setCity}
+            value={placeLabel}
+            onChangeText={setPlaceLabel}
             placeholder={copyOrFallback(
               t,
               "nearby.create.cityPlaceholder",
