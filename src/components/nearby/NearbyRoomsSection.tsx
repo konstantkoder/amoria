@@ -103,15 +103,15 @@ const styles = StyleSheet.create({
   content: {
     paddingTop: 6,
     paddingBottom: 24,
-    gap: 10,
+    gap: 12,
   },
   overviewCard: {
     borderRadius: theme.shapes.card,
-    padding: 14,
-    backgroundColor: "rgba(11, 16, 30, 0.82)",
+    padding: 16,
+    backgroundColor: "rgba(11, 16, 30, 0.88)",
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
-    gap: 10,
+    gap: 12,
   },
   overviewTop: {
     flexDirection: "row",
@@ -143,7 +143,7 @@ const styles = StyleSheet.create({
   heroBody: {
     color: theme.colors.subtext,
     fontSize: 13,
-    lineHeight: 18,
+    lineHeight: 19,
   },
   featureList: {
     gap: 8,
@@ -163,17 +163,17 @@ const styles = StyleSheet.create({
   featureText: {
     color: theme.colors.text,
     fontSize: 12,
-    lineHeight: 17,
+    lineHeight: 18,
     fontWeight: "600",
     flex: 1,
   },
   ctaCard: {
     borderRadius: theme.shapes.card,
-    padding: 15,
+    padding: 16,
     backgroundColor: "rgba(18, 20, 36, 0.92)",
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
-    gap: 10,
+    gap: 12,
   },
   ctaCopy: {
     gap: 5,
@@ -185,16 +185,21 @@ const styles = StyleSheet.create({
   },
   ctaBody: {
     color: theme.colors.subtext,
-    fontSize: 12,
-    lineHeight: 17,
+    fontSize: 13,
+    lineHeight: 18,
   },
   primaryButton: {
     alignSelf: "stretch",
     borderRadius: theme.shapes.pill,
     paddingHorizontal: 16,
-    paddingVertical: 11,
+    paddingVertical: 12,
     backgroundColor: theme.colors.primary,
     alignItems: "center",
+    shadowColor: theme.colors.primary,
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 4,
   },
   primaryButtonText: {
     color: "#FFFFFF",
@@ -205,7 +210,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 6,
-    paddingHorizontal: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 6,
   },
   linkCardText: {
     flex: 1,

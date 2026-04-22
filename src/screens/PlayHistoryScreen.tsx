@@ -265,7 +265,7 @@ export default function PlayHistoryScreen() {
         setActionError(
           tt(
             "playHistory.openChatFailed",
-            "We couldn't open the chat right now. Try again a bit later."
+            "Не удалось открыть личный разговор прямо сейчас. Попробуй ещё раз чуть позже."
           )
         );
       } finally {
@@ -345,7 +345,7 @@ export default function PlayHistoryScreen() {
           <View style={styles.actionsRow}>
             <Pressable onPress={() => openDetail(item.sessionId)} style={styles.primaryButton}>
               <Text style={styles.primaryButtonText}>
-                {tt("playHistory.openStory", "Open story")}
+                {tt("playHistory.openStory", "Открыть историю")}
               </Text>
             </Pressable>
             {item.revealOutcome === "open_open" ? (
@@ -413,10 +413,10 @@ export default function PlayHistoryScreen() {
         <View style={styles.centerBlock}>
           <CoreStateCard
             icon="person-circle-outline"
-            title={tt("playHistory.authRequiredTitle", "History requires sign-in")}
+            title={tt("playHistory.authRequiredTitle", "Истории доступны после входа")}
             body={tt(
               "playHistory.authRequiredBody",
-              "Sign in to return to your shared stories, open replay or the palette, and continue into conversation when a connection is already open."
+              "Войдите, чтобы вернуться к своим общим историям, открыть replay или палитру и продолжить путь в личный разговор, если связь уже открылась."
             )}
             primaryAction={{ label: t("menu.profile"), onPress: () => navigation.navigate("Profile") }}
             secondaryAction={{ label: t("connections.goToTogether"), onPress: goToTogether }}
@@ -435,7 +435,7 @@ export default function PlayHistoryScreen() {
             title={tt("playHistory.errorTitle", "История временно недоступна")}
             body={tt(
               "playHistory.offlineBody",
-              "We couldn't connect your shared stories right now. Try again later or go back to Together."
+              "Сейчас не получается подключить ваши общие истории. Попробуй позже или вернись во Вместе."
             )}
             primaryAction={{ label: t("connections.goToTogether"), onPress: goToTogether }}
             secondaryAction={{ label: t("tabs.connections"), onPress: goToConnections }}
@@ -499,7 +499,7 @@ export default function PlayHistoryScreen() {
             </Text>
             <View style={styles.heroCountPill}>
               <Text style={styles.heroCountText}>
-                {tt("playHistory.count", "{count} stories", {
+                {tt("playHistory.count", "Историй: {count}", {
                   count: String(cards.length),
                 })}
               </Text>
@@ -507,7 +507,7 @@ export default function PlayHistoryScreen() {
             <View style={styles.heroActions}>
               <Pressable onPress={goToStart} style={styles.heroPrimaryButton}>
                 <Text style={styles.heroPrimaryButtonText}>
-                  {tt("playHistory.startNewSession", "Start a new shared session")}
+                  {tt("playHistory.startNewSession", "Начать новую совместную сессию")}
                 </Text>
               </Pressable>
               <Pressable onPress={goToConnections} style={styles.heroSecondaryButton}>
@@ -541,7 +541,7 @@ const styles = StyleSheet.create({
   content: {
     padding: 16,
     paddingBottom: 40,
-    gap: 18,
+    gap: 20,
   },
   centerBlock: {
     flex: 1,
@@ -608,15 +608,14 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   heroActions: {
-    flexDirection: "row",
-    flexWrap: "wrap",
     gap: 10,
   },
   heroPrimaryButton: {
-    borderRadius: theme.shapes.pill,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    borderRadius: theme.shapes.cardInner,
+    paddingHorizontal: 16,
+    paddingVertical: 13,
     backgroundColor: theme.colors.primary,
+    alignItems: "center",
   },
   heroPrimaryButtonText: {
     color: "#fff",
@@ -624,12 +623,13 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   heroSecondaryButton: {
-    borderRadius: theme.shapes.pill,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    backgroundColor: theme.colors.pillBg,
+    borderRadius: theme.shapes.cardInner,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: "rgba(255,255,255,0.05)",
     borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
+    borderColor: "rgba(255,255,255,0.10)",
+    alignItems: "center",
   },
   heroSecondaryButtonText: {
     color: theme.colors.text,
@@ -655,11 +655,11 @@ const styles = StyleSheet.create({
   },
   card: {
     borderRadius: theme.shapes.card,
-    padding: 16,
-    backgroundColor: "rgba(19, 24, 45, 0.9)",
+    padding: 17,
+    backgroundColor: "rgba(16, 20, 38, 0.92)",
     borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
-    gap: 10,
+    borderColor: "rgba(255,255,255,0.10)",
+    gap: 12,
   },
   cardTop: {
     flexDirection: "row",
@@ -746,15 +746,14 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   actionsRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
     gap: 10,
   },
   primaryButton: {
-    borderRadius: theme.shapes.pill,
+    borderRadius: theme.shapes.cardInner,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 13,
     backgroundColor: theme.colors.primary,
+    alignItems: "center",
   },
   primaryButtonText: {
     color: "#fff",
@@ -762,12 +761,13 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   secondaryButton: {
-    borderRadius: theme.shapes.pill,
+    borderRadius: theme.shapes.cardInner,
     paddingHorizontal: 16,
-    paddingVertical: 11,
-    backgroundColor: theme.colors.pillBg,
+    paddingVertical: 12,
+    backgroundColor: "rgba(255,255,255,0.05)",
     borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
+    borderColor: "rgba(255,255,255,0.10)",
+    alignItems: "center",
   },
   secondaryButtonText: {
     color: theme.colors.text,

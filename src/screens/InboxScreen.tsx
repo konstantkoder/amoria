@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
+import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { auth, db } from "@/config/firebaseConfig";
@@ -215,12 +216,12 @@ export default function InboxScreen() {
   );
 
   const renderEmptyState = () => (
-    <View style={styles.emptyStateCard}>
-      <View style={styles.emptyStateIcon}>
-        <Text style={styles.emptyStateIconText}>💬</Text>
-      </View>
-      <Text style={styles.emptyStateTitle}>
-        {tt("inbox.emptyTitleCoreLoop", "Здесь появятся ваши личные разговоры")}
+      <View style={styles.emptyStateCard}>
+        <View style={styles.emptyStateIcon}>
+          <Ionicons name="chatbubble-ellipses-outline" size={22} color={theme.colors.accent} />
+        </View>
+        <Text style={styles.emptyStateTitle}>
+          {tt("inbox.emptyTitleCoreLoop", "Здесь появятся ваши личные разговоры")}
       </Text>
       <Text style={styles.emptyStateText}>
         {tt(
@@ -263,13 +264,13 @@ export default function InboxScreen() {
         }
         style={{
           backgroundColor:
-            item.signalTone === "fresh" ? "rgba(25, 20, 37, 0.94)" : "rgba(17, 20, 36, 0.9)",
-          borderRadius: 20,
-          padding: 14,
+            item.signalTone === "fresh" ? "rgba(23, 18, 34, 0.96)" : "rgba(14, 18, 32, 0.94)",
+          borderRadius: 22,
+          padding: 16,
           borderWidth: 1,
           borderColor:
-            item.signalTone === "fresh" ? "rgba(255, 78, 138, 0.34)" : theme.colors.borderSubtle,
-          gap: 8,
+            item.signalTone === "fresh" ? "rgba(255, 78, 138, 0.30)" : "rgba(255,255,255,0.10)",
+          gap: 10,
         }}
       >
         <View
@@ -300,12 +301,12 @@ export default function InboxScreen() {
                     backgroundColor:
                       item.signalTone === "fresh"
                         ? "rgba(255, 78, 138, 0.16)"
-                        : "rgba(255,255,255,0.08)",
+                        : "rgba(255,255,255,0.06)",
                     borderWidth: 1,
                     borderColor:
                       item.signalTone === "fresh"
                         ? "rgba(255, 78, 138, 0.28)"
-                        : theme.colors.borderSubtle,
+                        : "rgba(255,255,255,0.08)",
                   }}
                 >
                   <Text
@@ -326,9 +327,9 @@ export default function InboxScreen() {
                 paddingHorizontal: 10,
                 paddingVertical: 6,
                 borderRadius: theme.shapes.pill,
-                backgroundColor: "rgba(255, 122, 60, 0.12)",
+                backgroundColor: "rgba(255, 122, 60, 0.10)",
                 borderWidth: 1,
-                borderColor: "rgba(255, 122, 60, 0.22)",
+                borderColor: "rgba(255, 122, 60, 0.18)",
               }}
             >
               <Text style={{ color: theme.colors.accent, fontSize: 12, fontWeight: "800" }}>
@@ -355,7 +356,7 @@ export default function InboxScreen() {
             fontSize: 11,
             fontWeight: "800",
             textTransform: "uppercase",
-            letterSpacing: 0.7,
+            letterSpacing: 0.8,
           }}
         >
           {item.conversationLabel}
@@ -365,7 +366,7 @@ export default function InboxScreen() {
           style={{
             color: item.signalTone === "fresh" ? theme.colors.text : theme.colors.subtext,
             fontSize: 13,
-            lineHeight: 19,
+            lineHeight: 20,
           }}
           numberOfLines={2}
         >
@@ -491,17 +492,17 @@ export default function InboxScreen() {
 const styles = StyleSheet.create({
   screenContent: {
     flex: 1,
-    paddingHorizontal: 14,
-    paddingTop: 6,
+    paddingHorizontal: 16,
+    paddingTop: 8,
   },
   heroCard: {
     marginBottom: 12,
-    gap: 7,
-    padding: 14,
+    gap: 8,
+    padding: 16,
     borderRadius: theme.shapes.card,
-    backgroundColor: "rgba(16, 20, 38, 0.72)",
+    backgroundColor: "rgba(12, 16, 30, 0.88)",
     borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
+    borderColor: "rgba(255,255,255,0.10)",
   },
   heroHeaderRow: {
     flexDirection: "row",
@@ -519,13 +520,13 @@ const styles = StyleSheet.create({
   },
   heroText: {
     color: theme.colors.subtext,
-    fontSize: 12,
-    lineHeight: 17,
+    fontSize: 13,
+    lineHeight: 19,
   },
   heroLinkButton: {
     alignSelf: "flex-start",
     paddingHorizontal: 12,
-    paddingVertical: 7,
+    paddingVertical: 8,
     borderRadius: theme.shapes.pill,
     backgroundColor: theme.colors.pillBg,
     borderWidth: 1,
@@ -538,24 +539,21 @@ const styles = StyleSheet.create({
   },
   emptyStateCard: {
     borderRadius: theme.shapes.card,
-    padding: 16,
-    backgroundColor: "rgba(17, 20, 36, 0.82)",
+    padding: 18,
+    backgroundColor: "rgba(14, 18, 32, 0.90)",
     borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
-    gap: 10,
+    borderColor: "rgba(255,255,255,0.10)",
+    gap: 12,
   },
   emptyStateIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(255, 122, 60, 0.12)",
+    backgroundColor: "rgba(255, 122, 60, 0.10)",
     borderWidth: 1,
-    borderColor: "rgba(255, 122, 60, 0.2)",
-  },
-  emptyStateIconText: {
-    fontSize: 20,
+    borderColor: "rgba(255, 122, 60, 0.18)",
   },
   emptyStateTitle: {
     color: theme.colors.text,
@@ -587,6 +585,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     backgroundColor: "rgba(255,255,255,0.04)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
   },
   emptySecondaryButtonText: {
     color: theme.colors.subtext,

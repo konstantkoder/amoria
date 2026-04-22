@@ -1139,17 +1139,15 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   secondaryActions: {
-    flexDirection: "row",
-    flexWrap: "wrap",
     gap: 10,
   },
   secondaryButton: {
-    borderRadius: theme.shapes.pill,
-    paddingVertical: 11,
+    borderRadius: theme.shapes.cardInner,
+    paddingVertical: 12,
     paddingHorizontal: 14,
-    backgroundColor: theme.colors.pillBg,
+    backgroundColor: "rgba(255,255,255,0.05)",
     borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
+    borderColor: "rgba(255,255,255,0.10)",
     alignItems: "center",
   },
   secondaryText: {
@@ -1158,8 +1156,8 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   tertiaryButton: {
-    borderRadius: theme.shapes.pill,
-    paddingVertical: 11,
+    borderRadius: theme.shapes.cardInner,
+    paddingVertical: 12,
     paddingHorizontal: 14,
     backgroundColor: theme.colors.accentSoft,
     borderWidth: 1,

@@ -173,6 +173,33 @@ export default function RoomsChooseStage({
       ? `${selectedMeta.emoji} ${t(selectedMeta.labelKey)}`
       : `${joinBase} ${selectedMeta.emoji} ${t(selectedMeta.labelKey)}`
     : t("rooms.selectFirst");
+  const placeInfoText = permissionBlocked
+    ? copyOrFallback(
+        t,
+        "rooms.placeInfoBlocked",
+        "Доступ к геолокации заблокирован. Открой настройки устройства, чтобы вернуть карту и вход в комнаты."
+      )
+    : permissionDenied
+      ? copyOrFallback(
+          t,
+          "rooms.placeInfoPermission",
+          "Разреши геолокацию, и Rooms снова покажет nearby карту, выбор места и вход в комнату."
+        )
+      : !locationUsable
+        ? copyOrFallback(
+            t,
+            "rooms.placeInfoDisabled",
+            "Сначала включи геолокацию: тогда появятся карта nearby и вход в комнаты рядом."
+          )
+        : !pos
+          ? copyOrFallback(
+              t,
+              "rooms.placeInfoLoading",
+              "Ждём текущую позицию. После этого можно выбрать место и войти в комнату."
+            )
+          : t("rooms.placeInfo");
+  const placeInfoWarning =
+    permissionBlocked || permissionDenied || !locationUsable || !pos;
 
   return (
     <ScrollView
@@ -413,35 +440,26 @@ export default function RoomsChooseStage({
           </Text>
         </TouchableOpacity>
 
-        {joinError ? <Text style={styles.joinErrorText}>{joinError}</Text> : null}
+        {joinError ? (
+          <View style={styles.feedbackCard}>
+            <Ionicons name="alert-circle-outline" size={18} color="#FCA5A5" />
+            <Text style={styles.joinErrorText}>{joinError}</Text>
+          </View>
+        ) : null}
 
-        <Text style={styles.placeInfo}>
-          {permissionBlocked
-            ? copyOrFallback(
-                t,
-                "rooms.placeInfoBlocked",
-                "Доступ к геолокации заблокирован. Открой настройки устройства, чтобы вернуть карту и вход в комнаты."
-              )
-            : permissionDenied
-            ? copyOrFallback(
-                t,
-                "rooms.placeInfoPermission",
-                "Разреши геолокацию, и Rooms снова покажет nearby карту, выбор места и вход в комнату."
-              )
-            : !locationUsable
-            ? copyOrFallback(
-                t,
-                "rooms.placeInfoDisabled",
-                "Сначала включи геолокацию: тогда появятся карта nearby и вход в комнаты рядом."
-              )
-            : !pos
-              ? copyOrFallback(
-                  t,
-                  "rooms.placeInfoLoading",
-                  "Ждём текущую позицию. После этого можно выбрать место и войти в комнату."
-                )
-              : t("rooms.placeInfo")}
-        </Text>
+        <View
+          style={[
+            styles.infoCard,
+            placeInfoWarning ? styles.infoCardWarning : styles.infoCardNeutral,
+          ]}
+        >
+          <Ionicons
+            name={placeInfoWarning ? "location-outline" : "information-circle-outline"}
+            size={18}
+            color={placeInfoWarning ? "#FBBF24" : "#C4B5FD"}
+          />
+          <Text style={styles.placeInfo}>{placeInfoText}</Text>
+        </View>
       </View>
     </ScrollView>
   );
@@ -457,11 +475,16 @@ const styles = StyleSheet.create({
   },
   heroCard: {
     borderRadius: theme.shapes.card,
-    padding: 14,
-    backgroundColor: "rgba(12, 16, 31, 0.88)",
+    padding: 16,
+    backgroundColor: "rgba(11, 16, 30, 0.92)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
-    marginBottom: 12,
+    borderColor: "rgba(255,255,255,0.12)",
+    marginBottom: 14,
+    shadowColor: "#000000",
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 8,
   },
   heroKicker: {
     color: theme.colors.accent,
@@ -489,18 +512,19 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   locationCard: {
-    borderRadius: 18,
-    padding: 12,
-    backgroundColor: "rgba(255,255,255,0.06)",
+    borderRadius: 20,
+    padding: 14,
+    backgroundColor: "rgba(16,20,38,0.82)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
-    marginBottom: 12,
-    gap: 8,
+    borderColor: "rgba(255,255,255,0.12)",
+    marginBottom: 14,
+    gap: 10,
   },
   locationLead: {
     color: "#E5E7EB",
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 14,
+    lineHeight: 19,
+    fontWeight: "600",
   },
   inlineStatusRow: {
     flexDirection: "row",
@@ -524,13 +548,13 @@ const styles = StyleSheet.create({
     color: "#FCA5A5",
     fontSize: 13,
     lineHeight: 18,
-    marginTop: 10,
+    flex: 1,
   },
   primaryInlineButton: {
     alignSelf: "flex-start",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 14,
     backgroundColor: theme.colors.primary,
   },
   primaryInlineButtonText: {
@@ -558,16 +582,17 @@ const styles = StyleSheet.create({
   },
   sectionWrap: {
     paddingHorizontal: 16,
+    gap: 14,
   },
   mapCard: {
-    borderRadius: 22,
+    borderRadius: 24,
     overflow: "hidden",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
-    backgroundColor: "rgba(15,23,42,0.96)",
+    borderColor: "rgba(255,255,255,0.14)",
+    backgroundColor: "rgba(12,18,32,0.96)",
   },
   mapFrame: {
-    height: 214,
+    height: 220,
     width: "100%",
   },
   map: {
@@ -579,19 +604,20 @@ const styles = StyleSheet.create({
     top: 10,
     padding: 8,
     borderRadius: 12,
-    backgroundColor: "rgba(15,23,42,0.85)",
+    backgroundColor: "rgba(10,14,24,0.88)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.2)",
   },
   mapEmpty: {
-    height: 214,
+    height: 220,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
   },
   mapEmptyTitle: {
     color: "#E5E7EB",
-    fontSize: 14,
+    fontSize: 15,
+    fontWeight: "700",
     textAlign: "center",
     marginBottom: 8,
   },
@@ -602,12 +628,11 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   blockWrap: {
-    paddingTop: 14,
+    gap: 10,
   },
   blockHeader: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 8,
   },
   blockTitle: {
     color: "#E5E7EB",
@@ -619,15 +644,15 @@ const styles = StyleSheet.create({
     opacity: 0.9,
   },
   selectorCard: {
-    borderRadius: 18,
-    padding: 10,
-    backgroundColor: "rgba(255,255,255,0.06)",
+    borderRadius: 20,
+    padding: 12,
+    backgroundColor: "rgba(16,20,38,0.82)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
+    borderColor: "rgba(255,255,255,0.12)",
   },
   selectorRail: {
     flexDirection: "row",
-    backgroundColor: "rgba(255,255,255,0.06)",
+    backgroundColor: "rgba(255,255,255,0.04)",
     borderRadius: 999,
     padding: 4,
     gap: 6,
@@ -660,13 +685,11 @@ const styles = StyleSheet.create({
     opacity: 0.85,
   },
   oneToOneCard: {
-    borderRadius: 18,
-    padding: 12,
-    backgroundColor: "rgba(255, 78, 138, 0.08)",
+    borderRadius: 20,
+    padding: 14,
+    backgroundColor: "rgba(255, 78, 138, 0.10)",
     borderWidth: 1,
-    borderColor: "rgba(255, 78, 138, 0.18)",
-    marginTop: 14,
-    marginBottom: 14,
+    borderColor: "rgba(255, 78, 138, 0.22)",
   },
   oneToOneKicker: {
     color: "#FFD3DF",
@@ -684,14 +707,14 @@ const styles = StyleSheet.create({
   },
   oneToOneBody: {
     color: "#A3A3A3",
-    fontSize: 12,
-    lineHeight: 17,
+    fontSize: 13,
+    lineHeight: 18,
     marginBottom: 8,
   },
   oneToOneButton: {
     alignSelf: "flex-start",
-    paddingHorizontal: 14,
-    paddingVertical: 9,
+    paddingHorizontal: 15,
+    paddingVertical: 10,
     borderRadius: 999,
     backgroundColor: theme.colors.primary,
   },
@@ -702,21 +725,21 @@ const styles = StyleSheet.create({
   placeGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 8,
+    gap: 10,
   },
   placeChip: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
     borderRadius: 999,
-    backgroundColor: "rgba(255,255,255,0.05)",
+    backgroundColor: "rgba(255,255,255,0.06)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
+    borderColor: "rgba(255,255,255,0.12)",
   },
   placeChipSelected: {
-    backgroundColor: "rgba(109,40,217,0.25)",
-    borderColor: "rgba(167,139,250,0.45)",
+    backgroundColor: "rgba(109,40,217,0.28)",
+    borderColor: "rgba(196,181,253,0.52)",
   },
   placeChipDisabled: {
     opacity: 0.52,
@@ -739,32 +762,63 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    paddingVertical: 11,
-    borderRadius: 14,
+    minHeight: 54,
+    paddingVertical: 13,
+    borderRadius: 18,
     borderWidth: 1,
-    marginTop: 12,
+    marginTop: 14,
   },
   joinButtonActive: {
     backgroundColor: theme.colors.primary,
-    borderColor: "rgba(167,139,250,0.45)",
+    borderColor: "rgba(255,255,255,0.18)",
   },
   joinButtonDisabled: {
-    backgroundColor: "rgba(255,255,255,0.06)",
-    borderColor: "rgba(255,255,255,0.10)",
+    backgroundColor: "rgba(255,255,255,0.07)",
+    borderColor: "rgba(255,255,255,0.12)",
   },
   joinButtonText: {
     color: "#FFFFFF",
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: "800",
   },
   joinButtonTextDisabled: {
     color: "#A1A1AA",
   },
-  placeInfo: {
-    color: "#71717A",
-    fontSize: 12,
-    lineHeight: 16,
-    marginTop: 10,
+  feedbackCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+    borderRadius: theme.shapes.cardInner,
+    backgroundColor: "rgba(255, 77, 103, 0.10)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 77, 103, 0.20)",
+    marginTop: 12,
+  },
+  infoCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+    borderRadius: theme.shapes.cardInner,
+    borderWidth: 1,
+    marginTop: 12,
     marginBottom: 14,
+  },
+  infoCardNeutral: {
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  infoCardWarning: {
+    backgroundColor: "rgba(255, 122, 60, 0.08)",
+    borderColor: "rgba(255, 122, 60, 0.16)",
+  },
+  placeInfo: {
+    color: "#A1A1AA",
+    fontSize: 12,
+    lineHeight: 17,
+    flex: 1,
   },
 });

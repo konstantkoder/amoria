@@ -952,11 +952,11 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   primaryButton: {
-    alignSelf: "flex-start",
-    borderRadius: theme.shapes.pill,
+    borderRadius: theme.shapes.cardInner,
     paddingHorizontal: 16,
-    paddingVertical: 11,
+    paddingVertical: 13,
     backgroundColor: theme.colors.primary,
+    alignItems: "center",
   },
   primaryButtonText: {
     color: "#fff",
@@ -964,18 +964,16 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   actionRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
     gap: 10,
   },
   secondaryButton: {
-    alignSelf: "flex-start",
-    borderRadius: theme.shapes.pill,
+    borderRadius: theme.shapes.cardInner,
     paddingHorizontal: 16,
-    paddingVertical: 11,
-    backgroundColor: theme.colors.pillBg,
+    paddingVertical: 12,
+    backgroundColor: "rgba(255,255,255,0.05)",
     borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
+    borderColor: "rgba(255,255,255,0.10)",
+    alignItems: "center",
   },
   secondaryButtonText: {
     color: theme.colors.text,

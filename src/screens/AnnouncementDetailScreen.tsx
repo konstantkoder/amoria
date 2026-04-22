@@ -4,6 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 
 import ScreenShell from "@/components/ScreenShell";
+import CoreStateCard from "@/components/CoreStateCard";
 import { auth, db } from "@/config/firebaseConfig";
 import { useLocale } from "@/contexts/LocaleContext";
 import {
@@ -322,23 +323,19 @@ export default function AnnouncementDetailScreen() {
     return (
       <ScreenShell title={screenTitle} background="ads" showBack onBack={handleBack}>
         <View style={styles.centerState}>
-          <View style={styles.centerCard}>
-            <Text style={styles.centerTitle}>
-              {copyOrFallback(t, "nearby.detail.missingTitle", "Объявление недоступно")}
-            </Text>
-            <Text style={styles.centerBody}>
-              {copyOrFallback(
-                t,
-                "nearby.detail.missingBody",
-                "Не удалось открыть это объявление. Можно вернуться к списку рядом."
-              )}
-            </Text>
-            <Pressable onPress={handleBack} style={styles.primaryButton}>
-              <Text style={styles.primaryButtonText}>
-                {copyOrFallback(t, "nearby.detail.backToList", "К объявлениям")}
-              </Text>
-            </Pressable>
-          </View>
+          <CoreStateCard
+            icon="document-text-outline"
+            title={copyOrFallback(t, "nearby.detail.missingTitle", "Объявление недоступно")}
+            body={copyOrFallback(
+              t,
+              "nearby.detail.missingBody",
+              "Не удалось открыть это объявление. Можно вернуться к списку рядом."
+            )}
+            primaryAction={{
+              label: copyOrFallback(t, "nearby.detail.backToList", "К объявлениям"),
+              onPress: handleBack,
+            }}
+          />
         </View>
       </ScreenShell>
     );
@@ -480,18 +477,16 @@ export default function AnnouncementDetailScreen() {
           </>
         ) : (
           <View style={styles.centerState}>
-            <View style={styles.centerCard}>
-              <Text style={styles.centerTitle}>
-                {copyOrFallback(t, "nearby.loading", "Собираем Nearby…")}
-              </Text>
-              <Text style={styles.centerBody}>
-                {copyOrFallback(
-                  t,
-                  "nearby.detail.loadingBody",
-                  "Подтягиваем актуальные детали объявления и вернём действие сразу после загрузки."
-                )}
-              </Text>
-            </View>
+            <CoreStateCard
+              loading
+              icon="document-text-outline"
+              title={copyOrFallback(t, "nearby.loading", "Собираем Nearby…")}
+              body={copyOrFallback(
+                t,
+                "nearby.detail.loadingBody",
+                "Подтягиваем актуальные детали объявления и вернём действие сразу после загрузки."
+              )}
+            />
           </View>
         )}
       </ScrollView>
@@ -503,15 +498,15 @@ const styles = StyleSheet.create({
   content: {
     padding: 14,
     paddingBottom: 32,
-    gap: 12,
+    gap: 14,
   },
   summaryCard: {
     borderRadius: theme.shapes.card,
-    padding: 16,
+    padding: 18,
     backgroundColor: "rgba(16, 20, 38, 0.92)",
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
-    gap: 10,
+    gap: 12,
   },
   summaryKicker: {
     color: theme.colors.accent,
@@ -556,8 +551,8 @@ const styles = StyleSheet.create({
   },
   summaryTitle: {
     color: theme.colors.text,
-    fontSize: 22,
-    lineHeight: 28,
+    fontSize: 24,
+    lineHeight: 30,
     fontWeight: "800",
   },
   summaryFooter: {
@@ -585,7 +580,7 @@ const styles = StyleSheet.create({
     alignItems: "stretch",
     gap: 12,
     borderRadius: theme.shapes.card,
-    padding: 14,
+    padding: 16,
     backgroundColor: "rgba(14, 18, 34, 0.84)",
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
@@ -628,15 +623,15 @@ const styles = StyleSheet.create({
   mediaBody: {
     color: theme.colors.subtext,
     fontSize: 12,
-    lineHeight: 17,
+    lineHeight: 18,
   },
   detailsCard: {
     borderRadius: theme.shapes.card,
-    padding: 16,
+    padding: 18,
     backgroundColor: "rgba(17, 20, 36, 0.88)",
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
-    gap: 12,
+    gap: 14,
   },
   detailStack: {
     gap: 10,
@@ -672,15 +667,15 @@ const styles = StyleSheet.create({
   descriptionText: {
     color: theme.colors.text,
     fontSize: 14,
-    lineHeight: 21,
+    lineHeight: 22,
   },
   responseCard: {
     borderRadius: theme.shapes.card,
-    padding: 16,
-    backgroundColor: "rgba(25, 19, 35, 0.88)",
+    padding: 18,
+    backgroundColor: "rgba(25, 19, 35, 0.9)",
     borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
-    gap: 8,
+    borderColor: "rgba(255, 122, 60, 0.14)",
+    gap: 10,
   },
   responseTitle: {
     color: theme.colors.text,
@@ -690,7 +685,7 @@ const styles = StyleSheet.create({
   responseBody: {
     color: theme.colors.subtext,
     fontSize: 13,
-    lineHeight: 19,
+    lineHeight: 20,
   },
   primaryButton: {
     alignSelf: "stretch",
@@ -727,23 +722,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     paddingVertical: 40,
-  },
-  centerCard: {
-    borderRadius: theme.shapes.card,
-    padding: 18,
-    backgroundColor: "rgba(16, 20, 38, 0.9)",
-    borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
-    gap: 10,
-  },
-  centerTitle: {
-    color: theme.colors.text,
-    fontSize: 18,
-    fontWeight: "800",
-  },
-  centerBody: {
-    color: theme.colors.subtext,
-    fontSize: 14,
-    lineHeight: 20,
+    paddingHorizontal: 8,
   },
 });

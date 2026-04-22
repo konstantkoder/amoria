@@ -294,7 +294,9 @@ export default function CreateAnnouncementScreen() {
               </View>
             ) : (
               <Pressable onPress={pickPhoto} style={styles.photoPlaceholder}>
-                <Text style={styles.photoPlaceholderIcon}>＋</Text>
+                <View style={styles.photoPlaceholderIconWrap}>
+                  <Ionicons name="image-outline" size={20} color={theme.colors.accent} />
+                </View>
                 <Text style={styles.photoPlaceholderTitle}>
                   {copyOrFallback(t, "nearby.create.addPhoto", "Добавить фото")}
                 </Text>
@@ -490,15 +492,15 @@ const styles = StyleSheet.create({
   content: {
     padding: 14,
     paddingBottom: 32,
-    gap: 14,
+    gap: 16,
   },
   introCard: {
     borderRadius: theme.shapes.card,
-    padding: 14,
-    backgroundColor: "rgba(17, 20, 36, 0.82)",
+    padding: 16,
+    backgroundColor: "rgba(17, 20, 36, 0.88)",
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
-    gap: 4,
+    gap: 6,
   },
   introKicker: {
     color: theme.colors.accent,
@@ -514,8 +516,8 @@ const styles = StyleSheet.create({
   },
   introBody: {
     color: theme.colors.subtext,
-    fontSize: 12,
-    lineHeight: 17,
+    fontSize: 13,
+    lineHeight: 18,
   },
   formCard: {
     borderRadius: theme.shapes.card,
@@ -523,7 +525,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(12, 16, 30, 0.92)",
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
-    gap: 8,
+    gap: 10,
   },
   label: {
     color: theme.colors.text,
@@ -533,17 +535,22 @@ const styles = StyleSheet.create({
   },
   photoPlaceholder: {
     borderRadius: theme.shapes.cardInner,
-    padding: 14,
-    backgroundColor: "rgba(255,255,255,0.04)",
+    padding: 16,
+    backgroundColor: "rgba(255,255,255,0.05)",
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
     alignItems: "center",
-    gap: 5,
+    gap: 8,
   },
-  photoPlaceholderIcon: {
-    color: theme.colors.accent,
-    fontSize: 26,
-    lineHeight: 28,
+  photoPlaceholderIconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,122,60,0.10)",
+    borderWidth: 1,
+    borderColor: "rgba(255,122,60,0.2)",
   },
   photoPlaceholderTitle: {
     color: theme.colors.text,
@@ -582,7 +589,7 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   photoAttachedHint: {
-    color: theme.colors.accent,
+    color: theme.colors.subtext,
     fontSize: 12,
     lineHeight: 17,
     fontWeight: "700",
@@ -637,11 +644,11 @@ const styles = StyleSheet.create({
   },
   previewCard: {
     borderRadius: theme.shapes.card,
-    padding: 14,
-    backgroundColor: "rgba(20, 18, 35, 0.78)",
+    padding: 16,
+    backgroundColor: "rgba(20, 18, 35, 0.84)",
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
-    gap: 8,
+    gap: 10,
   },
   previewCardWithPhoto: {
     borderColor: "rgba(255,122,60,0.2)",
@@ -706,7 +713,7 @@ const styles = StyleSheet.create({
   previewBody: {
     color: theme.colors.subtext,
     fontSize: 13,
-    lineHeight: 18,
+    lineHeight: 19,
   },
   previewMediaTile: {
     width: 74,
@@ -746,6 +753,7 @@ const styles = StyleSheet.create({
   previewAuthorHint: {
     color: theme.colors.muted,
     fontSize: 11,
+    lineHeight: 16,
     fontWeight: "700",
   },
   secondaryButton: {
@@ -762,15 +770,24 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   publishCard: {
-    gap: 7,
-    paddingTop: 2,
+    gap: 8,
+    padding: 16,
+    borderRadius: theme.shapes.card,
+    backgroundColor: "rgba(15, 18, 34, 0.92)",
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
   },
   publishButton: {
     borderRadius: theme.shapes.pill,
     paddingHorizontal: 18,
-    paddingVertical: 13,
+    paddingVertical: 14,
     backgroundColor: theme.colors.primary,
     alignItems: "center",
+    shadowColor: theme.colors.primary,
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 4,
   },
   publishButtonDisabled: {
     opacity: 0.65,
@@ -783,7 +800,7 @@ const styles = StyleSheet.create({
   publishHint: {
     color: theme.colors.subtext,
     fontSize: 12,
-    lineHeight: 17,
-    textAlign: "center",
+    lineHeight: 18,
+    textAlign: "left",
   },
 });

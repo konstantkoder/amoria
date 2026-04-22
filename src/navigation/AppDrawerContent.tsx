@@ -68,8 +68,20 @@ export default function AppDrawerContent({ onClose }: Props) {
   return (
     <View style={styles.container}>
       <View style={styles.panel}>
-        <View style={styles.titlePill}>
-          <Text style={styles.title}>{t("menu.title")}</Text>
+        <View style={styles.headerRow}>
+          <View style={styles.titleWrap}>
+            <View style={styles.titlePill}>
+              <Text style={styles.title}>{t("menu.title")}</Text>
+            </View>
+            <Text style={styles.subtitle}>{t("tabs.together")}</Text>
+          </View>
+          <TouchableOpacity
+            onPress={handleClose}
+            activeOpacity={0.85}
+            style={styles.closeButton}
+          >
+            <Ionicons name="close-outline" size={18} color="#FFFFFF" />
+          </TouchableOpacity>
         </View>
         <ScrollView
           style={styles.panelScroll}
@@ -77,14 +89,16 @@ export default function AppDrawerContent({ onClose }: Props) {
           showsVerticalScrollIndicator={false}
         >
           <TouchableOpacity
-            onPress={handleClose}
+            onPress={handleOpenTogether}
             activeOpacity={0.85}
-            style={styles.button}
+            style={[styles.button, styles.primaryButton]}
           >
-            <View style={styles.iconWrap}>
-              <Ionicons name="close-outline" size={20} color={theme.colors.text} />
+            <View style={[styles.iconWrap, styles.primaryIconWrap]}>
+              <Ionicons name="home-outline" size={20} color="#FFFFFF" />
             </View>
-            <Text style={styles.buttonText}>{t("menu.close")}</Text>
+            <Text style={[styles.buttonText, styles.primaryButtonText]}>
+              {t("tabs.together")}
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -139,23 +153,12 @@ export default function AppDrawerContent({ onClose }: Props) {
           <TouchableOpacity
             onPress={handleLogout}
             activeOpacity={0.85}
-            style={styles.button}
+            style={[styles.button, styles.dangerButton]}
           >
-            <View style={styles.iconWrap}>
-              <Ionicons name="log-out-outline" size={20} color={theme.colors.text} />
+            <View style={[styles.iconWrap, styles.dangerIconWrap]}>
+              <Ionicons name="log-out-outline" size={20} color="#FFD7DF" />
             </View>
             <Text style={styles.buttonText}>{t("menu.logout")}</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={handleOpenTogether}
-            activeOpacity={0.85}
-            style={styles.button}
-          >
-            <View style={styles.iconWrap}>
-              <Ionicons name="home-outline" size={20} color={theme.colors.text} />
-            </View>
-            <Text style={styles.buttonText}>{t("tabs.together")}</Text>
           </TouchableOpacity>
         </ScrollView>
       </View>
@@ -166,40 +169,68 @@ export default function AppDrawerContent({ onClose }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "rgba(2, 4, 12, 0.38)",
+    backgroundColor: "rgba(2, 4, 12, 0.54)",
   },
   panel: {
-    backgroundColor: "rgba(5, 8, 18, 0.985)",
+    backgroundColor: "rgba(6, 10, 20, 0.985)",
     borderRadius: 26,
     paddingHorizontal: 14,
-    paddingTop: 16,
+    paddingTop: 14,
     paddingBottom: 12,
-    margin: 12,
+    marginHorizontal: 10,
+    marginTop: 10,
+    marginBottom: 14,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.18)",
+    borderColor: "rgba(255,255,255,0.14)",
     flex: 1,
     alignSelf: "stretch",
     justifyContent: "flex-start",
     shadowColor: "#000000",
-    shadowOpacity: 0.48,
-    shadowRadius: 28,
-    shadowOffset: { width: 0, height: 18 },
-    elevation: 20,
+    shadowOpacity: 0.42,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 16 },
+    elevation: 18,
+  },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    marginBottom: 12,
+  },
+  titleWrap: {
+    flex: 1,
+    gap: 6,
   },
   titlePill: {
     alignSelf: "flex-start",
-    backgroundColor: "rgba(255,255,255,0.12)",
+    backgroundColor: "rgba(255,255,255,0.1)",
     borderRadius: 20,
     paddingHorizontal: 14,
     paddingVertical: 9,
-    marginBottom: 12,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.18)",
+    borderColor: "rgba(255,255,255,0.14)",
   },
   title: {
     color: "#FFFFFF",
     fontSize: 20,
     fontWeight: "800",
+  },
+  subtitle: {
+    color: theme.colors.subtext,
+    fontSize: 12,
+    fontWeight: "700",
+    paddingHorizontal: 2,
+  },
+  closeButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.14)",
   },
   content: {
     gap: 12,
@@ -218,14 +249,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 13,
     borderRadius: 18,
-    backgroundColor: "rgba(255,255,255,0.14)",
+    backgroundColor: "rgba(255,255,255,0.08)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.18)",
+    borderColor: "rgba(255,255,255,0.12)",
     shadowColor: "#000000",
-    shadowOpacity: 0.16,
-    shadowRadius: 10,
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
     shadowOffset: { width: 0, height: 4 },
     elevation: 3,
+  },
+  primaryButton: {
+    backgroundColor: "rgba(255, 78, 138, 0.24)",
+    borderColor: "rgba(255, 78, 138, 0.3)",
+  },
+  dangerButton: {
+    backgroundColor: "rgba(255, 77, 103, 0.08)",
+    borderColor: "rgba(255, 77, 103, 0.16)",
   },
   iconWrap: {
     width: 36,
@@ -234,23 +273,34 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(0,0,0,0.18)",
+    backgroundColor: "rgba(0,0,0,0.16)",
     borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+  },
+  primaryIconWrap: {
+    backgroundColor: "rgba(255,255,255,0.12)",
     borderColor: "rgba(255,255,255,0.16)",
+  },
+  dangerIconWrap: {
+    backgroundColor: "rgba(255, 77, 103, 0.12)",
+    borderColor: "rgba(255, 77, 103, 0.16)",
   },
   buttonText: {
     color: "#FFFFFF",
     fontSize: 15,
     fontWeight: "800",
   },
+  primaryButtonText: {
+    color: "#FFF5FA",
+  },
   localeBadge: {
     marginLeft: "auto",
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: theme.shapes.pill,
-    backgroundColor: "rgba(255,255,255,0.18)",
+    backgroundColor: "rgba(255,255,255,0.12)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.2)",
+    borderColor: "rgba(255,255,255,0.16)",
   },
   localeBadgeText: {
     color: "#FFFFFF",

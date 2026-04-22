@@ -242,68 +242,70 @@ export default function NearbyHubScreen() {
     <ScreenShell title={tabLabel} background="now" overlayOpacity={0.18} blurRadius={0}>
       <View style={styles.screen}>
         <View style={styles.topBlock}>
-          <View style={styles.introRow}>
-            <Text style={styles.introKicker}>
-              {copyOrFallback(t, "nearby.heroKicker", "Рядом")}
-            </Text>
-            <Text style={styles.introTitle}>
-              {copyOrFallback(
-                t,
-                "nearby.heroTitle",
-                "Nearby делится на три разных сценария рядом"
-              )}
-            </Text>
-            <Text style={styles.introBody}>
-              {copyOrFallback(
-                t,
-                "nearby.heroBody",
-                "«Сейчас» — для того, что происходит прямо сейчас. «Объявления» — для более явного поиска человека, компании или плана. «Комнаты» — для живого общего пространства рядом."
-              )}
-            </Text>
-          </View>
-
-          <View style={styles.segmentCard}>
-            <View style={styles.segmentRow}>
-              {sectionItems.map((item) => {
-                const active = selectedSection === item.id;
-                const tone = getSegmentTone(item.id);
-                return (
-                  <Pressable
-                    key={item.id}
-                    onPress={() => setSection(item.id)}
-                    style={[
-                      styles.segmentButton,
-                      active ? styles.segmentButtonActive : null,
-                      active ? tone.button : null,
-                    ]}
-                    hitSlop={4}
-                  >
-                    <Text
-                      style={[
-                        styles.segmentText,
-                        active ? styles.segmentTextActive : null,
-                        active ? tone.text : null,
-                      ]}
-                    >
-                      {item.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
+          <View style={styles.heroCard}>
+            <View style={styles.introRow}>
+              <Text style={styles.introKicker}>
+                {copyOrFallback(t, "nearby.heroKicker", "Рядом")}
+              </Text>
+              <Text style={styles.introTitle}>
+                {copyOrFallback(
+                  t,
+                  "nearby.heroTitle",
+                  "Nearby делится на три разных сценария рядом"
+                )}
+              </Text>
+              <Text style={styles.introBody}>
+                {copyOrFallback(
+                  t,
+                  "nearby.heroBody",
+                  "«Сейчас» — для того, что происходит прямо сейчас. «Объявления» — для более явного поиска человека, компании или плана. «Комнаты» — для живого общего пространства рядом."
+                )}
+              </Text>
             </View>
-          </View>
 
-          <View style={[styles.sectionNoteCard, sectionNoteTone.card]}>
-            <Text style={[styles.sectionNoteLabel, sectionNoteTone.label]}>
-              {sectionReady
-                ? activeSectionCopy.label
-                : copyOrFallback(t, "nearby.loading", "Собираем Nearby…")}
-            </Text>
-            <Text style={styles.sectionNoteBody} numberOfLines={3}>
-              {sectionReady
-                ? activeSectionCopy.body
-                : copyOrFallback(t, "nearby.heroBody", "Сигналы, объявления и комнаты рядом.")}
-            </Text>
+            <View style={styles.segmentCard}>
+              <View style={styles.segmentRow}>
+                {sectionItems.map((item) => {
+                  const active = selectedSection === item.id;
+                  const tone = getSegmentTone(item.id);
+                  return (
+                    <Pressable
+                      key={item.id}
+                      onPress={() => setSection(item.id)}
+                      style={[
+                        styles.segmentButton,
+                        active ? styles.segmentButtonActive : null,
+                        active ? tone.button : null,
+                      ]}
+                      hitSlop={4}
+                    >
+                      <Text
+                        style={[
+                          styles.segmentText,
+                          active ? styles.segmentTextActive : null,
+                          active ? tone.text : null,
+                        ]}
+                      >
+                        {item.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+
+            <View style={[styles.sectionNoteCard, sectionNoteTone.card]}>
+              <Text style={[styles.sectionNoteLabel, sectionNoteTone.label]}>
+                {sectionReady
+                  ? activeSectionCopy.label
+                  : copyOrFallback(t, "nearby.loading", "Собираем Nearby…")}
+              </Text>
+              <Text style={styles.sectionNoteBody} numberOfLines={3}>
+                {sectionReady
+                  ? activeSectionCopy.body
+                  : copyOrFallback(t, "nearby.heroBody", "Сигналы, объявления и комнаты рядом.")}
+              </Text>
+            </View>
           </View>
         </View>
 
@@ -321,11 +323,24 @@ const styles = StyleSheet.create({
     paddingBottom: 6,
   },
   topBlock: {
-    gap: 8,
+    gap: 10,
     paddingBottom: 6,
   },
+  heroCard: {
+    borderRadius: theme.shapes.card,
+    padding: 14,
+    backgroundColor: "rgba(12, 16, 30, 0.86)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+    gap: 12,
+    shadowColor: "#000000",
+    shadowOpacity: 0.16,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 5,
+  },
   introRow: {
-    gap: 2,
+    gap: 4,
     paddingHorizontal: 2,
   },
   introKicker: {
@@ -336,35 +351,34 @@ const styles = StyleSheet.create({
   },
   introTitle: {
     color: theme.colors.text,
-    fontSize: 17,
-    lineHeight: 21,
+    fontSize: 18,
+    lineHeight: 23,
     fontWeight: "800",
   },
   introBody: {
     color: theme.colors.subtext,
-    fontSize: 12,
-    lineHeight: 17,
-    marginTop: 2,
+    fontSize: 13,
+    lineHeight: 18,
   },
   segmentCard: {
-    borderRadius: 18,
-    padding: 4,
-    backgroundColor: "rgba(10, 14, 26, 0.82)",
+    borderRadius: 20,
+    padding: 5,
+    backgroundColor: "rgba(7, 10, 20, 0.76)",
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
   },
   segmentRow: {
     flexDirection: "row",
-    gap: 4,
+    gap: 5,
   },
   segmentButton: {
     flex: 1,
     minWidth: 0,
-    minHeight: 42,
+    minHeight: 46,
     borderRadius: 14,
-    paddingVertical: 9,
-    paddingHorizontal: 6,
-    backgroundColor: "rgba(255,255,255,0.04)",
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    backgroundColor: "rgba(255,255,255,0.03)",
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
     alignItems: "center",
@@ -372,8 +386,8 @@ const styles = StyleSheet.create({
   },
   segmentButtonActive: {
     shadowColor: theme.colors.accent,
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
     elevation: 4,
   },
@@ -410,13 +424,13 @@ const styles = StyleSheet.create({
     color: "#E7F1FF",
   },
   sectionNoteCard: {
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    backgroundColor: "rgba(16, 20, 38, 0.62)",
+    borderRadius: 18,
+    paddingHorizontal: 13,
+    paddingVertical: 11,
+    backgroundColor: "rgba(16, 20, 38, 0.74)",
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
-    gap: 2,
+    gap: 4,
   },
   sectionNoteLabel: {
     color: theme.colors.text,
@@ -447,10 +461,11 @@ const styles = StyleSheet.create({
   sectionNoteBody: {
     color: theme.colors.subtext,
     fontSize: 12,
-    lineHeight: 16,
+    lineHeight: 17,
   },
   panelArea: {
     flex: 1,
     minHeight: 0,
+    marginTop: 2,
   },
 });

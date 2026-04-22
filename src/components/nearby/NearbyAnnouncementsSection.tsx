@@ -169,6 +169,9 @@ export default function NearbyAnnouncementsSection({
       {items.length ? (
         items.map((item) => {
           const highlighted = highlightedId === item.id;
+          const facts = [item.authorLabel, item.placeLabel || fallbackPlaceLabel, item.proximityLabel]
+            .filter((value): value is string => Boolean(value))
+            .join(" • ");
           return (
             <Pressable
               key={item.id}
@@ -193,35 +196,15 @@ export default function NearbyAnnouncementsSection({
                       </View>
                     ) : null}
                   </View>
-                  <Text style={styles.cardLabel}>
-                    {copyOrFallback(t, "nearby.create.kicker", "Оформленный запрос")}
-                  </Text>
                   <Text style={styles.cardTitle} numberOfLines={2}>
                     {item.title}
                   </Text>
                   <Text style={styles.cardDescription} numberOfLines={2}>
                     {item.description}
                   </Text>
-                  <View style={styles.cardFactsPanel}>
-                    <View style={styles.cardFactsRow}>
-                      <View style={styles.metaPill}>
-                        <Ionicons name="person-outline" size={13} color={theme.colors.subtext} />
-                        <Text style={styles.metaPillText}>{item.authorLabel}</Text>
-                      </View>
-                      <View style={styles.metaPill}>
-                        <Ionicons name="location-outline" size={13} color={theme.colors.subtext} />
-                        <Text style={styles.metaPillText}>
-                          {item.placeLabel || fallbackPlaceLabel}
-                        </Text>
-                      </View>
-                      {item.proximityLabel ? (
-                        <View style={styles.metaPill}>
-                          <Ionicons name="navigate-outline" size={13} color={theme.colors.subtext} />
-                          <Text style={styles.metaPillText}>{item.proximityLabel}</Text>
-                        </View>
-                      ) : null}
-                    </View>
-                  </View>
+                  <Text style={styles.cardFactsText} numberOfLines={2}>
+                    {facts}
+                  </Text>
                 </View>
 
                 <View style={[styles.mediaTile, item.hasPhoto ? styles.mediaTileActive : null]}>
@@ -283,15 +266,15 @@ const styles = StyleSheet.create({
   content: {
     paddingTop: 6,
     paddingBottom: 24,
-    gap: 10,
+    gap: 12,
   },
   heroCard: {
     borderRadius: theme.shapes.card,
-    padding: 14,
+    padding: 16,
     backgroundColor: "rgba(28, 17, 23, 0.9)",
     borderWidth: 1,
     borderColor: "rgba(255,122,60,0.16)",
-    gap: 10,
+    gap: 12,
   },
   heroTop: {
     gap: 8,
@@ -319,27 +302,32 @@ const styles = StyleSheet.create({
   },
   heroBody: {
     color: theme.colors.subtext,
-    fontSize: 12,
-    lineHeight: 17,
+    fontSize: 13,
+    lineHeight: 19,
   },
   heroCountPill: {
     borderRadius: theme.shapes.pill,
     paddingHorizontal: 10,
-    paddingVertical: 5,
-    backgroundColor: "rgba(255,122,60,0.12)",
+    paddingVertical: 6,
+    backgroundColor: "rgba(255,255,255,0.08)",
     borderWidth: 1,
-    borderColor: "rgba(255,122,60,0.18)",
+    borderColor: theme.colors.borderSubtle,
   },
   heroCountText: {
     color: theme.colors.text,
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
   },
   primaryButton: {
     borderRadius: theme.shapes.pill,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     backgroundColor: theme.colors.primary,
+    shadowColor: theme.colors.primary,
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 4,
   },
   primaryButtonText: {
     color: "#FFFFFF",
@@ -372,8 +360,8 @@ const styles = StyleSheet.create({
   },
   card: {
     borderRadius: theme.shapes.card,
-    padding: 14,
-    backgroundColor: "rgba(26, 17, 22, 0.9)",
+    padding: 15,
+    backgroundColor: "rgba(26, 17, 22, 0.92)",
     borderWidth: 1,
     borderColor: "rgba(255,122,60,0.12)",
     gap: 12,
@@ -397,30 +385,18 @@ const styles = StyleSheet.create({
   },
   cardCopy: {
     flex: 1,
-    gap: 6,
+    gap: 7,
   },
   cardMetaRow: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 6,
   },
-  cardFactsRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 6,
-  },
   cardTitle: {
     color: theme.colors.text,
-    fontSize: 15,
-    lineHeight: 20,
+    fontSize: 16,
+    lineHeight: 21,
     fontWeight: "800",
-  },
-  cardLabel: {
-    color: theme.colors.accent,
-    fontSize: 10,
-    fontWeight: "800",
-    letterSpacing: 0.8,
-    textTransform: "uppercase",
   },
   categoryPill: {
     borderRadius: theme.shapes.pill,
@@ -448,39 +424,22 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "800",
   },
-  metaPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    borderRadius: theme.shapes.pill,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    backgroundColor: theme.colors.pillBg,
-    borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
-  },
-  metaPillText: {
-    color: theme.colors.subtext,
-    fontSize: 11,
-    fontWeight: "700",
-  },
   cardDescription: {
     color: theme.colors.subtext,
     fontSize: 13,
-    lineHeight: 18,
+    lineHeight: 19,
   },
-  cardFactsPanel: {
-    borderRadius: 14,
-    padding: 8,
-    backgroundColor: "rgba(255,122,60,0.05)",
-    borderWidth: 1,
-    borderColor: "rgba(255,122,60,0.1)",
+  cardFactsText: {
+    color: theme.colors.muted,
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: "700",
   },
   mediaTile: {
-    width: 74,
-    minHeight: 74,
+    width: 76,
+    minHeight: 76,
     borderRadius: 16,
-    backgroundColor: "rgba(255,255,255,0.04)",
+    backgroundColor: "rgba(255,255,255,0.05)",
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
     alignItems: "center",
@@ -512,7 +471,7 @@ const styles = StyleSheet.create({
   },
   cardTimestamp: {
     color: theme.colors.muted,
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
   },
   openButton: {
@@ -520,24 +479,24 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 4,
     borderRadius: theme.shapes.pill,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: "rgba(255,122,60,0.1)",
+    paddingHorizontal: 13,
+    paddingVertical: 9,
+    backgroundColor: "rgba(255,122,60,0.18)",
     borderWidth: 1,
-    borderColor: "rgba(255,122,60,0.16)",
+    borderColor: "rgba(255,122,60,0.24)",
   },
   openButtonText: {
-    color: theme.colors.text,
+    color: "#FFF4EC",
     fontSize: 12,
     fontWeight: "800",
   },
   emptyCard: {
     borderRadius: theme.shapes.card,
-    padding: 16,
-    backgroundColor: "rgba(28, 18, 24, 0.9)",
+    padding: 18,
+    backgroundColor: "rgba(28, 18, 24, 0.92)",
     borderWidth: 1,
     borderColor: "rgba(255,122,60,0.14)",
-    gap: 10,
+    gap: 12,
     alignItems: "flex-start",
   },
   emptyIcon: {
@@ -568,8 +527,10 @@ const styles = StyleSheet.create({
   },
   emptyButton: {
     borderRadius: theme.shapes.pill,
+    alignSelf: "stretch",
+    alignItems: "center",
     paddingHorizontal: 14,
-    paddingVertical: 9,
+    paddingVertical: 11,
     backgroundColor: theme.colors.primary,
   },
   emptyButtonText: {

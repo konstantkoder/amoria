@@ -76,29 +76,29 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
   },
   metaText: {
-    color: "#A3A3A3",
+    color: theme.colors.muted,
     fontSize: 11,
-    marginBottom: 4,
+    marginBottom: 5,
   },
   metaTextOwn: {
     textAlign: "right",
   },
   bubble: {
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 16,
+    paddingHorizontal: 13,
+    paddingVertical: 11,
+    borderRadius: 18,
     borderWidth: 1,
   },
   ownBubble: {
-    backgroundColor: "rgba(109, 40, 217, 0.24)",
-    borderColor: "rgba(255, 78, 138, 0.24)",
+    backgroundColor: "rgba(255, 78, 138, 0.18)",
+    borderColor: "rgba(255, 78, 138, 0.30)",
   },
   peerBubble: {
-    backgroundColor: "rgba(255,255,255,0.07)",
-    borderColor: "rgba(255,255,255,0.08)",
+    backgroundColor: "rgba(16, 20, 38, 0.88)",
+    borderColor: "rgba(255,255,255,0.10)",
   },
   pendingBubble: {
-    opacity: 0.55,
+    opacity: 0.58,
   },
   messageText: {
     color: theme.colors.text,
@@ -108,11 +108,11 @@ const styles = StyleSheet.create({
   failedText: {
     color: "#FCA5A5",
     fontSize: 11,
-    marginTop: 4,
+    marginTop: 5,
   },
   pendingText: {
-    color: "#A1A1AA",
+    color: theme.colors.muted,
     fontSize: 11,
-    marginTop: 4,
+    marginTop: 5,
   },
 });
