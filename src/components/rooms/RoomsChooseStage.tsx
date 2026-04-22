@@ -33,12 +33,14 @@ function copyOrFallback(
 type Props = {
   t: RoomsTranslate;
   loadingPrefs: boolean;
-  locationEnabled: boolean;
+  locationUsable: boolean;
   posLoading: boolean;
   posRefreshing: boolean;
   pos: RoomPosition | null;
   posError: string | null;
+  permissionDenied: boolean;
   permissionBlocked: boolean;
+  joinError: string | null;
   mapPins: RoomMapPin[];
   rangePresets: readonly RoomsRangePreset[];
   rangeIndex: number;
@@ -62,12 +64,14 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 export default function RoomsChooseStage({
   t,
   loadingPrefs,
-  locationEnabled,
+  locationUsable,
   posLoading,
   posRefreshing,
   pos,
   posError,
+  permissionDenied,
   permissionBlocked,
+  joinError,
   mapPins,
   rangePresets,
   rangeIndex,
@@ -87,8 +91,8 @@ export default function RoomsChooseStage({
     () => (selectedKind ? getRoomMeta(selectedKind) : null),
     [selectedKind]
   );
-  const canPickPlace = locationEnabled && Boolean(pos) && !posLoading && joiningKind === null;
-  const joinDisabled = !selectedKind || !locationEnabled || !pos || joiningKind !== null;
+  const canPickPlace = locationUsable && Boolean(pos) && !posLoading && joiningKind === null;
+  const joinDisabled = !selectedKind || !locationUsable || !pos || joiningKind !== null;
   const mapEmptyState = useMemo(() => {
     if (loadingPrefs || posLoading) {
       return {
@@ -116,7 +120,24 @@ export default function RoomsChooseStage({
       };
     }
 
-    if (!locationEnabled) {
+    if (permissionDenied) {
+      return {
+        title: copyOrFallback(
+          t,
+          "rooms.mapPermissionTitle",
+          "Нужен доступ к геолокации"
+        ),
+        body:
+          posError ??
+          copyOrFallback(
+            t,
+            "rooms.mapPermissionBody",
+            "Разреши геолокацию, чтобы Rooms честно показал nearby комнаты и точку входа рядом."
+          ),
+      };
+    }
+
+    if (!locationUsable) {
       return {
         title: copyOrFallback(
           t,
@@ -145,7 +166,7 @@ export default function RoomsChooseStage({
           "Rooms показывает nearby комнаты только после определения текущей позиции."
         ),
     };
-  }, [loadingPrefs, locationEnabled, permissionBlocked, posError, posLoading, t]);
+  }, [loadingPrefs, locationUsable, permissionBlocked, permissionDenied, posError, posLoading, t]);
   const joinBase = t("rooms.joinRoom");
   const joinLabel = selectedMeta
     ? joinBase === "rooms.joinRoom"
@@ -190,7 +211,22 @@ export default function RoomsChooseStage({
                 </Text>
               </TouchableOpacity>
             </View>
-          ) : !locationEnabled ? (
+          ) : permissionDenied ? (
+            <View>
+              <Text style={styles.warningText}>
+                {posError ?? copyOrFallback(t, "rooms.mapPermissionBody", "Разреши геолокацию, чтобы Rooms честно показал nearby комнаты и точку входа рядом.")}
+              </Text>
+              <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={onRefreshPosition}
+                style={styles.primaryInlineButton}
+              >
+                <Text style={styles.primaryInlineButtonText}>
+                  {t("geo.enableLocation")}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : !locationUsable ? (
             <View>
               <Text style={styles.warningText}>{t("rooms.enableForMap")}</Text>
               <TouchableOpacity
@@ -229,6 +265,8 @@ export default function RoomsChooseStage({
                   <ActivityIndicator size="small" color={theme.colors.primary} />
                   <Text style={styles.mutedText}>{t("geo.locationUpdating")}</Text>
                 </View>
+              ) : posError ? (
+                <Text style={styles.warningText}>{posError}</Text>
               ) : null}
             </View>
           ) : posLoading ? (
@@ -375,6 +413,8 @@ export default function RoomsChooseStage({
           </Text>
         </TouchableOpacity>
 
+        {joinError ? <Text style={styles.joinErrorText}>{joinError}</Text> : null}
+
         <Text style={styles.placeInfo}>
           {permissionBlocked
             ? copyOrFallback(
@@ -382,7 +422,13 @@ export default function RoomsChooseStage({
                 "rooms.placeInfoBlocked",
                 "Доступ к геолокации заблокирован. Открой настройки устройства, чтобы вернуть карту и вход в комнаты."
               )
-            : !locationEnabled
+            : permissionDenied
+            ? copyOrFallback(
+                t,
+                "rooms.placeInfoPermission",
+                "Разреши геолокацию, и Rooms снова покажет nearby карту, выбор места и вход в комнату."
+              )
+            : !locationUsable
             ? copyOrFallback(
                 t,
                 "rooms.placeInfoDisabled",
@@ -473,6 +519,12 @@ const styles = StyleSheet.create({
     color: "#FCA5A5",
     fontSize: 13,
     marginBottom: 8,
+  },
+  joinErrorText: {
+    color: "#FCA5A5",
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: 10,
   },
   primaryInlineButton: {
     alignSelf: "flex-start",

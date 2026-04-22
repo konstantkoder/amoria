@@ -1,5 +1,6 @@
 import React, { useCallback } from "react";
 import {
+  ActivityIndicator,
   FlatList,
   Platform,
   StyleSheet,
@@ -27,6 +28,7 @@ type Props = {
   inputRef: React.RefObject<TextInput | null>;
   canSend: boolean;
   sending: boolean;
+  posRefreshing: boolean;
   safeAreaBottom: number;
   onRetrySend: (id: string) => void;
   onSend: () => void;
@@ -45,6 +47,7 @@ export default function RoomsChatStage({
   inputRef,
   canSend,
   sending,
+  posRefreshing,
   safeAreaBottom,
   onRetrySend,
   onSend,
@@ -75,8 +78,17 @@ export default function RoomsChatStage({
           </Text>
         </View>
 
-        <TouchableOpacity activeOpacity={0.85} onPress={onRefreshPosition} style={styles.refreshButton}>
-          <Ionicons name="navigate-outline" size={18} color={theme.colors.accent} />
+        <TouchableOpacity
+          activeOpacity={0.85}
+          onPress={onRefreshPosition}
+          disabled={posRefreshing}
+          style={styles.refreshButton}
+        >
+          {posRefreshing ? (
+            <ActivityIndicator size="small" color={theme.colors.accent} />
+          ) : (
+            <Ionicons name="refresh-outline" size={18} color={theme.colors.accent} />
+          )}
         </TouchableOpacity>
       </View>
 
