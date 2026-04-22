@@ -121,7 +121,12 @@ export default function DMChatScreen() {
       },
       () => {
         if (!mountedRef.current || activeThreadRef.current !== threadId) return;
-        setSubscriptionError(tt("dm.errorBody", "We couldn't connect this conversation right now. Try again."));
+        setSubscriptionError(
+          tt(
+            "dm.errorBody",
+            "Не удалось подключить этот разговор прямо сейчас. Попробуй ещё раз."
+          )
+        );
         setThreadLoading(false);
       }
     );
@@ -148,7 +153,12 @@ export default function DMChatScreen() {
       },
       () => {
         if (!mountedRef.current || activeThreadRef.current !== threadId) return;
-        setSubscriptionError(tt("dm.errorBody", "We couldn't connect this conversation right now. Try again."));
+        setSubscriptionError(
+          tt(
+            "dm.errorBody",
+            "Не удалось подключить этот разговор прямо сейчас. Попробуй ещё раз."
+          )
+        );
         setMessagesLoading(false);
       }
     );
@@ -277,7 +287,7 @@ export default function DMChatScreen() {
   const sourceEyebrow = useMemo(
     () =>
       thread?.source === "play"
-        ? tt("dm.sourceEyebrow", "То, что уже случилось между вами")
+        ? tt("dm.sourceEyebrow", "Общая история этой связи")
         : "",
     [thread?.source, tt]
   );
@@ -300,19 +310,19 @@ export default function DMChatScreen() {
     if (thread.artworkSummary?.activity === "color_mood") {
       return tt(
         "dm.sourcePaletteReady",
-        "Общая палитра уже сохранена как история вашей связи. Она остаётся общим фоном, а здесь начинается ваш личный разговор."
+        "Общая палитра уже сохранена в истории вашей связи. Она остаётся в общем контексте, а здесь начинается ваше личное продолжение."
       );
     }
     if (strokeCount != null) {
       return tt(
         "dm.sourceStrokeCount",
-        "Общий результат уже сохранён в истории связи. Он остаётся вашим контекстом, а здесь разговор продолжается уже лично. Штрихов: {count}",
+        "Общий результат уже сохранён в истории вашей связи. Он остаётся вашим общим контекстом, а здесь разговор продолжается уже лично. Штрихов: {count}",
         { count: String(strokeCount) }
       );
     }
     return tt(
       "dm.contextReady",
-      "Общий момент уже сохранён в истории связи. К нему можно вернуться в любой момент, а здесь продолжается ваш личный разговор."
+      "Общий момент уже сохранён в истории этой связи. К нему можно вернуться в любой момент, а здесь продолжается ваш личный разговор."
     );
   }, [strokeCount, thread?.artworkSummary?.activity, thread?.source, tt]);
   const isLoading = threadLoading || messagesLoading;
@@ -327,19 +337,19 @@ export default function DMChatScreen() {
     if (backTarget === "connections") {
       return tt(
         "dm.notFoundFromConnectionBody",
-        "Связь уже могла открыться, но сам личный разговор ещё не успел прикрепиться. Вернись в связи или попробуй ещё раз чуть позже."
+        "Связь уже открыта, но личный разговор отсюда пока не загрузился. Вернись в «Связи» или попробуй ещё раз чуть позже."
       );
     }
     if (backTarget === "sessionDetail" || backTarget === "history") {
       return tt(
         "dm.notFoundFromStoryBody",
-        "Связь могла уже открыться после общей истории, но сам личный разговор ещё не успел прикрепиться. Попробуй ещё раз чуть позже или вернись к истории."
+        "Для этой общей истории личный разговор пока не загрузился. Попробуй ещё раз чуть позже или спокойно вернись к самой истории."
       );
     }
     if (backTarget === "inbox") {
       return tt(
         "dm.notFoundFromInboxBody",
-        "Этот личный разговор ещё не успел появиться в списке. Вернись к диалогам или попробуй открыть его чуть позже."
+        "Этот личный разговор пока не открылся из списка. Вернись к диалогам или попробуй открыть его чуть позже."
       );
     }
     return tt(

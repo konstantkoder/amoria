@@ -271,7 +271,7 @@ function mapThreadToFallbackCard(
   signalLabel?: string,
   signalTone?: "fresh" | "recent"
 ): HistoryCard | null {
-  if (thread.sourceSessionId) return null;
+  if (thread.source !== "play" || thread.sourceSessionId) return null;
   const peer = mapDmThreadToPeer(thread, uid);
   if (!peer) return null;
 
@@ -282,10 +282,7 @@ function mapThreadToFallbackCard(
     threadId: thread.id,
     peerId: peer.uid,
     peerName: peer.name,
-    activityLabel:
-      thread.source === "play"
-        ? formatActivityLabel(thread.artworkSummary?.activity ?? "draw", t, tt)
-        : t("connections.sourceOpened"),
+    activityLabel: formatActivityLabel(thread.artworkSummary?.activity ?? "draw", t, tt),
     previewText:
       thread.lastMessageText?.trim() ||
       tt(
@@ -349,7 +346,12 @@ export default function ConnectionsFeedScreen() {
       },
       () => {
         if (!alive) return;
-        setError(tt("connections.errorBody", "We couldn't load your open connections right now."));
+        setError(
+          tt(
+            "connections.errorBody",
+            "Не удалось загрузить ваши открытые связи прямо сейчас."
+          )
+        );
         setThreadsLoaded(true);
       }
     );
@@ -381,7 +383,12 @@ export default function ConnectionsFeedScreen() {
       5,
       () => {
         if (!alive) return;
-        setError(tt("connections.errorBody", "We couldn't load your open connections right now."));
+        setError(
+          tt(
+            "connections.errorBody",
+            "Не удалось загрузить ваши открытые связи прямо сейчас."
+          )
+        );
         setSessionsLoaded(true);
       }
     );
@@ -499,7 +506,7 @@ export default function ConnectionsFeedScreen() {
         setActionError(
           tt(
             "connections.storyMissingBody",
-            "We couldn't find the source shared story for this conversation. Try opening the connection later."
+            "Не удалось открыть общую историю, из которой выросла эта связь. Попробуй вернуться к ней чуть позже."
           )
         );
         return;
@@ -534,7 +541,7 @@ export default function ConnectionsFeedScreen() {
         setActionError(
           tt(
             "connections.openChatFailed",
-            "We couldn't open the conversation right now. Try again a bit later."
+            "Не удалось открыть личный разговор прямо сейчас. Попробуй ещё раз чуть позже."
           )
         );
       } finally {
@@ -705,13 +712,6 @@ export default function ConnectionsFeedScreen() {
         </View>
 
         <View style={styles.actionsRow}>
-          {!card.isFallback && card.sessionId ? (
-            <Pressable onPress={() => openDetail(card.sessionId!)} style={styles.secondaryCta}>
-              <Text style={styles.secondaryCtaText}>
-                {tt("connections.openStory", "Вернуться к общей истории")}
-              </Text>
-            </Pressable>
-          ) : null}
           <Pressable
             onPress={() => void openChat(card)}
             style={styles.primaryCta}
@@ -721,10 +721,17 @@ export default function ConnectionsFeedScreen() {
               {openingCardId === card.id
                 ? tt("connections.openingChat", "Открываем разговор…")
                 : card.threadId
-                  ? tt("connections.continueInChat", "Продолжить разговор")
-                  : tt("connections.openPrivateChat", "Открыть разговор")}
+                  ? tt("connections.continueInChat", "Перейти в личный разговор")
+                  : tt("connections.openPrivateChat", "Открыть личный разговор")}
             </Text>
           </Pressable>
+          {!card.isFallback && card.sessionId ? (
+            <Pressable onPress={() => openDetail(card.sessionId!)} style={styles.secondaryCta}>
+              <Text style={styles.secondaryCtaText}>
+                {tt("connections.openStory", "Вернуться к общей истории")}
+              </Text>
+            </Pressable>
+          ) : null}
         </View>
       </View>
     ),
@@ -762,14 +769,14 @@ export default function ConnectionsFeedScreen() {
         <View style={styles.emptyWrap}>
           <CoreStateCard
             icon="cloud-offline-outline"
-            title={tt("connections.errorTitle", "Connections are temporarily unavailable")}
+            title={tt("connections.errorTitle", "Связи временно недоступны")}
             body={tt(
               "connections.offlineBodyCoreLoop",
               "Сейчас не получается собрать связи и их общие истории. Попробуй позже или вернись во Вместе."
             )}
             primaryAction={{ label: t("connections.goToTogether"), onPress: goToTogether }}
             secondaryAction={{
-              label: tt("connections.openStories", "Shared stories"),
+              label: tt("connections.openStories", "Общие истории"),
               onPress: goToHistory,
             }}
           />
@@ -796,7 +803,7 @@ export default function ConnectionsFeedScreen() {
         <View style={styles.emptyWrap}>
           <CoreStateCard
             icon="cloud-offline-outline"
-            title={tt("connections.errorTitle", "Connections are temporarily unavailable")}
+            title={tt("connections.errorTitle", "Связи временно недоступны")}
             body={error}
             primaryAction={{
               label: tt("common.retry", "Повторить"),

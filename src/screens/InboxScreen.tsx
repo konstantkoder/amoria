@@ -121,7 +121,12 @@ export default function InboxScreen() {
       },
       () => {
         if (!alive) return;
-        setError(tt("inbox.errorBody", "We couldn't connect your personal chats right now. Try again."));
+        setError(
+          tt(
+            "inbox.errorBody",
+            "Не удалось подключить ваши личные разговоры прямо сейчас. Попробуй ещё раз."
+          )
+        );
         setLoading(false);
       }
     );
@@ -161,6 +166,10 @@ export default function InboxScreen() {
         .sort((a, b) => b.sortAt - a.sortAt),
     [freshnessState.dmThreads, t, threads, tt, uid]
   );
+  const playCardsCount = useMemo(
+    () => cards.filter((item) => item.sourceKey === "play").length,
+    [cards]
+  );
 
   const sourceLabels = useMemo(
     () => ({
@@ -182,14 +191,14 @@ export default function InboxScreen() {
     <View style={styles.heroCard}>
       <View style={styles.heroHeaderRow}>
         <Text style={styles.heroTitle}>
-          {tt("inbox.activeTitleCoreLoop", "Личные разговоры после открытых связей")}
+          {tt("inbox.activeTitleCoreLoop", "Здесь продолжаются личные разговоры")}
         </Text>
         <Text style={styles.heroCount}>{cards.length}</Text>
       </View>
       <Text style={styles.heroText}>
         {tt(
           "inbox.subheaderCoreLoop",
-          "«Связи» держат общий контекст и историю. Здесь остаётся только то, что уже перешло в личный разговор между вами."
+          "Если разговор вырос из общей сессии, его общий контекст и история остаются в «Связях». Здесь остаётся уже только личное продолжение."
         )}
       </Text>
       {showAction ? (
@@ -211,12 +220,12 @@ export default function InboxScreen() {
         <Text style={styles.emptyStateIconText}>💬</Text>
       </View>
       <Text style={styles.emptyStateTitle}>
-        {tt("inbox.emptyTitleCoreLoop", "Здесь продолжаются уже открытые связи")}
+        {tt("inbox.emptyTitleCoreLoop", "Здесь появятся ваши личные разговоры")}
       </Text>
       <Text style={styles.emptyStateText}>
         {tt(
           "inbox.emptyBodyCoreLoop",
-          "Когда связь уже открылась, её общий контекст останется в «Связях», а первый личный разговор появится здесь. Если разговоров пока нет, начни путь во «Вместе»."
+          "Когда появится первый личный разговор, он останется здесь. Если он вырастет из общей сессии, её история и общий контекст будут ждать в «Связях»."
         )}
       </Text>
       <Pressable
@@ -379,7 +388,7 @@ export default function InboxScreen() {
             title={tt("inbox.authRequiredTitle", "Диалоги доступны после входа")}
             body={tt(
               "inbox.authRequiredBodyCoreLoop",
-              "Войдите, чтобы увидеть личные чаты, которые выросли из уже открытых связей после общих сессий."
+              "Войдите, чтобы увидеть свои личные разговоры. Если они выросли из общей сессии, их общий контекст останется в «Связях»."
             )}
             primaryAction={{ label: t("menu.profile"), onPress: () => navigation.navigate("Profile") }}
             secondaryAction={{ label: t("connections.goToTogether"), onPress: goToTogether }}
@@ -401,11 +410,11 @@ export default function InboxScreen() {
             title={tt("inbox.errorTitle", "Диалоги временно недоступны")}
             body={tt(
               "inbox.offlineBodyCoreLoop",
-              "Сейчас не получается открыть личные продолжения ваших связей. Попробуй позже или вернись во Вместе."
+              "Сейчас не получается открыть личные разговоры. Если они выросли из общей сессии, их общий контекст всё равно останется в «Связях»."
             )}
             primaryAction={{ label: t("connections.goToTogether"), onPress: goToTogether }}
             secondaryAction={{
-              label: tt("inbox.openConnections", "Connections"),
+              label: tt("inbox.openConnections", "Связи"),
               onPress: () => navigation.navigate("Tabs", { screen: "Connections" }),
             }}
           />
@@ -422,7 +431,7 @@ export default function InboxScreen() {
       <View
         style={[styles.screenContent, { paddingBottom: insets.bottom + 8 }]}
       >
-        {renderHeroCard(cards.length > 0)}
+        {renderHeroCard(playCardsCount > 0)}
 
         {loading ? (
           <View

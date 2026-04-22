@@ -76,7 +76,11 @@ function mapReplayStrokes(events: PlayStrokeBatch[]): SharedCanvasStroke[] {
   );
 }
 
-type StoryConnectionPrimaryIntent = "open_chat" | "start_new" | "open_profile";
+type StoryConnectionPrimaryIntent =
+  | "open_chat"
+  | "start_new"
+  | "open_profile"
+  | "open_connections";
 
 type StoryConnectionCopy = {
   title: string;
@@ -90,10 +94,9 @@ function getStoryConnectionCopy(options: {
   revealOutcome: ReturnType<typeof resolvePlayRevealOutcome>;
   canOpenChat: boolean;
   hasAccount: boolean;
-  chatLookupError: string | null;
   tt: (key: string, fallback: string, params?: Record<string, string>) => string;
 }): StoryConnectionCopy {
-  const { canOpenChat, chatLookupError, hasAccount, revealOutcome, tt } = options;
+  const { canOpenChat, hasAccount, revealOutcome, tt } = options;
 
   if (revealOutcome === "open_open") {
     if (!hasAccount) {
@@ -112,25 +115,34 @@ function getStoryConnectionCopy(options: {
       };
     }
 
+    if (!canOpenChat) {
+      return {
+        title: tt("playDetail.bridgeConnectionReadyTitle", "Связь уже открылась из этой истории"),
+        body: tt(
+          "playDetail.bridgeConnectionReadyBody",
+          "Общий результат уже сохранился как открытая связь. Если личный разговор не открывается прямо отсюда, можно вернуться в «Связи» и зайти в него через саму связь."
+        ),
+        hint: tt(
+          "playDetail.bridgeConnectionReadyHint",
+          "Эта история всё равно остаётся её домом: общий результат, replay и контекст не пропадут."
+        ),
+        primaryIntent: "open_connections",
+        primaryLabel: tt("playDetail.openConnection", "Открытая связь"),
+      };
+    }
+
     return {
       title: tt("playDetail.bridgeChatReadyTitle", "Из этой истории уже можно вернуться в разговор"),
-      body: chatLookupError
-        ? tt(
-            "playDetail.bridgeChatReadyLookupBody",
-            "Контакт уже открылся после этой общей истории и живёт в «Связях». Если разговор не подтянулся сразу, попробуй открыть его ещё раз отсюда."
-          )
-        : tt(
-            "playDetail.bridgeChatReadyBody",
-            "Эта история уже стала частью открытой связи. Отсюда можно сразу перейти в личный разговор или сначала открыть саму связь."
-          ),
+      body: tt(
+        "playDetail.bridgeChatReadyBody",
+        "Эта история уже стала частью открытой связи. Отсюда можно сразу перейти в личный разговор, а общий результат, replay и весь контекст останутся здесь."
+      ),
       hint: tt(
         "playDetail.bridgeChatReadyHint",
         "Даже когда вы уйдёте в разговор, replay, общий итог и контекст этой сессии останутся здесь."
       ),
       primaryIntent: "open_chat",
-      primaryLabel: canOpenChat
-        ? tt("playDetail.openPrivateChat", "Открыть личный разговор")
-        : tt("playDetail.checkChatAgain", "Проверить разговор ещё раз"),
+      primaryLabel: tt("playDetail.openPrivateChat", "Открыть личный разговор"),
     };
   }
 
@@ -187,7 +199,6 @@ export default function PlaySessionDetailScreen() {
   const [loadingEvents, setLoadingEvents] = React.useState(true);
   const [loadingThreads, setLoadingThreads] = React.useState(true);
   const [loadError, setLoadError] = React.useState<string | null>(null);
-  const [threadLookupError, setThreadLookupError] = React.useState<string | null>(null);
   const [chatActionError, setChatActionError] = React.useState<string | null>(null);
   const [reloadKey, setReloadKey] = React.useState(0);
   const [replayOpen, setReplayOpen] = React.useState(replayFocus);
@@ -221,7 +232,6 @@ export default function PlaySessionDetailScreen() {
     setThreads([]);
     setReplayOpen(replayFocus);
     setLoadError(null);
-    setThreadLookupError(null);
     setChatActionError(null);
 
     if (!db || !sessionId) {
@@ -286,18 +296,11 @@ export default function PlaySessionDetailScreen() {
               if (!mountedRef.current) return;
               setThreads(next);
               setLoadingThreads(false);
-              setThreadLookupError(null);
             },
             () => {
               if (!mountedRef.current) return;
               setThreads([]);
               setLoadingThreads(false);
-              setThreadLookupError(
-                tt(
-                  "playDetail.chatLookupError",
-                  "Не удалось проверить, готов ли разговор. Попробуй открыть страницу еще раз."
-                )
-              );
             }
           )
         : () => {};
@@ -335,7 +338,7 @@ export default function PlaySessionDetailScreen() {
   const activityHasReplay = playActivityUsesReplay(session?.activity ?? "draw");
   const sessionPrompt = React.useMemo(() => getPlaySessionPrompt(session), [session]);
   const sessionPromptDisplay =
-    sessionPrompt?.text?.trim() || tt("playDetail.pendingPrompt", "Prompt is still loading");
+    sessionPrompt?.text?.trim() || tt("playDetail.pendingPrompt", "Тема уточняется");
   const combinedPalette = React.useMemo(() => getPlayColorMoodCombinedPalette(session), [session]);
   const ownPalette = React.useMemo(() => getPlayColorMoodChoices(session, uid), [session, uid]);
   const peerPalette = React.useMemo(
@@ -362,11 +365,17 @@ export default function PlaySessionDetailScreen() {
       ? combinedPalette.length || ownPalette.length || peerPalette.length
       : totalStrokeCount;
   const canOpenChat = revealOutcome === "open_open" && Boolean(db && session && uid && peer?.uid);
-  const isLoading = loadingSession || loadingEvents || loadingThreads;
+  const isLoading =
+    loadingSession ||
+    loadingEvents ||
+    (revealOutcome === "open_open" && Boolean(uid) && loadingThreads);
   const sortAt = session?.endedAt ?? session?.startedAt ?? session?.createdAt ?? 0;
   const summaryItems = React.useMemo(
     () => [
-      { label: tt("playDetail.activity", "Режим"), value: getPlayActivityLabel(session?.activity ?? "draw", "history") },
+      {
+        label: tt("playDetail.activity", "Режим"),
+        value: getPlayActivityLabel(session?.activity ?? "draw", "history"),
+      },
       { label: tt("playDetail.date", "Дата"), value: formatDateTime(sortAt) },
       { label: metricLabel, value: String(metricValue) },
     ],
@@ -378,10 +387,9 @@ export default function PlaySessionDetailScreen() {
         revealOutcome,
         canOpenChat,
         hasAccount: Boolean(uid),
-        chatLookupError: threadLookupError,
         tt,
       }),
-    [canOpenChat, revealOutcome, threadLookupError, tt, uid]
+    [canOpenChat, revealOutcome, tt, uid]
   );
   const storyHomeText = React.useMemo(() => {
     if (revealOutcome === "open_open") {
@@ -403,7 +411,8 @@ export default function PlaySessionDetailScreen() {
       "Даже без личного разговора общий момент не пропадает: здесь остаются итог, replay и весь контекст того, что между вами уже произошло."
     );
   }, [revealOutcome, tt]);
-  const showConnectionsButton = revealOutcome === "open_open";
+  const showConnectionsButton =
+    revealOutcome === "open_open" && connectionCopy.primaryIntent !== "open_connections";
 
   const openChat = React.useCallback(() => {
     if (!db || !session || !uid || !peer?.uid) return;
@@ -666,14 +675,14 @@ export default function PlaySessionDetailScreen() {
           {showDailyPrompt ? (
             <View style={styles.contextPill}>
               <Text style={styles.contextLabel}>
-                {tt("playDetail.topicLabel", "Prompt")}
+                {tt("playDetail.topicLabel", "Тема")}
               </Text>
               <Text style={styles.contextText}>{sessionPromptDisplay}</Text>
             </View>
           ) : null}
           <View style={styles.metaGrid}>
             <View style={styles.metaItem}>
-              <Text style={styles.metaLabel}>{tt("playDetail.partner", "Partner")}</Text>
+              <Text style={styles.metaLabel}>{tt("playDetail.partner", "Партнёр")}</Text>
               <Text style={styles.metaValue}>{peerName}</Text>
             </View>
             {summaryItems.map((item) => (
@@ -691,7 +700,7 @@ export default function PlaySessionDetailScreen() {
           combinedPalette={combinedPalette}
           ownPalette={ownPalette}
           peerPalette={peerPalette}
-          peerTitle={tt("playDetail.peerPaletteTitle", "Other person's colors")}
+          peerTitle={tt("playDetail.peerPaletteTitle", "Цвета второго участника")}
           compact
           surface="detail"
         />
@@ -714,7 +723,7 @@ export default function PlaySessionDetailScreen() {
             {showDailyPrompt ? (
               <View style={styles.contextPill}>
                 <Text style={styles.contextLabel}>
-                  {tt("playDetail.topicLabel", "Prompt")}
+                  {tt("playDetail.topicLabel", "Тема")}
                 </Text>
                 <Text style={styles.contextText}>{sessionPromptDisplay}</Text>
               </View>
@@ -752,6 +761,8 @@ export default function PlaySessionDetailScreen() {
                 ? openChat
                 : connectionCopy.primaryIntent === "open_profile"
                   ? () => navigation.navigate("Profile")
+                  : connectionCopy.primaryIntent === "open_connections"
+                    ? goToConnections
                   : startNewSession
             }
             style={styles.primaryButton}
