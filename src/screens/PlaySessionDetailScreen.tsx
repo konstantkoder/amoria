@@ -497,7 +497,9 @@ export default function PlaySessionDetailScreen() {
   }, [db, detailThread?.id, navigation, peer?.uid, peerName, session, sessionId, totalStrokeCount, tt, uid]);
 
   const startNewSession = React.useCallback(() => {
-    navigation.navigate("PlayMatch", { activity: session?.activity ?? "draw" });
+    navigation.navigate("PlayMatch", {
+      activity: session?.activity === "color_mood" ? "color_mood" : "draw",
+    });
   }, [navigation, session?.activity]);
 
   const openReplay = React.useCallback(() => {

@@ -4,19 +4,19 @@ import { useNavigation } from "@react-navigation/native";
 
 import ScreenShell from "@/components/ScreenShell";
 import { useLocale } from "@/contexts/LocaleContext";
+import { getRuntimeLocale } from "@/i18n/translations";
 import { type RootStackNavigationProp } from "@/navigation/appRoutes";
 import { openNearbySection, openRooms } from "@/navigation/nearbyNavigation";
-import {
-  getPlayLobbyModeCardCopy,
-  type PlayActivity,
-} from "@/services/playSessions";
+import { getPlayLobbyModeCardCopy } from "@/services/playSessions";
 import { theme } from "@/theme";
-
-const LIVE_MODE_ORDER: PlayActivity[] = ["daily_prompt", "chain_draw", "color_mood"];
 
 export default function PlayLobbyScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"PlayMatch">>();
   const { t } = useLocale();
+  const releaseText = React.useCallback(
+    (en: string, ru: string) => (getRuntimeLocale() === "ru" ? ru : en),
+    []
+  );
   const tt = React.useCallback(
     (key: string, fallback: string, params?: Record<string, string>) => {
       const value = t(key, params);
@@ -24,44 +24,7 @@ export default function PlayLobbyScreen() {
     },
     [t]
   );
-  const getModeCardCopy = React.useCallback(
-    (activity: PlayActivity) => {
-      const fallback = getPlayLobbyModeCardCopy(activity);
-
-      switch (activity) {
-        case "daily_prompt":
-          return {
-            title: tt("together.lobby.mode.daily_prompt.title", fallback.title),
-            description: tt(
-              "together.lobby.mode.daily_prompt.description",
-              fallback.description
-            ),
-            details: tt("together.lobby.mode.daily_prompt.details", fallback.details),
-          };
-        case "chain_draw":
-          return {
-            title: tt("together.lobby.mode.chain_draw.title", fallback.title),
-            description: tt(
-              "together.lobby.mode.chain_draw.description",
-              fallback.description
-            ),
-            details: tt("together.lobby.mode.chain_draw.details", fallback.details),
-          };
-        case "color_mood":
-          return {
-            title: tt("together.lobby.mode.color_mood.title", fallback.title),
-            description: tt(
-              "together.lobby.mode.color_mood.description",
-              fallback.description
-            ),
-            details: tt("together.lobby.mode.color_mood.details", fallback.details),
-          };
-        default:
-          return fallback;
-      }
-    },
-    [tt]
-  );
+  const colorMoodCopy = getPlayLobbyModeCardCopy("color_mood");
 
   return (
     <ScreenShell title={t("tabs.together")} background="togetherMain">
@@ -73,26 +36,26 @@ export default function PlayLobbyScreen() {
         <View style={styles.hero}>
           <View style={styles.heroTop}>
             <Text style={styles.kicker}>
-              {tt("together.lobby.kicker", "Главный путь")}
+              {releaseText("Main release path", "Главный путь релиза")}
             </Text>
             <Text style={styles.heroTitle}>
-              {tt(
-                "together.lobby.heroTitle",
-                "«Вместе» открывает знакомство через общий опыт"
+              {releaseText(
+                "Shared drawing is the core of Together",
+                "Общий рисунок стал ядром «Вместе»"
               )}
             </Text>
             <Text style={styles.heroText}>
-              {tt(
-                "together.lobby.heroBody",
-                "Начни с одной совместной сессии и переходи в личный разговор только если открытие оказалось взаимным."
+              {releaseText(
+                "Start with one shared canvas, reach one shared result, and move into chat only if the opening turns out mutual.",
+                "Начни с одного общего холста, приди к одному общему итогу и переходи в личный разговор только если открытие оказалось взаимным."
               )}
             </Text>
             <View style={styles.heroLoop}>
               {[
-                tt("together.lobby.loopSession", "Совместная сессия"),
-                tt("together.lobby.loopResult", "Итог"),
-                tt("together.lobby.loopOpen", "Взаимное открытие"),
-                tt("together.lobby.loopChat", "Личный чат"),
+                releaseText("Shared drawing", "Общий рисунок"),
+                releaseText("Shared result", "Общий итог"),
+                releaseText("Mutual opening", "Взаимное открытие"),
+                releaseText("Private chat", "Личный чат"),
               ].map((item) => (
                 <View key={item} style={styles.heroLoopChip}>
                   <Text style={styles.heroLoopChipText}>{item}</Text>
@@ -107,13 +70,13 @@ export default function PlayLobbyScreen() {
               style={styles.primaryCta}
             >
               <Text style={styles.primaryCtaTitle}>
-                {tt("together.lobby.startSession", "Начать совместную сессию")}
+                {releaseText("Start shared drawing", "Начать общий рисунок")}
               </Text>
             </Pressable>
             <Text style={styles.primaryCtaHint}>
-              {tt(
-                "together.lobby.startHint",
-                "Одна совместная сессия, один общий итог и личный разговор только если вы оба этого хотите."
+              {releaseText(
+                "Seven minutes on one canvas, then one result and one honest decision about chat.",
+                "7 минут на одном холсте, потом один итог и одно честное решение об открытии чата."
               )}
             </Text>
           </View>
@@ -125,58 +88,49 @@ export default function PlayLobbyScreen() {
         >
           <View style={styles.historyTextWrap}>
             <Text style={styles.historyTitle}>
-              {tt("together.lobby.historyTitle", "Совместные истории")}
+              {releaseText("Shared stories", "Совместные истории")}
             </Text>
             <Text style={styles.historyText}>
-              {tt(
-                "together.lobby.historyBody",
-                "Вернись к сохранённому итогу, повтору рисунка и уже открытой связи."
+              {releaseText(
+                "Return to saved drawings, shared palettes, and the connection that already opened from them.",
+                "Возвращайся к сохранённым рисункам, общим палитрам и связи, которая уже выросла из них."
               )}
             </Text>
           </View>
           <View style={styles.historyBadge}>
             <Text style={styles.historyBadgeText}>
-              {tt("together.lobby.historyBadge", "Истории")}
+              {releaseText("Stories", "Истории")}
             </Text>
           </View>
         </Pressable>
 
-        <View style={styles.liveSection}>
-          <Text style={styles.liveSectionTitle}>
-            {tt("together.lobby.otherModesTitle", "Выбери более конкретный совместный формат")}
+        <View style={styles.secondarySection}>
+          <Text style={styles.secondarySectionTitle}>
+            {releaseText("One softer variation", "Одна мягкая вариация")}
           </Text>
-          <Text style={styles.liveSectionText}>
-            {tt(
-              "together.lobby.otherModesBody",
-              "Это тот же путь, просто с более явной совместной рамкой уже с первого тапа."
+          <Text style={styles.secondarySectionText}>
+            {releaseText(
+              "If drawing feels too direct, start through color instead. It is shorter, softer, and still leads to one honest decision about chat.",
+              "Если рисунок кажется слишком прямым входом, начни через цвет. Это короче, мягче и всё равно ведёт к одному честному решению об открытии чата."
             )}
           </Text>
         </View>
 
-        {LIVE_MODE_ORDER.map((activity) => {
-          const copy = getModeCardCopy(activity);
-
-          return (
-            <Pressable
-              key={activity}
-              onPress={() => navigation.navigate("PlayMatch", { activity })}
-              style={styles.liveCard}
-            >
-              <View style={styles.cardHeader}>
-                <Text style={styles.cardTitle}>{copy.title}</Text>
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>
-                    {tt("together.lobby.liveBadge", "Режим")}
-                  </Text>
-                </View>
-              </View>
-              <Text style={styles.cardDescription}>{copy.description}</Text>
-              <Text numberOfLines={2} style={styles.cardDetails}>
-                {copy.details}
+        <Pressable
+          onPress={() => navigation.navigate("PlayMatch", { activity: "color_mood" })}
+          style={styles.secondaryCard}
+        >
+          <View style={styles.cardHeader}>
+            <Text style={styles.cardTitle}>{colorMoodCopy.title}</Text>
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>
+                {releaseText("Variation", "Вариация")}
               </Text>
-            </Pressable>
-          );
-        })}
+            </View>
+          </View>
+          <Text style={styles.cardDescription}>{colorMoodCopy.description}</Text>
+          <Text style={styles.cardDetails}>{colorMoodCopy.details}</Text>
+        </Pressable>
 
         <View style={styles.supportingSection}>
           <Text style={styles.supportingSectionTitle}>
@@ -354,16 +308,16 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "800",
   },
-  liveSection: {
+  secondarySection: {
     gap: 4,
     paddingHorizontal: 2,
   },
-  liveSectionTitle: {
+  secondarySectionTitle: {
     color: theme.colors.text,
     fontSize: 17,
     fontWeight: "800",
   },
-  liveSectionText: {
+  secondarySectionText: {
     color: theme.colors.subtext,
     fontSize: 13,
     lineHeight: 18,
@@ -383,7 +337,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
   },
-  liveCard: {
+  secondaryCard: {
     borderRadius: theme.shapes.card,
     padding: 17,
     backgroundColor: "rgba(16, 20, 38, 0.90)",

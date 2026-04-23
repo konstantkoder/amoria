@@ -12,6 +12,7 @@ import CoreStateCard from "@/components/CoreStateCard";
 import ScreenShell from "@/components/ScreenShell";
 import { auth, db } from "@/config/firebaseConfig";
 import { useLocale } from "@/contexts/LocaleContext";
+import { getRuntimeLocale } from "@/i18n/translations";
 import { type RootStackNavigationProp } from "@/navigation/appRoutes";
 import {
   formatActivitySignalLabel,
@@ -57,11 +58,15 @@ type HistoryCard = PlayHistoryItem & {
 
 function getHistoryContextText(
   item: HistoryCard,
+  releaseText: (en: string, ru: string) => string,
   tt: (key: string, fallback: string, params?: Record<string, string>) => string
 ) {
   switch (item.activity) {
     case "daily_prompt":
-      return item.promptText?.trim() || tt("playHistory.contextDailyPrompt", "Shared prompt of the day");
+      return (
+        item.promptText?.trim() ||
+        releaseText("Shared drawing around a prompt", "Общий рисунок по теме")
+      );
     case "color_mood":
       return item.combinedPalette?.length
         ? tt("playHistory.contextColorMoodCount", "Shared palette: {count} colors", {
@@ -69,10 +74,10 @@ function getHistoryContextText(
           })
         : tt("playHistory.contextColorMood", "Shared palette");
     case "chain_draw":
-      return tt("playHistory.contextChainDraw", "Turn-based drawing in short moves");
+      return releaseText("Shared drawing in turns", "Общий рисунок по очереди");
     case "draw":
     default:
-      return tt("playHistory.contextDraw", "Free shared drawing");
+      return releaseText("Shared drawing on one canvas", "Общий рисунок на одном холсте");
   }
 }
 
@@ -103,6 +108,10 @@ function getHistoryRelationshipText(
 export default function PlayHistoryScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"PlayHistory">>();
   const { t } = useLocale();
+  const releaseText = useCallback(
+    (en: string, ru: string) => (getRuntimeLocale() === "ru" ? ru : en),
+    []
+  );
   const tt = useCallback(
     (key: string, fallback: string, params?: Record<string, string>) => {
       const value = t(key, params);
@@ -288,7 +297,7 @@ export default function PlayHistoryScreen() {
         setOpeningChatId((prev) => (prev === card.id ? null : prev));
       }
     },
-    [navigation, uid]
+    [navigation, tt, uid]
   );
 
   const goToStart = useCallback(() => {
@@ -300,7 +309,7 @@ export default function PlayHistoryScreen() {
       const isColorMood = item.activity === "color_mood";
       const metricLabel = getPlayActivityMetricLabel(item.activity, "history");
       const revealCopy = getPlayRevealCopy(item.revealOutcome);
-      const contextText = getHistoryContextText(item, tt);
+      const contextText = getHistoryContextText(item, releaseText, tt);
       const relationshipText = getHistoryRelationshipText(item, tt);
 
       return (
@@ -381,7 +390,7 @@ export default function PlayHistoryScreen() {
         </Pressable>
       );
     },
-    [openChat, openDetail, openingChatId, tt]
+    [openChat, openDetail, openingChatId, releaseText, tt]
   );
 
   const renderEmpty = () => (

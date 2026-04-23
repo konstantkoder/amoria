@@ -298,7 +298,9 @@ export default function PlayResultScreen() {
     navigation.navigate("Tabs", { screen: "Connections" });
   }, [navigation]);
   const startNewSession = React.useCallback(() => {
-    navigation.navigate("PlayMatch", { activity: session?.activity ?? "draw" });
+    navigation.navigate("PlayMatch", {
+      activity: session?.activity === "color_mood" ? "color_mood" : "draw",
+    });
   }, [navigation, session?.activity]);
   const goToDetail = React.useCallback(
     (focus?: "replay") => {
