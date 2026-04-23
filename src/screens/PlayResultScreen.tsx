@@ -517,6 +517,14 @@ export default function PlayResultScreen() {
           peerName,
           backTarget: "sessionDetail",
           backSessionId: sessionId,
+          sourceContext: {
+            source: "play",
+            sourceSessionId: sessionId,
+            artworkSummary: {
+              activity: session.activity,
+              ...(totalStrokeCount != null ? { strokeCount: totalStrokeCount } : {}),
+            },
+          },
         })
       );
       if (mountedRef.current) {

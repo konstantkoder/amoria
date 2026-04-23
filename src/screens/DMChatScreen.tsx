@@ -45,6 +45,7 @@ export default function DMChatScreen() {
   const peerId = routePeerId || "";
   const backTarget = route.params?.backTarget;
   const backSessionId = String(route.params?.backSessionId ?? "");
+  const routeSourceContext = route.params?.sourceContext;
 
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -191,9 +192,25 @@ export default function DMChatScreen() {
       name: routePeerName || t("common.user"),
     };
   }, [myId, peerId, routePeerName, t, thread]);
+  const sourceContext = useMemo(() => {
+    if (routeSourceContext?.source === "play" || routeSourceContext?.source === "announcement") {
+      return routeSourceContext;
+    }
+    if (thread?.source === "play" || thread?.source === "announcement") {
+      return {
+        source: thread.source,
+        ...(thread.sourceSessionId ? { sourceSessionId: thread.sourceSessionId } : {}),
+        ...(thread.artworkSummary ? { artworkSummary: thread.artworkSummary } : {}),
+      };
+    }
+    return null;
+  }, [routeSourceContext, thread?.artworkSummary, thread?.source, thread?.sourceSessionId]);
+  const sourceSessionId = String(sourceContext?.sourceSessionId ?? "");
+  const sourceActivity = sourceContext?.artworkSummary?.activity;
+  const sourceStrokeCount = sourceContext?.artworkSummary?.strokeCount;
   const storySessionId =
     backTarget === "sessionDetail"
-      ? String(backSessionId || thread?.sourceSessionId || "")
+      ? String(backSessionId || sourceSessionId || "")
       : "";
 
   const mergedMsgs = useMemo(() => {
@@ -281,50 +298,49 @@ export default function DMChatScreen() {
 
   const canSend = text.trim().length > 0;
   const openSourceStory = useCallback(() => {
-    if (!thread?.sourceSessionId) return;
-    navigation.navigate("PlaySessionDetail", { sessionId: thread.sourceSessionId });
-  }, [navigation, thread?.sourceSessionId]);
+    if (!sourceSessionId) return;
+    navigation.navigate("PlaySessionDetail", { sessionId: sourceSessionId });
+  }, [navigation, sourceSessionId]);
   const sourceEyebrow = useMemo(
     () =>
-      thread?.source === "play"
+      sourceContext?.source === "play"
         ? tt("dm.sourceEyebrow", "Общая история этой связи")
         : "",
-    [thread?.source, tt]
+    [sourceContext?.source, tt]
   );
   const sourceTitle = useMemo(() => {
-    if (thread?.source !== "play") return "";
-    if (thread.artworkSummary?.activity === "color_mood") {
+    if (sourceContext?.source !== "play") return "";
+    if (sourceActivity === "color_mood") {
       return tt("dm.sourcePlayColorMood", "Ваш личный разговор после общей палитры");
     }
-    if (thread.artworkSummary?.activity === "daily_prompt") {
+    if (sourceActivity === "daily_prompt") {
       return tt("dm.sourcePlayDailyPrompt", "Ваш личный разговор после общей темы дня");
     }
-    if (thread.artworkSummary?.activity === "chain_draw") {
+    if (sourceActivity === "chain_draw") {
       return tt("dm.sourcePlayChainDraw", "Ваш личный разговор после рисунка по очереди");
     }
     return tt("dm.sourcePlay", "Ваш личный разговор после совместной сессии");
-  }, [thread?.artworkSummary?.activity, thread?.source, tt]);
-  const strokeCount = thread?.artworkSummary?.strokeCount;
+  }, [sourceActivity, sourceContext?.source, tt]);
   const sourceMeta = useMemo(() => {
-    if (thread?.source !== "play") return "";
-    if (thread.artworkSummary?.activity === "color_mood") {
+    if (sourceContext?.source !== "play") return "";
+    if (sourceActivity === "color_mood") {
       return tt(
         "dm.sourcePaletteReady",
         "Общая палитра уже сохранена в истории вашей связи. Она остаётся в общем контексте, а здесь начинается ваше личное продолжение."
       );
     }
-    if (strokeCount != null) {
+    if (sourceStrokeCount != null) {
       return tt(
         "dm.sourceStrokeCount",
         "Общий результат уже сохранён в истории вашей связи. Он остаётся вашим общим контекстом, а здесь разговор продолжается уже лично. Штрихов: {count}",
-        { count: String(strokeCount) }
+        { count: String(sourceStrokeCount) }
       );
     }
     return tt(
       "dm.contextReady",
       "Общий момент уже сохранён в истории этой связи. К нему можно вернуться в любой момент, а здесь продолжается ваш личный разговор."
     );
-  }, [strokeCount, thread?.artworkSummary?.activity, thread?.source, tt]);
+  }, [sourceActivity, sourceContext?.source, sourceStrokeCount, tt]);
   const isLoading = threadLoading || messagesLoading;
   const threadMissing = !isLoading && !subscriptionError && !thread && mergedMsgs.length === 0;
   const isEmpty = !isLoading && mergedMsgs.length === 0;
@@ -429,7 +445,7 @@ export default function DMChatScreen() {
           ) : null}
           <Text style={styles.sourceTitle}>{sourceTitle}</Text>
           <Text style={styles.sourceMeta}>{sourceMeta}</Text>
-          {thread?.sourceSessionId ? (
+          {sourceSessionId ? (
             <TouchableOpacity
               onPress={openSourceStory}
               style={styles.sourceLink}
@@ -442,7 +458,7 @@ export default function DMChatScreen() {
           ) : null}
         </View>
       ) : null,
-    [openSourceStory, sourceEyebrow, sourceMeta, sourceTitle, thread?.sourceSessionId, tt]
+    [openSourceStory, sourceEyebrow, sourceMeta, sourceSessionId, sourceTitle, tt]
   );
 
   const renderItem = useCallback(
@@ -588,16 +604,16 @@ export default function DMChatScreen() {
             }
             primaryAction={{
               label:
-                thread?.sourceSessionId && backTarget !== "sessionDetail"
+                sourceSessionId && backTarget !== "sessionDetail"
                   ? tt("dm.openSourceStory", "Открыть общую историю")
                   : emptyBackLabel,
               onPress:
-                thread?.sourceSessionId && backTarget !== "sessionDetail"
+                sourceSessionId && backTarget !== "sessionDetail"
                   ? openSourceStory
                   : handleBack,
             }}
             secondaryAction={
-              thread?.sourceSessionId && backTarget !== "sessionDetail"
+              sourceSessionId && backTarget !== "sessionDetail"
                 ? { label: emptyBackLabel, onPress: handleBack }
                 : undefined
             }

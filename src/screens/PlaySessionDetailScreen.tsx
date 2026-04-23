@@ -23,7 +23,7 @@ import { markPlaySessionSeen } from "@/services/activityFreshness";
 import {
   buildDmChatRouteParams,
   ensureDmThread,
-  findDmThreadBySourceSessionId,
+  mapDmThreadToPeer,
   subscribeDmThreads,
   type DmThreadDoc,
 } from "@/services/dm";
@@ -324,9 +324,18 @@ export default function PlaySessionDetailScreen() {
   }, [session, uid]);
 
   const peerName = peer?.nickname ?? makeNickname(peer?.uid ?? "peer");
+  const threadByPeerId = React.useMemo(() => {
+    const next = new Map<string, DmThreadDoc>();
+    for (const thread of threads) {
+      const threadPeer = mapDmThreadToPeer(thread, uid);
+      if (!threadPeer?.uid || next.has(threadPeer.uid)) continue;
+      next.set(threadPeer.uid, thread);
+    }
+    return next;
+  }, [threads, uid]);
   const detailThread = React.useMemo(
-    () => findDmThreadBySourceSessionId(threads, sessionId),
-    [sessionId, threads]
+    () => (peer?.uid ? threadByPeerId.get(peer.uid) ?? null : null),
+    [peer?.uid, threadByPeerId]
   );
   const totalStrokeCount = React.useMemo(() => {
     if (session?.resultStrokeCount != null) {
@@ -454,6 +463,14 @@ export default function PlaySessionDetailScreen() {
           peerName,
           backTarget: "sessionDetail",
           backSessionId: sessionId,
+          sourceContext: {
+            source: "play",
+            sourceSessionId: sessionId,
+            artworkSummary: {
+              activity: session.activity,
+              ...(totalStrokeCount != null ? { strokeCount: totalStrokeCount } : {}),
+            },
+          },
         })
       );
       if (mountedRef.current) {

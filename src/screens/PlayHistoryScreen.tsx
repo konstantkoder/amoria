@@ -21,7 +21,7 @@ import {
 import {
   buildDmChatRouteParams,
   ensureDmThread,
-  findDmThreadBySourceSessionId,
+  mapDmThreadToPeer,
   subscribeDmThreads,
   type DmThreadDoc,
 } from "@/services/dm";
@@ -200,9 +200,16 @@ export default function PlayHistoryScreen() {
   }, [handleLoadError, reloadKey, uid]);
 
   const cards = useMemo<HistoryCard[]>(
-    () =>
-      history.map((item) => {
-        const thread = findDmThreadBySourceSessionId(threads, item.sessionId);
+    () => {
+      const threadByPeerId = new Map<string, DmThreadDoc>();
+      for (const thread of threads) {
+        const peer = mapDmThreadToPeer(thread, uid);
+        if (!peer?.uid || threadByPeerId.has(peer.uid)) continue;
+        threadByPeerId.set(peer.uid, thread);
+      }
+
+      return history.map((item) => {
+        const thread = threadByPeerId.get(item.peer.uid);
         const signal = getPlaySessionActivitySignal(
           item,
           freshnessState.playSessions[item.sessionId] ?? 0
@@ -217,8 +224,9 @@ export default function PlayHistoryScreen() {
               }
             : {}),
         };
-      }),
-    [freshnessState.playSessions, history, threads, tt]
+      });
+    },
+    [freshnessState.playSessions, history, threads, tt, uid]
   );
 
   const isLoading = !historyLoaded || !threadsLoaded;
@@ -258,6 +266,14 @@ export default function PlayHistoryScreen() {
             peerId: card.peer.uid,
             peerName: card.peer.nickname,
             backTarget: "history",
+            sourceContext: {
+              source: "play",
+              sourceSessionId: card.sessionId,
+              artworkSummary: {
+                activity: card.activity,
+                ...(card.strokeCount != null ? { strokeCount: card.strokeCount } : {}),
+              },
+            },
           })
         );
         setActionError(null);

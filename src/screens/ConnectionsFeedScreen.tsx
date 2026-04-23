@@ -226,14 +226,14 @@ function mapSessionToHistoryCard(
   now: number,
   t: (key: string, params?: Record<string, string>) => string,
   tt: (key: string, fallback: string) => string,
-  threadBySessionId: Map<string, DmThreadDoc>,
+  threadByPeerId: Map<string, DmThreadDoc>,
   signalLabel?: string,
   signalTone?: "fresh" | "recent"
 ): HistoryCard | null {
   const peer = getPeerFromSession(session, uid);
   if (!peer) return null;
 
-  const linkedThread = threadBySessionId.get(session.id);
+  const linkedThread = threadByPeerId.get(peer.uid);
   const sortAt = session.endedAt ?? session.startedAt ?? session.createdAt;
   const hasContinuationPreview = Boolean(linkedThread?.lastMessageText?.trim());
 
@@ -271,7 +271,7 @@ function mapThreadToFallbackCard(
   signalLabel?: string,
   signalTone?: "fresh" | "recent"
 ): HistoryCard | null {
-  if (thread.source !== "play" || thread.sourceSessionId) return null;
+  if (thread.source !== "play") return null;
   const peer = mapDmThreadToPeer(thread, uid);
   if (!peer) return null;
 
@@ -403,15 +403,15 @@ export default function ConnectionsFeedScreen() {
     setNow(Date.now());
   }, [sessions, threads]);
 
-  const threadBySessionId = useMemo(() => {
+  const threadByPeerId = useMemo(() => {
     const next = new Map<string, DmThreadDoc>();
     for (const thread of threads) {
-      if (thread.sourceSessionId) {
-        next.set(thread.sourceSessionId, thread);
-      }
+      const peer = mapDmThreadToPeer(thread, uid);
+      if (!peer?.uid || next.has(peer.uid)) continue;
+      next.set(peer.uid, thread);
     }
     return next;
-  }, [threads]);
+  }, [threads, uid]);
 
   const sessionById = useMemo(() => {
     const next = new Map<string, PlaySessionDoc>();
@@ -425,7 +425,8 @@ export default function ConnectionsFeedScreen() {
     () =>
       sessions
         .map((session) => {
-          const linkedThread = threadBySessionId.get(session.id);
+          const peer = getPeerFromSession(session, uid);
+          const linkedThread = peer?.uid ? threadByPeerId.get(peer.uid) : null;
           const threadSignal = linkedThread
             ? getDmThreadActivitySignal(linkedThread, freshnessState.dmThreads[linkedThread.id] ?? 0, now)
             : null;
@@ -442,7 +443,7 @@ export default function ConnectionsFeedScreen() {
             now,
             t,
             tt,
-            threadBySessionId,
+            threadByPeerId,
             formatActivitySignalLabel(signal, tt),
             signal?.tone
           );
@@ -450,7 +451,7 @@ export default function ConnectionsFeedScreen() {
         .filter((item): item is HistoryCard => Boolean(item))
         .sort((a, b) => b.sortAt - a.sortAt)
         .slice(0, 8),
-    [freshnessState.dmThreads, freshnessState.playSessions, now, sessions, t, threadBySessionId, tt, uid]
+    [freshnessState.dmThreads, freshnessState.playSessions, now, sessions, t, threadByPeerId, tt, uid]
   );
 
   const fallbackCards = useMemo(
@@ -485,6 +486,19 @@ export default function ConnectionsFeedScreen() {
   const openChat = useCallback(
     async (card: HistoryCard) => {
       if (!db || !uid || !card.peerId) return;
+      const session = card.sessionId ? sessionById.get(card.sessionId) : null;
+      const sourceContext = session
+        ? {
+            source: "play" as const,
+            sourceSessionId: session.id,
+            artworkSummary: {
+              activity: session.activity,
+              ...(session.resultStrokeCount != null
+                ? { strokeCount: session.resultStrokeCount }
+                : {}),
+            },
+          }
+        : undefined;
 
       if (card.threadId) {
         setActionError(null);
@@ -495,13 +509,13 @@ export default function ConnectionsFeedScreen() {
             peerId: card.peerId,
             peerName: card.peerName,
             backTarget: "connections",
+            ...(sourceContext ? { sourceContext } : {}),
           })
         );
         return;
       }
 
       if (!card.sessionId) return;
-      const session = sessionById.get(card.sessionId);
       if (!session) {
         setActionError(
           tt(
@@ -534,6 +548,7 @@ export default function ConnectionsFeedScreen() {
             peerId: card.peerId,
             peerName: card.peerName,
             backTarget: "connections",
+            sourceContext,
           })
         );
         setActionError(null);

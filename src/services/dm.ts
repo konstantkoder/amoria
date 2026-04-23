@@ -27,6 +27,15 @@ function normalizeArtworkActivity(value: unknown): PlayActivity {
 }
 
 export type DmSource = "play" | "announcement";
+export type DmArtworkSummary = {
+  activity: PlayActivity;
+  strokeCount?: number;
+};
+export type DmSourceContext = {
+  source: DmSource;
+  sourceSessionId?: string;
+  artworkSummary?: DmArtworkSummary;
+};
 
 export type DmThreadDoc = {
   id: string;
@@ -38,10 +47,7 @@ export type DmThreadDoc = {
   updatedAt: number;
   lastMessageText?: string;
   lastMessageAt?: number;
-  artworkSummary?: {
-    activity: PlayActivity;
-    strokeCount?: number;
-  };
+  artworkSummary?: DmArtworkSummary;
 };
 
 export type DmMessageDoc = {
@@ -68,6 +74,7 @@ export type DmChatRouteParams = {
   threadId: string;
   peerId: string;
   peerName?: string;
+  sourceContext?: DmSourceContext;
 } & DmChatBackRouteParams;
 
 function asDmThreadDoc(id: string, raw: unknown): DmThreadDoc {
@@ -131,6 +138,30 @@ export function buildDmChatRouteParams(params: DmChatRouteParams): DmChatRoutePa
     threadId: String(params.threadId ?? ""),
     peerId: String(params.peerId ?? ""),
     ...(params.peerName?.trim() ? { peerName: params.peerName.trim() } : {}),
+    ...(params.sourceContext?.source === "play" || params.sourceContext?.source === "announcement"
+      ? {
+          sourceContext: {
+            source: params.sourceContext.source,
+            ...(params.sourceContext.sourceSessionId
+              ? { sourceSessionId: String(params.sourceContext.sourceSessionId) }
+              : {}),
+            ...(params.sourceContext.artworkSummary?.activity
+              ? {
+                  artworkSummary: {
+                    activity: normalizeArtworkActivity(params.sourceContext.artworkSummary.activity),
+                    ...(params.sourceContext.artworkSummary.strokeCount != null
+                      ? {
+                          strokeCount: Number(
+                            params.sourceContext.artworkSummary.strokeCount
+                          ),
+                        }
+                      : {}),
+                  },
+                }
+              : {}),
+          },
+        }
+      : {}),
   };
 
   if (params.backTarget === "sessionDetail") {
@@ -149,27 +180,13 @@ export function buildDmChatRouteParams(params: DmChatRouteParams): DmChatRoutePa
     : baseParams;
 }
 
-export function findDmThreadBySourceSessionId(
-  threads: DmThreadDoc[],
-  sessionId: string
-): DmThreadDoc | null {
-  if (!sessionId) return null;
-  return threads.find((thread) => thread.sourceSessionId === sessionId) ?? null;
-}
-
 export async function ensureDmThread(
   db: Firestore,
   uidA: string,
   uidB: string,
   meta: {
     memberNames?: Record<string, string>;
-    source: DmSource;
-    sourceSessionId?: string;
-    artworkSummary?: {
-      activity: PlayActivity;
-      strokeCount?: number;
-    };
-  }
+  } & DmSourceContext
 ): Promise<string> {
   const threadId = buildDmThreadId(uidA, uidB);
   const threadRef = doc(db, "dmThreads", threadId);
@@ -190,6 +207,19 @@ export async function ensureDmThread(
         existing?.memberNames?.[uidB]?.trim() ||
         makeNickname(uidB),
     };
+    const nextSource = existing?.source ?? meta.source;
+    const nextSourceSessionId =
+      existing?.sourceSessionId?.trim() || meta.sourceSessionId?.trim() || "";
+    const nextArtworkSummary =
+      existing?.artworkSummary ??
+      (meta.artworkSummary
+        ? {
+            activity: normalizeArtworkActivity(meta.artworkSummary.activity),
+            ...(meta.artworkSummary.strokeCount != null
+              ? { strokeCount: Number(meta.artworkSummary.strokeCount) }
+              : {}),
+          }
+        : undefined);
 
     tx.set(
       threadRef,
@@ -197,18 +227,9 @@ export async function ensureDmThread(
         id: threadId,
         memberIds,
         memberNames: nextMemberNames,
-        source: meta.source,
-        ...(meta.sourceSessionId ? { sourceSessionId: meta.sourceSessionId } : {}),
-        ...(meta.artworkSummary
-          ? {
-              artworkSummary: {
-                activity: meta.artworkSummary.activity,
-                ...(meta.artworkSummary.strokeCount != null
-                  ? { strokeCount: meta.artworkSummary.strokeCount }
-                  : {}),
-              },
-            }
-          : {}),
+        source: nextSource,
+        ...(nextSourceSessionId ? { sourceSessionId: nextSourceSessionId } : {}),
+        ...(nextArtworkSummary ? { artworkSummary: nextArtworkSummary } : {}),
         createdAt: existing?.createdAt || now,
         updatedAt: existing?.updatedAt || now,
       },
