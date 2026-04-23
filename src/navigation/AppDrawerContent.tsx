@@ -19,6 +19,15 @@ type Props = {
   onClose?: () => void;
 };
 
+function copyOrFallback(
+  t: (key: string, params?: Record<string, string>) => string,
+  key: string,
+  fallback: string
+) {
+  const value = t(key);
+  return value === key ? fallback : value;
+}
+
 export default function AppDrawerContent({ onClose }: Props) {
   const navigation = useNavigation<RootStackNavigationProp>();
   const { t, locale, openLanguagePicker } = useLocale();
@@ -73,7 +82,10 @@ export default function AppDrawerContent({ onClose }: Props) {
             <View style={styles.titlePill}>
               <Text style={styles.title}>{t("menu.title")}</Text>
             </View>
-            <Text style={styles.subtitle}>{t("tabs.together")}</Text>
+            <Text style={styles.subtitle}>
+              {copyOrFallback(t, "menu.subtitle", "Быстрый доступ")}
+            </Text>
+            <Text style={styles.subtitleStrong}>{t("tabs.together")}</Text>
           </View>
           <TouchableOpacity
             onPress={handleClose}
@@ -169,27 +181,27 @@ export default function AppDrawerContent({ onClose }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "rgba(2, 4, 12, 0.54)",
+    backgroundColor: "rgba(2, 4, 12, 0.72)",
   },
   panel: {
-    backgroundColor: "rgba(6, 10, 20, 0.985)",
+    backgroundColor: "rgba(5, 9, 18, 0.995)",
     borderRadius: 26,
-    paddingHorizontal: 14,
-    paddingTop: 14,
-    paddingBottom: 12,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 14,
     marginHorizontal: 10,
     marginTop: 10,
     marginBottom: 14,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.14)",
+    borderColor: "rgba(255,255,255,0.18)",
     flex: 1,
     alignSelf: "stretch",
     justifyContent: "flex-start",
     shadowColor: "#000000",
-    shadowOpacity: 0.42,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 16 },
-    elevation: 18,
+    shadowOpacity: 0.56,
+    shadowRadius: 30,
+    shadowOffset: { width: 0, height: 20 },
+    elevation: 22,
   },
   headerRow: {
     flexDirection: "row",
@@ -200,16 +212,16 @@ const styles = StyleSheet.create({
   },
   titleWrap: {
     flex: 1,
-    gap: 6,
+    gap: 5,
   },
   titlePill: {
     alignSelf: "flex-start",
-    backgroundColor: "rgba(255,255,255,0.1)",
+    backgroundColor: "rgba(255,255,255,0.12)",
     borderRadius: 20,
     paddingHorizontal: 14,
     paddingVertical: 9,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.14)",
+    borderColor: "rgba(255,255,255,0.18)",
   },
   title: {
     color: "#FFFFFF",
@@ -217,20 +229,28 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   subtitle: {
-    color: theme.colors.subtext,
-    fontSize: 12,
+    color: "rgba(255,255,255,0.58)",
+    fontSize: 11,
     fontWeight: "700",
+    paddingHorizontal: 2,
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+  },
+  subtitleStrong: {
+    color: "#F3F4F6",
+    fontSize: 12,
+    fontWeight: "800",
     paddingHorizontal: 2,
   },
   closeButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.08)",
+    backgroundColor: "rgba(255,255,255,0.12)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.14)",
+    borderColor: "rgba(255,255,255,0.18)",
   },
   content: {
     gap: 12,
@@ -246,25 +266,25 @@ const styles = StyleSheet.create({
   button: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 14,
-    paddingVertical: 13,
+    paddingHorizontal: 15,
+    paddingVertical: 14,
     borderRadius: 18,
-    backgroundColor: "rgba(255,255,255,0.08)",
+    backgroundColor: "rgba(255,255,255,0.10)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
+    borderColor: "rgba(255,255,255,0.16)",
     shadowColor: "#000000",
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
+    shadowOpacity: 0.16,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 4,
   },
   primaryButton: {
-    backgroundColor: "rgba(255, 78, 138, 0.24)",
-    borderColor: "rgba(255, 78, 138, 0.3)",
+    backgroundColor: "rgba(255, 78, 138, 0.28)",
+    borderColor: "rgba(255, 78, 138, 0.36)",
   },
   dangerButton: {
-    backgroundColor: "rgba(255, 77, 103, 0.08)",
-    borderColor: "rgba(255, 77, 103, 0.16)",
+    backgroundColor: "rgba(255, 77, 103, 0.10)",
+    borderColor: "rgba(255, 77, 103, 0.22)",
   },
   iconWrap: {
     width: 36,
@@ -273,17 +293,17 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(0,0,0,0.16)",
+    backgroundColor: "rgba(255,255,255,0.08)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
+    borderColor: "rgba(255,255,255,0.16)",
   },
   primaryIconWrap: {
-    backgroundColor: "rgba(255,255,255,0.12)",
-    borderColor: "rgba(255,255,255,0.16)",
+    backgroundColor: "rgba(255,255,255,0.14)",
+    borderColor: "rgba(255,255,255,0.2)",
   },
   dangerIconWrap: {
     backgroundColor: "rgba(255, 77, 103, 0.12)",
-    borderColor: "rgba(255, 77, 103, 0.16)",
+    borderColor: "rgba(255, 77, 103, 0.22)",
   },
   buttonText: {
     color: "#FFFFFF",
@@ -298,9 +318,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: theme.shapes.pill,
-    backgroundColor: "rgba(255,255,255,0.12)",
+    backgroundColor: "rgba(255,255,255,0.16)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.16)",
+    borderColor: "rgba(255,255,255,0.22)",
   },
   localeBadgeText: {
     color: "#FFFFFF",

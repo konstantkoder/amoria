@@ -271,10 +271,10 @@ const styles = StyleSheet.create({
   heroCard: {
     borderRadius: theme.shapes.card,
     padding: 16,
-    backgroundColor: "rgba(28, 17, 23, 0.9)",
+    backgroundColor: "rgba(30, 18, 24, 0.94)",
     borderWidth: 1,
-    borderColor: "rgba(255,122,60,0.16)",
-    gap: 12,
+    borderColor: "rgba(255,122,60,0.20)",
+    gap: 14,
   },
   heroTop: {
     gap: 8,
@@ -361,9 +361,9 @@ const styles = StyleSheet.create({
   card: {
     borderRadius: theme.shapes.card,
     padding: 15,
-    backgroundColor: "rgba(26, 17, 22, 0.92)",
+    backgroundColor: "rgba(24, 17, 22, 0.94)",
     borderWidth: 1,
-    borderColor: "rgba(255,122,60,0.12)",
+    borderColor: "rgba(255,122,60,0.16)",
     gap: 12,
   },
   cardHighlighted: {
@@ -481,9 +481,9 @@ const styles = StyleSheet.create({
     borderRadius: theme.shapes.pill,
     paddingHorizontal: 13,
     paddingVertical: 9,
-    backgroundColor: "rgba(255,122,60,0.18)",
+    backgroundColor: "rgba(255,122,60,0.20)",
     borderWidth: 1,
-    borderColor: "rgba(255,122,60,0.24)",
+    borderColor: "rgba(255,122,60,0.30)",
   },
   openButtonText: {
     color: "#FFF4EC",

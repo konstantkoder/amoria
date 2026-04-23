@@ -473,7 +473,8 @@ export default function RoomsScreen() {
 
       const requestId = locationRequestIdRef.current + 1;
       const allowPermissionPrompt = options?.allowPermissionPrompt !== false;
-      const hadStablePosition = Boolean(pos);
+      const stablePosition = pos;
+      const hadStablePosition = Boolean(stablePosition);
       locationRequestIdRef.current = requestId;
       locationInFlightRequestIdRef.current = requestId;
 
@@ -599,7 +600,7 @@ export default function RoomsScreen() {
             const msg = String(e?.message ?? "");
             setPosError(getRoomsLocationErrorBody(msg, t));
           }
-          return appliedPosition;
+          return appliedPosition ?? stablePosition;
         } finally {
           if (locationInFlightRequestIdRef.current === requestId) {
             locationInFlightRequestIdRef.current = null;
@@ -726,6 +727,7 @@ export default function RoomsScreen() {
   }, [stopLocationActivity, updatePrefs]);
 
   const handleEnableNearby = useCallback(async () => {
+    if (posLoading || posRefreshing) return;
     setJoinError(null);
     if (prefs.consent !== "accepted") {
       openConsentFlow({ type: "enableNearby" });
@@ -733,9 +735,10 @@ export default function RoomsScreen() {
     }
     await enableNearbyPreference();
     void ensurePosition({ allowPermissionPrompt: true });
-  }, [prefs.consent, enableNearbyPreference, ensurePosition, openConsentFlow]);
+  }, [enableNearbyPreference, ensurePosition, openConsentFlow, posLoading, posRefreshing, prefs.consent]);
 
   const handleRefreshPosition = useCallback(async () => {
+    if (posLoading || posRefreshing) return;
     setJoinError(null);
     if (!prefs.nearbyEnabled) {
       await handleEnableNearby();
@@ -752,6 +755,8 @@ export default function RoomsScreen() {
     handleEnableNearby,
     ensurePosition,
     openConsentFlow,
+    posLoading,
+    posRefreshing,
   ]);
 
   useEffect(() => {

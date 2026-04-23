@@ -108,9 +108,9 @@ const styles = StyleSheet.create({
   overviewCard: {
     borderRadius: theme.shapes.card,
     padding: 16,
-    backgroundColor: "rgba(11, 16, 30, 0.88)",
+    backgroundColor: "rgba(12, 17, 33, 0.92)",
     borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
+    borderColor: "rgba(96,165,250,0.18)",
     gap: 12,
   },
   overviewTop: {
@@ -124,12 +124,12 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(255, 122, 60, 0.12)",
+    backgroundColor: "rgba(96,165,250,0.12)",
     borderWidth: 1,
-    borderColor: "rgba(255, 122, 60, 0.20)",
+    borderColor: "rgba(96,165,250,0.22)",
   },
   heroKicker: {
-    color: theme.colors.accent,
+    color: "#CDE1FF",
     fontSize: 10,
     fontWeight: "800",
     letterSpacing: 0.8,
@@ -170,9 +170,9 @@ const styles = StyleSheet.create({
   ctaCard: {
     borderRadius: theme.shapes.card,
     padding: 16,
-    backgroundColor: "rgba(18, 20, 36, 0.92)",
+    backgroundColor: "rgba(16, 22, 40, 0.94)",
     borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
+    borderColor: "rgba(96,165,250,0.16)",
     gap: 12,
   },
   ctaCopy: {

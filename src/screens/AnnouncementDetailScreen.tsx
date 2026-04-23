@@ -383,34 +383,47 @@ export default function AnnouncementDetailScreen() {
               </View>
             </View>
 
-            {announcement.hasPhoto || announcement.photoUri ? (
-              <View style={styles.mediaCard}>
-                <View
-                  style={[styles.mediaTile, announcement.hasPhoto ? styles.mediaTileActive : null]}
-                >
-                  {announcement.photoUri ? (
-                    <Image source={{ uri: announcement.photoUri }} style={styles.mediaImage} />
-                  ) : (
-                    <Ionicons name="image-outline" size={24} color={theme.colors.accent} />
-                  )}
-                </View>
-                <View style={styles.mediaCopy}>
-                  <Text style={styles.sectionLabel}>
-                    {copyOrFallback(t, "nearby.detail.photoLabel", "Формат")}
-                  </Text>
-                  <Text style={styles.mediaTitle}>
-                    {copyOrFallback(t, "nearby.detail.photoYes", "С фото")}
-                  </Text>
-                  <Text style={styles.mediaBody}>
-                    {copyOrFallback(
-                      t,
-                      "nearby.detail.photoWithBody",
-                      "Фото помогает быстрее понять формат объявления и контекст встречи."
-                    )}
-                  </Text>
-                </View>
+            <View style={styles.mediaCard}>
+              <View
+                style={[
+                  styles.mediaTile,
+                  announcement.hasPhoto ? styles.mediaTileActive : styles.mediaTileIdle,
+                ]}
+              >
+                {announcement.photoUri ? (
+                  <Image source={{ uri: announcement.photoUri }} style={styles.mediaImage} />
+                ) : (
+                  <Ionicons
+                    name="document-text-outline"
+                    size={24}
+                    color={announcement.hasPhoto ? theme.colors.accent : theme.colors.subtext}
+                  />
+                )}
               </View>
-            ) : null}
+              <View style={styles.mediaCopy}>
+                <Text style={styles.sectionLabel}>
+                  {copyOrFallback(t, "nearby.detail.photoLabel", "Формат")}
+                </Text>
+                <Text style={styles.mediaTitle}>
+                  {announcement.hasPhoto || announcement.photoUri
+                    ? copyOrFallback(t, "nearby.detail.photoYes", "С фото")
+                    : copyOrFallback(t, "nearby.detail.photoNo", "Без фото")}
+                </Text>
+                <Text style={styles.mediaBody}>
+                  {announcement.hasPhoto || announcement.photoUri
+                    ? copyOrFallback(
+                        t,
+                        "nearby.detail.photoWithBody",
+                        "Фото помогает быстрее понять формат объявления и контекст встречи."
+                      )
+                    : copyOrFallback(
+                        t,
+                        "nearby.detail.photoWithoutBody",
+                        "Это текстовое объявление. Весь смысл уже раскрыт в описании ниже."
+                      )}
+                </Text>
+              </View>
+            </View>
 
             <View style={styles.detailsCard}>
               <Text style={styles.sectionLabel}>
@@ -480,7 +493,11 @@ export default function AnnouncementDetailScreen() {
             <CoreStateCard
               loading
               icon="document-text-outline"
-              title={copyOrFallback(t, "nearby.loading", "Собираем Nearby…")}
+              title={copyOrFallback(
+                t,
+                "nearby.detail.loadingTitle",
+                "Подтягиваем объявление"
+              )}
               body={copyOrFallback(
                 t,
                 "nearby.detail.loadingBody",
@@ -599,6 +616,10 @@ const styles = StyleSheet.create({
   mediaTileActive: {
     backgroundColor: "rgba(255,122,60,0.08)",
     borderColor: "rgba(255,122,60,0.18)",
+  },
+  mediaTileIdle: {
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderColor: theme.colors.borderSubtle,
   },
   mediaImage: {
     width: "100%",

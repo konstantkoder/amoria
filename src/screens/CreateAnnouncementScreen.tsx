@@ -103,8 +103,10 @@ export default function CreateAnnouncementScreen() {
     if (!pendingPhotoRevealRef.current) return;
     pendingPhotoRevealRef.current = false;
     requestAnimationFrame(() => {
+      const nextTarget =
+        targetY ?? (previewCardYRef.current > 0 ? previewCardYRef.current : photoSectionYRef.current);
       scrollRef.current?.scrollTo({
-        y: Math.max((targetY ?? photoSectionYRef.current) - 20, 0),
+        y: Math.max(nextTarget - 20, 0),
         animated: true,
       });
     });
@@ -186,15 +188,15 @@ export default function CreateAnnouncementScreen() {
 
     setSaving(true);
     try {
-        const createdAnnouncement = await nearbyAnnouncementsRepository.createAnnouncement({
-          title: trimmedTitle,
-          description: trimmedDescription,
-          category,
-          placeLabel: trimmedPlaceLabel,
-          authorLabel,
-          authorUid: currentUid,
-          ...(photoUri ? { photoUri } : {}),
-        });
+      const createdAnnouncement = await nearbyAnnouncementsRepository.createAnnouncement({
+        title: trimmedTitle,
+        description: trimmedDescription,
+        category,
+        placeLabel: trimmedPlaceLabel,
+        authorLabel,
+        authorUid: currentUid,
+        ...(photoUri ? { photoUri } : {}),
+      });
 
       openNearbyAnnouncements(navigation, createdAnnouncement.id);
     } catch {
@@ -233,6 +235,7 @@ export default function CreateAnnouncementScreen() {
         style={{ flex: 1 }}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         <View style={styles.introCard}>
           <Text style={styles.introKicker}>
@@ -398,6 +401,18 @@ export default function CreateAnnouncementScreen() {
             <Text style={styles.previewKicker}>
               {copyOrFallback(t, "nearby.create.previewKicker", "Как это увидят рядом")}
             </Text>
+            {photoUri ? (
+              <View style={styles.previewPhotoNotice}>
+                <Ionicons name="checkmark-circle" size={16} color={theme.colors.success} />
+                <Text style={styles.previewPhotoNoticeText}>
+                  {copyOrFallback(
+                    t,
+                    "nearby.create.previewPhotoNotice",
+                    "Фото уже прикреплено и сразу попадёт в карточку объявления."
+                  )}
+                </Text>
+              </View>
+            ) : null}
             <View style={styles.previewListing}>
               <View style={styles.previewTop}>
                 <View style={styles.previewCopy}>
@@ -659,6 +674,24 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "800",
   },
+  previewPhotoNotice: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    borderRadius: theme.shapes.cardInner,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: "rgba(70,224,200,0.10)",
+    borderWidth: 1,
+    borderColor: "rgba(70,224,200,0.20)",
+  },
+  previewPhotoNoticeText: {
+    flex: 1,
+    color: "#D7FFF6",
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: "700",
+  },
   previewListing: {
     gap: 10,
   },
@@ -717,7 +750,7 @@ const styles = StyleSheet.create({
   },
   previewMediaTile: {
     width: 74,
-    minHeight: 74,
+    minHeight: 82,
     borderRadius: 16,
     backgroundColor: "rgba(255,255,255,0.04)",
     borderWidth: 1,
@@ -733,7 +766,7 @@ const styles = StyleSheet.create({
   },
   previewMediaImage: {
     width: "100%",
-    height: 42,
+    height: 50,
     borderRadius: 12,
   },
   previewMediaText: {
