@@ -1114,6 +1114,8 @@ function buildChainDrawPatch(turn: PlayChainTurnState) {
 
 function asPlayQueueDoc(id: string, raw: unknown): PlayQueueDoc {
   const data = (raw ?? {}) as Partial<PlayQueueDoc>;
+  const status =
+    data.status === "matched" || data.status === "cancelled" ? data.status : "waiting";
   const nickname =
     typeof data.nickname === "string" && data.nickname.trim()
       ? data.nickname.trim()
@@ -1126,9 +1128,9 @@ function asPlayQueueDoc(id: string, raw: unknown): PlayQueueDoc {
     activity: normalizePlayActivity(data.activity),
     createdAt: Number(data.createdAt ?? 0),
     updatedAt: Number(data.updatedAt ?? 0),
-    status: (data.status ?? "waiting") as PlayQueueStatus,
+    status,
     ...(nickname ? { nickname } : {}),
-    ...(data.sessionId ? { sessionId: String(data.sessionId) } : {}),
+    ...(status === "matched" && data.sessionId ? { sessionId: String(data.sessionId) } : {}),
   };
 }
 
@@ -1259,30 +1261,30 @@ export async function enqueuePlayRequest(
       updatedAt: now,
       status: "waiting" satisfies PlayQueueStatus,
       ...(nickname?.trim() ? { nickname: nickname.trim() } : {}),
-    },
-    { merge: true }
+    }
   );
 }
 
 export async function cancelPlayRequest(db: Firestore, uid: string): Promise<void> {
   const queueRef = doc(db, "playQueue", uid);
   await runTransaction(db, async (tx) => {
+    const now = Date.now();
     const snapshot = await tx.get(queueRef);
     if (!snapshot.exists()) return;
 
     const current = asPlayQueueDoc(snapshot.id, snapshot.data());
     if (current.status === "matched" && current.sessionId) return;
     if (current.status === "cancelled") return;
+    const createdAt = current.createdAt > 0 ? current.createdAt : now;
 
-    tx.set(
-      queueRef,
-      {
-        uid,
-        updatedAt: Date.now(),
-        status: "cancelled" satisfies PlayQueueStatus,
-      },
-      { merge: true }
-    );
+    tx.set(queueRef, {
+      uid,
+      activity: current.activity,
+      createdAt,
+      updatedAt: now,
+      status: "cancelled" satisfies PlayQueueStatus,
+      ...(current.nickname?.trim() ? { nickname: current.nickname.trim() } : {}),
+    });
   });
 }
 
@@ -1349,21 +1351,17 @@ export async function tryMatchWaitingPlayer(
 
     if (!candidateData) {
       const createdAt = ownSnapshot.exists()
-        ? Number(ownSnapshot.data().createdAt ?? now)
+        ? Math.max(Number(ownSnapshot.data().createdAt ?? 0), 0) || now
         : now;
 
-      tx.set(
-        queueRef,
-        {
-          uid,
-          activity,
-          createdAt,
-          updatedAt: now,
-          status: "waiting" satisfies PlayQueueStatus,
-          ...(nickname.trim() ? { nickname: nickname.trim() } : {}),
-        },
-        { merge: true }
-      );
+      tx.set(queueRef, {
+        uid,
+        activity,
+        createdAt,
+        updatedAt: now,
+        status: "waiting" satisfies PlayQueueStatus,
+        ...(nickname.trim() ? { nickname: nickname.trim() } : {}),
+      });
 
       return { sessionId: "", matched: false };
     }
@@ -1404,30 +1402,27 @@ export async function tryMatchWaitingPlayer(
       ...(chainDrawState ? buildChainDrawPatch(chainDrawState) : {}),
     });
 
-    tx.set(
-      doc(db, "playQueue", candidateData.uid),
-      {
-        updatedAt: now,
-        status: "matched" satisfies PlayQueueStatus,
-        sessionId,
-      },
-      { merge: true }
-    );
+    tx.set(doc(db, "playQueue", candidateData.uid), {
+      uid: candidateData.uid,
+      activity,
+      createdAt: candidateData.createdAt > 0 ? candidateData.createdAt : now,
+      updatedAt: now,
+      status: "matched" satisfies PlayQueueStatus,
+      ...(candidateData.nickname?.trim() ? { nickname: candidateData.nickname.trim() } : {}),
+      sessionId,
+    });
 
-    tx.set(
-      queueRef,
-      {
-        uid,
-        activity,
-        createdAt: ownSnapshot.exists()
-          ? Number(ownSnapshot.data().createdAt ?? now)
-          : now,
-        updatedAt: now,
-        status: "matched" satisfies PlayQueueStatus,
-        sessionId,
-      },
-      { merge: true }
-    );
+    tx.set(queueRef, {
+      uid,
+      activity,
+      createdAt: ownSnapshot.exists()
+        ? Math.max(Number(ownSnapshot.data().createdAt ?? 0), 0) || now
+        : now,
+      updatedAt: now,
+      status: "matched" satisfies PlayQueueStatus,
+      ...(nickname.trim() ? { nickname: nickname.trim() } : {}),
+      sessionId,
+    });
 
     return { sessionId, matched: true };
   });

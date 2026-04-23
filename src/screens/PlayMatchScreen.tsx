@@ -298,7 +298,7 @@ export default function PlayMatchScreen() {
     cancellingPromiseRef.current = task;
     await task;
     cancellingPromiseRef.current = null;
-  }, [uid]);
+  }, [db, uid]);
 
   const enterSession = React.useCallback(
     (nextSessionId: string) => {
@@ -367,24 +367,32 @@ export default function PlayMatchScreen() {
     setBusySafe(true);
     setStatusSafe("searching");
 
-    const unsubscribe = subscribeOwnQueueEntry(db!, uid, (entry) => {
-      if (entry?.status === "cancelled" && !matchedSessionRef.current) {
-        setQueueCancelled(true);
-        setStatusSafe("cancelled");
-        setBusySafe(false);
-        return;
-      }
-
-      if (entry?.sessionId) {
-        setStatusSafe("found");
-        enterSession(entry.sessionId);
-      }
-    });
+    let unsubscribe = () => {};
 
     void (async () => {
       try {
         await enqueuePlayRequest(db!, uid, activity, nickname);
         if (!mountedRef.current || cancelledRef.current || matchedSessionRef.current) {
+          await cancelQueue();
+          return;
+        }
+
+        unsubscribe = subscribeOwnQueueEntry(db!, uid, (entry) => {
+          if (entry?.status === "cancelled" && !matchedSessionRef.current) {
+            setQueueCancelled(true);
+            setStatusSafe("cancelled");
+            setBusySafe(false);
+            return;
+          }
+
+          if (entry?.status === "matched" && entry.sessionId) {
+            setStatusSafe("found");
+            enterSession(entry.sessionId);
+          }
+        });
+
+        if (!mountedRef.current || cancelledRef.current || matchedSessionRef.current) {
+          unsubscribe();
           await cancelQueue();
           return;
         }
