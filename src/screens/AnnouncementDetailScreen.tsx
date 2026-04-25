@@ -149,6 +149,8 @@ export default function AnnouncementDetailScreen() {
   const [loading, setLoading] = React.useState(!initialAnnouncement);
   const [respondedAt, setRespondedAt] = React.useState<number | null>(null);
   const [responding, setResponding] = React.useState(false);
+  const [loadError, setLoadError] = React.useState<string | null>(null);
+  const [responseError, setResponseError] = React.useState<string | null>(null);
   const [responseModeOverride, setResponseModeOverride] =
     React.useState<AnnouncementResponseMode | null>(null);
 
@@ -165,24 +167,44 @@ export default function AnnouncementDetailScreen() {
       }
 
       setLoading(true);
+      setLoadError(null);
+      setResponseError(null);
       setResponseModeOverride(null);
       void Promise.all([
         nearbyAnnouncementsRepository.getAnnouncementById(announcementId),
-        nearbyAnnouncementsRepository.getAnnouncementResponseState(
-          announcementId,
-          currentUid || "guest"
-        ),
-      ]).then(([nextAnnouncement, responseState]) => {
-        if (!alive) return;
-        setAnnouncement(nextAnnouncement);
-        setRespondedAt(responseState.respondedAt);
-        setLoading(false);
-      });
+        currentUid
+          ? nearbyAnnouncementsRepository.getAnnouncementResponseState(
+              announcementId,
+              currentUid
+            )
+          : Promise.resolve({ respondedAt: null, hasResponded: false }),
+      ])
+        .then(([nextAnnouncement, responseState]) => {
+          if (!alive) return;
+          setAnnouncement(nextAnnouncement);
+          setRespondedAt(responseState.respondedAt);
+        })
+        .catch(() => {
+          if (!alive) return;
+          setAnnouncement(null);
+          setRespondedAt(null);
+          setLoadError(
+            copyOrFallback(
+              t,
+              "nearby.detail.loadErrorBody",
+              "Не удалось загрузить это объявление из Firestore. Попробуй ещё раз позже."
+            )
+          );
+        })
+        .finally(() => {
+          if (!alive) return;
+          setLoading(false);
+        });
 
       return () => {
         alive = false;
       };
-    }, [announcementId, currentUid])
+    }, [announcementId, currentUid, t])
   );
 
   const handleBack = React.useCallback(() => {
@@ -246,15 +268,6 @@ export default function AnnouncementDetailScreen() {
       : formattedCurrentNickname;
   }, [currentDisplayName, currentNicknameCode, formattedCurrentNickname, t]);
 
-  const persistResponseInterest = React.useCallback(async () => {
-    if (hasResponded || !currentUid) return;
-    const responseState = await nearbyAnnouncementsRepository.markAnnouncementResponded(
-      announcementId,
-      currentUid
-    );
-    setRespondedAt(responseState.respondedAt);
-  }, [announcementId, currentUid, hasResponded]);
-
   const responsePresentation = React.useMemo(
     () => buildAnnouncementResponsePresentation(t, responseMode, hasResponded),
     [hasResponded, responseMode, t]
@@ -277,6 +290,7 @@ export default function AnnouncementDetailScreen() {
         }
 
         setResponding(true);
+        setResponseError(null);
         try {
           const threadId = await ensureDmThread(db, currentUid, announcementAuthorUid, {
             memberNames: {
@@ -285,6 +299,12 @@ export default function AnnouncementDetailScreen() {
             },
             source: "announcement",
           });
+          const responseState =
+            await nearbyAnnouncementsRepository.respondToAnnouncement(announcementId, {
+              uid: currentUid,
+              dmThreadId: threadId,
+            });
+          setRespondedAt(responseState.respondedAt);
 
           navigation.navigate(
             "DMChat",
@@ -298,12 +318,14 @@ export default function AnnouncementDetailScreen() {
               },
             })
           );
-
-          if (!hasResponded) {
-            void persistResponseInterest().catch(() => {});
-          }
         } catch {
-          setResponseModeOverride("unavailable");
+          setResponseError(
+            copyOrFallback(
+              t,
+              "nearby.detail.responseErrorBody",
+              "Не удалось отправить отклик и открыть чат. Попробуй ещё раз чуть позже."
+            )
+          );
         } finally {
           setResponding(false);
         }
@@ -314,14 +336,37 @@ export default function AnnouncementDetailScreen() {
     currentAuthorLabel,
     currentUid,
     handleBack,
-    hasResponded,
+    announcementId,
     navigation,
-    persistResponseInterest,
     responding,
     responseMode,
+    t,
   ]);
 
   const screenTitle = copyOrFallback(t, "nearby.detail.title", "Объявление");
+  const announcementPhotoUrl = announcement?.photoUrl ?? announcement?.photoUri ?? "";
+
+  if (!loading && loadError) {
+    return (
+      <ScreenShell title={screenTitle} background="ads" showBack onBack={handleBack}>
+        <View style={styles.centerState}>
+          <CoreStateCard
+            icon="cloud-offline-outline"
+            title={copyOrFallback(
+              t,
+              "nearby.detail.loadErrorTitle",
+              "Объявление временно недоступно"
+            )}
+            body={loadError}
+            primaryAction={{
+              label: copyOrFallback(t, "nearby.detail.backToList", "К объявлениям"),
+              onPress: handleBack,
+            }}
+          />
+        </View>
+      </ScreenShell>
+    );
+  }
 
   if (!loading && !announcement) {
     return (
@@ -394,8 +439,8 @@ export default function AnnouncementDetailScreen() {
                   announcement.hasPhoto ? styles.mediaTileActive : styles.mediaTileIdle,
                 ]}
               >
-                {announcement.photoUri ? (
-                  <Image source={{ uri: announcement.photoUri }} style={styles.mediaImage} />
+                {announcementPhotoUrl ? (
+                  <Image source={{ uri: announcementPhotoUrl }} style={styles.mediaImage} />
                 ) : (
                   <Ionicons
                     name="document-text-outline"
@@ -409,12 +454,12 @@ export default function AnnouncementDetailScreen() {
                   {copyOrFallback(t, "nearby.detail.photoLabel", "Формат")}
                 </Text>
                 <Text style={styles.mediaTitle}>
-                  {announcement.hasPhoto || announcement.photoUri
+                  {announcement.hasPhoto || announcementPhotoUrl
                     ? copyOrFallback(t, "nearby.detail.photoYes", "С фото")
                     : copyOrFallback(t, "nearby.detail.photoNo", "Без фото")}
                 </Text>
                 <Text style={styles.mediaBody}>
-                  {announcement.hasPhoto || announcement.photoUri
+                  {announcement.hasPhoto || announcementPhotoUrl
                     ? copyOrFallback(
                         t,
                         "nearby.detail.photoWithBody",
@@ -467,6 +512,9 @@ export default function AnnouncementDetailScreen() {
             <View style={styles.responseCard}>
               <Text style={styles.responseTitle}>{responsePresentation.title}</Text>
               <Text style={styles.responseBody}>{responsePresentation.body}</Text>
+              {responseError ? (
+                <Text style={styles.responseErrorText}>{responseError}</Text>
+              ) : null}
 
               <Pressable
                 onPress={() => void handleRespond()}
@@ -711,6 +759,12 @@ const styles = StyleSheet.create({
     color: theme.colors.subtext,
     fontSize: 13,
     lineHeight: 20,
+  },
+  responseErrorText: {
+    color: "#FCA5A5",
+    fontSize: 12,
+    lineHeight: 18,
+    fontWeight: "700",
   },
   primaryButton: {
     alignSelf: "stretch",

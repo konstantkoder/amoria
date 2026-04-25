@@ -42,6 +42,39 @@ function copyOrFallback(
   return value === key ? fallback : value;
 }
 
+function getPublishErrorCopy(
+  t: (key: string, params?: Record<string, string>) => string,
+  error: unknown
+) {
+  const message = String((error as { message?: string } | null)?.message ?? "");
+  if (
+    message.includes("photoUploadUnavailable") ||
+    message.includes("photoReadFailed")
+  ) {
+    return {
+      title: copyOrFallback(
+        t,
+        "nearby.create.photoUploadErrorTitle",
+        "Фото не удалось загрузить"
+      ),
+      body: copyOrFallback(
+        t,
+        "nearby.create.photoUploadErrorBody",
+        "Объявление не опубликовано. Убери фото и опубликуй без него или попробуй загрузить изображение позже."
+      ),
+    };
+  }
+
+  return {
+    title: copyOrFallback(t, "nearby.create.errorTitle", "Не удалось опубликовать"),
+    body: copyOrFallback(
+      t,
+      "nearby.create.errorBody",
+      "Firestore не сохранил объявление. Попробуй ещё раз чуть позже."
+    ),
+  };
+}
+
 export default function CreateAnnouncementScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"CreateAnnouncement">>();
   const { t } = useLocale();
@@ -199,15 +232,9 @@ export default function CreateAnnouncementScreen() {
       });
 
       openAnnouncements(navigation, createdAnnouncement.id);
-    } catch {
-      Alert.alert(
-        copyOrFallback(t, "nearby.create.errorTitle", "Не удалось опубликовать"),
-        copyOrFallback(
-          t,
-          "nearby.create.errorBody",
-          "Попробуй ещё раз чуть позже."
-        )
-      );
+    } catch (error) {
+      const errorCopy = getPublishErrorCopy(t, error);
+      Alert.alert(errorCopy.title, errorCopy.body);
     } finally {
       setSaving(false);
     }
@@ -279,7 +306,7 @@ export default function CreateAnnouncementScreen() {
                   {copyOrFallback(
                     t,
                     "nearby.create.photoAttachedHint",
-                    "Фото прикрепилось. Ниже уже видно, как карточка будет выглядеть в списке объявлений."
+                    "Фото выбрано для публикации. При сохранении оно будет загружено в Firebase Storage."
                   )}
                 </Text>
                 <View style={styles.photoActions}>
@@ -408,7 +435,7 @@ export default function CreateAnnouncementScreen() {
                   {copyOrFallback(
                     t,
                     "nearby.create.previewPhotoNotice",
-                    "Фото уже прикреплено и сразу попадёт в карточку объявления."
+                    "Фото выбрано для объявления. Публикация продолжится только после успешной загрузки."
                   )}
                 </Text>
               </View>
@@ -489,7 +516,7 @@ export default function CreateAnnouncementScreen() {
               ? copyOrFallback(
                   t,
                   "nearby.create.publishReadyHint",
-                  "После публикации вернёшься в раздел «Объявления», где карточка сразу появится в списке."
+                  "После успешной записи в Firestore вернёшься в раздел «Объявления», где карточка появится в общем списке."
                 )
               : copyOrFallback(
                   t,

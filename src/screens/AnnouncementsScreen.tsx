@@ -2,6 +2,7 @@ import React from "react";
 import { View } from "react-native";
 import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 
+import CoreStateCard from "@/components/CoreStateCard";
 import ScreenShell from "@/components/ScreenShell";
 import NearbyAnnouncementsSection from "@/components/nearby/NearbyAnnouncementsSection";
 import { useLocale } from "@/contexts/LocaleContext";
@@ -40,18 +41,39 @@ export default function AnnouncementsScreen() {
   const [highlightedAnnouncementId, setHighlightedAnnouncementId] = React.useState<
     NearbyAnnouncement["id"] | null
   >(null);
+  const [loading, setLoading] = React.useState(true);
+  const [loadError, setLoadError] = React.useState<string | null>(null);
 
   useFocusEffect(
     React.useCallback(() => {
       let alive = true;
-      void nearbyAnnouncementsRepository.listAnnouncements().then((next) => {
-        if (!alive) return;
-        setAnnouncements(next);
-      });
+      setLoading(true);
+      setLoadError(null);
+      void nearbyAnnouncementsRepository
+        .listAnnouncements()
+        .then((next) => {
+          if (!alive) return;
+          setAnnouncements(next);
+        })
+        .catch(() => {
+          if (!alive) return;
+          setAnnouncements([]);
+          setLoadError(
+            copyOrFallback(
+              t,
+              "nearby.announcements.loadErrorBody",
+              "Не удалось загрузить общие объявления из Firestore. Попробуй ещё раз позже."
+            )
+          );
+        })
+        .finally(() => {
+          if (!alive) return;
+          setLoading(false);
+        });
       return () => {
         alive = false;
       };
-    }, [])
+    }, [t])
   );
 
   React.useEffect(() => {
@@ -89,17 +111,67 @@ export default function AnnouncementsScreen() {
       blurRadius={0}
     >
       <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 2, paddingBottom: 6 }}>
-        <NearbyAnnouncementsSection
-          items={visibleAnnouncements}
-          activeCategory={announcementCategory}
-          highlightedId={highlightedAnnouncementId}
-          onCategoryChange={setAnnouncementCategory}
-          onOpen={(item) => {
-            setHighlightedAnnouncementId(null);
-            openAnnouncementDetail(navigation, item);
-          }}
-          onCreate={() => openCreateAnnouncement(navigation)}
-        />
+        {loading ? (
+          <View style={{ flex: 1, justifyContent: "center", paddingHorizontal: 8 }}>
+            <CoreStateCard
+              loading
+              icon="document-text-outline"
+              title={copyOrFallback(t, "nearby.announcements.loadingTitle", "Загружаем объявления")}
+              body={copyOrFallback(
+                t,
+                "nearby.announcements.loadingBody",
+                "Подключаем общий список объявлений из Firestore."
+              )}
+            />
+          </View>
+        ) : loadError ? (
+          <View style={{ flex: 1, justifyContent: "center", paddingHorizontal: 8 }}>
+            <CoreStateCard
+              icon="cloud-offline-outline"
+              title={copyOrFallback(
+                t,
+                "nearby.announcements.loadErrorTitle",
+                "Объявления временно недоступны"
+              )}
+              body={loadError}
+              primaryAction={{
+                label: copyOrFallback(t, "common.retry", "Повторить"),
+                onPress: () => {
+                  setLoading(true);
+                  setLoadError(null);
+                  void nearbyAnnouncementsRepository
+                    .listAnnouncements()
+                    .then((next) => {
+                      setAnnouncements(next);
+                    })
+                    .catch(() => {
+                      setAnnouncements([]);
+                      setLoadError(
+                        copyOrFallback(
+                          t,
+                          "nearby.announcements.loadErrorBody",
+                          "Не удалось загрузить общие объявления из Firestore. Попробуй ещё раз позже."
+                        )
+                      );
+                    })
+                    .finally(() => setLoading(false));
+                },
+              }}
+            />
+          </View>
+        ) : (
+          <NearbyAnnouncementsSection
+            items={visibleAnnouncements}
+            activeCategory={announcementCategory}
+            highlightedId={highlightedAnnouncementId}
+            onCategoryChange={setAnnouncementCategory}
+            onOpen={(item) => {
+              setHighlightedAnnouncementId(null);
+              openAnnouncementDetail(navigation, item);
+            }}
+            onCreate={() => openCreateAnnouncement(navigation)}
+          />
+        )}
       </View>
     </ScreenShell>
   );

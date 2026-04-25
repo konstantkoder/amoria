@@ -169,6 +169,7 @@ export default function NearbyAnnouncementsSection({
       {items.length ? (
         items.map((item) => {
           const highlighted = highlightedId === item.id;
+          const photoUrl = item.photoUrl ?? item.photoUri ?? "";
           const facts = [item.authorLabel, item.placeLabel || fallbackPlaceLabel, item.proximityLabel]
             .filter((value): value is string => Boolean(value))
             .join(" • ");
@@ -208,8 +209,8 @@ export default function NearbyAnnouncementsSection({
                 </View>
 
                 <View style={[styles.mediaTile, item.hasPhoto ? styles.mediaTileActive : null]}>
-                  {item.photoUri ? (
-                    <Image source={{ uri: item.photoUri }} style={styles.mediaImage} />
+                  {photoUrl ? (
+                    <Image source={{ uri: photoUrl }} style={styles.mediaImage} />
                   ) : (
                     <Ionicons
                       name={item.hasPhoto ? "image-outline" : "document-text-outline"}
