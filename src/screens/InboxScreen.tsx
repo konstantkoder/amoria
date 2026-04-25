@@ -27,7 +27,7 @@ type InboxThreadCard = {
   id: string;
   peerId: string;
   peerName: string;
-  sourceKey: "play" | "announcement" | "direct";
+  sourceKey: "play" | "announcement" | "nearby" | "direct";
   activity?: PlayActivity;
   conversationLabel: string;
   previewText: string;
@@ -76,7 +76,9 @@ function mapThreadToCard(
         ? "play"
         : thread.source === "announcement"
           ? "announcement"
-          : "direct",
+          : thread.source === "nearby"
+            ? "nearby"
+            : "direct",
     ...(thread.artworkSummary?.activity
       ? { activity: thread.artworkSummary.activity }
       : {}),
@@ -181,53 +183,67 @@ export default function InboxScreen() {
         color_mood: tt("inbox.sourcePlayColorMood", "После палитры настроения"),
       },
       announcement: tt("inbox.sourceAnnouncement", "После объявления"),
-      direct: tt("inbox.sourceDefault", "Личный диалог"),
+      nearby: tt("inbox.sourceNearby", "Из Рядом"),
+      direct: tt("inbox.sourceDefault", "Личный чат"),
     }),
     [tt]
   );
   const goToTogether = useCallback(() => {
     navigation.navigate("Tabs", { screen: "Together" });
   }, [navigation]);
+  const goToAnnouncements = useCallback(() => {
+    navigation.navigate("Tabs", { screen: "Announcements" });
+  }, [navigation]);
 
   const renderHeroCard = () => (
     <View style={styles.heroCard}>
       <View style={styles.heroHeaderRow}>
         <Text style={styles.heroTitle}>
-          {tt("inbox.activeTitleCoreLoop", "Все личные разговоры")}
+          {tt("inbox.activeTitleCoreLoop", "Чаты")}
         </Text>
         <Text style={styles.heroCount}>{cards.length}</Text>
       </View>
       <Text style={styles.heroText}>
         {tt(
           "inbox.subheaderCoreLoop",
-          "Здесь собираются переписки после «Вместе», после объявлений и после сценариев рядом. Карточка показывает, откуда появился разговор, если такой контекст уже есть."
+          "Здесь собираются личные переписки после «Вместе», Объявлений и Рядом. Карточка показывает, откуда появился разговор, если такой контекст уже есть."
         )}
       </Text>
     </View>
   );
 
   const renderEmptyState = () => (
-      <View style={styles.emptyStateCard}>
-        <View style={styles.emptyStateIcon}>
-          <Ionicons name="chatbubble-ellipses-outline" size={22} color={theme.colors.accent} />
-        </View>
-        <Text style={styles.emptyStateTitle}>
-          {tt("inbox.emptyTitleCoreLoop", "Здесь появятся ваши личные разговоры")}
+    <View style={styles.emptyStateCard}>
+      <View style={styles.emptyStateIcon}>
+        <Ionicons name="chatbubble-ellipses-outline" size={22} color={theme.colors.accent} />
+      </View>
+      <Text style={styles.emptyStateTitle}>
+        {tt("inbox.emptyTitleCoreLoop", "Здесь появятся ваши личные разговоры")}
       </Text>
       <Text style={styles.emptyStateText}>
         {tt(
           "inbox.emptyBodyCoreLoop",
-          "Когда появится первый личный разговор, он останется здесь вместе с доступным контекстом: общая сессия, объявление или другой реальный источник."
+          "Здесь появятся личные разговоры после Вместе, Объявлений и Рядом."
         )}
       </Text>
-      <Pressable
-        onPress={goToTogether}
-        style={styles.emptyPrimaryButton}
-      >
-        <Text style={styles.emptyPrimaryButtonText}>
-          {tt("inbox.goToTogether", "Вернуться во Вместе")}
-        </Text>
-      </Pressable>
+      <View style={styles.emptyActions}>
+        <Pressable
+          onPress={goToTogether}
+          style={styles.emptyPrimaryButton}
+        >
+          <Text style={styles.emptyPrimaryButtonText}>
+            {tt("inbox.goToTogether", "Во Вместе")}
+          </Text>
+        </Pressable>
+        <Pressable
+          onPress={goToAnnouncements}
+          style={styles.emptySecondaryButton}
+        >
+          <Text style={styles.emptySecondaryButtonText}>
+            {tt("inbox.goToAnnouncements", "В Объявления")}
+          </Text>
+        </Pressable>
+      </View>
     </View>
   );
 
@@ -320,7 +336,9 @@ export default function InboxScreen() {
                   ? sourceLabels.play[item.activity ?? "draw"]
                   : item.sourceKey === "announcement"
                     ? sourceLabels.announcement
-                  : sourceLabels.direct}
+                    : item.sourceKey === "nearby"
+                      ? sourceLabels.nearby
+                      : sourceLabels.direct}
               </Text>
             </View>
           </View>
@@ -371,13 +389,13 @@ export default function InboxScreen() {
         <View style={{ flex: 1, paddingHorizontal: 16, justifyContent: "center" }}>
           <CoreStateCard
             icon="person-circle-outline"
-            title={tt("inbox.authRequiredTitle", "Диалоги доступны после входа")}
+            title={tt("inbox.authRequiredTitle", "Чаты доступны после входа")}
             body={tt(
               "inbox.authRequiredBodyCoreLoop",
-              "Войдите, чтобы увидеть свои личные разговоры и доступный контекст: после «Вместе», объявлений или сценариев рядом."
+              "Войдите, чтобы увидеть свои личные разговоры и доступный контекст после «Вместе», Объявлений или Рядом."
             )}
             primaryAction={{ label: t("menu.profile"), onPress: () => navigation.navigate("Profile") }}
-            secondaryAction={{ label: t("connections.goToTogether"), onPress: goToTogether }}
+            secondaryAction={{ label: tt("inbox.goToTogether", "Во Вместе"), onPress: goToTogether }}
           />
         </View>
       </ScreenShell>
@@ -393,12 +411,12 @@ export default function InboxScreen() {
         <View style={{ flex: 1, paddingHorizontal: 16, justifyContent: "center" }}>
           <CoreStateCard
             icon="cloud-offline-outline"
-            title={tt("inbox.errorTitle", "Диалоги временно недоступны")}
+            title={tt("inbox.errorTitle", "Чаты временно недоступны")}
             body={tt(
               "inbox.offlineBodyCoreLoop",
               "Сейчас не получается открыть личные разговоры. Попробуй позже или вернись во «Вместе»."
             )}
-            primaryAction={{ label: t("connections.goToTogether"), onPress: goToTogether }}
+            primaryAction={{ label: tt("inbox.goToTogether", "Во Вместе"), onPress: goToTogether }}
             secondaryAction={{ label: tt("common.retry", "Повторить"), onPress: () => setReloadKey((prev) => prev + 1) }}
           />
         </View>
@@ -443,14 +461,14 @@ export default function InboxScreen() {
           >
             <CoreStateCard
               icon="cloud-offline-outline"
-              title={tt("inbox.errorTitle", "Диалоги временно недоступны")}
+              title={tt("inbox.errorTitle", "Чаты временно недоступны")}
               body={error}
               primaryAction={{
                 label: tt("common.retry", "Повторить"),
                 onPress: () => setReloadKey((prev) => prev + 1),
               }}
               secondaryAction={{
-                label: t("connections.goToTogether"),
+                label: tt("inbox.goToTogether", "Во Вместе"),
                 onPress: goToTogether,
               }}
             />
@@ -534,6 +552,9 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 19,
   },
+  emptyActions: {
+    gap: 8,
+  },
   emptyPrimaryButton: {
     borderRadius: theme.shapes.pill,
     paddingHorizontal: 16,
@@ -544,6 +565,20 @@ const styles = StyleSheet.create({
   },
   emptyPrimaryButtonText: {
     color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  emptySecondaryButton: {
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.10)",
+    alignItems: "center",
+  },
+  emptySecondaryButtonText: {
+    color: theme.colors.text,
     fontSize: 14,
     fontWeight: "800",
   },

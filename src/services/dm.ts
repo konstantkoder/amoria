@@ -26,7 +26,7 @@ function normalizeArtworkActivity(value: unknown): PlayActivity {
   }
 }
 
-export type DmSource = "play" | "announcement";
+export type DmSource = "play" | "announcement" | "nearby";
 export type DmArtworkSummary = {
   activity: PlayActivity;
   strokeCount?: number;
@@ -93,7 +93,7 @@ function asDmThreadDoc(id: string, raw: unknown): DmThreadDoc {
             ])
           )
         : {},
-    ...(data.source === "play" || data.source === "announcement"
+    ...(data.source === "play" || data.source === "announcement" || data.source === "nearby"
       ? { source: data.source }
       : {}),
     ...(data.sourceSessionId ? { sourceSessionId: String(data.sourceSessionId) } : {}),
@@ -138,7 +138,9 @@ export function buildDmChatRouteParams(params: DmChatRouteParams): DmChatRoutePa
     threadId: String(params.threadId ?? ""),
     peerId: String(params.peerId ?? ""),
     ...(params.peerName?.trim() ? { peerName: params.peerName.trim() } : {}),
-    ...(params.sourceContext?.source === "play" || params.sourceContext?.source === "announcement"
+    ...(params.sourceContext?.source === "play" ||
+    params.sourceContext?.source === "announcement" ||
+    params.sourceContext?.source === "nearby"
       ? {
           sourceContext: {
             source: params.sourceContext.source,
@@ -353,7 +355,7 @@ export async function sendDmMessage(
           [from]: existing?.memberNames?.[from] || makeNickname(from),
           [to]: existing?.memberNames?.[to] || makeNickname(to),
         },
-        source: existing?.source ?? "play",
+        ...(existing?.source ? { source: existing.source } : {}),
         ...(existing?.sourceSessionId ? { sourceSessionId: existing.sourceSessionId } : {}),
         ...(existing?.artworkSummary ? { artworkSummary: existing.artworkSummary } : {}),
         createdAt: existing?.createdAt || now,

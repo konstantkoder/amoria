@@ -193,10 +193,18 @@ export default function DMChatScreen() {
     };
   }, [myId, peerId, routePeerName, t, thread]);
   const sourceContext = useMemo(() => {
-    if (routeSourceContext?.source === "play" || routeSourceContext?.source === "announcement") {
+    if (
+      routeSourceContext?.source === "play" ||
+      routeSourceContext?.source === "announcement" ||
+      routeSourceContext?.source === "nearby"
+    ) {
       return routeSourceContext;
     }
-    if (thread?.source === "play" || thread?.source === "announcement") {
+    if (
+      thread?.source === "play" ||
+      thread?.source === "announcement" ||
+      thread?.source === "nearby"
+    ) {
       return {
         source: thread.source,
         ...(thread.sourceSessionId ? { sourceSessionId: thread.sourceSessionId } : {}),
@@ -309,6 +317,9 @@ export default function DMChatScreen() {
       if (sourceContext?.source === "announcement") {
         return tt("dm.sourceAnnouncementEyebrow", "Контекст объявления");
       }
+      if (sourceContext?.source === "nearby") {
+        return tt("dm.sourceNearbyEyebrow", "Контекст Рядом");
+      }
       return "";
     },
     [sourceContext?.source, tt]
@@ -317,23 +328,32 @@ export default function DMChatScreen() {
     if (sourceContext?.source === "announcement") {
       return tt("dm.sourceAnnouncement", "Личный разговор после объявления");
     }
+    if (sourceContext?.source === "nearby") {
+      return tt("dm.sourceNearby", "Вы начали разговор из Рядом");
+    }
     if (sourceContext?.source !== "play") return "";
     if (sourceActivity === "color_mood") {
-      return tt("dm.sourcePlayColorMood", "Ваш личный разговор после общей палитры");
+      return tt("dm.sourcePlayColorMood", "Вы начали разговор после палитры настроения");
     }
     if (sourceActivity === "daily_prompt") {
-      return tt("dm.sourcePlayDailyPrompt", "Ваш личный разговор после общей темы дня");
+      return tt("dm.sourcePlayDailyPrompt", "Вы начали разговор после общей темы дня");
     }
     if (sourceActivity === "chain_draw") {
-      return tt("dm.sourcePlayChainDraw", "Ваш личный разговор после рисунка по очереди");
+      return tt("dm.sourcePlayChainDraw", "Вы начали разговор после рисунка по очереди");
     }
-    return tt("dm.sourcePlay", "Ваш личный разговор после совместной сессии");
+    return tt("dm.sourcePlay", "Вы начали разговор после общего рисунка");
   }, [sourceActivity, sourceContext?.source, tt]);
   const sourceMeta = useMemo(() => {
     if (sourceContext?.source === "announcement") {
       return tt(
         "dm.sourceAnnouncementBody",
-        "Этот чат открыт из объявления. Здесь продолжается личный ответ автору без отдельного раздела связи."
+        "Этот чат открыт из объявления. Личный ответ продолжается здесь, в Чатах."
+      );
+    }
+    if (sourceContext?.source === "nearby") {
+      return tt(
+        "dm.sourceNearbyBody",
+        "Этот чат открыт из Рядом. Личный разговор продолжается здесь, в Чатах."
       );
     }
     if (sourceContext?.source !== "play") return "";

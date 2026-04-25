@@ -21,6 +21,16 @@
 - Announcements
 - Chats
 
+## Chats / Чаты
+
+- Chats is the single home for all personal conversations.
+- Conversation sources:
+  - Together / Вместе: personal conversations after a shared drawing or mood palette.
+  - Announcements / Объявления: personal conversations after replying to an announcement.
+  - Nearby / Рядом: personal conversations after a real nearby contact is available.
+- Connections is not a separate bottom tab.
+- Shared stories, drawings, palettes, announcement origin, and nearby origin should appear as context inside the chat/conversation, not as a separate release surface.
+
 ## Removed From Release UI
 
 - Rooms
@@ -33,4 +43,5 @@
 - Announcements must be moved to real shared storage / backend model before release. The current implementation uses local AsyncStorage in `src/services/nearbyAnnouncements.ts`, so it is not yet a shared multi-user release model.
 - Chats must become the single place for conversations from Together, Announcements and Nearby.
 - Chats should surface connection/story context inside each conversation.
+- Nearby quick status should open chats when real nearby user identity is available.
 - Rooms is not part of the current release UI.
