@@ -29,6 +29,7 @@ import {
   type NearbyAnnouncementCategory,
 } from "@/services/nearbyAnnouncements";
 import { makeNickname } from "@/services/rooms";
+import { containsUnsafeAnnouncementContent } from "@/services/safety";
 import { theme } from "@/theme";
 import { formatNickname } from "@/utils/nickname";
 import { translateMaybeKey } from "@/utils/i18n";
@@ -214,6 +215,18 @@ export default function CreateAnnouncementScreen() {
           t,
           "nearby.create.fillBody",
           "Добавь заголовок и короткое описание, чтобы объявление выглядело понятным."
+        )
+      );
+      return;
+    }
+
+    if (containsUnsafeAnnouncementContent(trimmedTitle, trimmedDescription)) {
+      Alert.alert(
+        copyOrFallback(t, "safety.unsafeAnnouncementTitle", "Такой текст нельзя публиковать"),
+        copyOrFallback(
+          t,
+          "safety.unsafeAnnouncementBody",
+          "Объявления не могут предлагать сексуальные услуги или оплатные встречи."
         )
       );
       return;

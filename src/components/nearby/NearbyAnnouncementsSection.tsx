@@ -15,6 +15,7 @@ type Props = {
   items: NearbyAnnouncement[];
   activeCategory: NearbyAnnouncementCategory | "all";
   highlightedId?: NearbyAnnouncement["id"] | null;
+  blockedUserIds?: string[];
   onCategoryChange: (next: NearbyAnnouncementCategory | "all") => void;
   onOpen: (item: NearbyAnnouncement) => void;
   onCreate: () => void;
@@ -33,6 +34,7 @@ export default function NearbyAnnouncementsSection({
   items,
   activeCategory,
   highlightedId,
+  blockedUserIds = [],
   onCategoryChange,
   onOpen,
   onCreate,
@@ -57,6 +59,10 @@ export default function NearbyAnnouncementsSection({
     "nearby.placeFallback",
     "Место не указано"
   );
+  const visibleItems = useMemo(() => {
+    const blocked = new Set(blockedUserIds);
+    return items.filter((item) => item.status === "active" && !blocked.has(item.authorUid));
+  }, [blockedUserIds, items]);
   const emptyState = useMemo(() => {
     if (activeCategory === "all") {
       return {
@@ -126,7 +132,7 @@ export default function NearbyAnnouncementsSection({
                 t,
                 "nearby.announcements.count",
                 "{count} requests"
-              ).replace("{count}", String(items.length))}
+              ).replace("{count}", String(visibleItems.length))}
             </Text>
           </View>
           <Pressable onPress={onCreate} style={styles.primaryButton}>
@@ -166,8 +172,8 @@ export default function NearbyAnnouncementsSection({
         })}
       </ScrollView>
 
-      {items.length ? (
-        items.map((item) => {
+      {visibleItems.length ? (
+        visibleItems.map((item) => {
           const highlighted = highlightedId === item.id;
           const photoUrl = item.photoUrl ?? item.photoUri ?? "";
           const facts = [item.authorLabel, item.placeLabel || fallbackPlaceLabel, item.proximityLabel]

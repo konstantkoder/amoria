@@ -5,6 +5,7 @@ import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/nativ
 import CoreStateCard from "@/components/CoreStateCard";
 import ScreenShell from "@/components/ScreenShell";
 import NearbyAnnouncementsSection from "@/components/nearby/NearbyAnnouncementsSection";
+import { auth } from "@/config/firebaseConfig";
 import { useLocale } from "@/contexts/LocaleContext";
 import {
   type AnnouncementsTabNavigationProp,
@@ -20,6 +21,7 @@ import {
   type NearbyAnnouncement,
   type NearbyAnnouncementCategory,
 } from "@/services/nearbyAnnouncements";
+import { getBlockedUserIds } from "@/services/safety";
 
 function copyOrFallback(
   t: (key: string, params?: Record<string, string>) => string,
@@ -34,7 +36,9 @@ export default function AnnouncementsScreen() {
   const navigation = useNavigation<AnnouncementsTabNavigationProp>();
   const route = useRoute<AnnouncementsTabRouteProp>();
   const { t } = useLocale();
+  const currentUid = auth?.currentUser?.uid ?? "";
   const [announcements, setAnnouncements] = React.useState<NearbyAnnouncement[]>([]);
+  const [blockedUserIds, setBlockedUserIds] = React.useState<string[]>([]);
   const [announcementCategory, setAnnouncementCategory] = React.useState<
     NearbyAnnouncementCategory | "all"
   >("all");
@@ -49,15 +53,19 @@ export default function AnnouncementsScreen() {
       let alive = true;
       setLoading(true);
       setLoadError(null);
-      void nearbyAnnouncementsRepository
-        .listAnnouncements()
-        .then((next) => {
+      void Promise.all([
+        nearbyAnnouncementsRepository.listAnnouncements(),
+        currentUid ? getBlockedUserIds(currentUid) : Promise.resolve([]),
+      ])
+        .then(([next, blockedIds]) => {
           if (!alive) return;
           setAnnouncements(next);
+          setBlockedUserIds(blockedIds);
         })
         .catch(() => {
           if (!alive) return;
           setAnnouncements([]);
+          setBlockedUserIds([]);
           setLoadError(
             copyOrFallback(
               t,
@@ -73,7 +81,7 @@ export default function AnnouncementsScreen() {
       return () => {
         alive = false;
       };
-    }, [t])
+    }, [currentUid, t])
   );
 
   React.useEffect(() => {
@@ -96,11 +104,16 @@ export default function AnnouncementsScreen() {
   }, [highlightedAnnouncementId]);
 
   const visibleAnnouncements = React.useMemo(
-    () =>
-      announcementCategory === "all"
-        ? announcements
-        : announcements.filter((item) => item.category === announcementCategory),
-    [announcementCategory, announcements]
+    () => {
+      const blocked = new Set(blockedUserIds);
+      const activeAnnouncements = announcements.filter(
+        (item) => item.status === "active" && !blocked.has(item.authorUid)
+      );
+      return announcementCategory === "all"
+        ? activeAnnouncements
+        : activeAnnouncements.filter((item) => item.category === announcementCategory);
+    },
+    [announcementCategory, announcements, blockedUserIds]
   );
 
   return (
@@ -139,13 +152,17 @@ export default function AnnouncementsScreen() {
                 onPress: () => {
                   setLoading(true);
                   setLoadError(null);
-                  void nearbyAnnouncementsRepository
-                    .listAnnouncements()
-                    .then((next) => {
+                  void Promise.all([
+                    nearbyAnnouncementsRepository.listAnnouncements(),
+                    currentUid ? getBlockedUserIds(currentUid) : Promise.resolve([]),
+                  ])
+                    .then(([next, blockedIds]) => {
                       setAnnouncements(next);
+                      setBlockedUserIds(blockedIds);
                     })
                     .catch(() => {
                       setAnnouncements([]);
+                      setBlockedUserIds([]);
                       setLoadError(
                         copyOrFallback(
                           t,
@@ -164,6 +181,7 @@ export default function AnnouncementsScreen() {
             items={visibleAnnouncements}
             activeCategory={announcementCategory}
             highlightedId={highlightedAnnouncementId}
+            blockedUserIds={blockedUserIds}
             onCategoryChange={setAnnouncementCategory}
             onOpen={(item) => {
               setHighlightedAnnouncementId(null);

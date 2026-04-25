@@ -1,5 +1,15 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BackHandler, FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import {
+  Alert,
+  BackHandler,
+  FlatList,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+  type AlertButton,
+} from "react-native";
 import { KeyboardStickyView } from "react-native-keyboard-controller";
 import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 
@@ -21,9 +31,47 @@ import {
   type DmMessageDoc,
   type DmThreadDoc,
 } from "@/services/dm";
+import {
+  blockUser,
+  createReport,
+  getBlockedUserIds,
+  type SafetyReportReason,
+} from "@/services/safety";
 import { theme } from "@/theme";
 
 type RenderMessage = DmMessageDoc & { failed?: boolean };
+
+function buildReportReasonButtons(
+  tt: (key: string, fallback: string, params?: Record<string, string>) => string,
+  onSelect: (reason: SafetyReportReason) => void
+): AlertButton[] {
+  return [
+    {
+      text: tt("safety.reason.spam", "Спам"),
+      onPress: () => onSelect("spam"),
+    },
+    {
+      text: tt("safety.reason.harassment", "Оскорбления или преследование"),
+      onPress: () => onSelect("harassment"),
+    },
+    {
+      text: tt("safety.reason.sexualServices", "Сексуальные услуги или оплатная встреча"),
+      onPress: () => onSelect("sexual_services"),
+    },
+    {
+      text: tt("safety.reason.scam", "Мошенничество"),
+      onPress: () => onSelect("scam"),
+    },
+    {
+      text: tt("safety.reason.other", "Другое"),
+      onPress: () => onSelect("other"),
+    },
+    {
+      text: tt("common.cancel", "Отмена"),
+      style: "cancel",
+    },
+  ];
+}
 
 export default function DMChatScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"DMChat">>();
@@ -56,6 +104,8 @@ export default function DMChatScreen() {
   const [messagesLoading, setMessagesLoading] = useState(true);
   const [subscriptionError, setSubscriptionError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
+  const [safetyBusy, setSafetyBusy] = useState(false);
 
   const textRef = useRef("");
   const inputRef = useRef<TextInput>(null);
@@ -95,6 +145,30 @@ export default function DMChatScreen() {
     inputRef.current?.clear?.();
     listRef.current?.scrollToOffset?.({ offset: 0, animated: false });
   }, [myId, routePeerName, threadId]);
+
+  useEffect(() => {
+    let alive = true;
+    if (!db || !myId) {
+      setBlockedUserIds([]);
+      return () => {
+        alive = false;
+      };
+    }
+
+    void getBlockedUserIds(myId)
+      .then((ids) => {
+        if (!alive) return;
+        setBlockedUserIds(ids);
+      })
+      .catch(() => {
+        if (!alive) return;
+        setBlockedUserIds([]);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [myId, reloadKey]);
 
   useEffect(() => {
     if (!threadId) return;
@@ -192,6 +266,10 @@ export default function DMChatScreen() {
       name: routePeerName || t("common.user"),
     };
   }, [myId, peerId, routePeerName, t, thread]);
+  const peerBlocked = useMemo(
+    () => Boolean(peer.uid && blockedUserIds.includes(peer.uid)),
+    [blockedUserIds, peer.uid]
+  );
   const sourceContext = useMemo(() => {
     if (
       routeSourceContext?.source === "play" ||
@@ -235,7 +313,7 @@ export default function DMChatScreen() {
 
   const send = useCallback(() => {
     const value = (textRef.current || "").trim();
-    if (!value || !db || !threadId || !myId || !peer.uid) return;
+    if (!value || !db || !threadId || !myId || !peer.uid || peerBlocked) return;
     if (sendGuardRef.current) return;
 
     const targetThreadId = threadId;
@@ -274,7 +352,7 @@ export default function DMChatScreen() {
           }
         }, 250);
       });
-  }, [db, myId, peer.uid, threadId]);
+  }, [db, myId, peer.uid, peerBlocked, threadId]);
 
   const retrySend = useCallback(
     (clientId: string) => {
@@ -304,7 +382,7 @@ export default function DMChatScreen() {
     setText(value);
   }, []);
 
-  const canSend = text.trim().length > 0;
+  const canSend = text.trim().length > 0 && !peerBlocked;
   const openSourceStory = useCallback(() => {
     if (!sourceSessionId) return;
     navigation.navigate("PlaySessionDetail", { sessionId: sourceSessionId });
@@ -378,7 +456,11 @@ export default function DMChatScreen() {
   const isLoading = threadLoading || messagesLoading;
   const threadMissing = !isLoading && !subscriptionError && !thread && mergedMsgs.length === 0;
   const isEmpty = !isLoading && mergedMsgs.length === 0;
-  const canShowComposer = Boolean(db && myId && threadId && peer.uid) && !subscriptionError && !threadMissing;
+  const canShowComposer =
+    Boolean(db && myId && threadId && peer.uid) &&
+    !peerBlocked &&
+    !subscriptionError &&
+    !threadMissing;
   const screenTitleName = peer.name || routePeerName || "";
   const screenTitle = screenTitleName
     ? t("dm.title", { name: screenTitleName })
@@ -457,6 +539,92 @@ export default function DMChatScreen() {
     }, [handleBack])
   );
 
+  const reportChat = useCallback(
+    async (reason: SafetyReportReason) => {
+      if (!threadId || !peer.uid || safetyBusy) return;
+
+      setSafetyBusy(true);
+      try {
+        await createReport({
+          targetType: "dmThread",
+          targetId: threadId,
+          targetOwnerUid: peer.uid,
+          reason,
+        });
+        Alert.alert(
+          tt("safety.reportSentTitle", "Жалоба отправлена"),
+          tt("safety.reportSentBody", "Спасибо. Жалоба сохранена и будет доступна для проверки.")
+        );
+      } catch {
+        Alert.alert(
+          tt("safety.reportErrorTitle", "Жалоба не отправилась"),
+          tt(
+            "safety.reportErrorBody",
+            "Не удалось сохранить жалобу в Firestore. Попробуй ещё раз позже."
+          )
+        );
+      } finally {
+        setSafetyBusy(false);
+      }
+    },
+    [peer.uid, safetyBusy, threadId, tt]
+  );
+
+  const handleReportChat = useCallback(() => {
+    Alert.alert(
+      tt("safety.reportTitle", "Пожаловаться"),
+      tt("safety.reportBody", "Выбери причину жалобы."),
+      buildReportReasonButtons(tt, (reason) => void reportChat(reason))
+    );
+  }, [reportChat, tt]);
+
+  const handleBlockPeer = useCallback(() => {
+    if (!peer.uid || peer.uid === myId) return;
+    Alert.alert(
+      tt("safety.blockTitle", "Заблокировать пользователя?"),
+      tt(
+        "safety.blockBody",
+        "Вы больше не будете видеть его объявления в обычном списке, а личные чаты будут скрыты из вкладки «Чаты»."
+      ),
+      [
+        {
+          text: tt("common.cancel", "Отмена"),
+          style: "cancel",
+        },
+        {
+          text: tt("safety.blockConfirm", "Заблокировать"),
+          style: "destructive",
+          onPress: () => {
+            setSafetyBusy(true);
+            void blockUser(peer.uid, "dm")
+              .then(() => {
+                setBlockedUserIds((current) =>
+                  current.includes(peer.uid) ? current : [...current, peer.uid]
+                );
+                Alert.alert(
+                  tt("safety.userBlockedTitle", "Пользователь заблокирован"),
+                  tt(
+                    "safety.userBlockedBody",
+                    "Этот пользователь скрыт из релизных списков на вашем аккаунте."
+                  )
+                );
+              })
+              .catch(() => {
+                Alert.alert(
+                  tt("safety.blockErrorTitle", "Не удалось заблокировать"),
+                  tt(
+                    "safety.blockErrorBody",
+                    "Блокировка не сохранилась в Firestore. Попробуй ещё раз позже."
+                  )
+                );
+              })
+              .finally(() => setSafetyBusy(false));
+          },
+        },
+      ]
+    );
+  }, [myId, peer.uid, tt]);
+
   const renderSourceCard = useCallback(
     () =>
       sourceTitle ? (
@@ -480,6 +648,73 @@ export default function DMChatScreen() {
         </View>
       ) : null,
     [openSourceStory, sourceEyebrow, sourceMeta, sourceSessionId, sourceTitle, tt]
+  );
+
+  const renderSafetyCard = useCallback(
+    () =>
+      peer.uid ? (
+        <View style={styles.safetyCard}>
+          <Text style={styles.safetyTitle}>
+            {peerBlocked
+              ? tt("safety.chatBlockedTitle", "Пользователь заблокирован")
+              : tt("safety.chatSafetyTitle", "Безопасность разговора")}
+          </Text>
+          <Text style={styles.safetyBody}>
+            {peerBlocked
+              ? tt(
+                  "safety.cannotMessageBlockedUser",
+                  "Вы заблокировали этого пользователя. История разговора остаётся доступной, но новые сообщения отключены."
+                )
+              : tt(
+                  "safety.chatSafetyBody",
+                  "Можно пожаловаться на разговор или заблокировать пользователя. Действие сохранится в Firestore."
+                )}
+          </Text>
+          <View style={styles.safetyActions}>
+            <TouchableOpacity
+              onPress={handleReportChat}
+              disabled={safetyBusy}
+              style={[styles.safetyButton, safetyBusy ? styles.safetyButtonDisabled : null]}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.safetyButtonText}>
+                {tt("safety.report", "Пожаловаться")}
+              </Text>
+            </TouchableOpacity>
+            {!peerBlocked && peer.uid !== myId ? (
+              <TouchableOpacity
+                onPress={handleBlockPeer}
+                disabled={safetyBusy}
+                style={[styles.safetyButton, safetyBusy ? styles.safetyButtonDisabled : null]}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.safetyButtonText}>
+                  {tt("safety.blockUser", "Заблокировать пользователя")}
+                </Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        </View>
+      ) : null,
+    [
+      handleBlockPeer,
+      handleReportChat,
+      myId,
+      peer.uid,
+      peerBlocked,
+      safetyBusy,
+      tt,
+    ]
+  );
+
+  const renderContextFooter = useCallback(
+    () => (
+      <>
+        {renderSourceCard()}
+        {renderSafetyCard()}
+      </>
+    ),
+    [renderSafetyCard, renderSourceCard]
   );
 
   const renderItem = useCallback(
@@ -608,12 +843,21 @@ export default function DMChatScreen() {
         </View>
       ) : isEmpty ? (
         <View style={styles.centerState}>
-          {renderSourceCard()}
+          {renderContextFooter()}
           <CoreStateCard
             icon="chatbubbles-outline"
-            title={tt("dm.emptyTitle", "Личный разговор уже открыт")}
+            title={
+              peerBlocked
+                ? tt("safety.chatBlockedTitle", "Пользователь заблокирован")
+                : tt("dm.emptyTitle", "Личный разговор уже открыт")
+            }
             body={
-              sourceTitle
+              peerBlocked
+                ? tt(
+                    "safety.cannotMessageBlockedUser",
+                    "Вы заблокировали этого пользователя. История разговора остаётся доступной, но новые сообщения отключены."
+                  )
+                : sourceTitle
                 ? tt(
                     "dm.emptyBodyWithSourceCoreLoop",
                     "Вы уже не с нуля: общий опыт сохранён в истории связи, а первый личный шаг можно сделать прямо ниже."
@@ -655,7 +899,7 @@ export default function DMChatScreen() {
           maxToRenderPerBatch={20}
           windowSize={10}
           removeClippedSubviews
-          ListFooterComponent={renderSourceCard()}
+          ListFooterComponent={renderContextFooter()}
         />
       )}
 
@@ -741,6 +985,48 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.10)",
   },
   sourceLinkText: {
+    color: theme.colors.text,
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  safetyCard: {
+    alignSelf: "stretch",
+    borderRadius: theme.shapes.cardInner,
+    paddingHorizontal: 15,
+    paddingVertical: 14,
+    marginBottom: 10,
+    backgroundColor: "rgba(12, 16, 30, 0.82)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.10)",
+    gap: 8,
+  },
+  safetyTitle: {
+    color: theme.colors.text,
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  safetyBody: {
+    color: theme.colors.subtext,
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  safetyActions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  safetyButton: {
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+  },
+  safetyButtonDisabled: {
+    opacity: 0.55,
+  },
+  safetyButtonText: {
     color: theme.colors.text,
     fontSize: 12,
     fontWeight: "800",

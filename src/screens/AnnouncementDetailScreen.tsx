@@ -1,5 +1,15 @@
 import React from "react";
-import { BackHandler, Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  Alert,
+  BackHandler,
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  type AlertButton,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 
@@ -18,6 +28,12 @@ import {
   type NearbyAnnouncement,
 } from "@/services/nearbyAnnouncements";
 import { makeNickname } from "@/services/rooms";
+import {
+  blockUser,
+  createReport,
+  getBlockedUserIds,
+  type SafetyReportReason,
+} from "@/services/safety";
 import { theme } from "@/theme";
 import { translateMaybeKey } from "@/utils/i18n";
 import { formatNickname } from "@/utils/nickname";
@@ -119,6 +135,79 @@ function buildAnnouncementResponsePresentation(
   }
 }
 
+function buildReportReasonButtons(
+  t: (key: string, params?: Record<string, string>) => string,
+  onSelect: (reason: SafetyReportReason) => void
+): AlertButton[] {
+  return [
+    {
+      text: copyOrFallback(t, "safety.reason.spam", "Спам"),
+      onPress: () => onSelect("spam"),
+    },
+    {
+      text: copyOrFallback(t, "safety.reason.harassment", "Оскорбления или преследование"),
+      onPress: () => onSelect("harassment"),
+    },
+    {
+      text: copyOrFallback(
+        t,
+        "safety.reason.sexualServices",
+        "Сексуальные услуги или оплатная встреча"
+      ),
+      onPress: () => onSelect("sexual_services"),
+    },
+    {
+      text: copyOrFallback(t, "safety.reason.scam", "Мошенничество"),
+      onPress: () => onSelect("scam"),
+    },
+    {
+      text: copyOrFallback(t, "safety.reason.other", "Другое"),
+      onPress: () => onSelect("other"),
+    },
+    {
+      text: copyOrFallback(t, "common.cancel", "Отмена"),
+      style: "cancel",
+    },
+  ];
+}
+
+function getAnnouncementUnavailableCopy(
+  t: (key: string, params?: Record<string, string>) => string,
+  status: NearbyAnnouncement["status"]
+) {
+  if (status === "closed") {
+    return {
+      title: copyOrFallback(t, "nearby.detail.closedTitle", "Объявление закрыто"),
+      body: copyOrFallback(
+        t,
+        "nearby.detail.closedBody",
+        "Автор закрыл это объявление. Оно больше не принимает отклики."
+      ),
+    };
+  }
+  if (status === "deleted") {
+    return {
+      title: copyOrFallback(t, "nearby.detail.deletedTitle", "Объявление удалено"),
+      body: copyOrFallback(
+        t,
+        "nearby.detail.deletedBody",
+        "Это объявление больше не доступно в релизном списке."
+      ),
+    };
+  }
+  if (status === "under_review") {
+    return {
+      title: copyOrFallback(t, "nearby.detail.underReviewTitle", "Объявление на проверке"),
+      body: copyOrFallback(
+        t,
+        "nearby.detail.underReviewBody",
+        "Это объявление временно скрыто, пока по нему идёт проверка."
+      ),
+    };
+  }
+  return null;
+}
+
 function DetailRow({
   label,
   value,
@@ -153,6 +242,8 @@ export default function AnnouncementDetailScreen() {
   const [responseError, setResponseError] = React.useState<string | null>(null);
   const [responseModeOverride, setResponseModeOverride] =
     React.useState<AnnouncementResponseMode | null>(null);
+  const [authorBlocked, setAuthorBlocked] = React.useState(false);
+  const [safetyBusy, setSafetyBusy] = React.useState(false);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -160,6 +251,7 @@ export default function AnnouncementDetailScreen() {
       if (!announcementId) {
         setAnnouncement(null);
         setRespondedAt(null);
+        setAuthorBlocked(false);
         setLoading(false);
         return () => {
           alive = false;
@@ -178,16 +270,24 @@ export default function AnnouncementDetailScreen() {
               currentUid
             )
           : Promise.resolve({ respondedAt: null, hasResponded: false }),
+        currentUid ? getBlockedUserIds(currentUid).catch(() => []) : Promise.resolve([]),
       ])
-        .then(([nextAnnouncement, responseState]) => {
+        .then(([nextAnnouncement, responseState, blockedIds]) => {
           if (!alive) return;
           setAnnouncement(nextAnnouncement);
           setRespondedAt(responseState.respondedAt);
+          setAuthorBlocked(
+            Boolean(
+              nextAnnouncement?.authorUid &&
+                blockedIds.includes(String(nextAnnouncement.authorUid))
+            )
+          );
         })
         .catch(() => {
           if (!alive) return;
           setAnnouncement(null);
           setRespondedAt(null);
+          setAuthorBlocked(false);
           setLoadError(
             copyOrFallback(
               t,
@@ -343,8 +443,127 @@ export default function AnnouncementDetailScreen() {
     t,
   ]);
 
+  const reportAnnouncement = React.useCallback(
+    async (reason: SafetyReportReason) => {
+      if (!announcement || !currentUid || safetyBusy) {
+        if (!currentUid) {
+          Alert.alert(
+            copyOrFallback(t, "safety.signInRequiredTitle", "Нужен вход"),
+            copyOrFallback(
+              t,
+              "safety.signInRequiredBody",
+              "Чтобы отправить жалобу или заблокировать пользователя, сначала войди в аккаунт."
+            )
+          );
+        }
+        return;
+      }
+
+      setSafetyBusy(true);
+      try {
+        await createReport({
+          targetType: "announcement",
+          targetId: announcement.id,
+          targetOwnerUid: announcementAuthorUid,
+          reason,
+        });
+        Alert.alert(
+          copyOrFallback(t, "safety.reportSentTitle", "Жалоба отправлена"),
+          copyOrFallback(
+            t,
+            "safety.reportSentBody",
+            "Спасибо. Жалоба сохранена и будет доступна для проверки."
+          )
+        );
+      } catch {
+        Alert.alert(
+          copyOrFallback(t, "safety.reportErrorTitle", "Жалоба не отправилась"),
+          copyOrFallback(
+            t,
+            "safety.reportErrorBody",
+            "Не удалось сохранить жалобу в Firestore. Попробуй ещё раз позже."
+          )
+        );
+      } finally {
+        setSafetyBusy(false);
+      }
+    },
+    [announcement, announcementAuthorUid, currentUid, safetyBusy, t]
+  );
+
+  const handleReportAnnouncement = React.useCallback(() => {
+    if (!announcement) return;
+    Alert.alert(
+      copyOrFallback(t, "safety.reportTitle", "Пожаловаться"),
+      copyOrFallback(t, "safety.reportBody", "Выбери причину жалобы."),
+      buildReportReasonButtons(t, (reason) => void reportAnnouncement(reason))
+    );
+  }, [announcement, reportAnnouncement, t]);
+
+  const handleBlockAuthor = React.useCallback(() => {
+    if (!currentUid) {
+      Alert.alert(
+        copyOrFallback(t, "safety.signInRequiredTitle", "Нужен вход"),
+        copyOrFallback(
+          t,
+          "safety.signInRequiredBody",
+          "Чтобы отправить жалобу или заблокировать пользователя, сначала войди в аккаунт."
+        )
+      );
+      return;
+    }
+    if (!announcementAuthorUid || announcementAuthorUid === currentUid) return;
+    Alert.alert(
+      copyOrFallback(t, "safety.blockTitle", "Заблокировать пользователя?"),
+      copyOrFallback(
+        t,
+        "safety.blockBody",
+        "Вы больше не будете видеть его объявления в обычном списке, а личные чаты будут скрыты из вкладки «Чаты»."
+      ),
+      [
+        {
+          text: copyOrFallback(t, "common.cancel", "Отмена"),
+          style: "cancel",
+        },
+        {
+          text: copyOrFallback(t, "safety.blockConfirm", "Заблокировать"),
+          style: "destructive",
+          onPress: () => {
+            setSafetyBusy(true);
+            void blockUser(announcementAuthorUid, "announcement")
+              .then(() => {
+                setAuthorBlocked(true);
+                Alert.alert(
+                  copyOrFallback(t, "safety.userBlockedTitle", "Пользователь заблокирован"),
+                  copyOrFallback(
+                    t,
+                    "safety.userBlockedBody",
+                    "Этот пользователь скрыт из релизных списков на вашем аккаунте."
+                  )
+                );
+              })
+              .catch(() => {
+                Alert.alert(
+                  copyOrFallback(t, "safety.blockErrorTitle", "Не удалось заблокировать"),
+                  copyOrFallback(
+                    t,
+                    "safety.blockErrorBody",
+                    "Блокировка не сохранилась в Firestore. Попробуй ещё раз позже."
+                  )
+                );
+              })
+              .finally(() => setSafetyBusy(false));
+          },
+        },
+      ]
+    );
+  }, [announcementAuthorUid, currentUid, t]);
+
   const screenTitle = copyOrFallback(t, "nearby.detail.title", "Объявление");
   const announcementPhotoUrl = announcement?.photoUrl ?? announcement?.photoUri ?? "";
+  const unavailableAnnouncementCopy = announcement
+    ? getAnnouncementUnavailableCopy(t, announcement.status)
+    : null;
 
   if (!loading && loadError) {
     return (
@@ -380,6 +599,46 @@ export default function AnnouncementDetailScreen() {
               "nearby.detail.missingBody",
               "Не удалось открыть это объявление. Можно вернуться к списку объявлений."
             )}
+            primaryAction={{
+              label: copyOrFallback(t, "nearby.detail.backToList", "К объявлениям"),
+              onPress: handleBack,
+            }}
+          />
+        </View>
+      </ScreenShell>
+    );
+  }
+
+  if (!loading && announcement && authorBlocked && announcementAuthorUid !== currentUid) {
+    return (
+      <ScreenShell title={screenTitle} background="ads" showBack onBack={handleBack}>
+        <View style={styles.centerState}>
+          <CoreStateCard
+            icon="eye-off-outline"
+            title={copyOrFallback(t, "safety.blockedContentTitle", "Контент скрыт")}
+            body={copyOrFallback(
+              t,
+              "safety.blockedAnnouncementBody",
+              "Это объявление скрыто, потому что автор находится в вашем списке заблокированных пользователей."
+            )}
+            primaryAction={{
+              label: copyOrFallback(t, "nearby.detail.backToList", "К объявлениям"),
+              onPress: handleBack,
+            }}
+          />
+        </View>
+      </ScreenShell>
+    );
+  }
+
+  if (!loading && announcement && unavailableAnnouncementCopy) {
+    return (
+      <ScreenShell title={screenTitle} background="ads" showBack onBack={handleBack}>
+        <View style={styles.centerState}>
+          <CoreStateCard
+            icon="shield-checkmark-outline"
+            title={unavailableAnnouncementCopy.title}
+            body={unavailableAnnouncementCopy.body}
             primaryAction={{
               label: copyOrFallback(t, "nearby.detail.backToList", "К объявлениям"),
               onPress: handleBack,
@@ -538,6 +797,41 @@ export default function AnnouncementDetailScreen() {
                     : responsePresentation.actionLabel}
                 </Text>
               </Pressable>
+            </View>
+
+            <View style={styles.safetyCard}>
+              <Text style={styles.safetyTitle}>
+                {copyOrFallback(t, "safety.announcementSafetyTitle", "Безопасность")}
+              </Text>
+              <Text style={styles.safetyBody}>
+                {copyOrFallback(
+                  t,
+                  "safety.announcementSafetyBody",
+                  "Если объявление нарушает правила или автор нежелателен, действие сохранится в Firestore."
+                )}
+              </Text>
+              <View style={styles.safetyActions}>
+                <Pressable
+                  onPress={handleReportAnnouncement}
+                  disabled={safetyBusy}
+                  style={[styles.safetyButton, safetyBusy ? styles.safetyButtonDisabled : null]}
+                >
+                  <Text style={styles.safetyButtonText}>
+                    {copyOrFallback(t, "safety.report", "Пожаловаться")}
+                  </Text>
+                </Pressable>
+                {announcementAuthorUid && announcementAuthorUid !== currentUid ? (
+                  <Pressable
+                    onPress={handleBlockAuthor}
+                    disabled={safetyBusy}
+                    style={[styles.safetyButton, safetyBusy ? styles.safetyButtonDisabled : null]}
+                  >
+                    <Text style={styles.safetyButtonText}>
+                      {copyOrFallback(t, "safety.blockAuthor", "Заблокировать автора")}
+                    </Text>
+                  </Pressable>
+                ) : null}
+              </View>
             </View>
           </>
         ) : (
@@ -765,6 +1059,45 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
     fontWeight: "700",
+  },
+  safetyCard: {
+    borderRadius: theme.shapes.card,
+    padding: 16,
+    backgroundColor: "rgba(12, 16, 30, 0.82)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.10)",
+    gap: 10,
+  },
+  safetyTitle: {
+    color: theme.colors.text,
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  safetyBody: {
+    color: theme.colors.subtext,
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  safetyActions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  safetyButton: {
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 13,
+    paddingVertical: 9,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+  },
+  safetyButtonDisabled: {
+    opacity: 0.55,
+  },
+  safetyButtonText: {
+    color: theme.colors.text,
+    fontSize: 12,
+    fontWeight: "800",
   },
   primaryButton: {
     alignSelf: "stretch",

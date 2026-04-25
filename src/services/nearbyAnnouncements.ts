@@ -27,7 +27,7 @@ export type NearbyAnnouncementCategory =
   | "sport"
   | "ride";
 
-export type NearbyAnnouncementStatus = "active" | "closed" | "deleted";
+export type NearbyAnnouncementStatus = "active" | "closed" | "deleted" | "under_review";
 
 export type NearbyAnnouncement = {
   id: string;
@@ -117,7 +117,7 @@ function isCategory(value: unknown): value is NearbyAnnouncementCategory {
 }
 
 function normalizeStatus(value: unknown): NearbyAnnouncementStatus {
-  if (value === "closed" || value === "deleted") return value;
+  if (value === "closed" || value === "deleted" || value === "under_review") return value;
   return "active";
 }
 
@@ -261,9 +261,7 @@ export function createFirestoreNearbyAnnouncementsRepository(options: {
       const snapshot = await getDoc(announcementDoc(announcementId));
       if (!snapshot.exists()) return null;
 
-      const announcement = normalizeNearbyAnnouncement(snapshot.id, snapshot.data());
-      if (!announcement || announcement.status !== "active") return null;
-      return announcement;
+      return normalizeNearbyAnnouncement(snapshot.id, snapshot.data());
     },
 
     async createAnnouncement(input: CreateNearbyAnnouncementInput) {

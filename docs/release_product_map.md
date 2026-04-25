@@ -41,6 +41,17 @@
 - Connections is not a separate bottom tab.
 - Shared stories, drawings, palettes, announcement origin, and nearby origin should appear as context inside the chat/conversation, not as a separate release surface.
 
+## Safety / UGC
+
+- All user-generated content surfaces must support real report/block foundations before public release.
+- Reports are stored in Firestore under `reports/{reportId}` with reporter, target, reason, status, and timestamp fields.
+- Blocked users are stored per user under `users/{uid}/blockedUsers/{blockedUid}`.
+- Announcement status values are `active`, `closed`, `deleted`, and `under_review`; release lists only show `active` announcements.
+- Explicit paid sexual services, escort/prostitution offers, and compensated sexual meetings are not allowed in announcement copy.
+- Announcement, chat, and user reports must feed a real review workflow before public launch.
+- Firestore rules for reports, blocks, announcements, responses, and chats must be reviewed before public launch.
+- Future stronger moderation is required; this block does not add AI moderation, admin tools, automatic bans, or fake local-only safety state.
+
 ## Removed From Release UI
 
 - Rooms
@@ -52,6 +63,7 @@
 - No demo/stub/QA/seed paths in product UI.
 - Announcements use Firestore as the release source of truth. AsyncStorage must not be used as the product announcement board.
 - Announcement photo upload requires Firebase Storage enabled and verified before release.
+- Announcement moderation/report/block foundations are backed by Firestore, not AsyncStorage.
 - Chats must become the single place for conversations from Together, Announcements and Nearby.
 - Chats should surface connection/story context inside each conversation.
 - Nearby quick status should open chats when real nearby user identity is available.

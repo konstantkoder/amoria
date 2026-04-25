@@ -19,6 +19,7 @@ import {
   subscribeDmThreads,
   type DmThreadDoc,
 } from "@/services/dm";
+import { getBlockedUserIds } from "@/services/safety";
 import { useLocale } from "@/contexts/LocaleContext";
 import type { PlayActivity } from "@/services/playSessions";
 import { theme } from "@/theme";
@@ -107,6 +108,7 @@ export default function InboxScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
 
   useEffect(() => {
     let alive = true;
@@ -145,6 +147,30 @@ export default function InboxScreen() {
     };
   }, [reloadKey, tt, uid]);
 
+  useEffect(() => {
+    let alive = true;
+    if (!db || !uid) {
+      setBlockedUserIds([]);
+      return () => {
+        alive = false;
+      };
+    }
+
+    void getBlockedUserIds(uid)
+      .then((ids) => {
+        if (!alive) return;
+        setBlockedUserIds(ids);
+      })
+      .catch(() => {
+        if (!alive) return;
+        setBlockedUserIds([]);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [reloadKey, uid]);
+
   const cards = useMemo(
     () =>
       threads
@@ -171,8 +197,9 @@ export default function InboxScreen() {
           )
         )
         .filter((item): item is InboxThreadCard => Boolean(item))
+        .filter((item) => !blockedUserIds.includes(item.peerId))
         .sort((a, b) => b.sortAt - a.sortAt),
-    [freshnessState.dmThreads, t, threads, tt, uid]
+    [blockedUserIds, freshnessState.dmThreads, t, threads, tt, uid]
   );
   const sourceLabels = useMemo(
     () => ({
