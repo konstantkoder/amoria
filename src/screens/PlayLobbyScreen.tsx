@@ -41,6 +41,12 @@ export default function PlayLobbyScreen() {
                 "Вы получите один короткий творческий вызов, будете рисовать на одном холсте и сохраните общий след, который потом может стать поводом для чата."
               )}
             </Text>
+            <Text style={styles.heroBridgeText}>
+              {tt(
+                "together.lobby.coreLoopPlain",
+                "Сначала создайте общий момент, потом спокойно решите, хотите ли продолжить в личном разговоре."
+              )}
+            </Text>
             <View style={styles.heroLoop}>
               {[
                 tt("together.lobby.drawStepChallenge", "Творческий вызов"),
@@ -73,28 +79,6 @@ export default function PlayLobbyScreen() {
           </View>
         </View>
 
-        <Pressable
-          onPress={() => navigation.navigate("PlayHistory")}
-          style={styles.historyCard}
-        >
-          <View style={styles.historyTextWrap}>
-            <Text style={styles.historyTitle}>
-              {tt("together.lobby.historyTitle", "Совместные истории")}
-            </Text>
-            <Text style={styles.historyText}>
-              {tt(
-                "together.lobby.historyBodyCore",
-                "Возвращайся к сохранённым рисункам, творческим вызовам, общим палитрам и разговорам, которые выросли из них."
-              )}
-            </Text>
-          </View>
-          <View style={styles.historyBadge}>
-            <Text style={styles.historyBadgeText}>
-              {tt("together.lobby.historyBadge", "Истории")}
-            </Text>
-          </View>
-        </Pressable>
-
         <View style={styles.secondarySection}>
           <Text style={styles.secondarySectionTitle}>
             {tt("together.lobby.colorMoodSectionTitle", "Мягкий второй сценарий")}
@@ -121,6 +105,28 @@ export default function PlayLobbyScreen() {
           </View>
           <Text style={styles.cardDescription}>{colorMoodCopy.description}</Text>
           <Text style={styles.cardDetails}>{colorMoodCopy.details}</Text>
+        </Pressable>
+
+        <Pressable
+          onPress={() => navigation.navigate("PlayHistory")}
+          style={styles.historyCard}
+        >
+          <View style={styles.historyTextWrap}>
+            <Text style={styles.historyTitle}>
+              {tt("together.lobby.historyTitle", "Совместные истории")}
+            </Text>
+            <Text style={styles.historyText}>
+              {tt(
+                "together.lobby.historyBodyCore",
+                "Возвращайся к сохранённым рисункам, творческим вызовам, общим палитрам и разговорам, которые выросли из них."
+              )}
+            </Text>
+          </View>
+          <View style={styles.historyBadge}>
+            <Text style={styles.historyBadgeText}>
+              {tt("together.lobby.historyBadge", "Истории")}
+            </Text>
+          </View>
         </Pressable>
       </ScrollView>
     </ScreenShell>
@@ -165,6 +171,12 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.86)",
     fontSize: 15,
     lineHeight: 21,
+  },
+  heroBridgeText: {
+    color: "#FFF5EA",
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "700",
   },
   heroBottom: {
     gap: 8,

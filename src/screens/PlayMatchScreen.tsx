@@ -215,6 +215,24 @@ export default function PlayMatchScreen() {
   const [queueCancelled, setQueueCancelled] = React.useState(false);
   const [statusKey, setStatusKey] = React.useState<MatchStatusKey>("preparing");
   const statusTitle = React.useMemo(() => {
+    if (activity === "draw") {
+      switch (statusKey) {
+        case "searching":
+          return tt("play.match.status.searchingDrawTitle", "Ищем человека для общего рисунка");
+        case "delayed":
+          return tt("play.match.status.delayedDrawTitle", "Ищем ещё немного");
+        case "found":
+          return tt("play.match.status.foundDrawTitle", "Человек найден");
+        case "cancelled":
+          return tt("play.match.status.cancelledTitle", "Поиск остановлен");
+        case "error":
+          return tt("play.match.status.errorDrawTitle", "Не получилось начать общий рисунок");
+        case "preparing":
+        default:
+          return tt("play.match.status.preparingDrawTitle", "Готовим общий рисунок");
+      }
+    }
+
     switch (statusKey) {
       case "searching":
         return tt("play.match.status.searchingTitle", "Ищем человека");
@@ -230,7 +248,7 @@ export default function PlayMatchScreen() {
       default:
         return tt("play.match.status.preparingTitle", "Подготовим совместную сессию");
     }
-  }, [statusKey, tt]);
+  }, [activity, statusKey, tt]);
   const statusText = React.useMemo(() => {
     switch (statusKey) {
       case "searching":

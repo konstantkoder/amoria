@@ -224,6 +224,7 @@ export default function PlayCanvasScreen() {
   );
   const sessionPromptDisplay =
     promptContext || tt("playDetail.pendingPrompt", "Тема уточняется");
+  const challengeStripLabel = tt("play.canvas.challengeStripLabel", "Вызов");
 
   const openResultScreen = React.useCallback(() => {
     if (!mountedRef.current || navigationHandledRef.current || !sessionId) return;
@@ -747,6 +748,13 @@ export default function PlayCanvasScreen() {
           </View>
         </View>
 
+        {showPromptContext ? (
+          <View style={styles.challengeStrip}>
+            <Text style={styles.challengeStripLabel}>{challengeStripLabel}</Text>
+            <Text style={styles.challengeStripText}>{sessionPromptDisplay}</Text>
+          </View>
+        ) : null}
+
         <SharedCanvasWebView
           localUid={uid}
           strokes={allStrokes}
@@ -756,12 +764,37 @@ export default function PlayCanvasScreen() {
           toolLabels={{
             colors: tt("play.canvas.toolColors", "Цвета"),
             brush: tt("play.canvas.toolBrush", "Толщина линии"),
+            colorNames: [
+              tt("play.canvas.toolColorRose", "Розовый"),
+              tt("play.canvas.toolColorOrange", "Оранжевый"),
+              tt("play.canvas.toolColorYellow", "Жёлтый"),
+              tt("play.canvas.toolColorGreen", "Зелёный"),
+              tt("play.canvas.toolColorBlue", "Голубой"),
+              tt("play.canvas.toolColorViolet", "Фиолетовый"),
+              tt("play.canvas.toolColorWhite", "Белый"),
+              tt("play.canvas.toolColorDark", "Тёмный"),
+            ],
+            brushSizes: [
+              tt("play.canvas.toolBrushSmall", "Тонко"),
+              tt("play.canvas.toolBrushMedium", "Средне"),
+              tt("play.canvas.toolBrushLarge", "Широко"),
+            ],
           }}
           onLocalStrokeBatch={handleLocalBatch}
         />
 
         <View style={styles.footerRow}>
-          <Text style={styles.helper}>{helperText}</Text>
+          <View style={styles.footerCopy}>
+            <Text style={styles.helper}>{helperText}</Text>
+            {!isChainDraw ? (
+              <Text style={styles.finishHint}>
+                {tt(
+                  "play.canvas.finishHint",
+                  "Если общий ответ уже сложился, можно завершить раньше и перейти к итогу."
+                )}
+              </Text>
+            ) : null}
+          </View>
           {isChainDraw ? (
             isMyTurn && session?.status === "active" ? (
               <Pressable
@@ -788,7 +821,7 @@ export default function PlayCanvasScreen() {
               <Text style={styles.finishText}>
                 {finishing
                   ? tt("play.canvas.finishing", "Завершаем…")
-                  : tt("play.canvas.finishEarly", "Завершить раньше")}
+                  : tt("play.canvas.finishEarly", "Завершить и показать итог")}
               </Text>
             </Pressable>
           )}
@@ -895,7 +928,11 @@ const styles = StyleSheet.create({
     color: theme.colors.subtext,
     fontSize: 13,
     lineHeight: 19,
-    flex: 1,
+  },
+  finishHint: {
+    color: theme.colors.muted,
+    fontSize: 12,
+    lineHeight: 17,
   },
   centerState: {
     flex: 1,
@@ -908,6 +945,33 @@ const styles = StyleSheet.create({
     gap: 12,
     alignItems: "center",
     flexWrap: "wrap",
+  },
+  footerCopy: {
+    flex: 1,
+    minWidth: 220,
+    gap: 4,
+  },
+  challengeStrip: {
+    borderRadius: theme.shapes.cardInner,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    backgroundColor: "rgba(255, 122, 60, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 122, 60, 0.24)",
+    gap: 4,
+  },
+  challengeStripLabel: {
+    color: theme.colors.accent,
+    fontSize: 11,
+    fontWeight: "900",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+  },
+  challengeStripText: {
+    color: theme.colors.text,
+    fontSize: 15,
+    lineHeight: 21,
+    fontWeight: "800",
   },
   finishButton: {
     borderRadius: theme.shapes.cardInner,

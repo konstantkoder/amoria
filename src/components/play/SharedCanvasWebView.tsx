@@ -33,10 +33,21 @@ type Props = {
   toolLabels?: {
     colors: string;
     brush: string;
+    colorNames?: string[];
+    brushSizes?: string[];
   };
 };
 
-const PALETTE = ["#F97393", "#FF8A3D", "#FACC15", "#34D399", "#38BDF8", "#A78BFA"];
+const PALETTE = [
+  "#F97393",
+  "#FF8A3D",
+  "#FACC15",
+  "#34D399",
+  "#38BDF8",
+  "#A78BFA",
+  "#F8FAFC",
+  "#1F2937",
+];
 const BRUSHES = [3, 6, 10];
 
 const HTML = `<!doctype html>
@@ -387,12 +398,13 @@ export default function SharedCanvasWebView({
             <Text style={styles.toolLabel}>{toolLabels.colors}</Text>
           ) : null}
           <View style={styles.paletteRow}>
-            {PALETTE.map((color) => {
+            {PALETTE.map((color, colorIndex) => {
               const active = color === selectedColor;
               return (
                 <Pressable
                   key={color}
                   accessibilityRole="button"
+                  accessibilityLabel={toolLabels?.colorNames?.[colorIndex] ?? color}
                   disabled={disabled}
                   onPress={() => setSelectedColor(color)}
                   style={[
@@ -411,12 +423,13 @@ export default function SharedCanvasWebView({
             <Text style={styles.toolLabel}>{toolLabels.brush}</Text>
           ) : null}
           <View style={styles.brushRow}>
-            {BRUSHES.map((width) => {
+            {BRUSHES.map((width, brushIndex) => {
               const active = width === selectedWidth;
               return (
                 <Pressable
                   key={width}
                   accessibilityRole="button"
+                  accessibilityLabel={toolLabels?.brushSizes?.[brushIndex] ?? `${width}px`}
                   disabled={disabled}
                   onPress={() => setSelectedWidth(width)}
                   style={[
@@ -436,6 +449,9 @@ export default function SharedCanvasWebView({
                       disabled && styles.brushDotDisabled,
                     ]}
                   />
+                  <Text style={styles.brushSizeText}>
+                    {toolLabels?.brushSizes?.[brushIndex] ?? `${width}px`}
+                  </Text>
                 </Pressable>
               );
             })}
@@ -541,11 +557,12 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   brushButton: {
-    minWidth: 44,
-    height: 34,
+    minWidth: 58,
+    minHeight: 42,
     borderRadius: theme.shapes.pill,
     alignItems: "center",
     justifyContent: "center",
+    gap: 3,
     backgroundColor: theme.colors.pillBg,
     borderWidth: 1,
     borderColor: "transparent",
@@ -559,6 +576,11 @@ const styles = StyleSheet.create({
   },
   brushDotDisabled: {
     backgroundColor: "rgba(255,255,255,0.7)",
+  },
+  brushSizeText: {
+    color: theme.colors.subtext,
+    fontSize: 10,
+    fontWeight: "800",
   },
   canvasShell: {
     borderRadius: theme.shapes.cardInner,

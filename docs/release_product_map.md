@@ -14,6 +14,13 @@
   - secondary scenario: color_mood
   - not release pillars: daily_prompt, chain_draw
   - no demos / no fake sessions
+- Draw release UX requirements:
+  - PlayLobby presents draw as the primary entry, with color_mood as the softer secondary path.
+  - PlayMatch explains that the app is looking for another person to create one shared drawing/moment, not just loading a game.
+  - The draw challenge must be visible in Canvas, Result, History, SessionDetail, and DM source context when available.
+  - Result must prioritize the shared artifact/replay and the next decision about chat/history over drawing metrics.
+  - Required minimum canvas tools for release: 6-8 colors, 3 line widths, readable tool labels, and a layout that does not cover the canvas.
+  - Must-have core polish before release: real eraser and undo for the user's latest stroke. The current draw event model is append-only stroke batches, so these must not be faked with local-only UI.
 
 ## Supporting Flows
 

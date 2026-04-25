@@ -22,7 +22,6 @@ import {
 import { buildDmChatRouteParams, ensureDmThread } from "@/services/dm";
 import {
   getPlayActivityLabel,
-  getPlayActivityMetricLabel,
   getPlayActivityStoryText,
   getPlayColorMoodChoices,
   getPlayColorMoodCombinedPalette,
@@ -282,7 +281,7 @@ export default function PlayResultScreen() {
   const [events, setEvents] = React.useState<PlayStrokeBatch[]>([]);
   const [decision, setDecision] = React.useState<PlayRevealDecision | null>(null);
   const [submitting, setSubmitting] = React.useState(false);
-  const [replayOpen, setReplayOpen] = React.useState(false);
+  const [replayOpen, setReplayOpen] = React.useState(true);
   const [loadingSession, setLoadingSession] = React.useState(true);
   const [loadingEvents, setLoadingEvents] = React.useState(true);
   const [openingChat, setOpeningChat] = React.useState(false);
@@ -319,7 +318,7 @@ export default function PlayResultScreen() {
     setEvents([]);
     setDecision(null);
     setSubmitting(false);
-    setReplayOpen(false);
+    setReplayOpen(true);
     setOpeningChat(false);
     setLoadError("");
     setActionError("");
@@ -405,16 +404,6 @@ export default function PlayResultScreen() {
   }, [events, session?.resultStrokeCount]);
 
   const replayStrokes = React.useMemo(() => mapReplayStrokes(events), [events]);
-  const myStrokeCount = React.useMemo(
-    () =>
-      events.reduce(
-        (sum, batch) => sum + (batch.uid === uid ? batch.strokes.length : 0),
-        0
-      ),
-    [events, uid]
-  );
-  const peerStrokeCount = Math.max(totalStrokeCount - myStrokeCount, 0);
-
   const revealOutcome = React.useMemo(
     () => (session ? resolvePlayRevealOutcome(session) : "waiting"),
     [session]
@@ -447,14 +436,6 @@ export default function PlayResultScreen() {
     () => getPlayReplayCopy(session?.activity ?? "draw"),
     [session?.activity]
   );
-  const metricLabel = React.useMemo(
-    () => getPlayActivityMetricLabel(session?.activity ?? "draw", "result"),
-    [session?.activity]
-  );
-  const metricValue =
-    session?.activity === "color_mood"
-      ? combinedPalette.length || ownPalette.length || peerPalette.length
-      : totalStrokeCount;
   const canOpenChat = Boolean(db && session && uid && peer?.uid);
   const hasAccount = Boolean(uid);
   const hasReplay = replayStrokes.length > 0;
@@ -462,19 +443,17 @@ export default function PlayResultScreen() {
     () => [
       { label: tt("playDetail.activity", "Режим"), value: activityLabel },
       { label: tt("playDetail.partner", "Партнёр"), value: peerName },
-      { label: metricLabel, value: String(metricValue) },
       { label: tt("play.result.timeLabel", "Время"), value: durationLabel },
     ],
-    [activityLabel, durationLabel, metricLabel, metricValue, peerName, tt]
+    [activityLabel, durationLabel, peerName, tt]
   );
   const contributionText =
     session?.activity === "color_mood"
       ? ""
-      : tt("play.result.contribution", "Твои штрихи: {mine} • {name}: {peer}", {
-          mine: String(myStrokeCount),
-          name: peerName,
-          peer: String(peerStrokeCount),
-        });
+      : tt(
+          "play.result.drawingSavedNote",
+          "Рисунок уже сохранён как общий момент. Replay ниже покажет, как он появился между вами."
+        );
   const bridgeCopy = React.useMemo(
     () =>
       getResultBridgeCopy({
@@ -858,6 +837,37 @@ export default function PlayResultScreen() {
           surface="result"
         />
 
+        {activityHasReplay && replayOpen ? (
+          <View style={styles.replayBlock}>
+            <View style={styles.replayHeader}>
+              <View>
+                <Text style={styles.replayTitle}>{replayCopy.title}</Text>
+                <Text style={styles.replayText}>{replayCopy.body}</Text>
+              </View>
+            </View>
+            {showPromptContext ? (
+              <View style={styles.contextPill}>
+                <Text style={styles.contextLabel}>
+                  {tt("playDetail.challengeLabel", "Творческий вызов")}
+                </Text>
+                <Text style={styles.contextText}>{sessionPromptDisplay}</Text>
+              </View>
+            ) : null}
+            {!hasReplay ? (
+              <View style={styles.statusCard}>
+                <Text style={styles.statusTitle}>{replayCopy.emptyTitle}</Text>
+                <Text style={styles.statusText}>{replayCopy.emptyBody}</Text>
+              </View>
+            ) : null}
+            <ReplayCanvasWebView
+              strokes={replayStrokes}
+              autoplay
+              speed={1.25}
+              showControls
+            />
+          </View>
+        ) : null}
+
         <View style={styles.actionCard}>
           <View style={styles.actionSection}>
             <Text style={styles.actionEyebrow}>
@@ -947,37 +957,6 @@ export default function PlayResultScreen() {
           </View>
           <Text style={styles.actionHint}>{bridgeCopy.hint}</Text>
         </View>
-
-        {activityHasReplay && replayOpen ? (
-          <View style={styles.replayBlock}>
-            <View style={styles.replayHeader}>
-              <View>
-                <Text style={styles.replayTitle}>{replayCopy.title}</Text>
-                <Text style={styles.replayText}>{replayCopy.body}</Text>
-              </View>
-            </View>
-            {showPromptContext ? (
-              <View style={styles.contextPill}>
-                <Text style={styles.contextLabel}>
-                  {tt("playDetail.challengeLabel", "Творческий вызов")}
-                </Text>
-                <Text style={styles.contextText}>{sessionPromptDisplay}</Text>
-              </View>
-            ) : null}
-            {!hasReplay ? (
-              <View style={styles.statusCard}>
-                <Text style={styles.statusTitle}>{replayCopy.emptyTitle}</Text>
-                <Text style={styles.statusText}>{replayCopy.emptyBody}</Text>
-              </View>
-            ) : null}
-            <ReplayCanvasWebView
-              strokes={replayStrokes}
-              autoplay
-              speed={1.25}
-              showControls
-            />
-          </View>
-        ) : null}
       </ScrollView>
     </ScreenShell>
   );
