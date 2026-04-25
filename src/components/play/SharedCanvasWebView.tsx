@@ -30,6 +30,10 @@ type Props = {
   disabled?: boolean;
   disabledTitle?: string;
   disabledBody?: string;
+  toolLabels?: {
+    colors: string;
+    brush: string;
+  };
 };
 
 const PALETTE = ["#F97393", "#FF8A3D", "#FACC15", "#34D399", "#38BDF8", "#A78BFA"];
@@ -313,6 +317,7 @@ export default function SharedCanvasWebView({
   disabled = false,
   disabledTitle,
   disabledBody,
+  toolLabels,
 }: Props) {
   const ref = useRef<WebView>(null);
   const [ready, setReady] = useState(false);
@@ -377,54 +382,64 @@ export default function SharedCanvasWebView({
   return (
     <View style={styles.card}>
       <View style={styles.toolbar}>
-        <View style={styles.paletteRow}>
-          {PALETTE.map((color) => {
-            const active = color === selectedColor;
-            return (
-              <Pressable
-                key={color}
-                accessibilityRole="button"
-                disabled={disabled}
-                onPress={() => setSelectedColor(color)}
-                style={[
-                  styles.colorButton,
-                  { backgroundColor: color },
-                  active && styles.colorButtonActive,
-                  disabled && styles.toolButtonDisabled,
-                ]}
-              />
-            );
-          })}
-        </View>
-        <View style={styles.brushRow}>
-          {BRUSHES.map((width) => {
-            const active = width === selectedWidth;
-            return (
-              <Pressable
-                key={width}
-                accessibilityRole="button"
-                disabled={disabled}
-                onPress={() => setSelectedWidth(width)}
-                style={[
-                  styles.brushButton,
-                  active && styles.brushButtonActive,
-                  disabled && styles.toolButtonDisabled,
-                ]}
-              >
-                <View
+        <View style={styles.toolGroup}>
+          {toolLabels?.colors ? (
+            <Text style={styles.toolLabel}>{toolLabels.colors}</Text>
+          ) : null}
+          <View style={styles.paletteRow}>
+            {PALETTE.map((color) => {
+              const active = color === selectedColor;
+              return (
+                <Pressable
+                  key={color}
+                  accessibilityRole="button"
+                  disabled={disabled}
+                  onPress={() => setSelectedColor(color)}
                   style={[
-                    styles.brushDot,
-                    {
-                      width,
-                      height: width,
-                      borderRadius: width / 2,
-                    },
-                    disabled && styles.brushDotDisabled,
+                    styles.colorButton,
+                    { backgroundColor: color },
+                    active && styles.colorButtonActive,
+                    disabled && styles.toolButtonDisabled,
                   ]}
                 />
-              </Pressable>
-            );
-          })}
+              );
+            })}
+          </View>
+        </View>
+        <View style={styles.toolGroup}>
+          {toolLabels?.brush ? (
+            <Text style={styles.toolLabel}>{toolLabels.brush}</Text>
+          ) : null}
+          <View style={styles.brushRow}>
+            {BRUSHES.map((width) => {
+              const active = width === selectedWidth;
+              return (
+                <Pressable
+                  key={width}
+                  accessibilityRole="button"
+                  disabled={disabled}
+                  onPress={() => setSelectedWidth(width)}
+                  style={[
+                    styles.brushButton,
+                    active && styles.brushButtonActive,
+                    disabled && styles.toolButtonDisabled,
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.brushDot,
+                      {
+                        width,
+                        height: width,
+                        borderRadius: width / 2,
+                      },
+                      disabled && styles.brushDotDisabled,
+                    ]}
+                  />
+                </Pressable>
+              );
+            })}
+          </View>
         </View>
       </View>
 
@@ -492,6 +507,16 @@ const styles = StyleSheet.create({
   toolbar: {
     gap: 12,
     marginBottom: 12,
+  },
+  toolGroup: {
+    gap: 7,
+  },
+  toolLabel: {
+    color: theme.colors.muted,
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.7,
+    textTransform: "uppercase",
   },
   paletteRow: {
     flexDirection: "row",

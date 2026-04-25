@@ -4,7 +4,6 @@ import { useNavigation } from "@react-navigation/native";
 
 import ScreenShell from "@/components/ScreenShell";
 import { useLocale } from "@/contexts/LocaleContext";
-import { getRuntimeLocale } from "@/i18n/translations";
 import { type RootStackNavigationProp } from "@/navigation/appRoutes";
 import { getPlayLobbyModeCardCopy } from "@/services/playSessions";
 import { theme } from "@/theme";
@@ -12,10 +11,6 @@ import { theme } from "@/theme";
 export default function PlayLobbyScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"PlayMatch">>();
   const { t } = useLocale();
-  const releaseText = React.useCallback(
-    (en: string, ru: string) => (getRuntimeLocale() === "ru" ? ru : en),
-    []
-  );
   const tt = React.useCallback(
     (key: string, fallback: string, params?: Record<string, string>) => {
       const value = t(key, params);
@@ -35,26 +30,23 @@ export default function PlayLobbyScreen() {
         <View style={styles.hero}>
           <View style={styles.heroTop}>
             <Text style={styles.kicker}>
-              {releaseText("Main release path", "Главный путь релиза")}
+              {tt("together.lobby.drawKicker", "Главный сценарий")}
             </Text>
             <Text style={styles.heroTitle}>
-              {releaseText(
-                "Shared drawing is the core of Together",
-                "Общий рисунок стал ядром «Вместе»"
-              )}
+              {tt("together.lobby.drawHeroTitle", "Создай общий рисунок с другим человеком")}
             </Text>
             <Text style={styles.heroText}>
-              {releaseText(
-                "Start with one shared canvas, reach one shared result, and move into chat only if the opening turns out mutual.",
-                "Начни с одного общего холста, приди к одному общему итогу и переходи в личный разговор только если открытие оказалось взаимным."
+              {tt(
+                "together.lobby.drawHeroBody",
+                "Вы получите один короткий творческий вызов, будете рисовать на одном холсте и сохраните общий след, который потом может стать поводом для чата."
               )}
             </Text>
             <View style={styles.heroLoop}>
               {[
-                releaseText("Shared drawing", "Общий рисунок"),
-                releaseText("Shared result", "Общий итог"),
-                releaseText("Mutual opening", "Взаимное открытие"),
-                releaseText("Private chat", "Личный чат"),
+                tt("together.lobby.drawStepChallenge", "Творческий вызов"),
+                tt("together.lobby.drawStepCanvas", "Общий холст"),
+                tt("together.lobby.drawStepResult", "Совместный результат"),
+                tt("together.lobby.drawStepChat", "Чат по взаимности"),
               ].map((item) => (
                 <View key={item} style={styles.heroLoopChip}>
                   <Text style={styles.heroLoopChipText}>{item}</Text>
@@ -69,13 +61,13 @@ export default function PlayLobbyScreen() {
               style={styles.primaryCta}
             >
               <Text style={styles.primaryCtaTitle}>
-                {releaseText("Start shared drawing", "Начать общий рисунок")}
+                {tt("together.lobby.startDrawChallenge", "Начать общий рисунок")}
               </Text>
             </Pressable>
             <Text style={styles.primaryCtaHint}>
-              {releaseText(
-                "Seven minutes on one canvas, then one result and one honest decision about chat.",
-                "7 минут на одном холсте, потом один итог и одно честное решение об открытии чата."
+              {tt(
+                "together.lobby.startDrawHint",
+                "7 минут на общий ответ, затем итог, история и честное решение про личный разговор."
               )}
             </Text>
           </View>
@@ -87,30 +79,30 @@ export default function PlayLobbyScreen() {
         >
           <View style={styles.historyTextWrap}>
             <Text style={styles.historyTitle}>
-              {releaseText("Shared stories", "Совместные истории")}
+              {tt("together.lobby.historyTitle", "Совместные истории")}
             </Text>
             <Text style={styles.historyText}>
-              {releaseText(
-                "Return to saved drawings, shared palettes, and the connection that already opened from them.",
-                "Возвращайся к сохранённым рисункам, общим палитрам и связи, которая уже выросла из них."
+              {tt(
+                "together.lobby.historyBodyCore",
+                "Возвращайся к сохранённым рисункам, творческим вызовам, общим палитрам и разговорам, которые выросли из них."
               )}
             </Text>
           </View>
           <View style={styles.historyBadge}>
             <Text style={styles.historyBadgeText}>
-              {releaseText("Stories", "Истории")}
+              {tt("together.lobby.historyBadge", "Истории")}
             </Text>
           </View>
         </Pressable>
 
         <View style={styles.secondarySection}>
           <Text style={styles.secondarySectionTitle}>
-            {releaseText("One softer variation", "Одна мягкая вариация")}
+            {tt("together.lobby.colorMoodSectionTitle", "Мягкий второй сценарий")}
           </Text>
           <Text style={styles.secondarySectionText}>
-            {releaseText(
-              "If drawing feels too direct, start through color instead. It is shorter, softer, and still leads to one honest decision about chat.",
-              "Если рисунок кажется слишком прямым входом, начни через цвет. Это короче, мягче и всё равно ведёт к одному честному решению об открытии чата."
+            {tt(
+              "together.lobby.colorMoodSectionBody",
+              "Если рисовать сейчас слишком прямо, начни через цвет. Палитра настроения короче и мягче, но всё равно создаёт общий результат."
             )}
           </Text>
         </View>
@@ -123,57 +115,13 @@ export default function PlayLobbyScreen() {
             <Text style={styles.cardTitle}>{colorMoodCopy.title}</Text>
             <View style={styles.badge}>
               <Text style={styles.badgeText}>
-                {releaseText("Variation", "Вариация")}
+                {tt("together.lobby.colorMoodBadge", "Второй сценарий")}
               </Text>
             </View>
           </View>
           <Text style={styles.cardDescription}>{colorMoodCopy.description}</Text>
           <Text style={styles.cardDetails}>{colorMoodCopy.details}</Text>
         </Pressable>
-
-        <View style={styles.supportingSection}>
-          <Text style={styles.supportingSectionTitle}>
-            {tt("together.lobby.supportingTitle", "Другие живые пути рядом")}
-          </Text>
-          <Text style={styles.supportingSectionText}>
-            {tt(
-              "together.lobby.supportingBody",
-              "«Рядом» помогает с сигналом на ближайший момент. «Объявления» держат оформленные запросы. «Вместе» остаётся местом для химии один на один и следующего шага в чат."
-            )}
-          </Text>
-        </View>
-
-        <View style={styles.quickRow}>
-          <Pressable
-            onPress={() => navigation.navigate("Tabs", { screen: "Nearby" })}
-            style={styles.quickCard}
-          >
-            <Text style={styles.quickTitle}>
-              {tt("together.lobby.quickNearbyTitle", "Рядом")}
-            </Text>
-            <Text style={styles.quickText}>
-              {tt(
-                "together.lobby.quickNearbyBody",
-                "Посмотри пульс рядом и оставь статус на ближайший момент."
-              )}
-            </Text>
-          </Pressable>
-
-          <Pressable
-            onPress={() => navigation.navigate("Tabs", { screen: "Announcements" })}
-            style={styles.quickCard}
-          >
-            <Text style={styles.quickTitle}>
-              {tt("together.lobby.quickAnnouncementsTitle", "Объявления")}
-            </Text>
-            <Text style={styles.quickText}>
-              {tt(
-                "together.lobby.quickAnnouncementsBody",
-                "Открой оформленные запросы, создай объявление или ответь автору в личный чат."
-              )}
-            </Text>
-          </Pressable>
-        </View>
       </ScrollView>
     </ScreenShell>
   );
@@ -321,21 +269,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
   },
-  supportingSection: {
-    gap: 4,
-    paddingHorizontal: 2,
-    paddingTop: 2,
-  },
-  supportingSectionTitle: {
-    color: theme.colors.text,
-    fontSize: 16,
-    fontWeight: "800",
-  },
-  supportingSectionText: {
-    color: theme.colors.subtext,
-    fontSize: 12,
-    lineHeight: 18,
-  },
   secondaryCard: {
     borderRadius: theme.shapes.card,
     padding: 17,
@@ -380,29 +313,5 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 17,
     fontWeight: "700",
-  },
-  quickRow: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  quickCard: {
-    flex: 1,
-    minWidth: 0,
-    borderRadius: theme.shapes.card,
-    padding: 15,
-    backgroundColor: "rgba(12, 16, 30, 0.78)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
-    gap: 7,
-  },
-  quickTitle: {
-    color: theme.colors.text,
-    fontSize: 15,
-    fontWeight: "800",
-  },
-  quickText: {
-    color: theme.colors.subtext,
-    fontSize: 12,
-    lineHeight: 17,
   },
 });

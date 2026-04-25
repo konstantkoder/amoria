@@ -12,6 +12,10 @@ import {
   where,
 } from "firebase/firestore";
 import { getRuntimeLocale, translate } from "@/i18n/translations";
+import {
+  getPlayDrawChallengeById,
+  getPlayDrawChallengeForSeed,
+} from "@/services/playChallenges";
 import { makeNickname } from "@/services/rooms";
 
 export type PlayActivity = "draw" | "chain_draw" | "daily_prompt" | "color_mood";
@@ -20,6 +24,7 @@ export type PlayDailyPrompt = {
   id: string;
   text: string;
 };
+export type PlaySessionPrompt = PlayDailyPrompt;
 export type PlayColorMoodPhase = "picking" | "finished";
 export type PlayColorMoodOption = {
   id: string;
@@ -437,25 +442,29 @@ function resolvePlayPromptFromParts(
   promptId: unknown,
   promptText: unknown,
   fallbackAt?: number
-): PlayDailyPrompt | null {
-  if (activity !== "daily_prompt") return null;
+): PlaySessionPrompt | null {
+  if (activity !== "daily_prompt" && activity !== "draw") return null;
 
   const stablePromptId = normalizePromptString(promptId);
   const stablePromptText = normalizePromptString(promptText);
-  const promptById = stablePromptId ? getPlayDailyPromptById(stablePromptId) : null;
+  const promptById = stablePromptId
+    ? activity === "draw"
+      ? getPlayDrawChallengeById(stablePromptId)
+      : getPlayDailyPromptById(stablePromptId)
+    : null;
 
   if (promptById) {
-    return stablePromptText ? { ...promptById, text: stablePromptText } : promptById;
+    return promptById;
   }
 
   if (stablePromptText) {
     return {
-      id: stablePromptId || "daily_prompt",
+      id: stablePromptId || activity,
       text: stablePromptText,
     };
   }
 
-  if (fallbackAt != null) {
+  if (activity === "daily_prompt" && fallbackAt != null) {
     return getPlayDailyPromptForTimestamp(fallbackAt);
   }
 
@@ -467,7 +476,7 @@ export function getPlaySessionPrompt(
     | Pick<PlaySessionDoc, "activity" | "promptId" | "promptText" | "createdAt" | "startedAt">
     | null
     | undefined
-): PlayDailyPrompt | null {
+): PlaySessionPrompt | null {
   if (!session) return null;
   const fallbackAt =
     session.startedAt > 0
@@ -528,25 +537,29 @@ export function getPlayActivityLabel(
 export function getPlayActivityStoryText(activity: string, promptText?: string) {
   switch (activity) {
     case "draw":
-      return releaseCopy(
-        "One shared drawing on one canvas.",
-        "Один общий рисунок на одном холсте."
-      );
+      return promptText?.trim()
+        ? releaseCopy(
+            `You answered one shared creative challenge together: “${promptText.trim()}”.`,
+            `Вы вместе ответили на один творческий вызов: «${promptText.trim()}».`
+          )
+        : releaseCopy(
+            "One shared drawing on one canvas.",
+            "Один общий рисунок на одном холсте."
+          );
     case "chain_draw":
       return releaseCopy(
         "One shared drawing, passed back and forth in short turns.",
         "Один общий рисунок, который вы передавали друг другу короткими ходами."
       );
     case "daily_prompt":
-      return promptText?.trim()
-        ? releaseCopy(
-            `One shared drawing around “${promptText.trim()}”.`,
-            `Один общий рисунок вокруг темы «${promptText.trim()}».`
-          )
-        : releaseCopy(
-            "One shared drawing around one shared prompt.",
-            "Один общий рисунок вокруг одной общей темы."
-          );
+      return releaseCopy(
+        promptText?.trim()
+          ? `One shared drawing around “${promptText.trim()}”.`
+          : "One shared drawing around one shared prompt.",
+        promptText?.trim()
+          ? `Один общий рисунок вокруг темы «${promptText.trim()}».`
+          : "Один общий рисунок вокруг одной общей темы."
+      );
     case "color_mood":
       return releaseCopy(
         "A short shared palette and one soft result.",
@@ -563,12 +576,12 @@ export function getPlayLobbyModeCardCopy(activity: PlayActivity): PlayLobbyModeC
       return {
         title: releaseCopy("Shared drawing", "Общий рисунок"),
         description: releaseCopy(
-          "One shared canvas, one shared result, and the clearest path into connection.",
-          "Один общий холст, один общий итог и самый прямой путь к связи."
+          "One short creative challenge, one shared canvas, and the clearest path into connection.",
+          "Один короткий творческий вызов, один общий холст и самый прямой путь к связи."
         ),
         details: releaseCopy(
-          "This is the main Together path in release: seven minutes on one canvas, then one honest decision about chat.",
-          "Это главный путь релиза во «Вместе»: 7 минут на одном холсте, а потом одно честное решение о личном разговоре."
+          "This is the main Together path in release: draw the same challenge for seven minutes, then decide honestly about chat.",
+          "Это главный путь релиза во «Вместе»: 7 минут вместе рисовать один вызов, а потом честно решить про личный разговор."
         ),
       };
     case "chain_draw":
@@ -698,24 +711,24 @@ export function getPlayMatchModeCopy(activity: PlayActivity | null): PlayMatchMo
       return {
         eyebrow: releaseCopy("Shared drawing", "Общий рисунок"),
         preparingBody: releaseCopy(
-          "We'll put you in line now and try to find the second person for the main Together path: one shared drawing.",
-          "Сейчас поставим тебя в очередь и попробуем быстро найти второго человека для главного пути «Вместе»: одного общего рисунка."
+          "We'll put you in line now and try to find the second person for the main Together path: one shared drawing challenge.",
+          "Сейчас поставим тебя в очередь и попробуем быстро найти второго человека для главного пути «Вместе»: одного общего творческого вызова."
         ),
         searchingBody: releaseCopy(
-          "As soon as we find the second person, we'll open one shared canvas. You will draw together on the same picture from the first stroke to the result.",
-          "Как только найдём второго участника, сразу откроем один общий холст. Вы будете вместе вести один рисунок от первого штриха до общего итога."
+          "As soon as we find the second person, we'll open one shared challenge and one canvas. You will draw the same idea together from the first stroke to the result.",
+          "Как только найдём второго участника, сразу откроем один общий вызов и один холст. Вы будете вместе вести одну идею от первого штриха до общего итога."
         ),
         delayedBody: releaseCopy(
           "This main path usually starts quickly, but sometimes the search takes a little longer. Stay here or come back and try again later.",
           "Обычно главный путь стартует быстро, но иногда поиск занимает чуть больше времени. Оставайся здесь или вернись и попробуй снова позже."
         ),
         foundBody: releaseCopy(
-          "We found the second person. Opening your shared canvas now.",
-          "Человек найден. Открываем ваш общий холст."
+          "We found the second person. Opening your shared challenge and canvas now.",
+          "Человек найден. Открываем ваш общий вызов и холст."
         ),
         caption: releaseCopy(
-          "The main Together path: seven minutes, one shared canvas, one result, then one honest decision about chat.",
-          "Главный путь «Вместе»: 7 минут, один общий холст, один итог и потом одно честное решение об открытии чата."
+          "The main Together path: one creative challenge, seven minutes, one shared result, then one honest decision about chat.",
+          "Главный путь «Вместе»: один творческий вызов, 7 минут, один общий итог и потом честное решение об открытии чата."
         ),
       };
   }
@@ -801,14 +814,16 @@ export function getPlayCanvasModeCopy(options: {
       return isActive
         ? {
             eyebrow: releaseCopy("Shared drawing", "Общий рисунок"),
-            title: releaseCopy("One shared canvas", "Один общий холст"),
+            title: promptText?.trim()
+              ? promptText.trim()
+              : releaseCopy("One shared creative challenge", "Один общий творческий вызов"),
             body: releaseCopy(
-              "This is the main Together path: draw together on one canvas. When time ends, you'll see the result and decide whether you want to continue.",
-              "Это главный путь «Вместе»: рисуйте вместе на одном холсте. Когда время закончится, вы увидите итог и решите, хотите ли продолжить общение."
+              "This is the main Together path: answer the same creative challenge together on one canvas. When time ends, the result becomes your shared story.",
+              "Это главный путь «Вместе»: вместе ответьте на один творческий вызов на общем холсте. Когда время закончится, итог станет вашей общей историей."
             ),
             helperText: releaseCopy(
-              "You have seven minutes for one shared drawing. When time ends, you'll see the result right away and decide whether to open chat.",
-              "У вас 7 минут на один общий рисунок. Когда время закончится, вы сразу увидите итог и решите, хотите ли открыть чат дальше."
+              "You have seven minutes to build one shared answer. The result stays in history and can become the reason to open chat.",
+              "У вас 7 минут, чтобы собрать один общий ответ. Итог останется в истории и может стать поводом открыть чат."
             ),
           }
         : {
@@ -923,30 +938,38 @@ export function getPlayModeContextCardCopy(
               ),
       };
     case "draw":
-    default:
+    default: {
+      const drawPrompt = options?.promptText?.trim();
       return {
         title: releaseCopy("Shared drawing", "Общий рисунок"),
         body:
           surface === "result"
             ? releaseCopy(
-                "This is the core Together path: one shared drawing, one canvas, and one result.",
-                "Это ядро «Вместе»: один общий рисунок, один холст и один итог."
+                "This is the core Together path: one creative challenge, one shared canvas, and one result.",
+                "Это ядро «Вместе»: один творческий вызов, один общий холст и один итог."
               )
             : surface === "detail"
               ? releaseCopy(
-                  "This is where your shared drawing stays: one canvas, one result, and the story that can grow into connection.",
-                  "Здесь остаётся ваш общий рисунок: один холст, один итог и история, из которой может вырасти связь."
+                  "This is where your shared drawing stays: the challenge, the result, and the story that can grow into connection.",
+                  "Здесь остаётся ваш общий рисунок: вызов, итог и история, из которой может вырасти связь."
                 )
               : releaseCopy(
-                  "One shared canvas and the drawing that stayed in your story.",
-                  "Один общий холст и рисунок, который остался в вашей истории."
+                  "One creative challenge and the shared drawing that stayed in your story.",
+                  "Один творческий вызов и общий рисунок, который остался в вашей истории."
                 ),
         facts: [
           releaseCopy("7 min", "7 минут"),
+          releaseCopy("One creative challenge", "Один творческий вызов"),
           releaseCopy("One shared canvas", "Один общий холст"),
-          releaseCopy("One shared result", "Один общий итог"),
         ],
+        ...(drawPrompt
+          ? {
+              tagLabel: releaseCopy("Challenge", "Вызов"),
+              tagValue: drawPrompt,
+            }
+          : {}),
       };
+    }
   }
 }
 
@@ -1005,8 +1028,8 @@ export function getPlayResultModeCopy(activity: string): PlayResultModeCopy {
           "Ваш общий рисунок готов"
         ),
         heroBody: releaseCopy(
-          "The result of the main Together path you just finished.",
-          "Итог главного пути «Вместе», который вы только что завершили."
+          "The answer you built together to one creative challenge.",
+          "Ваш совместный ответ на один творческий вызов."
         ),
       };
   }
@@ -1054,8 +1077,8 @@ export function getPlayReplayCopy(activity: string): PlayReplayCopy {
           "Повтор общего рисунка"
         ),
         body: releaseCopy(
-          "The strokes run in their original order so you can quickly return to this shared moment.",
-          "Штрихи идут в исходном порядке, чтобы можно было быстро вернуться в этот общий момент."
+          "The strokes run in their original order so you can return to how the challenge became your shared result.",
+          "Штрихи идут в исходном порядке, чтобы можно было вернуться к тому, как вызов стал вашим общим итогом."
         ),
         emptyTitle: releaseCopy("Replay is empty for now", "Повтор пока пустой"),
         emptyBody: releaseCopy(
@@ -1381,7 +1404,11 @@ export async function tryMatchWaitingPlayer(
     const chainDrawState =
       activity === "chain_draw" ? buildInitialChainDrawState(participantIds, now) : null;
     const prompt =
-      activity === "daily_prompt" ? getPlayDailyPromptForTimestamp(now) : null;
+      activity === "draw"
+        ? getPlayDrawChallengeForSeed(sessionId)
+        : activity === "daily_prompt"
+          ? getPlayDailyPromptForTimestamp(now)
+          : null;
     const colorMoodPatch =
       activity === "color_mood"
         ? {

@@ -77,7 +77,11 @@ function getHistoryContextText(
       return releaseText("Shared drawing in turns", "Общий рисунок по очереди");
     case "draw":
     default:
-      return releaseText("Shared drawing on one canvas", "Общий рисунок на одном холсте");
+      return item.promptText?.trim()
+        ? tt("playHistory.contextDrawChallenge", "Creative challenge: {challenge}", {
+            challenge: item.promptText.trim(),
+          })
+        : releaseText("Shared drawing on one canvas", "Общий рисунок на одном холсте");
   }
 }
 

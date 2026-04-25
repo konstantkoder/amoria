@@ -424,11 +424,14 @@ export default function PlayResultScreen() {
   const waitingForPeer = Boolean(decision) && revealOutcome === "waiting";
   const durationLabel = formatDuration(session, tt);
   const activityLabel = getPlayActivityLabel(session?.activity ?? "draw", "neutral");
-  const showDailyPrompt = session?.activity === "daily_prompt";
   const activityHasReplay = playActivityUsesReplay(session?.activity ?? "draw");
   const sessionPrompt = React.useMemo(() => getPlaySessionPrompt(session), [session]);
+  const promptContext = sessionPrompt?.text?.trim() ?? "";
+  const showPromptContext = Boolean(
+    promptContext && (session?.activity === "draw" || session?.activity === "daily_prompt")
+  );
   const sessionPromptDisplay =
-    sessionPrompt?.text?.trim() || tt("playDetail.pendingPrompt", "Тема уточняется");
+    promptContext || tt("playDetail.pendingPrompt", "Тема уточняется");
   const combinedPalette = React.useMemo(() => getPlayColorMoodCombinedPalette(session), [session]);
   const ownPalette = React.useMemo(() => getPlayColorMoodChoices(session, uid), [session, uid]);
   const peerPalette = React.useMemo(
@@ -823,9 +826,11 @@ export default function PlayResultScreen() {
             {getPlayActivityStoryText(session.activity, sessionPrompt?.text)}
           </Text>
           <Text style={styles.heroSubtext}>{resultModeCopy.heroBody}</Text>
-          {showDailyPrompt ? (
+          {showPromptContext ? (
             <View style={styles.contextPill}>
-              <Text style={styles.contextLabel}>{tt("playDetail.topicLabel", "Тема")}</Text>
+              <Text style={styles.contextLabel}>
+                {tt("playDetail.challengeLabel", "Творческий вызов")}
+              </Text>
               <Text style={styles.contextText}>{sessionPromptDisplay}</Text>
             </View>
           ) : null}
@@ -951,9 +956,11 @@ export default function PlayResultScreen() {
                 <Text style={styles.replayText}>{replayCopy.body}</Text>
               </View>
             </View>
-            {showDailyPrompt ? (
+            {showPromptContext ? (
               <View style={styles.contextPill}>
-                <Text style={styles.contextLabel}>{tt("playDetail.topicLabel", "Тема")}</Text>
+                <Text style={styles.contextLabel}>
+                  {tt("playDetail.challengeLabel", "Творческий вызов")}
+                </Text>
                 <Text style={styles.contextText}>{sessionPromptDisplay}</Text>
               </View>
             ) : null}

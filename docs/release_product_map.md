@@ -7,10 +7,13 @@
 - Announcements / Объявления
 - Chats / Чаты
 
-## Core
+## Core / Вместе
 
-- draw
-- color_mood
+- Together / Вместе
+  - main scenario: draw with shared creative challenges
+  - secondary scenario: color_mood
+  - not release pillars: daily_prompt, chain_draw
+  - no demos / no fake sessions
 
 ## Supporting Flows
 

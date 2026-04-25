@@ -212,15 +212,18 @@ export default function PlayCanvasScreen() {
     [session]
   );
   const isChainDraw = session?.activity === "chain_draw";
-  const isDailyPrompt = session?.activity === "daily_prompt";
   const isMyTurn = !isChainDraw || chainTurnState?.currentTurnUid === uid;
   const activityLabel = React.useMemo(
     () => getPlayActivityLabel(session?.activity ?? "draw", "neutral"),
     [session?.activity]
   );
   const sessionPrompt = React.useMemo(() => getPlaySessionPrompt(session), [session]);
+  const promptContext = sessionPrompt?.text?.trim() ?? "";
+  const showPromptContext = Boolean(
+    promptContext && (session?.activity === "draw" || session?.activity === "daily_prompt")
+  );
   const sessionPromptDisplay =
-    sessionPrompt?.text?.trim() || tt("playDetail.pendingPrompt", "Тема уточняется");
+    promptContext || tt("playDetail.pendingPrompt", "Тема уточняется");
 
   const openResultScreen = React.useCallback(() => {
     if (!mountedRef.current || navigationHandledRef.current || !sessionId) return;
@@ -710,15 +713,19 @@ export default function PlayCanvasScreen() {
                   <Text style={styles.metaValue}>{totalStrokeCount}</Text>
                 </View>
               </>
-            ) : isDailyPrompt ? (
+            ) : showPromptContext ? (
               <>
                 <View style={[styles.metaCard, styles.metaCardWide]}>
-                  <Text style={styles.metaLabel}>{tt("play.canvas.metaPrompt", "Сегодняшняя тема")}</Text>
+                  <Text style={styles.metaLabel}>
+                    {tt("play.canvas.metaChallenge", "Творческий вызов")}
+                  </Text>
                   <Text style={styles.metaValue}>{sessionPromptDisplay}</Text>
                 </View>
                 <View style={styles.metaCard}>
                   <Text style={styles.metaLabel}>{tt("play.canvas.metaFormat", "Формат")}</Text>
-                  <Text style={styles.metaValue}>{tt("play.canvas.formatShared", "Один рисунок на двоих")}</Text>
+                  <Text style={styles.metaValue}>
+                    {tt("play.canvas.formatChallenge", "Один общий ответ")}
+                  </Text>
                 </View>
                 <View style={styles.metaCard}>
                   <Text style={styles.metaLabel}>{tt("play.canvas.metaTotalStrokes", "Общих штрихов")}</Text>
@@ -746,6 +753,10 @@ export default function PlayCanvasScreen() {
           disabled={canvasDisabled}
           disabledTitle={canvasDisabledTitle}
           disabledBody={canvasDisabledBody}
+          toolLabels={{
+            colors: tt("play.canvas.toolColors", "Цвета"),
+            brush: tt("play.canvas.toolBrush", "Толщина линии"),
+          }}
           onLocalStrokeBatch={handleLocalBatch}
         />
 

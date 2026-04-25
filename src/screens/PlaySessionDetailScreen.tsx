@@ -343,11 +343,14 @@ export default function PlaySessionDetailScreen() {
     }
     return events.reduce((sum, batch) => sum + batch.strokes.length, 0);
   }, [events, session?.resultStrokeCount]);
-  const showDailyPrompt = session?.activity === "daily_prompt";
   const activityHasReplay = playActivityUsesReplay(session?.activity ?? "draw");
   const sessionPrompt = React.useMemo(() => getPlaySessionPrompt(session), [session]);
+  const promptContext = sessionPrompt?.text?.trim() ?? "";
+  const showPromptContext = Boolean(
+    promptContext && (session?.activity === "draw" || session?.activity === "daily_prompt")
+  );
   const sessionPromptDisplay =
-    sessionPrompt?.text?.trim() || tt("playDetail.pendingPrompt", "Тема уточняется");
+    promptContext || tt("playDetail.pendingPrompt", "Тема уточняется");
   const combinedPalette = React.useMemo(() => getPlayColorMoodCombinedPalette(session), [session]);
   const ownPalette = React.useMemo(() => getPlayColorMoodChoices(session, uid), [session, uid]);
   const peerPalette = React.useMemo(
@@ -691,10 +694,10 @@ export default function PlaySessionDetailScreen() {
             {getPlayActivityStoryText(session.activity, sessionPrompt?.text)}
           </Text>
           <Text style={styles.heroSupportText}>{storyHomeText}</Text>
-          {showDailyPrompt ? (
+          {showPromptContext ? (
             <View style={styles.contextPill}>
               <Text style={styles.contextLabel}>
-                {tt("playDetail.topicLabel", "Тема")}
+                {tt("playDetail.challengeLabel", "Творческий вызов")}
               </Text>
               <Text style={styles.contextText}>{sessionPromptDisplay}</Text>
             </View>
@@ -739,10 +742,10 @@ export default function PlaySessionDetailScreen() {
                 </Text>
               </Pressable>
             </View>
-            {showDailyPrompt ? (
+            {showPromptContext ? (
               <View style={styles.contextPill}>
                 <Text style={styles.contextLabel}>
-                  {tt("playDetail.topicLabel", "Тема")}
+                  {tt("playDetail.challengeLabel", "Творческий вызов")}
                 </Text>
                 <Text style={styles.contextText}>{sessionPromptDisplay}</Text>
               </View>
