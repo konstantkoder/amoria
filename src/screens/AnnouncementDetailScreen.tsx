@@ -11,7 +11,7 @@ import {
   type AnnouncementDetailRouteProp,
   type RootStackNavigationProp,
 } from "@/navigation/appRoutes";
-import { goBackOrOpenNearbyAnnouncements } from "@/navigation/nearbyNavigation";
+import { goBackOrOpenAnnouncements } from "@/navigation/nearbyNavigation";
 import { buildDmChatRouteParams, ensureDmThread } from "@/services/dm";
 import {
   nearbyAnnouncementsRepository,
@@ -74,7 +74,7 @@ function buildAnnouncementResponsePresentation(
         body: copyOrFallback(
           t,
           "nearby.detail.ownBody",
-          "Это объявление уже опубликовано в разделе «Объявления» рядом. Отсюда можно спокойно вернуться к списку."
+          "Это объявление уже опубликовано в разделе «Объявления». Отсюда можно спокойно вернуться к списку."
         ),
         actionLabel: copyOrFallback(t, "nearby.detail.backToList", "К объявлениям"),
         busyLabel: copyOrFallback(t, "nearby.detail.backToList", "К объявлениям"),
@@ -186,7 +186,7 @@ export default function AnnouncementDetailScreen() {
   );
 
   const handleBack = React.useCallback(() => {
-    goBackOrOpenNearbyAnnouncements(navigation);
+    goBackOrOpenAnnouncements(navigation);
   }, [navigation]);
 
   useFocusEffect(
@@ -292,6 +292,10 @@ export default function AnnouncementDetailScreen() {
               threadId,
               peerId: announcementAuthorUid,
               peerName: announcement.authorLabel,
+              backTarget: "inbox",
+              sourceContext: {
+                source: "announcement",
+              },
             })
           );
 
@@ -329,7 +333,7 @@ export default function AnnouncementDetailScreen() {
             body={copyOrFallback(
               t,
               "nearby.detail.missingBody",
-              "Не удалось открыть это объявление. Можно вернуться к списку рядом."
+              "Не удалось открыть это объявление. Можно вернуться к списку объявлений."
             )}
             primaryAction={{
               label: copyOrFallback(t, "nearby.detail.backToList", "К объявлениям"),

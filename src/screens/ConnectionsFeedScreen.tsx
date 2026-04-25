@@ -508,7 +508,7 @@ export default function ConnectionsFeedScreen() {
             threadId: card.threadId,
             peerId: card.peerId,
             peerName: card.peerName,
-            backTarget: "connections",
+            backTarget: "inbox",
             ...(sourceContext ? { sourceContext } : {}),
           })
         );
@@ -547,7 +547,7 @@ export default function ConnectionsFeedScreen() {
             threadId,
             peerId: card.peerId,
             peerName: card.peerName,
-            backTarget: "connections",
+            backTarget: "inbox",
             sourceContext,
           })
         );

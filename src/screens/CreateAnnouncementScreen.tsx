@@ -20,8 +20,8 @@ import { auth } from "@/config/firebaseConfig";
 import { useLocale } from "@/contexts/LocaleContext";
 import { type RootStackNavigationProp } from "@/navigation/appRoutes";
 import {
-  goBackOrOpenNearbyAnnouncements,
-  openNearbyAnnouncements,
+  goBackOrOpenAnnouncements,
+  openAnnouncements,
 } from "@/navigation/nearbyNavigation";
 import {
   NEARBY_ANNOUNCEMENT_CATEGORY_ORDER,
@@ -97,7 +97,7 @@ export default function CreateAnnouncementScreen() {
   );
   const canPublish = Boolean(currentUid && title.trim() && description.trim());
   const handleBack = React.useCallback(() => {
-    goBackOrOpenNearbyAnnouncements(navigation);
+    goBackOrOpenAnnouncements(navigation);
   }, [navigation]);
   const revealPreviewFeedback = React.useCallback((targetY?: number) => {
     if (!pendingPhotoRevealRef.current) return;
@@ -198,7 +198,7 @@ export default function CreateAnnouncementScreen() {
         ...(photoUri ? { photoUri } : {}),
       });
 
-      openNearbyAnnouncements(navigation, createdAnnouncement.id);
+      openAnnouncements(navigation, createdAnnouncement.id);
     } catch {
       Alert.alert(
         copyOrFallback(t, "nearby.create.errorTitle", "Не удалось опубликовать"),
@@ -248,7 +248,7 @@ export default function CreateAnnouncementScreen() {
             {copyOrFallback(
               t,
               "nearby.create.heroBody",
-              "Это оформленный запрос, а не моментный статус из «Сейчас». Коротко и понятно напиши, кого ищешь, где и какой формат нужен."
+              "Это оформленный запрос, а не быстрый статус из «Рядом». Коротко и понятно напиши, кого ищешь, где и какой формат нужен."
             )}
           </Text>
         </View>
@@ -399,7 +399,7 @@ export default function CreateAnnouncementScreen() {
             }}
           >
             <Text style={styles.previewKicker}>
-              {copyOrFallback(t, "nearby.create.previewKicker", "Как это увидят рядом")}
+              {copyOrFallback(t, "nearby.create.previewKicker", "Как это будет выглядеть")}
             </Text>
             {photoUri ? (
               <View style={styles.previewPhotoNotice}>
@@ -453,9 +453,9 @@ export default function CreateAnnouncementScreen() {
                 <Text style={styles.previewAuthor}>{authorLabel}</Text>
                 <Text style={styles.previewAuthorHint}>
                   {copyOrFallback(
-                    t,
-                    "nearby.create.previewFooter",
-                    "После публикации карточка появится в разделе «Объявления» рядом и откроется как обычная запись."
+              t,
+              "nearby.create.previewFooter",
+              "После публикации карточка появится в разделе «Объявления» и откроется как обычная запись."
                   )}
                 </Text>
               </View>
@@ -489,12 +489,12 @@ export default function CreateAnnouncementScreen() {
               ? copyOrFallback(
                   t,
                   "nearby.create.publishReadyHint",
-                  "После публикации вернёшься в раздел «Объявления» рядом, где карточка сразу появится в списке."
+                  "После публикации вернёшься в раздел «Объявления», где карточка сразу появится в списке."
                 )
               : copyOrFallback(
                   t,
                   "nearby.create.publishHint",
-                  "Заполни заголовок и описание. Ниже видно, как объявление увидят рядом."
+                  "Заполни заголовок и описание. Ниже видно, как объявление будет выглядеть в разделе."
                 )}
           </Text>
         </View>

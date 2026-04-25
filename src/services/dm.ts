@@ -62,7 +62,7 @@ export type DmMessageDoc = {
 
 type DmChatBackRouteParams =
   | {
-      backTarget?: "history" | "connections" | "inbox";
+      backTarget?: "history" | "inbox";
       backSessionId?: never;
     }
   | {

@@ -1,10 +1,8 @@
 import type {
   AnnouncementDetailRouteParams,
-  NearbySection,
-  NearbyTabNavigationProp,
-  NearbyTabParams,
+  AnnouncementsTabNavigationProp,
+  AnnouncementsTabParams,
   RootStackNavigationProp,
-  RoomsOrigin,
   TabsNavigatorParams,
 } from "@/navigation/appRoutes";
 import type { NearbyAnnouncement } from "@/services/nearbyAnnouncements";
@@ -14,12 +12,15 @@ type NearbyFlowNavigator = Pick<
   "canGoBack" | "goBack" | "navigate"
 >;
 
-type NearbyParamsNavigator = Pick<NearbyTabNavigationProp, "setParams">;
+type AnnouncementsParamsNavigator = Pick<AnnouncementsTabNavigationProp, "setParams">;
 
-function buildNearbyTabsTarget(
-  params?: NearbyTabParams
+function buildAnnouncementsTabsTarget(
+  params?: AnnouncementsTabParams
 ): ["Tabs", NonNullable<TabsNavigatorParams>] {
-  return ["Tabs", params ? { screen: "Nearby", params } : { screen: "Nearby" }];
+  return [
+    "Tabs",
+    params ? { screen: "Announcements", params } : { screen: "Announcements" },
+  ];
 }
 
 function buildAnnouncementDetailParams(
@@ -31,20 +32,12 @@ function buildAnnouncementDetailParams(
   };
 }
 
-export function openNearbySection(
-  navigation: NearbyFlowNavigator,
-  section: NearbySection
-) {
-  navigation.navigate(...buildNearbyTabsTarget({ section }));
-}
-
-export function openNearbyAnnouncements(
+export function openAnnouncements(
   navigation: NearbyFlowNavigator,
   highlightAnnouncementId?: NearbyAnnouncement["id"]
 ) {
   navigation.navigate(
-    ...buildNearbyTabsTarget({
-      section: "announcements",
+    ...buildAnnouncementsTabsTarget({
       ...(highlightAnnouncementId ? { highlightAnnouncementId } : {}),
     })
   );
@@ -64,26 +57,18 @@ export function openAnnouncementDetail(
   );
 }
 
-export function openRooms(
-  navigation: NearbyFlowNavigator,
-  origin: RoomsOrigin = "nearby"
-) {
-  navigation.navigate("Rooms", { origin });
-}
-
-export function resetNearbyRouteParams(navigation: NearbyParamsNavigator) {
+export function resetAnnouncementsRouteParams(navigation: AnnouncementsParamsNavigator) {
   navigation.setParams({
-    section: undefined,
     highlightAnnouncementId: undefined,
   });
 }
 
-export function goBackOrOpenNearbyAnnouncements(
+export function goBackOrOpenAnnouncements(
   navigation: NearbyFlowNavigator
 ) {
   if (navigation.canGoBack()) {
     navigation.goBack();
     return;
   }
-  openNearbyAnnouncements(navigation);
+  openAnnouncements(navigation);
 }

@@ -6,7 +6,6 @@ import ScreenShell from "@/components/ScreenShell";
 import { useLocale } from "@/contexts/LocaleContext";
 import { getRuntimeLocale } from "@/i18n/translations";
 import { type RootStackNavigationProp } from "@/navigation/appRoutes";
-import { openNearbySection, openRooms } from "@/navigation/nearbyNavigation";
 import { getPlayLobbyModeCardCopy } from "@/services/playSessions";
 import { theme } from "@/theme";
 
@@ -139,38 +138,38 @@ export default function PlayLobbyScreen() {
           <Text style={styles.supportingSectionText}>
             {tt(
               "together.lobby.supportingBody",
-              "Nearby помогает с сигналом на ближайший момент. Rooms открывает живое общее пространство. «Вместе» остаётся местом для химии один на один и следующего шага в связь."
+              "«Рядом» помогает с сигналом на ближайший момент. «Объявления» держат оформленные запросы. «Вместе» остаётся местом для химии один на один и следующего шага в чат."
             )}
           </Text>
         </View>
 
         <View style={styles.quickRow}>
           <Pressable
-            onPress={() => openNearbySection(navigation, "now")}
+            onPress={() => navigation.navigate("Tabs", { screen: "Nearby" })}
             style={styles.quickCard}
           >
             <Text style={styles.quickTitle}>
-              {tt("together.lobby.quickNearbyTitle", "Nearby")}
+              {tt("together.lobby.quickNearbyTitle", "Рядом")}
             </Text>
             <Text style={styles.quickText}>
               {tt(
                 "together.lobby.quickNearbyBody",
-                "Посмотри пульс рядом, оставь статус на ближайший момент или открой объявления."
+                "Посмотри пульс рядом и оставь статус на ближайший момент."
               )}
             </Text>
           </Pressable>
 
           <Pressable
-            onPress={() => openRooms(navigation, "together")}
+            onPress={() => navigation.navigate("Tabs", { screen: "Announcements" })}
             style={styles.quickCard}
           >
             <Text style={styles.quickTitle}>
-              {tt("together.lobby.quickRoomsTitle", "Rooms")}
+              {tt("together.lobby.quickAnnouncementsTitle", "Объявления")}
             </Text>
             <Text style={styles.quickText}>
               {tt(
-                "together.lobby.quickRoomsBody",
-                "Если нужен живой групповой сценарий рядом, открой Rooms и вернись сюда, когда захочется пути один на один."
+                "together.lobby.quickAnnouncementsBody",
+                "Открой оформленные запросы, создай объявление или ответь автору в личный чат."
               )}
             </Text>
           </Pressable>

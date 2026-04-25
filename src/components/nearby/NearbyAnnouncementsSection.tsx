@@ -63,7 +63,7 @@ export default function NearbyAnnouncementsSection({
         title: copyOrFallback(
           t,
           "nearby.announcements.emptyTitle",
-          "Пока рядом нет оформленных объявлений"
+          "Пока нет оформленных объявлений"
         ),
         body: copyOrFallback(
           t,
@@ -108,13 +108,13 @@ export default function NearbyAnnouncementsSection({
               {copyOrFallback(t, "nearby.announcements.kicker", "Оформленные запросы")}
             </Text>
             <Text style={styles.heroTitle}>
-              {copyOrFallback(t, "nearby.announcements.title", "Объявления рядом")}
+              {copyOrFallback(t, "nearby.announcements.title", "Объявления")}
             </Text>
             <Text style={styles.heroBody}>
               {copyOrFallback(
                 t,
                 "nearby.announcements.body",
-                "Это не моментный статус. Здесь остаются более оформленные запросы: кого ты ищешь, где, для какого плана и на какой формат встречи рассчитываешь."
+                "Это не быстрый статус рядом. Здесь остаются оформленные запросы: кого ты ищешь, где, для какого плана и на какой формат встречи рассчитываешь."
               )}
             </Text>
           </View>
@@ -125,7 +125,7 @@ export default function NearbyAnnouncementsSection({
               {copyOrFallback(
                 t,
                 "nearby.announcements.count",
-                "{count} listings"
+                "{count} requests"
               ).replace("{count}", String(items.length))}
             </Text>
           </View>

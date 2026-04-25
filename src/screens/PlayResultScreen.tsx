@@ -137,7 +137,7 @@ function getResultBridgeCopy(options: {
       nextTitle: tt("play.result.bridgeChatNeedsAccountNextTitle", "Сначала открыть профиль"),
       nextBody: tt(
         "play.result.bridgeChatNeedsAccountNextBody",
-        "После входа можно будет вернуться к этой истории, открыть связь в «Связях» и перейти в личный разговор уже без потери общего контекста."
+        "После входа можно будет вернуться к этой истории и перейти в личный разговор уже без потери общего контекста."
       ),
       hint: tt(
         "play.result.bridgeChatNeedsAccountHint",
@@ -158,11 +158,11 @@ function getResultBridgeCopy(options: {
       nextTitle: tt("play.result.bridgeChatReadyNextTitle", "Продолжить это уже лично"),
       nextBody: tt(
         "play.result.bridgeChatReadyNextBody",
-        "Можно сразу открыть разговор или сначала зайти в саму связь, если хочешь опереться на общую историю и этот сохранённый контекст."
+        "Можно сразу открыть разговор или сначала вернуться к общей истории, если хочешь опереться на сохранённый контекст."
       ),
       hint: tt(
         "play.result.bridgeChatReadyHint",
-        "После выхода с этого экрана связь останется в «Связях», а совместная история останется в архиве."
+        "После выхода с этого экрана разговор останется в «Чатах», а совместная история останется в архиве."
       ),
       primaryIntent: "open_chat",
       primaryLabel: tt("play.result.openPrivateChat", "Открыть личный разговор"),
@@ -174,7 +174,7 @@ function getResultBridgeCopy(options: {
       happenedTitle: tt("play.result.bridgeConnectionReadyTitle", "Связь уже открылась"),
       happenedBody: tt(
         "play.result.bridgeConnectionReadyBody",
-        "Общий результат уже сохранился как открытая связь. Если личный разговор не открывается отсюда, можно спокойно вернуться в саму историю или в раздел «Связи»."
+        "Общий результат уже сохранился как контекст разговора. Если личный разговор не открывается отсюда, можно спокойно вернуться в саму историю или в «Чаты»."
       ),
       nextTitle: tt("play.result.bridgeConnectionReadyNextTitle", "Вернуться к общей истории"),
       nextBody: tt(
@@ -294,8 +294,8 @@ export default function PlayResultScreen() {
   const goToTogether = React.useCallback(() => {
     navigation.navigate("Tabs", { screen: "Together" });
   }, [navigation]);
-  const goToConnections = React.useCallback(() => {
-    navigation.navigate("Tabs", { screen: "Connections" });
+  const goToChats = React.useCallback(() => {
+    navigation.navigate("Tabs", { screen: "Inbox" });
   }, [navigation]);
   const startNewSession = React.useCallback(() => {
     navigation.navigate("PlayMatch", {
@@ -649,7 +649,7 @@ export default function PlayResultScreen() {
   const showHistoryButton =
     bridgeCopy.primaryIntent !== "open_story" &&
     ((allOpen && canOpenChat) || waitingForPeer || showSoftEnding);
-  const showConnectionsButton = revealOutcome === "open_open";
+  const showChatsButton = revealOutcome === "open_open";
   const screenTitle = tt("play.result.title", "Итог сессии");
   const handleBack = () => {
     if (navigation.canGoBack()) {
@@ -899,10 +899,10 @@ export default function PlayResultScreen() {
           </Pressable>
 
           <View style={styles.secondaryActions}>
-            {showConnectionsButton ? (
-              <Pressable onPress={goToConnections} style={styles.secondaryButton}>
+            {showChatsButton ? (
+              <Pressable onPress={goToChats} style={styles.secondaryButton}>
                 <Text style={styles.secondaryText}>
-                  {tt("play.result.openConnection", "Открыть связь")}
+                  {tt("tabs.chats", "Чаты")}
                 </Text>
               </Pressable>
             ) : null}

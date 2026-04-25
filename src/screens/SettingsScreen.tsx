@@ -29,6 +29,15 @@ import {
 import { clearPresence } from "@/services/presence";
 import { type RootStackNavigationProp } from "@/navigation/appRoutes";
 
+function copyOrFallback(
+  t: (key: string, params?: Record<string, string>) => string,
+  key: string,
+  fallback: string
+) {
+  const value = t(key);
+  return value === key ? fallback : value;
+}
+
 export default function SettingsScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"Settings">>();
   const { t, openLanguagePicker } = useLocale();
@@ -162,7 +171,14 @@ export default function SettingsScreen() {
     async (value: boolean) => {
       if (value) {
         if (!prefs.nearbyEnabled) {
-          Alert.alert(t("settings.nearbyEnabled"), t("rooms.enableForMap"));
+          Alert.alert(
+            t("settings.nearbyEnabled"),
+            copyOrFallback(
+              t,
+              "settings.locationRequiredForNearby",
+              "Enable location for Nearby to use map-based nearby presence."
+            )
+          );
           return;
         }
         if (prefs.consent !== "accepted") {
@@ -184,7 +200,14 @@ export default function SettingsScreen() {
     async (value: boolean) => {
       if (value) {
         if (!prefs.nearbyEnabled) {
-          Alert.alert(t("settings.nearbyEnabled"), t("rooms.enableForMap"));
+          Alert.alert(
+            t("settings.nearbyEnabled"),
+            copyOrFallback(
+              t,
+              "settings.locationRequiredForNearby",
+              "Enable location for Nearby to use map-based nearby presence."
+            )
+          );
           return;
         }
         if (prefs.consent !== "accepted") {

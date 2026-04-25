@@ -1,10 +1,7 @@
 import React from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
-import { type NearbyTabNavigationProp } from "@/navigation/appRoutes";
-import { openRooms } from "@/navigation/nearbyNavigation";
 import { theme } from "@/theme";
 import { useLocale } from "@/contexts/LocaleContext";
 
@@ -18,7 +15,6 @@ function copyOrFallback(
 }
 
 export default function NearbyRoomsSection() {
-  const navigation = useNavigation<NearbyTabNavigationProp>();
   const { t } = useLocale();
 
   const title = copyOrFallback(t, "nearby.rooms.title", "Комнаты рядом");
@@ -27,8 +23,6 @@ export default function NearbyRoomsSection() {
     "nearby.rooms.body",
     "Это вход в живое общее пространство рядом: сначала карта, потом место и общий чат."
   );
-  const openLabel = copyOrFallback(t, "nearby.rooms.open", "Открыть комнаты");
-
   const features = [
     copyOrFallback(t, "nearby.rooms.featureOne", "Карта рядом и текущая точка входа"),
     copyOrFallback(t, "nearby.rooms.featureTwo", "Выбор места перед входом в комнату"),
@@ -77,12 +71,6 @@ export default function NearbyRoomsSection() {
             )}
           </Text>
         </View>
-        <Pressable
-          onPress={() => openRooms(navigation, "nearby")}
-          style={styles.primaryButton}
-        >
-          <Text style={styles.primaryButtonText}>{openLabel}</Text>
-        </Pressable>
       </View>
 
       <View style={styles.linkCard}>
@@ -187,24 +175,6 @@ const styles = StyleSheet.create({
     color: theme.colors.subtext,
     fontSize: 13,
     lineHeight: 18,
-  },
-  primaryButton: {
-    alignSelf: "stretch",
-    borderRadius: theme.shapes.pill,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: theme.colors.primary,
-    alignItems: "center",
-    shadowColor: theme.colors.primary,
-    shadowOpacity: 0.18,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 4,
-  },
-  primaryButtonText: {
-    color: "#FFFFFF",
-    fontSize: 13,
-    fontWeight: "800",
   },
   linkCard: {
     flexDirection: "row",

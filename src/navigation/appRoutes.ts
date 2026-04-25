@@ -10,7 +10,6 @@ import type { DmChatRouteParams } from "@/services/dm";
 import type { NearbyAnnouncement } from "@/services/nearbyAnnouncements";
 import type { PlayActivity } from "@/services/playSessions";
 
-export type NearbySection = "now" | "announcements" | "rooms";
 export type RoomsOrigin = "nearby" | "together";
 
 export type AppStackParamList = {
@@ -18,15 +17,14 @@ export type AppStackParamList = {
   Root: undefined;
 };
 
-export type NearbyTabParams = {
-  section?: NearbySection;
+export type AnnouncementsTabParams = {
   highlightAnnouncementId?: NearbyAnnouncement["id"];
 };
 
 export type MainTabParamList = {
-  Nearby: NearbyTabParams | undefined;
   Together: undefined;
-  Connections: undefined;
+  Nearby: undefined;
+  Announcements: AnnouncementsTabParams | undefined;
   Inbox: undefined;
 };
 
@@ -87,7 +85,16 @@ export type NearbyTabNavigationProp = CompositeNavigationProp<
   RootStackNavigationProp
 >;
 
+export type AnnouncementsTabNavigationProp = CompositeNavigationProp<
+  BottomTabNavigationProp<MainTabParamList, "Announcements">,
+  RootStackNavigationProp
+>;
+
 export type NearbyTabRouteProp = RouteProp<MainTabParamList, "Nearby">;
+export type AnnouncementsTabRouteProp = RouteProp<
+  MainTabParamList,
+  "Announcements"
+>;
 export type AnnouncementDetailRouteProp = RouteProp<
   RootStackParamList,
   "AnnouncementDetail"

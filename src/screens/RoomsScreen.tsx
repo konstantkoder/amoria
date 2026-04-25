@@ -37,7 +37,6 @@ import {
   type RootStackNavigationProp,
   type RoomsRouteProp,
 } from "@/navigation/appRoutes";
-import { openNearbySection } from "@/navigation/nearbyNavigation";
 import { translateMaybeKey } from "@/utils/i18n";
 import { formatNickname } from "@/utils/nickname";
 import { withTimeout } from "@/utils/withTimeout";
@@ -252,8 +251,8 @@ export default function RoomsScreen() {
   const goToTogetherTab = useCallback(() => {
     navigation.navigate("Tabs", { screen: "Together" });
   }, [navigation]);
-  const goToNearbyRooms = useCallback(() => {
-    openNearbySection(navigation, "rooms");
+  const goToNearbyTab = useCallback(() => {
+    navigation.navigate("Tabs", { screen: "Nearby" });
   }, [navigation]);
 
   const [room, setRoom] = useState<RoomDoc | null>(null);
@@ -1167,8 +1166,8 @@ export default function RoomsScreen() {
       goToTogetherTab();
       return;
     }
-    goToNearbyRooms();
-  }, [goToNearbyRooms, goToTogetherTab, origin]);
+    goToNearbyTab();
+  }, [goToNearbyTab, goToTogetherTab, origin]);
 
   const handleChooseBack = useCallback(() => {
     if (navigation.canGoBack()) {

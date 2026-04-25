@@ -18,7 +18,6 @@ import * as Location from "expo-location";
 import { Ionicons } from "@expo/vector-icons";
 
 import { type NearbyTabNavigationProp } from "@/navigation/appRoutes";
-import { openRooms } from "@/navigation/nearbyNavigation";
 import { theme } from "@/theme";
 import { auth, db, isFirebaseConfigured } from "@/config/firebaseConfig";
 import {
@@ -46,7 +45,6 @@ type TranslateFn = (key: string, params?: Record<string, string>) => string;
 
 type Props = {
   showHero?: boolean;
-  showRoomsBridge?: boolean;
   bottomInset?: number;
 };
 
@@ -92,7 +90,6 @@ function getNearbyNowLocationError(
 
 export default function NearbyNowSection({
   showHero = false,
-  showRoomsBridge = false,
   bottomInset,
 }: Props) {
   const insets = useSafeAreaInsets();
@@ -364,10 +361,6 @@ export default function NearbyNowSection({
     navigation.navigate("Tabs", { screen: "Together" });
   }, [navigation]);
 
-  const goToRooms = useCallback(() => {
-    openRooms(navigation, "nearby");
-  }, [navigation]);
-
   const locationEnabled = prefs.consent === "accepted" && prefs.nearbyEnabled;
   const locationDeclined = prefs.consent === "declined" && !locationEnabled;
 
@@ -388,7 +381,7 @@ export default function NearbyNowSection({
     }
     return Array.from(deduped.values());
   }, [pos, posts, radiusKm]);
-  const showStandaloneHeading = showHero || showRoomsBridge;
+  const showStandaloneHeading = showHero;
 
   const locationGateTitle = useMemo(() => {
     if (prefsLoading || posLoading) {
@@ -540,9 +533,6 @@ export default function NearbyNowSection({
         <Pressable onPress={goToTogether} style={styles.heroPrimaryButton}>
           <Text style={styles.heroPrimaryButtonText}>{t("now.goToTogether")}</Text>
         </Pressable>
-        <Pressable onPress={goToRooms} style={styles.heroSecondaryButton}>
-          <Text style={styles.heroSecondaryButtonText}>{t("now.openRooms")}</Text>
-        </Pressable>
       </View>
     </View>
   ) : null;
@@ -614,16 +604,6 @@ export default function NearbyNowSection({
     </View>
   ) : null;
 
-  const renderRoomsBridge = showRoomsBridge ? (
-    <View style={styles.roomsBridgeCard}>
-      <Text style={styles.roomsBridgeTitle}>{t("now.roomsCardTitle")}</Text>
-      <Text style={styles.roomsBridgeBody}>{t("now.roomsCardBody")}</Text>
-      <Pressable onPress={goToRooms} style={styles.roomsBridgeButton}>
-        <Text style={styles.roomsBridgeButtonText}>{t("now.openRooms")}</Text>
-      </Pressable>
-    </View>
-  ) : null;
-
   const header = (
     <View style={styles.headerContent}>
       {renderHero}
@@ -632,7 +612,6 @@ export default function NearbyNowSection({
         <Text style={styles.sectionHeading}>{t("now.myVibeTitle")}</Text>
       ) : null}
       {renderComposer}
-      {renderRoomsBridge}
       {pos ? (
         <>
           <View style={styles.listHeaderRow}>
@@ -802,19 +781,6 @@ const styles = StyleSheet.create({
     color: "#042A26",
     fontSize: 12,
     fontWeight: "800",
-  },
-  heroSecondaryButton: {
-    borderRadius: theme.shapes.pill,
-    paddingHorizontal: 13,
-    paddingVertical: 8,
-    backgroundColor: "rgba(70,224,200,0.08)",
-    borderWidth: 1,
-    borderColor: "rgba(70,224,200,0.16)",
-  },
-  heroSecondaryButtonText: {
-    color: theme.colors.text,
-    fontSize: 12,
-    fontWeight: "700",
   },
   sectionHeading: {
     color: theme.colors.text,
@@ -1009,39 +975,6 @@ const styles = StyleSheet.create({
   },
   sendButtonText: {
     color: "#042A26",
-    fontSize: 12,
-    fontWeight: "800",
-  },
-  roomsBridgeCard: {
-    borderRadius: 18,
-    padding: 12,
-    backgroundColor: "rgba(17, 20, 36, 0.88)",
-    borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
-  },
-  roomsBridgeTitle: {
-    color: theme.colors.text,
-    fontSize: 13,
-    fontWeight: "800",
-    marginBottom: 3,
-  },
-  roomsBridgeBody: {
-    color: theme.colors.subtext,
-    fontSize: 12,
-    lineHeight: 16,
-    marginBottom: 7,
-  },
-  roomsBridgeButton: {
-    alignSelf: "flex-start",
-    borderRadius: theme.shapes.pill,
-    paddingHorizontal: 13,
-    paddingVertical: 8,
-    backgroundColor: theme.colors.pillBg,
-    borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
-  },
-  roomsBridgeButtonText: {
-    color: theme.colors.text,
     fontSize: 12,
     fontWeight: "800",
   },

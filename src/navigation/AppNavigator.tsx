@@ -8,8 +8,8 @@ import { Drawer } from "react-native-drawer-layout";
 
 import { auth, db } from "@/config/firebaseConfig";
 import PlayLobbyScreen from "@/screens/PlayLobbyScreen";
-import ConnectionsFeedScreen from "@/screens/ConnectionsFeedScreen";
 import NearbyHubScreen from "@/screens/NearbyHubScreen";
+import AnnouncementsScreen from "@/screens/AnnouncementsScreen";
 import RoomsScreen from "@/screens/RoomsScreen";
 import InboxScreen from "@/screens/InboxScreen";
 import PlayMatchScreen from "@/screens/PlayMatchScreen";
@@ -90,6 +90,10 @@ function MainTabs() {
     const nearby = t("tabs.nearby");
     return nearby === "tabs.nearby" ? "Nearby" : nearby;
   }, [t]);
+  const announcementsTabLabel = React.useMemo(() => {
+    const announcements = t("tabs.announcements");
+    return announcements === "tabs.announcements" ? "Announcements" : announcements;
+  }, [t]);
 
   return (
     <Tab.Navigator
@@ -107,7 +111,7 @@ function MainTabs() {
         > = {
           Nearby: { active: "location", inactive: "location-outline" },
           Together: { active: "sparkles", inactive: "sparkles-outline" },
-          Connections: { active: "git-network", inactive: "git-network-outline" },
+          Announcements: { active: "document-text", inactive: "document-text-outline" },
           Inbox: { active: "chatbubbles", inactive: "chatbubbles-outline" },
         };
 
@@ -180,14 +184,6 @@ function MainTabs() {
       }}
     >
       <Tab.Screen
-        name="Nearby"
-        component={NearbyHubScreen}
-        options={{
-          title: nearbyTabLabel,
-          tabBarLabel: nearbyTabLabel,
-        }}
-      />
-      <Tab.Screen
         name="Together"
         component={PlayLobbyScreen}
         options={{
@@ -196,11 +192,19 @@ function MainTabs() {
         }}
       />
       <Tab.Screen
-        name="Connections"
-        component={ConnectionsFeedScreen}
+        name="Nearby"
+        component={NearbyHubScreen}
         options={{
-          title: t("tabs.connections"),
-          tabBarLabel: t("tabs.connections"),
+          title: nearbyTabLabel,
+          tabBarLabel: nearbyTabLabel,
+        }}
+      />
+      <Tab.Screen
+        name="Announcements"
+        component={AnnouncementsScreen}
+        options={{
+          title: announcementsTabLabel,
+          tabBarLabel: announcementsTabLabel,
         }}
       />
       <Tab.Screen

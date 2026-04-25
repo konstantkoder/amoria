@@ -302,13 +302,21 @@ export default function DMChatScreen() {
     navigation.navigate("PlaySessionDetail", { sessionId: sourceSessionId });
   }, [navigation, sourceSessionId]);
   const sourceEyebrow = useMemo(
-    () =>
-      sourceContext?.source === "play"
-        ? tt("dm.sourceEyebrow", "Общая история этой связи")
-        : "",
+    () => {
+      if (sourceContext?.source === "play") {
+        return tt("dm.sourceEyebrow", "Общая история этого разговора");
+      }
+      if (sourceContext?.source === "announcement") {
+        return tt("dm.sourceAnnouncementEyebrow", "Контекст объявления");
+      }
+      return "";
+    },
     [sourceContext?.source, tt]
   );
   const sourceTitle = useMemo(() => {
+    if (sourceContext?.source === "announcement") {
+      return tt("dm.sourceAnnouncement", "Личный разговор после объявления");
+    }
     if (sourceContext?.source !== "play") return "";
     if (sourceActivity === "color_mood") {
       return tt("dm.sourcePlayColorMood", "Ваш личный разговор после общей палитры");
@@ -322,23 +330,29 @@ export default function DMChatScreen() {
     return tt("dm.sourcePlay", "Ваш личный разговор после совместной сессии");
   }, [sourceActivity, sourceContext?.source, tt]);
   const sourceMeta = useMemo(() => {
+    if (sourceContext?.source === "announcement") {
+      return tt(
+        "dm.sourceAnnouncementBody",
+        "Этот чат открыт из объявления. Здесь продолжается личный ответ автору без отдельного раздела связи."
+      );
+    }
     if (sourceContext?.source !== "play") return "";
     if (sourceActivity === "color_mood") {
       return tt(
         "dm.sourcePaletteReady",
-        "Общая палитра уже сохранена в истории вашей связи. Она остаётся в общем контексте, а здесь начинается ваше личное продолжение."
+        "Общая палитра уже сохранена в истории этого разговора. Она остаётся в общем контексте, а здесь начинается ваше личное продолжение."
       );
     }
     if (sourceStrokeCount != null) {
       return tt(
         "dm.sourceStrokeCount",
-        "Общий результат уже сохранён в истории вашей связи. Он остаётся вашим общим контекстом, а здесь разговор продолжается уже лично. Штрихов: {count}",
+        "Общий результат уже сохранён в истории этого разговора. Он остаётся вашим общим контекстом, а здесь разговор продолжается уже лично. Штрихов: {count}",
         { count: String(sourceStrokeCount) }
       );
     }
     return tt(
       "dm.contextReady",
-      "Общий момент уже сохранён в истории этой связи. К нему можно вернуться в любой момент, а здесь продолжается ваш личный разговор."
+      "Общий момент уже сохранён в истории этого разговора. К нему можно вернуться в любой момент, а здесь продолжается ваш личный разговор."
     );
   }, [sourceActivity, sourceContext?.source, sourceStrokeCount, tt]);
   const isLoading = threadLoading || messagesLoading;
@@ -350,12 +364,6 @@ export default function DMChatScreen() {
     ? t("dm.title", { name: screenTitleName })
     : tt("dm.genericTitle", "Разговор");
   const missingChatBody = useMemo(() => {
-    if (backTarget === "connections") {
-      return tt(
-        "dm.notFoundFromConnectionBody",
-        "Связь уже открыта, но личный разговор отсюда пока не загрузился. Вернись в «Связи» или попробуй ещё раз чуть позже."
-      );
-    }
     if (backTarget === "sessionDetail" || backTarget === "history") {
       return tt(
         "dm.notFoundFromStoryBody",
@@ -380,21 +388,14 @@ export default function DMChatScreen() {
     if (backTarget === "sessionDetail") {
       return tt("dm.backToSessionStory", "Вернуться к общей истории");
     }
-    if (backTarget === "connections") {
-      return tt("dm.backToConnections", "Вернуться в связи");
-    }
     if (backTarget === "inbox") {
-      return tt("dm.backToInbox", "Вернуться к диалогам");
+      return tt("dm.backToInbox", "Вернуться к чатам");
     }
     return tt("common.back", "Назад");
   }, [backTarget, tt]);
   const fallbackBack = useCallback(() => {
     if (backTarget === "history") {
       navigation.navigate("PlayHistory");
-      return true;
-    }
-    if (backTarget === "connections") {
-      navigation.navigate("Tabs", { screen: "Connections" });
       return true;
     }
     if (backTarget === "inbox") {

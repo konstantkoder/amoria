@@ -132,8 +132,8 @@ export default function PlayHistoryScreen() {
   const goToTogether = useCallback(() => {
     navigation.navigate("Tabs", { screen: "Together" });
   }, [navigation]);
-  const goToConnections = useCallback(() => {
-    navigation.navigate("Tabs", { screen: "Connections" });
+  const goToChats = useCallback(() => {
+    navigation.navigate("Tabs", { screen: "Inbox" });
   }, [navigation]);
   const handleLoadError = useCallback(() => {
     setError(
@@ -463,7 +463,7 @@ export default function PlayHistoryScreen() {
               "Сейчас не получается подключить ваши общие истории. Попробуй позже или вернись во Вместе."
             )}
             primaryAction={{ label: t("connections.goToTogether"), onPress: goToTogether }}
-            secondaryAction={{ label: t("tabs.connections"), onPress: goToConnections }}
+            secondaryAction={{ label: t("tabs.chats"), onPress: goToChats }}
           />
         </View>
       </ScreenShell>
@@ -535,8 +535,8 @@ export default function PlayHistoryScreen() {
                   {tt("playHistory.startNewSession", "Начать новую совместную сессию")}
                 </Text>
               </Pressable>
-              <Pressable onPress={goToConnections} style={styles.heroSecondaryButton}>
-                <Text style={styles.heroSecondaryButtonText}>{t("tabs.connections")}</Text>
+              <Pressable onPress={goToChats} style={styles.heroSecondaryButton}>
+                <Text style={styles.heroSecondaryButtonText}>{t("tabs.chats")}</Text>
               </Pressable>
             </View>
           </View>

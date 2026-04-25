@@ -27,7 +27,7 @@ type InboxThreadCard = {
   id: string;
   peerId: string;
   peerName: string;
-  sourceKey: "play" | "direct";
+  sourceKey: "play" | "announcement" | "direct";
   activity?: PlayActivity;
   conversationLabel: string;
   previewText: string;
@@ -71,7 +71,12 @@ function mapThreadToCard(
     id: thread.id,
     peerId: peer.uid,
     peerName: peer.name || fallbackName,
-    sourceKey: thread.source === "play" ? "play" : "direct",
+    sourceKey:
+      thread.source === "play"
+        ? "play"
+        : thread.source === "announcement"
+          ? "announcement"
+          : "direct",
     ...(thread.artworkSummary?.activity
       ? { activity: thread.artworkSummary.activity }
       : {}),
@@ -167,19 +172,15 @@ export default function InboxScreen() {
         .sort((a, b) => b.sortAt - a.sortAt),
     [freshnessState.dmThreads, t, threads, tt, uid]
   );
-  const playCardsCount = useMemo(
-    () => cards.filter((item) => item.sourceKey === "play").length,
-    [cards]
-  );
-
   const sourceLabels = useMemo(
     () => ({
       play: {
-        draw: tt("inbox.sourcePlay", "Разговор после общей сессии"),
-        chain_draw: tt("inbox.sourcePlayChainDraw", "Разговор после рисунка по очереди"),
-        daily_prompt: tt("inbox.sourcePlayDailyPrompt", "Разговор после общей темы дня"),
-        color_mood: tt("inbox.sourcePlayColorMood", "Разговор после общей палитры"),
+        draw: tt("inbox.sourcePlay", "После общего рисунка"),
+        chain_draw: tt("inbox.sourcePlayChainDraw", "После рисунка по очереди"),
+        daily_prompt: tt("inbox.sourcePlayDailyPrompt", "После общей темы дня"),
+        color_mood: tt("inbox.sourcePlayColorMood", "После палитры настроения"),
       },
+      announcement: tt("inbox.sourceAnnouncement", "После объявления"),
       direct: tt("inbox.sourceDefault", "Личный диалог"),
     }),
     [tt]
@@ -188,30 +189,20 @@ export default function InboxScreen() {
     navigation.navigate("Tabs", { screen: "Together" });
   }, [navigation]);
 
-  const renderHeroCard = (showAction: boolean) => (
+  const renderHeroCard = () => (
     <View style={styles.heroCard}>
       <View style={styles.heroHeaderRow}>
         <Text style={styles.heroTitle}>
-          {tt("inbox.activeTitleCoreLoop", "Здесь продолжаются личные разговоры")}
+          {tt("inbox.activeTitleCoreLoop", "Все личные разговоры")}
         </Text>
         <Text style={styles.heroCount}>{cards.length}</Text>
       </View>
       <Text style={styles.heroText}>
         {tt(
           "inbox.subheaderCoreLoop",
-          "Если разговор вырос из общей сессии, его общий контекст и история остаются в «Связях». Здесь остаётся уже только личное продолжение."
+          "Здесь собираются переписки после «Вместе», после объявлений и после сценариев рядом. Карточка показывает, откуда появился разговор, если такой контекст уже есть."
         )}
       </Text>
-      {showAction ? (
-        <Pressable
-          onPress={() => navigation.navigate("Tabs", { screen: "Connections" })}
-          style={styles.heroLinkButton}
-        >
-          <Text style={styles.heroLinkText}>
-            {tt("inbox.openConnections", "К открытым связям")}
-          </Text>
-        </Pressable>
-      ) : null}
     </View>
   );
 
@@ -226,22 +217,14 @@ export default function InboxScreen() {
       <Text style={styles.emptyStateText}>
         {tt(
           "inbox.emptyBodyCoreLoop",
-          "Когда появится первый личный разговор, он останется здесь. Если он вырастет из общей сессии, её история и общий контекст будут ждать в «Связях»."
+          "Когда появится первый личный разговор, он останется здесь вместе с доступным контекстом: общая сессия, объявление или другой реальный источник."
         )}
       </Text>
       <Pressable
-        onPress={() => navigation.navigate("Tabs", { screen: "Connections" })}
+        onPress={goToTogether}
         style={styles.emptyPrimaryButton}
       >
         <Text style={styles.emptyPrimaryButtonText}>
-          {tt("inbox.openConnections", "Открытые связи")}
-        </Text>
-      </Pressable>
-      <Pressable
-        onPress={goToTogether}
-        style={styles.emptySecondaryButton}
-      >
-        <Text style={styles.emptySecondaryButtonText}>
           {tt("inbox.goToTogether", "Вернуться во Вместе")}
         </Text>
       </Pressable>
@@ -335,6 +318,8 @@ export default function InboxScreen() {
               <Text style={{ color: theme.colors.accent, fontSize: 12, fontWeight: "800" }}>
                 {item.sourceKey === "play"
                   ? sourceLabels.play[item.activity ?? "draw"]
+                  : item.sourceKey === "announcement"
+                    ? sourceLabels.announcement
                   : sourceLabels.direct}
               </Text>
             </View>
@@ -389,7 +374,7 @@ export default function InboxScreen() {
             title={tt("inbox.authRequiredTitle", "Диалоги доступны после входа")}
             body={tt(
               "inbox.authRequiredBodyCoreLoop",
-              "Войдите, чтобы увидеть свои личные разговоры. Если они выросли из общей сессии, их общий контекст останется в «Связях»."
+              "Войдите, чтобы увидеть свои личные разговоры и доступный контекст: после «Вместе», объявлений или сценариев рядом."
             )}
             primaryAction={{ label: t("menu.profile"), onPress: () => navigation.navigate("Profile") }}
             secondaryAction={{ label: t("connections.goToTogether"), onPress: goToTogether }}
@@ -411,13 +396,10 @@ export default function InboxScreen() {
             title={tt("inbox.errorTitle", "Диалоги временно недоступны")}
             body={tt(
               "inbox.offlineBodyCoreLoop",
-              "Сейчас не получается открыть личные разговоры. Если они выросли из общей сессии, их общий контекст всё равно останется в «Связях»."
+              "Сейчас не получается открыть личные разговоры. Попробуй позже или вернись во «Вместе»."
             )}
             primaryAction={{ label: t("connections.goToTogether"), onPress: goToTogether }}
-            secondaryAction={{
-              label: tt("inbox.openConnections", "Связи"),
-              onPress: () => navigation.navigate("Tabs", { screen: "Connections" }),
-            }}
+            secondaryAction={{ label: tt("common.retry", "Повторить"), onPress: () => setReloadKey((prev) => prev + 1) }}
           />
         </View>
       </ScreenShell>
@@ -432,7 +414,7 @@ export default function InboxScreen() {
       <View
         style={[styles.screenContent, { paddingBottom: insets.bottom + 8 }]}
       >
-        {renderHeroCard(playCardsCount > 0)}
+        {renderHeroCard()}
 
         {loading ? (
           <View
@@ -468,8 +450,8 @@ export default function InboxScreen() {
                 onPress: () => setReloadKey((prev) => prev + 1),
               }}
               secondaryAction={{
-                label: tt("inbox.openConnections", "Связи"),
-                onPress: () => navigation.navigate("Tabs", { screen: "Connections" }),
+                label: t("connections.goToTogether"),
+                onPress: goToTogether,
               }}
             />
           </View>
@@ -523,20 +505,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 19,
   },
-  heroLinkButton: {
-    alignSelf: "flex-start",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: theme.shapes.pill,
-    backgroundColor: theme.colors.pillBg,
-    borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
-  },
-  heroLinkText: {
-    color: theme.colors.text,
-    fontSize: 11,
-    fontWeight: "800",
-  },
   emptyStateCard: {
     borderRadius: theme.shapes.card,
     padding: 18,
@@ -578,20 +546,6 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 14,
     fontWeight: "800",
-  },
-  emptySecondaryButton: {
-    alignSelf: "flex-start",
-    borderRadius: theme.shapes.pill,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: "rgba(255,255,255,0.04)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
-  },
-  emptySecondaryButtonText: {
-    color: theme.colors.subtext,
-    fontSize: 12,
-    fontWeight: "700",
   },
   listContent: {
     paddingTop: 2,
