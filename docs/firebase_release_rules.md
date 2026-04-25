@@ -14,7 +14,7 @@ This document records the local Firebase rules baseline for the current Amoria r
 - `announcements/{announcementId}`
 - `announcements/{announcementId}/responses/{uid}`
 - `reports/{reportId}`
-- `nowPosts/{postId}`
+- `nearbyPosts/{postId}`
 - `presence/{uid}`
 - `rooms/{roomId}`
 - `rooms/{roomId}/messages/{messageId}`
@@ -39,7 +39,8 @@ This document records the local Firebase rules baseline for the current Amoria r
 - Announcements list only `active` documents; direct detail reads stay authenticated so the client can show closed, deleted, or under-review states honestly.
 - Announcement responses use `responses/{uid}` and can be written only by that responder, not by the announcement author.
 - Reports are create-only for clients and require `reporterUid == request.auth.uid`.
-- Nearby `nowPosts` and `presence` can be read by authenticated users; writes are limited to the current user's own post/presence identity.
+- Nearby `nearbyPosts` list only active quick-status documents; creates and updates are limited to the signed-in author, and client lists still filter expired `expiresAt` values.
+- `presence` can be read by authenticated users; writes are limited to the current user's own presence identity.
 - Profile, gallery, and announcement images must be uploaded to Storage as images within size limits.
 
 ## Intentionally Relaxed
@@ -59,4 +60,4 @@ This document records the local Firebase rules baseline for the current Amoria r
 - Confirm Firebase Storage bucket is enabled.
 - Create or verify required Firestore indexes for current queries.
 - Review report handling: client rules create reports, but public launch still needs an operational moderation process.
-- Re-test profile photo upload, announcement photo upload, announcement responses, DM send/read, and Together matching against deployed rules.
+- Re-test profile photo upload, announcement photo upload, announcement responses, Nearby status publish/delete/chat handoff, DM send/read, and Together matching against deployed rules.

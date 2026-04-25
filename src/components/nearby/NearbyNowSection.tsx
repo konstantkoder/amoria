@@ -11,6 +11,7 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  type AlertButton,
 } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -22,9 +23,11 @@ import { type NearbyTabNavigationProp } from "@/navigation/appRoutes";
 import { theme } from "@/theme";
 import { auth, db, isFirebaseConfigured } from "@/config/firebaseConfig";
 import {
+  NEARBY_STATUS_TTL_MS,
   type NowMood,
   type NowPost,
   createNowPost,
+  deleteNowPost,
   makeRegion,
   subscribeNowPosts,
 } from "@/services/now";
@@ -40,6 +43,12 @@ import { formatAgoLong } from "@/utils/timeAgo";
 import { translateMaybeKey } from "@/utils/i18n";
 import { formatNickname } from "@/utils/nickname";
 import { getUserProfile } from "@/services/user";
+import { buildDmChatRouteParams, ensureDmThread } from "@/services/dm";
+import {
+  createReport,
+  getBlockedUserIds,
+  type SafetyReportReason,
+} from "@/services/safety";
 
 type Pos = { lat: number; lng: number; accuracy?: number | null };
 type RadiusOption = number | null;
@@ -90,6 +99,38 @@ function getNearbyNowLocationError(
   return t("geo.noLocationAccess");
 }
 
+function buildReportReasonButtons(
+  t: TranslateFn,
+  onSelect: (reason: SafetyReportReason) => void
+): AlertButton[] {
+  return [
+    {
+      text: t("safety.reason.spam"),
+      onPress: () => onSelect("spam"),
+    },
+    {
+      text: t("safety.reason.harassment"),
+      onPress: () => onSelect("harassment"),
+    },
+    {
+      text: t("safety.reason.sexualServices"),
+      onPress: () => onSelect("sexual_services"),
+    },
+    {
+      text: t("safety.reason.scam"),
+      onPress: () => onSelect("scam"),
+    },
+    {
+      text: t("safety.reason.other"),
+      onPress: () => onSelect("other"),
+    },
+    {
+      text: t("common.cancel"),
+      style: "cancel",
+    },
+  ];
+}
+
 export default function NearbyNowSection({
   showHero = false,
   bottomInset,
@@ -121,6 +162,12 @@ export default function NearbyNowSection({
   const [sending, setSending] = useState(false);
   const [radiusKm, setRadiusKm] = useState<RadiusOption>(25);
   const [profileAvatarUrl, setProfileAvatarUrl] = useState("");
+  const [profileDisplayName, setProfileDisplayName] = useState("");
+  const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
+  const [chatOpeningPostId, setChatOpeningPostId] = useState<string | null>(null);
+  const [deletingPostId, setDeletingPostId] = useState<string | null>(null);
+  const [reportingPostId, setReportingPostId] = useState<string | null>(null);
+  const [lastPublishedAt, setLastPublishedAt] = useState<number | null>(null);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -296,10 +343,38 @@ export default function NearbyNowSection({
         .then((profile) => {
           if (!alive) return;
           setProfileAvatarUrl(profile.avatarUrl ?? "");
+          setProfileDisplayName(profile.displayName ?? "");
         })
         .catch(() => {
           if (!alive) return;
           setProfileAvatarUrl("");
+          setProfileDisplayName("");
+        });
+
+      return () => {
+        alive = false;
+      };
+    }, [user?.uid])
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      let alive = true;
+      if (!user?.uid) {
+        setBlockedUserIds([]);
+        return () => {
+          alive = false;
+        };
+      }
+
+      void getBlockedUserIds(user.uid)
+        .then((ids) => {
+          if (!alive) return;
+          setBlockedUserIds(ids);
+        })
+        .catch(() => {
+          if (!alive) return;
+          setBlockedUserIds([]);
         });
 
       return () => {
@@ -324,11 +399,20 @@ export default function NearbyNowSection({
       return;
     }
     setLoading(true);
-    const unsubscribe = subscribeNowPosts(db, region, (list) => {
-      if (!mountedRef.current) return;
-      setPosts(list);
-      setLoading(false);
-    });
+    const unsubscribe = subscribeNowPosts(
+      db,
+      region,
+      (list) => {
+        if (!mountedRef.current) return;
+        setPosts(list);
+        setLoading(false);
+      },
+      () => {
+        if (!mountedRef.current) return;
+        setPosts([]);
+        setLoading(false);
+      }
+    );
     return () => unsubscribe?.();
   }, [region]);
 
@@ -366,12 +450,16 @@ export default function NearbyNowSection({
         clientId,
         uid: user.uid,
         nickname,
+        authorName: profileDisplayName,
         avatarUrl: profileAvatarUrl,
         text: trimmed,
         mood,
         lat: pos.lat,
         lng: pos.lng,
       });
+      if (mountedRef.current) {
+        setLastPublishedAt(Date.now());
+      }
     } catch (error: any) {
       if (mountedRef.current) {
         setMessage(previousMessage);
@@ -385,7 +473,7 @@ export default function NearbyNowSection({
         sendGuardRef.current = false;
       }, 250);
     }
-  }, [locationError, message, mood, nickname, pos, profileAvatarUrl, t, user]);
+  }, [locationError, message, mood, nickname, pos, profileAvatarUrl, profileDisplayName, t, user]);
 
   const goToTogether = useCallback(() => {
     navigation.navigate("Tabs", { screen: "Together" });
@@ -403,36 +491,156 @@ export default function NearbyNowSection({
   }, []);
 
   const visiblePosts = useMemo(() => {
+    const now = Date.now();
     const deduped = new Map<string, NowPost>();
     for (const post of posts) {
+      const authorUid = String(post.authorUid || post.uid || "").trim();
+      if (!authorUid) continue;
+      if (post.status !== "active" || post.expiresAt <= now) continue;
+      if (blockedUserIds.includes(authorUid)) continue;
       const distance = distanceKm(pos, post);
       if (radiusKm != null && distance != null && distance > radiusKm) continue;
       deduped.set(String(post.id), post);
     }
     return Array.from(deduped.values());
-  }, [pos, posts, radiusKm]);
+  }, [blockedUserIds, pos, posts, radiusKm]);
   const showStandaloneHeading = showHero;
+
+  const resolveAuthorLabel = useCallback(
+    (item: NowPost) => {
+      const rawLabel = String(item.authorName || item.nickname || t("common.user")).trim();
+      const formattedNickname = formatNickname(rawLabel, t);
+      return formattedNickname === rawLabel
+        ? translateMaybeKey(rawLabel, t, ["common."])
+        : formattedNickname;
+    },
+    [t]
+  );
+
+  const openNearbyChat = useCallback(
+    async (item: NowPost) => {
+      if (!user?.uid) {
+        Alert.alert(t("now.signInTitle"), t("now.signInBody"));
+        return;
+      }
+      if (!db || !isFirebaseConfigured()) {
+        Alert.alert(t("now.firebaseTitle"), t("now.firebaseBody"));
+        return;
+      }
+
+      const peerUid = String(item.authorUid || item.uid || "").trim();
+      if (!peerUid || peerUid === user.uid) return;
+
+      setChatOpeningPostId(item.id);
+      try {
+        const peerName = resolveAuthorLabel(item);
+        const myName = profileDisplayName || nickname;
+        const threadId = await ensureDmThread(db, user.uid, peerUid, {
+          source: "nearby",
+          sourceSessionId: item.id,
+          memberNames: {
+            [user.uid]: myName,
+            [peerUid]: peerName,
+          },
+        });
+
+        navigation.navigate(
+          "DMChat",
+          buildDmChatRouteParams({
+            threadId,
+            peerId: peerUid,
+            peerName,
+            sourceContext: {
+              source: "nearby",
+              sourceSessionId: item.id,
+            },
+          })
+        );
+      } catch {
+        Alert.alert(t("now.chatFailedTitle"), t("now.chatFailedBody"));
+      } finally {
+        if (mountedRef.current) {
+          setChatOpeningPostId(null);
+        }
+      }
+    },
+    [navigation, nickname, profileDisplayName, resolveAuthorLabel, t, user?.uid]
+  );
+
+  const removeOwnStatus = useCallback(
+    async (item: NowPost) => {
+      if (!user?.uid || !db || item.authorUid !== user.uid) return;
+
+      setDeletingPostId(item.id);
+      try {
+        await deleteNowPost(db, item.id, user.uid);
+      } catch {
+        Alert.alert(t("now.deleteFailedTitle"), t("now.deleteFailedBody"));
+      } finally {
+        if (mountedRef.current) {
+          setDeletingPostId(null);
+        }
+      }
+    },
+    [t, user?.uid]
+  );
+
+  const reportNearbyPost = useCallback(
+    async (item: NowPost, reason: SafetyReportReason) => {
+      const authorUid = String(item.authorUid || item.uid || "").trim();
+      if (!item.id || !authorUid || reportingPostId) return;
+
+      setReportingPostId(item.id);
+      try {
+        await createReport({
+          targetType: "nearbyPost",
+          targetId: item.id,
+          targetOwnerUid: authorUid,
+          reason,
+        });
+        Alert.alert(t("safety.reportSentTitle"), t("safety.reportSentBody"));
+      } catch {
+        Alert.alert(t("safety.reportErrorTitle"), t("safety.reportErrorBody"));
+      } finally {
+        if (mountedRef.current) {
+          setReportingPostId(null);
+        }
+      }
+    },
+    [reportingPostId, t]
+  );
+
+  const handleReportNearbyPost = useCallback(
+    (item: NowPost) => {
+      Alert.alert(
+        t("safety.reportTitle"),
+        t("safety.reportBody"),
+        buildReportReasonButtons(t, (reason) => void reportNearbyPost(item, reason))
+      );
+    },
+    [reportNearbyPost, t]
+  );
 
   const locationGateTitle = useMemo(() => {
     if (prefsLoading || posLoading) {
       return copyOrFallback(
         t,
         "nearby.now.locationLoadingTitle",
-        "Подготавливаем раздел «Сейчас»"
+        "Подготавливаем раздел «Рядом»"
       );
     }
     if (permissionBlocked) {
       return copyOrFallback(
         t,
         "nearby.now.locationBlockedTitle",
-        "Без геолокации «Сейчас» не откроется честно"
+        "Без геолокации «Рядом» не откроется честно"
       );
     }
     if (locationDeclined) {
       return copyOrFallback(
         t,
         "nearby.now.locationDeclinedTitle",
-        "Чтобы открыть «Сейчас», включи геолокацию"
+        "Чтобы открыть «Рядом», включи геолокацию"
       );
     }
     if (locationEnabled) {
@@ -461,7 +669,7 @@ export default function NearbyNowSection({
       return copyOrFallback(
         t,
         "nearby.now.locationBlockedBody",
-        "«Сейчас» зависит от того, кто рядом в этот момент. Пока доступ к геолокации выключен, не будет ни ленты рядом, ни публикации твоего сигнала."
+        "«Рядом» зависит от того, кто рядом в этот момент. Пока доступ к геолокации выключен, не будет ни ленты рядом, ни публикации твоего сигнала."
       );
     }
     if (locationDeclined) {
@@ -524,7 +732,7 @@ export default function NearbyNowSection({
               {copyOrFallback(
                 t,
                 "nearby.now.feedLocked",
-                "Лента nearby недоступна"
+                "Сигналы рядом недоступны"
               )}
             </Text>
           </View>
@@ -631,6 +839,13 @@ export default function NearbyNowSection({
           <Text style={styles.sendButtonText}>{t("now.send")}</Text>
         </TouchableOpacity>
       </View>
+      {lastPublishedAt ? (
+        <Text style={styles.publishSuccessText}>
+          {t("now.publishSuccess", {
+            hours: String(Math.round(NEARBY_STATUS_TTL_MS / 3600000)),
+          })}
+        </Text>
+      ) : null}
     </View>
   ) : null;
 
@@ -679,11 +894,12 @@ export default function NearbyNowSection({
   const renderPostItem = ({ item }: { item: NowPost }) => {
     const moodInfo = moodMeta.find((meta) => meta.key === item.mood) ?? moodMeta[0];
     const distance = distanceKm(pos, item);
-    const formattedNickname = formatNickname(item.nickname, t);
-    const authorLabel =
-      formattedNickname === item.nickname
-        ? translateMaybeKey(item.nickname, t, ["common."])
-        : formattedNickname;
+    const authorUid = String(item.authorUid || item.uid || "").trim();
+    const isOwnPost = Boolean(user?.uid && authorUid === user.uid);
+    const authorLabel = resolveAuthorLabel(item);
+    const opening = chatOpeningPostId === item.id;
+    const deleting = deletingPostId === item.id;
+    const reporting = reportingPostId === item.id;
 
     return (
       <View style={styles.postCard}>
@@ -703,6 +919,46 @@ export default function NearbyNowSection({
         <View style={styles.postFooter}>
           <UserAvatar avatarUrl={item.avatarUrl} label={authorLabel} size={24} />
           <Text style={styles.postAuthor}>{authorLabel}</Text>
+          {isOwnPost ? (
+            <View style={styles.ownPostPill}>
+              <Text style={styles.ownPostPillText}>{t("now.ownStatus")}</Text>
+            </View>
+          ) : null}
+        </View>
+        <View style={styles.postActions}>
+          {isOwnPost ? (
+            <TouchableOpacity
+              onPress={() => void removeOwnStatus(item)}
+              disabled={deleting}
+              style={[styles.postSecondaryButton, deleting ? styles.postButtonDisabled : null]}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.postSecondaryButtonText}>
+                {deleting ? t("now.deletingStatus") : t("now.deleteStatus")}
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <>
+              <TouchableOpacity
+                onPress={() => void openNearbyChat(item)}
+                disabled={opening}
+                style={[styles.postPrimaryButton, opening ? styles.postButtonDisabled : null]}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.postPrimaryButtonText}>
+                  {opening ? t("now.openingChat") : t("now.writeFromNearby")}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => handleReportNearbyPost(item)}
+                disabled={reporting}
+                style={[styles.postSecondaryButton, reporting ? styles.postButtonDisabled : null]}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.postSecondaryButtonText}>{t("safety.report")}</Text>
+              </TouchableOpacity>
+            </>
+          )}
         </View>
       </View>
     );
@@ -1008,6 +1264,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "800",
   },
+  publishSuccessText: {
+    color: "#A7F3D0",
+    fontSize: 11,
+    lineHeight: 16,
+    fontWeight: "700",
+  },
   listHeaderRow: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -1113,6 +1375,57 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
     flex: 1,
+  },
+  ownPostPill: {
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: "rgba(70,224,200,0.10)",
+    borderWidth: 1,
+    borderColor: "rgba(70,224,200,0.18)",
+  },
+  ownPostPillText: {
+    color: "#A7F3D0",
+    fontSize: 10,
+    fontWeight: "800",
+  },
+  postActions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  postPrimaryButton: {
+    minHeight: 34,
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: theme.colors.success,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  postPrimaryButtonText: {
+    color: "#042A26",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  postSecondaryButton: {
+    minHeight: 34,
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  postSecondaryButtonText: {
+    color: theme.colors.text,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  postButtonDisabled: {
+    opacity: 0.58,
   },
   loadingWrap: {
     paddingTop: 24,

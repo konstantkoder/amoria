@@ -61,6 +61,14 @@ service cloud.firestore {
       return value in ["spam", "harassment", "sexual_services", "scam", "other"];
     }
 
+    function isValidNearbyMood(value) {
+      return value in ["chill", "talk", "drink", "walk", "fun", "other"];
+    }
+
+    function isValidNearbyPostStatus(value) {
+      return value in ["active", "expired", "deleted"];
+    }
+
     match /users/{uid} {
       allow get: if signedIn();
       allow list: if false;
@@ -177,15 +185,25 @@ service cloud.firestore {
       allow get, list, update, delete: if false;
     }
 
-    match /nowPosts/{postId} {
-      allow get, list: if signedIn();
+    match /nearbyPosts/{postId} {
+      allow get: if signedIn();
+      allow list: if signedIn() &&
+        resource.data.status == "active";
       allow create: if signedIn() &&
-        request.resource.data.uid == request.auth.uid;
+        request.resource.data.authorUid == request.auth.uid &&
+        request.resource.data.uid == request.auth.uid &&
+        request.resource.data.status == "active" &&
+        isValidNearbyMood(request.resource.data.mood) &&
+        request.resource.data.text is string &&
+        request.resource.data.text.size() > 0 &&
+        request.resource.data.expiresAt is number &&
+        request.resource.data.expiresAt > request.time.toMillis();
       allow update: if signedIn() &&
-        resource.data.uid == request.auth.uid &&
-        request.resource.data.uid == request.auth.uid;
-      allow delete: if signedIn() &&
-        resource.data.uid == request.auth.uid;
+        resource.data.authorUid == request.auth.uid &&
+        request.resource.data.authorUid == request.auth.uid &&
+        request.resource.data.uid == request.auth.uid &&
+        isValidNearbyPostStatus(request.resource.data.status);
+      allow delete: if false;
     }
 
     match /presence/{uid} {

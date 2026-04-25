@@ -21,6 +21,18 @@
 - Announcements
 - Chats
 
+## Nearby / Рядом
+
+- Nearby is a quick nearby intent/status surface, not a hub for Announcements or Rooms.
+- Nearby statuses are shared Firestore documents under `nearbyPosts/{postId}`.
+- Demo, seed, local-only, and fake nearby statuses are forbidden in the release path.
+- A nearby status has a real author uid, location region/geohash, mood/intent, `status`, `createdAt`, and `expiresAt`.
+- Statuses expire and must not remain visible as live nearby intent forever.
+- Another user can open a personal chat from a nearby status; the DM source context is `nearby`.
+- Chats show this source as “From Nearby” / “Из Рядом”.
+- Blocked users are filtered out of the normal nearby status list.
+- Rooms is not part of the Nearby release UI.
+
 ## Announcements / Объявления
 
 - Announcements is a separate bottom tab for structured user requests.
@@ -72,6 +84,7 @@
 - Firebase rules must be deployed before public testing or release; the app must not depend on `allow read, write: if request.auth != null` as the final security posture.
 - Firestore rules use default deny and authenticated access for app data.
 - Storage rules use default deny, authenticated reads, owner-only writes, image content types, and size limits for profile/gallery/announcement images.
+- `nearbyPosts` rules are required for shared quick statuses and Nearby-to-Chats handoff.
 - Current intentional rule relaxations:
   - `playQueue` still supports client-side matching and therefore allows authenticated queue-entry reads and candidate match updates.
   - `playSessions` still supports client-driven collaborative session updates for drawing, color mood, reveal, and legacy turn state.

@@ -2,14 +2,15 @@
 
 ## Active product surface
 
-- Tabs: `Nearby`, `Together`, `Connections`, `Inbox`
-- Nearby: `Now`, `Announcements`, `Rooms`
-- Product screens: `Rooms`, `CreateAnnouncement`, `AnnouncementDetail`, `PlayMatch`, `PlayCanvas`, `PlayColorMood`, `PlayResult`, `PlayHistory`, `PlaySessionDetail`, `DMChat`, `Profile`, `Settings`, `PrivacyPolicy`, `LocationInfo`
+- Tabs: `Together`, `Nearby`, `Announcements`, `Inbox` user-facing as `Chats`
+- Nearby: quick shared nearby statuses only
+- Product screens: `CreateAnnouncement`, `AnnouncementDetail`, `PlayMatch`, `PlayCanvas`, `PlayColorMood`, `PlayResult`, `PlayHistory`, `PlaySessionDetail`, `DMChat`, `Profile`, `Settings`, `PrivacyPolicy`, `LocationInfo`
 - Profile subflow still includes editing screens that support the live profile path: `EditProfile`, `PhotoManager`, `FlirtSettings`
 
 ## Removed or isolated from the release path
 
 - Demo / stub / QA entry points from earlier reset work remain removed from active UI
+- Rooms remains technical code only and is not part of the current release UI
 - Legacy DM mirror write into the old `dm/.../messages` collection is removed; the app now uses only `dmThreads/.../messages`
 - Dead files removed from the active codebase:
   - `src/services/icebreakers.ts`
@@ -27,8 +28,8 @@
 
 ## Next 3–5 tasks before honest release testing
 
-1. Run a full signed-in device pass through auth, Nearby, Together, Connections, Inbox, and DM.
-2. Validate Firestore rules and production behavior for `nowPosts`, `playQueue`, `playSessions`, `dmThreads`, and `rooms`.
+1. Run a full signed-in device pass through auth, Together, Nearby, Announcements, Chats, and DM.
+2. Validate Firestore rules and production behavior for `nearbyPosts`, `playQueue`, `playSessions`, `dmThreads`, and `rooms`.
 3. Lock final Android / iOS app identifiers and do one clean EAS build sanity pass.
 4. Review profile/settings scope and decide whether any remaining non-core toggles should stay in the first release.
 5. Sweep active crash/error logging on device so the next fixes target real release failures only.
