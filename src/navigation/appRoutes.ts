@@ -8,9 +8,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import type { DmChatRouteParams } from "@/services/dm";
 import type { NearbyAnnouncement } from "@/services/nearbyAnnouncements";
-import type { PlayActivity } from "@/services/playSessions";
-
-export type RoomsOrigin = "nearby" | "together";
+import type { ReleasePlayActivity } from "@/services/playSessions";
 
 export type AppStackParamList = {
   Login: undefined;
@@ -42,12 +40,8 @@ export type AnnouncementDetailRouteParams = {
   initialAnnouncement?: NearbyAnnouncement | null;
 };
 
-export type RoomsRouteParams = {
-  origin?: RoomsOrigin;
-};
-
 export type PlayMatchRouteParams = {
-  activity: PlayActivity;
+  activity: ReleasePlayActivity;
 };
 
 export type PlaySessionRouteParams = {
@@ -60,7 +54,6 @@ export type PlaySessionDetailRouteParams = PlaySessionRouteParams & {
 
 export type RootStackParamList = {
   Tabs: TabsNavigatorParams | undefined;
-  Rooms: RoomsRouteParams | undefined;
   CreateAnnouncement: undefined;
   AnnouncementDetail: AnnouncementDetailRouteParams;
   PlayMatch: PlayMatchRouteParams;
@@ -99,7 +92,6 @@ export type AnnouncementDetailRouteProp = RouteProp<
   RootStackParamList,
   "AnnouncementDetail"
 >;
-export type RoomsRouteProp = RouteProp<RootStackParamList, "Rooms">;
 export type DmChatRouteProp = RouteProp<RootStackParamList, "DMChat">;
 export type PlayMatchRouteProp = RouteProp<RootStackParamList, "PlayMatch">;
 export type PlayCanvasRouteProp = RouteProp<RootStackParamList, "PlayCanvas">;

@@ -20,6 +20,7 @@ import {
 import { makeNickname } from "@/services/rooms";
 
 export type PlayActivity = "draw" | "chain_draw" | "daily_prompt" | "color_mood";
+export type ReleasePlayActivity = "draw" | "color_mood";
 export type PlayActivityLabelTone = "action" | "history" | "neutral";
 export type PlayDailyPrompt = {
   id: string;
@@ -249,6 +250,10 @@ export function isPlayActivity(value: unknown): value is PlayActivity {
     value === "daily_prompt" ||
     value === "color_mood"
   );
+}
+
+export function isReleasePlayActivity(value: unknown): value is ReleasePlayActivity {
+  return value === "draw" || value === "color_mood";
 }
 
 function normalizePlayActivity(value: unknown): PlayActivity {
@@ -522,9 +527,8 @@ export function getPlayActivityLabel(
       }
       return releaseCopy("Shared drawing", "Общий рисунок");
     case "chain_draw":
-      return releaseCopy("Shared drawing in turns", "Общий рисунок по очереди");
     case "daily_prompt":
-      return releaseCopy("Shared drawing around a prompt", "Общий рисунок по теме");
+      return releaseCopy("Shared drawing", "Общий рисунок");
     case "color_mood":
       if (tone === "action") {
         return releaseCopy("Start color mood together", "Начать палитру вместе");
@@ -548,18 +552,14 @@ export function getPlayActivityStoryText(activity: string, promptText?: string) 
             "Один общий рисунок на одном холсте."
           );
     case "chain_draw":
-      return releaseCopy(
-        "One shared drawing, passed back and forth in short turns.",
-        "Один общий рисунок, который вы передавали друг другу короткими ходами."
-      );
     case "daily_prompt":
       return releaseCopy(
         promptText?.trim()
-          ? `One shared drawing around “${promptText.trim()}”.`
-          : "One shared drawing around one shared prompt.",
+          ? `One saved shared drawing around “${promptText.trim()}”.`
+          : "One saved shared drawing.",
         promptText?.trim()
-          ? `Один общий рисунок вокруг темы «${promptText.trim()}».`
-          : "Один общий рисунок вокруг одной общей темы."
+          ? `Один сохранённый общий рисунок вокруг «${promptText.trim()}».`
+          : "Один сохранённый общий рисунок."
       );
     case "color_mood":
       return releaseCopy(
@@ -856,52 +856,50 @@ export function getPlayModeContextCardCopy(
   switch (activity) {
     case "chain_draw":
       return {
-        title: releaseCopy("Shared drawing in turns", "Общий рисунок по очереди"),
+        title: releaseCopy("Shared drawing", "Общий рисунок"),
         body:
           surface === "result"
             ? releaseCopy(
-                "This result came from a shared-drawing variation with short turns on one canvas.",
-                "Этот итог вырос из вариации общего рисунка с короткими ходами на одном холсте."
+                "This saved result came from one shared drawing.",
+                "Этот сохранённый итог вырос из одного общего рисунка."
               )
             : surface === "detail"
               ? releaseCopy(
-                  "This is where your turn-based shared drawing stays: one canvas, short turns, and one result.",
-                  "Здесь остаётся ваш общий рисунок по очереди: один холст, короткие ходы и один итог."
+                  "This is where your saved shared drawing stays: one canvas and one result.",
+                  "Здесь остаётся ваш сохранённый общий рисунок: один холст и один итог."
                 )
               : releaseCopy(
-                  "One shared drawing you built together in short turns.",
-                  "Один общий рисунок, который вы собрали вместе короткими ходами."
+                  "One saved shared drawing you built together.",
+                  "Один сохранённый общий рисунок, который вы собрали вместе."
                 ),
         facts: [
-          releaseCopy("10 turns", "10 ходов"),
-          releaseCopy("30 sec per turn", "30 секунд на ход"),
+          releaseCopy("Saved story", "Сохранённая история"),
           releaseCopy("One shared canvas", "Один общий холст"),
         ],
       };
     case "daily_prompt":
       return {
-        title: releaseCopy("Shared drawing around a prompt", "Общий рисунок по теме"),
+        title: releaseCopy("Shared drawing", "Общий рисунок"),
         body:
           surface === "result"
             ? releaseCopy(
-                "This result grew out of a shared-drawing variation with one prompt and one canvas.",
-                "Этот итог вырос из вариации общего рисунка с одной темой и одним холстом."
+                "This saved result came from one shared drawing.",
+                "Этот сохранённый итог вырос из одного общего рисунка."
               )
             : surface === "detail"
               ? releaseCopy(
-                  "This is where the drawing from your shared prompt stays: one prompt, one canvas, and one result.",
-                  "Здесь остаётся рисунок из вашей общей темы: одна тема, один холст и один итог."
+                  "This is where your saved shared drawing stays: one canvas and one result.",
+                  "Здесь остаётся ваш сохранённый общий рисунок: один холст и один итог."
                 )
               : releaseCopy(
-                  "One shared drawing the two of you made around the prompt.",
-                  "Один общий рисунок, который вы сделали вокруг одной темы."
+                  "One saved shared drawing the two of you made together.",
+                  "Один сохранённый общий рисунок, который вы сделали вместе."
                 ),
         facts: [
           releaseCopy("7 min", "7 минут"),
-          releaseCopy("One prompt", "Одна тема"),
           releaseCopy("One shared drawing", "Один общий рисунок"),
         ],
-        tagLabel: releaseCopy("Topic", "Тема"),
+        tagLabel: releaseCopy("Challenge", "Вызов"),
         tagValue: promptValue,
       };
     case "color_mood":
@@ -989,16 +987,6 @@ export function getPlayActivityMetricLabel(
 export function getPlayResultModeCopy(activity: string): PlayResultModeCopy {
   switch (activity) {
     case "chain_draw":
-      return {
-        heroTitle: releaseCopy(
-          "Your shared drawing is ready",
-          "Ваш общий рисунок готов"
-        ),
-        heroBody: releaseCopy(
-          "This version was built in short turns on one shared canvas.",
-          "Эта вариация была собрана короткими ходами на одном общем холсте."
-        ),
-      };
     case "daily_prompt":
       return {
         heroTitle: releaseCopy(
@@ -1006,8 +994,8 @@ export function getPlayResultModeCopy(activity: string): PlayResultModeCopy {
           "Ваш общий рисунок готов"
         ),
         heroBody: releaseCopy(
-          "This version grew out of one shared prompt on one canvas.",
-          "Эта вариация выросла из одной общей темы на одном холсте."
+          "One saved shared result on one canvas.",
+          "Один сохранённый общий итог на одном холсте."
         ),
       };
     case "color_mood":
@@ -1039,21 +1027,6 @@ export function getPlayResultModeCopy(activity: string): PlayResultModeCopy {
 export function getPlayReplayCopy(activity: string): PlayReplayCopy {
   switch (activity) {
     case "chain_draw":
-      return {
-        title: releaseCopy(
-          "Replay of the shared drawing",
-          "Повтор общего рисунка"
-        ),
-        body: releaseCopy(
-          "The turns run in their original order so you can return to this shared-drawing variation.",
-          "Ходы идут в исходном порядке, чтобы можно было вернуться к этой вариации общего рисунка."
-        ),
-        emptyTitle: releaseCopy("Replay is empty for now", "Повтор пока пустой"),
-        emptyBody: releaseCopy(
-          "This session was saved without strokes. The result and connection status stayed, but the replay of this drawing variation is unavailable here.",
-          "Эта сессия сохранилась без штрихов. Итог и статус связи остались, но повтор этой вариации рисунка здесь недоступен."
-        ),
-      };
     case "daily_prompt":
       return {
         title: releaseCopy(
@@ -1061,13 +1034,13 @@ export function getPlayReplayCopy(activity: string): PlayReplayCopy {
           "Повтор общего рисунка"
         ),
         body: releaseCopy(
-          "The strokes run in their original order so you can return to the drawing you built around the shared prompt.",
-          "Штрихи идут в исходном порядке, чтобы можно было вернуться к рисунку, который вы собрали вокруг общей темы."
+          "The strokes run in their original order so you can return to the shared drawing you built together.",
+          "Штрихи идут в исходном порядке, чтобы можно было вернуться к общему рисунку, который вы собрали вместе."
         ),
         emptyTitle: releaseCopy("Replay is empty for now", "Повтор пока пустой"),
         emptyBody: releaseCopy(
-          "This session was saved without strokes. The result and the prompt stayed, but the replay of the drawing is unavailable here.",
-          "Эта сессия сохранилась без штрихов. Итог и тема остались, но повтор рисунка здесь недоступен."
+          "This session was saved without strokes. The result stayed, but the replay of the drawing is unavailable here.",
+          "Эта сессия сохранилась без штрихов. Итог остался, но повтор рисунка здесь недоступен."
         ),
       };
     case "draw":

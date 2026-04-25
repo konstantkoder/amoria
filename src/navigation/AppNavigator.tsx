@@ -10,7 +10,6 @@ import { auth, db } from "@/config/firebaseConfig";
 import PlayLobbyScreen from "@/screens/PlayLobbyScreen";
 import NearbyHubScreen from "@/screens/NearbyHubScreen";
 import AnnouncementsScreen from "@/screens/AnnouncementsScreen";
-import RoomsScreen from "@/screens/RoomsScreen";
 import InboxScreen from "@/screens/InboxScreen";
 import PlayMatchScreen from "@/screens/PlayMatchScreen";
 import PlayCanvasScreen from "@/screens/PlayCanvasScreen";
@@ -261,7 +260,6 @@ export default function AppNavigator() {
         }}
       >
         <RootStack.Screen name="Tabs" component={MainTabs} />
-        <RootStack.Screen name="Rooms" component={RoomsScreen} />
         <RootStack.Screen name="CreateAnnouncement" component={CreateAnnouncementScreen} />
         <RootStack.Screen name="AnnouncementDetail" component={AnnouncementDetailScreen} />
         <RootStack.Screen name="PlayMatch" component={PlayMatchScreen} />

@@ -47,7 +47,7 @@ This document records the local Firebase rules baseline for the current Amoria r
 
 - `playQueue` allows authenticated reads of queue entries and lets the matching client mark a waiting candidate as `matched`. Current matching is client-side and performs transaction reads after an initial waiting query; this should move to trusted server-side logic before broad public launch.
 - `playSessions` lets participants update shared session state because drawing, color mood, reveal, and legacy turn state are currently client-driven. A stricter field-level/session-state validator should replace this if matching moves server-side.
-- `rooms` remains authenticated-only with owner checks on messages and members, but room document reads/writes are not membership-enforced. Rooms are not part of the current release UI; tighten or remove this path before exposing Rooms again.
+- `rooms` remains authenticated-only with owner checks on messages and members, but room document reads/writes are not membership-enforced. Rooms are not part of the current release UI, and the active app navigator does not register the Rooms screen; tighten or remove this path before exposing Rooms again.
 - Authenticated users can read basic user profiles because Chats, Announcements, and Nearby need display names and avatars.
 - DM thread participants can update thread metadata used by the existing client transaction. A stricter field-level contract can be added after the DM payload stabilizes.
 - Chat source context uses existing DM thread fields (`source`, `sourceSessionId`, `artworkSummary`) and reads existing `playSessions`, `announcements`, or `nearbyPosts` documents for previews. No new collection or rule path is introduced by the Chats contact-center layer.

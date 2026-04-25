@@ -524,12 +524,6 @@ export default function DMChatScreen() {
     if (sourceActivity === "color_mood") {
       return tt("dm.sourcePlayColorMood", "Вы начали разговор после палитры настроения");
     }
-    if (sourceActivity === "daily_prompt") {
-      return tt("dm.sourcePlayDailyPrompt", "Вы начали разговор после общей темы дня");
-    }
-    if (sourceActivity === "chain_draw") {
-      return tt("dm.sourcePlayChainDraw", "Вы начали разговор после рисунка по очереди");
-    }
     return tt("dm.sourcePlay", "Вы начали разговор после общего рисунка");
   }, [sourceActivity, sourceContext?.source, tt]);
   const sourceMeta = useMemo(() => {

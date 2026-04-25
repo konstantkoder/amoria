@@ -373,8 +373,8 @@ export default function InboxScreen() {
     () => ({
       play: {
         draw: tt("inbox.sourcePlay", "После общего рисунка"),
-        chain_draw: tt("inbox.sourcePlayChainDraw", "После рисунка по очереди"),
-        daily_prompt: tt("inbox.sourcePlayDailyPrompt", "После общей темы дня"),
+        chain_draw: tt("inbox.sourcePlay", "После общего рисунка"),
+        daily_prompt: tt("inbox.sourcePlay", "После общего рисунка"),
         color_mood: tt("inbox.sourcePlayColorMood", "После палитры настроения"),
       },
       announcement: tt("inbox.sourceAnnouncement", "После объявления"),

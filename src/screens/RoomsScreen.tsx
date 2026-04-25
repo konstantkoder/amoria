@@ -15,7 +15,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import * as Location from "expo-location";
 import { geohashForLocation } from "geofire-common";
 
@@ -32,11 +32,7 @@ import ScreenShell from "@/components/ScreenShell";
 import { OpenStreetMapWebView } from "@/components/OpenStreetMapWebView";
 import LocationConsentModal from "@/components/LocationConsentModal";
 import { useLocale } from "@/contexts/LocaleContext";
-import {
-  type RoomsOrigin,
-  type RootStackNavigationProp,
-  type RoomsRouteProp,
-} from "@/navigation/appRoutes";
+import { type RootStackNavigationProp } from "@/navigation/appRoutes";
 import { translateMaybeKey } from "@/utils/i18n";
 import { formatNickname } from "@/utils/nickname";
 import { withTimeout } from "@/utils/withTimeout";
@@ -199,16 +195,10 @@ function getRoomsPermissionHelp(
   return null;
 }
 
-function getRoomsOrigin(origin: RoomsOrigin | undefined): RoomsOrigin {
-  return origin === "together" ? "together" : "nearby";
-}
-
 export default function RoomsScreen() {
   const insets = useSafeAreaInsets();
   const { t } = useLocale();
-  const navigation = useNavigation<RootStackNavigationProp<"Rooms">>();
-  const route = useRoute<RoomsRouteProp>();
-  const origin = getRoomsOrigin(route.params?.origin);
+  const navigation = useNavigation<RootStackNavigationProp>();
   const uid = auth?.currentUser?.uid ?? null;
   const nicknameCode = useMemo(
     () => (uid ? makeNickname(uid) : "common.anonymous"),
@@ -1162,12 +1152,8 @@ export default function RoomsScreen() {
   }, [clearDraft]);
 
   const goToOriginFallback = useCallback(() => {
-    if (origin === "together") {
-      goToTogetherTab();
-      return;
-    }
     goToNearbyTab();
-  }, [goToNearbyTab, goToTogetherTab, origin]);
+  }, [goToNearbyTab]);
 
   const handleChooseBack = useCallback(() => {
     if (navigation.canGoBack()) {

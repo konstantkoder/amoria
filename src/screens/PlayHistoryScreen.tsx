@@ -65,7 +65,7 @@ function getHistoryContextText(
     case "daily_prompt":
       return (
         item.promptText?.trim() ||
-        releaseText("Shared drawing around a prompt", "Общий рисунок по теме")
+        releaseText("Shared drawing on one canvas", "Общий рисунок на одном холсте")
       );
     case "color_mood":
       return item.combinedPalette?.length
@@ -74,7 +74,7 @@ function getHistoryContextText(
           })
         : tt("playHistory.contextColorMood", "Shared palette");
     case "chain_draw":
-      return releaseText("Shared drawing in turns", "Общий рисунок по очереди");
+      return releaseText("Shared drawing on one canvas", "Общий рисунок на одном холсте");
     case "draw":
     default:
       return item.promptText?.trim()

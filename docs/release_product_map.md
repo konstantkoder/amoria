@@ -12,7 +12,8 @@
 - Together / Вместе
   - main scenario: draw with shared creative challenges
   - secondary scenario: color_mood
-  - not release pillars: daily_prompt, chain_draw
+  - release launch activities: `draw`, `color_mood`
+  - not release pillars and not launchable from release UI: `daily_prompt`, `chain_draw`
   - no demos / no fake sessions
 - Draw release UX requirements:
   - PlayLobby presents draw as the primary entry, with color_mood as the softer secondary path.
@@ -54,6 +55,7 @@
 ## Chats / Чаты
 
 - Chats is the single home for all personal conversations.
+- The internal `Inbox` route/tab name may remain for code stability, but the user-facing name is always Chats / Чаты.
 - Conversation sources:
   - Together / Вместе: personal conversations after a shared drawing or mood palette.
   - Announcements / Объявления: personal conversations after replying to an announcement.
@@ -109,6 +111,16 @@
 - Rooms
 - Connections as bottom tab
 - internal Nearby segments
+- `daily_prompt` and `chain_draw` as release launch paths
+
+## Device-Pass Checklist
+
+- Verify only four bottom tabs are visible: Together / Вместе, Nearby / Рядом, Announcements / Объявления, Chats / Чаты.
+- Verify Rooms is not registered as an active release navigation route and no CTA opens Rooms from Together, Nearby, Announcements, Chats, or the drawer.
+- Verify Connections is not visible as a bottom tab or main release section.
+- Verify Chats / Чаты is the user-facing label for the personal conversations tab; Inbox remains an internal route name only.
+- Verify Together launch paths are limited to `draw` and `color_mood`.
+- Verify legacy `daily_prompt` and `chain_draw` sessions, if old data exists, render as saved shared drawing history rather than new release modes.
 
 ## Important Release Honesty Notes
 
@@ -121,4 +133,4 @@
 - Chats must become the single place for conversations from Together, Announcements and Nearby.
 - Chats surface connection/story context inside each conversation when the real source data is available.
 - Nearby quick status should open chats when real nearby user identity is available.
-- Rooms is not part of the current release UI.
+- Rooms is not part of the current release UI. The old `RoomsScreen` code can remain isolated, but it must not be registered in active release navigation.

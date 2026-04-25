@@ -24,10 +24,10 @@ import {
   cancelPlayRequest,
   enqueuePlayRequest,
   getPlayMatchModeCopy,
-  isPlayActivity,
+  isReleasePlayActivity,
   subscribeOwnQueueEntry,
   tryMatchWaitingPlayer,
-  type PlayActivity,
+  type ReleasePlayActivity,
 } from "@/services/playSessions";
 import { makeNickname } from "@/services/rooms";
 import { theme } from "@/theme";
@@ -49,7 +49,7 @@ type MatchStatusKey =
 type TranslateFn = (key: string, fallback: string, params?: Record<string, string>) => string;
 
 function resolveMatchBlockReason(
-  activity: PlayActivity | null,
+  activity: ReleasePlayActivity | null,
   uid: string
 ): MatchBlockReason | null {
   if (!uid) return "auth";
@@ -104,12 +104,8 @@ function getBlockedState(reason: MatchBlockReason, tt: TranslateFn) {
   }
 }
 
-function getActivityIcon(activity: PlayActivity | null): keyof typeof Ionicons.glyphMap {
+function getActivityIcon(activity: ReleasePlayActivity | null): keyof typeof Ionicons.glyphMap {
   switch (activity) {
-    case "chain_draw":
-      return "sync-outline";
-    case "daily_prompt":
-      return "sunny-outline";
     case "color_mood":
       return "color-palette-outline";
     case "draw":
@@ -200,7 +196,7 @@ export default function PlayMatchScreen() {
     [t]
   );
   const uid = auth?.currentUser?.uid ?? "";
-  const activity = isPlayActivity(route.params.activity)
+  const activity = isReleasePlayActivity(route.params.activity)
     ? route.params.activity
     : null;
   const modeCopy = React.useMemo(() => getPlayMatchModeCopy(activity), [activity]);
