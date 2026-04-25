@@ -30,6 +30,7 @@
 - Responding to an announcement creates/records a real server-side response and opens the personal conversation in Chats.
 - Chat source context for this path: “After an announcement” / “После объявления”.
 - Moderation/report/block is a required release block before public user-generated content is opened broadly.
+- Firestore rules must keep release lists to active announcements and restrict create/update to authenticated authors, with responder-owned response documents.
 
 ## Chats / Чаты
 
@@ -40,6 +41,7 @@
   - Nearby / Рядом: personal conversations after a real nearby contact is available.
 - Connections is not a separate bottom tab.
 - Shared stories, drawings, palettes, announcement origin, and nearby origin should appear as context inside the chat/conversation, not as a separate release surface.
+- DM threads and messages require Firestore rules that limit access to thread members.
 
 ## Safety / UGC
 
@@ -51,6 +53,7 @@
 - Announcement, chat, and user reports must feed a real review workflow before public launch.
 - Firestore rules for reports, blocks, announcements, responses, and chats must be reviewed before public launch.
 - Future stronger moderation is required; this block does not add AI moderation, admin tools, automatic bans, or fake local-only safety state.
+- Firestore rules must keep reports client-create-only; client users must not be able to browse or edit the report queue.
 
 ## Profile & Media
 
@@ -61,6 +64,19 @@
 - Chats, DM context, Announcements, and Nearby should render `avatarUrl` when present and use a neutral initials placeholder when not.
 - Announcement cover photos and user profile photos are separate media fields and must not be mixed.
 - Firebase Storage rules for profile photos and announcement photos must be reviewed before public release.
+- Storage rules must require authenticated image uploads by the owning user and deny unknown shared-media paths.
+
+## Firebase Release Requirements
+
+- Local rules files are part of the release baseline: `firestore.rules`, `storage.rules`, and `firebase.json`.
+- Firebase rules must be deployed before public testing or release; the app must not depend on `allow read, write: if request.auth != null` as the final security posture.
+- Firestore rules use default deny and authenticated access for app data.
+- Storage rules use default deny, authenticated reads, owner-only writes, image content types, and size limits for profile/gallery/announcement images.
+- Current intentional rule relaxations:
+  - `playQueue` still supports client-side matching and therefore allows authenticated queue-entry reads and candidate match updates.
+  - `playSessions` still supports client-driven collaborative session updates for drawing, color mood, reveal, and legacy turn state.
+  - `rooms` remains authenticated-only because Rooms are not in the current release UI and the old membership model is not release-ready.
+- Firebase Console must be checked before public release: Firestore rules deployed, Storage rules deployed, Email/password auth enabled, Firestore database in `eur3`, Storage bucket enabled, and required indexes created.
 
 ## Removed From Release UI
 
@@ -74,6 +90,7 @@
 - Announcements use Firestore as the release source of truth. AsyncStorage must not be used as the product announcement board.
 - Announcement photo upload requires Firebase Storage enabled and verified before release.
 - Profile avatar upload requires Firebase Storage enabled and verified before public release.
+- Firestore and Storage rules must be deployed from the local baseline before public testing/release.
 - Announcement moderation/report/block foundations are backed by Firestore, not AsyncStorage.
 - Chats must become the single place for conversations from Together, Announcements and Nearby.
 - Chats should surface connection/story context inside each conversation.

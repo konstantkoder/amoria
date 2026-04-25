@@ -1,0 +1,220 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function dmThreadPath(threadId) {
+      return /databases/$(database)/documents/dmThreads/$(threadId);
+    }
+
+    function playSessionPath(sessionId) {
+      return /databases/$(database)/documents/playSessions/$(sessionId);
+    }
+
+    function announcementPath(announcementId) {
+      return /databases/$(database)/documents/announcements/$(announcementId);
+    }
+
+    function hasOnlyChanged(keys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
+    }
+
+    function isDmThreadMember() {
+      return signedIn() &&
+        request.auth.uid in resource.data.memberIds;
+    }
+
+    function isDmThreadMemberAfter(threadId) {
+      return signedIn() &&
+        request.auth.uid in getAfter(dmThreadPath(threadId)).data.memberIds;
+    }
+
+    function isPlaySessionParticipant() {
+      return signedIn() &&
+        request.auth.uid in resource.data.participantIds;
+    }
+
+    function isPlaySessionParticipantById(sessionId) {
+      return signedIn() &&
+        exists(playSessionPath(sessionId)) &&
+        request.auth.uid in get(playSessionPath(sessionId)).data.participantIds;
+    }
+
+    function isAnnouncementAuthor(announcementId) {
+      return signedIn() &&
+        exists(announcementPath(announcementId)) &&
+        get(announcementPath(announcementId)).data.authorUid == request.auth.uid;
+    }
+
+    function isValidReportTargetType(value) {
+      return value in ["announcement", "user", "dmThread", "message", "nearbyPost"];
+    }
+
+    function isValidReportReason(value) {
+      return value in ["spam", "harassment", "sexual_services", "scam", "other"];
+    }
+
+    match /users/{uid} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create, update: if isSelf(uid) &&
+        request.resource.data.uid == uid;
+      allow delete: if false;
+
+      match /blockedUsers/{blockedUid} {
+        allow get, list: if isSelf(uid);
+        allow create, update: if isSelf(uid) &&
+          request.resource.data.blockedUid == blockedUid;
+        allow delete: if isSelf(uid);
+      }
+    }
+
+    match /dmThreads/{threadId} {
+      allow get, list: if isDmThreadMember();
+      allow create: if signedIn() &&
+        request.resource.data.memberIds is list &&
+        request.resource.data.memberIds.size() == 2 &&
+        request.auth.uid in request.resource.data.memberIds;
+      allow update: if isDmThreadMember() &&
+        request.auth.uid in request.resource.data.memberIds &&
+        request.resource.data.memberIds == resource.data.memberIds;
+      allow delete: if false;
+
+      match /messages/{messageId} {
+        allow get, list: if signedIn() &&
+          exists(dmThreadPath(threadId)) &&
+          request.auth.uid in get(dmThreadPath(threadId)).data.memberIds;
+        allow create, update: if signedIn() &&
+          request.resource.data.from == request.auth.uid &&
+          isDmThreadMemberAfter(threadId) &&
+          request.resource.data.to in getAfter(dmThreadPath(threadId)).data.memberIds;
+        allow delete: if false;
+      }
+    }
+
+    match /playQueue/{uid} {
+      allow get: if signedIn();
+      allow list: if signedIn();
+      allow create: if isSelf(uid) &&
+        request.resource.data.uid == uid;
+      allow update: if (
+        isSelf(uid) &&
+        request.resource.data.uid == uid
+      ) || (
+        signedIn() &&
+        resource.data.uid == uid &&
+        resource.data.status == "waiting" &&
+        request.resource.data.uid == uid &&
+        request.resource.data.activity == resource.data.activity &&
+        request.resource.data.status == "matched" &&
+        request.resource.data.sessionId is string
+      );
+      allow delete: if false;
+    }
+
+    match /playSessions/{sessionId} {
+      allow get, list: if isPlaySessionParticipant();
+      allow create: if signedIn() &&
+        request.resource.data.participantIds is list &&
+        request.resource.data.participantIds.size() == 2 &&
+        request.auth.uid in request.resource.data.participantIds;
+      allow update: if isPlaySessionParticipant() &&
+        request.auth.uid in request.resource.data.participantIds &&
+        request.resource.data.participantIds == resource.data.participantIds;
+      allow delete: if false;
+
+      match /events/{eventId} {
+        allow get, list: if isPlaySessionParticipantById(sessionId);
+        allow create, update: if isPlaySessionParticipantById(sessionId) &&
+          request.resource.data.uid == request.auth.uid;
+        allow delete: if false;
+      }
+    }
+
+    match /announcements/{announcementId} {
+      allow get: if signedIn();
+      allow list: if signedIn() &&
+        resource.data.status == "active";
+      allow create: if signedIn() &&
+        request.resource.data.authorUid == request.auth.uid &&
+        request.resource.data.status == "active";
+      allow update: if (
+        signedIn() &&
+        resource.data.authorUid == request.auth.uid &&
+        request.resource.data.authorUid == request.auth.uid
+      ) || (
+        signedIn() &&
+        resource.data.status == "active" &&
+        request.resource.data.authorUid == resource.data.authorUid &&
+        request.resource.data.status == resource.data.status &&
+        hasOnlyChanged(["responseCount", "lastResponseAt", "updatedAt", "updatedAtServer"])
+      );
+      allow delete: if false;
+
+      match /responses/{uid} {
+        allow get, list: if isSelf(uid) || isAnnouncementAuthor(announcementId);
+        allow create, update: if isSelf(uid) &&
+          exists(announcementPath(announcementId)) &&
+          get(announcementPath(announcementId)).data.authorUid != request.auth.uid &&
+          request.resource.data.uid == request.auth.uid;
+        allow delete: if false;
+      }
+    }
+
+    match /reports/{reportId} {
+      allow create: if signedIn() &&
+        request.resource.data.reporterUid == request.auth.uid &&
+        isValidReportTargetType(request.resource.data.targetType) &&
+        isValidReportReason(request.resource.data.reason) &&
+        request.resource.data.status == "open";
+      allow get, list, update, delete: if false;
+    }
+
+    match /nowPosts/{postId} {
+      allow get, list: if signedIn();
+      allow create: if signedIn() &&
+        request.resource.data.uid == request.auth.uid;
+      allow update: if signedIn() &&
+        resource.data.uid == request.auth.uid &&
+        request.resource.data.uid == request.auth.uid;
+      allow delete: if signedIn() &&
+        resource.data.uid == request.auth.uid;
+    }
+
+    match /presence/{uid} {
+      allow get, list: if signedIn();
+      allow create, update: if isSelf(uid) &&
+        request.resource.data.uid == uid;
+      allow delete: if isSelf(uid);
+    }
+
+    match /rooms/{roomId} {
+      allow get, list: if signedIn();
+      allow create, update: if signedIn();
+      allow delete: if false;
+
+      match /messages/{messageId} {
+        allow get, list: if signedIn();
+        allow create, update: if signedIn() &&
+          request.resource.data.uid == request.auth.uid;
+        allow delete: if false;
+      }
+
+      match /members/{uid} {
+        allow get, list: if signedIn();
+        allow create, update, delete: if isSelf(uid);
+      }
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
