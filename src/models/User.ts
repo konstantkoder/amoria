@@ -15,6 +15,7 @@ export interface UserProfile {
   birthdate?: string;
   gender?: "male" | "female" | "other";
   about?: string;
+  avatarUrl?: string;
   interests: string[];
   photos: string[];
   mood?: Mood;

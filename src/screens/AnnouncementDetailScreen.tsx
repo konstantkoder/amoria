@@ -15,6 +15,7 @@ import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/nativ
 
 import ScreenShell from "@/components/ScreenShell";
 import CoreStateCard from "@/components/CoreStateCard";
+import UserAvatar from "@/components/UserAvatar";
 import { auth, db } from "@/config/firebaseConfig";
 import { useLocale } from "@/contexts/LocaleContext";
 import {
@@ -34,6 +35,7 @@ import {
   getBlockedUserIds,
   type SafetyReportReason,
 } from "@/services/safety";
+import { getUserProfileById } from "@/services/user";
 import { theme } from "@/theme";
 import { translateMaybeKey } from "@/utils/i18n";
 import { formatNickname } from "@/utils/nickname";
@@ -243,6 +245,9 @@ export default function AnnouncementDetailScreen() {
   const [responseModeOverride, setResponseModeOverride] =
     React.useState<AnnouncementResponseMode | null>(null);
   const [authorBlocked, setAuthorBlocked] = React.useState(false);
+  const [authorAvatarUrl, setAuthorAvatarUrl] = React.useState(
+    initialAnnouncement?.authorAvatarUrl ?? ""
+  );
   const [safetyBusy, setSafetyBusy] = React.useState(false);
 
   useFocusEffect(
@@ -276,6 +281,7 @@ export default function AnnouncementDetailScreen() {
           if (!alive) return;
           setAnnouncement(nextAnnouncement);
           setRespondedAt(responseState.respondedAt);
+          setAuthorAvatarUrl(nextAnnouncement?.authorAvatarUrl ?? "");
           setAuthorBlocked(
             Boolean(
               nextAnnouncement?.authorUid &&
@@ -287,6 +293,7 @@ export default function AnnouncementDetailScreen() {
           if (!alive) return;
           setAnnouncement(null);
           setRespondedAt(null);
+          setAuthorAvatarUrl("");
           setAuthorBlocked(false);
           setLoadError(
             copyOrFallback(
@@ -372,6 +379,30 @@ export default function AnnouncementDetailScreen() {
     () => buildAnnouncementResponsePresentation(t, responseMode, hasResponded),
     [hasResponded, responseMode, t]
   );
+
+  React.useEffect(() => {
+    let alive = true;
+    if (!announcementAuthorUid) {
+      setAuthorAvatarUrl("");
+      return () => {
+        alive = false;
+      };
+    }
+
+    void getUserProfileById(announcementAuthorUid)
+      .then((profile) => {
+        if (!alive) return;
+        setAuthorAvatarUrl(profile?.avatarUrl ?? announcement?.authorAvatarUrl ?? "");
+      })
+      .catch(() => {
+        if (!alive) return;
+        setAuthorAvatarUrl(announcement?.authorAvatarUrl ?? "");
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [announcement?.authorAvatarUrl, announcementAuthorUid]);
 
   const handleRespond = React.useCallback(async () => {
     if (responding) return;
@@ -685,9 +716,15 @@ export default function AnnouncementDetailScreen() {
               <Text style={styles.summaryTitle}>{announcement.title}</Text>
 
               <View style={styles.summaryFooter}>
-                <Text style={styles.summaryAuthor}>{announcement.authorLabel}</Text>
-                <Text style={styles.summaryDot}>•</Text>
-                <Text style={styles.summaryTime}>{formatAgoLong(announcement.createdAt, t)}</Text>
+                <UserAvatar
+                  avatarUrl={authorAvatarUrl}
+                  label={announcement.authorLabel}
+                  size={34}
+                />
+                <View style={styles.summaryAuthorCopy}>
+                  <Text style={styles.summaryAuthor}>{announcement.authorLabel}</Text>
+                  <Text style={styles.summaryTime}>{formatAgoLong(announcement.createdAt, t)}</Text>
+                </View>
               </View>
             </View>
 
@@ -922,16 +959,16 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     flexWrap: "wrap",
-    gap: 4,
+    gap: 9,
+  },
+  summaryAuthorCopy: {
+    flex: 1,
+    gap: 2,
   },
   summaryAuthor: {
     color: theme.colors.text,
     fontSize: 13,
     fontWeight: "700",
-  },
-  summaryDot: {
-    color: theme.colors.muted,
-    fontSize: 13,
   },
   summaryTime: {
     color: theme.colors.muted,

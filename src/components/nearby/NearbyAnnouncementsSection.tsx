@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef } from "react";
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
+import UserAvatar from "@/components/UserAvatar";
 import {
   NEARBY_ANNOUNCEMENT_CATEGORY_ORDER,
   type NearbyAnnouncement,
@@ -233,7 +234,10 @@ export default function NearbyAnnouncementsSection({
               </View>
 
               <View style={styles.cardFooter}>
-                <Text style={styles.cardTimestamp}>{formatAgoLong(item.createdAt, t)}</Text>
+                <View style={styles.cardAuthorWrap}>
+                  <UserAvatar avatarUrl={item.authorAvatarUrl} label={item.authorLabel} size={28} />
+                  <Text style={styles.cardTimestamp}>{formatAgoLong(item.createdAt, t)}</Text>
+                </View>
                 <View style={styles.openButton}>
                   <Text style={styles.openButtonText}>
                     {copyOrFallback(t, "nearby.announcements.open", "Открыть объявление")}
@@ -475,6 +479,11 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     justifyContent: "space-between",
     gap: 10,
+  },
+  cardAuthorWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   cardTimestamp: {
     color: theme.colors.muted,

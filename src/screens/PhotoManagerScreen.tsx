@@ -80,8 +80,8 @@ export default function PhotoManagerScreen() {
       const next = [url, ...profile.photos].slice(0, MAX_PHOTOS);
       await updateUserPhotos(next);
       setPhotos(next);
-    } catch (error: any) {
-      Alert.alert(t("common.error"), error?.message ?? t("common.retry"));
+    } catch {
+      Alert.alert(t("photos.uploadErrorTitle"), t("photos.uploadErrorBody"));
     } finally {
       setBusy(false);
     }
@@ -106,8 +106,8 @@ export default function PhotoManagerScreen() {
       const next = profile.photos.filter((_, itemIndex) => itemIndex !== index);
       await updateUserPhotos(next);
       setPhotos(next);
-    } catch (error: any) {
-      Alert.alert(t("common.error"), error?.message ?? t("common.retry"));
+    } catch {
+      Alert.alert(t("photos.removeErrorTitle"), t("photos.removeErrorBody"));
     } finally {
       setBusy(false);
     }

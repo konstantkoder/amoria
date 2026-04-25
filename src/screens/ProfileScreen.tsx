@@ -1,6 +1,7 @@
 import React from "react";
 import {
   ActivityIndicator,
+  Alert,
   Image,
   ScrollView,
   StyleSheet,
@@ -8,14 +9,16 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import ScreenShell from "@/components/ScreenShell";
+import UserAvatar from "@/components/UserAvatar";
 import { useLocale } from "@/contexts/LocaleContext";
 import type { Goal, Mood, UserProfile } from "@/models/User";
 import type { ProfileStackParamList } from "@/navigation/appRoutes";
-import { getUserProfile } from "@/services/user";
+import { getUserProfile, uploadCurrentUserAvatar } from "@/services/user";
 import { theme } from "@/theme";
 
 type ProfileNav = NativeStackNavigationProp<ProfileStackParamList, "ProfileMain">;
@@ -43,6 +46,7 @@ export default function ProfileScreen() {
   const { t } = useLocale();
   const [profile, setProfile] = React.useState<UserProfile | null>(null);
   const [loading, setLoading] = React.useState(true);
+  const [avatarUploading, setAvatarUploading] = React.useState(false);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -72,9 +76,41 @@ export default function ProfileScreen() {
   );
 
   const photos = profile?.photos ?? [];
+  const avatarUrl = profile?.avatarUrl ?? "";
   const goalLabel = profile?.goal ? t(GOAL_LABEL_KEYS[profile.goal]) : t("profile.goal.unknown");
   const moodLabel = profile?.mood ? t(MOOD_LABEL_KEYS[profile.mood]) : t("profile.mood.unknown");
   const about = profile?.about?.trim() ? profile.about : t("profile.noDescription");
+  const displayName = profile?.displayName || t("common.user");
+
+  const pickAvatar = React.useCallback(async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert(t("photos.permissionTitle"), t("photos.permissionBody"));
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      quality: 0.78,
+      allowsEditing: true,
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      selectionLimit: 1,
+    });
+    if (result.canceled) return;
+
+    const uri = result.assets[0]?.uri ?? "";
+    if (!uri) return;
+
+    setAvatarUploading(true);
+    try {
+      const nextProfile = await uploadCurrentUserAvatar(uri);
+      setProfile(nextProfile);
+      Alert.alert(t("common.done"), t("photos.avatarUpdated"));
+    } catch {
+      Alert.alert(t("photos.avatarUploadErrorTitle"), t("photos.avatarUploadErrorBody"));
+    } finally {
+      setAvatarUploading(false);
+    }
+  }, [t]);
 
   if (loading) {
     return (
@@ -95,14 +131,30 @@ export default function ProfileScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.heroCard}>
-          {photos[0] ? (
-            <Image source={{ uri: photos[0] }} style={styles.heroPhoto} />
-          ) : (
-            <View style={[styles.heroPhoto, styles.heroPhotoFallback]}>
-              <Text style={styles.heroFallbackText}>{t("photos.empty")}</Text>
+          <View style={styles.avatarPanel}>
+            <UserAvatar avatarUrl={avatarUrl} label={displayName} size={108} />
+            <View style={styles.avatarCopy}>
+              <Text style={styles.avatarTitle}>
+                {avatarUrl ? t("photos.avatarCurrent") : t("photos.avatarPlaceholder")}
+              </Text>
+              <Text style={styles.avatarBody}>{t("photos.avatarSharedBody")}</Text>
+              <TouchableOpacity
+                style={[styles.avatarButton, avatarUploading ? styles.avatarButtonDisabled : null]}
+                activeOpacity={0.86}
+                onPress={() => void pickAvatar()}
+                disabled={avatarUploading}
+              >
+                <Text style={styles.avatarButtonText}>
+                  {avatarUploading
+                    ? t("photos.avatarUploading")
+                    : avatarUrl
+                      ? t("photos.avatarReplace")
+                      : t("photos.avatarUpload")}
+                </Text>
+              </TouchableOpacity>
             </View>
-          )}
-          <Text style={styles.displayName}>{profile?.displayName || t("common.user")}</Text>
+          </View>
+          <Text style={styles.displayName}>{displayName}</Text>
           <View style={styles.badges}>
             <View style={styles.badge}>
               <Text style={styles.badgeText}>{goalLabel}</Text>
@@ -198,20 +250,44 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.1)",
     gap: 14,
   },
-  heroPhoto: {
-    width: "100%",
-    aspectRatio: 1.12,
-    borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.08)",
-  },
-  heroPhotoFallback: {
+  avatarPanel: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 18,
+    gap: 14,
+    borderRadius: 20,
+    padding: 14,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
   },
-  heroFallbackText: {
+  avatarCopy: {
+    flex: 1,
+    gap: 7,
+  },
+  avatarTitle: {
+    color: theme.colors.text,
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  avatarBody: {
     color: theme.colors.subtext,
-    textAlign: "center",
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  avatarButton: {
+    alignSelf: "flex-start",
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 13,
+    paddingVertical: 9,
+    backgroundColor: theme.colors.primary,
+  },
+  avatarButtonDisabled: {
+    opacity: 0.65,
+  },
+  avatarButtonText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "800",
   },
   displayName: {
     color: theme.colors.text,

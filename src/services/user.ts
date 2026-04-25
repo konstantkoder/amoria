@@ -2,6 +2,7 @@ import { doc, getDoc, setDoc } from "firebase/firestore";
 
 import { auth, db } from "@/config/firebaseConfig";
 import type { Goal, Mood, UserProfile } from "@/models/User";
+import { uploadProfileAvatar } from "@/services/storage";
 
 const USERS_COLLECTION = "users";
 const GOAL_VALUES: Goal[] = [
@@ -24,12 +25,29 @@ function normalizeOptionalString(value: unknown) {
   return normalized || undefined;
 }
 
+function normalizeSharedMediaUrl(value: unknown) {
+  const normalized = normalizeString(value);
+  if (!normalized) return undefined;
+  if (normalized.startsWith("https://")) {
+    return normalized;
+  }
+  return undefined;
+}
+
 function normalizeStringArray(value: unknown) {
   if (!Array.isArray(value)) return [];
 
   return value
     .map((entry) => normalizeString(entry))
     .filter(Boolean);
+}
+
+function normalizeSharedMediaUrlArray(value: unknown) {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .map((entry) => normalizeSharedMediaUrl(entry))
+    .filter((entry): entry is string => Boolean(entry));
 }
 
 function normalizeGoal(value: unknown): Goal | undefined {
@@ -49,6 +67,10 @@ function deriveDisplayName() {
   return emailLocalPart || "";
 }
 
+function deriveAuthPhotoUrl() {
+  return normalizeSharedMediaUrl(auth?.currentUser?.photoURL);
+}
+
 function normalizeGeo(value: unknown): UserProfile["geo"] | undefined {
   if (!value || typeof value !== "object") return undefined;
 
@@ -61,11 +83,20 @@ function normalizeGeo(value: unknown): UserProfile["geo"] | undefined {
   return { lat, lng, geohash };
 }
 
-function normalizeUserProfile(uid: string, raw?: Partial<UserProfile> | null): UserProfile {
+function normalizeUserProfile(
+  uid: string,
+  raw?: Partial<UserProfile> | null,
+  options: { allowAuthFallback?: boolean } = { allowAuthFallback: true }
+): UserProfile {
   const now = Date.now();
   const createdAt = Number(raw?.createdAt);
   const updatedAt = Number(raw?.updatedAt);
-  const displayName = normalizeString(raw?.displayName) || deriveDisplayName();
+  const displayName =
+    normalizeString(raw?.displayName) ||
+    (options.allowAuthFallback === false ? "" : deriveDisplayName());
+  const avatarUrl =
+    normalizeSharedMediaUrl(raw?.avatarUrl) ||
+    normalizeSharedMediaUrl((raw as { photoURL?: unknown } | null | undefined)?.photoURL);
   const birthdate = normalizeOptionalString(raw?.birthdate);
   const about = normalizeOptionalString(raw?.about);
   const goal = normalizeGoal(raw?.goal);
@@ -87,8 +118,9 @@ function normalizeUserProfile(uid: string, raw?: Partial<UserProfile> | null): U
       ? { gender: raw.gender }
       : {}),
     ...(about ? { about } : {}),
+    ...(avatarUrl ? { avatarUrl } : {}),
     interests: normalizeStringArray(raw?.interests),
-    photos: normalizeStringArray(raw?.photos),
+    photos: normalizeSharedMediaUrlArray(raw?.photos),
     ...(mood ? { mood } : {}),
     ...(goal ? { goal } : {}),
     createdAt: Number.isFinite(createdAt) && createdAt > 0 ? createdAt : now,
@@ -121,10 +153,12 @@ function requireCurrentUserRef() {
 
 function buildInitialUserProfile(uid: string): UserProfile {
   const now = Date.now();
+  const avatarUrl = deriveAuthPhotoUrl();
 
   return normalizeUserProfile(uid, {
     uid,
     displayName: deriveDisplayName(),
+    ...(avatarUrl ? { avatarUrl } : {}),
     interests: [],
     photos: [],
     allowAdultMode: false,
@@ -178,8 +212,34 @@ export async function updateUserFields(
   return next;
 }
 
+export async function getUserProfileById(uid: string): Promise<UserProfile | null> {
+  const stableUid = normalizeString(uid);
+  if (!stableUid || !db) return null;
+
+  const snap = await getDoc(doc(db, USERS_COLLECTION, stableUid));
+  if (!snap.exists()) return null;
+  return normalizeUserProfile(stableUid, {
+    uid: stableUid,
+    ...(snap.data() as Partial<UserProfile>),
+  }, { allowAuthFallback: false });
+}
+
+export async function updateUserAvatarUrl(avatarUrl: string): Promise<UserProfile> {
+  const sharedAvatarUrl = normalizeSharedMediaUrl(avatarUrl);
+  if (!sharedAvatarUrl) {
+    throw new Error("profile.avatarSharedUrlRequired");
+  }
+  return updateUserFields({ avatarUrl: sharedAvatarUrl });
+}
+
+export async function uploadCurrentUserAvatar(uri: string): Promise<UserProfile> {
+  const { uid } = requireCurrentUserRef();
+  const avatarUrl = await uploadProfileAvatar(uid, uri);
+  return updateUserAvatarUrl(avatarUrl);
+}
+
 export async function updateUserPhotos(photos: string[]): Promise<UserProfile> {
-  return updateUserFields({ photos });
+  return updateUserFields({ photos: normalizeSharedMediaUrlArray(photos) });
 }
 
 export async function updateFlirtSettings(

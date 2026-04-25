@@ -38,6 +38,7 @@ export type NearbyAnnouncement = {
   proximityLabel?: string;
   authorLabel: string;
   authorName?: string;
+  authorAvatarUrl?: string;
   authorUid: string;
   createdAt: number;
   updatedAt: number;
@@ -56,6 +57,7 @@ export type CreateNearbyAnnouncementInput = {
   placeLabel?: string;
   authorLabel: string;
   authorUid: string;
+  authorAvatarUrl?: string;
   photoUri?: string;
 };
 
@@ -148,6 +150,7 @@ function normalizeNearbyAnnouncement(
   const proximityLabel = String(data.proximityLabel ?? "").trim();
   const authorName = String(data.authorName ?? data.authorLabel ?? "").trim();
   const authorLabel = String(data.authorLabel ?? authorName ?? "Amoria").trim() || "Amoria";
+  const authorAvatarUrl = String(data.authorAvatarUrl ?? "").trim();
   const createdAt = readMillis(data.createdAt);
   const updatedAt = readMillis(data.updatedAt) || createdAt;
   const lastResponseAt = readMillis(data.lastResponseAt);
@@ -163,6 +166,7 @@ function normalizeNearbyAnnouncement(
     ...(proximityLabel ? { proximityLabel } : {}),
     authorLabel,
     ...(authorName ? { authorName } : {}),
+    ...(authorAvatarUrl.startsWith("https://") ? { authorAvatarUrl } : {}),
     authorUid,
     createdAt,
     updatedAt,
@@ -280,6 +284,7 @@ export function createFirestoreNearbyAnnouncementsRepository(options: {
 
       const category = isCategory(input.category) ? input.category : "activity";
       const authorLabel = String(input.authorLabel ?? "").trim() || "Amoria";
+      const authorAvatarUrl = String(input.authorAvatarUrl ?? "").trim();
       const placeLabel = String(input.placeLabel ?? "").trim();
       const announcementRef = doc(collection(currentDb, ANNOUNCEMENTS_COLLECTION));
       const now = Date.now();
@@ -301,6 +306,7 @@ export function createFirestoreNearbyAnnouncementsRepository(options: {
         placeLabel,
         authorLabel,
         authorName: authorLabel,
+        ...(authorAvatarUrl.startsWith("https://") ? { authorAvatarUrl } : {}),
         authorUid: currentUid,
         createdAt: now,
         updatedAt: now,
@@ -318,6 +324,7 @@ export function createFirestoreNearbyAnnouncementsRepository(options: {
         placeLabel,
         authorLabel,
         authorName: authorLabel,
+        ...(authorAvatarUrl.startsWith("https://") ? { authorAvatarUrl } : {}),
         authorUid: currentUid,
         createdAt: now,
         updatedAt: now,

@@ -15,6 +15,7 @@ import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/nativ
 
 import CoreStateCard from "@/components/CoreStateCard";
 import ScreenShell from "@/components/ScreenShell";
+import UserAvatar from "@/components/UserAvatar";
 import { auth, db } from "@/config/firebaseConfig";
 import { useLocale } from "@/contexts/LocaleContext";
 import {
@@ -37,6 +38,7 @@ import {
   getBlockedUserIds,
   type SafetyReportReason,
 } from "@/services/safety";
+import { getUserProfileById } from "@/services/user";
 import { theme } from "@/theme";
 
 type RenderMessage = DmMessageDoc & { failed?: boolean };
@@ -106,6 +108,7 @@ export default function DMChatScreen() {
   const [reloadKey, setReloadKey] = useState(0);
   const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
   const [safetyBusy, setSafetyBusy] = useState(false);
+  const [peerAvatarUrl, setPeerAvatarUrl] = useState("");
 
   const textRef = useRef("");
   const inputRef = useRef<TextInput>(null);
@@ -270,6 +273,29 @@ export default function DMChatScreen() {
     () => Boolean(peer.uid && blockedUserIds.includes(peer.uid)),
     [blockedUserIds, peer.uid]
   );
+  useEffect(() => {
+    let alive = true;
+    if (!peer.uid) {
+      setPeerAvatarUrl("");
+      return () => {
+        alive = false;
+      };
+    }
+
+    void getUserProfileById(peer.uid)
+      .then((profile) => {
+        if (!alive) return;
+        setPeerAvatarUrl(profile?.avatarUrl ?? "");
+      })
+      .catch(() => {
+        if (!alive) return;
+        setPeerAvatarUrl("");
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [peer.uid]);
   const sourceContext = useMemo(() => {
     if (
       routeSourceContext?.source === "play" ||
@@ -650,6 +676,22 @@ export default function DMChatScreen() {
     [openSourceStory, sourceEyebrow, sourceMeta, sourceSessionId, sourceTitle, tt]
   );
 
+  const renderPeerCard = useCallback(
+    () =>
+      peer.uid ? (
+        <View style={styles.peerCard}>
+          <UserAvatar avatarUrl={peerAvatarUrl} label={peer.name} size={42} />
+          <View style={styles.peerCopy}>
+            <Text style={styles.peerName}>{peer.name || routePeerName || t("common.user")}</Text>
+            <Text style={styles.peerMeta}>
+              {tt("dm.peerProfileContext", "Personal conversation")}
+            </Text>
+          </View>
+        </View>
+      ) : null,
+    [peer.name, peer.uid, peerAvatarUrl, routePeerName, t, tt]
+  );
+
   const renderSafetyCard = useCallback(
     () =>
       peer.uid ? (
@@ -710,11 +752,12 @@ export default function DMChatScreen() {
   const renderContextFooter = useCallback(
     () => (
       <>
+        {renderPeerCard()}
         {renderSourceCard()}
         {renderSafetyCard()}
       </>
     ),
-    [renderSafetyCard, renderSourceCard]
+    [renderPeerCard, renderSafetyCard, renderSourceCard]
   );
 
   const renderItem = useCallback(
@@ -988,6 +1031,33 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
     fontSize: 12,
     fontWeight: "800",
+  },
+  peerCard: {
+    alignSelf: "stretch",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 11,
+    borderRadius: theme.shapes.cardInner,
+    paddingHorizontal: 15,
+    paddingVertical: 13,
+    marginBottom: 10,
+    backgroundColor: "rgba(12, 16, 30, 0.86)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.10)",
+  },
+  peerCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  peerName: {
+    color: theme.colors.text,
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  peerMeta: {
+    color: theme.colors.subtext,
+    fontSize: 12,
+    fontWeight: "700",
   },
   safetyCard: {
     alignSelf: "stretch",

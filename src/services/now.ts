@@ -18,6 +18,7 @@ export type NowPost = {
   id: string;
   uid: string;
   nickname: string;
+  avatarUrl?: string;
   text: string;
   mood: NowMood;
   createdAt: number;
@@ -29,6 +30,7 @@ export type CreateNowPostInput = {
   clientId: string;
   uid: string;
   nickname: string;
+  avatarUrl?: string;
   text: string;
   mood: NowMood;
   lat: number;
@@ -68,6 +70,9 @@ export function subscribeNowPosts(
         id: d.id,
         uid: String(x.uid ?? ""),
         nickname: String(x.nickname ?? "common.anonymous"),
+        ...(String(x.avatarUrl ?? "").startsWith("https://")
+          ? { avatarUrl: String(x.avatarUrl) }
+          : {}),
         text: String(x.text ?? ""),
         mood: (x.mood as NowMood) ?? "other",
         createdAt: Number(x.createdAt ?? 0),
@@ -96,6 +101,7 @@ export async function createNowPost(
       clientId,
       uid: input.uid,
       nickname: input.nickname,
+      ...(input.avatarUrl?.startsWith("https://") ? { avatarUrl: input.avatarUrl } : {}),
       text: input.text.trim(),
       mood: input.mood,
       region,

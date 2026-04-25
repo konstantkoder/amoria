@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { auth, db } from "@/config/firebaseConfig";
 import CoreStateCard from "@/components/CoreStateCard";
 import ScreenShell from "@/components/ScreenShell";
+import UserAvatar from "@/components/UserAvatar";
 import {
   formatActivitySignalLabel,
   getDmThreadActivitySignal,
@@ -20,6 +21,7 @@ import {
   type DmThreadDoc,
 } from "@/services/dm";
 import { getBlockedUserIds } from "@/services/safety";
+import { getUserProfileById } from "@/services/user";
 import { useLocale } from "@/contexts/LocaleContext";
 import type { PlayActivity } from "@/services/playSessions";
 import { theme } from "@/theme";
@@ -28,6 +30,7 @@ type InboxThreadCard = {
   id: string;
   peerId: string;
   peerName: string;
+  avatarUrl?: string;
   sourceKey: "play" | "announcement" | "nearby" | "direct";
   activity?: PlayActivity;
   conversationLabel: string;
@@ -109,6 +112,7 @@ export default function InboxScreen() {
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
+  const [peerAvatarByUid, setPeerAvatarByUid] = useState<Record<string, string>>({});
 
   useEffect(() => {
     let alive = true;
@@ -171,6 +175,38 @@ export default function InboxScreen() {
     };
   }, [reloadKey, uid]);
 
+  useEffect(() => {
+    let alive = true;
+    if (!db || !uid || !threads.length) {
+      setPeerAvatarByUid({});
+      return () => {
+        alive = false;
+      };
+    }
+
+    const peerIds = Array.from(
+      new Set(
+        threads
+          .map((thread) => mapDmThreadToPeer(thread, uid)?.uid ?? "")
+          .filter(Boolean)
+      )
+    );
+
+    void Promise.all(
+      peerIds.map(async (peerId) => {
+        const profile = await getUserProfileById(peerId).catch(() => null);
+        return [peerId, profile?.avatarUrl ?? ""] as const;
+      })
+    ).then((entries) => {
+      if (!alive) return;
+      setPeerAvatarByUid(Object.fromEntries(entries));
+    });
+
+    return () => {
+      alive = false;
+    };
+  }, [threads, uid]);
+
   const cards = useMemo(
     () =>
       threads
@@ -197,9 +233,13 @@ export default function InboxScreen() {
           )
         )
         .filter((item): item is InboxThreadCard => Boolean(item))
+        .map((item) => ({
+          ...item,
+          avatarUrl: peerAvatarByUid[item.peerId] ?? "",
+        }))
         .filter((item) => !blockedUserIds.includes(item.peerId))
         .sort((a, b) => b.sortAt - a.sortAt),
-    [blockedUserIds, freshnessState.dmThreads, t, threads, tt, uid]
+    [blockedUserIds, freshnessState.dmThreads, peerAvatarByUid, t, threads, tt, uid]
   );
   const sourceLabels = useMemo(
     () => ({
@@ -309,6 +349,7 @@ export default function InboxScreen() {
         >
           <View style={{ flex: 1, gap: 6 }}>
             <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+              <UserAvatar avatarUrl={item.avatarUrl} label={item.peerName} size={34} />
               <Text
                 style={{
                   color: theme.colors.text,

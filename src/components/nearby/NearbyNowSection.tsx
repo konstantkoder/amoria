@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Location from "expo-location";
 import { Ionicons } from "@expo/vector-icons";
 
+import UserAvatar from "@/components/UserAvatar";
 import { type NearbyTabNavigationProp } from "@/navigation/appRoutes";
 import { theme } from "@/theme";
 import { auth, db, isFirebaseConfigured } from "@/config/firebaseConfig";
@@ -38,6 +39,7 @@ import { useLocale } from "@/contexts/LocaleContext";
 import { formatAgoLong } from "@/utils/timeAgo";
 import { translateMaybeKey } from "@/utils/i18n";
 import { formatNickname } from "@/utils/nickname";
+import { getUserProfile } from "@/services/user";
 
 type Pos = { lat: number; lng: number; accuracy?: number | null };
 type RadiusOption = number | null;
@@ -118,6 +120,7 @@ export default function NearbyNowSection({
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [radiusKm, setRadiusKm] = useState<RadiusOption>(25);
+  const [profileAvatarUrl, setProfileAvatarUrl] = useState("");
 
   useEffect(() => {
     mountedRef.current = true;
@@ -279,6 +282,32 @@ export default function NearbyNowSection({
     }, [syncLocationState])
   );
 
+  useFocusEffect(
+    useCallback(() => {
+      let alive = true;
+      if (!user?.uid) {
+        setProfileAvatarUrl("");
+        return () => {
+          alive = false;
+        };
+      }
+
+      void getUserProfile()
+        .then((profile) => {
+          if (!alive) return;
+          setProfileAvatarUrl(profile.avatarUrl ?? "");
+        })
+        .catch(() => {
+          if (!alive) return;
+          setProfileAvatarUrl("");
+        });
+
+      return () => {
+        alive = false;
+      };
+    }, [user?.uid])
+  );
+
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (nextState) => {
       if (nextState === "active") {
@@ -337,6 +366,7 @@ export default function NearbyNowSection({
         clientId,
         uid: user.uid,
         nickname,
+        avatarUrl: profileAvatarUrl,
         text: trimmed,
         mood,
         lat: pos.lat,
@@ -355,7 +385,7 @@ export default function NearbyNowSection({
         sendGuardRef.current = false;
       }, 250);
     }
-  }, [locationError, message, mood, nickname, pos, t, user]);
+  }, [locationError, message, mood, nickname, pos, profileAvatarUrl, t, user]);
 
   const goToTogether = useCallback(() => {
     navigation.navigate("Tabs", { screen: "Together" });
@@ -671,7 +701,7 @@ export default function NearbyNowSection({
         </View>
         <Text style={styles.postText}>{item.text}</Text>
         <View style={styles.postFooter}>
-          <Ionicons name="person-outline" size={13} color={theme.colors.subtext} />
+          <UserAvatar avatarUrl={item.avatarUrl} label={authorLabel} size={24} />
           <Text style={styles.postAuthor}>{authorLabel}</Text>
         </View>
       </View>

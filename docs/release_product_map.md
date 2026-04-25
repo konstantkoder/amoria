@@ -52,6 +52,16 @@
 - Firestore rules for reports, blocks, announcements, responses, and chats must be reviewed before public launch.
 - Future stronger moderation is required; this block does not add AI moderation, admin tools, automatic bans, or fake local-only safety state.
 
+## Profile & Media
+
+- User profiles live in Firestore under `users/{uid}`.
+- Profile basics for release: `uid`, `displayName`, optional `avatarUrl`, `createdAt`, and `updatedAt`.
+- Profile photos must upload to Firebase Storage; local device `photoUri` values must not be used as shared profile media.
+- The release avatar upload path is `users/{uid}/profile/avatar.{jpg|png|webp}` and the Firestore profile stores the resulting HTTPS `avatarUrl`.
+- Chats, DM context, Announcements, and Nearby should render `avatarUrl` when present and use a neutral initials placeholder when not.
+- Announcement cover photos and user profile photos are separate media fields and must not be mixed.
+- Firebase Storage rules for profile photos and announcement photos must be reviewed before public release.
+
 ## Removed From Release UI
 
 - Rooms
@@ -63,6 +73,7 @@
 - No demo/stub/QA/seed paths in product UI.
 - Announcements use Firestore as the release source of truth. AsyncStorage must not be used as the product announcement board.
 - Announcement photo upload requires Firebase Storage enabled and verified before release.
+- Profile avatar upload requires Firebase Storage enabled and verified before public release.
 - Announcement moderation/report/block foundations are backed by Firestore, not AsyncStorage.
 - Chats must become the single place for conversations from Together, Announcements and Nearby.
 - Chats should surface connection/story context inside each conversation.

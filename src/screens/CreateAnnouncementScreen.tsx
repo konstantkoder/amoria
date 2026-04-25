@@ -30,6 +30,7 @@ import {
 } from "@/services/nearbyAnnouncements";
 import { makeNickname } from "@/services/rooms";
 import { containsUnsafeAnnouncementContent } from "@/services/safety";
+import { getUserProfile } from "@/services/user";
 import { theme } from "@/theme";
 import { formatNickname } from "@/utils/nickname";
 import { translateMaybeKey } from "@/utils/i18n";
@@ -234,13 +235,15 @@ export default function CreateAnnouncementScreen() {
 
     setSaving(true);
     try {
+      const currentProfile = await getUserProfile();
       const createdAnnouncement = await nearbyAnnouncementsRepository.createAnnouncement({
         title: trimmedTitle,
         description: trimmedDescription,
         category,
         placeLabel: trimmedPlaceLabel,
-        authorLabel,
+        authorLabel: currentProfile.displayName || authorLabel,
         authorUid: currentUid,
+        ...(currentProfile.avatarUrl ? { authorAvatarUrl: currentProfile.avatarUrl } : {}),
         ...(photoUri ? { photoUri } : {}),
       });
 
