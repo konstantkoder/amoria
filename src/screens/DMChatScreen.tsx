@@ -32,6 +32,13 @@ import {
   type DmMessageDoc,
   type DmThreadDoc,
 } from "@/services/dm";
+import { nearbyAnnouncementsRepository } from "@/services/nearbyAnnouncements";
+import { getNowPostById } from "@/services/now";
+import {
+  getPlayColorMoodCombinedPalette,
+  getPlaySessionById,
+  getPlaySessionPrompt,
+} from "@/services/playSessions";
 import {
   blockUser,
   createReport,
@@ -109,6 +116,7 @@ export default function DMChatScreen() {
   const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
   const [safetyBusy, setSafetyBusy] = useState(false);
   const [peerAvatarUrl, setPeerAvatarUrl] = useState("");
+  const [sourceDetailText, setSourceDetailText] = useState("");
 
   const textRef = useRef("");
   const inputRef = useRef<TextInput>(null);
@@ -325,6 +333,64 @@ export default function DMChatScreen() {
       ? String(backSessionId || sourceSessionId || "")
       : "";
 
+  useEffect(() => {
+    let alive = true;
+    if (!db || !sourceContext?.source || !sourceSessionId) {
+      setSourceDetailText("");
+      return () => {
+        alive = false;
+      };
+    }
+
+    async function loadSourceDetail() {
+      try {
+        if (!db) return "";
+
+        if (sourceContext.source === "play") {
+          const session = await getPlaySessionById(db, sourceSessionId);
+          if (!session) return "";
+
+          const prompt = getPlaySessionPrompt(session)?.text?.trim() ?? "";
+          if (prompt) return prompt;
+
+          if (session.activity === "color_mood") {
+            const paletteSize = getPlayColorMoodCombinedPalette(session).length;
+            if (paletteSize > 0) {
+              return tt("dm.sourceColorMoodPaletteContext", "Mood palette: {count} colors", {
+                count: String(paletteSize),
+              });
+            }
+          }
+        }
+
+        if (sourceContext.source === "announcement") {
+          const announcement = await nearbyAnnouncementsRepository.getAnnouncementById(
+            sourceSessionId
+          );
+          return announcement?.title?.trim() ?? "";
+        }
+
+        if (sourceContext.source === "nearby") {
+          const post = await getNowPostById(db, sourceSessionId);
+          return post?.text?.trim() ?? "";
+        }
+      } catch {
+        return "";
+      }
+
+      return "";
+    }
+
+    void loadSourceDetail().then((value) => {
+      if (!alive) return;
+      setSourceDetailText(value);
+    });
+
+    return () => {
+      alive = false;
+    };
+  }, [sourceContext?.source, sourceSessionId, tt]);
+
   const mergedMsgs = useMemo(() => {
     const byId = new Map<string, RenderMessage>();
     for (const message of msgs) {
@@ -409,10 +475,29 @@ export default function DMChatScreen() {
   }, []);
 
   const canSend = text.trim().length > 0 && !peerBlocked;
-  const openSourceStory = useCallback(() => {
+  const canOpenSourceDetail = Boolean(
+    sourceSessionId &&
+      (sourceContext?.source === "play" || sourceContext?.source === "announcement")
+  );
+  const sourceActionLabel = useMemo(() => {
+    if (sourceContext?.source === "play") {
+      return tt("dm.openSourceStory", "Открыть общую историю");
+    }
+    if (sourceContext?.source === "announcement") {
+      return tt("dm.openSourceAnnouncement", "Открыть объявление");
+    }
+    return "";
+  }, [sourceContext?.source, tt]);
+  const openSourceDetail = useCallback(() => {
     if (!sourceSessionId) return;
-    navigation.navigate("PlaySessionDetail", { sessionId: sourceSessionId });
-  }, [navigation, sourceSessionId]);
+    if (sourceContext?.source === "play") {
+      navigation.navigate("PlaySessionDetail", { sessionId: sourceSessionId });
+      return;
+    }
+    if (sourceContext?.source === "announcement") {
+      navigation.navigate("AnnouncementDetail", { announcementId: sourceSessionId });
+    }
+  }, [navigation, sourceContext?.source, sourceSessionId]);
   const sourceEyebrow = useMemo(
     () => {
       if (sourceContext?.source === "play") {
@@ -449,12 +534,26 @@ export default function DMChatScreen() {
   }, [sourceActivity, sourceContext?.source, tt]);
   const sourceMeta = useMemo(() => {
     if (sourceContext?.source === "announcement") {
+      if (sourceDetailText) {
+        return tt(
+          "dm.sourceAnnouncementBodyWithTitle",
+          "This chat opened from the announcement “{title}”. The personal reply continues here in Chats.",
+          { title: sourceDetailText }
+        );
+      }
       return tt(
         "dm.sourceAnnouncementBody",
         "Этот чат открыт из объявления. Личный ответ продолжается здесь, в Чатах."
       );
     }
     if (sourceContext?.source === "nearby") {
+      if (sourceDetailText) {
+        return tt(
+          "dm.sourceNearbyBodyWithText",
+          "This chat opened from the nearby status “{text}”. The personal conversation continues here in Chats.",
+          { text: sourceDetailText }
+        );
+      }
       return tt(
         "dm.sourceNearbyBody",
         "Этот чат открыт из Рядом. Личный разговор продолжается здесь, в Чатах."
@@ -462,9 +561,23 @@ export default function DMChatScreen() {
     }
     if (sourceContext?.source !== "play") return "";
     if (sourceActivity === "color_mood") {
+      if (sourceDetailText) {
+        return tt(
+          "dm.sourceColorMoodDetail",
+          "The shared palette is saved as context: {context}. The personal conversation begins here.",
+          { context: sourceDetailText }
+        );
+      }
       return tt(
         "dm.sourcePaletteReady",
         "Общая палитра уже сохранена в истории этого разговора. Она остаётся в общем контексте, а здесь начинается ваше личное продолжение."
+      );
+    }
+    if (sourceDetailText) {
+      return tt(
+        "dm.sourcePlayBodyWithPrompt",
+        "You started this conversation after the shared drawing challenge “{prompt}”. The shared story stays linked while the personal conversation continues here.",
+        { prompt: sourceDetailText }
       );
     }
     if (sourceStrokeCount != null) {
@@ -478,7 +591,13 @@ export default function DMChatScreen() {
       "dm.contextReady",
       "Общий момент уже сохранён в истории этого разговора. К нему можно вернуться в любой момент, а здесь продолжается ваш личный разговор."
     );
-  }, [sourceActivity, sourceContext?.source, sourceStrokeCount, tt]);
+  }, [
+    sourceActivity,
+    sourceContext?.source,
+    sourceDetailText,
+    sourceStrokeCount,
+    tt,
+  ]);
   const isLoading = threadLoading || messagesLoading;
   const threadMissing = !isLoading && !subscriptionError && !thread && mergedMsgs.length === 0;
   const isEmpty = !isLoading && mergedMsgs.length === 0;
@@ -660,20 +779,27 @@ export default function DMChatScreen() {
           ) : null}
           <Text style={styles.sourceTitle}>{sourceTitle}</Text>
           <Text style={styles.sourceMeta}>{sourceMeta}</Text>
-          {sourceSessionId ? (
+          {canOpenSourceDetail && sourceActionLabel ? (
             <TouchableOpacity
-              onPress={openSourceStory}
+              onPress={openSourceDetail}
               style={styles.sourceLink}
               activeOpacity={0.85}
             >
               <Text style={styles.sourceLinkText}>
-                {tt("dm.openSourceStory", "Открыть общую историю")}
+                {sourceActionLabel}
               </Text>
             </TouchableOpacity>
           ) : null}
         </View>
       ) : null,
-    [openSourceStory, sourceEyebrow, sourceMeta, sourceSessionId, sourceTitle, tt]
+    [
+      canOpenSourceDetail,
+      openSourceDetail,
+      sourceActionLabel,
+      sourceEyebrow,
+      sourceMeta,
+      sourceTitle,
+    ]
   );
 
   const renderPeerCard = useCallback(
@@ -912,16 +1038,16 @@ export default function DMChatScreen() {
             }
             primaryAction={{
               label:
-                sourceSessionId && backTarget !== "sessionDetail"
-                  ? tt("dm.openSourceStory", "Открыть общую историю")
+                canOpenSourceDetail && backTarget !== "sessionDetail"
+                  ? sourceActionLabel
                   : emptyBackLabel,
               onPress:
-                sourceSessionId && backTarget !== "sessionDetail"
-                  ? openSourceStory
+                canOpenSourceDetail && backTarget !== "sessionDetail"
+                  ? openSourceDetail
                   : handleBack,
             }}
             secondaryAction={
-              sourceSessionId && backTarget !== "sessionDetail"
+              canOpenSourceDetail && backTarget !== "sessionDetail"
                 ? { label: emptyBackLabel, onPress: handleBack }
                 : undefined
             }

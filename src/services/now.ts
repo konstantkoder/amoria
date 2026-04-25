@@ -3,6 +3,7 @@ import {
   QueryConstraint,
   collection,
   doc,
+  getDoc,
   onSnapshot,
   orderBy,
   query,
@@ -178,6 +179,18 @@ export function subscribeNowPosts(
       onError?.(error);
     }
   );
+}
+
+export async function getNowPostById(
+  db: Firestore,
+  postId: string
+): Promise<NowPost | null> {
+  const stablePostId = String(postId ?? "").trim();
+  if (!stablePostId) return null;
+
+  const snapshot = await getDoc(doc(db, NEARBY_POSTS_COLLECTION, stablePostId));
+  if (!snapshot.exists()) return null;
+  return normalizeNowPost(snapshot.id, snapshot.data());
 }
 
 export async function createNowPost(

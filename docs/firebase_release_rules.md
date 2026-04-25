@@ -50,6 +50,7 @@ This document records the local Firebase rules baseline for the current Amoria r
 - `rooms` remains authenticated-only with owner checks on messages and members, but room document reads/writes are not membership-enforced. Rooms are not part of the current release UI; tighten or remove this path before exposing Rooms again.
 - Authenticated users can read basic user profiles because Chats, Announcements, and Nearby need display names and avatars.
 - DM thread participants can update thread metadata used by the existing client transaction. A stricter field-level contract can be added after the DM payload stabilizes.
+- Chat source context uses existing DM thread fields (`source`, `sourceSessionId`, `artworkSummary`) and reads existing `playSessions`, `announcements`, or `nearbyPosts` documents for previews. No new collection or rule path is introduced by the Chats contact-center layer.
 
 ## Firebase Console Checklist
 

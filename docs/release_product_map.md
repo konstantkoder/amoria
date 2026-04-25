@@ -53,6 +53,12 @@
   - Nearby / Рядом: personal conversations after a real nearby contact is available.
 - Connections is not a separate bottom tab.
 - Shared stories, drawings, palettes, announcement origin, and nearby origin should appear as context inside the chat/conversation, not as a separate release surface.
+- Chat cards show the peer avatar/name, latest message, stable source label, and source preview when the thread has a real readable source id.
+- Source details open only when the source is real and routeable:
+  - Together sources open `PlaySessionDetail` when `sourceSessionId` points to an existing play session.
+  - Announcement sources open `AnnouncementDetail` when `sourceSessionId` points to an existing announcement.
+  - Nearby sources show the status text as context; there is no fake nearby detail screen.
+- Blocked users are hidden from the normal Chats list; directly opened blocked threads remain readable as history with sending disabled.
 - DM threads and messages require Firestore rules that limit access to thread members.
 
 ## Safety / UGC
@@ -106,6 +112,6 @@
 - Firestore and Storage rules must be deployed from the local baseline before public testing/release.
 - Announcement moderation/report/block foundations are backed by Firestore, not AsyncStorage.
 - Chats must become the single place for conversations from Together, Announcements and Nearby.
-- Chats should surface connection/story context inside each conversation.
+- Chats surface connection/story context inside each conversation when the real source data is available.
 - Nearby quick status should open chats when real nearby user identity is available.
 - Rooms is not part of the current release UI.

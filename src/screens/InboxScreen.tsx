@@ -18,20 +18,34 @@ import {
   buildDmChatRouteParams,
   mapDmThreadToPeer,
   subscribeDmThreads,
+  type DmSourceContext,
   type DmThreadDoc,
 } from "@/services/dm";
+import { nearbyAnnouncementsRepository } from "@/services/nearbyAnnouncements";
+import { getNowPostById } from "@/services/now";
 import { getBlockedUserIds } from "@/services/safety";
 import { getUserProfileById } from "@/services/user";
 import { useLocale } from "@/contexts/LocaleContext";
-import type { PlayActivity } from "@/services/playSessions";
+import {
+  getPlayColorMoodCombinedPalette,
+  getPlaySessionById,
+  getPlaySessionPrompt,
+  type PlayActivity,
+} from "@/services/playSessions";
 import { theme } from "@/theme";
+
+type InboxSourceKey = "play" | "announcement" | "nearby" | "direct";
 
 type InboxThreadCard = {
   id: string;
   peerId: string;
   peerName: string;
   avatarUrl?: string;
-  sourceKey: "play" | "announcement" | "nearby" | "direct";
+  sourceKey: InboxSourceKey;
+  sourceId?: string;
+  sourceContext?: DmSourceContext;
+  sourcePreviewText?: string;
+  sourceDetailHint?: string;
   activity?: PlayActivity;
   conversationLabel: string;
   previewText: string;
@@ -55,6 +69,31 @@ function formatThreadDate(value: number) {
   }
 }
 
+function getThreadSourceKey(thread: DmThreadDoc): InboxSourceKey {
+  if (thread.source === "play") return "play";
+  if (thread.source === "announcement") return "announcement";
+  if (thread.source === "nearby") return "nearby";
+  return "direct";
+}
+
+function getThreadSourceContext(thread: DmThreadDoc): DmSourceContext | undefined {
+  if (
+    thread.source !== "play" &&
+    thread.source !== "announcement" &&
+    thread.source !== "nearby"
+  ) {
+    return undefined;
+  }
+
+  return {
+    source: thread.source,
+    ...(thread.sourceSessionId?.trim()
+      ? { sourceSessionId: thread.sourceSessionId.trim() }
+      : {}),
+    ...(thread.artworkSummary ? { artworkSummary: thread.artworkSummary } : {}),
+  };
+}
+
 function mapThreadToCard(
   thread: DmThreadDoc,
   uid: string,
@@ -71,18 +110,16 @@ function mapThreadToCard(
   const sortAt = thread.lastMessageAt ?? thread.updatedAt ?? thread.createdAt;
   const signal = getDmThreadActivitySignal(thread, seenAt);
   const hasPreview = Boolean(thread.lastMessageText?.trim());
+  const sourceKey = getThreadSourceKey(thread);
+  const sourceContext = getThreadSourceContext(thread);
+  const sourceId = thread.sourceSessionId?.trim() ?? "";
   return {
     id: thread.id,
     peerId: peer.uid,
     peerName: peer.name || fallbackName,
-    sourceKey:
-      thread.source === "play"
-        ? "play"
-        : thread.source === "announcement"
-          ? "announcement"
-          : thread.source === "nearby"
-            ? "nearby"
-            : "direct",
+    sourceKey,
+    ...(sourceId ? { sourceId } : {}),
+    ...(sourceContext ? { sourceContext } : {}),
     ...(thread.artworkSummary?.activity
       ? { activity: thread.artworkSummary.activity }
       : {}),
@@ -113,6 +150,7 @@ export default function InboxScreen() {
   const [reloadKey, setReloadKey] = useState(0);
   const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
   const [peerAvatarByUid, setPeerAvatarByUid] = useState<Record<string, string>>({});
+  const [sourcePreviewByThreadId, setSourcePreviewByThreadId] = useState<Record<string, string>>({});
 
   useEffect(() => {
     let alive = true;
@@ -207,6 +245,80 @@ export default function InboxScreen() {
     };
   }, [threads, uid]);
 
+  useEffect(() => {
+    let alive = true;
+    if (!db || !uid || !threads.length) {
+      setSourcePreviewByThreadId({});
+      return () => {
+        alive = false;
+      };
+    }
+
+    const sourceThreads = threads.filter((thread) => {
+      const sourceId = thread.sourceSessionId?.trim();
+      return Boolean(sourceId && getThreadSourceKey(thread) !== "direct");
+    });
+
+    if (!sourceThreads.length) {
+      setSourcePreviewByThreadId({});
+      return () => {
+        alive = false;
+      };
+    }
+
+    void Promise.all(
+      sourceThreads.map(async (thread) => {
+        const sourceId = thread.sourceSessionId?.trim() ?? "";
+        if (!sourceId) return [thread.id, ""] as const;
+
+        try {
+          if (thread.source === "play") {
+            const session = await getPlaySessionById(db, sourceId);
+            if (!session) return [thread.id, ""] as const;
+
+            const prompt = getPlaySessionPrompt(session)?.text?.trim() ?? "";
+            if (prompt) return [thread.id, prompt] as const;
+
+            if (session.activity === "color_mood") {
+              const paletteSize = getPlayColorMoodCombinedPalette(session).length;
+              if (paletteSize > 0) {
+                return [
+                  thread.id,
+                  tt("inbox.contextColorMoodPalette", "Mood palette: {count} colors", {
+                    count: String(paletteSize),
+                  }),
+                ] as const;
+              }
+            }
+          }
+
+          if (thread.source === "announcement") {
+            const announcement = await nearbyAnnouncementsRepository.getAnnouncementById(sourceId);
+            return [thread.id, announcement?.title?.trim() ?? ""] as const;
+          }
+
+          if (thread.source === "nearby") {
+            const post = await getNowPostById(db, sourceId);
+            return [thread.id, post?.text?.trim() ?? ""] as const;
+          }
+        } catch {
+          return [thread.id, ""] as const;
+        }
+
+        return [thread.id, ""] as const;
+      })
+    ).then((entries) => {
+      if (!alive) return;
+      setSourcePreviewByThreadId(
+        Object.fromEntries(entries.filter(([, preview]) => Boolean(preview)))
+      );
+    });
+
+    return () => {
+      alive = false;
+    };
+  }, [threads, tt, uid]);
+
   const cards = useMemo(
     () =>
       threads
@@ -236,10 +348,26 @@ export default function InboxScreen() {
         .map((item) => ({
           ...item,
           avatarUrl: peerAvatarByUid[item.peerId] ?? "",
+          sourcePreviewText: sourcePreviewByThreadId[item.id] ?? "",
+          sourceDetailHint:
+            item.sourceKey === "play" && item.sourceId
+              ? tt("inbox.openStoryHint", "The shared story can be opened inside the chat.")
+              : item.sourceKey === "announcement" && item.sourceId
+                ? tt("inbox.openAnnouncementHint", "The announcement can be opened inside the chat.")
+                : "",
         }))
         .filter((item) => !blockedUserIds.includes(item.peerId))
         .sort((a, b) => b.sortAt - a.sortAt),
-    [blockedUserIds, freshnessState.dmThreads, peerAvatarByUid, t, threads, tt, uid]
+    [
+      blockedUserIds,
+      freshnessState.dmThreads,
+      peerAvatarByUid,
+      sourcePreviewByThreadId,
+      t,
+      threads,
+      tt,
+      uid,
+    ]
   );
   const sourceLabels = useMemo(
     () => ({
@@ -260,6 +388,9 @@ export default function InboxScreen() {
   }, [navigation]);
   const goToAnnouncements = useCallback(() => {
     navigation.navigate("Tabs", { screen: "Announcements" });
+  }, [navigation]);
+  const goToNearby = useCallback(() => {
+    navigation.navigate("Tabs", { screen: "Nearby" });
   }, [navigation]);
 
   const renderHeroCard = () => (
@@ -310,6 +441,14 @@ export default function InboxScreen() {
             {tt("inbox.goToAnnouncements", "В Объявления")}
           </Text>
         </Pressable>
+        <Pressable
+          onPress={goToNearby}
+          style={styles.emptySecondaryButton}
+        >
+          <Text style={styles.emptySecondaryButtonText}>
+            {tt("inbox.goToNearby", "В Рядом")}
+          </Text>
+        </Pressable>
       </View>
     </View>
   );
@@ -325,6 +464,7 @@ export default function InboxScreen() {
               peerId: item.peerId,
               peerName: item.peerName,
               backTarget: "inbox",
+              ...(item.sourceContext ? { sourceContext: item.sourceContext } : {}),
             })
           )
         }
@@ -443,9 +583,23 @@ export default function InboxScreen() {
         >
           {item.previewText}
         </Text>
+
+        {item.sourcePreviewText ? (
+          <View style={styles.sourcePreviewBox}>
+            <Text style={styles.sourcePreviewLabel}>
+              {tt("inbox.sourcePreviewLabel", "Context")}
+            </Text>
+            <Text style={styles.sourcePreviewText} numberOfLines={2}>
+              {item.sourcePreviewText}
+            </Text>
+            {item.sourceDetailHint ? (
+              <Text style={styles.sourceDetailHint}>{item.sourceDetailHint}</Text>
+            ) : null}
+          </View>
+        ) : null}
       </Pressable>
     ),
-    [navigation, sourceLabels]
+    [navigation, sourceLabels, tt]
   );
 
   if (!uid) {
@@ -649,6 +803,34 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
     fontSize: 14,
     fontWeight: "800",
+  },
+  sourcePreviewBox: {
+    gap: 4,
+    borderRadius: theme.shapes.cardInner,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  sourcePreviewLabel: {
+    color: theme.colors.muted,
+    fontSize: 10,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+  },
+  sourcePreviewText: {
+    color: theme.colors.text,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "700",
+  },
+  sourceDetailHint: {
+    color: theme.colors.subtext,
+    fontSize: 11,
+    lineHeight: 16,
+    fontWeight: "700",
   },
   listContent: {
     paddingTop: 2,

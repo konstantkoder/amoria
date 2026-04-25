@@ -429,6 +429,7 @@ export default function AnnouncementDetailScreen() {
               [announcementAuthorUid]: announcement.authorLabel,
             },
             source: "announcement",
+            sourceSessionId: announcementId,
           });
           const responseState =
             await nearbyAnnouncementsRepository.respondToAnnouncement(announcementId, {
@@ -446,6 +447,7 @@ export default function AnnouncementDetailScreen() {
               backTarget: "inbox",
               sourceContext: {
                 source: "announcement",
+                sourceSessionId: announcementId,
               },
             })
           );

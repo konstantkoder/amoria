@@ -2,6 +2,7 @@ import {
   type Firestore,
   collection,
   doc,
+  getDoc,
   getDocs,
   limit,
   onSnapshot,
@@ -1480,6 +1481,18 @@ export function subscribePlaySession(
       onData(null);
     }
   );
+}
+
+export async function getPlaySessionById(
+  db: Firestore,
+  sessionId: string
+): Promise<PlaySessionDoc | null> {
+  const stableSessionId = String(sessionId ?? "").trim();
+  if (!stableSessionId) return null;
+
+  const snapshot = await getDoc(doc(db, "playSessions", stableSessionId));
+  if (!snapshot.exists()) return null;
+  return asPlaySessionDoc(snapshot.id, snapshot.data());
 }
 
 export function isMutualOpenPlaySession(session: PlaySessionDoc) {
