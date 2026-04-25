@@ -117,10 +117,12 @@
 
 - Verify only four bottom tabs are visible: Together / Вместе, Nearby / Рядом, Announcements / Объявления, Chats / Чаты.
 - Verify Rooms is not registered as an active release navigation route and no CTA opens Rooms from Together, Nearby, Announcements, Chats, or the drawer.
+- Verify the old Nearby Rooms promo component is not present in active UI and no `openRooms` helper is exported from release navigation helpers.
 - Verify Connections is not visible as a bottom tab or main release section.
 - Verify Chats / Чаты is the user-facing label for the personal conversations tab; Inbox remains an internal route name only.
 - Verify Together launch paths are limited to `draw` and `color_mood`.
 - Verify legacy `daily_prompt` and `chain_draw` sessions, if old data exists, render as saved shared drawing history rather than new release modes.
+- Verify empty/error states route only to release tabs: Together, Nearby, Announcements, and Chats.
 
 ## Important Release Honesty Notes
 

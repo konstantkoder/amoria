@@ -31,6 +31,7 @@ This document records the local Firebase rules baseline for the current Amoria r
 ## Rules Baseline
 
 - Firestore and Storage both deny unknown paths by default.
+- The pre-device-pass audit must keep the local rules free of global allow-all rules.
 - All app data requires an authenticated Firebase user.
 - User profile documents can be read by authenticated users by direct document id and written only by the profile owner.
 - Block lists are private to the owning user.
