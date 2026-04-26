@@ -16,27 +16,16 @@ import { signOut } from "firebase/auth";
 import ScreenShell from "@/components/ScreenShell";
 import LocationConsentModal from "@/components/LocationConsentModal";
 import { useLocale } from "@/contexts/LocaleContext";
-import { auth, db } from "@/config/firebaseConfig";
+import { auth } from "@/config/firebaseConfig";
 import { loadAdultModeEnabled, setAdultModeEnabled } from "@/services/adultMode";
 import {
+  clearLegacyMapPresencePrefs,
   loadLocationPrefs,
   setLocationConsent,
   setNearbyEnabled,
-  setShareMeOnMap,
-  setShowPeopleOnMap,
   type LocationPrefs,
 } from "@/services/locationPrivacy";
-import { clearPresence } from "@/services/presence";
 import { type RootStackNavigationProp } from "@/navigation/appRoutes";
-
-function copyOrFallback(
-  t: (key: string, params?: Record<string, string>) => string,
-  key: string,
-  fallback: string
-) {
-  const value = t(key);
-  return value === key ? fallback : value;
-}
 
 export default function SettingsScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"Settings">>();
@@ -45,15 +34,11 @@ export default function SettingsScreen() {
   const [prefs, setPrefs] = useState<LocationPrefs>({
     consent: "unknown",
     nearbyEnabled: false,
-    showPeopleOnMap: false,
-    shareMeOnMap: false,
   });
   const [loadingPrefs, setLoadingPrefs] = useState(true);
   const [adultMode, setAdultMode] = useState(false);
   const [consentVisible, setConsentVisible] = useState(false);
-  const [consentAction, setConsentAction] = useState<
-    "nearby" | "showPeople" | "shareMe" | null
-  >(null);
+  const [consentAction, setConsentAction] = useState<"nearby" | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -106,20 +91,6 @@ export default function SettingsScreen() {
       await setNearbyEnabled(true);
       updatePrefs({ nearbyEnabled: true });
       await requestLocationPermission();
-      return;
-    }
-
-    if (action === "showPeople") {
-      await setShowPeopleOnMap(true);
-      updatePrefs({ showPeopleOnMap: true });
-      return;
-    }
-
-    if (action === "shareMe") {
-      const ok = await requestLocationPermission();
-      if (!ok) return;
-      await setShareMeOnMap(true);
-      updatePrefs({ shareMeOnMap: true });
     }
   }, [consentAction, requestLocationPermission, updatePrefs]);
 
@@ -129,18 +100,12 @@ export default function SettingsScreen() {
     await Promise.all([
       setLocationConsent("declined"),
       setNearbyEnabled(false),
-      setShowPeopleOnMap(false),
-      setShareMeOnMap(false),
+      clearLegacyMapPresencePrefs(),
     ]);
     updatePrefs({
       consent: "declined",
       nearbyEnabled: false,
-      showPeopleOnMap: false,
-      shareMeOnMap: false,
     });
-    if (db && auth?.currentUser?.uid) {
-      clearPresence(db, auth.currentUser.uid).catch(() => {});
-    }
   }, [updatePrefs]);
 
   const toggleNearby = useCallback(
@@ -157,77 +122,10 @@ export default function SettingsScreen() {
         return;
       }
       await setNearbyEnabled(false);
+      await clearLegacyMapPresencePrefs();
       updatePrefs({ nearbyEnabled: false });
-      await setShareMeOnMap(false);
-      updatePrefs({ shareMeOnMap: false });
-      if (db && auth?.currentUser?.uid) {
-        clearPresence(db, auth.currentUser.uid).catch(() => {});
-      }
     },
     [prefs.consent, requestLocationPermission, updatePrefs]
-  );
-
-  const toggleShowPeople = useCallback(
-    async (value: boolean) => {
-      if (value) {
-        if (!prefs.nearbyEnabled) {
-          Alert.alert(
-            t("settings.nearbyEnabled"),
-            copyOrFallback(
-              t,
-              "settings.locationRequiredForNearby",
-              "Enable location for Nearby to use map-based nearby presence."
-            )
-          );
-          return;
-        }
-        if (prefs.consent !== "accepted") {
-          setConsentAction("showPeople");
-          setConsentVisible(true);
-          return;
-        }
-        await setShowPeopleOnMap(true);
-        updatePrefs({ showPeopleOnMap: true });
-        return;
-      }
-      await setShowPeopleOnMap(false);
-      updatePrefs({ showPeopleOnMap: false });
-    },
-    [prefs.nearbyEnabled, prefs.consent, t, updatePrefs]
-  );
-
-  const toggleShareMe = useCallback(
-    async (value: boolean) => {
-      if (value) {
-        if (!prefs.nearbyEnabled) {
-          Alert.alert(
-            t("settings.nearbyEnabled"),
-            copyOrFallback(
-              t,
-              "settings.locationRequiredForNearby",
-              "Enable location for Nearby to use map-based nearby presence."
-            )
-          );
-          return;
-        }
-        if (prefs.consent !== "accepted") {
-          setConsentAction("shareMe");
-          setConsentVisible(true);
-          return;
-        }
-        const ok = await requestLocationPermission();
-        if (!ok) return;
-        await setShareMeOnMap(true);
-        updatePrefs({ shareMeOnMap: true });
-        return;
-      }
-      await setShareMeOnMap(false);
-      updatePrefs({ shareMeOnMap: false });
-      if (db && auth?.currentUser?.uid) {
-        clearPresence(db, auth.currentUser.uid).catch(() => {});
-      }
-    },
-    [prefs.nearbyEnabled, prefs.consent, requestLocationPermission, t, updatePrefs]
   );
 
   const handleAdultToggle = useCallback(async (value: boolean) => {
@@ -268,22 +166,6 @@ export default function SettingsScreen() {
                 disabled={loadingPrefs}
               />
             </View>
-            <View style={styles.row}>
-              <Text style={styles.label}>{t("settings.showPeopleOnMap")}</Text>
-              <Switch
-                value={prefs.showPeopleOnMap}
-                onValueChange={toggleShowPeople}
-                disabled={loadingPrefs}
-              />
-            </View>
-            <View style={styles.row}>
-              <Text style={styles.label}>{t("settings.shareMeOnMap")}</Text>
-              <Switch
-                value={prefs.shareMeOnMap}
-                onValueChange={toggleShareMe}
-                disabled={loadingPrefs}
-              />
-            </View>
           </View>
 
           <View style={styles.card}>
@@ -307,17 +189,6 @@ export default function SettingsScreen() {
             >
               <Ionicons name="settings-outline" size={18} color="#E5E7EB" />
               <Text style={styles.linkText}>{t("settings.openSystemSettings")}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => {
-                if (db && auth?.currentUser?.uid) {
-                  clearPresence(db, auth.currentUser.uid).catch(() => {});
-                }
-              }}
-              style={styles.linkRow}
-            >
-              <Ionicons name="trash-outline" size={18} color="#E5E7EB" />
-              <Text style={styles.linkText}>{t("settings.clearMyLocation")}</Text>
             </TouchableOpacity>
           </View>
 

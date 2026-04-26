@@ -146,8 +146,6 @@ export default function NearbyNowSection({
   const [prefs, setPrefs] = useState<LocationPrefs>({
     consent: "unknown",
     nearbyEnabled: false,
-    showPeopleOnMap: false,
-    shareMeOnMap: false,
   });
   const [prefsLoading, setPrefsLoading] = useState(true);
   const [pos, setPos] = useState<Pos | null>(null);

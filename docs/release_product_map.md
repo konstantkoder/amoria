@@ -32,6 +32,7 @@
 ## Nearby / Рядом
 
 - Nearby is a quick nearby intent/status surface, not a hub for Announcements or Rooms.
+- Nearby means quick nearby status with geolocation, not map presence.
 - Nearby statuses are shared Firestore documents under `nearbyPosts/{postId}`.
 - Demo, seed, local-only, and fake nearby statuses are forbidden in the release path.
 - A nearby status has a real author uid, location region/geohash, mood/intent, `status`, `createdAt`, and `expiresAt`.
@@ -40,6 +41,7 @@
 - Chats show this source as “From Nearby” / “Из Рядом”.
 - Blocked users are filtered out of the normal nearby status list.
 - Rooms is not part of the Nearby release UI.
+- Map presence is not part of the Nearby release UI.
 
 ## Announcements / Объявления
 
@@ -103,12 +105,16 @@
 - Current intentional rule relaxations:
   - `playQueue` still supports client-side matching and therefore allows authenticated queue-entry reads and candidate match updates.
   - `playSessions` still supports client-driven collaborative session updates for drawing, color mood, reveal, and legacy turn state.
-  - `rooms` remains authenticated-only because Rooms are not in the current release UI and the old membership model is not release-ready.
+- Legacy/non-release denied paths:
+  - `rooms` and its subcollections are explicitly denied to clients because Rooms are not in the current release UI and the old membership model is not release-ready.
+  - `presence` is explicitly denied to clients because map-presence is not part of the current release UI.
 - Firebase Console must be checked before public release: Firestore rules deployed, Storage rules deployed, Email/password auth enabled, Firestore database in `eur3`, Storage bucket enabled, and required indexes created.
 
 ## Removed From Release UI
 
 - Rooms
+- map presence / people-on-map UI
+- Settings people-on-map toggles
 - Connections as bottom tab
 - internal Nearby segments
 - `daily_prompt` and `chain_draw` as release launch paths
@@ -118,6 +124,8 @@
 - Verify only four bottom tabs are visible: Together / Вместе, Nearby / Рядом, Announcements / Объявления, Chats / Чаты.
 - Verify Rooms is not registered as an active release navigation route and no CTA opens Rooms from Together, Nearby, Announcements, Chats, or the drawer.
 - Verify the old Nearby Rooms promo component is not present in active UI and no `openRooms` helper is exported from release navigation helpers.
+- Do not test Rooms in the current device-pass; it is outside the release UI.
+- Verify Settings exposes only the Nearby location toggle and no map people / show-me-on-map controls.
 - Verify Connections is not visible as a bottom tab or main release section.
 - Verify Chats / Чаты is the user-facing label for the personal conversations tab; Inbox remains an internal route name only.
 - Verify Together launch paths are limited to `draw` and `color_mood`.
@@ -136,3 +144,4 @@
 - Chats surface connection/story context inside each conversation when the real source data is available.
 - Nearby quick status should open chats when real nearby user identity is available.
 - Rooms is not part of the current release UI. The old `RoomsScreen` code can remain isolated, but it must not be registered in active release navigation.
+- Before returning Rooms later, reintroduce separate Rooms UX, privacy copy, navigation entry points, and Firestore rules intentionally.

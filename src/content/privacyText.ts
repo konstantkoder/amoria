@@ -7,13 +7,12 @@ export const PRIVACY_TEXT = {
 - User content (messages, reports, blocks)
 
 Purpose
-- People-nearby feature and interest-based matching.
+- Nearby quick status and interest-based matching.
 
-Show me on map
-- Only if you enable it in Settings
-- We show approximate location only, not exact coordinates
-- You can turn it off anytime
-- Presence is refreshed; stale locations (e.g. older than 5 minutes) are not shown
+Nearby quick status
+- Location for Nearby is used only when enabled
+- Quick statuses use approximate area, not exact coordinates
+- You can turn Nearby location off anytime in Settings
 
 Sharing
 - No selling. Service providers (e.g., Firebase) only, as needed.
@@ -32,13 +31,12 @@ Contact
 - Пользовательский контент (сообщения, жалобы, блокировки).
 
 Зачем
-- Поиск людей рядом и подбор по интересам.
+- Быстрые статусы рядом и подбор по интересам.
 
-Показывать меня на карте
-- Только если вы сами включили эту опцию в настройках
-- Мы показываем только приблизительную позицию, без точных координат
-- Можно выключить в любой момент
-- Присутствие обновляется; устаревшие данные (например, старше 5 минут) не показываются
+Быстрый статус рядом
+- Геолокация для «Рядом» используется только когда она включена
+- Быстрые статусы используют приблизительную область, а не точные координаты
+- Геолокацию для «Рядом» можно выключить в настройках
 
 Передача третьим лицам
 - Не продаём данные. Делимся ими только с сервисами-провайдерами (например, Firebase), когда это нужно для работы приложения.
@@ -57,13 +55,12 @@ Contact
 - Korisnički sadržaj (poruke, prijave, blokiranja)
 
 Svrha
-- Funkcija "ljudi u blizini" i sparivanje prema interesima.
+- Brzi statusi u blizini i sparivanje prema interesima.
 
-Prikaži me na karti
-- Samo ako opciju uključite u postavkama
-- Prikazujemo približnu lokaciju, bez točnih koordinata
-- Možete isključiti u bilo kojem trenutku
-- Prisutnost se osvježava; zastarjele lokacije (npr. starije od 5 minuta) se ne prikazuju
+Brzi status u blizini
+- Lokacija za Nearby koristi se samo kada je uključena
+- Brzi statusi koriste približno područje, ne točne koordinate
+- Lokaciju za Nearby možete isključiti u postavkama
 
 Dijeljenje
 - Ne prodajemo podatke. Dijelimo samo s pružateljima usluga (npr. Firebase), prema potrebi.

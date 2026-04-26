@@ -206,28 +206,21 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Legacy map-presence is excluded from the current release UI.
     match /presence/{uid} {
-      allow get, list: if signedIn();
-      allow create, update: if isSelf(uid) &&
-        request.resource.data.uid == uid;
-      allow delete: if isSelf(uid);
+      allow read, write: if false;
     }
 
+    // Legacy Rooms are excluded from the current release UI.
     match /rooms/{roomId} {
-      allow get, list: if signedIn();
-      allow create, update: if signedIn();
-      allow delete: if false;
+      allow read, write: if false;
 
       match /messages/{messageId} {
-        allow get, list: if signedIn();
-        allow create, update: if signedIn() &&
-          request.resource.data.uid == request.auth.uid;
-        allow delete: if false;
+        allow read, write: if false;
       }
 
       match /members/{uid} {
-        allow get, list: if signedIn();
-        allow create, update, delete: if isSelf(uid);
+        allow read, write: if false;
       }
     }
 

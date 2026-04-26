@@ -37,12 +37,12 @@ import { translateMaybeKey } from "@/utils/i18n";
 import { formatNickname } from "@/utils/nickname";
 import { withTimeout } from "@/utils/withTimeout";
 import {
-  loadLocationPrefs,
+  loadLocationPrefsWithLegacyMapPresence,
   setLocationConsent,
   setNearbyEnabled,
   setShareMeOnMap,
   setShowPeopleOnMap,
-  type LocationPrefs,
+  type LocationPrefsWithLegacyMapPresence,
 } from "@/services/locationPrivacy";
 import {
   clearPresence,
@@ -195,6 +195,7 @@ function getRoomsPermissionHelp(
   return null;
 }
 
+// Legacy non-release screen. It is intentionally not registered in AppNavigator.
 export default function RoomsScreen() {
   const insets = useSafeAreaInsets();
   const { t } = useLocale();
@@ -223,7 +224,7 @@ export default function RoomsScreen() {
   const locationRequestIdRef = useRef(0);
   const locationInFlightRequestIdRef = useRef<number | null>(null);
   const [permissionState, setPermissionState] = useState<LocationPermissionState>("unknown");
-  const [prefs, setPrefs] = useState<LocationPrefs>({
+  const [prefs, setPrefs] = useState<LocationPrefsWithLegacyMapPresence>({
     consent: "unknown",
     nearbyEnabled: false,
     showPeopleOnMap: false,
@@ -359,7 +360,7 @@ export default function RoomsScreen() {
   }, [members]);
 
   const updatePrefs = useCallback(
-    (patch: Partial<LocationPrefs>) => {
+    (patch: Partial<LocationPrefsWithLegacyMapPresence>) => {
       setPrefs((prev) => ({ ...prev, ...patch }));
     },
     []
@@ -617,7 +618,7 @@ export default function RoomsScreen() {
 
     try {
       const [nextPrefs, permission] = await Promise.all([
-        loadLocationPrefs(),
+        loadLocationPrefsWithLegacyMapPresence(),
         Location.getForegroundPermissionsAsync(),
       ]);
       if (!mountedRef.current) return;
