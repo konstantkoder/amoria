@@ -12,6 +12,7 @@ import {
   setDoc,
   where,
 } from "firebase/firestore";
+import { auth } from "@/config/firebaseConfig";
 import { getRuntimeLocale, translate } from "@/i18n/translations";
 import {
   getPlayDrawChallengeById,
@@ -296,6 +297,18 @@ function normalizeTurnOrder(value: unknown, participantIds: string[]) {
 function normalizePromptString(value: unknown) {
   if (typeof value !== "string") return "";
   return value.trim();
+}
+
+function createNoCurrentUserError() {
+  const error = new Error("No authenticated user for play queue");
+  (error as Error & { code?: string }).code = "auth/no-current-user";
+  return error;
+}
+
+function requireCurrentUserForPlayQueue() {
+  if (!auth?.currentUser?.uid) {
+    throw createNoCurrentUserError();
+  }
 }
 
 function normalizeColorMoodChoiceHex(value: unknown) {
@@ -1252,6 +1265,7 @@ export async function enqueuePlayRequest(
   activity: PlayActivity,
   nickname?: string
 ): Promise<void> {
+  requireCurrentUserForPlayQueue();
   const now = Date.now();
   const ref = doc(db, "playQueue", uid);
   await setDoc(
@@ -1268,6 +1282,7 @@ export async function enqueuePlayRequest(
 }
 
 export async function cancelPlayRequest(db: Firestore, uid: string): Promise<void> {
+  requireCurrentUserForPlayQueue();
   const queueRef = doc(db, "playQueue", uid);
   await runTransaction(db, async (tx) => {
     const now = Date.now();
@@ -1293,15 +1308,23 @@ export async function cancelPlayRequest(db: Firestore, uid: string): Promise<voi
 export function subscribeOwnQueueEntry(
   db: Firestore,
   uid: string,
-  onData: (data: PlayQueueDoc | null) => void
+  onData: (data: PlayQueueDoc | null) => void,
+  onError?: (error: Error) => void
 ) {
-  return onSnapshot(doc(db, "playQueue", uid), (snapshot) => {
-    if (!snapshot.exists()) {
+  return onSnapshot(
+    doc(db, "playQueue", uid),
+    (snapshot) => {
+      if (!snapshot.exists()) {
+        onData(null);
+        return;
+      }
+      onData(asPlayQueueDoc(snapshot.id, snapshot.data()));
+    },
+    (error) => {
+      onError?.(error);
       onData(null);
-      return;
     }
-    onData(asPlayQueueDoc(snapshot.id, snapshot.data()));
-  });
+  );
 }
 
 export async function tryMatchWaitingPlayer(
@@ -1310,6 +1333,7 @@ export async function tryMatchWaitingPlayer(
   nickname: string,
   activity: PlayActivity
 ): Promise<{ sessionId: string; matched: boolean }> {
+  requireCurrentUserForPlayQueue();
   const queueRef = doc(db, "playQueue", uid);
   const waitingQuery = query(
     collection(db, "playQueue"),

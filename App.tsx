@@ -12,7 +12,7 @@ import {
 } from "@react-navigation/native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { onAuthStateChanged, User } from "firebase/auth";
+import { onAuthStateChanged, type User } from "firebase/auth";
 
 import { auth } from "@/config/firebaseConfig";
 import LoginScreen from "@/screens/LoginScreen";
@@ -104,13 +104,28 @@ function AuthGate() {
     const unsub = onAuthStateChanged(
       auth,
       (firebaseUser) => {
+        if (!firebaseUser) {
+          setUser(null);
+          setAuthError(null);
+          setAuthReady(true);
+          return;
+        }
+
         setUser(firebaseUser);
+        setAuthError(null);
         setAuthReady(true);
       },
       (error) => {
-        console.error("[auth] onAuthStateChanged failed", error);
+        const authStateError = error as { code?: unknown; message?: unknown };
+        console.error("[auth] onAuthStateChanged failed", {
+          code: typeof authStateError?.code === "string" ? authStateError.code : "unknown",
+          message:
+            typeof authStateError?.message === "string"
+              ? authStateError.message
+              : "Unknown auth state error",
+        });
         setUser(null);
-        setAuthError(error?.message ?? "auth.error");
+        setAuthError("auth.error");
         setAuthReady(true);
       }
     );

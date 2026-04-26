@@ -22,6 +22,46 @@ type LoginScreenProps = {
 
 const EMAIL_RE = /^\S+@\S+\.\S+$/;
 
+function getFirebaseAuthErrorKey(
+  error: unknown,
+  operation: "login" | "register"
+) {
+  const code = typeof (error as { code?: unknown })?.code === "string"
+    ? (error as { code: string }).code
+    : "";
+
+  switch (code) {
+    case "auth/invalid-email":
+      return "auth.invalidEmail";
+    case "auth/invalid-credential":
+      return "auth.invalidCredential";
+    case "auth/user-not-found":
+      return "auth.userNotFound";
+    case "auth/wrong-password":
+      return "auth.wrongPassword";
+    case "auth/email-already-in-use":
+      return "auth.emailInUse";
+    case "auth/weak-password":
+      return "auth.weakPassword";
+    case "auth/too-many-requests":
+      return "auth.tooManyRequests";
+    case "auth/network-request-failed":
+      return "auth.networkError";
+    default:
+      return operation === "login"
+        ? "auth.unknownLoginError"
+        : "auth.unknownRegisterError";
+  }
+}
+
+function logFirebaseAuthError(operation: "login" | "register", error: unknown) {
+  const value = error as { code?: unknown; message?: unknown };
+  console.error(`Firebase ${operation} error`, {
+    code: typeof value?.code === "string" ? value.code : "unknown",
+    message: typeof value?.message === "string" ? value.message : "Unknown Firebase auth error",
+  });
+}
+
 export default function LoginScreen({ authError }: LoginScreenProps) {
   const { t, locale, openLanguagePicker } = useLocale();
   const insets = useSafeAreaInsets();
@@ -49,7 +89,7 @@ export default function LoginScreen({ authError }: LoginScreenProps) {
       return;
     }
     if (!EMAIL_RE.test(trimmedEmail)) {
-      Alert.alert(t("auth.loginTitle"), t("auth.emailInvalid"));
+      Alert.alert(t("auth.loginTitle"), t("auth.invalidEmail"));
       return;
     }
     if (!password) {
@@ -62,9 +102,9 @@ export default function LoginScreen({ authError }: LoginScreenProps) {
     }
     try {
       await signInWithEmailAndPassword(auth, trimmedEmail, password);
-    } catch (e: any) {
-      console.error(e);
-      Alert.alert(t("auth.loginTitle"), e?.message ?? t("auth.loginError"));
+    } catch (e: unknown) {
+      logFirebaseAuthError("login", e);
+      Alert.alert(t("auth.loginTitle"), t(getFirebaseAuthErrorKey(e, "login")));
     }
   };
 
@@ -75,7 +115,7 @@ export default function LoginScreen({ authError }: LoginScreenProps) {
       return;
     }
     if (!EMAIL_RE.test(trimmedEmail)) {
-      Alert.alert(t("auth.registerTitle"), t("auth.emailInvalid"));
+      Alert.alert(t("auth.registerTitle"), t("auth.invalidEmail"));
       return;
     }
     if (!password) {
@@ -88,19 +128,9 @@ export default function LoginScreen({ authError }: LoginScreenProps) {
     }
     try {
       await createUserWithEmailAndPassword(auth, trimmedEmail, password);
-    } catch (e: any) {
-      console.error(e);
-      if (e?.code === "auth/email-already-in-use") {
-        Alert.alert(
-          t("auth.registerTitle"),
-          t("auth.emailInUse"),
-        );
-        return;
-      }
-      Alert.alert(
-        t("auth.registerTitle"),
-        e?.message ?? t("auth.registerError"),
-      );
+    } catch (e: unknown) {
+      logFirebaseAuthError("register", e);
+      Alert.alert(t("auth.registerTitle"), t(getFirebaseAuthErrorKey(e, "register")));
     }
   };
 

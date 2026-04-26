@@ -65,11 +65,11 @@ function getBlockedState(reason: MatchBlockReason, tt: TranslateFn) {
       return {
         title: tt("play.match.blocked.authTitle", "Нужен вход в аккаунт"),
         body: tt(
-          "play.match.blocked.authBody",
-          "Только после входа можно запустить совместную сессию и сохранить общую историю."
+          "play.match.authRequired",
+          "Нужно войти, чтобы начать общий рисунок."
         ),
-        primaryLabel: tt("common.openProfile", "Открыть профиль"),
-        secondaryLabel: tt("common.back", "Назад"),
+        primaryLabel: tt("common.back", "Назад"),
+        secondaryLabel: tt("common.backToTogether", "Вернуться во Вместе"),
       };
     case "firebase":
       return {
@@ -95,7 +95,7 @@ function getBlockedState(reason: MatchBlockReason, tt: TranslateFn) {
       return {
         title: tt("play.match.blocked.activityTitle", "Старт не удалось подготовить"),
         body: tt(
-          "play.match.blocked.activityBody",
+          "play.match.invalidActivity",
           "Формат этой сессии не распознан. Вернись во Вместе и запусти ее заново."
         ),
         primaryLabel: tt("common.backToTogether", "Вернуться во Вместе"),
@@ -157,7 +157,7 @@ function getMatchStateMeta(
       label: tt("play.match.state.retryLabel", "Повтор"),
       hint: tt(
         "play.match.state.retryHint",
-        "Очередь не стартовала корректно. Повтори попытку или вернись в Together."
+        "Проверь интернет и попробуй ещё раз или вернись в Together."
       ),
       tone: "error" as const,
     };
@@ -184,6 +184,51 @@ function getMatchStateMeta(
   };
 }
 
+function getRuntimeErrorCode(error: unknown) {
+  const code = (error as { code?: unknown })?.code;
+  return typeof code === "string" ? code : "unknown";
+}
+
+function getRuntimeErrorMessage(error: unknown) {
+  const message = (error as { message?: unknown })?.message;
+  return typeof message === "string" ? message : "Unknown play queue error";
+}
+
+function getPlayQueueErrorKey(error: unknown) {
+  const code = getRuntimeErrorCode(error);
+  if (code === "auth/no-current-user") return "play.match.authRequired";
+  if (code === "permission-denied") return "play.match.permissionDenied";
+  if (
+    code === "unavailable" ||
+    code === "auth/network-request-failed" ||
+    code === "network-request-failed" ||
+    code.toLowerCase().includes("network")
+  ) {
+    return "play.match.networkError";
+  }
+  return "play.match.queueStartFailed";
+}
+
+function getPlayQueueErrorFallback(errorKey: string) {
+  switch (errorKey) {
+    case "play.match.authRequired":
+      return "Нужно войти, чтобы начать общий рисунок.";
+    case "play.match.permissionDenied":
+      return "Не получилось получить доступ к очереди. Попробуй войти снова или повторить позже.";
+    case "play.match.networkError":
+      return "Проверь подключение к интернету и попробуй ещё раз.";
+    default:
+      return "Не получилось начать общий рисунок. Проверьте интернет и попробуйте ещё раз.";
+  }
+}
+
+function logPlayQueueError(error: unknown) {
+  console.error("PlayMatch enqueue error", {
+    code: getRuntimeErrorCode(error),
+    message: getRuntimeErrorMessage(error),
+  });
+}
+
 export default function PlayMatchScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"PlayMatch">>();
   const route = useRoute<PlayMatchRouteProp>();
@@ -195,9 +240,11 @@ export default function PlayMatchScreen() {
     },
     [t]
   );
-  const uid = auth?.currentUser?.uid ?? "";
-  const activity = isReleasePlayActivity(route.params.activity)
-    ? route.params.activity
+  const currentUser = auth?.currentUser ?? null;
+  const uid = currentUser?.uid ?? "";
+  const routeActivity = route.params?.activity;
+  const activity = isReleasePlayActivity(routeActivity)
+    ? routeActivity
     : null;
   const modeCopy = React.useMemo(() => getPlayMatchModeCopy(activity), [activity]);
   const activityIcon = React.useMemo(() => getActivityIcon(activity), [activity]);
@@ -210,6 +257,7 @@ export default function PlayMatchScreen() {
   const [busy, setBusy] = React.useState(false);
   const [queueCancelled, setQueueCancelled] = React.useState(false);
   const [statusKey, setStatusKey] = React.useState<MatchStatusKey>("preparing");
+  const [queueErrorKey, setQueueErrorKey] = React.useState<string | null>(null);
   const statusTitle = React.useMemo(() => {
     if (activity === "draw") {
       switch (statusKey) {
@@ -259,15 +307,23 @@ export default function PlayMatchScreen() {
           "Очередь уже очищена. Можно спокойно вернуться назад и попробовать снова, когда будешь готов."
         );
       case "error":
-        return tt(
-          "play.match.status.errorBody",
-          "Мы не смогли подготовить очередь прямо сейчас. Попробуй снова через пару секунд или вернись назад."
-        );
+        {
+          const errorKey = queueErrorKey ?? "play.match.queueStartFailed";
+          return tt(errorKey, getPlayQueueErrorFallback(errorKey));
+        }
       case "preparing":
       default:
         return modeCopy.preparingBody;
     }
-  }, [modeCopy.delayedBody, modeCopy.foundBody, modeCopy.preparingBody, modeCopy.searchingBody, statusKey, tt]);
+  }, [
+    modeCopy.delayedBody,
+    modeCopy.foundBody,
+    modeCopy.preparingBody,
+    modeCopy.searchingBody,
+    queueErrorKey,
+    statusKey,
+    tt,
+  ]);
   const stateMeta = React.useMemo(
     () => getMatchStateMeta(statusKey, tt),
     [statusKey, tt]
@@ -300,6 +356,17 @@ export default function PlayMatchScreen() {
     if (!mountedRef.current) return;
     setStatusKey(nextStatusKey);
   }, []);
+
+  const handleQueueRuntimeError = React.useCallback(
+    (error: unknown) => {
+      logPlayQueueError(error);
+      if (!mountedRef.current || cancelledRef.current) return;
+      setQueueErrorKey(getPlayQueueErrorKey(error));
+      setBusySafe(false);
+      setStatusSafe("error");
+    },
+    [setBusySafe, setStatusSafe]
+  );
 
   const cancelQueue = React.useCallback(async () => {
     if (!db || !uid || matchedSessionRef.current) return;
@@ -369,6 +436,7 @@ export default function PlayMatchScreen() {
     matchedSessionRef.current = "";
     allowLeaveRef.current = false;
     setQueueCancelled(false);
+    setQueueErrorKey(null);
     setStatusSafe("preparing");
 
     if (blockReason || !activity) {
@@ -385,6 +453,18 @@ export default function PlayMatchScreen() {
 
     void (async () => {
       try {
+        const activeUid = auth?.currentUser?.uid ?? "";
+        if (!activeUid || activeUid !== uid) {
+          const error = new Error("No authenticated user for play queue");
+          (error as Error & { code?: string }).code = "auth/no-current-user";
+          throw error;
+        }
+        if (!activity || !isReleasePlayActivity(activity)) {
+          const error = new Error("Invalid release activity for play queue");
+          (error as Error & { code?: string }).code = "play/invalid-activity";
+          throw error;
+        }
+
         await enqueuePlayRequest(db!, uid, activity, nickname);
         if (!mountedRef.current || cancelledRef.current || matchedSessionRef.current) {
           await cancelQueue();
@@ -403,7 +483,7 @@ export default function PlayMatchScreen() {
             setStatusSafe("found");
             enterSession(entry.sessionId);
           }
-        });
+        }, handleQueueRuntimeError);
 
         if (!mountedRef.current || cancelledRef.current || matchedSessionRef.current) {
           unsubscribe();
@@ -423,10 +503,11 @@ export default function PlayMatchScreen() {
           setStatusSafe("found");
           enterSession(result.sessionId);
         }
-      } catch {
+      } catch (error) {
         if (!mountedRef.current || cancelledRef.current) return;
-        setBusySafe(false);
-        setStatusSafe("error");
+        unsubscribe();
+        await cancelQueue();
+        handleQueueRuntimeError(error);
       } finally {
         setBusySafe(false);
       }
@@ -443,6 +524,7 @@ export default function PlayMatchScreen() {
     blockReason,
     cancelQueue,
     enterSession,
+    handleQueueRuntimeError,
     nickname,
     setBusySafe,
     setStatusSafe,
@@ -451,7 +533,16 @@ export default function PlayMatchScreen() {
 
   const handlePrimaryBlockedAction = React.useCallback(() => {
     if (!blockReason) return;
-    if (blockReason === "auth" || blockReason === "profile") {
+    if (blockReason === "auth") {
+      allowLeaveRef.current = true;
+      if (navigation.canGoBack()) {
+        navigation.goBack();
+        return;
+      }
+      returnToTogether();
+      return;
+    }
+    if (blockReason === "profile") {
       openProfile();
       return;
     }
@@ -460,7 +551,7 @@ export default function PlayMatchScreen() {
       return;
     }
     returnToTogether();
-  }, [blockReason, openProfile, returnToTogether]);
+  }, [blockReason, navigation, openProfile, returnToTogether]);
 
   const handleSecondaryBlockedAction = React.useCallback(() => {
     allowLeaveRef.current = true;
