@@ -17,6 +17,7 @@ import { getRuntimeLocale, translate } from "@/i18n/translations";
 import {
   getPlayDrawChallengeById,
   getPlayDrawChallengeForSeed,
+  type PlayDrawChallenge,
 } from "@/services/playChallenges";
 import { makeNickname } from "@/services/rooms";
 
@@ -27,7 +28,7 @@ export type PlayDailyPrompt = {
   id: string;
   text: string;
 };
-export type PlaySessionPrompt = PlayDailyPrompt;
+export type PlaySessionPrompt = PlayDailyPrompt | PlayDrawChallenge;
 export type PlayColorMoodPhase = "picking" | "finished";
 export type PlayColorMoodOption = {
   id: string;

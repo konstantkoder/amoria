@@ -30,6 +30,8 @@ type Props = {
   disabled?: boolean;
   disabledTitle?: string;
   disabledBody?: string;
+  fullscreen?: boolean;
+  toolbarAccessory?: React.ReactNode;
   toolLabels?: {
     colors: string;
     brush: string;
@@ -65,8 +67,12 @@ const HTML = `<!doctype html>
       width: 100%;
       height: 100%;
       overflow: hidden;
-      background: #101423;
+      background: #ffffff;
       touch-action: none;
+      overscroll-behavior: none;
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-touch-callout: none;
     }
 
     #root {
@@ -74,10 +80,8 @@ const HTML = `<!doctype html>
       height: 100%;
       position: relative;
       overflow: hidden;
-      background:
-        radial-gradient(circle at top left, rgba(255, 122, 60, 0.12), transparent 30%),
-        radial-gradient(circle at bottom right, rgba(249, 115, 147, 0.12), transparent 34%),
-        linear-gradient(180deg, #171a2b 0%, #101423 100%);
+      background: #ffffff;
+      touch-action: none;
     }
 
     canvas {
@@ -85,6 +89,10 @@ const HTML = `<!doctype html>
       height: 100%;
       display: block;
       touch-action: none;
+      background: #ffffff;
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-touch-callout: none;
     }
   </style>
 </head>
@@ -105,6 +113,7 @@ const HTML = `<!doctype html>
       strokeOrder: [],
       drawing: false,
       currentStroke: null,
+      activePointerId: null,
     };
 
     function clonePoint(point) {
@@ -196,6 +205,10 @@ const HTML = `<!doctype html>
       redraw();
     }
 
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
     function getCanvasPoint(event) {
       const rect = canvas.getBoundingClientRect();
       const touch = event.touches && event.touches[0]
@@ -205,17 +218,66 @@ const HTML = `<!doctype html>
           : event;
 
       return {
-        x: touch.clientX - rect.left,
-        y: touch.clientY - rect.top,
+        x: clamp(touch.clientX - rect.left, 0, rect.width),
+        y: clamp(touch.clientY - rect.top, 0, rect.height),
       };
+    }
+
+    function preventCanvasDefault(event) {
+      if (!event) return;
+      try {
+        event.preventDefault();
+      } catch (e) {}
     }
 
     function makeStrokeId() {
       return "stroke_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
     }
 
+    function drawPoint(point, color, width) {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, Math.max(width / 2, 1), 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function drawStrokeSegment(stroke, fromPoint, toPoint) {
+      if (!stroke || !fromPoint || !toPoint) return;
+      ctx.strokeStyle = stroke.color;
+      ctx.lineWidth = stroke.width;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.beginPath();
+      ctx.moveTo(fromPoint.x, fromPoint.y);
+      ctx.lineTo(toPoint.x, toPoint.y);
+      ctx.stroke();
+    }
+
+    function appendCurrentPoint(point) {
+      if (!state.currentStroke) return;
+      const points = state.currentStroke.points;
+      const prev = points[points.length - 1];
+      if (!prev) {
+        points.push(point);
+        drawPoint(point, state.currentStroke.color, state.currentStroke.width);
+        return;
+      }
+
+      const distance = Math.hypot(point.x - prev.x, point.y - prev.y);
+      if (distance < 0.5) return;
+      points.push(point);
+      drawStrokeSegment(state.currentStroke, prev, point);
+    }
+
     function startStroke(event) {
+      preventCanvasDefault(event);
       if (state.disabled) return;
+      if (event.pointerId != null) {
+        state.activePointerId = event.pointerId;
+        try {
+          canvas.setPointerCapture(event.pointerId);
+        } catch (e) {}
+      }
       const point = getCanvasPoint(event);
       state.drawing = true;
       state.currentStroke = {
@@ -225,27 +287,39 @@ const HTML = `<!doctype html>
         width: state.width,
         points: [point],
       };
-      redraw();
-      event.preventDefault();
+      drawPoint(point, state.color, state.width);
     }
 
     function moveStroke(event) {
+      preventCanvasDefault(event);
       if (!state.drawing || !state.currentStroke) return;
-      const point = getCanvasPoint(event);
-      const points = state.currentStroke.points;
-      const prev = points[points.length - 1];
-      if (!prev || prev.x !== point.x || prev.y !== point.y) {
-        points.push(point);
-        redraw();
+      if (event.pointerId != null && state.activePointerId != null && event.pointerId !== state.activePointerId) {
+        return;
       }
-      event.preventDefault();
+
+      const events = typeof event.getCoalescedEvents === "function"
+        ? event.getCoalescedEvents()
+        : null;
+      const pointEvents = events && events.length ? events : [event];
+      for (let i = 0; i < pointEvents.length; i += 1) {
+        appendCurrentPoint(getCanvasPoint(pointEvents[i]));
+      }
     }
 
     function finishStroke(event) {
+      preventCanvasDefault(event);
       if (!state.drawing || !state.currentStroke) return;
-      if (event) event.preventDefault();
+      if (event && event.pointerId != null && state.activePointerId != null && event.pointerId !== state.activePointerId) {
+        return;
+      }
+      if (state.activePointerId != null) {
+        try {
+          canvas.releasePointerCapture(state.activePointerId);
+        } catch (e) {}
+      }
 
       state.drawing = false;
+      state.activePointerId = null;
       const stroke = normalizeStroke(state.currentStroke);
       state.currentStroke = null;
 
@@ -295,15 +369,28 @@ const HTML = `<!doctype html>
 
     window.__applyPayload = applyPayload;
 
-    canvas.addEventListener("mousedown", startStroke);
-    canvas.addEventListener("mousemove", moveStroke);
-    window.addEventListener("mouseup", finishStroke);
-    canvas.addEventListener("mouseleave", finishStroke);
+    if (window.PointerEvent) {
+      canvas.addEventListener("pointerdown", startStroke, { passive: false });
+      window.addEventListener("pointermove", moveStroke, { passive: false });
+      window.addEventListener("pointerup", finishStroke, { passive: false });
+      window.addEventListener("pointercancel", finishStroke, { passive: false });
+      canvas.addEventListener("lostpointercapture", finishStroke, { passive: false });
+    } else {
+      canvas.addEventListener("mousedown", startStroke);
+      window.addEventListener("mousemove", moveStroke);
+      window.addEventListener("mouseup", finishStroke);
+      canvas.addEventListener("touchstart", startStroke, { passive: false });
+      window.addEventListener("touchmove", moveStroke, { passive: false });
+      window.addEventListener("touchend", finishStroke, { passive: false });
+      window.addEventListener("touchcancel", finishStroke, { passive: false });
+    }
 
-    canvas.addEventListener("touchstart", startStroke, { passive: false });
-    canvas.addEventListener("touchmove", moveStroke, { passive: false });
-    canvas.addEventListener("touchend", finishStroke, { passive: false });
-    canvas.addEventListener("touchcancel", finishStroke, { passive: false });
+    document.addEventListener("touchmove", function(event) {
+      if (state.drawing || event.target === canvas) preventCanvasDefault(event);
+    }, { passive: false });
+    document.addEventListener("contextmenu", preventCanvasDefault);
+    document.addEventListener("selectstart", preventCanvasDefault);
+    document.addEventListener("gesturestart", preventCanvasDefault);
 
     document.addEventListener("message", onMessage);
     window.addEventListener("message", onMessage);
@@ -328,6 +415,8 @@ export default function SharedCanvasWebView({
   disabled = false,
   disabledTitle,
   disabledBody,
+  fullscreen = false,
+  toolbarAccessory,
   toolLabels,
 }: Props) {
   const ref = useRef<WebView>(null);
@@ -390,9 +479,8 @@ export default function SharedCanvasWebView({
     });
   };
 
-  return (
-    <View style={styles.card}>
-      <View style={styles.toolbar}>
+  const toolbar = (
+    <View style={[styles.toolbar, fullscreen ? styles.toolbarFullscreen : null]}>
         <View style={styles.toolGroup}>
           {toolLabels?.colors ? (
             <Text style={styles.toolLabel}>{toolLabels.colors}</Text>
@@ -457,13 +545,21 @@ export default function SharedCanvasWebView({
             })}
           </View>
         </View>
+        {toolbarAccessory ? (
+          <View style={styles.toolbarAccessory}>{toolbarAccessory}</View>
+        ) : null}
       </View>
+  );
 
-      <View style={styles.canvasShell}>
-        <View style={styles.canvasFrame} onLayout={handleLayout}>
+  const canvas = (
+    <View style={[styles.canvasShell, fullscreen ? styles.canvasShellFullscreen : null]}>
+        <View
+          style={[styles.canvasFrame, fullscreen ? styles.canvasFrameFullscreen : null]}
+          onLayout={handleLayout}
+        >
           <WebView
             ref={ref}
-            style={styles.webview}
+            style={[styles.webview, fullscreen ? styles.webviewFullscreen : null]}
             originWhitelist={["*"]}
             javaScriptEnabled
             domStorageEnabled
@@ -503,6 +599,21 @@ export default function SharedCanvasWebView({
           ) : null}
         </View>
       </View>
+  );
+
+  return (
+    <View style={[styles.card, fullscreen ? styles.cardFullscreen : null]}>
+      {fullscreen ? (
+        <>
+          {canvas}
+          {toolbar}
+        </>
+      ) : (
+        <>
+          {toolbar}
+          {canvas}
+        </>
+      )}
     </View>
   );
 }
@@ -520,9 +631,28 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 12 },
     overflow: "hidden",
   },
+  cardFullscreen: {
+    flex: 1,
+    padding: 0,
+    borderRadius: 0,
+    borderWidth: 0,
+    backgroundColor: "transparent",
+    shadowOpacity: 0,
+    shadowRadius: 0,
+  },
   toolbar: {
     gap: 12,
     marginBottom: 12,
+  },
+  toolbarFullscreen: {
+    marginBottom: 0,
+    marginTop: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+    borderRadius: 8,
+    backgroundColor: "rgba(7, 11, 21, 0.94)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.14)",
   },
   toolGroup: {
     gap: 7,
@@ -587,13 +717,34 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     backgroundColor: theme.colors.backgroundSoft,
   },
+  canvasShellFullscreen: {
+    flex: 1,
+    borderRadius: 8,
+    backgroundColor: "#FFFFFF",
+  },
   canvasFrame: {
     minHeight: 320,
     backgroundColor: theme.colors.backgroundSoft,
   },
+  canvasFrameFullscreen: {
+    flex: 1,
+    minHeight: 0,
+    backgroundColor: "#FFFFFF",
+  },
   webview: {
     backgroundColor: "transparent",
     minHeight: 320,
+  },
+  webviewFullscreen: {
+    flex: 1,
+    minHeight: 0,
+  },
+  toolbarAccessory: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    flexWrap: "wrap",
   },
   disabledOverlay: {
     ...StyleSheet.absoluteFillObject,

@@ -1,11 +1,13 @@
 import React from "react";
 import {
   Alert,
+  Image,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
+  type ImageSourcePropType,
 } from "react-native";
 import {
   type EventArg,
@@ -16,6 +18,7 @@ import {
 import SharedCanvasWebView, {
   type SharedCanvasStroke,
 } from "@/components/play/SharedCanvasWebView";
+import { getDrawExampleImageSource } from "@/assets/play/drawExamples";
 import CoreStateCard from "@/components/CoreStateCard";
 import ScreenShell from "@/components/ScreenShell";
 import { auth, db } from "@/config/firebaseConfig";
@@ -98,6 +101,7 @@ export default function PlayCanvasScreen() {
   const [loadError, setLoadError] = React.useState("");
   const [finishing, setFinishing] = React.useState(false);
   const [passingTurn, setPassingTurn] = React.useState(false);
+  const [drawingStarted, setDrawingStarted] = React.useState(false);
   const [tick, setTick] = React.useState(Date.now());
   const mountedRef = React.useRef(true);
   const navigationHandledRef = React.useRef(false);
@@ -140,6 +144,7 @@ export default function PlayCanvasScreen() {
     setLoadError("");
     setFinishing(false);
     setPassingTurn(false);
+    setDrawingStarted(false);
     setTick(Date.now());
 
     if (!db || !uid || !sessionId) {
@@ -225,6 +230,43 @@ export default function PlayCanvasScreen() {
   const sessionPromptDisplay =
     promptContext || tt("playDetail.pendingPrompt", "Тема уточняется");
   const challengeStripLabel = tt("play.canvas.challengeStripLabel", "Вызов");
+  const isMainDrawSession = session?.activity === "draw";
+  const showDrawPreview =
+    isMainDrawSession && session?.status === "active" && !drawingStarted;
+  const showFullscreenDraw =
+    isMainDrawSession && session?.status === "active" && drawingStarted;
+  const drawExampleSources = React.useMemo(() => {
+    const exampleIds =
+      sessionPrompt && "exampleImages" in sessionPrompt
+        ? sessionPrompt.exampleImages ?? []
+        : [];
+    return exampleIds
+      .map((exampleId) => getDrawExampleImageSource(exampleId))
+      .filter((source): source is ImageSourcePropType => Boolean(source))
+      .slice(0, 2);
+  }, [sessionPrompt]);
+  const canvasToolLabels = React.useMemo(
+    () => ({
+      colors: tt("play.canvas.toolColors", "Цвета"),
+      brush: tt("play.canvas.toolBrush", "Толщина линии"),
+      colorNames: [
+        tt("play.canvas.toolColorRose", "Розовый"),
+        tt("play.canvas.toolColorOrange", "Оранжевый"),
+        tt("play.canvas.toolColorYellow", "Жёлтый"),
+        tt("play.canvas.toolColorGreen", "Зелёный"),
+        tt("play.canvas.toolColorBlue", "Голубой"),
+        tt("play.canvas.toolColorViolet", "Фиолетовый"),
+        tt("play.canvas.toolColorWhite", "Белый"),
+        tt("play.canvas.toolColorDark", "Тёмный"),
+      ],
+      brushSizes: [
+        tt("play.canvas.toolBrushSmall", "Тонко"),
+        tt("play.canvas.toolBrushMedium", "Средне"),
+        tt("play.canvas.toolBrushLarge", "Широко"),
+      ],
+    }),
+    [tt]
+  );
 
   const openResultScreen = React.useCallback(() => {
     if (!mountedRef.current || navigationHandledRef.current || !sessionId) return;
@@ -413,6 +455,30 @@ export default function PlayCanvasScreen() {
 
     return unsubscribe;
   }, [completeSession, navigation, session?.status, tt]);
+
+  const handleCanvasBack = React.useCallback(() => {
+    if (session?.status !== "active") {
+      handleSafeBack();
+      return;
+    }
+    Alert.alert(
+      tt("play.canvas.leaveTitle", "Завершить сессию?"),
+      tt(
+        "play.canvas.leaveBody",
+        "Если выйти сейчас, мы мягко завершим общий рисунок и сразу откроем итог."
+      ),
+      [
+        { text: tt("common.stay", "Остаться"), style: "cancel" },
+        {
+          text: tt("common.finish", "Завершить"),
+          style: "destructive",
+          onPress: () => {
+            void completeSession();
+          },
+        },
+      ]
+    );
+  }, [completeSession, handleSafeBack, session?.status, tt]);
 
   const handleLocalBatch = React.useCallback(
     async (strokes: SharedCanvasStroke[]) => {
@@ -643,34 +709,152 @@ export default function PlayCanvasScreen() {
     );
   }
 
+  if (showDrawPreview) {
+    return (
+      <ScreenShell
+        title={activityLabel}
+        background="nightCity"
+        showBack
+        onBack={handleCanvasBack}
+      >
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.previewContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.previewCard}>
+            <Text style={styles.previewEyebrow}>
+              {tt("play.canvas.previewEyebrow", "Вызов")}
+            </Text>
+            <Text style={styles.previewTitle}>{sessionPromptDisplay}</Text>
+            <Text style={styles.previewBody}>
+              {tt(
+                "play.canvas.previewBody",
+                "Посмотрите на задание и пару визуальных идей. Холст откроется чистым, а рисунок останется вашим общим ответом."
+              )}
+            </Text>
+          </View>
+
+          <View style={styles.previewExamplesCard}>
+            <Text style={styles.previewSectionTitle}>
+              {tt("play.canvas.previewExamplesTitle", "Идеи для рисунка")}
+            </Text>
+            {drawExampleSources.length ? (
+              <View style={styles.exampleImageRow}>
+                {drawExampleSources.map((source, index) => (
+                  <Image
+                    key={`draw-example-${index}`}
+                    source={source}
+                    resizeMode="cover"
+                    style={styles.exampleImage}
+                  />
+                ))}
+              </View>
+            ) : (
+              <View style={styles.exampleFallback}>
+                <Text style={styles.exampleFallbackTitle}>
+                  {tt("play.canvas.previewFallbackTitle", "Идеи появятся здесь")}
+                </Text>
+                <Text style={styles.exampleFallbackBody}>
+                  {tt(
+                    "play.canvas.previewFallbackBody",
+                    "Начните с формы, места, настроения или смешной детали. Этого достаточно для первого штриха."
+                  )}
+                </Text>
+              </View>
+            )}
+            <Text style={styles.previewInspirationNote}>
+              {tt(
+                "play.canvas.previewInspirationNote",
+                "Это только идеи. Рисуйте по-своему."
+              )}
+            </Text>
+          </View>
+
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => setDrawingStarted(true)}
+            style={styles.startDrawingButton}
+          >
+            <Text style={styles.startDrawingText}>
+              {tt("play.canvas.startDrawing", "Начать рисовать")}
+            </Text>
+          </Pressable>
+        </ScrollView>
+      </ScreenShell>
+    );
+  }
+
+  if (showFullscreenDraw) {
+    return (
+      <ScreenShell
+        title={activityLabel}
+        background="nightCity"
+        showHeader={false}
+      >
+        <View style={styles.drawingRoot}>
+          <View style={styles.drawingTopBar}>
+            <View style={styles.drawingPromptContent}>
+              <Text style={styles.drawingTopLabel}>{challengeStripLabel}</Text>
+              <Text style={styles.drawingPromptText} numberOfLines={2}>
+                {sessionPromptDisplay}
+              </Text>
+            </View>
+            <View style={styles.drawingTimerPill}>
+              <Text style={styles.drawingTimerLabel}>{timerTitle}</Text>
+              <Text style={styles.drawingTimerText}>{timerValue}</Text>
+            </View>
+          </View>
+
+          <SharedCanvasWebView
+            localUid={uid}
+            strokes={allStrokes}
+            disabled={canvasDisabled}
+            disabledTitle={canvasDisabledTitle}
+            disabledBody={canvasDisabledBody}
+            fullscreen
+            toolLabels={canvasToolLabels}
+            toolbarAccessory={
+              <>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => setDrawingStarted(false)}
+                  style={styles.toolbarSecondaryButton}
+                >
+                  <Text style={styles.toolbarSecondaryText}>
+                    {tt("play.canvas.backToIdeas", "Вернуться к идеям")}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={finishing}
+                  onPress={() => void completeSession()}
+                  style={[
+                    styles.toolbarFinishButton,
+                    finishing ? styles.finishButtonDisabled : null,
+                  ]}
+                >
+                  <Text style={styles.toolbarFinishText}>
+                    {finishing
+                      ? tt("play.canvas.finishing", "Завершаем…")
+                      : tt("play.canvas.finishEarly", "Завершить и показать итог")}
+                  </Text>
+                </Pressable>
+              </>
+            }
+            onLocalStrokeBatch={handleLocalBatch}
+          />
+        </View>
+      </ScreenShell>
+    );
+  }
+
   return (
     <ScreenShell
       title={session ? activityLabel : tt("play.canvas.title", "Совместная сессия")}
       background="nightCity"
       showBack
-      onBack={() => {
-        if (session?.status !== "active") {
-          handleSafeBack();
-          return;
-        }
-        Alert.alert(
-          tt("play.canvas.leaveTitle", "Завершить сессию?"),
-          tt(
-            "play.canvas.leaveBody",
-            "Если выйти сейчас, мы мягко завершим общий рисунок и сразу откроем итог."
-          ),
-          [
-            { text: tt("common.stay", "Остаться"), style: "cancel" },
-            {
-              text: tt("common.finish", "Завершить"),
-              style: "destructive",
-              onPress: () => {
-                void completeSession();
-              },
-            },
-          ]
-        );
-      }}
+      onBack={handleCanvasBack}
     >
       <ScrollView
         style={styles.scroll}
@@ -761,25 +945,7 @@ export default function PlayCanvasScreen() {
           disabled={canvasDisabled}
           disabledTitle={canvasDisabledTitle}
           disabledBody={canvasDisabledBody}
-          toolLabels={{
-            colors: tt("play.canvas.toolColors", "Цвета"),
-            brush: tt("play.canvas.toolBrush", "Толщина линии"),
-            colorNames: [
-              tt("play.canvas.toolColorRose", "Розовый"),
-              tt("play.canvas.toolColorOrange", "Оранжевый"),
-              tt("play.canvas.toolColorYellow", "Жёлтый"),
-              tt("play.canvas.toolColorGreen", "Зелёный"),
-              tt("play.canvas.toolColorBlue", "Голубой"),
-              tt("play.canvas.toolColorViolet", "Фиолетовый"),
-              tt("play.canvas.toolColorWhite", "Белый"),
-              tt("play.canvas.toolColorDark", "Тёмный"),
-            ],
-            brushSizes: [
-              tt("play.canvas.toolBrushSmall", "Тонко"),
-              tt("play.canvas.toolBrushMedium", "Средне"),
-              tt("play.canvas.toolBrushLarge", "Широко"),
-            ],
-          }}
+          toolLabels={canvasToolLabels}
           onLocalStrokeBatch={handleLocalBatch}
         />
 
@@ -837,6 +1003,187 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 28,
     gap: 14,
+  },
+  previewContent: {
+    padding: 16,
+    paddingBottom: 28,
+    gap: 14,
+  },
+  previewCard: {
+    borderRadius: theme.shapes.card,
+    padding: 18,
+    backgroundColor: "rgba(17, 20, 36, 0.92)",
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+    gap: 10,
+  },
+  previewEyebrow: {
+    color: theme.colors.accent,
+    fontSize: 12,
+    fontWeight: "900",
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
+  },
+  previewTitle: {
+    color: theme.colors.text,
+    fontSize: 23,
+    lineHeight: 28,
+    fontWeight: "900",
+  },
+  previewBody: {
+    color: theme.colors.subtext,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  previewExamplesCard: {
+    borderRadius: theme.shapes.card,
+    padding: 14,
+    backgroundColor: "rgba(8, 12, 24, 0.9)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.14)",
+    gap: 12,
+  },
+  previewSectionTitle: {
+    color: theme.colors.text,
+    fontSize: 16,
+    fontWeight: "900",
+  },
+  exampleImageRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  exampleImage: {
+    flex: 1,
+    minHeight: 112,
+    borderRadius: 8,
+    backgroundColor: theme.colors.backgroundSoft,
+  },
+  exampleFallback: {
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 16,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+    gap: 6,
+  },
+  exampleFallbackTitle: {
+    color: theme.colors.text,
+    fontSize: 15,
+    fontWeight: "900",
+  },
+  exampleFallbackBody: {
+    color: theme.colors.subtext,
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  previewInspirationNote: {
+    color: theme.colors.subtext,
+    fontSize: 13,
+    lineHeight: 19,
+    fontWeight: "700",
+  },
+  startDrawingButton: {
+    minHeight: 52,
+    borderRadius: theme.shapes.cardInner,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 18,
+    paddingVertical: 15,
+    backgroundColor: theme.colors.primary,
+  },
+  startDrawingText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "900",
+    textAlign: "center",
+  },
+  drawingRoot: {
+    flex: 1,
+    gap: 8,
+  },
+  drawingTopBar: {
+    minHeight: 58,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 8,
+    backgroundColor: "rgba(7, 11, 21, 0.92)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.14)",
+  },
+  drawingPromptContent: {
+    flex: 1,
+    minWidth: 0,
+    gap: 3,
+  },
+  drawingTopLabel: {
+    color: theme.colors.accent,
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+  },
+  drawingPromptText: {
+    color: theme.colors.text,
+    fontSize: 14,
+    lineHeight: 18,
+    fontWeight: "900",
+  },
+  drawingTimerPill: {
+    minWidth: 78,
+    alignItems: "center",
+    borderRadius: 8,
+    paddingHorizontal: 9,
+    paddingVertical: 7,
+    backgroundColor: theme.colors.accentSoft,
+  },
+  drawingTimerLabel: {
+    color: theme.colors.muted,
+    fontSize: 9,
+    fontWeight: "900",
+    textTransform: "uppercase",
+  },
+  drawingTimerText: {
+    color: theme.colors.text,
+    fontSize: 15,
+    fontWeight: "900",
+  },
+  toolbarSecondaryButton: {
+    flexGrow: 1,
+    minHeight: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: "rgba(255,255,255,0.09)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.14)",
+  },
+  toolbarSecondaryText: {
+    color: theme.colors.text,
+    fontSize: 12,
+    fontWeight: "900",
+    textAlign: "center",
+  },
+  toolbarFinishButton: {
+    flexGrow: 2,
+    minHeight: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: theme.colors.primary,
+  },
+  toolbarFinishText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "900",
+    textAlign: "center",
   },
   heroCard: {
     borderRadius: theme.shapes.card,

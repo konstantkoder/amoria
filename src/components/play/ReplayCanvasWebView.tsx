@@ -34,17 +34,14 @@ const HTML = `<!doctype html>
       width: 100%;
       height: 100%;
       overflow: hidden;
-      background: #101423;
+      background: #ffffff;
     }
 
     #root {
       width: 100%;
       height: 100%;
       overflow: hidden;
-      background:
-        radial-gradient(circle at top left, rgba(255, 122, 60, 0.12), transparent 30%),
-        radial-gradient(circle at bottom right, rgba(249, 115, 147, 0.12), transparent 34%),
-        linear-gradient(180deg, #171a2b 0%, #101423 100%);
+      background: #ffffff;
     }
 
     canvas {
