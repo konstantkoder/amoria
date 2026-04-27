@@ -60,6 +60,33 @@ Legacy non-release paths remain in the local rules file only to deny client acce
 - DM thread participants can update thread metadata used by the existing client transaction. A stricter field-level contract can be added after the DM payload stabilizes.
 - Chat source context uses existing DM thread fields (`source`, `sourceSessionId`, `artworkSummary`) and reads existing `playSessions`, `announcements`, or `nearbyPosts` documents for previews. No new collection or rule path is introduced by the Chats contact-center layer.
 
+## Firestore Indexes Required Before Device-Pass / Release
+
+The release baseline includes `firestore.indexes.json`; deploy or create these indexes before a real device-pass. A runtime `failed-precondition` Firestore error usually means a missing composite index. Keep the full Firebase error/link in developer logs and show a neutral temporary setup error in the app UI.
+
+Deploy with:
+
+```bash
+firebase deploy --only firestore:indexes
+```
+
+Manual Firebase Console creation is also acceptable for emergency device-pass fixes, but the checked-in `firestore.indexes.json` must stay the source of truth.
+
+Current composite indexes:
+
+- `playQueue`: `activity ASC`, `status ASC`, `createdAt ASC`, `__name__ ASC`.
+  - Used by Together matching: `activity ==`, `status == waiting`, `orderBy(createdAt asc)`, `limit(10)`.
+- `nearbyPosts`: `region ASC`, `status ASC`, `createdAt DESC`.
+  - Used by Nearby quick status: `region ==`, `status == active`, `orderBy(createdAt desc)`, `limit(200)`.
+
+Current release queries that do not need composite indexes yet:
+
+- `announcements`: current list query is `status == active`; it sorts by `createdAt` on the client. If this moves to server ordering, add `status ASC, createdAt DESC`. If category filtering moves server-side, add `category ASC, status ASC, createdAt DESC`.
+- `dmThreads`: current Chats query is `memberIds array-contains uid`; it sorts by `lastMessageAt/updatedAt/createdAt` on the client. If server ordering is introduced, add `memberIds ARRAY_CONTAINS, updatedAt DESC` or the exact timestamp field used by the query.
+- `playSessions`: current history/profile queries are `participantIds array-contains uid`; filtering and ordering are client-side. If server ordering/status filtering is introduced, add indexes for the exact `participantIds/status/createdAt` or `participantIds/updatedAt` query.
+- `reports` and `users/{uid}/blockedUsers`: current client flows create direct report documents or list the current user's blocked-user subcollection without compound filters.
+- `playSessions/{sessionId}/events`, `dmThreads/{threadId}/messages`, and legacy `rooms` subcollections use single-field `orderBy` queries only.
+
 ## Rooms And Map-Presence Exclusion
 
 - Rooms are excluded from the current release UI. The active app navigator does not register `RoomsScreen`, and current device-pass should not test Rooms.
@@ -70,6 +97,7 @@ Legacy non-release paths remain in the local rules file only to deny client acce
 ## Firebase Console Checklist
 
 - Deploy `firestore.rules`.
+- Deploy `firestore.indexes.json` with `firebase deploy --only firestore:indexes`, or verify the same composite indexes manually in Firebase Console.
 - Deploy `storage.rules`.
 - Confirm Email/password auth is enabled for the release environment.
 - Confirm Firestore database exists in `eur3`.

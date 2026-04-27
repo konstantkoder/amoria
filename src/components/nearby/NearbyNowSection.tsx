@@ -47,6 +47,10 @@ import {
   getBlockedUserIds,
   type SafetyReportReason,
 } from "@/services/safety";
+import {
+  isFirestoreMissingIndexError,
+  logFirestoreMissingIndexError,
+} from "@/utils/firestoreErrors";
 
 type Pos = { lat: number; lng: number; accuracy?: number | null };
 type RadiusOption = number | null;
@@ -153,6 +157,7 @@ export default function NearbyNowSection({
   const [region, setRegion] = useState<string | null>(null);
   const [posts, setPosts] = useState<NowPost[]>([]);
   const [loading, setLoading] = useState(false);
+  const [feedError, setFeedError] = useState<string | null>(null);
   const [mood, setMood] = useState<NowMood>("chill");
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
@@ -392,25 +397,34 @@ export default function NearbyNowSection({
     if (!region || !db || !isFirebaseConfigured()) {
       setPosts([]);
       setLoading(false);
+      setFeedError(null);
       return;
     }
     setLoading(true);
+    setFeedError(null);
     const unsubscribe = subscribeNowPosts(
       db,
       region,
       (list) => {
         if (!mountedRef.current) return;
         setPosts(list);
+        setFeedError(null);
         setLoading(false);
       },
-      () => {
+      (error) => {
         if (!mountedRef.current) return;
         setPosts([]);
+        if (isFirestoreMissingIndexError(error)) {
+          logFirestoreMissingIndexError("Nearby now nearbyPosts", error);
+          setFeedError(t("common.serviceSetupError"));
+        } else {
+          setFeedError(null);
+        }
         setLoading(false);
       }
     );
     return () => unsubscribe?.();
-  }, [region]);
+  }, [region, t]);
 
   const onSend = useCallback(async () => {
     if (sendGuardRef.current) return;
@@ -992,9 +1006,13 @@ export default function NearbyNowSection({
           <View style={styles.emptyWrap}>
             <View style={styles.emptyCard}>
               <Text style={styles.emptyTitle}>
-                {copyOrFallback(t, "nearby.now.emptyTitle", "Пока рядом тихо")}
+                {feedError
+                  ? t("now.firebaseTitle")
+                  : copyOrFallback(t, "nearby.now.emptyTitle", "Пока рядом тихо")}
               </Text>
-              <Text style={styles.emptyText}>{t("now.noneNearby")}</Text>
+              <Text style={styles.emptyText}>
+                {feedError ?? t("now.noneNearby")}
+              </Text>
             </View>
           </View>
         ) : null}

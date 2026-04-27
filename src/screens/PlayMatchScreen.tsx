@@ -31,6 +31,12 @@ import {
 } from "@/services/playSessions";
 import { getUserProfile } from "@/services/user";
 import { theme } from "@/theme";
+import {
+  getFirestoreErrorCode,
+  getFirestoreErrorMessage,
+  isFirestoreMissingIndexError,
+  logFirestoreMissingIndexError,
+} from "@/utils/firestoreErrors";
 
 type MatchBlockReason =
   | "auth"
@@ -186,18 +192,10 @@ function getMatchStateMeta(
   };
 }
 
-function getRuntimeErrorCode(error: unknown) {
-  const code = (error as { code?: unknown })?.code;
-  return typeof code === "string" ? code : "unknown";
-}
-
-function getRuntimeErrorMessage(error: unknown) {
-  const message = (error as { message?: unknown })?.message;
-  return typeof message === "string" ? message : "Unknown play queue error";
-}
-
 function getPlayQueueErrorKey(error: unknown) {
-  const code = getRuntimeErrorCode(error);
+  if (isFirestoreMissingIndexError(error)) return "common.serviceSetupError";
+
+  const code = getFirestoreErrorCode(error);
   if (code === "auth/no-current-user") return "play.match.authRequired";
   if (code === "permission-denied") return "play.match.permissionDenied";
   if (
@@ -213,6 +211,8 @@ function getPlayQueueErrorKey(error: unknown) {
 
 function getPlayQueueErrorFallback(errorKey: string) {
   switch (errorKey) {
+    case "common.serviceSetupError":
+      return "Сервис временно настраивается. Попробуйте позже.";
     case "play.match.authRequired":
       return "Нужно войти, чтобы начать общий рисунок.";
     case "play.match.permissionDenied":
@@ -225,9 +225,14 @@ function getPlayQueueErrorFallback(errorKey: string) {
 }
 
 function logPlayQueueError(error: unknown) {
+  if (isFirestoreMissingIndexError(error)) {
+    logFirestoreMissingIndexError("PlayMatch playQueue", error);
+    return;
+  }
+
   console.error("PlayMatch enqueue error", {
-    code: getRuntimeErrorCode(error),
-    message: getRuntimeErrorMessage(error),
+    code: getFirestoreErrorCode(error),
+    message: getFirestoreErrorMessage(error),
   });
 }
 

@@ -22,6 +22,10 @@ import {
   type NearbyAnnouncementCategory,
 } from "@/services/nearbyAnnouncements";
 import { getBlockedUserIds } from "@/services/safety";
+import {
+  isFirestoreMissingIndexError,
+  logFirestoreMissingIndexError,
+} from "@/utils/firestoreErrors";
 
 function copyOrFallback(
   t: (key: string, params?: Record<string, string>) => string,
@@ -47,6 +51,25 @@ export default function AnnouncementsScreen() {
   >(null);
   const [loading, setLoading] = React.useState(true);
   const [loadError, setLoadError] = React.useState<string | null>(null);
+  const getLoadError = React.useCallback(
+    (error: unknown) => {
+      if (isFirestoreMissingIndexError(error)) {
+        logFirestoreMissingIndexError("Announcements list", error);
+        return copyOrFallback(
+          t,
+          "common.serviceSetupError",
+          "Сервис временно настраивается. Попробуйте позже."
+        );
+      }
+
+      return copyOrFallback(
+        t,
+        "nearby.announcements.loadErrorBody",
+        "Не удалось загрузить общие объявления из Firestore. Попробуй ещё раз позже."
+      );
+    },
+    [t]
+  );
 
   useFocusEffect(
     React.useCallback(() => {
@@ -62,17 +85,11 @@ export default function AnnouncementsScreen() {
           setAnnouncements(next);
           setBlockedUserIds(blockedIds);
         })
-        .catch(() => {
+        .catch((error) => {
           if (!alive) return;
           setAnnouncements([]);
           setBlockedUserIds([]);
-          setLoadError(
-            copyOrFallback(
-              t,
-              "nearby.announcements.loadErrorBody",
-              "Не удалось загрузить общие объявления из Firestore. Попробуй ещё раз позже."
-            )
-          );
+          setLoadError(getLoadError(error));
         })
         .finally(() => {
           if (!alive) return;
@@ -81,7 +98,7 @@ export default function AnnouncementsScreen() {
       return () => {
         alive = false;
       };
-    }, [currentUid, t])
+    }, [currentUid, getLoadError])
   );
 
   React.useEffect(() => {
@@ -160,16 +177,10 @@ export default function AnnouncementsScreen() {
                       setAnnouncements(next);
                       setBlockedUserIds(blockedIds);
                     })
-                    .catch(() => {
+                    .catch((error) => {
                       setAnnouncements([]);
                       setBlockedUserIds([]);
-                      setLoadError(
-                        copyOrFallback(
-                          t,
-                          "nearby.announcements.loadErrorBody",
-                          "Не удалось загрузить общие объявления из Firestore. Попробуй ещё раз позже."
-                        )
-                      );
+                      setLoadError(getLoadError(error));
                     })
                     .finally(() => setLoading(false));
                 },

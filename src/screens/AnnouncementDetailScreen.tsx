@@ -36,6 +36,10 @@ import {
 } from "@/services/safety";
 import { getUserProfile, getUserProfileById } from "@/services/user";
 import { theme } from "@/theme";
+import {
+  isFirestoreMissingIndexError,
+  logFirestoreMissingIndexError,
+} from "@/utils/firestoreErrors";
 import { formatAgoLong } from "@/utils/timeAgo";
 
 type AnnouncementResponseMode = "own" | "direct_dm" | "unavailable";
@@ -292,13 +296,25 @@ export default function AnnouncementDetailScreen() {
             )
           );
         })
-        .catch(() => {
+        .catch((error) => {
           if (!alive) return;
           setAnnouncement(null);
           setRespondedAt(null);
           setAuthorAvatarUrl("");
           setAuthorDisplayName("");
           setAuthorBlocked(false);
+          if (isFirestoreMissingIndexError(error)) {
+            logFirestoreMissingIndexError("Announcement detail", error);
+            setLoadError(
+              copyOrFallback(
+                t,
+                "common.serviceSetupError",
+                "Сервис временно настраивается. Попробуйте позже."
+              )
+            );
+            return;
+          }
+
           setLoadError(
             copyOrFallback(
               t,

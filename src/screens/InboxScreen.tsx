@@ -33,6 +33,10 @@ import {
   type PlayActivity,
 } from "@/services/playSessions";
 import { theme } from "@/theme";
+import {
+  isFirestoreMissingIndexError,
+  logFirestoreMissingIndexError,
+} from "@/utils/firestoreErrors";
 
 type InboxSourceKey = "play" | "announcement" | "nearby" | "direct";
 
@@ -173,8 +177,20 @@ export default function InboxScreen() {
         setThreads(threads);
         setLoading(false);
       },
-      () => {
+      (error) => {
         if (!alive) return;
+        if (isFirestoreMissingIndexError(error)) {
+          logFirestoreMissingIndexError("Inbox dmThreads", error);
+          setError(
+            tt(
+              "common.serviceSetupError",
+              "Сервис временно настраивается. Попробуйте позже."
+            )
+          );
+          setLoading(false);
+          return;
+        }
+
         setError(
           tt(
             "inbox.errorBody",

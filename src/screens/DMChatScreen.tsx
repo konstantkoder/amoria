@@ -47,6 +47,10 @@ import {
 } from "@/services/safety";
 import { getUserProfileById } from "@/services/user";
 import { theme } from "@/theme";
+import {
+  isFirestoreMissingIndexError,
+  logFirestoreMissingIndexError,
+} from "@/utils/firestoreErrors";
 
 type RenderMessage = DmMessageDoc & { failed?: boolean };
 
@@ -206,8 +210,20 @@ export default function DMChatScreen() {
         setThread(threads.find((item) => item.id === threadId) ?? null);
         setThreadLoading(false);
       },
-      () => {
+      (error) => {
         if (!mountedRef.current || activeThreadRef.current !== threadId) return;
+        if (isFirestoreMissingIndexError(error)) {
+          logFirestoreMissingIndexError("DMChat dmThreads", error);
+          setSubscriptionError(
+            tt(
+              "common.serviceSetupError",
+              "Сервис временно настраивается. Попробуйте позже."
+            )
+          );
+          setThreadLoading(false);
+          return;
+        }
+
         setSubscriptionError(
           tt(
             "dm.errorBody",
@@ -238,8 +254,20 @@ export default function DMChatScreen() {
         setMsgs(next);
         setMessagesLoading(false);
       },
-      () => {
+      (error) => {
         if (!mountedRef.current || activeThreadRef.current !== threadId) return;
+        if (isFirestoreMissingIndexError(error)) {
+          logFirestoreMissingIndexError("DMChat messages", error);
+          setSubscriptionError(
+            tt(
+              "common.serviceSetupError",
+              "Сервис временно настраивается. Попробуйте позже."
+            )
+          );
+          setMessagesLoading(false);
+          return;
+        }
+
         setSubscriptionError(
           tt(
             "dm.errorBody",

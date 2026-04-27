@@ -117,7 +117,10 @@
 ## Firebase Release Requirements
 
 - Local rules files are part of the release baseline: `firestore.rules`, `storage.rules`, and `firebase.json`.
+- Firestore index config is part of the release baseline: `firestore.indexes.json` must be deployed or created in Firebase Console before device-pass.
 - Firebase rules must be deployed before public testing or release; the app must not depend on `allow read, write: if request.auth != null` as the final security posture.
+- Device-pass requires deployed Firestore indexes. Missing composite indexes show up as `failed-precondition` query errors at runtime.
+- Together, Nearby, Announcements, and Chats rely on Firestore indexes: Together matching and Nearby quick status require checked-in composite indexes, while current Announcements, Chats, play history, reports, and blocks rely on automatic single-field indexes unless their query shapes change.
 - Firestore rules use default deny and authenticated access for app data.
 - Storage rules use default deny, authenticated reads, owner-only writes, image content types, and size limits for profile/gallery/announcement images.
 - `nearbyPosts` rules are required for shared quick statuses and Nearby-to-Chats handoff.
