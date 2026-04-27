@@ -6,7 +6,7 @@ import type {
 } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
-import type { DmChatRouteParams } from "@/services/dm";
+import type { DmChatRouteParams, DmSourceContext } from "@/services/dm";
 import type { NearbyAnnouncement } from "@/services/nearbyAnnouncements";
 import type { ReleasePlayActivity } from "@/services/playSessions";
 
@@ -52,6 +52,13 @@ export type PlaySessionDetailRouteParams = PlaySessionRouteParams & {
   focus?: "replay";
 };
 
+export type UserProfileRouteParams = {
+  userId: string;
+  peerName?: string;
+  threadId?: string;
+  sourceContext?: DmSourceContext;
+};
+
 export type RootStackParamList = {
   Tabs: TabsNavigatorParams | undefined;
   CreateAnnouncement: undefined;
@@ -63,6 +70,7 @@ export type RootStackParamList = {
   PlayHistory: undefined;
   PlaySessionDetail: PlaySessionDetailRouteParams;
   DMChat: DmChatRouteParams;
+  UserProfile: UserProfileRouteParams;
   Profile: NavigatorScreenParams<ProfileStackParamList> | undefined;
   Settings: undefined;
   PrivacyPolicy: undefined;
@@ -93,6 +101,7 @@ export type AnnouncementDetailRouteProp = RouteProp<
   "AnnouncementDetail"
 >;
 export type DmChatRouteProp = RouteProp<RootStackParamList, "DMChat">;
+export type UserProfileRouteProp = RouteProp<RootStackParamList, "UserProfile">;
 export type PlayMatchRouteProp = RouteProp<RootStackParamList, "PlayMatch">;
 export type PlayCanvasRouteProp = RouteProp<RootStackParamList, "PlayCanvas">;
 export type PlayColorMoodRouteProp = RouteProp<

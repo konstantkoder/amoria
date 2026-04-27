@@ -18,6 +18,7 @@ import PlayResultScreen from "@/screens/PlayResultScreen";
 import PlayHistoryScreen from "@/screens/PlayHistoryScreen";
 import PlaySessionDetailScreen from "@/screens/PlaySessionDetailScreen";
 import DMChatScreen from "@/screens/DMChatScreen";
+import UserProfileScreen from "@/screens/UserProfileScreen";
 import CreateAnnouncementScreen from "@/screens/CreateAnnouncementScreen";
 import AnnouncementDetailScreen from "@/screens/AnnouncementDetailScreen";
 
@@ -269,6 +270,7 @@ export default function AppNavigator() {
         <RootStack.Screen name="PlayHistory" component={PlayHistoryScreen} />
         <RootStack.Screen name="PlaySessionDetail" component={PlaySessionDetailScreen} />
         <RootStack.Screen name="DMChat" component={DMChatScreen} />
+        <RootStack.Screen name="UserProfile" component={UserProfileScreen} />
         <RootStack.Screen name="Profile" component={ProfileStackNavigator} />
         <RootStack.Screen name="Settings" component={SettingsScreen} />
         <RootStack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />

@@ -26,6 +26,8 @@
   - The active phone drawing canvas must not be a small card inside a scrolling page. It should use a fullscreen/near-fullscreen no-scroll layout with only the compact challenge above and drawing tools below, and the canvas should take most of the phone screen during drawing.
   - The draw challenge must be visible in Canvas, Result, History, SessionDetail, and DM source context when available.
   - Result must prioritize the shared artifact/replay and the next decision about chat/history over drawing metrics.
+  - Result screen opens a specific chat after mutual open. It must not use Chats / Чаты as an action button, because Chats is the bottom tab for the full conversation list.
+  - Result CTAs use one term for the concrete conversation: Open chat / Открыть чат, Keep as story / Оставить как историю, and Open shared story / Открыть общую историю when the saved source session is available.
   - Required minimum canvas tools for release: 6-8 colors, 3 line widths, readable tool labels, and a layout that does not cover the canvas.
   - Must-have core polish before release: real eraser and undo for the user's latest stroke. The current draw event model is append-only stroke batches, so these must not be faked with local-only UI.
   - Local inspiration examples should be added or reviewed for each draw challenge before release; remote URLs must not be used for draw challenge examples.
@@ -65,6 +67,7 @@
 
 - Chats is the single home for all personal conversations.
 - The internal `Inbox` route/tab name may remain for code stability, but the user-facing name is always Chats / Чаты.
+- Chats / Чаты means the bottom tab with all personal conversations. A specific conversation with one person is a chat.
 - Conversation sources:
   - Together / Вместе: personal conversations after a shared drawing or mood palette.
   - Announcements / Объявления: personal conversations after replying to an announcement.
@@ -72,6 +75,9 @@
 - Connections is not a separate bottom tab.
 - Shared stories, drawings, palettes, announcement origin, and nearby origin should appear as context inside the chat/conversation, not as a separate release surface.
 - Chat cards show the peer avatar/name, latest message, stable source label, and source preview when the thread has a real readable source id.
+- Every DM must provide a clear way to open the peer profile from inside the chat.
+- The peer profile shows the real profile avatar/name when present, the source context that opened the chat, and the shared story block only when a real shared session id is available.
+- If `displayName` or a public Amoria ID is not complete, the UI must not fake an identity value. The next identity block still needs registration `displayName` plus a stable Amoria ID/public handle.
 - Source details open only when the source is real and routeable:
   - Together sources open `PlaySessionDetail` when `sourceSessionId` points to an existing play session.
   - Announcement sources open `AnnouncementDetail` when `sourceSessionId` points to an existing announcement.

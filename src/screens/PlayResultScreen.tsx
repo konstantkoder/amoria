@@ -173,7 +173,7 @@ function getResultBridgeCopy(options: {
       happenedTitle: tt("play.result.bridgeConnectionReadyTitle", "Связь уже открылась"),
       happenedBody: tt(
         "play.result.bridgeConnectionReadyBody",
-        "Общий результат уже сохранился как контекст чата. Если чат не открывается отсюда, можно спокойно вернуться в саму историю или в «Чаты»."
+        "Общий результат уже сохранился как контекст чата. Если чат не открывается отсюда, можно спокойно вернуться в саму историю."
       ),
       nextTitle: tt("play.result.bridgeConnectionReadyNextTitle", "Вернуться к общей истории"),
       nextBody: tt(
@@ -292,9 +292,6 @@ export default function PlayResultScreen() {
   const openChatPromiseRef = React.useRef<Promise<void> | null>(null);
   const goToTogether = React.useCallback(() => {
     navigation.navigate("Tabs", { screen: "Together" });
-  }, [navigation]);
-  const goToChats = React.useCallback(() => {
-    navigation.navigate("Tabs", { screen: "Inbox" });
   }, [navigation]);
   const startNewSession = React.useCallback(() => {
     navigation.navigate("PlayMatch", {
@@ -631,7 +628,6 @@ export default function PlayResultScreen() {
   const showHistoryButton =
     bridgeCopy.primaryIntent !== "open_story" &&
     ((allOpen && canOpenChat) || waitingForPeer || showSoftEnding);
-  const showChatsButton = revealOutcome === "open_open";
   const screenTitle = tt("play.result.title", "Итог сессии");
   const handleBack = () => {
     if (navigation.canGoBack()) {
@@ -914,13 +910,6 @@ export default function PlayResultScreen() {
           </Pressable>
 
           <View style={styles.secondaryActions}>
-            {showChatsButton ? (
-              <Pressable onPress={goToChats} style={styles.secondaryButton}>
-                <Text style={styles.secondaryText}>
-                  {tt("tabs.chats", "Чаты")}
-                </Text>
-              </Pressable>
-            ) : null}
             {!allOpen && !showSoftEnding && !waitingForPeer && !decision ? (
               <Pressable
                 disabled={skipDisabled}
@@ -938,7 +927,7 @@ export default function PlayResultScreen() {
                 style={styles.secondaryButton}
               >
                 <Text style={styles.secondaryText}>
-                  {tt("playHistory.openStory", "Открыть историю")}
+                  {tt("play.result.openSharedStory", "Открыть общую историю")}
                 </Text>
               </Pressable>
             ) : null}

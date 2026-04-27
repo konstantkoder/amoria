@@ -13,6 +13,7 @@ import { type RootStackNavigationProp } from "@/navigation/appRoutes";
 
 type Props = {
   title?: string;
+  headerCenter?: React.ReactNode;
   background?: ScreenBackgroundVariant;
   overlayOpacity?: number;
   blurRadius?: number;
@@ -24,6 +25,7 @@ type Props = {
 
 export default function ScreenShell({
   title,
+  headerCenter,
   background = "default",
   overlayOpacity,
   blurRadius,
@@ -65,11 +67,11 @@ export default function ScreenShell({
             </View>
 
             <View style={styles.titleWrap}>
-              {title ? (
+              {headerCenter ?? (title ? (
                 <Text style={styles.title} numberOfLines={1}>
                   {title}
                 </Text>
-              ) : null}
+              ) : null)}
             </View>
 
             <View style={styles.headerSide}>
