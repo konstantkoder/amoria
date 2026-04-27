@@ -28,12 +28,9 @@ import {
   nearbyAnnouncementsRepository,
   type NearbyAnnouncementCategory,
 } from "@/services/nearbyAnnouncements";
-import { makeNickname } from "@/services/rooms";
 import { containsUnsafeAnnouncementContent } from "@/services/safety";
 import { getUserProfile } from "@/services/user";
 import { theme } from "@/theme";
-import { formatNickname } from "@/utils/nickname";
-import { translateMaybeKey } from "@/utils/i18n";
 
 function copyOrFallback(
   t: (key: string, params?: Record<string, string>) => string,
@@ -90,14 +87,10 @@ export default function CreateAnnouncementScreen() {
   const [photoUri, setPhotoUri] = React.useState("");
   const [saving, setSaving] = React.useState(false);
   const [category, setCategory] = React.useState<NearbyAnnouncementCategory>("walk");
+  const [authorDisplayName, setAuthorDisplayName] = React.useState("");
   const currentUid = auth?.currentUser?.uid ?? "";
-
-  const authorCode = currentUid ? makeNickname(currentUid) : "common.user";
-  const formattedAuthor = formatNickname(authorCode, t);
   const authorLabel =
-    formattedAuthor === authorCode
-      ? translateMaybeKey(authorCode, t, ["common."])
-      : formattedAuthor;
+    authorDisplayName || copyOrFallback(t, "profile.amoriaUser", "Пользователь Amoria");
 
   const categoryLabels = React.useMemo(
     () => ({
@@ -154,6 +147,32 @@ export default function CreateAnnouncementScreen() {
     }, 80);
     return () => clearTimeout(timeoutId);
   }, [photoUri, revealPreviewFeedback]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      let alive = true;
+      if (!currentUid) {
+        setAuthorDisplayName("");
+        return () => {
+          alive = false;
+        };
+      }
+
+      void getUserProfile()
+        .then((profile) => {
+          if (!alive) return;
+          setAuthorDisplayName(profile.displayName?.trim() ?? "");
+        })
+        .catch(() => {
+          if (!alive) return;
+          setAuthorDisplayName("");
+        });
+
+      return () => {
+        alive = false;
+      };
+    }, [currentUid])
+  );
 
   useFocusEffect(
     React.useCallback(() => {
@@ -236,12 +255,20 @@ export default function CreateAnnouncementScreen() {
     setSaving(true);
     try {
       const currentProfile = await getUserProfile();
+      const publicDisplayName = currentProfile.displayName?.trim();
+      if (!publicDisplayName) {
+        Alert.alert(
+          copyOrFallback(t, "profile.completeProfile", "Заполните профиль"),
+          copyOrFallback(t, "profile.completeProfileBody", "Чтобы продолжить, укажите имя")
+        );
+        return;
+      }
       const createdAnnouncement = await nearbyAnnouncementsRepository.createAnnouncement({
         title: trimmedTitle,
         description: trimmedDescription,
         category,
         placeLabel: trimmedPlaceLabel,
-        authorLabel: currentProfile.displayName || authorLabel,
+        authorLabel: publicDisplayName,
         authorUid: currentUid,
         ...(currentProfile.avatarUrl ? { authorAvatarUrl: currentProfile.avatarUrl } : {}),
         ...(photoUri ? { photoUri } : {}),
@@ -255,7 +282,6 @@ export default function CreateAnnouncementScreen() {
       setSaving(false);
     }
   }, [
-    authorLabel,
     category,
     trimmedPlaceLabel,
     currentUid,

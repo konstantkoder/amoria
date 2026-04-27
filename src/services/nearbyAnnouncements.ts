@@ -104,6 +104,7 @@ export const NEARBY_ANNOUNCEMENT_CATEGORY_ORDER: NearbyAnnouncementCategory[] = 
 
 const ANNOUNCEMENTS_COLLECTION = "announcements";
 const RESPONSES_COLLECTION = "responses";
+const LEGACY_NICKNAME_RE = /^nick\.[a-z]+(\.[a-z]+)?\.\d{3}$/;
 
 function requireAnnouncementsDb(database: Firestore | null): Firestore {
   if (!database) {
@@ -121,6 +122,12 @@ function isCategory(value: unknown): value is NearbyAnnouncementCategory {
 function normalizeStatus(value: unknown): NearbyAnnouncementStatus {
   if (value === "closed" || value === "deleted" || value === "under_review") return value;
   return "active";
+}
+
+function normalizePublicName(value: unknown) {
+  const name = String(value ?? "").trim();
+  if (!name || LEGACY_NICKNAME_RE.test(name)) return "";
+  return name;
 }
 
 function readMillis(value: unknown): number {
@@ -148,8 +155,9 @@ function normalizeNearbyAnnouncement(
   const category = isCategory(data.category) ? data.category : "activity";
   const placeLabel = String(data.placeLabel ?? "").trim();
   const proximityLabel = String(data.proximityLabel ?? "").trim();
-  const authorName = String(data.authorName ?? data.authorLabel ?? "").trim();
-  const authorLabel = String(data.authorLabel ?? authorName ?? "Amoria").trim() || "Amoria";
+  const authorName = normalizePublicName(data.authorName);
+  const authorLabel =
+    normalizePublicName(data.authorLabel) || authorName || "profile.amoriaUser";
   const authorAvatarUrl = String(data.authorAvatarUrl ?? "").trim();
   const createdAt = readMillis(data.createdAt);
   const updatedAt = readMillis(data.updatedAt) || createdAt;
@@ -283,7 +291,7 @@ export function createFirestoreNearbyAnnouncementsRepository(options: {
       }
 
       const category = isCategory(input.category) ? input.category : "activity";
-      const authorLabel = String(input.authorLabel ?? "").trim() || "Amoria";
+      const authorLabel = normalizePublicName(input.authorLabel) || "profile.amoriaUser";
       const authorAvatarUrl = String(input.authorAvatarUrl ?? "").trim();
       const placeLabel = String(input.placeLabel ?? "").trim();
       const announcementRef = doc(collection(currentDb, ANNOUNCEMENTS_COLLECTION));

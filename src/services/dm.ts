@@ -10,8 +10,10 @@ import {
   setDoc,
   where,
 } from "firebase/firestore";
-import { makeNickname } from "@/services/rooms";
 import type { PlayActivity } from "@/services/playSessions";
+
+const DM_FALLBACK_NAME = "profile.amoriaUser";
+const LEGACY_NICKNAME_RE = /^nick\.[a-z]+(\.[a-z]+)?\.\d{3}$/;
 
 function normalizeArtworkActivity(value: unknown): PlayActivity {
   switch (value) {
@@ -129,6 +131,20 @@ function asDmMessageDoc(id: string, raw: unknown, pending: boolean): DmMessageDo
   };
 }
 
+function normalizeMemberName(value: unknown) {
+  const name = String(value ?? "").trim();
+  if (!name) return "";
+  if (name === "common.user" || name === "common.anonymous" || name === DM_FALLBACK_NAME) {
+    return "";
+  }
+  if (LEGACY_NICKNAME_RE.test(name)) return "";
+  return name;
+}
+
+function resolveMemberName(preferred: unknown, existing: unknown) {
+  return normalizeMemberName(preferred) || normalizeMemberName(existing) || DM_FALLBACK_NAME;
+}
+
 export function buildDmThreadId(uidA: string, uidB: string): string {
   return [String(uidA ?? ""), String(uidB ?? "")].sort().join("__");
 }
@@ -200,14 +216,8 @@ export async function ensureDmThread(
     const memberIds = [uidA, uidB].sort();
     const nextMemberNames: Record<string, string> = {
       ...(existing?.memberNames ?? {}),
-      [uidA]:
-        meta.memberNames?.[uidA]?.trim() ||
-        existing?.memberNames?.[uidA]?.trim() ||
-        makeNickname(uidA),
-      [uidB]:
-        meta.memberNames?.[uidB]?.trim() ||
-        existing?.memberNames?.[uidB]?.trim() ||
-        makeNickname(uidB),
+      [uidA]: resolveMemberName(meta.memberNames?.[uidA], existing?.memberNames?.[uidA]),
+      [uidB]: resolveMemberName(meta.memberNames?.[uidB], existing?.memberNames?.[uidB]),
     };
     const nextSource = existing?.source ?? meta.source;
     const nextSourceSessionId =
@@ -316,7 +326,7 @@ export function mapDmThreadToPeer(thread: DmThreadDoc, myUid: string) {
 
   return {
     uid: peerUid,
-    name: thread.memberNames[peerUid] ?? makeNickname(peerUid),
+    name: normalizeMemberName(thread.memberNames[peerUid]) || DM_FALLBACK_NAME,
   };
 }
 
@@ -352,8 +362,8 @@ export async function sendDmMessage(
         memberIds,
         memberNames: {
           ...(existing?.memberNames ?? {}),
-          [from]: existing?.memberNames?.[from] || makeNickname(from),
-          [to]: existing?.memberNames?.[to] || makeNickname(to),
+          [from]: resolveMemberName(existing?.memberNames?.[from], ""),
+          [to]: resolveMemberName(existing?.memberNames?.[to], ""),
         },
         ...(existing?.source ? { source: existing.source } : {}),
         ...(existing?.sourceSessionId ? { sourceSessionId: existing.sourceSessionId } : {}),

@@ -44,7 +44,7 @@ import {
   type PlaySessionDoc,
   type PlayStrokeBatch,
 } from "@/services/playSessions";
-import { makeNickname } from "@/services/rooms";
+import { getUserProfile } from "@/services/user";
 import { theme } from "@/theme";
 
 function formatDateTime(value: number) {
@@ -323,7 +323,10 @@ export default function PlaySessionDetailScreen() {
     return getPeerFromSession(session, uid);
   }, [session, uid]);
 
-  const peerName = peer?.nickname ?? makeNickname(peer?.uid ?? "peer");
+  const peerName =
+    peer?.nickname && peer.nickname !== "profile.amoriaUser"
+      ? peer.nickname
+      : tt("profile.amoriaUser", "Пользователь Amoria");
   const threadByPeerId = React.useMemo(() => {
     const next = new Map<string, DmThreadDoc>();
     for (const thread of threads) {
@@ -442,11 +445,14 @@ export default function PlaySessionDetailScreen() {
         setOpeningChat(true);
       }
 
+      const currentProfile = await getUserProfile().catch(() => null);
+      const currentDisplayName =
+        currentProfile?.displayName?.trim() || tt("profile.amoriaUser", "Пользователь Amoria");
       const threadId =
         detailThread?.id ??
         (await ensureDmThread(db, uid, peer.uid, {
           memberNames: {
-            [uid]: session.participantNicknames?.[uid] ?? makeNickname(uid),
+            [uid]: currentDisplayName,
             [peer.uid]: peerName,
           },
           source: "play",

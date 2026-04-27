@@ -6,6 +6,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -18,7 +19,13 @@ import UserAvatar from "@/components/UserAvatar";
 import { useLocale } from "@/contexts/LocaleContext";
 import type { Goal, Mood, UserProfile } from "@/models/User";
 import type { ProfileStackParamList } from "@/navigation/appRoutes";
-import { getUserProfile, uploadCurrentUserAvatar } from "@/services/user";
+import {
+  getDisplayNameValidationErrorKey,
+  getUserProfile,
+  normalizeDisplayNameInput,
+  updateUserDisplayName,
+  uploadCurrentUserAvatar,
+} from "@/services/user";
 import { theme } from "@/theme";
 
 type ProfileNav = NativeStackNavigationProp<ProfileStackParamList, "ProfileMain">;
@@ -47,6 +54,9 @@ export default function ProfileScreen() {
   const [profile, setProfile] = React.useState<UserProfile | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [avatarUploading, setAvatarUploading] = React.useState(false);
+  const [nameDraft, setNameDraft] = React.useState("");
+  const [nameSaving, setNameSaving] = React.useState(false);
+  const [nameError, setNameError] = React.useState("");
 
   useFocusEffect(
     React.useCallback(() => {
@@ -57,6 +67,8 @@ export default function ProfileScreen() {
         .then((nextProfile) => {
           if (!active) return;
           setProfile(nextProfile);
+          setNameDraft(nextProfile.displayName ?? "");
+          setNameError("");
         })
         .catch(() => {
           if (active) {
@@ -80,7 +92,31 @@ export default function ProfileScreen() {
   const goalLabel = profile?.goal ? t(GOAL_LABEL_KEYS[profile.goal]) : t("profile.goal.unknown");
   const moodLabel = profile?.mood ? t(MOOD_LABEL_KEYS[profile.mood]) : t("profile.mood.unknown");
   const about = profile?.about?.trim() ? profile.about : t("profile.noDescription");
-  const displayName = profile?.displayName || t("common.user");
+  const displayName = profile?.displayName || t("profile.amoriaUser");
+  const amoriaId = profile?.amoriaId ?? "";
+  const needsName = Boolean(getDisplayNameValidationErrorKey(profile?.displayName ?? ""));
+
+  const saveDisplayName = React.useCallback(async () => {
+    const nextName = normalizeDisplayNameInput(nameDraft);
+    const errorKey = getDisplayNameValidationErrorKey(nextName);
+    if (errorKey) {
+      setNameError(t(errorKey));
+      return;
+    }
+
+    setNameSaving(true);
+    setNameError("");
+    try {
+      const nextProfile = await updateUserDisplayName(nextName);
+      setProfile(nextProfile);
+      setNameDraft(nextProfile.displayName ?? "");
+      Alert.alert(t("common.done"), t("profile.nameUpdated"));
+    } catch {
+      setNameError(t("profile.nameUpdateFailed"));
+    } finally {
+      setNameSaving(false);
+    }
+  }, [nameDraft, t]);
 
   const pickAvatar = React.useCallback(async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -155,6 +191,11 @@ export default function ProfileScreen() {
             </View>
           </View>
           <Text style={styles.displayName}>{displayName}</Text>
+          {amoriaId ? (
+            <Text style={styles.amoriaIdText}>
+              {t("profile.amoriaId")}: {amoriaId}
+            </Text>
+          ) : null}
           <View style={styles.badges}>
             <View style={styles.badge}>
               <Text style={styles.badgeText}>{goalLabel}</Text>
@@ -182,6 +223,42 @@ export default function ProfileScreen() {
                 </View>
               ))}
             </View>
+          ) : null}
+        </View>
+
+        <View style={[styles.identityCard, needsName ? styles.identityCardAlert : null]}>
+          <Text style={styles.identityKicker}>
+            {needsName ? t("profile.completeProfile") : t("profile.editName")}
+          </Text>
+          <Text style={styles.identityTitle}>{t("profile.yourName")}</Text>
+          {needsName ? (
+            <Text style={styles.identityBody}>{t("profile.completeProfileBody")}</Text>
+          ) : null}
+          <TextInput
+            value={nameDraft}
+            onChangeText={setNameDraft}
+            placeholder={t("profile.enterName")}
+            placeholderTextColor={theme.colors.muted}
+            autoCapitalize="words"
+            editable={!nameSaving}
+            style={styles.nameInput}
+            maxLength={30}
+          />
+          {nameError ? <Text style={styles.nameError}>{nameError}</Text> : null}
+          <TouchableOpacity
+            style={[styles.saveNameButton, nameSaving ? styles.avatarButtonDisabled : null]}
+            activeOpacity={0.86}
+            onPress={() => void saveDisplayName()}
+            disabled={nameSaving}
+          >
+            <Text style={styles.saveNameButtonText}>
+              {nameSaving ? t("common.saving") : t("profile.saveName")}
+            </Text>
+          </TouchableOpacity>
+          {amoriaId ? (
+            <Text style={styles.identityMeta}>
+              {t("profile.yourAmoriaId")}: {amoriaId}
+            </Text>
           ) : null}
         </View>
 
@@ -293,6 +370,71 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
     fontSize: 28,
     fontWeight: "800",
+  },
+  amoriaIdText: {
+    color: theme.colors.subtext,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  identityCard: {
+    backgroundColor: "rgba(8, 12, 24, 0.82)",
+    borderRadius: 18,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+    gap: 9,
+  },
+  identityCardAlert: {
+    borderColor: "rgba(255, 122, 60, 0.36)",
+    backgroundColor: "rgba(30, 18, 24, 0.92)",
+  },
+  identityKicker: {
+    color: theme.colors.accent,
+    fontSize: 11,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+  },
+  identityTitle: {
+    color: theme.colors.text,
+    fontSize: 17,
+    fontWeight: "800",
+  },
+  identityBody: {
+    color: theme.colors.subtext,
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  nameInput: {
+    borderRadius: theme.radius,
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+    backgroundColor: theme.colors.card,
+    color: theme.colors.text,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  nameError: {
+    color: theme.colors.danger,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  saveNameButton: {
+    alignSelf: "flex-start",
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: theme.colors.primary,
+  },
+  saveNameButtonText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  identityMeta: {
+    color: theme.colors.subtext,
+    fontSize: 12,
+    fontWeight: "700",
   },
   badges: {
     flexDirection: "row",

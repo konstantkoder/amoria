@@ -2,7 +2,7 @@ import React from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
-import { View } from "react-native";
+import { ActivityIndicator, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Drawer } from "react-native-drawer-layout";
 
@@ -44,10 +44,172 @@ import {
   useActivityFreshnessState,
 } from "@/services/activityFreshness";
 import { subscribeDmThreads, type DmThreadDoc } from "@/services/dm";
+import {
+  ensureCurrentUserProfile,
+  getDisplayNameValidationErrorKey,
+  normalizeDisplayNameInput,
+  updateUserDisplayName,
+} from "@/services/user";
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const RootStack = createNativeStackNavigator<RootStackParamList>();
 const ProfileStack = createNativeStackNavigator<ProfileStackParamList>();
+
+function IdentitySetupGate({ children }: { children: React.ReactNode }) {
+  const { t } = useLocale();
+  const uid = auth?.currentUser?.uid ?? "";
+  const [loading, setLoading] = React.useState(true);
+  const [saving, setSaving] = React.useState(false);
+  const [requiresName, setRequiresName] = React.useState(false);
+  const [nameDraft, setNameDraft] = React.useState("");
+  const [errorText, setErrorText] = React.useState("");
+
+  React.useEffect(() => {
+    let alive = true;
+    if (!uid) {
+      setLoading(false);
+      setRequiresName(false);
+      setNameDraft("");
+      return () => {
+        alive = false;
+      };
+    }
+
+    setLoading(true);
+    setErrorText("");
+    void ensureCurrentUserProfile()
+      .then((profile) => {
+        if (!alive) return;
+        const displayName = profile.displayName ?? "";
+        setNameDraft(displayName);
+        setRequiresName(Boolean(getDisplayNameValidationErrorKey(displayName)));
+      })
+      .catch(() => {
+        if (!alive) return;
+        setRequiresName(true);
+        setErrorText(t("profile.nameUpdateFailed"));
+      })
+      .finally(() => {
+        if (!alive) return;
+        setLoading(false);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [t, uid]);
+
+  const saveName = React.useCallback(async () => {
+    const nextName = normalizeDisplayNameInput(nameDraft);
+    const errorKey = getDisplayNameValidationErrorKey(nextName);
+    if (errorKey) {
+      setErrorText(t(errorKey));
+      return;
+    }
+
+    setSaving(true);
+    setErrorText("");
+    try {
+      await updateUserDisplayName(nextName);
+      setNameDraft(nextName);
+      setRequiresName(false);
+    } catch {
+      setErrorText(t("profile.nameUpdateFailed"));
+    } finally {
+      setSaving(false);
+    }
+  }, [nameDraft, t]);
+
+  if (loading) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: theme.colors.background,
+        }}
+      >
+        <ActivityIndicator color={theme.colors.primary} />
+      </View>
+    );
+  }
+
+  if (!requiresName) {
+    return <>{children}</>;
+  }
+
+  return (
+    <View
+      style={{
+        flex: 1,
+        justifyContent: "center",
+        padding: 24,
+        backgroundColor: theme.colors.background,
+      }}
+    >
+      <View
+        style={{
+          borderRadius: theme.shapes.card,
+          padding: 18,
+          backgroundColor: "rgba(10, 14, 26, 0.94)",
+          borderWidth: 1,
+          borderColor: "rgba(255,255,255,0.12)",
+          gap: 12,
+        }}
+      >
+        <Text style={{ color: theme.colors.accent, fontSize: 12, fontWeight: "800" }}>
+          {t("profile.completeProfile")}
+        </Text>
+        <Text style={{ color: theme.colors.text, fontSize: 24, fontWeight: "900" }}>
+          {t("profile.yourName")}
+        </Text>
+        <Text style={{ color: theme.colors.subtext, fontSize: 14, lineHeight: 20 }}>
+          {t("profile.completeProfileBody")}
+        </Text>
+        <TextInput
+          value={nameDraft}
+          onChangeText={setNameDraft}
+          placeholder={t("profile.enterName")}
+          placeholderTextColor={theme.colors.muted}
+          autoCapitalize="words"
+          editable={!saving}
+          maxLength={30}
+          style={{
+            borderRadius: theme.radius,
+            borderWidth: 1,
+            borderColor: theme.colors.borderSubtle,
+            backgroundColor: theme.colors.card,
+            color: theme.colors.text,
+            paddingHorizontal: 14,
+            paddingVertical: 11,
+          }}
+        />
+        {errorText ? (
+          <Text style={{ color: theme.colors.danger, fontSize: 13, fontWeight: "700" }}>
+            {errorText}
+          </Text>
+        ) : null}
+        <TouchableOpacity
+          onPress={() => void saveName()}
+          disabled={saving}
+          activeOpacity={0.85}
+          style={{
+            borderRadius: theme.radius,
+            paddingVertical: 13,
+            alignItems: "center",
+            backgroundColor: theme.colors.primary,
+            opacity: saving ? 0.65 : 1,
+          }}
+        >
+          <Text style={{ color: "#FFFFFF", fontSize: 15, fontWeight: "800" }}>
+            {saving ? t("common.saving") : t("profile.saveName")}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
 
 function ProfileStackNavigator() {
   return (
@@ -241,6 +403,7 @@ export default function AppNavigator() {
   }, [drawerOpen]);
 
   return (
+    <IdentitySetupGate>
     <Drawer
       open={drawerOpen}
       onOpen={() => setDrawerOpen(true)}
@@ -277,5 +440,6 @@ export default function AppNavigator() {
         <RootStack.Screen name="LocationInfo" component={LocationInfoScreen} />
       </RootStack.Navigator>
     </Drawer>
+    </IdentitySetupGate>
   );
 }

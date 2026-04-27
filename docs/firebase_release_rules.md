@@ -5,6 +5,7 @@ This document records the local Firebase rules baseline for the current Amoria r
 ## Firestore Collections
 
 - `users/{uid}`
+- `amoriaIds/{amoriaId}`
 - `users/{uid}/blockedUsers/{blockedUid}`
 - `dmThreads/{threadId}`
 - `dmThreads/{threadId}/messages/{messageId}`
@@ -37,6 +38,8 @@ Legacy non-release paths remain in the local rules file only to deny client acce
 - The pre-device-pass audit must keep the local rules free of global allow-all rules.
 - All app data requires an authenticated Firebase user.
 - User profile documents can be read by authenticated users by direct document id and written only by the profile owner.
+- User profiles include release identity fields: `displayName` and app-generated `amoriaId`. Email is auth-only and must not be used as a public identity field.
+- `amoriaIds/{amoriaId}` reserves unique public Amoria IDs. Authenticated users can read a direct reservation document, create only their own reservation, and cannot update or delete reservations from the client.
 - Block lists are private to the owning user.
 - DM threads and messages are limited to thread members.
 - Play sessions and play events are limited to session participants.
@@ -53,6 +56,7 @@ Legacy non-release paths remain in the local rules file only to deny client acce
 - `playQueue` allows authenticated reads of queue entries and lets the matching client mark a waiting candidate as `matched`. Current matching is client-side and performs transaction reads after an initial waiting query; this should move to trusted server-side logic before broad public launch.
 - `playSessions` lets participants update shared session state because drawing, color mood, reveal, and legacy turn state are currently client-driven. A stricter field-level/session-state validator should replace this if matching moves server-side.
 - Authenticated users can read basic user profiles because Chats, Announcements, and Nearby need display names and avatars.
+- Authenticated users can read Amoria ID reservations by direct id so the client transaction can avoid collisions while creating a user profile.
 - DM thread participants can update thread metadata used by the existing client transaction. A stricter field-level contract can be added after the DM payload stabilizes.
 - Chat source context uses existing DM thread fields (`source`, `sourceSessionId`, `artworkSummary`) and reads existing `playSessions`, `announcements`, or `nearbyPosts` documents for previews. No new collection or rule path is introduced by the Chats contact-center layer.
 

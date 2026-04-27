@@ -44,7 +44,6 @@ import {
   type PlayStroke,
   type PlayStrokeBatch,
 } from "@/services/playSessions";
-import { makeNickname } from "@/services/rooms";
 import { theme } from "@/theme";
 
 const DRAW_SESSION_DURATION_SEC = 420;
@@ -532,8 +531,11 @@ export default function PlayCanvasScreen() {
     return session?.participantIds.find((participantId) => participantId !== uid) ?? "";
   }, [session?.participantIds, uid]);
 
+  const rawPartnerName = session?.participantNicknames?.[partnerId]?.trim() ?? "";
   const partnerName =
-    session?.participantNicknames?.[partnerId] ?? makeNickname(partnerId || "peer");
+    rawPartnerName && rawPartnerName !== "profile.amoriaUser" && !rawPartnerName.startsWith("nick.")
+      ? rawPartnerName
+      : tt("profile.amoriaUser", "Пользователь Amoria");
   const turnCounterLabel = chainTurnState
     ? `${Math.min(chainTurnState.turnIndex + 1, chainTurnState.maxTurns)} / ${chainTurnState.maxTurns}`
     : "";

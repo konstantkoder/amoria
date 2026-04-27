@@ -227,6 +227,7 @@ export default function UserProfileScreen() {
     profile?.displayName?.trim() ||
     routePeerName ||
     tt("profile.amoriaUser", "Пользователь Amoria");
+  const amoriaId = profile?.amoriaId?.trim() ?? "";
   const avatarUrl = profile?.avatarUrl ?? "";
   const photos = profile?.photos ?? [];
   const about = profile?.about?.trim() || tt("profile.publicNoDescription", "Описание пока не добавлено.");
@@ -416,6 +417,11 @@ export default function UserProfileScreen() {
                 {tt("profile.peerTitle", "Профиль собеседника")}
               </Text>
               <Text style={styles.displayName}>{displayName}</Text>
+              {amoriaId ? (
+                <Text style={styles.amoriaIdText}>
+                  {tt("profile.amoriaId", "Amoria ID")}: {amoriaId}
+                </Text>
+              ) : null}
               <Text style={styles.avatarHint}>
                 {avatarUrl
                   ? tt("profile.avatarAvailable", "Фото профиля загружено")
@@ -572,6 +578,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 17,
     fontWeight: "600",
+  },
+  amoriaIdText: {
+    color: theme.colors.subtext,
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: "700",
   },
   mutedText: {
     color: theme.colors.muted,

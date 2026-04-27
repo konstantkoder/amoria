@@ -16,7 +16,12 @@ import ScreenShell from "@/components/ScreenShell";
 import { useLocale } from "@/contexts/LocaleContext";
 import type { Goal, Mood, UserProfile } from "@/models/User";
 import { theme } from "@/theme";
-import { getUserProfile, updateUserFields } from "@/services/user";
+import {
+  getDisplayNameValidationErrorKey,
+  getUserProfile,
+  normalizeDisplayNameInput,
+  updateUserFields,
+} from "@/services/user";
 
 const GOAL_OPTIONS: Goal[] = [
   "dating",
@@ -100,13 +105,19 @@ export default function EditProfileScreen() {
   const handleSave = async () => {
     try {
       setSaving(true);
+      const nextDisplayName = normalizeDisplayNameInput(displayName);
+      const displayNameErrorKey = getDisplayNameValidationErrorKey(nextDisplayName);
+      if (displayNameErrorKey) {
+        Alert.alert(t("common.error"), t(displayNameErrorKey));
+        return;
+      }
       const interestsArray = interestsText
         .split(",")
         .map((item) => item.trim())
         .filter(Boolean);
 
       const savedProfile = await updateUserFields({
-        displayName,
+        displayName: nextDisplayName,
         about,
         interests: interestsArray,
         goal,
@@ -160,6 +171,7 @@ export default function EditProfileScreen() {
             placeholder={t("editProfile.namePlaceholder")}
             placeholderTextColor={theme.colors.muted}
             style={styles.input}
+            maxLength={30}
           />
 
           <Text style={styles.label}>{t("editProfile.aboutLabel")}</Text>

@@ -19,6 +19,7 @@ import LoginScreen from "@/screens/LoginScreen";
 import AppNavigator from "@/navigation/AppNavigator";
 import { type AppStackParamList } from "@/navigation/appRoutes";
 import { LocaleProvider, useLocale } from "@/contexts/LocaleContext";
+import { ensureCurrentUserProfile } from "@/services/user";
 import { theme } from "@/theme/theme";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import LanguagePickerHost from "@/components/LanguagePickerHost";
@@ -111,9 +112,15 @@ function AuthGate() {
           return;
         }
 
-        setUser(firebaseUser);
-        setAuthError(null);
-        setAuthReady(true);
+        void ensureCurrentUserProfile()
+          .catch((error) => {
+            console.error("[auth] profile sync failed", error);
+          })
+          .finally(() => {
+            setUser(firebaseUser);
+            setAuthError(null);
+            setAuthReady(true);
+          });
       },
       (error) => {
         const authStateError = error as { code?: unknown; message?: unknown };

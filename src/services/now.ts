@@ -51,6 +51,7 @@ export type CreateNowPostInput = {
 
 const NEARBY_POSTS_COLLECTION = "nearbyPosts";
 export const NEARBY_STATUS_TTL_MS = 2 * 60 * 60 * 1000;
+const LEGACY_NICKNAME_RE = /^nick\.[a-z]+(\.[a-z]+)?\.\d{3}$/;
 
 // region = довольно крупный квадрат (порядка десятков км),
 // а точный радиус уже режем по расстоянию на клиенте.
@@ -75,6 +76,12 @@ function normalizeNowMood(value: unknown): NowMood {
 function normalizeNowPostStatus(value: unknown): NowPostStatus {
   if (value === "expired" || value === "deleted") return value;
   return "active";
+}
+
+function normalizePublicName(value: unknown) {
+  const name = String(value ?? "").trim();
+  if (!name || LEGACY_NICKNAME_RE.test(name)) return "";
+  return name;
 }
 
 function readMillis(value: unknown): number {
@@ -117,9 +124,9 @@ function normalizeNowPost(id: string, raw: unknown): NowPost | null {
   const expiresAt = readMillis(data.expiresAt);
   if (!id || !authorUid || !text || !region || !createdAt || !expiresAt) return null;
 
-  const authorName = String(data.authorName ?? data.nickname ?? "").trim();
+  const authorName = normalizePublicName(data.authorName);
   const authorAvatarUrl = String(data.authorAvatarUrl ?? data.avatarUrl ?? "").trim();
-  const nickname = String(data.nickname ?? authorName ?? "common.anonymous").trim();
+  const nickname = String(data.nickname ?? "profile.amoriaUser").trim();
   const lat = typeof data.lat === "number" ? data.lat : undefined;
   const lng = typeof data.lng === "number" ? data.lng : undefined;
   const avatarUrl = authorAvatarUrl.startsWith("https://")
@@ -213,7 +220,7 @@ export async function createNowPost(
       id: ref.id,
       clientId,
       authorUid: uid,
-      authorName: String(input.authorName ?? input.nickname ?? "").trim(),
+      authorName: normalizePublicName(input.authorName),
       ...(input.avatarUrl?.startsWith("https://") ? { authorAvatarUrl: input.avatarUrl } : {}),
       uid,
       nickname: input.nickname,

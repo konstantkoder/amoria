@@ -28,17 +28,14 @@ import {
   nearbyAnnouncementsRepository,
   type NearbyAnnouncement,
 } from "@/services/nearbyAnnouncements";
-import { makeNickname } from "@/services/rooms";
 import {
   blockUser,
   createReport,
   getBlockedUserIds,
   type SafetyReportReason,
 } from "@/services/safety";
-import { getUserProfileById } from "@/services/user";
+import { getUserProfile, getUserProfileById } from "@/services/user";
 import { theme } from "@/theme";
-import { translateMaybeKey } from "@/utils/i18n";
-import { formatNickname } from "@/utils/nickname";
 import { formatAgoLong } from "@/utils/timeAgo";
 
 type AnnouncementResponseMode = "own" | "direct_dm" | "unavailable";
@@ -233,7 +230,6 @@ export default function AnnouncementDetailScreen() {
   const initialAnnouncement: NearbyAnnouncement | null =
     route.params.initialAnnouncement ?? null;
   const currentUid = auth?.currentUser?.uid ?? "";
-  const currentDisplayName = auth?.currentUser?.displayName?.trim() ?? "";
   const [announcement, setAnnouncement] = React.useState<NearbyAnnouncement | null>(
     initialAnnouncement
   );
@@ -248,6 +244,10 @@ export default function AnnouncementDetailScreen() {
   const [authorAvatarUrl, setAuthorAvatarUrl] = React.useState(
     initialAnnouncement?.authorAvatarUrl ?? ""
   );
+  const [authorDisplayName, setAuthorDisplayName] = React.useState(
+    initialAnnouncement?.authorName?.trim() || initialAnnouncement?.authorLabel?.trim() || ""
+  );
+  const [currentProfileName, setCurrentProfileName] = React.useState("");
   const [safetyBusy, setSafetyBusy] = React.useState(false);
 
   useFocusEffect(
@@ -282,6 +282,9 @@ export default function AnnouncementDetailScreen() {
           setAnnouncement(nextAnnouncement);
           setRespondedAt(responseState.respondedAt);
           setAuthorAvatarUrl(nextAnnouncement?.authorAvatarUrl ?? "");
+          setAuthorDisplayName(
+            nextAnnouncement?.authorName?.trim() || nextAnnouncement?.authorLabel?.trim() || ""
+          );
           setAuthorBlocked(
             Boolean(
               nextAnnouncement?.authorUid &&
@@ -294,6 +297,7 @@ export default function AnnouncementDetailScreen() {
           setAnnouncement(null);
           setRespondedAt(null);
           setAuthorAvatarUrl("");
+          setAuthorDisplayName("");
           setAuthorBlocked(false);
           setLoadError(
             copyOrFallback(
@@ -358,22 +362,14 @@ export default function AnnouncementDetailScreen() {
       }),
     [announcement, canOpenDirectChat, currentUid, responseModeOverride]
   );
-  const currentNicknameCode = React.useMemo(
-    () => (currentUid ? makeNickname(currentUid) : ""),
-    [currentUid]
-  );
-  const formattedCurrentNickname = React.useMemo(
-    () =>
-      currentNicknameCode ? formatNickname(currentNicknameCode, t) : "",
-    [currentNicknameCode, t]
-  );
-  const currentAuthorLabel = React.useMemo(() => {
-    if (currentDisplayName) return currentDisplayName;
-    if (!currentNicknameCode) return "";
-    return formattedCurrentNickname === currentNicknameCode
-      ? translateMaybeKey(currentNicknameCode, t, ["common."])
-      : formattedCurrentNickname;
-  }, [currentDisplayName, currentNicknameCode, formattedCurrentNickname, t]);
+  const amoriaUserLabel = copyOrFallback(t, "profile.amoriaUser", "Пользователь Amoria");
+  const currentAuthorLabel = currentProfileName || amoriaUserLabel;
+  const rawAnnouncementAuthorLabel =
+    authorDisplayName || announcement?.authorName?.trim() || announcement?.authorLabel?.trim() || amoriaUserLabel;
+  const announcementAuthorLabel =
+    rawAnnouncementAuthorLabel === "profile.amoriaUser"
+      ? amoriaUserLabel
+      : rawAnnouncementAuthorLabel;
 
   const responsePresentation = React.useMemo(
     () => buildAnnouncementResponsePresentation(t, responseMode, hasResponded),
@@ -393,6 +389,12 @@ export default function AnnouncementDetailScreen() {
       .then((profile) => {
         if (!alive) return;
         setAuthorAvatarUrl(profile?.avatarUrl ?? announcement?.authorAvatarUrl ?? "");
+        setAuthorDisplayName(
+          profile?.displayName?.trim() ||
+            announcement?.authorName?.trim() ||
+            announcement?.authorLabel?.trim() ||
+            ""
+        );
       })
       .catch(() => {
         if (!alive) return;
@@ -403,6 +405,30 @@ export default function AnnouncementDetailScreen() {
       alive = false;
     };
   }, [announcement?.authorAvatarUrl, announcementAuthorUid]);
+
+  React.useEffect(() => {
+    let alive = true;
+    if (!currentUid) {
+      setCurrentProfileName("");
+      return () => {
+        alive = false;
+      };
+    }
+
+    void getUserProfile()
+      .then((profile) => {
+        if (!alive) return;
+        setCurrentProfileName(profile.displayName?.trim() ?? "");
+      })
+      .catch(() => {
+        if (!alive) return;
+        setCurrentProfileName("");
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [currentUid]);
 
   const handleRespond = React.useCallback(async () => {
     if (responding) return;
@@ -425,8 +451,8 @@ export default function AnnouncementDetailScreen() {
         try {
           const threadId = await ensureDmThread(db, currentUid, announcementAuthorUid, {
             memberNames: {
-              [currentUid]: currentAuthorLabel || makeNickname(currentUid),
-              [announcementAuthorUid]: announcement.authorLabel,
+              [currentUid]: currentAuthorLabel,
+              [announcementAuthorUid]: announcementAuthorLabel,
             },
             source: "announcement",
             sourceSessionId: announcementId,
@@ -443,7 +469,7 @@ export default function AnnouncementDetailScreen() {
             buildDmChatRouteParams({
               threadId,
               peerId: announcementAuthorUid,
-              peerName: announcement.authorLabel,
+              peerName: announcementAuthorLabel,
               backTarget: "inbox",
               sourceContext: {
                 source: "announcement",
@@ -465,6 +491,7 @@ export default function AnnouncementDetailScreen() {
     }
   }, [
     announcement,
+    announcementAuthorLabel,
     announcementAuthorUid,
     currentAuthorLabel,
     currentUid,
@@ -720,11 +747,11 @@ export default function AnnouncementDetailScreen() {
               <View style={styles.summaryFooter}>
                 <UserAvatar
                   avatarUrl={authorAvatarUrl}
-                  label={announcement.authorLabel}
+                  label={announcementAuthorLabel}
                   size={34}
                 />
                 <View style={styles.summaryAuthorCopy}>
-                  <Text style={styles.summaryAuthor}>{announcement.authorLabel}</Text>
+                  <Text style={styles.summaryAuthor}>{announcementAuthorLabel}</Text>
                   <Text style={styles.summaryTime}>{formatAgoLong(announcement.createdAt, t)}</Text>
                 </View>
               </View>
@@ -793,7 +820,7 @@ export default function AnnouncementDetailScreen() {
                 ) : null}
                 <DetailRow
                   label={copyOrFallback(t, "nearby.detail.authorLabel", "Автор")}
-                  value={announcement.authorLabel}
+                  value={announcementAuthorLabel}
                 />
               </View>
 

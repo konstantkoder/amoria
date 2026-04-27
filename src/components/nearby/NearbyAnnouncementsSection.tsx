@@ -177,7 +177,12 @@ export default function NearbyAnnouncementsSection({
         visibleItems.map((item) => {
           const highlighted = highlightedId === item.id;
           const photoUrl = item.photoUrl ?? item.photoUri ?? "";
-          const facts = [item.authorLabel, item.placeLabel || fallbackPlaceLabel, item.proximityLabel]
+          const rawAuthorLabel = item.authorName?.trim() || item.authorLabel;
+          const authorLabel =
+            rawAuthorLabel === "profile.amoriaUser"
+              ? copyOrFallback(t, "profile.amoriaUser", "Пользователь Amoria")
+              : rawAuthorLabel;
+          const facts = [authorLabel, item.placeLabel || fallbackPlaceLabel, item.proximityLabel]
             .filter((value): value is string => Boolean(value))
             .join(" • ");
           return (
@@ -235,7 +240,7 @@ export default function NearbyAnnouncementsSection({
 
               <View style={styles.cardFooter}>
                 <View style={styles.cardAuthorWrap}>
-                  <UserAvatar avatarUrl={item.authorAvatarUrl} label={item.authorLabel} size={28} />
+                  <UserAvatar avatarUrl={item.authorAvatarUrl} label={authorLabel} size={28} />
                   <Text style={styles.cardTimestamp}>{formatAgoLong(item.createdAt, t)}</Text>
                 </View>
                 <View style={styles.openButton}>

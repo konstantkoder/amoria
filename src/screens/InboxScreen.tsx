@@ -149,7 +149,9 @@ export default function InboxScreen() {
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
-  const [peerAvatarByUid, setPeerAvatarByUid] = useState<Record<string, string>>({});
+  const [peerProfileByUid, setPeerProfileByUid] = useState<
+    Record<string, { displayName: string; avatarUrl: string }>
+  >({});
   const [sourcePreviewByThreadId, setSourcePreviewByThreadId] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -216,7 +218,7 @@ export default function InboxScreen() {
   useEffect(() => {
     let alive = true;
     if (!db || !uid || !threads.length) {
-      setPeerAvatarByUid({});
+      setPeerProfileByUid({});
       return () => {
         alive = false;
       };
@@ -233,11 +235,17 @@ export default function InboxScreen() {
     void Promise.all(
       peerIds.map(async (peerId) => {
         const profile = await getUserProfileById(peerId).catch(() => null);
-        return [peerId, profile?.avatarUrl ?? ""] as const;
+        return [
+          peerId,
+          {
+            displayName: profile?.displayName?.trim() ?? "",
+            avatarUrl: profile?.avatarUrl ?? "",
+          },
+        ] as const;
       })
     ).then((entries) => {
       if (!alive) return;
-      setPeerAvatarByUid(Object.fromEntries(entries));
+      setPeerProfileByUid(Object.fromEntries(entries));
     });
 
     return () => {
@@ -326,7 +334,7 @@ export default function InboxScreen() {
           mapThreadToCard(
             thread,
             uid,
-            t("common.user"),
+            tt("profile.amoriaUser", "Пользователь Amoria"),
             tt(
               "inbox.previewFallbackCoreLoop",
               "Разговор уже открыт. Можно написать первым и продолжить то, что уже случилось между вами."
@@ -347,7 +355,12 @@ export default function InboxScreen() {
         .filter((item): item is InboxThreadCard => Boolean(item))
         .map((item) => ({
           ...item,
-          avatarUrl: peerAvatarByUid[item.peerId] ?? "",
+          peerName:
+            peerProfileByUid[item.peerId]?.displayName ||
+            (item.peerName === "profile.amoriaUser"
+              ? tt("profile.amoriaUser", "Пользователь Amoria")
+              : item.peerName),
+          avatarUrl: peerProfileByUid[item.peerId]?.avatarUrl ?? "",
           sourcePreviewText: sourcePreviewByThreadId[item.id] ?? "",
           sourceDetailHint:
             item.sourceKey === "play" && item.sourceId
@@ -361,7 +374,7 @@ export default function InboxScreen() {
     [
       blockedUserIds,
       freshnessState.dmThreads,
-      peerAvatarByUid,
+      peerProfileByUid,
       sourcePreviewByThreadId,
       t,
       threads,

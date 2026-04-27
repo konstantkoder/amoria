@@ -10,10 +10,17 @@ import {
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  signOut,
 } from "firebase/auth";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { auth, isFirebaseConfigured } from "@/config/firebaseConfig";
 import { useLocale } from "@/contexts/LocaleContext";
+import {
+  createUserProfileForRegistration,
+  ensureCurrentUserProfile,
+  getDisplayNameValidationErrorKey,
+  normalizeDisplayNameInput,
+} from "@/services/user";
 import { translateMaybeKey } from "@/utils/i18n";
 
 type LoginScreenProps = {
@@ -65,6 +72,7 @@ function logFirebaseAuthError(operation: "login" | "register", error: unknown) {
 export default function LoginScreen({ authError }: LoginScreenProps) {
   const { t, locale, openLanguagePicker } = useLocale();
   const insets = useSafeAreaInsets();
+  const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const firebaseConfigured = isFirebaseConfigured();
@@ -102,6 +110,10 @@ export default function LoginScreen({ authError }: LoginScreenProps) {
     }
     try {
       await signInWithEmailAndPassword(auth, trimmedEmail, password);
+      const profile = await ensureCurrentUserProfile();
+      if (getDisplayNameValidationErrorKey(profile.displayName)) {
+        Alert.alert(t("profile.completeProfile"), t("profile.completeProfileBody"));
+      }
     } catch (e: unknown) {
       logFirebaseAuthError("login", e);
       Alert.alert(t("auth.loginTitle"), t(getFirebaseAuthErrorKey(e, "login")));
@@ -109,6 +121,13 @@ export default function LoginScreen({ authError }: LoginScreenProps) {
   };
 
   const register = async () => {
+    const trimmedDisplayName = normalizeDisplayNameInput(displayName);
+    const displayNameErrorKey = getDisplayNameValidationErrorKey(trimmedDisplayName);
+    if (displayNameErrorKey) {
+      Alert.alert(t("auth.registerTitle"), t(displayNameErrorKey));
+      return;
+    }
+
     const trimmedEmail = email.trim();
     if (!trimmedEmail) {
       Alert.alert(t("auth.registerTitle"), t("auth.emailRequired"));
@@ -128,8 +147,19 @@ export default function LoginScreen({ authError }: LoginScreenProps) {
     }
     try {
       await createUserWithEmailAndPassword(auth, trimmedEmail, password);
+      await createUserProfileForRegistration(trimmedDisplayName);
     } catch (e: unknown) {
       logFirebaseAuthError("register", e);
+      if (auth.currentUser) {
+        await signOut(auth).catch(() => {});
+      }
+      const profileErrorKey = (e as Error)?.message?.startsWith("profile.")
+        ? (e as Error).message
+        : "";
+      if (profileErrorKey) {
+        Alert.alert(t("auth.registerTitle"), t(profileErrorKey));
+        return;
+      }
       Alert.alert(t("auth.registerTitle"), t(getFirebaseAuthErrorKey(e, "register")));
     }
   };
@@ -148,6 +178,15 @@ export default function LoginScreen({ authError }: LoginScreenProps) {
         {fallbackMessage ? (
           <Text style={styles.errorText}>{fallbackMessage}</Text>
         ) : null}
+        <TextInput
+          style={styles.input}
+          placeholder={t("auth.displayNamePlaceholder")}
+          placeholderTextColor="#6B7280"
+          autoCapitalize="words"
+          value={displayName}
+          onChangeText={setDisplayName}
+          maxLength={30}
+        />
         <TextInput
           style={styles.input}
           placeholder={t("auth.emailPlaceholder")}

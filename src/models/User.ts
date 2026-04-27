@@ -12,6 +12,8 @@ export type Goal =
 export interface UserProfile {
   uid: string;
   displayName: string;
+  amoriaId: string;
+  amoriaIdNormalized?: string;
   birthdate?: string;
   gender?: "male" | "female" | "other";
   about?: string;

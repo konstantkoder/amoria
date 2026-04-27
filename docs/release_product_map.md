@@ -74,10 +74,10 @@
   - Nearby / Рядом: personal conversations after a real nearby contact is available.
 - Connections is not a separate bottom tab.
 - Shared stories, drawings, palettes, announcement origin, and nearby origin should appear as context inside the chat/conversation, not as a separate release surface.
-- Chat cards show the peer avatar/name, latest message, stable source label, and source preview when the thread has a real readable source id.
+- Chat cards show the peer avatar/displayName, latest message, stable source label, and source preview when the thread has a real readable source id.
 - Every DM must provide a clear way to open the peer profile from inside the chat.
-- The peer profile shows the real profile avatar/name when present, the source context that opened the chat, and the shared story block only when a real shared session id is available.
-- If `displayName` or a public Amoria ID is not complete, the UI must not fake an identity value. The next identity block still needs registration `displayName` plus a stable Amoria ID/public handle.
+- The peer profile shows the real profile avatar/displayName, Amoria ID, the source context that opened the chat, and the shared story block only when a real shared session id is available.
+- If `displayName` is missing for a legacy account, the UI uses a neutral Amoria user fallback and asks the user to complete the profile instead of showing email or a generated nickname.
 - Source details open only when the source is real and routeable:
   - Together sources open `PlaySessionDetail` when `sourceSessionId` points to an existing play session.
   - Announcement sources open `AnnouncementDetail` when `sourceSessionId` points to an existing announcement.
@@ -100,10 +100,16 @@
 ## Profile & Media
 
 - User profiles live in Firestore under `users/{uid}`.
-- Profile basics for release: `uid`, `displayName`, optional `avatarUrl`, `createdAt`, and `updatedAt`.
+- Email/password is authentication only. Email must not be used as a public display name in cards, chats, announcements, Nearby, Together results, or peer profiles.
+- Profile basics for release: `uid`, `displayName`, `amoriaId`, optional `avatarUrl`, `createdAt`, and `updatedAt`.
+- `displayName` is the public human name. It is trimmed, 2-30 characters, and not unique.
+- `amoriaId` is an app-generated unique public identifier such as `AM-7K42P`; users do not choose unique usernames like `Anna123`.
+- Future search/contact flows may use Amoria ID, but this release block does not add ID search, friend requests, followers, or a public feed.
+- User-facing cards should prefer `profile.displayName`, then a stored real display-name snapshot, then the neutral Amoria user fallback. They must not show email or generated `nick.*` values as the primary identity.
 - Profile photos must upload to Firebase Storage; local device `photoUri` values must not be used as shared profile media.
 - The release avatar upload path is `users/{uid}/profile/avatar.{jpg|png|webp}` and the Firestore profile stores the resulting HTTPS `avatarUrl`.
 - Chats, DM context, Announcements, and Nearby should render `avatarUrl` when present and use a neutral initials placeholder when not.
+- Peer profiles show displayName, avatar, Amoria ID, source context, and shared history only when a real source session is available.
 - Announcement cover photos and user profile photos are separate media fields and must not be mixed.
 - Firebase Storage rules for profile photos and announcement photos must be reviewed before public release.
 - Storage rules must require authenticated image uploads by the owning user and deny unknown shared-media paths.

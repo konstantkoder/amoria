@@ -39,7 +39,7 @@ import {
   type PlaySessionDoc,
   type PlayStrokeBatch,
 } from "@/services/playSessions";
-import { makeNickname } from "@/services/rooms";
+import { getUserProfile } from "@/services/user";
 import { theme } from "@/theme";
 
 const SESSION_DURATION_SEC = 420;
@@ -392,7 +392,10 @@ export default function PlayResultScreen() {
     return getPeerFromSession(session, uid);
   }, [session, uid]);
 
-  const peerName = peer?.nickname ?? makeNickname(peer?.uid ?? "peer");
+  const peerName =
+    peer?.nickname && peer.nickname !== "profile.amoriaUser"
+      ? peer.nickname
+      : tt("profile.amoriaUser", "Пользователь Amoria");
   const totalStrokeCount = React.useMemo(() => {
     if (session?.resultStrokeCount != null) {
       return session.resultStrokeCount;
@@ -476,9 +479,12 @@ export default function PlayResultScreen() {
         setOpeningChat(true);
       }
 
+      const currentProfile = await getUserProfile().catch(() => null);
+      const currentDisplayName =
+        currentProfile?.displayName?.trim() || tt("profile.amoriaUser", "Пользователь Amoria");
       const threadId = await ensureDmThread(db, uid, peer.uid, {
         memberNames: {
-          [uid]: session.participantNicknames?.[uid] ?? makeNickname(uid),
+          [uid]: currentDisplayName,
           [peer.uid]: peerName,
         },
         source: "play",

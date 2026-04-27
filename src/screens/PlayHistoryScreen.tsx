@@ -33,7 +33,7 @@ import {
   subscribeMyPlayHistory,
   type PlayHistoryItem,
 } from "@/services/playSessions";
-import { makeNickname } from "@/services/rooms";
+import { getUserProfile } from "@/services/user";
 import { theme } from "@/theme";
 
 function formatDateTime(value: number) {
@@ -257,12 +257,20 @@ export default function PlayHistoryScreen() {
 
       setOpeningChatId(card.id);
       try {
+        const currentProfile = await getUserProfile().catch(() => null);
+        const currentDisplayName =
+          currentProfile?.displayName?.trim() ||
+          tt("profile.amoriaUser", "Пользователь Amoria");
+        const peerName =
+          card.peer.nickname === "profile.amoriaUser"
+            ? tt("profile.amoriaUser", "Пользователь Amoria")
+            : card.peer.nickname;
         const threadId =
           card.threadId ??
           (await ensureDmThread(db, uid, card.peer.uid, {
             memberNames: {
-              [uid]: makeNickname(uid),
-              [card.peer.uid]: card.peer.nickname,
+              [uid]: currentDisplayName,
+              [card.peer.uid]: peerName,
             },
             source: "play",
             sourceSessionId: card.sessionId,
@@ -277,7 +285,7 @@ export default function PlayHistoryScreen() {
           buildDmChatRouteParams({
             threadId,
             peerId: card.peer.uid,
-            peerName: card.peer.nickname,
+            peerName,
             backTarget: "history",
             sourceContext: {
               source: "play",
@@ -325,7 +333,11 @@ export default function PlayHistoryScreen() {
           <View style={styles.cardTop}>
             <View style={styles.cardTopText}>
               <View style={styles.cardTitleRow}>
-                <Text style={styles.cardTitle}>{item.peer.nickname}</Text>
+                <Text style={styles.cardTitle}>
+                  {item.peer.nickname === "profile.amoriaUser"
+                    ? tt("profile.amoriaUser", "Пользователь Amoria")
+                    : item.peer.nickname}
+                </Text>
                 {item.signalLabel ? (
                   <View
                     style={[

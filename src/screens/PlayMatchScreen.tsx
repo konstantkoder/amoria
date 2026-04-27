@@ -29,7 +29,7 @@ import {
   tryMatchWaitingPlayer,
   type ReleasePlayActivity,
 } from "@/services/playSessions";
-import { makeNickname } from "@/services/rooms";
+import { getUserProfile } from "@/services/user";
 import { theme } from "@/theme";
 
 type MatchBlockReason =
@@ -50,12 +50,14 @@ type TranslateFn = (key: string, fallback: string, params?: Record<string, strin
 
 function resolveMatchBlockReason(
   activity: ReleasePlayActivity | null,
-  uid: string
+  uid: string,
+  profileLoaded: boolean,
+  displayName: string
 ): MatchBlockReason | null {
   if (!uid) return "auth";
   if (!isFirebaseConfigured() || !db) return "firebase";
   if (!activity) return "activity";
-  if (!makeNickname(uid).trim()) return "profile";
+  if (!profileLoaded || !displayName.trim()) return "profile";
   return null;
 }
 
@@ -248,8 +250,38 @@ export default function PlayMatchScreen() {
     : null;
   const modeCopy = React.useMemo(() => getPlayMatchModeCopy(activity), [activity]);
   const activityIcon = React.useMemo(() => getActivityIcon(activity), [activity]);
-  const nickname = React.useMemo(() => makeNickname(uid), [uid]);
-  const blockReason = resolveMatchBlockReason(activity, uid);
+  const [profileDisplayName, setProfileDisplayName] = React.useState("");
+  const [profileLoaded, setProfileLoaded] = React.useState(false);
+  React.useEffect(() => {
+    let alive = true;
+    setProfileLoaded(false);
+    setProfileDisplayName("");
+    if (!uid) {
+      setProfileLoaded(true);
+      return () => {
+        alive = false;
+      };
+    }
+
+    void getUserProfile()
+      .then((profile) => {
+        if (!alive) return;
+        setProfileDisplayName(profile.displayName?.trim() ?? "");
+      })
+      .catch(() => {
+        if (!alive) return;
+        setProfileDisplayName("");
+      })
+      .finally(() => {
+        if (!alive) return;
+        setProfileLoaded(true);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [uid]);
+  const blockReason = resolveMatchBlockReason(activity, uid, profileLoaded, profileDisplayName);
   const blockedState = React.useMemo(
     () => (blockReason ? getBlockedState(blockReason, tt) : null),
     [blockReason, tt]
@@ -465,7 +497,7 @@ export default function PlayMatchScreen() {
           throw error;
         }
 
-        await enqueuePlayRequest(db!, uid, activity, nickname);
+        await enqueuePlayRequest(db!, uid, activity, profileDisplayName);
         if (!mountedRef.current || cancelledRef.current || matchedSessionRef.current) {
           await cancelQueue();
           return;
@@ -491,7 +523,7 @@ export default function PlayMatchScreen() {
           return;
         }
 
-        const result = await tryMatchWaitingPlayer(db!, uid, nickname, activity);
+        const result = await tryMatchWaitingPlayer(db!, uid, profileDisplayName, activity);
         if (!mountedRef.current || cancelledRef.current) {
           if (!result.sessionId) {
             await cancelQueue();
@@ -525,7 +557,7 @@ export default function PlayMatchScreen() {
     cancelQueue,
     enterSession,
     handleQueueRuntimeError,
-    nickname,
+    profileDisplayName,
     setBusySafe,
     setStatusSafe,
     uid,

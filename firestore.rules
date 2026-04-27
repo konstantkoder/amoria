@@ -69,11 +69,34 @@ service cloud.firestore {
       return value in ["active", "expired", "deleted"];
     }
 
+    function isValidDisplayName(value) {
+      return value is string &&
+        (
+          value.size() == 0 ||
+          (value.size() >= 2 && value.size() <= 30)
+        );
+    }
+
+    function isValidAmoriaId(value) {
+      return value is string &&
+        value.matches('AM-[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{5}');
+    }
+
+    function isValidUserProfileWrite(uid) {
+      return request.resource.data.uid == uid &&
+        (!request.resource.data.keys().hasAny(["displayName"]) ||
+          isValidDisplayName(request.resource.data.displayName)) &&
+        (!request.resource.data.keys().hasAny(["amoriaId"]) ||
+          isValidAmoriaId(request.resource.data.amoriaId)) &&
+        (!request.resource.data.keys().hasAny(["amoriaIdNormalized"]) ||
+          request.resource.data.amoriaIdNormalized == request.resource.data.amoriaId);
+    }
+
     match /users/{uid} {
       allow get: if signedIn();
       allow list: if false;
       allow create, update: if isSelf(uid) &&
-        request.resource.data.uid == uid;
+        isValidUserProfileWrite(uid);
       allow delete: if false;
 
       match /blockedUsers/{blockedUid} {
@@ -82,6 +105,17 @@ service cloud.firestore {
           request.resource.data.blockedUid == blockedUid;
         allow delete: if isSelf(uid);
       }
+    }
+
+    match /amoriaIds/{amoriaId} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create: if signedIn() &&
+        isValidAmoriaId(amoriaId) &&
+        request.resource.data.uid == request.auth.uid &&
+        request.resource.data.amoriaId == amoriaId &&
+        request.resource.data.amoriaIdNormalized == amoriaId;
+      allow update, delete: if false;
     }
 
     match /dmThreads/{threadId} {

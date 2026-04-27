@@ -40,8 +40,6 @@ import {
 import { makeNickname } from "@/services/rooms";
 import { useLocale } from "@/contexts/LocaleContext";
 import { formatAgoLong } from "@/utils/timeAgo";
-import { translateMaybeKey } from "@/utils/i18n";
-import { formatNickname } from "@/utils/nickname";
 import { getUserProfile } from "@/services/user";
 import { buildDmChatRouteParams, ensureDmThread } from "@/services/dm";
 import {
@@ -448,7 +446,7 @@ export default function NearbyNowSection({
         clientId,
         uid: user.uid,
         nickname,
-        authorName: profileDisplayName,
+        authorName: profileDisplayName || t("profile.amoriaUser"),
         avatarUrl: profileAvatarUrl,
         text: trimmed,
         mood,
@@ -506,11 +504,7 @@ export default function NearbyNowSection({
 
   const resolveAuthorLabel = useCallback(
     (item: NowPost) => {
-      const rawLabel = String(item.authorName || item.nickname || t("common.user")).trim();
-      const formattedNickname = formatNickname(rawLabel, t);
-      return formattedNickname === rawLabel
-        ? translateMaybeKey(rawLabel, t, ["common."])
-        : formattedNickname;
+      return String(item.authorName || "").trim() || t("profile.amoriaUser");
     },
     [t]
   );
@@ -532,7 +526,7 @@ export default function NearbyNowSection({
       setChatOpeningPostId(item.id);
       try {
         const peerName = resolveAuthorLabel(item);
-        const myName = profileDisplayName || nickname;
+        const myName = profileDisplayName || t("profile.amoriaUser");
         const threadId = await ensureDmThread(db, user.uid, peerUid, {
           source: "nearby",
           sourceSessionId: item.id,
@@ -562,7 +556,7 @@ export default function NearbyNowSection({
         }
       }
     },
-    [navigation, nickname, profileDisplayName, resolveAuthorLabel, t, user?.uid]
+    [navigation, profileDisplayName, resolveAuthorLabel, t, user?.uid]
   );
 
   const removeOwnStatus = useCallback(

@@ -19,7 +19,6 @@ import {
   getPlayDrawChallengeForSeed,
   type PlayDrawChallenge,
 } from "@/services/playChallenges";
-import { makeNickname } from "@/services/rooms";
 
 export type PlayActivity = "draw" | "chain_draw" | "daily_prompt" | "color_mood";
 export type ReleasePlayActivity = "draw" | "color_mood";
@@ -39,6 +38,8 @@ export type PlayColorMoodOption = {
 export const CHAIN_DRAW_TURN_DURATION_SEC = 30;
 export const CHAIN_DRAW_MAX_TURNS = 10;
 export const COLOR_MOOD_SELECTION_COUNT = 3;
+const RELEASE_IDENTITY_FALLBACK = "profile.amoriaUser";
+const LEGACY_NICKNAME_RE = /^nick\.[a-z]+(\.[a-z]+)?\.\d{3}$/;
 const DAILY_PROMPT_DEFS = [
   { id: "dream_city", en: "Dream city", ru: "Город мечты" },
   { id: "symbol_of_joy", en: "Symbol of joy", ru: "Символ радости" },
@@ -1150,10 +1151,16 @@ function asPlayQueueDoc(id: string, raw: unknown): PlayQueueDoc {
   };
 }
 
+function normalizeParticipantName(value: unknown) {
+  const name = String(value ?? "").trim();
+  if (!name || LEGACY_NICKNAME_RE.test(name)) return "";
+  return name;
+}
+
 function resolveQueueNickname(queue: Pick<PlayQueueDoc, "uid" | "nickname">) {
-  const nickname = queue.nickname?.trim();
+  const nickname = normalizeParticipantName(queue.nickname);
   if (nickname) return nickname;
-  return makeNickname(queue.uid || "peer");
+  return RELEASE_IDENTITY_FALLBACK;
 }
 
 function asPlaySessionDoc(id: string, raw: unknown): PlaySessionDoc {
@@ -1398,7 +1405,7 @@ export async function tryMatchWaitingPlayer(
     const participantIds = [candidateData.uid, uid];
     const participantNicknames: Record<string, string> = {
       [candidateData.uid]: resolveQueueNickname(candidateData),
-      [uid]: nickname.trim() || makeNickname(uid || "me"),
+      [uid]: normalizeParticipantName(nickname) || RELEASE_IDENTITY_FALLBACK,
     };
     const chainDrawState =
       activity === "chain_draw" ? buildInitialChainDrawState(participantIds, now) : null;
@@ -1980,6 +1987,6 @@ export function getPeerFromSession(session: PlaySessionDoc, myUid: string) {
 
   return {
     uid: peerUid,
-    nickname: session.participantNicknames[peerUid] ?? makeNickname(peerUid),
+    nickname: normalizeParticipantName(session.participantNicknames[peerUid]) || RELEASE_IDENTITY_FALLBACK,
   };
 }

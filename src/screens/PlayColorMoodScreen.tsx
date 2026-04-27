@@ -32,7 +32,6 @@ import {
   subscribePlaySession,
   type PlaySessionDoc,
 } from "@/services/playSessions";
-import { makeNickname } from "@/services/rooms";
 import { theme } from "@/theme";
 
 type GuardState = {
@@ -145,7 +144,11 @@ export default function PlayColorMoodScreen() {
     () => session?.participantIds.find((participantId) => participantId !== uid) ?? "",
     [session?.participantIds, uid]
   );
-  const partnerName = session?.participantNicknames?.[partnerId] ?? makeNickname(partnerId || "peer");
+  const rawPartnerName = session?.participantNicknames?.[partnerId]?.trim() ?? "";
+  const partnerName =
+    rawPartnerName && rawPartnerName !== "profile.amoriaUser" && !rawPartnerName.startsWith("nick.")
+      ? rawPartnerName
+      : tt("profile.amoriaUser", "Пользователь Amoria");
   const ownSavedChoices = React.useMemo(() => getPlayColorMoodChoices(session, uid), [session, uid]);
   const peerSavedChoices = React.useMemo(
     () => getPlayColorMoodChoices(session, partnerId),

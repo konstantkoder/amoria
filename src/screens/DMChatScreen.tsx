@@ -618,7 +618,8 @@ export default function DMChatScreen() {
     !peerBlocked &&
     !subscriptionError &&
     !threadMissing;
-  const screenTitleName = peer.name || routePeerName || "";
+  const screenTitleName =
+    peer.name === "profile.amoriaUser" ? routePeerName || "" : peer.name || routePeerName || "";
   const peerDisplayName = peerProfileName || screenTitleName || amoriaUserLabel;
   const screenTitle = screenTitleName
     ? t("dm.title", { name: peerDisplayName })
