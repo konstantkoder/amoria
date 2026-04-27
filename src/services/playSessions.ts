@@ -596,7 +596,7 @@ export function getPlayLobbyModeCardCopy(activity: PlayActivity): PlayLobbyModeC
         ),
         details: releaseCopy(
           "This is the main Together path in release: draw the same challenge for seven minutes, then decide honestly about chat.",
-          "Это главный путь релиза во «Вместе»: 7 минут вместе рисовать один вызов, а потом честно решить про личный разговор."
+          "Это главный путь релиза во «Вместе»: 7 минут вместе рисовать один вызов, а потом честно решить про чат."
         ),
       };
     case "chain_draw":
@@ -1520,7 +1520,7 @@ export function getPlayRevealCopy(outcome: PlayRevealOutcome): PlayRevealCopy {
         shortLabel: playText("play.reveal.openOpen.shortLabel", "Connection is open"),
         description: playText(
           "play.reveal.openOpen.description",
-          "After this shared result, both of you opened the connection and moved it into personal chat."
+          "After this shared result, both of you opened the connection and moved it into chat."
         ),
       };
     case "open_skip":
@@ -1536,7 +1536,7 @@ export function getPlayRevealCopy(outcome: PlayRevealOutcome): PlayRevealCopy {
         shortLabel: playText("play.reveal.skipSkip.shortLabel", "Story is saved"),
         description: playText(
           "play.reveal.skipSkip.description",
-          "Both of you chose to keep this moment as a shared story and not move it into personal chat."
+          "Both of you chose to keep this moment as a shared story and not move it into chat."
         ),
       };
     default:
@@ -1544,7 +1544,7 @@ export function getPlayRevealCopy(outcome: PlayRevealOutcome): PlayRevealCopy {
         shortLabel: playText("play.reveal.waiting.shortLabel", "Waiting for the second answer"),
         description: playText(
           "play.reveal.waiting.description",
-          "One answer is already saved. We are waiting for the second one to see whether the personal chat opens."
+          "One answer is already saved. We are waiting for the second one to see whether chat opens."
         ),
       };
   }

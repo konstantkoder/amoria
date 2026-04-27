@@ -18,14 +18,17 @@
 - Draw release UX requirements:
   - PlayLobby presents draw as the primary entry, with color_mood as the softer secondary path.
   - PlayMatch explains that the app is looking for another person to create one shared drawing/moment, not just loading a game.
-  - Draw flow is: challenge preview with visual inspiration examples -> fullscreen/near-fullscreen canvas -> result.
-  - The challenge preview may show 1-2 small local inspiration images, but they are only ideas, never templates, never tracing references, and never a canvas background.
-  - The active phone drawing canvas must not be a small card inside a scrolling page. It should use a fullscreen/near-fullscreen no-scroll layout with only the compact challenge above and drawing tools below.
+  - Draw flow is: challenge preview with visual inspiration examples -> fullscreen/near-fullscreen canvas -> result -> chat/history.
+  - Stroke coordinates must be stored as normalized coordinates or in a stable virtual coordinate system, then scaled to the current canvas size on render so the same drawing looks consistent across phone and emulator.
+  - The challenge preview may show 1-3 small local inspiration examples, but they are only ideas, never templates, never tracing references, and never a canvas background.
+  - Inspiration examples must match the specific draw challenge. Bad unrelated romantic/background images must not be used for animal, bicycle, rain, mood, or other concrete prompts.
+  - Inspiration examples are shown before drawing only. The active drawing canvas starts clean and does not show examples behind or beside the drawing surface.
+  - The active phone drawing canvas must not be a small card inside a scrolling page. It should use a fullscreen/near-fullscreen no-scroll layout with only the compact challenge above and drawing tools below, and the canvas should take most of the phone screen during drawing.
   - The draw challenge must be visible in Canvas, Result, History, SessionDetail, and DM source context when available.
   - Result must prioritize the shared artifact/replay and the next decision about chat/history over drawing metrics.
   - Required minimum canvas tools for release: 6-8 colors, 3 line widths, readable tool labels, and a layout that does not cover the canvas.
   - Must-have core polish before release: real eraser and undo for the user's latest stroke. The current draw event model is append-only stroke batches, so these must not be faked with local-only UI.
-  - Local inspiration images should be added or reviewed for each draw challenge before release; remote URLs must not be used for draw challenge examples.
+  - Local inspiration examples should be added or reviewed for each draw challenge before release; remote URLs must not be used for draw challenge examples.
 
 ## Supporting Flows
 

@@ -104,11 +104,11 @@ function getStoryConnectionCopy(options: {
         title: tt("playDetail.bridgeChatNeedsAccountTitle", "Связь уже открылась из этой истории"),
         body: tt(
           "playDetail.bridgeChatNeedsAccountBody",
-          "После этой общей истории контакт уже открылся и живёт в «Чатах». Чтобы перейти в личный разговор, сначала нужен активный аккаунт."
+          "После этой общей истории чат уже открылся и живёт в «Чатах». Чтобы перейти в чат, сначала нужен активный аккаунт."
         ),
         hint: tt(
           "playDetail.bridgeChatNeedsAccountHint",
-          "Сама история остаётся здесь как общий контекст: после входа можно будет вернуться сюда и перейти в разговор."
+          "Сама история остаётся здесь как общий контекст: после входа можно будет вернуться сюда и перейти в чат."
         ),
         primaryIntent: "open_profile",
         primaryLabel: tt("common.openProfile", "Открыть профиль"),
@@ -120,7 +120,7 @@ function getStoryConnectionCopy(options: {
         title: tt("playDetail.bridgeConnectionReadyTitle", "Связь уже открылась из этой истории"),
         body: tt(
           "playDetail.bridgeConnectionReadyBody",
-          "Общий результат уже сохранился как контекст разговора. Если личный разговор не открывается прямо отсюда, можно вернуться в «Чаты»."
+          "Общий результат уже сохранился как контекст чата. Если чат не открывается прямо отсюда, можно вернуться в «Чаты»."
         ),
         hint: tt(
           "playDetail.bridgeConnectionReadyHint",
@@ -132,17 +132,17 @@ function getStoryConnectionCopy(options: {
     }
 
     return {
-      title: tt("playDetail.bridgeChatReadyTitle", "Из этой истории уже можно вернуться в разговор"),
+      title: tt("playDetail.bridgeChatReadyTitle", "Из этой истории уже можно вернуться в чат"),
       body: tt(
         "playDetail.bridgeChatReadyBody",
-        "Эта история уже стала частью открытой связи. Отсюда можно сразу перейти в личный разговор, а общий результат, replay и весь контекст останутся здесь."
+        "Эта история уже стала частью открытого чата. Отсюда можно сразу перейти в чат, а общий результат, replay и весь контекст останутся здесь."
       ),
       hint: tt(
         "playDetail.bridgeChatReadyHint",
-        "Даже когда вы уйдёте в разговор, replay, общий итог и контекст этой сессии останутся здесь."
+        "Даже когда вы уйдёте в чат, replay, общий итог и контекст этой сессии останутся здесь."
       ),
       primaryIntent: "open_chat",
-      primaryLabel: tt("playDetail.openPrivateChat", "Открыть личный разговор"),
+      primaryLabel: tt("playDetail.openPrivateChat", "Открыть чат"),
     };
   }
 
@@ -151,7 +151,7 @@ function getStoryConnectionCopy(options: {
       title: tt("playDetail.bridgeWaitingTitle", "История уже сохранена, связь ещё решается"),
       body: tt(
         "playDetail.bridgeWaitingBody",
-        "Общая история уже осталась здесь. Если второй человек тоже откроет контакт, личный разговор появится как её продолжение."
+        "Общая история уже осталась здесь. Если второй человек тоже откроет контакт, чат появится как её продолжение."
       ),
       hint: tt(
         "playDetail.bridgeWaitingHint",
@@ -166,7 +166,7 @@ function getStoryConnectionCopy(options: {
     title: tt("playDetail.bridgeStoryOnlyTitle", "Эта история осталась вашим общим моментом"),
     body: tt(
       "playDetail.bridgeStoryOnlyBody",
-      "Контакт не перешёл в личный разговор, но вся общая история остаётся здесь: с replay, контекстом и итогом между вами."
+      "Контакт не перешёл в чат, но вся общая история остаётся здесь: с replay, контекстом и итогом между вами."
     ),
     hint: tt(
       "playDetail.bridgeStoryOnlyHint",
@@ -407,20 +407,20 @@ export default function PlaySessionDetailScreen() {
     if (revealOutcome === "open_open") {
       return tt(
         "playDetail.heroHomeTextOpen",
-        "Эта страница хранит общий результат, replay и путь обратно в личный разговор. Связь уже открыта, а сама история остаётся её спокойной опорой."
+        "Эта страница хранит общий результат, replay и путь обратно в чат. Связь уже открыта, а сама история остаётся её спокойной опорой."
       );
     }
 
     if (revealOutcome === "waiting") {
       return tt(
         "playDetail.heroHomeTextWaiting",
-        "Эта страница уже удерживает общий итог вашей сессии. Если открытие станет взаимным, личный разговор вырастет именно из этой истории."
+        "Эта страница уже удерживает общий итог вашей сессии. Если открытие станет взаимным, чат вырастет именно из этой истории."
       );
     }
 
     return tt(
       "playDetail.heroHomeTextStoryOnly",
-      "Даже без личного разговора общий момент не пропадает: здесь остаются итог, replay и весь контекст того, что между вами уже произошло."
+      "Даже без чата общий момент не пропадает: здесь остаются итог, replay и весь контекст того, что между вами уже произошло."
     );
   }, [revealOutcome, tt]);
   const showChatsButton =
@@ -484,7 +484,7 @@ export default function PlaySessionDetailScreen() {
         setChatActionError(
           tt(
             "playDetail.openChatFailed",
-            "Не удалось открыть личный разговор прямо сейчас. Попробуй ещё раз чуть позже."
+            "Не удалось открыть чат прямо сейчас. Попробуй ещё раз чуть позже."
           )
         );
       }
@@ -792,7 +792,7 @@ export default function PlaySessionDetailScreen() {
           >
             <Text style={styles.primaryButtonText}>
               {connectionCopy.primaryIntent === "open_chat" && openingChat
-                ? tt("connections.openingChat", "Открываем разговор…")
+                ? tt("playDetail.openingChat", "Открываем чат…")
                 : connectionCopy.primaryLabel}
             </Text>
           </Pressable>

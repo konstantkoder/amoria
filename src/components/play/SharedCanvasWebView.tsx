@@ -109,6 +109,8 @@ const HTML = `<!doctype html>
       disabled: false,
       color: "#F97393",
       width: 6,
+      canvasWidth: 1,
+      canvasHeight: 1,
       strokesMap: {},
       strokeOrder: [],
       drawing: false,
@@ -116,19 +118,60 @@ const HTML = `<!doctype html>
       activePointerId: null,
     };
 
-    function clonePoint(point) {
-      return { x: Number(point.x || 0), y: Number(point.y || 0) };
+    const LEGACY_CANVAS_WIDTH = 390;
+    const LEGACY_CANVAS_HEIGHT = 560;
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
     }
 
-    function normalizeStroke(stroke) {
+    function cloneRawPoint(point) {
+      return { x: Number(point && point.x ? point.x : 0), y: Number(point && point.y ? point.y : 0) };
+    }
+
+    function isNormalizedPoint(point) {
+      return point.x >= -0.02 && point.x <= 1.02 && point.y >= -0.02 && point.y <= 1.02;
+    }
+
+    function getStrokeCoordinateSpace(points) {
+      if (!points.length) return "normalized";
+      return points.every(isNormalizedPoint) ? "normalized" : "legacy_pixels";
+    }
+
+    function normalizePoint(point, legacyBounds) {
+      if (isNormalizedPoint(point)) {
+        return {
+          x: clamp(point.x, 0, 1),
+          y: clamp(point.y, 0, 1),
+        };
+      }
+
+      const width = Math.max(Number(legacyBounds && legacyBounds.width) || LEGACY_CANVAS_WIDTH, 1);
+      const height = Math.max(Number(legacyBounds && legacyBounds.height) || LEGACY_CANVAS_HEIGHT, 1);
+      return {
+        x: clamp(point.x / width, 0, 1),
+        y: clamp(point.y / height, 0, 1),
+      };
+    }
+
+    function toCanvasPoint(point) {
+      return {
+        x: clamp(point.x, 0, 1) * state.canvasWidth,
+        y: clamp(point.y, 0, 1) * state.canvasHeight,
+      };
+    }
+
+    function normalizeStroke(stroke, legacyBounds) {
+      const rawPoints = Array.isArray(stroke && stroke.points)
+        ? stroke.points.map(cloneRawPoint)
+        : [];
       return {
         id: String(stroke && stroke.id ? stroke.id : ""),
         uid: String(stroke && stroke.uid ? stroke.uid : ""),
         color: String(stroke && stroke.color ? stroke.color : "#F97393"),
         width: Number(stroke && stroke.width ? stroke.width : 6),
-        points: Array.isArray(stroke && stroke.points)
-          ? stroke.points.map(clonePoint)
-          : [],
+        coordinateSpace: getStrokeCoordinateSpace(rawPoints),
+        points: rawPoints.map((point) => normalizePoint(point, legacyBounds)),
       };
     }
 
@@ -147,6 +190,8 @@ const HTML = `<!doctype html>
       canvas.height = Math.round(height * ratio);
       canvas.style.width = width + "px";
       canvas.style.height = height + "px";
+      state.canvasWidth = width;
+      state.canvasHeight = height;
       ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
       redraw();
     }
@@ -154,7 +199,7 @@ const HTML = `<!doctype html>
     function drawStroke(stroke) {
       if (!stroke || !stroke.points || !stroke.points.length) return;
 
-      const points = stroke.points;
+      const points = stroke.points.map(toCanvasPoint);
       ctx.strokeStyle = stroke.color;
       ctx.lineWidth = stroke.width;
       ctx.lineCap = "round";
@@ -178,7 +223,7 @@ const HTML = `<!doctype html>
     }
 
     function redraw() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.clearRect(0, 0, state.canvasWidth, state.canvasHeight);
       for (let i = 0; i < state.strokeOrder.length; i += 1) {
         const stroke = state.strokesMap[state.strokeOrder[i]];
         drawStroke(stroke);
@@ -191,9 +236,30 @@ const HTML = `<!doctype html>
       const seen = {};
       const nextMap = {};
       const nextOrder = [];
+      const legacyBoundsByUid = {};
 
       for (let i = 0; i < list.length; i += 1) {
-        const stroke = normalizeStroke(list[i]);
+        const rawStroke = list[i];
+        const rawPoints = Array.isArray(rawStroke && rawStroke.points)
+          ? rawStroke.points.map(cloneRawPoint)
+          : [];
+        if (getStrokeCoordinateSpace(rawPoints) !== "legacy_pixels") continue;
+        const uid = String(rawStroke && rawStroke.uid ? rawStroke.uid : "");
+        const bounds = legacyBoundsByUid[uid] || {
+          width: LEGACY_CANVAS_WIDTH,
+          height: LEGACY_CANVAS_HEIGHT,
+        };
+        for (let pointIndex = 0; pointIndex < rawPoints.length; pointIndex += 1) {
+          bounds.width = Math.max(bounds.width, rawPoints[pointIndex].x);
+          bounds.height = Math.max(bounds.height, rawPoints[pointIndex].y);
+        }
+        legacyBoundsByUid[uid] = bounds;
+      }
+
+      for (let i = 0; i < list.length; i += 1) {
+        const rawStroke = list[i];
+        const uid = String(rawStroke && rawStroke.uid ? rawStroke.uid : "");
+        const stroke = normalizeStroke(rawStroke, legacyBoundsByUid[uid]);
         if (!stroke.id || seen[stroke.id]) continue;
         seen[stroke.id] = true;
         nextMap[stroke.id] = stroke;
@@ -205,11 +271,7 @@ const HTML = `<!doctype html>
       redraw();
     }
 
-    function clamp(value, min, max) {
-      return Math.max(min, Math.min(max, value));
-    }
-
-    function getCanvasPoint(event) {
+    function getNormalizedCanvasPoint(event) {
       const rect = canvas.getBoundingClientRect();
       const touch = event.touches && event.touches[0]
         ? event.touches[0]
@@ -218,8 +280,8 @@ const HTML = `<!doctype html>
           : event;
 
       return {
-        x: clamp(touch.clientX - rect.left, 0, rect.width),
-        y: clamp(touch.clientY - rect.top, 0, rect.height),
+        x: rect.width > 0 ? clamp((touch.clientX - rect.left) / rect.width, 0, 1) : 0,
+        y: rect.height > 0 ? clamp((touch.clientY - rect.top) / rect.height, 0, 1) : 0,
       };
     }
 
@@ -235,21 +297,24 @@ const HTML = `<!doctype html>
     }
 
     function drawPoint(point, color, width) {
+      const canvasPoint = toCanvasPoint(point);
       ctx.fillStyle = color;
       ctx.beginPath();
-      ctx.arc(point.x, point.y, Math.max(width / 2, 1), 0, Math.PI * 2);
+      ctx.arc(canvasPoint.x, canvasPoint.y, Math.max(width / 2, 1), 0, Math.PI * 2);
       ctx.fill();
     }
 
     function drawStrokeSegment(stroke, fromPoint, toPoint) {
       if (!stroke || !fromPoint || !toPoint) return;
+      const fromCanvasPoint = toCanvasPoint(fromPoint);
+      const toCanvasPointValue = toCanvasPoint(toPoint);
       ctx.strokeStyle = stroke.color;
       ctx.lineWidth = stroke.width;
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
       ctx.beginPath();
-      ctx.moveTo(fromPoint.x, fromPoint.y);
-      ctx.lineTo(toPoint.x, toPoint.y);
+      ctx.moveTo(fromCanvasPoint.x, fromCanvasPoint.y);
+      ctx.lineTo(toCanvasPointValue.x, toCanvasPointValue.y);
       ctx.stroke();
     }
 
@@ -263,8 +328,11 @@ const HTML = `<!doctype html>
         return;
       }
 
-      const distance = Math.hypot(point.x - prev.x, point.y - prev.y);
-      if (distance < 0.5) return;
+      const distance = Math.hypot(
+        (point.x - prev.x) * state.canvasWidth,
+        (point.y - prev.y) * state.canvasHeight
+      );
+      if (distance < 0.75) return;
       points.push(point);
       drawStrokeSegment(state.currentStroke, prev, point);
     }
@@ -278,13 +346,14 @@ const HTML = `<!doctype html>
           canvas.setPointerCapture(event.pointerId);
         } catch (e) {}
       }
-      const point = getCanvasPoint(event);
+      const point = getNormalizedCanvasPoint(event);
       state.drawing = true;
       state.currentStroke = {
         id: makeStrokeId(),
         uid: state.localUid,
         color: state.color,
         width: state.width,
+        coordinateSpace: "normalized",
         points: [point],
       };
       drawPoint(point, state.color, state.width);
@@ -302,7 +371,7 @@ const HTML = `<!doctype html>
         : null;
       const pointEvents = events && events.length ? events : [event];
       for (let i = 0; i < pointEvents.length; i += 1) {
-        appendCurrentPoint(getCanvasPoint(pointEvents[i]));
+        appendCurrentPoint(getNormalizedCanvasPoint(pointEvents[i]));
       }
     }
 
@@ -374,7 +443,6 @@ const HTML = `<!doctype html>
       window.addEventListener("pointermove", moveStroke, { passive: false });
       window.addEventListener("pointerup", finishStroke, { passive: false });
       window.addEventListener("pointercancel", finishStroke, { passive: false });
-      canvas.addEventListener("lostpointercapture", finishStroke, { passive: false });
     } else {
       canvas.addEventListener("mousedown", startStroke);
       window.addEventListener("mousemove", moveStroke);
@@ -481,11 +549,11 @@ export default function SharedCanvasWebView({
 
   const toolbar = (
     <View style={[styles.toolbar, fullscreen ? styles.toolbarFullscreen : null]}>
-        <View style={styles.toolGroup}>
-          {toolLabels?.colors ? (
+        <View style={[styles.toolGroup, fullscreen ? styles.toolGroupFullscreen : null]}>
+          {toolLabels?.colors && !fullscreen ? (
             <Text style={styles.toolLabel}>{toolLabels.colors}</Text>
           ) : null}
-          <View style={styles.paletteRow}>
+          <View style={[styles.paletteRow, fullscreen ? styles.paletteRowFullscreen : null]}>
             {PALETTE.map((color, colorIndex) => {
               const active = color === selectedColor;
               return (
@@ -497,6 +565,7 @@ export default function SharedCanvasWebView({
                   onPress={() => setSelectedColor(color)}
                   style={[
                     styles.colorButton,
+                    fullscreen ? styles.colorButtonFullscreen : null,
                     { backgroundColor: color },
                     active && styles.colorButtonActive,
                     disabled && styles.toolButtonDisabled,
@@ -506,11 +575,11 @@ export default function SharedCanvasWebView({
             })}
           </View>
         </View>
-        <View style={styles.toolGroup}>
-          {toolLabels?.brush ? (
+        <View style={[styles.toolGroup, fullscreen ? styles.toolGroupFullscreen : null]}>
+          {toolLabels?.brush && !fullscreen ? (
             <Text style={styles.toolLabel}>{toolLabels.brush}</Text>
           ) : null}
-          <View style={styles.brushRow}>
+          <View style={[styles.brushRow, fullscreen ? styles.brushRowFullscreen : null]}>
             {BRUSHES.map((width, brushIndex) => {
               const active = width === selectedWidth;
               return (
@@ -522,6 +591,7 @@ export default function SharedCanvasWebView({
                   onPress={() => setSelectedWidth(width)}
                   style={[
                     styles.brushButton,
+                    fullscreen ? styles.brushButtonFullscreen : null,
                     active && styles.brushButtonActive,
                     disabled && styles.toolButtonDisabled,
                   ]}
@@ -537,9 +607,11 @@ export default function SharedCanvasWebView({
                       disabled && styles.brushDotDisabled,
                     ]}
                   />
-                  <Text style={styles.brushSizeText}>
-                    {toolLabels?.brushSizes?.[brushIndex] ?? `${width}px`}
-                  </Text>
+                  {!fullscreen ? (
+                    <Text style={styles.brushSizeText}>
+                      {toolLabels?.brushSizes?.[brushIndex] ?? `${width}px`}
+                    </Text>
+                  ) : null}
                 </Pressable>
               );
             })}
@@ -647,15 +719,19 @@ const styles = StyleSheet.create({
   toolbarFullscreen: {
     marginBottom: 0,
     marginTop: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 9,
+    paddingHorizontal: 9,
+    paddingVertical: 8,
     borderRadius: 8,
     backgroundColor: "rgba(7, 11, 21, 0.94)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.14)",
+    gap: 8,
   },
   toolGroup: {
     gap: 7,
+  },
+  toolGroupFullscreen: {
+    gap: 0,
   },
   toolLabel: {
     color: theme.colors.muted,
@@ -669,12 +745,20 @@ const styles = StyleSheet.create({
     gap: 10,
     flexWrap: "wrap",
   },
+  paletteRowFullscreen: {
+    gap: 7,
+  },
   colorButton: {
     width: 28,
     height: 28,
     borderRadius: 14,
     borderWidth: 2,
     borderColor: "transparent",
+  },
+  colorButtonFullscreen: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
   },
   colorButtonActive: {
     borderColor: "#FFFFFF",
@@ -686,6 +770,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 10,
   },
+  brushRowFullscreen: {
+    gap: 7,
+  },
   brushButton: {
     minWidth: 58,
     minHeight: 42,
@@ -696,6 +783,11 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.pillBg,
     borderWidth: 1,
     borderColor: "transparent",
+  },
+  brushButtonFullscreen: {
+    minWidth: 42,
+    minHeight: 32,
+    borderRadius: 8,
   },
   brushButtonActive: {
     borderColor: theme.colors.accent,
@@ -743,7 +835,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 10,
+    gap: 8,
     flexWrap: "wrap",
   },
   disabledOverlay: {

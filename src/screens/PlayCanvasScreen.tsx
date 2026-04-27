@@ -1,24 +1,26 @@
 import React from "react";
 import {
   Alert,
-  Image,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
-  type ImageSourcePropType,
 } from "react-native";
 import {
   type EventArg,
   useNavigation,
   useRoute,
 } from "@react-navigation/native";
+import { Ionicons } from "@expo/vector-icons";
 
 import SharedCanvasWebView, {
   type SharedCanvasStroke,
 } from "@/components/play/SharedCanvasWebView";
-import { getDrawExampleImageSource } from "@/assets/play/drawExamples";
+import {
+  getDrawExampleVisual,
+  type DrawExampleVisual,
+} from "@/assets/play/drawExamples";
 import CoreStateCard from "@/components/CoreStateCard";
 import ScreenShell from "@/components/ScreenShell";
 import { auth, db } from "@/config/firebaseConfig";
@@ -56,6 +58,11 @@ function formatRemaining(totalSec: number) {
     .toString()
     .padStart(2, "0");
   return `${minutes}:${seconds}`;
+}
+
+function clampNormalizedCoordinate(value: number) {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(1, value));
 }
 
 function mapBatchStroke(batch: PlayStrokeBatch): SharedCanvasStroke[] {
@@ -235,15 +242,15 @@ export default function PlayCanvasScreen() {
     isMainDrawSession && session?.status === "active" && !drawingStarted;
   const showFullscreenDraw =
     isMainDrawSession && session?.status === "active" && drawingStarted;
-  const drawExampleSources = React.useMemo(() => {
+  const drawExampleVisuals = React.useMemo(() => {
     const exampleIds =
-      sessionPrompt && "exampleImages" in sessionPrompt
-        ? sessionPrompt.exampleImages ?? []
+      sessionPrompt && "exampleVisuals" in sessionPrompt
+        ? sessionPrompt.exampleVisuals ?? []
         : [];
     return exampleIds
-      .map((exampleId) => getDrawExampleImageSource(exampleId))
-      .filter((source): source is ImageSourcePropType => Boolean(source))
-      .slice(0, 2);
+      .map((exampleId) => getDrawExampleVisual(exampleId))
+      .filter((visual): visual is DrawExampleVisual => Boolean(visual))
+      .slice(0, 3);
   }, [sessionPrompt]);
   const canvasToolLabels = React.useMemo(
     () => ({
@@ -499,8 +506,8 @@ export default function PlayCanvasScreen() {
         color: stroke.color,
         width: stroke.width,
         points: stroke.points.map((point, index) => ({
-          x: point.x,
-          y: point.y,
+          x: clampNormalizedCoordinate(point.x),
+          y: clampNormalizedCoordinate(point.y),
           t: index,
         })),
       }));
@@ -739,15 +746,30 @@ export default function PlayCanvasScreen() {
             <Text style={styles.previewSectionTitle}>
               {tt("play.canvas.previewExamplesTitle", "Идеи для рисунка")}
             </Text>
-            {drawExampleSources.length ? (
-              <View style={styles.exampleImageRow}>
-                {drawExampleSources.map((source, index) => (
-                  <Image
-                    key={`draw-example-${index}`}
-                    source={source}
-                    resizeMode="cover"
-                    style={styles.exampleImage}
-                  />
+            {drawExampleVisuals.length ? (
+              <View style={styles.exampleVisualGrid}>
+                {drawExampleVisuals.map((visual) => (
+                  <View key={visual.id} style={styles.exampleVisualCard}>
+                    <View style={styles.exampleIconWrap}>
+                      <Ionicons
+                        name={visual.icon}
+                        size={32}
+                        color={theme.colors.text}
+                      />
+                      {visual.secondaryIcon ? (
+                        <View style={styles.exampleSecondaryIcon}>
+                          <Ionicons
+                            name={visual.secondaryIcon}
+                            size={16}
+                            color={theme.colors.accent}
+                          />
+                        </View>
+                      ) : null}
+                    </View>
+                    <Text style={styles.exampleVisualLabel} numberOfLines={2}>
+                      {tt(visual.labelKey, visual.fallback)}
+                    </Text>
+                  </View>
                 ))}
               </View>
             ) : (
@@ -837,7 +859,7 @@ export default function PlayCanvasScreen() {
                   <Text style={styles.toolbarFinishText}>
                     {finishing
                       ? tt("play.canvas.finishing", "Завершаем…")
-                      : tt("play.canvas.finishEarly", "Завершить и показать итог")}
+                      : tt("play.canvas.finishDrawing", "Завершить")}
                   </Text>
                 </Pressable>
               </>
@@ -1048,15 +1070,51 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "900",
   },
-  exampleImageRow: {
+  exampleVisualGrid: {
     flexDirection: "row",
-    gap: 10,
+    flexWrap: "wrap",
+    gap: 8,
   },
-  exampleImage: {
+  exampleVisualCard: {
     flex: 1,
-    minHeight: 112,
+    minWidth: "30%",
+    minHeight: 92,
     borderRadius: 8,
-    backgroundColor: theme.colors.backgroundSoft,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 10,
+    backgroundColor: "rgba(255,255,255,0.07)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+    gap: 7,
+  },
+  exampleIconWrap: {
+    width: 48,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  exampleSecondaryIcon: {
+    position: "absolute",
+    right: 0,
+    bottom: 0,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255, 122, 60, 0.16)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 122, 60, 0.28)",
+  },
+  exampleVisualLabel: {
+    minHeight: 30,
+    color: theme.colors.subtext,
+    fontSize: 11,
+    lineHeight: 15,
+    fontWeight: "800",
+    textAlign: "center",
   },
   exampleFallback: {
     borderRadius: 8,
@@ -1100,15 +1158,15 @@ const styles = StyleSheet.create({
   },
   drawingRoot: {
     flex: 1,
-    gap: 8,
+    gap: 6,
   },
   drawingTopBar: {
-    minHeight: 58,
+    minHeight: 50,
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
     paddingHorizontal: 12,
-    paddingVertical: 9,
+    paddingVertical: 7,
     borderRadius: 8,
     backgroundColor: "rgba(7, 11, 21, 0.92)",
     borderWidth: 1,
@@ -1153,12 +1211,12 @@ const styles = StyleSheet.create({
   },
   toolbarSecondaryButton: {
     flexGrow: 1,
-    minHeight: 40,
+    minHeight: 36,
     alignItems: "center",
     justifyContent: "center",
     borderRadius: 8,
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 8,
     backgroundColor: "rgba(255,255,255,0.09)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.14)",
@@ -1171,12 +1229,12 @@ const styles = StyleSheet.create({
   },
   toolbarFinishButton: {
     flexGrow: 2,
-    minHeight: 40,
+    minHeight: 36,
     alignItems: "center",
     justifyContent: "center",
     borderRadius: 8,
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 8,
     backgroundColor: theme.colors.primary,
   },
   toolbarFinishText: {

@@ -92,20 +92,20 @@ function getHistoryRelationshipText(
   if (item.revealOutcome === "open_open") {
     return tt(
       "playHistory.storyStatusOpen",
-      "Эта история уже стала открытой связью. Отсюда можно вернуться и к самому моменту, и в личный разговор."
+      "Эта история уже стала открытой связью. Отсюда можно вернуться и к самому моменту, и в чат."
     );
   }
 
   if (item.revealOutcome === "waiting") {
     return tt(
       "playHistory.storyStatusWaiting",
-      "История уже сохранена. Если открытие станет взаимным, личный разговор вырастет именно из этого общего момента."
+      "История уже сохранена. Если открытие станет взаимным, чат вырастет именно из этого общего момента."
     );
   }
 
   return tt(
     "playHistory.storyStatusStoryOnly",
-    "Этот момент остался общей историей. Он сохранён здесь даже без личного разговора и никуда не исчезнет."
+    "Этот момент остался общей историей. Он сохранён здесь даже без чата и никуда не исчезнет."
   );
 }
 
@@ -294,7 +294,7 @@ export default function PlayHistoryScreen() {
         setActionError(
           tt(
             "playHistory.openChatFailed",
-            "Не удалось открыть личный разговор прямо сейчас. Попробуй ещё раз чуть позже."
+            "Не удалось открыть чат прямо сейчас. Попробуй ещё раз чуть позже."
           )
         );
       } finally {
@@ -445,7 +445,7 @@ export default function PlayHistoryScreen() {
             title={tt("playHistory.authRequiredTitle", "Истории доступны после входа")}
             body={tt(
               "playHistory.authRequiredBody",
-              "Войдите, чтобы вернуться к своим общим историям, открыть replay или палитру и продолжить путь в личный разговор, если связь уже открылась."
+              "Войдите, чтобы вернуться к своим общим историям, открыть replay или палитру и продолжить путь в чат, если связь уже открылась."
             )}
             primaryAction={{ label: t("menu.profile"), onPress: () => navigation.navigate("Profile") }}
             secondaryAction={{ label: t("connections.goToTogether"), onPress: goToTogether }}
@@ -509,7 +509,7 @@ export default function PlayHistoryScreen() {
           {actionError ? (
             <View style={styles.inlineErrorCard}>
               <Text style={styles.inlineErrorTitle}>
-                {tt("playHistory.inlineErrorTitle", "Личный разговор ещё не прикрепился к этой истории")}
+                {tt("playHistory.inlineErrorTitle", "Чат ещё не прикрепился к этой истории")}
               </Text>
               <Text style={styles.inlineErrorText}>{actionError}</Text>
             </View>
@@ -523,7 +523,7 @@ export default function PlayHistoryScreen() {
             <Text style={styles.heroText}>
               {tt(
                 "playHistory.heroBody",
-                "Здесь остаётся всё, что уже произошло между вами: общий итог, путь к разговору и спокойный способ вернуться к каждой истории."
+                "Здесь остаётся всё, что уже произошло между вами: общий итог, путь в чат и спокойный способ вернуться к каждой истории."
               )}
             </Text>
             <View style={styles.heroCountPill}>
@@ -553,7 +553,7 @@ export default function PlayHistoryScreen() {
               <Text style={styles.sectionText}>
                 {tt(
                   "playHistory.sectionBody",
-                  "Открывай историю, возвращайся в разговор, если связь уже открылась, или начинай новый общий момент из этого же контекста."
+                  "Открывай историю, возвращайся в чат, если связь уже открылась, или начинай новый общий момент из этого же контекста."
                 )}
               </Text>
             </View>

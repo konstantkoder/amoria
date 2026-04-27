@@ -131,12 +131,12 @@ function getResultBridgeCopy(options: {
       happenedTitle: tt("play.result.bridgeChatNeedsAccountTitle", "Связь уже открылась из этого результата"),
       happenedBody: tt(
         "play.result.bridgeChatNeedsAccountBody",
-        "После этого общего результата связь уже открылась и сохранилась вместе с историей. Чтобы перейти в личный разговор, сначала нужен активный профиль."
+        "После этого общего результата чат уже открылся и сохранился вместе с историей. Чтобы перейти в чат, сначала нужен активный профиль."
       ),
       nextTitle: tt("play.result.bridgeChatNeedsAccountNextTitle", "Сначала открыть профиль"),
       nextBody: tt(
         "play.result.bridgeChatNeedsAccountNextBody",
-        "После входа можно будет вернуться к этой истории и перейти в личный разговор уже без потери общего контекста."
+        "После входа можно будет вернуться к этой истории и перейти в чат уже без потери общего контекста."
       ),
       hint: tt(
         "play.result.bridgeChatNeedsAccountHint",
@@ -152,19 +152,19 @@ function getResultBridgeCopy(options: {
       happenedTitle: tt("play.result.bridgeChatReadyTitle", "Контакт уже стал взаимным"),
       happenedBody: tt(
         "play.result.bridgeChatReadyBody",
-        "После этого общего результата между вами уже открылась связь. Общая история сохранена, а отсюда можно сразу перейти в личный разговор."
+        "После этого общего результата между вами уже открылся чат. Общая история сохранена, а отсюда можно сразу перейти в чат."
       ),
-      nextTitle: tt("play.result.bridgeChatReadyNextTitle", "Продолжить это уже лично"),
+      nextTitle: tt("play.result.bridgeChatReadyNextTitle", "Продолжить в чате"),
       nextBody: tt(
         "play.result.bridgeChatReadyNextBody",
-        "Можно сразу открыть разговор или сначала вернуться к общей истории, если хочешь опереться на сохранённый контекст."
+        "Можно сразу открыть чат или сначала вернуться к общей истории, если хочешь опереться на сохранённый контекст."
       ),
       hint: tt(
         "play.result.bridgeChatReadyHint",
-        "После выхода с этого экрана разговор останется в «Чатах», а совместная история останется в архиве."
+        "После выхода с этого экрана чат останется в «Чатах», а совместная история останется в архиве."
       ),
       primaryIntent: "open_chat",
-      primaryLabel: tt("play.result.openPrivateChat", "Открыть личный разговор"),
+      primaryLabel: tt("play.result.openPrivateChat", "Открыть чат"),
     };
   }
 
@@ -173,7 +173,7 @@ function getResultBridgeCopy(options: {
       happenedTitle: tt("play.result.bridgeConnectionReadyTitle", "Связь уже открылась"),
       happenedBody: tt(
         "play.result.bridgeConnectionReadyBody",
-        "Общий результат уже сохранился как контекст разговора. Если личный разговор не открывается отсюда, можно спокойно вернуться в саму историю или в «Чаты»."
+        "Общий результат уже сохранился как контекст чата. Если чат не открывается отсюда, можно спокойно вернуться в саму историю или в «Чаты»."
       ),
       nextTitle: tt("play.result.bridgeConnectionReadyNextTitle", "Вернуться к общей истории"),
       nextBody: tt(
@@ -199,7 +199,7 @@ function getResultBridgeCopy(options: {
       nextTitle: tt("play.result.bridgeWaitingNextTitle", "Пока можно спокойно вернуться к общей истории"),
       nextBody: tt(
         "play.result.bridgeWaitingNextBody",
-        "Если второй человек тоже выберет открыть, общий момент станет входом в личный разговор. Пока этого не произошло, история уже сохранена и никуда не денется."
+        "Если второй человек тоже выберет открыть, общий момент станет входом в чат. Пока этого не произошло, история уже сохранена и никуда не денется."
       ),
       hint: tt(
         "play.result.bridgeWaitingHint",
@@ -221,7 +221,7 @@ function getResultBridgeCopy(options: {
             )
           : tt(
               "play.result.bridgeSkipSkipBody",
-              "Вы оба решили оставить этот момент в общей истории и не переводить его в личный разговор."
+              "Вы оба решили оставить этот момент в общей истории и не переводить его в чат."
             ),
       nextTitle: tt("play.result.bridgeStoryOnlyNextTitle", "Вернуться к истории или начать заново"),
       nextBody: tt(
@@ -230,7 +230,7 @@ function getResultBridgeCopy(options: {
       ),
       hint: tt(
         "play.result.bridgeStoryOnlyHint",
-        "Даже без личного разговора этот общий итог не пропадает: {story} остаётся в архиве.",
+        "Даже без чата этот общий итог не пропадает: {story} остаётся в архиве.",
         { story: savedStoryLabel }
       ),
       primaryIntent: "open_story",
@@ -242,25 +242,25 @@ function getResultBridgeCopy(options: {
     happenedTitle: tt("play.result.bridgeDecisionTitle", "Сначала был общий результат"),
     happenedBody: tt(
       "play.result.bridgeDecisionBody",
-      "Теперь можно решить, останется ли этот момент только общей историей или станет шагом к личному контакту."
+      "Теперь можно решить, останется ли этот момент только общей историей или станет шагом в чат."
     ),
     nextTitle: tt("play.result.bridgeDecisionNextTitle", "Решить, хочешь ли открыть контакт"),
     nextBody:
       activity === "color_mood"
         ? tt(
             "play.result.bridgeDecisionPaletteNextBody",
-            "Если вы оба выберете открыть, палитра приведёт в личный разговор. Если нет, она просто останется вашей общей историей."
+            "Если вы оба выберете открыть, палитра приведёт в чат. Если нет, она просто останется вашей общей историей."
           )
         : tt(
             "play.result.bridgeDecisionDrawingNextBody",
-            "Если вы оба выберете открыть, этот результат приведёт в личный разговор. Если нет, рисунок останется общей историей."
+            "Если вы оба выберете открыть, этот результат приведёт в чат. Если нет, рисунок останется общей историей."
           ),
     hint: tt(
       "play.result.bridgeDecisionHint",
       "Решение не стирает итог: общая история сохраняется в любом случае."
     ),
     primaryIntent: "save_open_decision",
-    primaryLabel: tt("play.result.primaryOpenChat", "Хочу открыть разговор"),
+    primaryLabel: tt("play.result.primaryOpenChat", "Открыть чат"),
   };
 }
 
@@ -626,7 +626,7 @@ export default function PlayResultScreen() {
           : false;
   const primaryLabel =
     bridgeCopy.primaryIntent === "open_chat" && openingChat
-      ? tt("connections.openingChat", "Открываем разговор…")
+      ? tt("play.result.openingChat", "Открываем чат…")
       : bridgeCopy.primaryLabel;
   const showHistoryButton =
     bridgeCopy.primaryIntent !== "open_story" &&

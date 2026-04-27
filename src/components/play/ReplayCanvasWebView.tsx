@@ -62,22 +62,93 @@ const HTML = `<!doctype html>
     const state = {
       strokes: [],
       visibleCount: 0,
+      canvasWidth: 1,
+      canvasHeight: 1,
     };
 
-    function clonePoint(point) {
-      return { x: Number(point.x || 0), y: Number(point.y || 0) };
+    const LEGACY_CANVAS_WIDTH = 390;
+    const LEGACY_CANVAS_HEIGHT = 560;
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
     }
 
-    function normalizeStroke(stroke) {
+    function cloneRawPoint(point) {
+      return { x: Number(point && point.x ? point.x : 0), y: Number(point && point.y ? point.y : 0) };
+    }
+
+    function isNormalizedPoint(point) {
+      return point.x >= -0.02 && point.x <= 1.02 && point.y >= -0.02 && point.y <= 1.02;
+    }
+
+    function getStrokeCoordinateSpace(points) {
+      if (!points.length) return "normalized";
+      return points.every(isNormalizedPoint) ? "normalized" : "legacy_pixels";
+    }
+
+    function normalizePoint(point, legacyBounds) {
+      if (isNormalizedPoint(point)) {
+        return {
+          x: clamp(point.x, 0, 1),
+          y: clamp(point.y, 0, 1),
+        };
+      }
+
+      const width = Math.max(Number(legacyBounds && legacyBounds.width) || LEGACY_CANVAS_WIDTH, 1);
+      const height = Math.max(Number(legacyBounds && legacyBounds.height) || LEGACY_CANVAS_HEIGHT, 1);
+      return {
+        x: clamp(point.x / width, 0, 1),
+        y: clamp(point.y / height, 0, 1),
+      };
+    }
+
+    function toCanvasPoint(point) {
+      return {
+        x: clamp(point.x, 0, 1) * state.canvasWidth,
+        y: clamp(point.y, 0, 1) * state.canvasHeight,
+      };
+    }
+
+    function normalizeStroke(stroke, legacyBounds) {
+      const rawPoints = Array.isArray(stroke && stroke.points)
+        ? stroke.points.map(cloneRawPoint)
+        : [];
       return {
         id: String(stroke && stroke.id ? stroke.id : ""),
         uid: String(stroke && stroke.uid ? stroke.uid : ""),
         color: String(stroke && stroke.color ? stroke.color : "#F97393"),
         width: Number(stroke && stroke.width ? stroke.width : 6),
-        points: Array.isArray(stroke && stroke.points)
-          ? stroke.points.map(clonePoint)
-          : [],
+        coordinateSpace: getStrokeCoordinateSpace(rawPoints),
+        points: rawPoints.map((point) => normalizePoint(point, legacyBounds)),
       };
+    }
+
+    function normalizeStrokes(strokes) {
+      const list = Array.isArray(strokes) ? strokes : [];
+      const legacyBoundsByUid = {};
+
+      for (let i = 0; i < list.length; i += 1) {
+        const rawStroke = list[i];
+        const rawPoints = Array.isArray(rawStroke && rawStroke.points)
+          ? rawStroke.points.map(cloneRawPoint)
+          : [];
+        if (getStrokeCoordinateSpace(rawPoints) !== "legacy_pixels") continue;
+        const uid = String(rawStroke && rawStroke.uid ? rawStroke.uid : "");
+        const bounds = legacyBoundsByUid[uid] || {
+          width: LEGACY_CANVAS_WIDTH,
+          height: LEGACY_CANVAS_HEIGHT,
+        };
+        for (let pointIndex = 0; pointIndex < rawPoints.length; pointIndex += 1) {
+          bounds.width = Math.max(bounds.width, rawPoints[pointIndex].x);
+          bounds.height = Math.max(bounds.height, rawPoints[pointIndex].y);
+        }
+        legacyBoundsByUid[uid] = bounds;
+      }
+
+      return list.map((stroke) => {
+        const uid = String(stroke && stroke.uid ? stroke.uid : "");
+        return normalizeStroke(stroke, legacyBoundsByUid[uid]);
+      });
     }
 
     function post(message) {
@@ -95,6 +166,8 @@ const HTML = `<!doctype html>
       canvas.height = Math.round(height * ratio);
       canvas.style.width = width + "px";
       canvas.style.height = height + "px";
+      state.canvasWidth = width;
+      state.canvasHeight = height;
       ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
       redraw();
     }
@@ -102,7 +175,7 @@ const HTML = `<!doctype html>
     function drawStroke(stroke) {
       if (!stroke || !stroke.points || !stroke.points.length) return;
 
-      const points = stroke.points;
+      const points = stroke.points.map(toCanvasPoint);
       ctx.strokeStyle = stroke.color;
       ctx.lineWidth = stroke.width;
       ctx.lineCap = "round";
@@ -126,7 +199,7 @@ const HTML = `<!doctype html>
     }
 
     function redraw() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.clearRect(0, 0, state.canvasWidth, state.canvasHeight);
       for (let i = 0; i < state.visibleCount; i += 1) {
         drawStroke(state.strokes[i]);
       }
@@ -136,7 +209,7 @@ const HTML = `<!doctype html>
       if (!data) return;
 
       if (data.type === "init" || data.type === "sync") {
-        state.strokes = Array.isArray(data.strokes) ? data.strokes.map(normalizeStroke) : [];
+        state.strokes = normalizeStrokes(data.strokes);
         state.visibleCount = Math.max(0, Math.min(Number(data.visibleCount || 0), state.strokes.length));
         if (data.size) resizeCanvas(data.size.width, data.size.height);
         redraw();
