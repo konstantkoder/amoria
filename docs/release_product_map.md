@@ -58,6 +58,9 @@
 - Announcement data must live in Firestore under `announcements/{announcementId}`.
 - Demo announcements and local-only announcement boards are forbidden in the release path.
 - Announcement photos must use Firebase Storage when a photo is selected; text-only announcements remain valid.
+- Announcement photo selection shows a local preview first, then uploads to `announcements/{authorUid}/{announcementId}/cover.jpg`; Firestore stores only the resulting HTTPS `photoUrl`.
+- Local device `photoUri` values must never be written as shared announcement media.
+- Android crop/editing is disabled for announcement photo selection in the release path.
 - Responding to an announcement creates/records a real server-side response and opens the personal conversation in Chats.
 - Chat source context for this path: “After an announcement” / “После объявления”.
 - Moderation/report/block is a required release block before public user-generated content is opened broadly.
@@ -107,7 +110,8 @@
 - Future search/contact flows may use Amoria ID, but this release block does not add ID search, friend requests, followers, or a public feed.
 - User-facing cards should prefer `profile.displayName`, then a stored real display-name snapshot, then the neutral Amoria user fallback. They must not show email or generated `nick.*` values as the primary identity.
 - Profile photos must upload to Firebase Storage; local device `photoUri` values must not be used as shared profile media.
-- The release avatar upload path is `users/{uid}/profile/avatar.{jpg|png|webp}` and the Firestore profile stores the resulting HTTPS `avatarUrl`.
+- The release avatar upload path is `users/{uid}/profile/avatar.jpg` and the Firestore profile stores the resulting HTTPS `avatarUrl`.
+- Avatar selection shows a local preview before upload; Android crop/editing is disabled for release stability on BlueStacks and physical Android devices.
 - Chats, DM context, Announcements, and Nearby should render `avatarUrl` when present and use a neutral initials placeholder when not.
 - Peer profiles show displayName, avatar, Amoria ID, source context, and shared history only when a real source session is available.
 - Announcement cover photos and user profile photos are separate media fields and must not be mixed.

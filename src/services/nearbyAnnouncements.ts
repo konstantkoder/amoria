@@ -10,14 +10,9 @@ import {
   where,
   type Firestore,
 } from "firebase/firestore";
-import {
-  getDownloadURL,
-  ref as storageRef,
-  uploadBytes,
-  type FirebaseStorage,
-} from "firebase/storage";
 
-import { auth, db, firebaseConfig, storage } from "@/config/firebaseConfig";
+import { auth, db } from "@/config/firebaseConfig";
+import { uploadAnnouncementPhoto } from "@/services/storage";
 
 export type NearbyAnnouncementCategory =
   | "walk"
@@ -130,6 +125,11 @@ function normalizePublicName(value: unknown) {
   return name;
 }
 
+function normalizeSharedImageUrl(value: unknown) {
+  const url = String(value ?? "").trim();
+  return url.startsWith("https://") ? url : "";
+}
+
 function readMillis(value: unknown): number {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (value instanceof Date) return value.getTime();
@@ -162,7 +162,8 @@ function normalizeNearbyAnnouncement(
   const createdAt = readMillis(data.createdAt);
   const updatedAt = readMillis(data.updatedAt) || createdAt;
   const lastResponseAt = readMillis(data.lastResponseAt);
-  const photoUrl = String(data.photoUrl ?? data.photoUri ?? "").trim();
+  const photoUrl =
+    normalizeSharedImageUrl(data.photoUrl) || normalizeSharedImageUrl(data.photoUri);
   const responseCount = Math.max(Number(data.responseCount ?? 0), 0);
 
   return {
@@ -181,7 +182,7 @@ function normalizeNearbyAnnouncement(
     status: normalizeStatus(data.status),
     responseCount: Number.isFinite(responseCount) ? responseCount : 0,
     ...(lastResponseAt ? { lastResponseAt } : {}),
-    hasPhoto: Boolean(data.hasPhoto || photoUrl),
+    hasPhoto: Boolean(photoUrl),
     ...(photoUrl ? { photoUrl, photoUri: photoUrl } : {}),
   };
 }
@@ -194,54 +195,11 @@ function sortNearbyAnnouncements(items: NearbyAnnouncement[]): NearbyAnnouncemen
   });
 }
 
-function inferAnnouncementPhotoContentType(uri: string) {
-  const lower = uri.toLowerCase();
-  if (lower.includes(".png")) return "image/png";
-  if (lower.includes(".webp")) return "image/webp";
-  return "image/jpeg";
-}
-
-function inferAnnouncementPhotoExtension(contentType: string) {
-  if (contentType === "image/png") return "png";
-  if (contentType === "image/webp") return "webp";
-  return "jpg";
-}
-
-async function uploadAnnouncementPhoto(params: {
-  currentStorage: FirebaseStorage | null;
-  uid: string;
-  announcementId: string;
-  photoUri: string;
-}) {
-  const { announcementId, currentStorage, photoUri, uid } = params;
-  const storageBucket = String(firebaseConfig.storageBucket ?? "").trim();
-  if (!currentStorage || !storageBucket) {
-    throw new Error("announcements.photoUploadUnavailable");
-  }
-
-  const response = await fetch(photoUri);
-  if (!response.ok) {
-    throw new Error("announcements.photoReadFailed");
-  }
-
-  const blob = await response.blob();
-  const contentType = inferAnnouncementPhotoContentType(photoUri);
-  const extension = inferAnnouncementPhotoExtension(contentType);
-  const coverRef = storageRef(
-    currentStorage,
-    `${ANNOUNCEMENTS_COLLECTION}/${uid}/${announcementId}/cover.${extension}`
-  );
-
-  await uploadBytes(coverRef, blob, { contentType });
-  return getDownloadURL(coverRef);
-}
-
 export function createFirestoreNearbyAnnouncementsRepository(options: {
   database?: Firestore | null;
-  currentStorage?: FirebaseStorage | null;
+  currentStorage?: unknown;
 } = {}): NearbyAnnouncementsRepository {
   const database = options.database ?? db;
-  const currentStorage = options.currentStorage ?? storage;
 
   function announcementDoc(id: string) {
     return doc(requireAnnouncementsDb(database), ANNOUNCEMENTS_COLLECTION, id);
@@ -298,12 +256,7 @@ export function createFirestoreNearbyAnnouncementsRepository(options: {
       const now = Date.now();
       const localPhotoUri = String(input.photoUri ?? "").trim();
       const photoUrl = localPhotoUri
-        ? await uploadAnnouncementPhoto({
-            currentStorage,
-            uid: currentUid,
-            announcementId: announcementRef.id,
-            photoUri: localPhotoUri,
-          })
+        ? await uploadAnnouncementPhoto(currentUid, announcementRef.id, localPhotoUri)
         : "";
 
       const announcement: NearbyAnnouncement = {

@@ -25,6 +25,7 @@ export default function PhotoManagerScreen() {
   const [loading, setLoading] = React.useState(true);
   const [busy, setBusy] = React.useState(false);
   const [photos, setPhotos] = React.useState<string[]>([]);
+  const [pendingPhotoUri, setPendingPhotoUri] = React.useState("");
 
   const refreshPhotos = React.useCallback(async () => {
     const profile = await getUserProfile();
@@ -56,32 +57,67 @@ export default function PhotoManagerScreen() {
   );
 
   async function addPhoto() {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    let status = "";
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      status = permission.status;
+    } catch {
+      Alert.alert(t("photos.pickFailed"), t("photos.permissionBody"));
+      return;
+    }
+
     if (status !== "granted") {
       Alert.alert(t("photos.permissionTitle"), t("photos.permissionBody"));
       return;
     }
 
-    const result = await ImagePicker.launchImageLibraryAsync({
-      quality: 0.8,
-      allowsEditing: true,
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      selectionLimit: 1,
-    });
+    let result: ImagePicker.ImagePickerResult;
+    try {
+      result = await ImagePicker.launchImageLibraryAsync({
+        quality: 0.8,
+        allowsEditing: false,
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        selectionLimit: 1,
+      });
+    } catch {
+      Alert.alert(t("photos.pickFailed"), t("photos.noAssetReturned"));
+      return;
+    }
+
     if (result.canceled) return;
 
-    const uri = result.assets[0]?.uri ?? "";
-    if (!uri) return;
+    const uri = result.assets?.[0]?.uri?.trim() ?? "";
+    if (!result.assets || result.assets.length === 0 || !uri) {
+      Alert.alert(t("photos.pickFailed"), t("photos.noAssetReturned"));
+      return;
+    }
 
+    setPendingPhotoUri(uri);
     try {
       setBusy(true);
-      const profile = await getUserProfile();
-      const url = await uploadImage(profile.uid, uri);
+      let profile;
+      try {
+        profile = await getUserProfile();
+      } catch {
+        Alert.alert(t("photos.saveFailed"), t("photos.uploadErrorBody"));
+        return;
+      }
+
+      let url = "";
+      try {
+        url = await uploadImage(profile.uid, uri);
+      } catch {
+        Alert.alert(t("photos.uploadFailed"), t("photos.uploadErrorBody"));
+        return;
+      }
+
       const next = [url, ...profile.photos].slice(0, MAX_PHOTOS);
       await updateUserPhotos(next);
       setPhotos(next);
+      setPendingPhotoUri("");
+      Alert.alert(t("common.done"), t("photos.saved"));
     } catch {
-      Alert.alert(t("photos.uploadErrorTitle"), t("photos.uploadErrorBody"));
+      Alert.alert(t("photos.saveFailed"), t("photos.uploadErrorBody"));
     } finally {
       setBusy(false);
     }
@@ -152,6 +188,29 @@ export default function PhotoManagerScreen() {
           </Text>
         </TouchableOpacity>
 
+        {pendingPhotoUri ? (
+          <View style={styles.pendingCard}>
+            <View style={styles.pendingImageWrap}>
+              <Image
+                source={{ uri: pendingPhotoUri }}
+                style={styles.pendingImage}
+                onError={() => {
+                  setPendingPhotoUri("");
+                  Alert.alert(t("photos.previewFailed"), t("photos.noAssetReturned"));
+                }}
+              />
+              {busy ? (
+                <View style={styles.pendingOverlay}>
+                  <ActivityIndicator color="#FFFFFF" />
+                </View>
+              ) : null}
+            </View>
+            <Text style={styles.pendingText}>
+              {busy ? t("photos.uploading") : t("photos.choosePhoto")}
+            </Text>
+          </View>
+        ) : null}
+
         {photos.length ? (
           <View style={styles.grid}>
             {photos.map((photo, index) => (
@@ -207,6 +266,35 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontWeight: "800",
     fontSize: 15,
+  },
+  pendingCard: {
+    borderRadius: 18,
+    padding: 10,
+    marginBottom: 14,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+    gap: 8,
+  },
+  pendingImageWrap: {
+    borderRadius: 14,
+    overflow: "hidden",
+    backgroundColor: "rgba(255,255,255,0.08)",
+  },
+  pendingImage: {
+    width: "100%",
+    height: 176,
+  },
+  pendingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.34)",
+  },
+  pendingText: {
+    color: theme.colors.subtext,
+    fontSize: 12,
+    fontWeight: "700",
   },
   grid: {
     flexDirection: "row",

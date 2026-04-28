@@ -2,7 +2,7 @@ import { doc, getDoc, runTransaction, serverTimestamp, setDoc } from "firebase/f
 
 import { auth, db } from "@/config/firebaseConfig";
 import type { Goal, Mood, UserProfile } from "@/models/User";
-import { uploadProfileAvatar } from "@/services/storage";
+import { uploadUserAvatar } from "@/services/storage";
 
 const USERS_COLLECTION = "users";
 const AMORIA_IDS_COLLECTION = "amoriaIds";
@@ -390,7 +390,7 @@ export async function updateUserAvatarUrl(avatarUrl: string): Promise<UserProfil
 
 export async function uploadCurrentUserAvatar(uri: string): Promise<UserProfile> {
   const { uid } = requireCurrentUserRef();
-  const avatarUrl = await uploadProfileAvatar(uid, uri);
+  const avatarUrl = await uploadUserAvatar(uid, uri);
   return updateUserAvatarUrl(avatarUrl);
 }
 

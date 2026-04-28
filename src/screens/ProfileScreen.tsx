@@ -19,12 +19,13 @@ import UserAvatar from "@/components/UserAvatar";
 import { useLocale } from "@/contexts/LocaleContext";
 import type { Goal, Mood, UserProfile } from "@/models/User";
 import type { ProfileStackParamList } from "@/navigation/appRoutes";
+import { uploadUserAvatar } from "@/services/storage";
 import {
   getDisplayNameValidationErrorKey,
   getUserProfile,
   normalizeDisplayNameInput,
+  updateUserAvatarUrl,
   updateUserDisplayName,
-  uploadCurrentUserAvatar,
 } from "@/services/user";
 import { theme } from "@/theme";
 
@@ -54,6 +55,7 @@ export default function ProfileScreen() {
   const [profile, setProfile] = React.useState<UserProfile | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [avatarUploading, setAvatarUploading] = React.useState(false);
+  const [avatarPreviewUri, setAvatarPreviewUri] = React.useState("");
   const [nameDraft, setNameDraft] = React.useState("");
   const [nameSaving, setNameSaving] = React.useState(false);
   const [nameError, setNameError] = React.useState("");
@@ -119,34 +121,72 @@ export default function ProfileScreen() {
   }, [nameDraft, t]);
 
   const pickAvatar = React.useCallback(async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    let status = "";
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      status = permission.status;
+    } catch {
+      Alert.alert(t("photos.pickFailed"), t("photos.permissionBody"));
+      return;
+    }
+
     if (status !== "granted") {
       Alert.alert(t("photos.permissionTitle"), t("photos.permissionBody"));
       return;
     }
 
-    const result = await ImagePicker.launchImageLibraryAsync({
-      quality: 0.78,
-      allowsEditing: true,
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      selectionLimit: 1,
-    });
+    let result: ImagePicker.ImagePickerResult;
+    try {
+      result = await ImagePicker.launchImageLibraryAsync({
+        quality: 0.78,
+        allowsEditing: false,
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        selectionLimit: 1,
+      });
+    } catch {
+      Alert.alert(t("photos.pickFailed"), t("photos.noAssetReturned"));
+      return;
+    }
+
     if (result.canceled) return;
 
-    const uri = result.assets[0]?.uri ?? "";
-    if (!uri) return;
+    const uri = result.assets?.[0]?.uri?.trim() ?? "";
+    if (!result.assets || result.assets.length === 0 || !uri) {
+      Alert.alert(t("photos.pickFailed"), t("photos.noAssetReturned"));
+      return;
+    }
 
+    setAvatarPreviewUri(uri);
     setAvatarUploading(true);
     try {
-      const nextProfile = await uploadCurrentUserAvatar(uri);
+      let currentProfile = profile;
+      if (!currentProfile) {
+        try {
+          currentProfile = await getUserProfile();
+        } catch {
+          Alert.alert(t("photos.saveFailed"), t("photos.uploadErrorBody"));
+          return;
+        }
+      }
+
+      let avatarDownloadUrl = "";
+      try {
+        avatarDownloadUrl = await uploadUserAvatar(currentProfile.uid, uri);
+      } catch {
+        Alert.alert(t("photos.uploadFailed"), t("photos.avatarUploadErrorBody"));
+        return;
+      }
+
+      const nextProfile = await updateUserAvatarUrl(avatarDownloadUrl);
       setProfile(nextProfile);
-      Alert.alert(t("common.done"), t("photos.avatarUpdated"));
+      setAvatarPreviewUri("");
+      Alert.alert(t("common.done"), t("photos.photoUpdated"));
     } catch {
-      Alert.alert(t("photos.avatarUploadErrorTitle"), t("photos.avatarUploadErrorBody"));
+      Alert.alert(t("photos.saveFailed"), t("photos.uploadErrorBody"));
     } finally {
       setAvatarUploading(false);
     }
-  }, [t]);
+  }, [profile, t]);
 
   if (loading) {
     return (
@@ -168,7 +208,25 @@ export default function ProfileScreen() {
       >
         <View style={styles.heroCard}>
           <View style={styles.avatarPanel}>
-            <UserAvatar avatarUrl={avatarUrl} label={displayName} size={108} />
+            <View style={styles.avatarPreviewFrame}>
+              {avatarPreviewUri ? (
+                <Image
+                  source={{ uri: avatarPreviewUri }}
+                  style={styles.avatarPreviewImage}
+                  onError={() => {
+                    setAvatarPreviewUri("");
+                    Alert.alert(t("photos.previewFailed"), t("photos.noAssetReturned"));
+                  }}
+                />
+              ) : (
+                <UserAvatar avatarUrl={avatarUrl} label={displayName} size={108} />
+              )}
+              {avatarUploading ? (
+                <View style={styles.avatarUploadOverlay}>
+                  <ActivityIndicator color="#FFFFFF" />
+                </View>
+              ) : null}
+            </View>
             <View style={styles.avatarCopy}>
               <Text style={styles.avatarTitle}>
                 {avatarUrl ? t("photos.avatarCurrent") : t("photos.avatarPlaceholder")}
@@ -182,10 +240,10 @@ export default function ProfileScreen() {
               >
                 <Text style={styles.avatarButtonText}>
                   {avatarUploading
-                    ? t("photos.avatarUploading")
+                    ? t("photos.uploading")
                     : avatarUrl
-                      ? t("photos.avatarReplace")
-                      : t("photos.avatarUpload")}
+                      ? t("photos.replacePhoto")
+                      : t("photos.choosePhoto")}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -340,6 +398,23 @@ const styles = StyleSheet.create({
   avatarCopy: {
     flex: 1,
     gap: 7,
+  },
+  avatarPreviewFrame: {
+    width: 108,
+    height: 108,
+    borderRadius: 54,
+    overflow: "hidden",
+    backgroundColor: "rgba(255,255,255,0.08)",
+  },
+  avatarPreviewImage: {
+    width: "100%",
+    height: "100%",
+  },
+  avatarUploadOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.34)",
   },
   avatarTitle: {
     color: theme.colors.text,

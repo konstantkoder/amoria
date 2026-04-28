@@ -47,6 +47,7 @@ function getPublishErrorCopy(
 ) {
   const message = String((error as { message?: string } | null)?.message ?? "");
   if (
+    message.includes("announcements.photo") ||
     message.includes("photoUploadUnavailable") ||
     message.includes("photoReadFailed")
   ) {
@@ -81,6 +82,7 @@ export default function CreateAnnouncementScreen() {
   const photoSectionYRef = React.useRef(0);
   const previewCardYRef = React.useRef(0);
   const pendingPhotoRevealRef = React.useRef(false);
+  const photoPreviewErrorShownRef = React.useRef(false);
   const [title, setTitle] = React.useState("");
   const [description, setDescription] = React.useState("");
   const [placeLabel, setPlaceLabel] = React.useState("");
@@ -140,6 +142,20 @@ export default function CreateAnnouncementScreen() {
     });
   }, []);
 
+  const handlePhotoPreviewError = React.useCallback(() => {
+    if (photoPreviewErrorShownRef.current) return;
+    photoPreviewErrorShownRef.current = true;
+    setPhotoUri("");
+    Alert.alert(
+      copyOrFallback(t, "photos.previewFailed", "Не удалось показать фото"),
+      copyOrFallback(
+        t,
+        "photos.noAssetReturned",
+        "Не удалось получить фото. Попробуйте выбрать другое изображение."
+      )
+    );
+  }, [t]);
+
   React.useEffect(() => {
     if (!photoUri || !pendingPhotoRevealRef.current || previewCardYRef.current <= 0) return;
     const timeoutId = setTimeout(() => {
@@ -185,8 +201,24 @@ export default function CreateAnnouncementScreen() {
   );
 
   const pickPhoto = React.useCallback(async () => {
+    if (saving) return;
     Keyboard.dismiss();
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    let status = "";
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      status = permission.status;
+    } catch {
+      Alert.alert(
+        copyOrFallback(t, "photos.pickFailed", "Не удалось выбрать фото"),
+        copyOrFallback(
+          t,
+          "photos.permissionBody",
+          "Разреши доступ к фото, чтобы добавить изображение."
+        )
+      );
+      return;
+    }
+
     if (status !== "granted") {
       Alert.alert(
         copyOrFallback(t, "photos.permissionTitle", "Нужен доступ к галерее"),
@@ -199,18 +231,43 @@ export default function CreateAnnouncementScreen() {
       return;
     }
 
-    const result = await ImagePicker.launchImageLibraryAsync({
-      quality: 0.65,
-      allowsEditing: false,
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      selectionLimit: 1,
-    });
+    let result: ImagePicker.ImagePickerResult;
+    try {
+      result = await ImagePicker.launchImageLibraryAsync({
+        quality: 0.65,
+        allowsEditing: false,
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        selectionLimit: 1,
+      });
+    } catch {
+      Alert.alert(
+        copyOrFallback(t, "photos.pickFailed", "Не удалось выбрать фото"),
+        copyOrFallback(
+          t,
+          "photos.noAssetReturned",
+          "Не удалось получить фото. Попробуйте выбрать другое изображение."
+        )
+      );
+      return;
+    }
+
     if (result.canceled) return;
-    const nextUri = result.assets[0]?.uri ?? "";
-    if (!nextUri) return;
+    const nextUri = result.assets?.[0]?.uri?.trim() ?? "";
+    if (!result.assets || result.assets.length === 0 || !nextUri) {
+      Alert.alert(
+        copyOrFallback(t, "photos.pickFailed", "Не удалось выбрать фото"),
+        copyOrFallback(
+          t,
+          "photos.noAssetReturned",
+          "Не удалось получить фото. Попробуйте выбрать другое изображение."
+        )
+      );
+      return;
+    }
     pendingPhotoRevealRef.current = true;
+    photoPreviewErrorShownRef.current = false;
     setPhotoUri(nextUri);
-  }, [t]);
+  }, [saving, t]);
 
   const publish = React.useCallback(async () => {
     if (!currentUid) {
@@ -343,7 +400,11 @@ export default function CreateAnnouncementScreen() {
                     )}
                   </Text>
                 </View>
-                <Image source={{ uri: photoUri }} style={styles.photoPreview} />
+                <Image
+                  source={{ uri: photoUri }}
+                  style={styles.photoPreview}
+                  onError={handlePhotoPreviewError}
+                />
                 <Text style={styles.photoAttachedHint}>
                   {copyOrFallback(
                     t,
@@ -352,12 +413,20 @@ export default function CreateAnnouncementScreen() {
                   )}
                 </Text>
                 <View style={styles.photoActions}>
-                  <Pressable onPress={pickPhoto} style={styles.secondaryButton}>
+                  <Pressable
+                    onPress={pickPhoto}
+                    disabled={saving}
+                    style={styles.secondaryButton}
+                  >
                     <Text style={styles.secondaryButtonText}>
                       {copyOrFallback(t, "nearby.create.changePhoto", "Заменить фото")}
                     </Text>
                   </Pressable>
-                  <Pressable onPress={() => setPhotoUri("")} style={styles.secondaryButton}>
+                  <Pressable
+                    onPress={() => setPhotoUri("")}
+                    disabled={saving}
+                    style={styles.secondaryButton}
+                  >
                     <Text style={styles.secondaryButtonText}>
                       {copyOrFallback(t, "nearby.create.removePhoto", "Убрать фото")}
                     </Text>
@@ -365,7 +434,7 @@ export default function CreateAnnouncementScreen() {
                 </View>
               </View>
             ) : (
-              <Pressable onPress={pickPhoto} style={styles.photoPlaceholder}>
+              <Pressable onPress={pickPhoto} disabled={saving} style={styles.photoPlaceholder}>
                 <View style={styles.photoPlaceholderIconWrap}>
                   <Ionicons name="image-outline" size={20} color={theme.colors.accent} />
                 </View>
@@ -506,7 +575,11 @@ export default function CreateAnnouncementScreen() {
                   style={[styles.previewMediaTile, photoUri ? styles.previewMediaTileActive : null]}
                 >
                   {photoUri ? (
-                    <Image source={{ uri: photoUri }} style={styles.previewMediaImage} />
+                    <Image
+                      source={{ uri: photoUri }}
+                      style={styles.previewMediaImage}
+                      onError={handlePhotoPreviewError}
+                    />
                   ) : (
                     <Ionicons name="image-outline" size={18} color={theme.colors.subtext} />
                   )}
@@ -543,7 +616,9 @@ export default function CreateAnnouncementScreen() {
           >
             <Text style={styles.publishButtonText}>
               {saving
-                ? copyOrFallback(t, "nearby.create.publishing", "Публикуем...")
+                ? photoUri
+                  ? copyOrFallback(t, "photos.uploading", "Фото загружается...")
+                  : copyOrFallback(t, "nearby.create.publishing", "Публикуем...")
                 : copyOrFallback(t, "nearby.create.publish", "Опубликовать объявление")}
             </Text>
           </Pressable>

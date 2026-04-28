@@ -176,7 +176,11 @@ export default function NearbyAnnouncementsSection({
       {visibleItems.length ? (
         visibleItems.map((item) => {
           const highlighted = highlightedId === item.id;
-          const photoUrl = item.photoUrl ?? item.photoUri ?? "";
+          const photoUrl = item.photoUrl?.startsWith("https://")
+            ? item.photoUrl
+            : item.photoUri?.startsWith("https://")
+              ? item.photoUri
+              : "";
           const rawAuthorLabel = item.authorName?.trim() || item.authorLabel;
           const authorLabel =
             rawAuthorLabel === "profile.amoriaUser"

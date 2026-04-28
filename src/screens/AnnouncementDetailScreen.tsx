@@ -636,7 +636,13 @@ export default function AnnouncementDetailScreen() {
   }, [announcementAuthorUid, currentUid, t]);
 
   const screenTitle = copyOrFallback(t, "nearby.detail.title", "Объявление");
-  const announcementPhotoUrl = announcement?.photoUrl ?? announcement?.photoUri ?? "";
+  const announcementPhotoUrl = String(
+    announcement?.photoUrl?.startsWith("https://")
+      ? announcement.photoUrl
+      : announcement?.photoUri?.startsWith("https://")
+        ? announcement.photoUri
+        : ""
+  );
   const unavailableAnnouncementCopy = announcement
     ? getAnnouncementUnavailableCopy(t, announcement.status)
     : null;
