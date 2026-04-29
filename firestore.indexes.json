@@ -13,6 +13,10 @@
           "order": "ASCENDING"
         },
         {
+          "fieldPath": "expiresAt",
+          "order": "ASCENDING"
+        },
+        {
           "fieldPath": "createdAt",
           "order": "ASCENDING"
         },

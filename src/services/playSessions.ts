@@ -38,6 +38,8 @@ export type PlayColorMoodOption = {
 export const CHAIN_DRAW_TURN_DURATION_SEC = 30;
 export const CHAIN_DRAW_MAX_TURNS = 10;
 export const COLOR_MOOD_SELECTION_COUNT = 3;
+export const PLAY_QUEUE_TTL_MS = 90 * 1000;
+const PLAY_QUEUE_CANDIDATE_LIMIT = 20;
 const RELEASE_IDENTITY_FALLBACK = "profile.amoriaUser";
 const LEGACY_NICKNAME_RE = /^nick\.[a-z]+(\.[a-z]+)?\.\d{3}$/;
 const DAILY_PROMPT_DEFS = [
@@ -72,7 +74,7 @@ const COLOR_MOOD_OPTIONS_BY_HEX = new Map(
   COLOR_MOOD_OPTION_DEFS.map((option) => [option.hex.toLowerCase(), option])
 );
 
-export type PlayQueueStatus = "waiting" | "matched" | "cancelled";
+export type PlayQueueStatus = "waiting" | "matched" | "cancelled" | "expired";
 export type PlaySessionStatus = "matching" | "active" | "finished" | "revealed";
 export type PlayRevealDecision = "open" | "skip";
 export type PlayRevealOutcome =
@@ -91,9 +93,13 @@ export type PlayQueueDoc = {
   activity: PlayActivity;
   createdAt: number;
   updatedAt: number;
+  expiresAt: number;
   status: PlayQueueStatus;
   nickname?: string;
+  displayName?: string;
+  leaseVersion?: number;
   sessionId?: string;
+  matchedAt?: number;
 };
 
 export type PlaySessionDoc = {
@@ -307,8 +313,9 @@ function createNoCurrentUserError() {
   return error;
 }
 
-function requireCurrentUserForPlayQueue() {
-  if (!auth?.currentUser?.uid) {
+function requireCurrentUserForPlayQueue(uid?: string) {
+  const currentUid = auth?.currentUser?.uid ?? "";
+  if (!currentUid || (uid && currentUid !== uid)) {
     throw createNoCurrentUserError();
   }
 }
@@ -1132,22 +1139,35 @@ function buildChainDrawPatch(turn: PlayChainTurnState) {
 function asPlayQueueDoc(id: string, raw: unknown): PlayQueueDoc {
   const data = (raw ?? {}) as Partial<PlayQueueDoc>;
   const status =
-    data.status === "matched" || data.status === "cancelled" ? data.status : "waiting";
+    data.status === "matched" ||
+    data.status === "cancelled" ||
+    data.status === "expired"
+      ? data.status
+      : "waiting";
   const nickname =
     typeof data.nickname === "string" && data.nickname.trim()
       ? data.nickname.trim()
-      : typeof (raw as { displayName?: unknown })?.displayName === "string" &&
-          String((raw as { displayName?: unknown }).displayName).trim()
-        ? String((raw as { displayName?: unknown }).displayName).trim()
+      : typeof data.displayName === "string" && data.displayName.trim()
+        ? data.displayName.trim()
         : "";
+  const displayName =
+    typeof data.displayName === "string" && data.displayName.trim()
+      ? data.displayName.trim()
+      : nickname;
+  const leaseVersion = Number(data.leaseVersion);
+  const matchedAt = Number(data.matchedAt);
   return {
     uid: String(data.uid ?? id),
     activity: normalizePlayActivity(data.activity),
     createdAt: Number(data.createdAt ?? 0),
     updatedAt: Number(data.updatedAt ?? 0),
+    expiresAt: Number(data.expiresAt ?? 0),
     status,
     ...(nickname ? { nickname } : {}),
+    ...(displayName ? { displayName } : {}),
+    ...(Number.isFinite(leaseVersion) && leaseVersion > 0 ? { leaseVersion } : {}),
     ...(status === "matched" && data.sessionId ? { sessionId: String(data.sessionId) } : {}),
+    ...(Number.isFinite(matchedAt) && matchedAt > 0 ? { matchedAt } : {}),
   };
 }
 
@@ -1161,6 +1181,89 @@ function resolveQueueNickname(queue: Pick<PlayQueueDoc, "uid" | "nickname">) {
   const nickname = normalizeParticipantName(queue.nickname);
   if (nickname) return nickname;
   return RELEASE_IDENTITY_FALLBACK;
+}
+
+function buildQueueIdentityPatch(nickname?: string) {
+  const displayName = normalizeParticipantName(nickname);
+  return displayName ? { nickname: displayName, displayName } : {};
+}
+
+function buildWaitingQueuePayload(options: {
+  uid: string;
+  activity: ReleasePlayActivity;
+  nickname?: string;
+  now: number;
+}) {
+  const { activity, nickname, now, uid } = options;
+  return {
+    uid,
+    activity,
+    createdAt: now,
+    updatedAt: now,
+    expiresAt: now + PLAY_QUEUE_TTL_MS,
+    leaseVersion: now,
+    status: "waiting" satisfies PlayQueueStatus,
+    ...buildQueueIdentityPatch(nickname),
+  };
+}
+
+function buildTerminalQueuePayload(options: {
+  queue: PlayQueueDoc;
+  status: Extract<PlayQueueStatus, "cancelled" | "expired">;
+  now: number;
+}) {
+  const { now, queue, status } = options;
+  return {
+    uid: queue.uid,
+    activity: queue.activity,
+    createdAt: queue.createdAt > 0 ? queue.createdAt : now,
+    updatedAt: now,
+    expiresAt: queue.expiresAt > 0 ? queue.expiresAt : now,
+    leaseVersion: queue.leaseVersion ?? queue.createdAt ?? now,
+    status,
+    ...buildQueueIdentityPatch(queue.displayName ?? queue.nickname),
+  };
+}
+
+function buildMatchedQueuePayload(options: {
+  queue: PlayQueueDoc;
+  sessionId: string;
+  now: number;
+}) {
+  const { now, queue, sessionId } = options;
+  return {
+    uid: queue.uid,
+    activity: queue.activity,
+    createdAt: queue.createdAt > 0 ? queue.createdAt : now,
+    updatedAt: now,
+    expiresAt: queue.expiresAt > 0 ? queue.expiresAt : now,
+    leaseVersion: queue.leaseVersion ?? queue.createdAt ?? now,
+    status: "matched" satisfies PlayQueueStatus,
+    matchedAt: now,
+    ...buildQueueIdentityPatch(queue.displayName ?? queue.nickname),
+    sessionId,
+  };
+}
+
+function isWaitingQueueEntryActive(
+  queue: PlayQueueDoc,
+  activity: ReleasePlayActivity,
+  now: number
+) {
+  return (
+    queue.status === "waiting" &&
+    queue.activity === activity &&
+    queue.expiresAt > now
+  );
+}
+
+function isCompatibleQueueCandidate(
+  queue: PlayQueueDoc,
+  uid: string,
+  activity: ReleasePlayActivity,
+  now: number
+) {
+  return queue.uid !== uid && isWaitingQueueEntryActive(queue, activity, now);
 }
 
 function asPlaySessionDoc(id: string, raw: unknown): PlaySessionDoc {
@@ -1270,27 +1373,29 @@ function asPlayStrokeBatch(id: string, raw: unknown): PlayStrokeBatch {
 export async function enqueuePlayRequest(
   db: Firestore,
   uid: string,
-  activity: PlayActivity,
+  activity: ReleasePlayActivity,
   nickname?: string
-): Promise<void> {
-  requireCurrentUserForPlayQueue();
-  const now = Date.now();
+): Promise<PlayQueueDoc> {
+  requireCurrentUserForPlayQueue(uid);
+  if (!isReleasePlayActivity(activity)) {
+    const error = new Error("Invalid release activity for play queue");
+    (error as Error & { code?: string }).code = "play/invalid-activity";
+    throw error;
+  }
+
   const ref = doc(db, "playQueue", uid);
-  await setDoc(
-    ref,
-    {
-      uid,
-      activity,
-      createdAt: now,
-      updatedAt: now,
-      status: "waiting" satisfies PlayQueueStatus,
-      ...(nickname?.trim() ? { nickname: nickname.trim() } : {}),
-    }
-  );
+
+  return runTransaction(db, async (tx) => {
+    const now = Date.now();
+    await tx.get(ref);
+    const payload = buildWaitingQueuePayload({ uid, activity, nickname, now });
+    tx.set(ref, payload);
+    return asPlayQueueDoc(uid, payload);
+  });
 }
 
 export async function cancelPlayRequest(db: Firestore, uid: string): Promise<void> {
-  requireCurrentUserForPlayQueue();
+  requireCurrentUserForPlayQueue(uid);
   const queueRef = doc(db, "playQueue", uid);
   await runTransaction(db, async (tx) => {
     const now = Date.now();
@@ -1300,16 +1405,46 @@ export async function cancelPlayRequest(db: Firestore, uid: string): Promise<voi
     const current = asPlayQueueDoc(snapshot.id, snapshot.data());
     if (current.status === "matched" && current.sessionId) return;
     if (current.status === "cancelled") return;
-    const createdAt = current.createdAt > 0 ? current.createdAt : now;
+    if (current.status === "expired") return;
 
-    tx.set(queueRef, {
-      uid,
-      activity: current.activity,
-      createdAt,
-      updatedAt: now,
-      status: "cancelled" satisfies PlayQueueStatus,
-      ...(current.nickname?.trim() ? { nickname: current.nickname.trim() } : {}),
-    });
+    tx.set(
+      queueRef,
+      buildTerminalQueuePayload({
+        queue: {
+          ...current,
+          uid,
+        },
+        status: "cancelled",
+        now,
+      })
+    );
+  });
+}
+
+export async function expirePlayRequest(db: Firestore, uid: string): Promise<void> {
+  requireCurrentUserForPlayQueue(uid);
+  const queueRef = doc(db, "playQueue", uid);
+  await runTransaction(db, async (tx) => {
+    const now = Date.now();
+    const snapshot = await tx.get(queueRef);
+    if (!snapshot.exists()) return;
+
+    const current = asPlayQueueDoc(snapshot.id, snapshot.data());
+    if (current.status === "matched" && current.sessionId) return;
+    if (current.status === "cancelled" || current.status === "expired") return;
+    if (current.expiresAt > now) return;
+
+    tx.set(
+      queueRef,
+      buildTerminalQueuePayload({
+        queue: {
+          ...current,
+          uid,
+        },
+        status: "expired",
+        now,
+      })
+    );
   });
 }
 
@@ -1339,34 +1474,70 @@ export async function tryMatchWaitingPlayer(
   db: Firestore,
   uid: string,
   nickname: string,
-  activity: PlayActivity
-): Promise<{ sessionId: string; matched: boolean }> {
-  requireCurrentUserForPlayQueue();
+  activity: ReleasePlayActivity
+): Promise<{ sessionId: string; matched: boolean; expired?: boolean }> {
+  requireCurrentUserForPlayQueue(uid);
+  if (!isReleasePlayActivity(activity)) {
+    return { sessionId: "", matched: false };
+  }
+
+  const queryNow = Date.now();
   const queueRef = doc(db, "playQueue", uid);
   const waitingQuery = query(
     collection(db, "playQueue"),
     where("activity", "==", activity),
     where("status", "==", "waiting"),
+    where("expiresAt", ">", queryNow),
+    orderBy("expiresAt", "asc"),
     orderBy("createdAt", "asc"),
-    limit(10)
+    limit(PLAY_QUEUE_CANDIDATE_LIMIT)
   );
   const waitingSnapshot = await getDocs(waitingQuery);
   const candidateIds = waitingSnapshot.docs
-    .map((item) => item.id)
-    .filter((candidateId) => candidateId !== uid);
+    .map((item) => asPlayQueueDoc(item.id, item.data()))
+    .filter((item) => isCompatibleQueueCandidate(item, uid, activity, queryNow))
+    .sort((a, b) => {
+      const createdDelta = a.createdAt - b.createdAt;
+      if (createdDelta !== 0) return createdDelta;
+      return a.uid.localeCompare(b.uid);
+    })
+    .map((item) => item.uid);
 
   return runTransaction(db, async (tx) => {
     const now = Date.now();
     const ownSnapshot = await tx.get(queueRef);
 
-    if (ownSnapshot.exists()) {
-      const ownQueue = asPlayQueueDoc(ownSnapshot.id, ownSnapshot.data());
-      if (ownQueue.status === "matched" && ownQueue.sessionId) {
-        return { sessionId: ownQueue.sessionId, matched: true };
+    if (!ownSnapshot.exists()) {
+      return { sessionId: "", matched: false };
+    }
+
+    const ownQueue = asPlayQueueDoc(ownSnapshot.id, ownSnapshot.data());
+    if (ownQueue.status === "matched" && ownQueue.sessionId) {
+      return { sessionId: ownQueue.sessionId, matched: true };
+    }
+    if (ownQueue.status === "cancelled") {
+      return { sessionId: "", matched: false };
+    }
+    if (ownQueue.status === "expired") {
+      return { sessionId: "", matched: false, expired: true };
+    }
+    if (!isWaitingQueueEntryActive(ownQueue, activity, now) || ownQueue.uid !== uid) {
+      if (ownQueue.status === "waiting" && ownQueue.expiresAt <= now) {
+        tx.set(
+          queueRef,
+          buildTerminalQueuePayload({
+            queue: {
+              ...ownQueue,
+              uid,
+            },
+            status: "expired",
+            now,
+          })
+        );
+        return { sessionId: "", matched: false, expired: true };
       }
-      if (ownQueue.status === "cancelled") {
-        return { sessionId: "", matched: false };
-      }
+
+      return { sessionId: "", matched: false };
     }
 
     let candidateData: PlayQueueDoc | null = null;
@@ -1376,27 +1547,13 @@ export async function tryMatchWaitingPlayer(
       if (!candidateSnapshot.exists()) continue;
 
       const value = asPlayQueueDoc(candidateSnapshot.id, candidateSnapshot.data());
-      if (value.uid === uid) continue;
-      if (value.activity !== activity || value.status !== "waiting") continue;
+      if (!isCompatibleQueueCandidate(value, uid, activity, now)) continue;
 
       candidateData = value;
       break;
     }
 
     if (!candidateData) {
-      const createdAt = ownSnapshot.exists()
-        ? Math.max(Number(ownSnapshot.data().createdAt ?? 0), 0) || now
-        : now;
-
-      tx.set(queueRef, {
-        uid,
-        activity,
-        createdAt,
-        updatedAt: now,
-        status: "waiting" satisfies PlayQueueStatus,
-        ...(nickname.trim() ? { nickname: nickname.trim() } : {}),
-      });
-
       return { sessionId: "", matched: false };
     }
 
@@ -1407,14 +1564,7 @@ export async function tryMatchWaitingPlayer(
       [candidateData.uid]: resolveQueueNickname(candidateData),
       [uid]: normalizeParticipantName(nickname) || RELEASE_IDENTITY_FALLBACK,
     };
-    const chainDrawState =
-      activity === "chain_draw" ? buildInitialChainDrawState(participantIds, now) : null;
-    const prompt =
-      activity === "draw"
-        ? getPlayDrawChallengeForSeed(sessionId)
-        : activity === "daily_prompt"
-          ? getPlayDailyPromptForTimestamp(now)
-          : null;
+    const prompt = activity === "draw" ? getPlayDrawChallengeForSeed(sessionId) : null;
     const colorMoodPatch =
       activity === "color_mood"
         ? {
@@ -1437,30 +1587,30 @@ export async function tryMatchWaitingPlayer(
       ...(colorMoodPatch ?? {}),
       participantIds,
       participantNicknames,
-      ...(chainDrawState ? buildChainDrawPatch(chainDrawState) : {}),
     });
 
-    tx.set(doc(db, "playQueue", candidateData.uid), {
-      uid: candidateData.uid,
-      activity,
-      createdAt: candidateData.createdAt > 0 ? candidateData.createdAt : now,
-      updatedAt: now,
-      status: "matched" satisfies PlayQueueStatus,
-      ...(candidateData.nickname?.trim() ? { nickname: candidateData.nickname.trim() } : {}),
-      sessionId,
-    });
+    tx.set(
+      doc(db, "playQueue", candidateData.uid),
+      buildMatchedQueuePayload({
+        queue: candidateData,
+        sessionId,
+        now,
+      })
+    );
 
-    tx.set(queueRef, {
-      uid,
-      activity,
-      createdAt: ownSnapshot.exists()
-        ? Math.max(Number(ownSnapshot.data().createdAt ?? 0), 0) || now
-        : now,
-      updatedAt: now,
-      status: "matched" satisfies PlayQueueStatus,
-      ...(nickname.trim() ? { nickname: nickname.trim() } : {}),
-      sessionId,
-    });
+    tx.set(
+      queueRef,
+      buildMatchedQueuePayload({
+        queue: {
+          ...ownQueue,
+          uid,
+          displayName: normalizeParticipantName(nickname) || ownQueue.displayName,
+          nickname: normalizeParticipantName(nickname) || ownQueue.nickname,
+        },
+        sessionId,
+        now,
+      })
+    );
 
     return { sessionId, matched: true };
   });

@@ -23,8 +23,10 @@ import {
 import {
   cancelPlayRequest,
   enqueuePlayRequest,
+  expirePlayRequest,
   getPlayMatchModeCopy,
   isReleasePlayActivity,
+  PLAY_QUEUE_TTL_MS,
   subscribeOwnQueueEntry,
   tryMatchWaitingPlayer,
   type ReleasePlayActivity,
@@ -50,9 +52,13 @@ type MatchStatusKey =
   | "delayed"
   | "found"
   | "cancelled"
+  | "expired"
   | "error";
 
 type TranslateFn = (key: string, fallback: string, params?: Record<string, string>) => string;
+
+const PLAY_QUEUE_RETRY_INTERVAL_MS = 3000;
+const PLAY_QUEUE_DELAYED_MS = 9000;
 
 function resolveMatchBlockReason(
   activity: ReleasePlayActivity | null,
@@ -141,11 +147,28 @@ function getMatchStateMeta(
   if (statusKey === "searching" || statusKey === "delayed") {
     return {
       label: tt("play.match.state.searchingLabel", "Ищем"),
-      hint: tt(
-        "play.match.state.searchingHint",
-        "Окно можно не закрывать: как только человек найдётся, следующий этап откроется сам."
-      ),
+      hint:
+        statusKey === "delayed"
+          ? tt(
+              "play.match.stillSearching",
+              "Пока никого нет, но поиск продолжается."
+            )
+          : tt(
+              "play.match.searchCanStayOpen",
+              "Ты в очереди. Можно не нажимать заново."
+            ),
       tone: "live" as const,
+    };
+  }
+
+  if (statusKey === "expired") {
+    return {
+      label: tt("play.match.state.retryLabel", "Повтор"),
+      hint: tt(
+        "play.match.notFoundTryAgain",
+        "Пока никого не нашли. Попробуйте снова."
+      ),
+      tone: "paused" as const,
     };
   }
 
@@ -193,32 +216,34 @@ function getMatchStateMeta(
 }
 
 function getPlayQueueErrorKey(error: unknown) {
-  if (isFirestoreMissingIndexError(error)) return "common.serviceSetupError";
+  if (isFirestoreMissingIndexError(error)) return "play.match.queueSetupError";
 
   const code = getFirestoreErrorCode(error);
   if (code === "auth/no-current-user") return "play.match.authRequired";
-  if (code === "permission-denied") return "play.match.permissionDenied";
+  if (code === "permission-denied") return "play.match.queuePermissionError";
   if (
     code === "unavailable" ||
     code === "auth/network-request-failed" ||
     code === "network-request-failed" ||
     code.toLowerCase().includes("network")
   ) {
-    return "play.match.networkError";
+    return "play.match.queueNetworkError";
   }
-  return "play.match.queueStartFailed";
+  return "play.match.queueSetupError";
 }
 
 function getPlayQueueErrorFallback(errorKey: string) {
   switch (errorKey) {
-    case "common.serviceSetupError":
+    case "play.match.queueSetupError":
       return "Сервис временно настраивается. Попробуйте позже.";
     case "play.match.authRequired":
       return "Нужно войти, чтобы начать общий рисунок.";
-    case "play.match.permissionDenied":
+    case "play.match.queuePermissionError":
       return "Не получилось получить доступ к очереди. Попробуй войти снова или повторить позже.";
-    case "play.match.networkError":
+    case "play.match.queueNetworkError":
       return "Проверь подключение к интернету и попробуй ещё раз.";
+    case "play.match.queueExpired":
+      return "Пока никого не нашли. Попробуйте снова.";
     default:
       return "Не получилось начать общий рисунок. Проверьте интернет и попробуйте ещё раз.";
   }
@@ -299,13 +324,15 @@ export default function PlayMatchScreen() {
     if (activity === "draw") {
       switch (statusKey) {
         case "searching":
-          return tt("play.match.status.searchingDrawTitle", "Ищем человека для общего рисунка");
+          return tt("play.match.waitingForPartner", "Ищем второго человека");
         case "delayed":
           return tt("play.match.status.delayedDrawTitle", "Ищем ещё немного");
         case "found":
           return tt("play.match.status.foundDrawTitle", "Человек найден");
         case "cancelled":
           return tt("play.match.status.cancelledTitle", "Поиск остановлен");
+        case "expired":
+          return tt("play.match.queueExpired", "Поиск завершился");
         case "error":
           return tt("play.match.status.errorDrawTitle", "Не получилось начать общий рисунок");
         case "preparing":
@@ -316,13 +343,15 @@ export default function PlayMatchScreen() {
 
     switch (statusKey) {
       case "searching":
-        return tt("play.match.status.searchingTitle", "Ищем человека");
+        return tt("play.match.waitingForPartner", "Ищем второго человека");
       case "delayed":
         return tt("play.match.status.delayedTitle", "Все еще ищем человека");
       case "found":
         return tt("play.match.status.foundTitle", "Напарник найден");
       case "cancelled":
         return tt("play.match.status.cancelledTitle", "Поиск остановлен");
+      case "expired":
+        return tt("play.match.queueExpired", "Поиск завершился");
       case "error":
         return tt("play.match.status.errorTitle", "Не получилось начать поиск");
       case "preparing":
@@ -333,9 +362,15 @@ export default function PlayMatchScreen() {
   const statusText = React.useMemo(() => {
     switch (statusKey) {
       case "searching":
-        return modeCopy.searchingBody;
+        return tt(
+          "play.match.searchCanStayOpen",
+          "Ты в очереди. Можно не нажимать заново."
+        );
       case "delayed":
-        return modeCopy.delayedBody;
+        return tt(
+          "play.match.stillSearching",
+          "Пока никого нет, но поиск продолжается."
+        );
       case "found":
         return modeCopy.foundBody;
       case "cancelled":
@@ -343,9 +378,14 @@ export default function PlayMatchScreen() {
           "play.match.status.cancelledBody",
           "Очередь уже очищена. Можно спокойно вернуться назад и попробовать снова, когда будешь готов."
         );
+      case "expired":
+        return tt(
+          "play.match.notFoundTryAgain",
+          "Пока никого не нашли. Попробуйте снова."
+        );
       case "error":
         {
-          const errorKey = queueErrorKey ?? "play.match.queueStartFailed";
+          const errorKey = queueErrorKey ?? "play.match.queueSetupError";
           return tt(errorKey, getPlayQueueErrorFallback(errorKey));
         }
       case "preparing":
@@ -353,10 +393,8 @@ export default function PlayMatchScreen() {
         return modeCopy.preparingBody;
     }
   }, [
-    modeCopy.delayedBody,
     modeCopy.foundBody,
     modeCopy.preparingBody,
-    modeCopy.searchingBody,
     queueErrorKey,
     statusKey,
     tt,
@@ -369,6 +407,7 @@ export default function PlayMatchScreen() {
   const matchedSessionRef = React.useRef("");
   const cancelledRef = React.useRef(false);
   const cancellingPromiseRef = React.useRef<Promise<void> | null>(null);
+  const expiringPromiseRef = React.useRef<Promise<void> | null>(null);
   const allowLeaveRef = React.useRef(false);
 
   const returnToTogether = React.useCallback(() => {
@@ -398,6 +437,7 @@ export default function PlayMatchScreen() {
     (error: unknown) => {
       logPlayQueueError(error);
       if (!mountedRef.current || cancelledRef.current) return;
+      cancelledRef.current = true;
       setQueueErrorKey(getPlayQueueErrorKey(error));
       setBusySafe(false);
       setStatusSafe("error");
@@ -417,6 +457,29 @@ export default function PlayMatchScreen() {
     await task;
     cancellingPromiseRef.current = null;
   }, [db, uid]);
+
+  const expireQueue = React.useCallback(async () => {
+    if (!db || !uid || matchedSessionRef.current) return;
+    if (expiringPromiseRef.current) {
+      await expiringPromiseRef.current;
+      return;
+    }
+
+    const task = expirePlayRequest(db, uid).catch(() => {});
+    expiringPromiseRef.current = task;
+    await task;
+    expiringPromiseRef.current = null;
+  }, [db, uid]);
+
+  const handleQueueExpired = React.useCallback(async () => {
+    if (!mountedRef.current || matchedSessionRef.current || cancelledRef.current) return;
+    cancelledRef.current = true;
+    setQueueCancelled(false);
+    setQueueErrorKey(null);
+    setBusySafe(false);
+    setStatusSafe("expired");
+    await expireQueue();
+  }, [expireQueue, setBusySafe, setStatusSafe]);
 
   const enterSession = React.useCallback(
     (nextSessionId: string) => {
@@ -452,7 +515,7 @@ export default function PlayMatchScreen() {
 
     const timer = setTimeout(() => {
       setStatusSafe("delayed");
-    }, 8000);
+    }, PLAY_QUEUE_DELAYED_MS);
 
     return () => clearTimeout(timer);
   }, [busy, queueCancelled, setStatusSafe]);
@@ -472,6 +535,7 @@ export default function PlayMatchScreen() {
     cancelledRef.current = false;
     matchedSessionRef.current = "";
     allowLeaveRef.current = false;
+    expiringPromiseRef.current = null;
     setQueueCancelled(false);
     setQueueErrorKey(null);
     setStatusSafe("preparing");
@@ -487,6 +551,76 @@ export default function PlayMatchScreen() {
     setStatusSafe("searching");
 
     let unsubscribe = () => {};
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let expiryTimer: ReturnType<typeof setTimeout> | null = null;
+    let stopped = false;
+
+    const clearRetryTimer = () => {
+      if (!retryTimer) return;
+      clearTimeout(retryTimer);
+      retryTimer = null;
+    };
+
+    const clearExpiryTimer = () => {
+      if (!expiryTimer) return;
+      clearTimeout(expiryTimer);
+      expiryTimer = null;
+    };
+
+    const stopQueueLoop = () => {
+      stopped = true;
+      clearRetryTimer();
+      clearExpiryTimer();
+    };
+
+    const scheduleRetry = (expiresAt: number) => {
+      clearRetryTimer();
+      if (stopped || cancelledRef.current || matchedSessionRef.current) return;
+
+      const remainingMs = expiresAt - Date.now();
+      if (remainingMs <= 0) {
+        void handleQueueExpired();
+        return;
+      }
+
+      retryTimer = setTimeout(() => {
+        void runMatchAttempt(expiresAt);
+      }, Math.min(PLAY_QUEUE_RETRY_INTERVAL_MS, remainingMs));
+    };
+
+    const runMatchAttempt = async (expiresAt: number): Promise<void> => {
+      if (stopped || cancelledRef.current || matchedSessionRef.current) return;
+      if (Date.now() >= expiresAt) {
+        await handleQueueExpired();
+        return;
+      }
+
+      try {
+        const result = await tryMatchWaitingPlayer(db!, uid, profileDisplayName, activity);
+        if (!mountedRef.current || stopped || cancelledRef.current) {
+          return;
+        }
+
+        if (result.sessionId) {
+          stopQueueLoop();
+          setStatusSafe("found");
+          enterSession(result.sessionId);
+          return;
+        }
+
+        if (result.expired) {
+          await handleQueueExpired();
+          return;
+        }
+
+        scheduleRetry(expiresAt);
+      } catch (error) {
+        if (!mountedRef.current || stopped || matchedSessionRef.current) return;
+        stopQueueLoop();
+        await cancelQueue();
+        handleQueueRuntimeError(error);
+      }
+    };
 
     void (async () => {
       try {
@@ -502,21 +636,36 @@ export default function PlayMatchScreen() {
           throw error;
         }
 
-        await enqueuePlayRequest(db!, uid, activity, profileDisplayName);
+        const queueEntry = await enqueuePlayRequest(db!, uid, activity, profileDisplayName);
         if (!mountedRef.current || cancelledRef.current || matchedSessionRef.current) {
           await cancelQueue();
           return;
         }
+        const expiresAt =
+          queueEntry.expiresAt > Date.now()
+            ? queueEntry.expiresAt
+            : Date.now() + PLAY_QUEUE_TTL_MS;
 
         unsubscribe = subscribeOwnQueueEntry(db!, uid, (entry) => {
           if (entry?.status === "cancelled" && !matchedSessionRef.current) {
+            stopQueueLoop();
+            cancelledRef.current = true;
             setQueueCancelled(true);
             setStatusSafe("cancelled");
             setBusySafe(false);
             return;
           }
 
+          if (entry?.status === "expired" && !matchedSessionRef.current) {
+            stopQueueLoop();
+            cancelledRef.current = true;
+            setStatusSafe("expired");
+            setBusySafe(false);
+            return;
+          }
+
           if (entry?.status === "matched" && entry.sessionId) {
+            stopQueueLoop();
             setStatusSafe("found");
             enterSession(entry.sessionId);
           }
@@ -528,29 +677,21 @@ export default function PlayMatchScreen() {
           return;
         }
 
-        const result = await tryMatchWaitingPlayer(db!, uid, profileDisplayName, activity);
-        if (!mountedRef.current || cancelledRef.current) {
-          if (!result.sessionId) {
-            await cancelQueue();
-          }
-          return;
-        }
-
-        if (result.sessionId) {
-          setStatusSafe("found");
-          enterSession(result.sessionId);
-        }
+        expiryTimer = setTimeout(() => {
+          void handleQueueExpired();
+        }, Math.max(expiresAt - Date.now(), 0));
+        await runMatchAttempt(expiresAt);
       } catch (error) {
         if (!mountedRef.current || cancelledRef.current) return;
+        stopQueueLoop();
         unsubscribe();
         await cancelQueue();
         handleQueueRuntimeError(error);
-      } finally {
-        setBusySafe(false);
       }
     })();
 
     return () => {
+      stopQueueLoop();
       mountedRef.current = false;
       cancelledRef.current = true;
       unsubscribe();
@@ -561,6 +702,7 @@ export default function PlayMatchScreen() {
     blockReason,
     cancelQueue,
     enterSession,
+    handleQueueExpired,
     handleQueueRuntimeError,
     profileDisplayName,
     setBusySafe,
@@ -737,13 +879,15 @@ export default function PlayMatchScreen() {
           <Pressable onPress={handleCancel} style={styles.secondaryButton}>
             <Text style={styles.secondaryButtonText}>
               {busy
-                ? tt("play.match.stopSearch", "Остановить поиск")
+                ? tt("play.match.cancelSearch", "Отменить поиск")
                 : tt("common.back", "Назад")}
             </Text>
           </Pressable>
           {!busy ? (
             <Pressable onPress={retryMatch} style={styles.ghostButton}>
-              <Text style={styles.ghostButtonText}>{tt("common.retry", "Повторить")}</Text>
+              <Text style={styles.ghostButtonText}>
+                {tt("play.match.tryAgain", "Попробовать снова")}
+              </Text>
             </Pressable>
           ) : null}
         </View>

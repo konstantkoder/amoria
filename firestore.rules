@@ -69,6 +69,58 @@ service cloud.firestore {
       return value in ["active", "expired", "deleted"];
     }
 
+    function isReleasePlayActivity(value) {
+      return value in ["draw", "color_mood"];
+    }
+
+    function isValidPlayQueueStatus(value) {
+      return value in ["waiting", "matched", "cancelled", "expired"];
+    }
+
+    function isValidOwnPlayQueueWrite(uid) {
+      return request.resource.data.uid == uid &&
+        isReleasePlayActivity(request.resource.data.activity) &&
+        isValidPlayQueueStatus(request.resource.data.status) &&
+        request.resource.data.createdAt is number &&
+        request.resource.data.updatedAt is number &&
+        request.resource.data.expiresAt is number &&
+        request.resource.data.leaseVersion is number &&
+        (
+          !request.resource.data.keys().hasAny(["sessionId"]) ||
+          request.resource.data.sessionId is string
+        ) &&
+        (
+          request.resource.data.status != "matched" ||
+          request.resource.data.sessionId is string
+        );
+    }
+
+    function isValidCandidatePlayQueueMatch(uid) {
+      return signedIn() &&
+        resource.data.uid == uid &&
+        resource.data.status == "waiting" &&
+        resource.data.expiresAt is number &&
+        resource.data.expiresAt > request.time.toMillis() &&
+        request.resource.data.uid == uid &&
+        request.resource.data.activity == resource.data.activity &&
+        isReleasePlayActivity(request.resource.data.activity) &&
+        request.resource.data.createdAt == resource.data.createdAt &&
+        request.resource.data.expiresAt == resource.data.expiresAt &&
+        request.resource.data.leaseVersion == resource.data.leaseVersion &&
+        request.resource.data.status == "matched" &&
+        request.resource.data.sessionId is string &&
+        request.resource.data.matchedAt is number &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "status",
+          "updatedAt",
+          "sessionId",
+          "matchedAt"
+        ]) &&
+        request.auth.uid in getAfter(playSessionPath(request.resource.data.sessionId)).data.participantIds &&
+        uid in getAfter(playSessionPath(request.resource.data.sessionId)).data.participantIds &&
+        getAfter(playSessionPath(request.resource.data.sessionId)).data.activity == resource.data.activity;
+    }
+
     function isValidDisplayName(value) {
       return value is string &&
         (
@@ -145,18 +197,12 @@ service cloud.firestore {
       allow get: if signedIn();
       allow list: if signedIn();
       allow create: if isSelf(uid) &&
-        request.resource.data.uid == uid;
+        isValidOwnPlayQueueWrite(uid);
       allow update: if (
         isSelf(uid) &&
-        request.resource.data.uid == uid
+        isValidOwnPlayQueueWrite(uid)
       ) || (
-        signedIn() &&
-        resource.data.uid == uid &&
-        resource.data.status == "waiting" &&
-        request.resource.data.uid == uid &&
-        request.resource.data.activity == resource.data.activity &&
-        request.resource.data.status == "matched" &&
-        request.resource.data.sessionId is string
+        isValidCandidatePlayQueueMatch(uid)
       );
       allow delete: if false;
     }

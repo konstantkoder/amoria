@@ -15,6 +15,9 @@
   - release launch activities: `draw`, `color_mood`
   - not release pillars and not launchable from release UI: `daily_prompt`, `chain_draw`
   - no demos / no fake sessions
+  - Together queue waits up to 90 seconds; users do not need to press the start button at the same time.
+  - Matching uses a queue TTL (`expiresAt`) plus stale cleanup, so delayed second-device entry can find the first waiting user.
+  - Release matching supports only `draw` and `color_mood`; legacy `daily_prompt` and `chain_draw` data can still render as saved history but must not start new release matches.
 - Draw release UX requirements:
   - PlayLobby presents draw as the primary entry, with color_mood as the softer secondary path.
   - PlayMatch explains that the app is looking for another person to create one shared drawing/moment, not just loading a game.
@@ -129,7 +132,7 @@
 - Storage rules use default deny, authenticated reads, owner-only writes, image content types, and size limits for profile/gallery/announcement images.
 - `nearbyPosts` rules are required for shared quick statuses and Nearby-to-Chats handoff.
 - Current intentional rule relaxations:
-  - `playQueue` still supports client-side matching and therefore allows authenticated queue-entry reads and candidate match updates.
+  - `playQueue` still supports client-side matching and therefore allows authenticated queue-entry reads plus a narrow candidate update from `waiting` to `matched` when the same transaction creates a participant `playSessions/{sessionId}` document. This is intentionally limited to release activities `draw` and `color_mood`.
   - `playSessions` still supports client-driven collaborative session updates for drawing, color mood, reveal, and legacy turn state.
 - Legacy/non-release denied paths:
   - `rooms` and its subcollections are explicitly denied to clients because Rooms are not in the current release UI and the old membership model is not release-ready.

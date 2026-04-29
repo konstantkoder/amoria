@@ -53,7 +53,8 @@ Legacy non-release paths remain in the local rules file only to deny client acce
 
 ## Intentionally Relaxed
 
-- `playQueue` allows authenticated reads of queue entries and lets the matching client mark a waiting candidate as `matched`. Current matching is client-side and performs transaction reads after an initial waiting query; this should move to trusted server-side logic before broad public launch.
+- `playQueue` allows authenticated reads of queue entries and lets the matching client narrowly mark a waiting candidate as `matched` only when the transaction also creates a participant `playSessions/{sessionId}` document. Queue writes are limited to release activities `draw` and `color_mood`, include a 90-second `expiresAt` lease, and use `waiting`, `matched`, `cancelled`, or `expired` status.
+- Current Together matching is still client-side. Rules can constrain the candidate transition and session participant shape, but they cannot provide the same trust boundary as a server-side matcher; move matching to trusted server-side logic before broad public launch if abuse resistance becomes a release gate.
 - `playSessions` lets participants update shared session state because drawing, color mood, reveal, and legacy turn state are currently client-driven. A stricter field-level/session-state validator should replace this if matching moves server-side.
 - Authenticated users can read basic user profiles because Chats, Announcements, and Nearby need display names and avatars.
 - Authenticated users can read Amoria ID reservations by direct id so the client transaction can avoid collisions while creating a user profile.
@@ -74,8 +75,9 @@ Manual Firebase Console creation is also acceptable for emergency device-pass fi
 
 Current composite indexes:
 
-- `playQueue`: `activity ASC`, `status ASC`, `createdAt ASC`, `__name__ ASC`.
-  - Used by Together matching: `activity ==`, `status == waiting`, `orderBy(createdAt asc)`, `limit(10)`.
+- `playQueue`: `activity ASC`, `status ASC`, `expiresAt ASC`, `createdAt ASC`, `__name__ ASC`.
+  - Used by Together matching: `activity ==`, `status == waiting`, `expiresAt > now`, `orderBy(expiresAt asc)`, `orderBy(createdAt asc)`, `limit(20)`.
+  - This index must be deployed before device-pass for the 90-second queue lease flow; otherwise Firestore returns `failed-precondition` and the app shows the queue setup message while logging the missing-index detail for developers.
 - `nearbyPosts`: `region ASC`, `status ASC`, `createdAt DESC`.
   - Used by Nearby quick status: `region ==`, `status == active`, `orderBy(createdAt desc)`, `limit(200)`.
 
