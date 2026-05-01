@@ -1,0 +1,35 @@
+﻿services:
+  postgres:
+    image: postgres:16-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: amoria
+      POSTGRES_USER: amoria
+      POSTGRES_PASSWORD: amoria_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - amoria_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U amoria -d amoria"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  amoria_postgres_data:
+
