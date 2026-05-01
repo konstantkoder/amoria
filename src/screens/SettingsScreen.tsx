@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import {
   Alert,
+  DeviceEventEmitter,
   Linking,
   ScrollView,
   Switch,
@@ -25,7 +26,10 @@ import {
   setNearbyEnabled,
   type LocationPrefs,
 } from "@/services/locationPrivacy";
+import { logoutBackendSession } from "@/services/api/backendSession";
 import { type RootStackNavigationProp } from "@/navigation/appRoutes";
+
+const AUTH_SESSION_CHANGED_EVENT = "amoria.authSessionChanged";
 
 export default function SettingsScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"Settings">>();
@@ -142,11 +146,27 @@ export default function SettingsScreen() {
   }, [navigation]);
 
   const handleLogout = useCallback(async () => {
+    let hasError = false;
+
+    try {
+      await logoutBackendSession();
+    } catch (error) {
+      hasError = true;
+      console.error("[auth] backend logout failed", error);
+    }
+
     try {
       if (auth) {
         await signOut(auth);
       }
     } catch (error) {
+      hasError = true;
+      console.error("[auth] signOut failed", error);
+    } finally {
+      DeviceEventEmitter.emit(AUTH_SESSION_CHANGED_EVENT, { signedIn: false });
+    }
+
+    if (hasError) {
       Alert.alert(t("common.error"), t("menu.logoutFailed"));
     }
   }, [t]);

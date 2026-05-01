@@ -7,53 +7,68 @@ import {
   StyleSheet,
   Alert,
 } from "react-native";
-import {
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  signOut,
-} from "firebase/auth";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { auth, isFirebaseConfigured } from "@/config/firebaseConfig";
+import { getApiBaseUrl } from "@/config/apiConfig";
 import { useLocale } from "@/contexts/LocaleContext";
 import {
-  createUserProfileForRegistration,
-  ensureCurrentUserProfile,
   getDisplayNameValidationErrorKey,
   normalizeDisplayNameInput,
 } from "@/services/user";
+import { ApiError } from "@/services/api/apiClient";
+import {
+  loginBackendSession,
+  registerBackendSession,
+} from "@/services/api/backendSession";
+import type { BackendSession } from "@/services/api/sessionStorage";
 import { translateMaybeKey } from "@/utils/i18n";
 
 type LoginScreenProps = {
   authError?: string | null;
+  onAuthenticated?: (session: BackendSession) => void;
 };
 
 const EMAIL_RE = /^\S+@\S+\.\S+$/;
 
-function getFirebaseAuthErrorKey(
+function isBackendApiConfigured() {
+  try {
+    getApiBaseUrl();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function isNetworkLikeError(error: unknown) {
+  if (error instanceof TypeError) return true;
+  const message = typeof (error as { message?: unknown })?.message === "string"
+    ? (error as { message: string }).message
+    : "";
+  return (
+    message.includes("Network request failed") ||
+    message.includes("Failed to fetch") ||
+    message.includes("EXPO_PUBLIC_API_URL")
+  );
+}
+
+function getBackendAuthErrorKey(
   error: unknown,
   operation: "login" | "register"
 ) {
-  const code = typeof (error as { code?: unknown })?.code === "string"
-    ? (error as { code: string }).code
+  if (isNetworkLikeError(error)) {
+    return "auth.networkError";
+  }
+
+  const code = error instanceof ApiError && typeof error.code === "string"
+    ? error.code
     : "";
 
   switch (code) {
-    case "auth/invalid-email":
-      return "auth.invalidEmail";
-    case "auth/invalid-credential":
+    case "validation_error":
+    case "invalid_credentials":
+    case "unauthorized":
       return "auth.invalidCredential";
-    case "auth/user-not-found":
-      return "auth.userNotFound";
-    case "auth/wrong-password":
-      return "auth.wrongPassword";
-    case "auth/email-already-in-use":
+    case "email_taken":
       return "auth.emailInUse";
-    case "auth/weak-password":
-      return "auth.weakPassword";
-    case "auth/too-many-requests":
-      return "auth.tooManyRequests";
-    case "auth/network-request-failed":
-      return "auth.networkError";
     default:
       return operation === "login"
         ? "auth.unknownLoginError"
@@ -61,21 +76,25 @@ function getFirebaseAuthErrorKey(
   }
 }
 
-function logFirebaseAuthError(operation: "login" | "register", error: unknown) {
-  const value = error as { code?: unknown; message?: unknown };
-  console.error(`Firebase ${operation} error`, {
+function logBackendAuthError(operation: "login" | "register", error: unknown) {
+  const value = error as { code?: unknown; message?: unknown; status?: unknown };
+  console.error(`Backend ${operation} error`, {
     code: typeof value?.code === "string" ? value.code : "unknown",
-    message: typeof value?.message === "string" ? value.message : "Unknown Firebase auth error",
+    status: typeof value?.status === "number" ? value.status : "unknown",
+    message: typeof value?.message === "string" ? value.message : "Unknown backend auth error",
   });
 }
 
-export default function LoginScreen({ authError }: LoginScreenProps) {
+export default function LoginScreen({
+  authError,
+  onAuthenticated,
+}: LoginScreenProps) {
   const { t, locale, openLanguagePicker } = useLocale();
   const insets = useSafeAreaInsets();
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const firebaseConfigured = isFirebaseConfigured();
+  const backendConfigured = isBackendApiConfigured();
   const localeCode = locale.toUpperCase();
   const languageLabel = useMemo(() => {
     const translated = t("menu.languageCurrent", { code: localeCode });
@@ -83,12 +102,12 @@ export default function LoginScreen({ authError }: LoginScreenProps) {
   }, [localeCode, t]);
   const fallbackMessage = useMemo(() => {
     if (authError) return translateMaybeKey(authError, t, ["auth."]);
-    if (!firebaseConfigured) {
-      return t("auth.firebaseDisabledLogin");
+    if (!backendConfigured) {
+      return t("auth.networkError");
     }
     return null;
-  }, [authError, firebaseConfigured, t]);
-  const authDisabled = !firebaseConfigured;
+  }, [authError, backendConfigured, t]);
+  const authDisabled = !backendConfigured;
 
   const login = async () => {
     const trimmedEmail = email.trim();
@@ -104,19 +123,19 @@ export default function LoginScreen({ authError }: LoginScreenProps) {
       Alert.alert(t("auth.loginTitle"), t("auth.passwordRequired"));
       return;
     }
-    if (!auth) {
-      Alert.alert(t("auth.loginTitle"), t("auth.firebaseDisabledLogin"));
+    if (!backendConfigured) {
+      Alert.alert(t("auth.loginTitle"), t("auth.networkError"));
       return;
     }
     try {
-      await signInWithEmailAndPassword(auth, trimmedEmail, password);
-      const profile = await ensureCurrentUserProfile();
-      if (getDisplayNameValidationErrorKey(profile.displayName)) {
-        Alert.alert(t("profile.completeProfile"), t("profile.completeProfileBody"));
-      }
+      const session = await loginBackendSession({
+        email: trimmedEmail,
+        password,
+      });
+      onAuthenticated?.(session);
     } catch (e: unknown) {
-      logFirebaseAuthError("login", e);
-      Alert.alert(t("auth.loginTitle"), t(getFirebaseAuthErrorKey(e, "login")));
+      logBackendAuthError("login", e);
+      Alert.alert(t("auth.loginTitle"), t(getBackendAuthErrorKey(e, "login")));
     }
   };
 
@@ -141,26 +160,20 @@ export default function LoginScreen({ authError }: LoginScreenProps) {
       Alert.alert(t("auth.registerTitle"), t("auth.passwordRequired"));
       return;
     }
-    if (!auth) {
-      Alert.alert(t("auth.registerTitle"), t("auth.firebaseDisabledRegister"));
+    if (!backendConfigured) {
+      Alert.alert(t("auth.registerTitle"), t("auth.networkError"));
       return;
     }
     try {
-      await createUserWithEmailAndPassword(auth, trimmedEmail, password);
-      await createUserProfileForRegistration(trimmedDisplayName);
+      const session = await registerBackendSession({
+        email: trimmedEmail,
+        password,
+        displayName: trimmedDisplayName,
+      });
+      onAuthenticated?.(session);
     } catch (e: unknown) {
-      logFirebaseAuthError("register", e);
-      if (auth.currentUser) {
-        await signOut(auth).catch(() => {});
-      }
-      const profileErrorKey = (e as Error)?.message?.startsWith("profile.")
-        ? (e as Error).message
-        : "";
-      if (profileErrorKey) {
-        Alert.alert(t("auth.registerTitle"), t(profileErrorKey));
-        return;
-      }
-      Alert.alert(t("auth.registerTitle"), t(getFirebaseAuthErrorKey(e, "register")));
+      logBackendAuthError("register", e);
+      Alert.alert(t("auth.registerTitle"), t(getBackendAuthErrorKey(e, "register")));
     }
   };
 

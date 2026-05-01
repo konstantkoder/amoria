@@ -1,6 +1,7 @@
 import React from "react";
 import {
   Alert,
+  DeviceEventEmitter,
   ScrollView,
   StyleSheet,
   Text,
@@ -13,11 +14,14 @@ import { useLocale } from "@/contexts/LocaleContext";
 import { auth } from "@/config/firebaseConfig";
 import { type RootStackNavigationProp } from "@/navigation/appRoutes";
 import { signOut } from "firebase/auth";
+import { logoutBackendSession } from "@/services/api/backendSession";
 import { theme } from "@/theme";
 
 type Props = {
   onClose?: () => void;
 };
+
+const AUTH_SESSION_CHANGED_EVENT = "amoria.authSessionChanged";
 
 function copyOrFallback(
   t: (key: string, params?: Record<string, string>) => string,
@@ -37,15 +41,29 @@ export default function AppDrawerContent({ onClose }: Props) {
   }, [onClose]);
 
   const handleLogout = React.useCallback(async () => {
+    let hasError = false;
+
+    try {
+      await logoutBackendSession();
+    } catch (error) {
+      hasError = true;
+      console.error("[auth] backend logout failed", error);
+    }
+
     try {
       if (auth) {
         await signOut(auth);
       }
-      onClose?.();
     } catch (error) {
+      hasError = true;
       console.error("[auth] signOut failed", error);
-      Alert.alert(t("common.error"), t("menu.logoutFailed"));
+    } finally {
+      DeviceEventEmitter.emit(AUTH_SESSION_CHANGED_EVENT, { signedIn: false });
       onClose?.();
+    }
+
+    if (hasError) {
+      Alert.alert(t("common.error"), t("menu.logoutFailed"));
     }
   }, [onClose, t]);
 
