@@ -1,6 +1,11 @@
 import { deleteObject, getDownloadURL, ref, uploadBytes } from "firebase/storage";
 
 import { firebaseConfig, storage } from "@/config/firebaseConfig";
+import { uploadAvatarToBackend } from "@/services/api/mediaApi";
+import {
+  loadBackendSession,
+  saveBackendSession,
+} from "@/services/api/sessionStorage";
 
 function requireStorage(errorCode = "photos.uploadUnavailable") {
   const storageBucket = String(firebaseConfig.storageBucket ?? "").trim();
@@ -64,6 +69,26 @@ async function uploadImageToPath(uri: string, path: string, errorPrefix = "photo
   }
 }
 
+async function uploadBackendUserAvatar(stableUid: string, stableUri: string) {
+  const session = await loadBackendSession();
+  if (!session || session.user.id !== stableUid) return null;
+
+  const contentType = inferImageContentType(stableUri);
+  const extension = inferImageExtension(contentType);
+  const response = await uploadAvatarToBackend(session.accessToken, {
+    uri: stableUri,
+    name: `avatar.${extension}`,
+    type: contentType,
+  });
+
+  await saveBackendSession({
+    accessToken: session.accessToken,
+    user: response.user,
+  });
+
+  return response.avatarUrl;
+}
+
 export async function uploadImage(uid: string, uri: string) {
   const stableUid = String(uid ?? "").trim();
   const stableUri = String(uri ?? "").trim();
@@ -89,6 +114,9 @@ export async function uploadUserAvatar(uid: string, localUri: string) {
   if (!stableUri) {
     throw new Error("photos.uriRequired");
   }
+
+  const backendAvatarUrl = await uploadBackendUserAvatar(stableUid, stableUri);
+  if (backendAvatarUrl !== null) return backendAvatarUrl;
 
   return uploadImageToPath(stableUri, `users/${stableUid}/profile/avatar.jpg`);
 }

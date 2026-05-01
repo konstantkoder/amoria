@@ -49,10 +49,10 @@ export async function refreshBackendUser(): Promise<BackendSession | null> {
   if (!currentSession) return null;
 
   try {
-    const response = await getMeFromBackend(currentSession.accessToken);
+    const user = await getMeFromBackend(currentSession.accessToken);
     const nextSession: BackendSession = {
       accessToken: currentSession.accessToken,
-      user: response.user,
+      user,
     };
     await saveBackendSession(nextSession);
     return nextSession;

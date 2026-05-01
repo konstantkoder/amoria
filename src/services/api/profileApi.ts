@@ -1,11 +1,11 @@
 import { apiRequest } from "@/services/api/apiClient";
 import type {
-  MeResponse,
   PatchProfileRequest,
+  SelfUserProfileDto,
 } from "@/services/api/types";
 
-export function getMeFromBackend(accessToken: string): Promise<MeResponse> {
-  return apiRequest<MeResponse>("/me", {
+export function getMeFromBackend(accessToken: string): Promise<SelfUserProfileDto> {
+  return apiRequest<SelfUserProfileDto>("/me", {
     accessToken,
   });
 }
@@ -13,8 +13,8 @@ export function getMeFromBackend(accessToken: string): Promise<MeResponse> {
 export function patchMeProfileOnBackend(
   accessToken: string,
   input: PatchProfileRequest
-): Promise<MeResponse> {
-  return apiRequest<MeResponse>("/me/profile", {
+): Promise<SelfUserProfileDto> {
+  return apiRequest<SelfUserProfileDto>("/me/profile", {
     method: "PATCH",
     accessToken,
     body: input,

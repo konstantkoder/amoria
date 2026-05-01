@@ -2,6 +2,19 @@ import { doc, getDoc, runTransaction, serverTimestamp, setDoc } from "firebase/f
 
 import { auth, db } from "@/config/firebaseConfig";
 import type { Goal, Mood, UserProfile } from "@/models/User";
+import { ApiError } from "@/services/api/apiClient";
+import { refreshBackendUser } from "@/services/api/backendSession";
+import { patchMeProfileOnBackend } from "@/services/api/profileApi";
+import {
+  clearBackendSession,
+  getBackendAccessToken,
+  loadBackendSession,
+  saveBackendSession,
+} from "@/services/api/sessionStorage";
+import type {
+  PatchProfileRequest,
+  SelfUserProfileDto,
+} from "@/services/api/types";
 import { uploadUserAvatar } from "@/services/storage";
 
 const USERS_COLLECTION = "users";
@@ -63,6 +76,15 @@ function normalizeSharedMediaUrl(value: unknown) {
   const normalized = normalizeString(value);
   if (!normalized) return undefined;
   if (normalized.startsWith("https://")) {
+    return normalized;
+  }
+  if (
+    normalized.startsWith("http://localhost:") ||
+    normalized.startsWith("http://127.0.0.1:") ||
+    normalized.startsWith("http://192.168.") ||
+    normalized.startsWith("http://10.") ||
+    normalized.startsWith("http://172.")
+  ) {
     return normalized;
   }
   return undefined;
@@ -229,6 +251,84 @@ function normalizeUserProfile(
   };
 }
 
+function normalizeBackendTimestamp(value: unknown, fallback: number) {
+  const timestamp = Date.parse(String(value ?? ""));
+  return Number.isFinite(timestamp) && timestamp > 0 ? timestamp : fallback;
+}
+
+function mapBackendUserProfile(user: SelfUserProfileDto): UserProfile {
+  const now = Date.now();
+  const createdAt = normalizeBackendTimestamp(user.createdAt, now);
+  const updatedAt = normalizeBackendTimestamp(user.updatedAt, createdAt);
+  const amoriaId = normalizeAmoriaId(user.amoriaId);
+  const about = normalizeOptionalString(user.about);
+  const avatarUrl = normalizeSharedMediaUrl(user.avatarUrl);
+
+  return {
+    uid: normalizeString(user.id),
+    displayName: normalizeStoredDisplayName(user.displayName),
+    amoriaId,
+    ...(amoriaId ? { amoriaIdNormalized: amoriaId } : {}),
+    ...(about ? { about } : {}),
+    ...(avatarUrl ? { avatarUrl } : {}),
+    // Backend does not support extended Firebase profile fields yet.
+    interests: [],
+    photos: [],
+    createdAt,
+    updatedAt,
+  };
+}
+
+function hasFirebaseUserProfilePath() {
+  return Boolean(auth?.currentUser?.uid && db);
+}
+
+function isBackendAuthError(error: unknown) {
+  return error instanceof ApiError && (error.status === 401 || error.status === 403);
+}
+
+function getUnsupportedBackendProfileFields(fields: Partial<UserProfile>) {
+  return Object.keys(fields).filter((key) => key !== "displayName" && key !== "about");
+}
+
+async function getCurrentBackendUserProfile() {
+  const session = await refreshBackendUser();
+  return session ? mapBackendUserProfile(session.user) : null;
+}
+
+async function updateBackendSupportedProfileFields(
+  fields: Partial<UserProfile>
+): Promise<UserProfile | null> {
+  const accessToken = await getBackendAccessToken();
+  if (!accessToken) return null;
+
+  const input: PatchProfileRequest = {};
+  if ("displayName" in fields) {
+    input.displayName = assertValidDisplayName(fields.displayName);
+  }
+  if ("about" in fields) {
+    const about = normalizeString(fields.about);
+    input.about = about || null;
+  }
+
+  if (!("displayName" in input) && !("about" in input)) {
+    return getCurrentBackendUserProfile();
+  }
+
+  try {
+    const user = await patchMeProfileOnBackend(accessToken, input);
+    await saveBackendSession({ accessToken, user });
+    return mapBackendUserProfile(user);
+  } catch (error) {
+    if (isBackendAuthError(error)) {
+      await clearBackendSession();
+      return null;
+    }
+
+    throw error;
+  }
+}
+
 function requireCurrentUserRef() {
   const uid = auth?.currentUser?.uid;
   if (!uid) throw new Error("Not signed in");
@@ -327,7 +427,7 @@ export async function createUserProfileForRegistration(displayName: string): Pro
 }
 
 export async function getCurrentUser() {
-  const profile = await ensureCurrentUserProfile();
+  const profile = await getUserProfile();
   return { id: profile.uid, ...profile };
 }
 
@@ -336,10 +436,11 @@ export async function updateMySettings(patch: Record<string, any>) {
 }
 
 export async function getUserProfile(): Promise<UserProfile> {
-  return ensureCurrentUserProfile();
+  const backendProfile = await getCurrentBackendUserProfile();
+  return backendProfile ?? ensureCurrentUserProfile();
 }
 
-export async function updateUserFields(
+async function updateFirebaseUserFields(
   fields: Partial<UserProfile>
 ): Promise<UserProfile> {
   const { uid, ref } = requireCurrentUserRef();
@@ -364,6 +465,23 @@ export async function updateUserFields(
   return next;
 }
 
+export async function updateUserFields(
+  fields: Partial<UserProfile>
+): Promise<UserProfile> {
+  const backendSession = await loadBackendSession();
+  if (backendSession) {
+    const unsupportedFields = getUnsupportedBackendProfileFields(fields);
+    if (!unsupportedFields.length) {
+      const updatedProfile = await updateBackendSupportedProfileFields(fields);
+      if (updatedProfile) return updatedProfile;
+    } else if (!hasFirebaseUserProfilePath()) {
+      throw new Error("profile.fieldUnsupportedByBackend");
+    }
+  }
+
+  return updateFirebaseUserFields(fields);
+}
+
 export async function updateUserDisplayName(displayName: string): Promise<UserProfile> {
   return updateUserFields({ displayName });
 }
@@ -385,10 +503,33 @@ export async function updateUserAvatarUrl(avatarUrl: string): Promise<UserProfil
   if (!sharedAvatarUrl) {
     throw new Error("profile.avatarSharedUrlRequired");
   }
-  return updateUserFields({ avatarUrl: sharedAvatarUrl });
+
+  const backendSession = await loadBackendSession();
+  if (backendSession) {
+    if (backendSession.user.avatarUrl === sharedAvatarUrl) {
+      return mapBackendUserProfile(backendSession.user);
+    }
+
+    const refreshedSession = await refreshBackendUser();
+    if (refreshedSession?.user.avatarUrl === sharedAvatarUrl) {
+      return mapBackendUserProfile(refreshedSession.user);
+    }
+
+    if (!hasFirebaseUserProfilePath()) {
+      throw new Error("profile.avatarUnsupportedByBackend");
+    }
+  }
+
+  return updateFirebaseUserFields({ avatarUrl: sharedAvatarUrl });
 }
 
 export async function uploadCurrentUserAvatar(uri: string): Promise<UserProfile> {
+  const backendSession = await loadBackendSession();
+  if (backendSession) {
+    const avatarUrl = await uploadUserAvatar(backendSession.user.id, uri);
+    return updateUserAvatarUrl(avatarUrl);
+  }
+
   const { uid } = requireCurrentUserRef();
   const avatarUrl = await uploadUserAvatar(uid, uri);
   return updateUserAvatarUrl(avatarUrl);

@@ -12,7 +12,14 @@ type Props = {
 
 function isSharedImageUrl(value?: string) {
   const url = String(value ?? "").trim();
-  return url.startsWith("https://");
+  return (
+    url.startsWith("https://") ||
+    url.startsWith("http://localhost:") ||
+    url.startsWith("http://127.0.0.1:") ||
+    url.startsWith("http://192.168.") ||
+    url.startsWith("http://10.") ||
+    url.startsWith("http://172.")
+  );
 }
 
 function getInitials(label?: string) {

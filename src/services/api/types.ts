@@ -8,13 +8,18 @@ export type ApiErrorResponse = {
   };
 };
 
-export type AuthUserDto = {
+export type SelfUserProfileDto = {
   id: string;
   email: string;
   displayName: string;
+  about: string | null;
   amoriaId: string;
-  avatarUrl?: string | null;
+  avatarUrl: string | null;
+  createdAt: string;
+  updatedAt: string;
 };
+
+export type AuthUserDto = SelfUserProfileDto;
 
 export type RegisterRequest = {
   email: string;
@@ -32,18 +37,18 @@ export type AuthResponse = {
   user: AuthUserDto;
 };
 
-export type CurrentUserResponse = {
-  user: AuthUserDto;
-};
+export type CurrentUserResponse = SelfUserProfileDto;
 
-export type MeResponse = CurrentUserResponse;
+export type MeResponse = SelfUserProfileDto;
 
 export type PatchProfileRequest = {
   displayName?: string;
+  about?: string | null;
 };
 
 export type AvatarUploadResponse = {
-  avatarUrl?: string | null;
+  avatarUrl: string;
+  user: SelfUserProfileDto;
 };
 
 export type BackendUploadFile = {
