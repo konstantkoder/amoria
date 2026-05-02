@@ -6,7 +6,7 @@ import { ActivityIndicator, Text, TextInput, TouchableOpacity, View } from "reac
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Drawer } from "react-native-drawer-layout";
 
-import { auth, db } from "@/config/firebaseConfig";
+import { db } from "@/config/firebaseConfig";
 import PlayLobbyScreen from "@/screens/PlayLobbyScreen";
 import NearbyHubScreen from "@/screens/NearbyHubScreen";
 import AnnouncementsScreen from "@/screens/AnnouncementsScreen";
@@ -39,14 +39,15 @@ import {
 } from "@/navigation/appRoutes";
 import { registerDrawerControls } from "@/navigation/drawerController";
 import { useLocale } from "@/contexts/LocaleContext";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   getDmThreadActivitySignal,
   useActivityFreshnessState,
 } from "@/services/activityFreshness";
 import { subscribeDmThreads, type DmThreadDoc } from "@/services/dm";
 import {
-  ensureCurrentUserProfile,
   getDisplayNameValidationErrorKey,
+  getUserProfile,
   normalizeDisplayNameInput,
   updateUserDisplayName,
 } from "@/services/user";
@@ -57,7 +58,8 @@ const ProfileStack = createNativeStackNavigator<ProfileStackParamList>();
 
 function IdentitySetupGate({ children }: { children: React.ReactNode }) {
   const { t } = useLocale();
-  const uid = auth?.currentUser?.uid ?? "";
+  const { user } = useAuth();
+  const uid = user?.id ?? "";
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
   const [requiresName, setRequiresName] = React.useState(false);
@@ -77,7 +79,7 @@ function IdentitySetupGate({ children }: { children: React.ReactNode }) {
 
     setLoading(true);
     setErrorText("");
-    void ensureCurrentUserProfile()
+    void getUserProfile()
       .then((profile) => {
         if (!alive) return;
         const displayName = profile.displayName ?? "";
@@ -225,8 +227,9 @@ function ProfileStackNavigator() {
 function MainTabs() {
   const insets = useSafeAreaInsets();
   const { t } = useLocale();
+  const { user } = useAuth();
   const freshnessState = useActivityFreshnessState();
-  const uid = auth?.currentUser?.uid ?? "";
+  const uid = user?.id ?? "";
   const [threads, setThreads] = React.useState<DmThreadDoc[]>([]);
 
   React.useEffect(() => {

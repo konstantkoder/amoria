@@ -4,7 +4,8 @@ import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { auth, db } from "@/config/firebaseConfig";
+import { db } from "@/config/firebaseConfig";
+import { useAuth } from "@/contexts/AuthContext";
 import CoreStateCard from "@/components/CoreStateCard";
 import ScreenShell from "@/components/ScreenShell";
 import UserAvatar from "@/components/UserAvatar";
@@ -138,6 +139,7 @@ function mapThreadToCard(
 export default function InboxScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<RootStackNavigationProp>();
+  const { user: authUser } = useAuth();
   const { t } = useLocale();
   const tt = useCallback(
     (key: string, fallback: string, params?: Record<string, string>) => {
@@ -146,7 +148,7 @@ export default function InboxScreen() {
     },
     [t]
   );
-  const uid = auth?.currentUser?.uid ?? "";
+  const uid = authUser?.id ?? "";
   const freshnessState = useActivityFreshnessState();
   const [threads, setThreads] = useState<DmThreadDoc[]>([]);
   const [loading, setLoading] = useState(true);

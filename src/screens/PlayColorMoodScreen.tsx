@@ -15,7 +15,8 @@ import {
 
 import CoreStateCard from "@/components/CoreStateCard";
 import ScreenShell from "@/components/ScreenShell";
-import { auth, db } from "@/config/firebaseConfig";
+import { db } from "@/config/firebaseConfig";
+import { useAuth } from "@/contexts/AuthContext";
 import { useLocale } from "@/contexts/LocaleContext";
 import {
   type PlayColorMoodRouteProp,
@@ -47,6 +48,7 @@ type GuardState = {
 export default function PlayColorMoodScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"PlayColorMood">>();
   const route = useRoute<PlayColorMoodRouteProp>();
+  const { user: authUser } = useAuth();
   const { t } = useLocale();
   const tt = React.useCallback(
     (key: string, fallback: string, params?: Record<string, string>) => {
@@ -56,7 +58,7 @@ export default function PlayColorMoodScreen() {
     [t]
   );
   const sessionId = route.params.sessionId.trim();
-  const uid = auth?.currentUser?.uid ?? "";
+  const uid = authUser?.id ?? "";
   const colorOptions = React.useMemo(() => getPlayColorMoodOptions(), [t]);
 
   const [session, setSession] = React.useState<PlaySessionDoc | null>(null);

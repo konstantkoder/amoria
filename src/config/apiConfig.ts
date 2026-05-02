@@ -1,5 +1,7 @@
+import { API_URL } from "@/config/runtimeConfig";
+
 export function getApiBaseUrl(): string {
-  const apiUrl = String(process.env.EXPO_PUBLIC_API_URL ?? "").trim();
+  const apiUrl = String(API_URL).trim();
 
   if (!apiUrl) {
     throw new Error(

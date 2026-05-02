@@ -21,7 +21,8 @@ import { Ionicons } from "@expo/vector-icons";
 import UserAvatar from "@/components/UserAvatar";
 import { type NearbyTabNavigationProp } from "@/navigation/appRoutes";
 import { theme } from "@/theme";
-import { auth, db, isFirebaseConfigured } from "@/config/firebaseConfig";
+import { db, isFirebaseConfigured } from "@/config/firebaseConfig";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   NEARBY_STATUS_TTL_MS,
   type NowMood,
@@ -139,7 +140,8 @@ export default function NearbyNowSection({
 }: Props) {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NearbyTabNavigationProp>();
-  const user = auth?.currentUser ?? null;
+  const { user: authUser } = useAuth();
+  const user = authUser ? { uid: authUser.id } : null;
   const { t } = useLocale();
   const mountedRef = useRef(true);
   const sendResetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);

@@ -19,7 +19,8 @@ import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import * as Location from "expo-location";
 import { geohashForLocation } from "geofire-common";
 
-import { auth, db, isFirebaseConfigured } from "@/config/firebaseConfig";
+import { db, isFirebaseConfigured } from "@/config/firebaseConfig";
+import { useAuth } from "@/contexts/AuthContext";
 import RoomsChatStage from "@/components/rooms/RoomsChatStage";
 import RoomsChooseStage from "@/components/rooms/RoomsChooseStage";
 import type {
@@ -198,9 +199,10 @@ function getRoomsPermissionHelp(
 // Legacy non-release screen. It is intentionally not registered in AppNavigator.
 export default function RoomsScreen() {
   const insets = useSafeAreaInsets();
+  const { user: authUser } = useAuth();
   const { t } = useLocale();
   const navigation = useNavigation<RootStackNavigationProp>();
-  const uid = auth?.currentUser?.uid ?? null;
+  const uid = authUser?.id ?? null;
   const nicknameCode = useMemo(
     () => (uid ? makeNickname(uid) : "common.anonymous"),
     [uid],

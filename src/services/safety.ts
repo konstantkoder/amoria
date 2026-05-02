@@ -9,7 +9,8 @@ import {
   type Firestore,
 } from "firebase/firestore";
 
-import { auth, db } from "@/config/firebaseConfig";
+import { db } from "@/config/firebaseConfig";
+import { getBackendUserId } from "@/services/api/sessionStorage";
 
 export type SafetyReportTargetType =
   | "announcement"
@@ -70,7 +71,7 @@ function requireSafetyDb(database: Firestore | null = db): Firestore {
 }
 
 function requireCurrentUid(uid?: string) {
-  const currentUid = String(uid ?? auth?.currentUser?.uid ?? "").trim();
+  const currentUid = String(uid ?? getBackendUserId()).trim();
   if (!currentUid) {
     throw new Error("safety.authRequired");
   }

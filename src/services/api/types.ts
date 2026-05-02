@@ -19,7 +19,16 @@ export type SelfUserProfileDto = {
   updatedAt: string;
 };
 
-export type AuthUserDto = SelfUserProfileDto;
+export type AuthUserDto = {
+  id: string;
+  email: string;
+  displayName: string;
+  amoriaId: string;
+  avatarUrl: string | null;
+  about?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+};
 
 export type RegisterRequest = {
   email: string;
@@ -34,6 +43,9 @@ export type LoginRequest = {
 
 export type AuthResponse = {
   accessToken: string;
+  refreshToken: string;
+  accessTokenExpiresAt: string;
+  expiresAt?: string;
   user: AuthUserDto;
 };
 

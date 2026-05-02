@@ -1,8 +1,8 @@
 import "react-native-gesture-handler";
 import "react-native-reanimated";
 
-import React, { useEffect, useState } from "react";
-import { ActivityIndicator, DeviceEventEmitter, LogBox, View } from "react-native";
+import React from "react";
+import { ActivityIndicator, LogBox, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import {
@@ -12,19 +12,12 @@ import {
 } from "@react-navigation/native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { onAuthStateChanged, type User } from "firebase/auth";
 
-import { auth } from "@/config/firebaseConfig";
 import LoginScreen from "@/screens/LoginScreen";
 import AppNavigator from "@/navigation/AppNavigator";
 import { type AppStackParamList } from "@/navigation/appRoutes";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { LocaleProvider, useLocale } from "@/contexts/LocaleContext";
-import {
-  refreshBackendUser,
-  restoreBackendSession,
-} from "@/services/api/backendSession";
-import type { BackendSession } from "@/services/api/sessionStorage";
-import { ensureCurrentUserProfile } from "@/services/user";
 import { theme } from "@/theme/theme";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import LanguagePickerHost from "@/components/LanguagePickerHost";
@@ -50,26 +43,11 @@ const navTheme = {
   },
 };
 
-const AUTH_SESSION_CHANGED_EVENT = "amoria.authSessionChanged";
-
-type AuthenticatedUserState =
-  | { source: "firebase"; user: User }
-  | { source: "backend"; session: BackendSession }
-  | null;
-
 type AppNavigationProps = {
-  authState: AuthenticatedUserState;
-  authError: string | null;
-  onBackendAuthenticated: (session: BackendSession) => void;
+  isSignedIn: boolean;
 };
 
-function AppNavigation({
-  authState,
-  authError,
-  onBackendAuthenticated,
-}: AppNavigationProps) {
-  const isSignedIn = Boolean(authState);
-
+function AppNavigation({ isSignedIn }: AppNavigationProps) {
   return (
     <NavigationContainer
       ref={navigationRef}
@@ -87,12 +65,7 @@ function AppNavigation({
           />
         ) : (
           <Stack.Screen name="Login" navigationKey="guest">
-            {() => (
-              <LoginScreen
-                authError={authError}
-                onAuthenticated={onBackendAuthenticated}
-              />
-            )}
+            {() => <LoginScreen />}
           </Stack.Screen>
         )}
       </Stack.Navigator>
@@ -109,135 +82,16 @@ function FullScreenLoader() {
 }
 
 function AuthGate() {
-  const [authState, setAuthState] = useState<AuthenticatedUserState>(null);
-  const [authReady, setAuthReady] = useState(false);
-  const [authError, setAuthError] = useState<string | null>(null);
-
-  const handleBackendAuthenticated = React.useCallback((session: BackendSession) => {
-    setAuthState({ source: "backend", session });
-    setAuthError(null);
-    setAuthReady(true);
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    let unsubscribeFirebase: (() => void) | undefined;
-
-    const startFirebaseFallback = () => {
-      if (cancelled) return;
-
-      if (!auth) {
-        setAuthState(null);
-        setAuthError(null);
-        setAuthReady(true);
-        return;
-      }
-
-      unsubscribeFirebase = onAuthStateChanged(
-        auth,
-        (firebaseUser) => {
-          if (cancelled) return;
-
-          if (!firebaseUser) {
-            setAuthState((current) => (
-              current?.source === "backend" ? current : null
-            ));
-            setAuthError(null);
-            setAuthReady(true);
-            return;
-          }
-
-          void ensureCurrentUserProfile()
-            .catch((error) => {
-              console.error("[auth] profile sync failed", error);
-            })
-            .finally(() => {
-              if (cancelled) return;
-              setAuthState((current) => (
-                current?.source === "backend"
-                  ? current
-                  : { source: "firebase", user: firebaseUser }
-              ));
-              setAuthError(null);
-              setAuthReady(true);
-            });
-        },
-        (error) => {
-          if (cancelled) return;
-          const authStateError = error as { code?: unknown; message?: unknown };
-          console.error("[auth] onAuthStateChanged failed", {
-            code: typeof authStateError?.code === "string" ? authStateError.code : "unknown",
-            message:
-              typeof authStateError?.message === "string"
-                ? authStateError.message
-                : "Unknown auth state error",
-          });
-          setAuthState(null);
-          setAuthError("auth.error");
-          setAuthReady(true);
-        }
-      );
-    };
-
-    const bootstrapAuth = async () => {
-      setAuthReady(false);
-      setAuthError(null);
-
-      let cachedBackendSession: BackendSession | null = null;
-      try {
-        cachedBackendSession = await restoreBackendSession();
-        const backendSession = await refreshBackendUser();
-        if (cancelled) return;
-
-        if (backendSession) {
-          setAuthState({ source: "backend", session: backendSession });
-          setAuthError(null);
-          setAuthReady(true);
-          return;
-        }
-
-        startFirebaseFallback();
-      } catch (error) {
-        if (cancelled) return;
-        console.error("[auth] backend session refresh failed", error);
-        setAuthState(null);
-        setAuthError(cachedBackendSession ? "auth.networkError" : "auth.error");
-        setAuthReady(true);
-      }
-    };
-
-    const authSessionSubscription = DeviceEventEmitter.addListener(
-      AUTH_SESSION_CHANGED_EVENT,
-      (event?: { signedIn?: boolean }) => {
-        if (event?.signedIn === false) {
-          setAuthState(null);
-          setAuthError(null);
-          setAuthReady(true);
-        }
-      }
-    );
-
-    void bootstrapAuth();
-
-    return () => {
-      cancelled = true;
-      unsubscribeFirebase?.();
-      authSessionSubscription.remove();
-    };
-  }, []);
+  const { ready, user } = useAuth();
 
   return (
     <>
-      {!authReady ? (
+      {!ready ? (
         <FullScreenLoader />
       ) : (
         <>
           <ErrorBoundary>
-            <AppNavigation
-              authState={authState}
-              authError={authError}
-              onBackendAuthenticated={handleBackendAuthenticated}
-            />
+            <AppNavigation isSignedIn={Boolean(user)} />
           </ErrorBoundary>
           <LanguagePickerHost />
         </>
@@ -250,7 +104,13 @@ function AppBootstrap() {
   const { ready } = useLocale();
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      {!ready ? <FullScreenLoader /> : <AuthGate />}
+      {!ready ? (
+        <FullScreenLoader />
+      ) : (
+        <AuthProvider>
+          <AuthGate />
+        </AuthProvider>
+      )}
     </GestureHandlerRootView>
   );
 }

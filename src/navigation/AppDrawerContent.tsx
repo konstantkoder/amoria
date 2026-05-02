@@ -1,7 +1,6 @@
 import React from "react";
 import {
   Alert,
-  DeviceEventEmitter,
   ScrollView,
   StyleSheet,
   Text,
@@ -10,18 +9,14 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
+import { useAuth } from "@/contexts/AuthContext";
 import { useLocale } from "@/contexts/LocaleContext";
-import { auth } from "@/config/firebaseConfig";
 import { type RootStackNavigationProp } from "@/navigation/appRoutes";
-import { signOut } from "firebase/auth";
-import { logoutBackendSession } from "@/services/api/backendSession";
 import { theme } from "@/theme";
 
 type Props = {
   onClose?: () => void;
 };
-
-const AUTH_SESSION_CHANGED_EVENT = "amoria.authSessionChanged";
 
 function copyOrFallback(
   t: (key: string, params?: Record<string, string>) => string,
@@ -34,6 +29,7 @@ function copyOrFallback(
 
 export default function AppDrawerContent({ onClose }: Props) {
   const navigation = useNavigation<RootStackNavigationProp>();
+  const auth = useAuth();
   const { t, locale, openLanguagePicker } = useLocale();
 
   const handleClose = React.useCallback(() => {
@@ -44,28 +40,18 @@ export default function AppDrawerContent({ onClose }: Props) {
     let hasError = false;
 
     try {
-      await logoutBackendSession();
+      await auth.logout();
     } catch (error) {
       hasError = true;
       console.error("[auth] backend logout failed", error);
-    }
-
-    try {
-      if (auth) {
-        await signOut(auth);
-      }
-    } catch (error) {
-      hasError = true;
-      console.error("[auth] signOut failed", error);
     } finally {
-      DeviceEventEmitter.emit(AUTH_SESSION_CHANGED_EVENT, { signedIn: false });
       onClose?.();
     }
 
     if (hasError) {
       Alert.alert(t("common.error"), t("menu.logoutFailed"));
     }
-  }, [onClose, t]);
+  }, [auth, onClose, t]);
 
   const handleOpenProfile = React.useCallback(() => {
     onClose?.();

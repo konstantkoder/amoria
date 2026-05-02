@@ -10,7 +10,8 @@ import { useNavigation } from "@react-navigation/native";
 
 import CoreStateCard from "@/components/CoreStateCard";
 import ScreenShell from "@/components/ScreenShell";
-import { auth, db } from "@/config/firebaseConfig";
+import { db } from "@/config/firebaseConfig";
+import { useAuth } from "@/contexts/AuthContext";
 import { useLocale } from "@/contexts/LocaleContext";
 import { getRuntimeLocale } from "@/i18n/translations";
 import { type RootStackNavigationProp } from "@/navigation/appRoutes";
@@ -111,6 +112,7 @@ function getHistoryRelationshipText(
 
 export default function PlayHistoryScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"PlayHistory">>();
+  const { user: authUser } = useAuth();
   const { t } = useLocale();
   const releaseText = useCallback(
     (en: string, ru: string) => (getRuntimeLocale() === "ru" ? ru : en),
@@ -123,7 +125,7 @@ export default function PlayHistoryScreen() {
     },
     [t]
   );
-  const uid = auth?.currentUser?.uid ?? "";
+  const uid = authUser?.id ?? "";
   const freshnessState = useActivityFreshnessState();
   const [history, setHistory] = useState<PlayHistoryItem[]>([]);
   const [threads, setThreads] = useState<DmThreadDoc[]>([]);

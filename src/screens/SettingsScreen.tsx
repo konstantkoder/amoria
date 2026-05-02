@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import {
   Alert,
-  DeviceEventEmitter,
   Linking,
   ScrollView,
   Switch,
@@ -12,12 +11,11 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import * as Location from "expo-location";
-import { signOut } from "firebase/auth";
 
 import ScreenShell from "@/components/ScreenShell";
 import LocationConsentModal from "@/components/LocationConsentModal";
+import { useAuth } from "@/contexts/AuthContext";
 import { useLocale } from "@/contexts/LocaleContext";
-import { auth } from "@/config/firebaseConfig";
 import { loadAdultModeEnabled, setAdultModeEnabled } from "@/services/adultMode";
 import {
   clearLegacyMapPresencePrefs,
@@ -26,13 +24,11 @@ import {
   setNearbyEnabled,
   type LocationPrefs,
 } from "@/services/locationPrivacy";
-import { logoutBackendSession } from "@/services/api/backendSession";
 import { type RootStackNavigationProp } from "@/navigation/appRoutes";
-
-const AUTH_SESSION_CHANGED_EVENT = "amoria.authSessionChanged";
 
 export default function SettingsScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"Settings">>();
+  const auth = useAuth();
   const { t, openLanguagePicker } = useLocale();
 
   const [prefs, setPrefs] = useState<LocationPrefs>({
@@ -146,30 +142,13 @@ export default function SettingsScreen() {
   }, [navigation]);
 
   const handleLogout = useCallback(async () => {
-    let hasError = false;
-
     try {
-      await logoutBackendSession();
+      await auth.logout();
     } catch (error) {
-      hasError = true;
       console.error("[auth] backend logout failed", error);
-    }
-
-    try {
-      if (auth) {
-        await signOut(auth);
-      }
-    } catch (error) {
-      hasError = true;
-      console.error("[auth] signOut failed", error);
-    } finally {
-      DeviceEventEmitter.emit(AUTH_SESSION_CHANGED_EVENT, { signedIn: false });
-    }
-
-    if (hasError) {
       Alert.alert(t("common.error"), t("menu.logoutFailed"));
     }
-  }, [t]);
+  }, [auth, t]);
 
   return (
     <ScreenShell title={t("screen.settings")} background="profile">

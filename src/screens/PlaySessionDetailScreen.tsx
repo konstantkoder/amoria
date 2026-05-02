@@ -13,7 +13,8 @@ import ScreenShell from "@/components/ScreenShell";
 import PlayModeContextCard from "@/components/play/PlayModeContextCard";
 import ReplayCanvasWebView from "@/components/play/ReplayCanvasWebView";
 import type { SharedCanvasStroke } from "@/components/play/SharedCanvasWebView";
-import { auth, db } from "@/config/firebaseConfig";
+import { db } from "@/config/firebaseConfig";
+import { useAuth } from "@/contexts/AuthContext";
 import { useLocale } from "@/contexts/LocaleContext";
 import {
   type PlaySessionDetailRouteProp,
@@ -180,6 +181,7 @@ function getStoryConnectionCopy(options: {
 export default function PlaySessionDetailScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"PlaySessionDetail">>();
   const route = useRoute<PlaySessionDetailRouteProp>();
+  const { user: authUser } = useAuth();
   const { t } = useLocale();
   const tt = React.useCallback(
     (key: string, fallback: string, params?: Record<string, string>) => {
@@ -190,7 +192,7 @@ export default function PlaySessionDetailScreen() {
   );
   const sessionId = route.params.sessionId.trim();
   const replayFocus = route.params.focus === "replay";
-  const uid = auth?.currentUser?.uid ?? "";
+  const uid = authUser?.id ?? "";
 
   const [session, setSession] = React.useState<PlaySessionDoc | null>(null);
   const [events, setEvents] = React.useState<PlayStrokeBatch[]>([]);

@@ -14,7 +14,8 @@ import {
 } from "@react-navigation/native";
 
 import ScreenShell from "@/components/ScreenShell";
-import { auth, db, isFirebaseConfigured } from "@/config/firebaseConfig";
+import { db, isFirebaseConfigured } from "@/config/firebaseConfig";
+import { useAuth } from "@/contexts/AuthContext";
 import { useLocale } from "@/contexts/LocaleContext";
 import {
   type PlayMatchRouteProp,
@@ -264,6 +265,7 @@ function logPlayQueueError(error: unknown) {
 export default function PlayMatchScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"PlayMatch">>();
   const route = useRoute<PlayMatchRouteProp>();
+  const { user: authUser } = useAuth();
   const { t } = useLocale();
   const tt = React.useCallback<TranslateFn>(
     (key, fallback, params) => {
@@ -272,8 +274,7 @@ export default function PlayMatchScreen() {
     },
     [t]
   );
-  const currentUser = auth?.currentUser ?? null;
-  const uid = currentUser?.uid ?? "";
+  const uid = authUser?.id ?? "";
   const routeActivity = route.params?.activity;
   const activity = isReleasePlayActivity(routeActivity)
     ? routeActivity
@@ -624,7 +625,7 @@ export default function PlayMatchScreen() {
 
     void (async () => {
       try {
-        const activeUid = auth?.currentUser?.uid ?? "";
+        const activeUid = authUser?.id ?? "";
         if (!activeUid || activeUid !== uid) {
           const error = new Error("No authenticated user for play queue");
           (error as Error & { code?: string }).code = "auth/no-current-user";

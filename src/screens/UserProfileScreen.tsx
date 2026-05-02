@@ -15,7 +15,8 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import CoreStateCard from "@/components/CoreStateCard";
 import ScreenShell from "@/components/ScreenShell";
 import UserAvatar from "@/components/UserAvatar";
-import { auth, db } from "@/config/firebaseConfig";
+import { db } from "@/config/firebaseConfig";
+import { useAuth } from "@/contexts/AuthContext";
 import { useLocale } from "@/contexts/LocaleContext";
 import {
   type RootStackNavigationProp,
@@ -74,6 +75,7 @@ function buildReportReasonButtons(
 export default function UserProfileScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"UserProfile">>();
   const route = useRoute<UserProfileRouteProp>();
+  const { user: authUser } = useAuth();
   const { t } = useLocale();
   const tt = useCallback(
     (key: string, fallback: string, params?: Record<string, string>) => {
@@ -88,7 +90,7 @@ export default function UserProfileScreen() {
   const threadId = String(route.params?.threadId ?? "").trim();
   const sourceContext = route.params?.sourceContext;
   const sourceSessionId = String(sourceContext?.sourceSessionId ?? "").trim();
-  const myId = auth?.currentUser?.uid ?? "";
+  const myId = authUser?.id ?? "";
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);

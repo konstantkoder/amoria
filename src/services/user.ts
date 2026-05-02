@@ -1,6 +1,6 @@
-import { doc, getDoc, runTransaction, serverTimestamp, setDoc } from "firebase/firestore";
+import { doc, getDoc } from "firebase/firestore";
 
-import { auth, db } from "@/config/firebaseConfig";
+import { db } from "@/config/firebaseConfig";
 import type { Goal, Mood, UserProfile } from "@/models/User";
 import { ApiError } from "@/services/api/apiClient";
 import { refreshBackendUser } from "@/services/api/backendSession";
@@ -12,15 +12,13 @@ import {
   saveBackendSession,
 } from "@/services/api/sessionStorage";
 import type {
+  AuthUserDto,
   PatchProfileRequest,
   SelfUserProfileDto,
 } from "@/services/api/types";
 import { uploadUserAvatar } from "@/services/storage";
 
 const USERS_COLLECTION = "users";
-const AMORIA_IDS_COLLECTION = "amoriaIds";
-const AMORIA_ID_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
-const AMORIA_ID_LENGTH = 5;
 const AMORIA_ID_RE = /^AM-[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{5}$/;
 const LEGACY_NICKNAME_RE = /^nick\.[a-z]+(\.[a-z]+)?\.\d{3}$/;
 export const DISPLAY_NAME_MIN_LENGTH = 2;
@@ -114,69 +112,9 @@ function normalizeMood(value: unknown): Mood | undefined {
   return MOOD_VALUES.includes(value as Mood) ? (value as Mood) : undefined;
 }
 
-function deriveAuthDisplayName() {
-  const authDisplayName = normalizeDisplayNameInput(auth?.currentUser?.displayName);
-  return getDisplayNameValidationErrorKey(authDisplayName) ? "" : authDisplayName;
-}
-
-function deriveAuthPhotoUrl() {
-  return normalizeSharedMediaUrl(auth?.currentUser?.photoURL);
-}
-
 function normalizeAmoriaId(value: unknown) {
   const normalized = normalizeString(value).toUpperCase();
   return AMORIA_ID_RE.test(normalized) ? normalized : "";
-}
-
-function generateAmoriaIdCandidate() {
-  let code = "";
-  for (let index = 0; index < AMORIA_ID_LENGTH; index += 1) {
-    code += AMORIA_ID_ALPHABET[Math.floor(Math.random() * AMORIA_ID_ALPHABET.length)] ?? "2";
-  }
-  return `AM-${code}`;
-}
-
-async function reserveAmoriaId(uid: string, requestedAmoriaId?: string) {
-  if (!db) throw new Error("Firestore is not initialized");
-
-  const requested = normalizeAmoriaId(requestedAmoriaId);
-  const candidates = [
-    ...(requested ? [requested] : []),
-    ...Array.from({ length: 10 }, generateAmoriaIdCandidate),
-  ];
-
-  for (const candidate of candidates) {
-    const amoriaIdRef = doc(db, AMORIA_IDS_COLLECTION, candidate);
-    try {
-      return await runTransaction(db, async (tx) => {
-        const snapshot = await tx.get(amoriaIdRef);
-        const existingUid = snapshot.exists()
-          ? normalizeString((snapshot.data() as { uid?: unknown }).uid)
-          : "";
-
-        if (snapshot.exists()) {
-          if (existingUid === uid) return candidate;
-          throw new Error("profile.amoriaIdCollision");
-        }
-
-        tx.set(amoriaIdRef, {
-          uid,
-          amoriaId: candidate,
-          amoriaIdNormalized: candidate,
-          createdAt: Date.now(),
-          createdAtServer: serverTimestamp(),
-        });
-
-        return candidate;
-      });
-    } catch (error) {
-      if ((error as Error)?.message !== "profile.amoriaIdCollision") {
-        throw error;
-      }
-    }
-  }
-
-  throw new Error("profile.amoriaIdGenerateFailed");
 }
 
 function normalizeGeo(value: unknown): UserProfile["geo"] | undefined {
@@ -199,9 +137,7 @@ function normalizeUserProfile(
   const now = Date.now();
   const createdAt = Number(raw?.createdAt);
   const updatedAt = Number(raw?.updatedAt);
-  const displayName =
-    normalizeStoredDisplayName(raw?.displayName) ||
-    (options.allowAuthFallback === false ? "" : deriveAuthDisplayName());
+  const displayName = normalizeStoredDisplayName(raw?.displayName);
   const amoriaId = normalizeAmoriaId(raw?.amoriaId);
   const avatarUrl =
     normalizeSharedMediaUrl(raw?.avatarUrl) ||
@@ -256,7 +192,7 @@ function normalizeBackendTimestamp(value: unknown, fallback: number) {
   return Number.isFinite(timestamp) && timestamp > 0 ? timestamp : fallback;
 }
 
-function mapBackendUserProfile(user: SelfUserProfileDto): UserProfile {
+function mapBackendUserProfile(user: AuthUserDto | SelfUserProfileDto): UserProfile {
   const now = Date.now();
   const createdAt = normalizeBackendTimestamp(user.createdAt, now);
   const updatedAt = normalizeBackendTimestamp(user.updatedAt, createdAt);
@@ -271,16 +207,12 @@ function mapBackendUserProfile(user: SelfUserProfileDto): UserProfile {
     ...(amoriaId ? { amoriaIdNormalized: amoriaId } : {}),
     ...(about ? { about } : {}),
     ...(avatarUrl ? { avatarUrl } : {}),
-    // Backend does not support extended Firebase profile fields yet.
+    // Backend profile currently exposes only the core profile fields.
     interests: [],
     photos: [],
     createdAt,
     updatedAt,
   };
-}
-
-function hasFirebaseUserProfilePath() {
-  return Boolean(auth?.currentUser?.uid && db);
 }
 
 function isBackendAuthError(error: unknown) {
@@ -299,9 +231,6 @@ async function getCurrentBackendUserProfile() {
 async function updateBackendSupportedProfileFields(
   fields: Partial<UserProfile>
 ): Promise<UserProfile | null> {
-  const accessToken = await getBackendAccessToken();
-  if (!accessToken) return null;
-
   const input: PatchProfileRequest = {};
   if ("displayName" in fields) {
     input.displayName = assertValidDisplayName(fields.displayName);
@@ -316,7 +245,9 @@ async function updateBackendSupportedProfileFields(
   }
 
   try {
-    const user = await patchMeProfileOnBackend(accessToken, input);
+    const user = await patchMeProfileOnBackend(input);
+    const accessToken = await getBackendAccessToken();
+    if (!accessToken) return null;
     await saveBackendSession({ accessToken, user });
     return mapBackendUserProfile(user);
   } catch (error) {
@@ -329,101 +260,8 @@ async function updateBackendSupportedProfileFields(
   }
 }
 
-function requireCurrentUserRef() {
-  const uid = auth?.currentUser?.uid;
-  if (!uid) throw new Error("Not signed in");
-  if (!db) throw new Error("Firestore is not initialized");
-
-  return {
-    uid,
-    ref: doc(db, USERS_COLLECTION, uid),
-  };
-}
-
-function buildInitialUserProfile(uid: string, options: { displayName?: string; amoriaId: string }): UserProfile {
-  const now = Date.now();
-  const avatarUrl = deriveAuthPhotoUrl();
-
-  return normalizeUserProfile(uid, {
-    uid,
-    displayName: normalizeDisplayNameInput(options.displayName),
-    amoriaId: options.amoriaId,
-    amoriaIdNormalized: options.amoriaId,
-    ...(avatarUrl ? { avatarUrl } : {}),
-    interests: [],
-    photos: [],
-    allowAdultMode: false,
-    flirtEnabled: false,
-    mysteryMode: false,
-    createdAt: now,
-    updatedAt: now,
-  });
-}
-
-export async function ensureCurrentUserProfile(options: {
-  displayName?: string;
-} = {}): Promise<UserProfile> {
-  const { uid, ref } = requireCurrentUserRef();
-  const snap = await getDoc(ref);
-  const requestedDisplayName =
-    options.displayName != null ? assertValidDisplayName(options.displayName) : "";
-
-  if (snap.exists()) {
-    const rawData = snap.data() as Partial<UserProfile>;
-    const current = normalizeUserProfile(uid, {
-      uid,
-      ...rawData,
-    });
-    const nextDisplayName = requestedDisplayName || current.displayName;
-    const rawDisplayName = normalizeStoredDisplayName(rawData.displayName);
-    const amoriaId = await reserveAmoriaId(uid, current.amoriaId);
-    const now = Date.now();
-    const patch: Partial<UserProfile> & {
-      updatedAtServer?: ReturnType<typeof serverTimestamp>;
-    } = {
-      uid,
-      amoriaId,
-      amoriaIdNormalized: amoriaId,
-    };
-
-    if (requestedDisplayName && requestedDisplayName !== current.displayName) {
-      patch.displayName = requestedDisplayName;
-    } else if (nextDisplayName && rawDisplayName !== nextDisplayName) {
-      patch.displayName = nextDisplayName;
-    } else if (!("displayName" in rawData)) {
-      patch.displayName = "";
-    }
-
-    if (current.amoriaId !== amoriaId || patch.displayName != null) {
-      patch.updatedAt = now;
-      patch.updatedAtServer = serverTimestamp();
-      await setDoc(ref, patch, { merge: true });
-    }
-
-    return normalizeUserProfile(uid, {
-      ...current,
-      displayName: nextDisplayName,
-      amoriaId,
-      amoriaIdNormalized: amoriaId,
-      updatedAt: patch.updatedAt ?? current.updatedAt,
-    });
-  }
-
-  const amoriaId = await reserveAmoriaId(uid);
-  const initialProfile = buildInitialUserProfile(uid, {
-    displayName: requestedDisplayName || deriveAuthDisplayName(),
-    amoriaId,
-  });
-  await setDoc(ref, {
-    ...initialProfile,
-    createdAtServer: serverTimestamp(),
-    updatedAtServer: serverTimestamp(),
-  });
-  return initialProfile;
-}
-
 export async function createUserProfileForRegistration(displayName: string): Promise<UserProfile> {
-  return ensureCurrentUserProfile({ displayName });
+  return getUserProfile();
 }
 
 export async function getCurrentUser() {
@@ -437,32 +275,11 @@ export async function updateMySettings(patch: Record<string, any>) {
 
 export async function getUserProfile(): Promise<UserProfile> {
   const backendProfile = await getCurrentBackendUserProfile();
-  return backendProfile ?? ensureCurrentUserProfile();
-}
-
-async function updateFirebaseUserFields(
-  fields: Partial<UserProfile>
-): Promise<UserProfile> {
-  const { uid, ref } = requireCurrentUserRef();
-  const current = await ensureCurrentUserProfile();
-  const sanitizedFields = { ...fields };
-  if ("displayName" in sanitizedFields) {
-    sanitizedFields.displayName = assertValidDisplayName(sanitizedFields.displayName);
+  if (!backendProfile) {
+    throw new Error("auth.sessionRequired");
   }
-  sanitizedFields.uid = uid;
-  sanitizedFields.amoriaId = current.amoriaId || (await reserveAmoriaId(uid));
-  sanitizedFields.amoriaIdNormalized = sanitizedFields.amoriaId;
-  const next = normalizeUserProfile(uid, {
-    ...current,
-    ...sanitizedFields,
-    updatedAt: Date.now(),
-  });
 
-  await setDoc(ref, {
-    ...next,
-    updatedAtServer: serverTimestamp(),
-  });
-  return next;
+  return backendProfile;
 }
 
 export async function updateUserFields(
@@ -474,12 +291,12 @@ export async function updateUserFields(
     if (!unsupportedFields.length) {
       const updatedProfile = await updateBackendSupportedProfileFields(fields);
       if (updatedProfile) return updatedProfile;
-    } else if (!hasFirebaseUserProfilePath()) {
-      throw new Error("profile.fieldUnsupportedByBackend");
     }
+
+    throw new Error("profile.fieldUnsupportedByBackend");
   }
 
-  return updateFirebaseUserFields(fields);
+  throw new Error("auth.sessionRequired");
 }
 
 export async function updateUserDisplayName(displayName: string): Promise<UserProfile> {
@@ -514,13 +331,9 @@ export async function updateUserAvatarUrl(avatarUrl: string): Promise<UserProfil
     if (refreshedSession?.user.avatarUrl === sharedAvatarUrl) {
       return mapBackendUserProfile(refreshedSession.user);
     }
-
-    if (!hasFirebaseUserProfilePath()) {
-      throw new Error("profile.avatarUnsupportedByBackend");
-    }
   }
 
-  return updateFirebaseUserFields({ avatarUrl: sharedAvatarUrl });
+  throw new Error("profile.avatarUnsupportedByBackend");
 }
 
 export async function uploadCurrentUserAvatar(uri: string): Promise<UserProfile> {
@@ -530,9 +343,7 @@ export async function uploadCurrentUserAvatar(uri: string): Promise<UserProfile>
     return updateUserAvatarUrl(avatarUrl);
   }
 
-  const { uid } = requireCurrentUserRef();
-  const avatarUrl = await uploadUserAvatar(uid, uri);
-  return updateUserAvatarUrl(avatarUrl);
+  throw new Error("auth.sessionRequired");
 }
 
 export async function updateUserPhotos(photos: string[]): Promise<UserProfile> {

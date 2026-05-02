@@ -11,7 +11,8 @@ import {
   type Firestore,
 } from "firebase/firestore";
 
-import { auth, db } from "@/config/firebaseConfig";
+import { db } from "@/config/firebaseConfig";
+import { getBackendUserId } from "@/services/api/sessionStorage";
 import { uploadAnnouncementPhoto } from "@/services/storage";
 
 export type NearbyAnnouncementCategory =
@@ -236,8 +237,7 @@ export function createFirestoreNearbyAnnouncementsRepository(options: {
 
     async createAnnouncement(input: CreateNearbyAnnouncementInput) {
       const currentDb = requireAnnouncementsDb(database);
-      const currentUser = auth?.currentUser;
-      const currentUid = String(currentUser?.uid ?? input.authorUid ?? "").trim();
+      const currentUid = String(getBackendUserId() || input.authorUid || "").trim();
       if (!currentUid || currentUid !== String(input.authorUid ?? "").trim()) {
         throw new Error("announcements.authRequired");
       }

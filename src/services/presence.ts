@@ -10,7 +10,7 @@ import {
   where,
 } from "firebase/firestore";
 
-import { auth } from "@/config/firebaseConfig";
+import { getBackendUserId } from "@/services/api/sessionStorage";
 
 export type PresenceDoc = {
   uid: string;
@@ -108,7 +108,7 @@ export function subscribePresenceByPrefix(
 
   return onSnapshot(q, (snap) => {
     const cutoff = Date.now() - STALE_WINDOW_MS;
-    const currentUid = auth?.currentUser?.uid ?? null;
+    const currentUid = getBackendUserId() || null;
     const items: PresenceDoc[] = [];
     for (const docSnap of snap.docs) {
       const data = docSnap.data() as any;

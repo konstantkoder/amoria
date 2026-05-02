@@ -4,10 +4,26 @@ import type {
   BackendUploadFile,
 } from "@/services/api/types";
 
+export function uploadAvatarToBackend(file: BackendUploadFile): Promise<AvatarUploadResponse>;
 export function uploadAvatarToBackend(
   accessToken: string,
   file: BackendUploadFile
+): Promise<AvatarUploadResponse>;
+export function uploadAvatarToBackend(
+  fileOrAccessToken: BackendUploadFile | string,
+  maybeFile?: BackendUploadFile
 ): Promise<AvatarUploadResponse> {
+  const accessToken = typeof fileOrAccessToken === "string"
+    ? fileOrAccessToken
+    : undefined;
+  const file = typeof fileOrAccessToken === "string"
+    ? maybeFile
+    : fileOrAccessToken;
+
+  if (!file) {
+    throw new Error("Avatar file is required");
+  }
+
   const formData = new FormData();
   const uploadFile: BackendUploadFile = {
     uri: file.uri,
@@ -19,7 +35,7 @@ export function uploadAvatarToBackend(
 
   return apiRequest<AvatarUploadResponse>("/media/avatar", {
     method: "POST",
-    accessToken,
+    ...(accessToken ? { accessToken } : {}),
     body: formData,
   });
 }

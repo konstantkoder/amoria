@@ -13,7 +13,8 @@ import ScreenShell from "@/components/ScreenShell";
 import PlayModeContextCard from "@/components/play/PlayModeContextCard";
 import ReplayCanvasWebView from "@/components/play/ReplayCanvasWebView";
 import type { SharedCanvasStroke } from "@/components/play/SharedCanvasWebView";
-import { auth, db } from "@/config/firebaseConfig";
+import { db } from "@/config/firebaseConfig";
+import { useAuth } from "@/contexts/AuthContext";
 import { useLocale } from "@/contexts/LocaleContext";
 import {
   type PlayResultRouteProp,
@@ -267,6 +268,7 @@ function getResultBridgeCopy(options: {
 export default function PlayResultScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"PlayResult">>();
   const route = useRoute<PlayResultRouteProp>();
+  const { user: authUser } = useAuth();
   const { t } = useLocale();
   const tt = React.useCallback(
     (key: string, fallback: string, params?: Record<string, string>) => {
@@ -276,7 +278,7 @@ export default function PlayResultScreen() {
     [t]
   );
   const sessionId = route.params.sessionId.trim();
-  const uid = auth?.currentUser?.uid ?? "";
+  const uid = authUser?.id ?? "";
   const [session, setSession] = React.useState<PlaySessionDoc | null>(null);
   const [events, setEvents] = React.useState<PlayStrokeBatch[]>([]);
   const [decision, setDecision] = React.useState<PlayRevealDecision | null>(null);

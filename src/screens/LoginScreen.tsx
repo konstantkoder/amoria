@@ -9,23 +9,12 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getApiBaseUrl } from "@/config/apiConfig";
+import { useAuth } from "@/contexts/AuthContext";
 import { useLocale } from "@/contexts/LocaleContext";
 import {
   getDisplayNameValidationErrorKey,
   normalizeDisplayNameInput,
 } from "@/services/user";
-import { ApiError } from "@/services/api/apiClient";
-import {
-  loginBackendSession,
-  registerBackendSession,
-} from "@/services/api/backendSession";
-import type { BackendSession } from "@/services/api/sessionStorage";
-import { translateMaybeKey } from "@/utils/i18n";
-
-type LoginScreenProps = {
-  authError?: string | null;
-  onAuthenticated?: (session: BackendSession) => void;
-};
 
 const EMAIL_RE = /^\S+@\S+\.\S+$/;
 
@@ -50,47 +39,62 @@ function isNetworkLikeError(error: unknown) {
   );
 }
 
-function getBackendAuthErrorKey(
-  error: unknown,
-  operation: "login" | "register"
-) {
-  if (isNetworkLikeError(error)) {
-    return "auth.networkError";
+function getSignupErrorMessage(error: unknown) {
+  const err = error as any;
+  const code = String(err?.code ?? "");
+  let msg = String(err?.message ?? "Ошибка");
+
+  if (
+    code === "auth/weak-password" ||
+    (code === "validation_error" && err?.fields?.password)
+  ) {
+    msg = "Пароль слишком короткий (минимум 6 символов).";
+  } else if (
+    code === "auth/invalid-email" ||
+    (code === "validation_error" && err?.fields?.email)
+  ) {
+    msg = "Неверный email.";
+  } else if (code === "auth/email-already-in-use" || code === "email_taken") {
+    msg = "Этот email уже используется.";
+  } else if (
+    code === "auth/network-request-failed" ||
+    isNetworkLikeError(error)
+  ) {
+    msg = "Проблема с сетью. Попробуйте ещё раз.";
   }
 
-  const code = error instanceof ApiError && typeof error.code === "string"
-    ? error.code
-    : "";
+  return { code, msg, rawMessage: err?.message };
+}
 
-  switch (code) {
-    case "validation_error":
-    case "invalid_credentials":
-    case "unauthorized":
-      return "auth.invalidCredential";
-    case "email_taken":
-      return "auth.emailInUse";
-    default:
-      return operation === "login"
-        ? "auth.unknownLoginError"
-        : "auth.unknownRegisterError";
+function getLoginErrorMessage(error: unknown) {
+  const err = error as any;
+  const code = String(err?.code ?? "");
+  let msg = String(err?.message ?? "Ошибка");
+
+  if (
+    code === "auth/invalid-credential" ||
+    code === "auth/user-not-found" ||
+    code === "auth/wrong-password" ||
+    code === "invalid_credentials" ||
+    code === "unauthorized" ||
+    code === "validation_error"
+  ) {
+    msg = "Неверный email или пароль.";
+  } else if (
+    code === "auth/network-request-failed" ||
+    isNetworkLikeError(error)
+  ) {
+    msg = "Проблема с сетью. Попробуйте ещё раз.";
   }
+
+  return { code, msg, rawMessage: err?.message };
 }
 
-function logBackendAuthError(operation: "login" | "register", error: unknown) {
-  const value = error as { code?: unknown; message?: unknown; status?: unknown };
-  console.error(`Backend ${operation} error`, {
-    code: typeof value?.code === "string" ? value.code : "unknown",
-    status: typeof value?.status === "number" ? value.status : "unknown",
-    message: typeof value?.message === "string" ? value.message : "Unknown backend auth error",
-  });
-}
-
-export default function LoginScreen({
-  authError,
-  onAuthenticated,
-}: LoginScreenProps) {
+export default function LoginScreen() {
+  const auth = useAuth();
   const { t, locale, openLanguagePicker } = useLocale();
   const insets = useSafeAreaInsets();
+  const [mode, setMode] = useState<"login" | "signup">("login");
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -101,15 +105,15 @@ export default function LoginScreen({
     return translated === "menu.languageCurrent" ? localeCode : translated;
   }, [localeCode, t]);
   const fallbackMessage = useMemo(() => {
-    if (authError) return translateMaybeKey(authError, t, ["auth."]);
     if (!backendConfigured) {
       return t("auth.networkError");
     }
     return null;
-  }, [authError, backendConfigured, t]);
+  }, [backendConfigured, t]);
   const authDisabled = !backendConfigured;
 
   const login = async () => {
+    setMode("login");
     const trimmedEmail = email.trim();
     if (!trimmedEmail) {
       Alert.alert(t("auth.loginTitle"), t("auth.emailRequired"));
@@ -128,18 +132,19 @@ export default function LoginScreen({
       return;
     }
     try {
-      const session = await loginBackendSession({
+      await auth.login({
         email: trimmedEmail,
         password,
       });
-      onAuthenticated?.(session);
     } catch (e: unknown) {
-      logBackendAuthError("login", e);
-      Alert.alert(t("auth.loginTitle"), t(getBackendAuthErrorKey(e, "login")));
+      const { code, msg, rawMessage } = getLoginErrorMessage(e);
+      console.error("LOGIN ERROR:", code, rawMessage);
+      Alert.alert("Ошибка входа", msg);
     }
   };
 
   const register = async () => {
+    setMode("signup");
     const trimmedDisplayName = normalizeDisplayNameInput(displayName);
     const displayNameErrorKey = getDisplayNameValidationErrorKey(trimmedDisplayName);
     if (displayNameErrorKey) {
@@ -165,15 +170,15 @@ export default function LoginScreen({
       return;
     }
     try {
-      const session = await registerBackendSession({
+      await auth.register({
         email: trimmedEmail,
         password,
         displayName: trimmedDisplayName,
       });
-      onAuthenticated?.(session);
     } catch (e: unknown) {
-      logBackendAuthError("register", e);
-      Alert.alert(t("auth.registerTitle"), t(getBackendAuthErrorKey(e, "register")));
+      const { code, msg, rawMessage } = getSignupErrorMessage(e);
+      console.error("SIGNUP ERROR:", code, rawMessage);
+      Alert.alert("Ошибка регистрации", msg);
     }
   };
 
@@ -198,6 +203,7 @@ export default function LoginScreen({
           autoCapitalize="words"
           value={displayName}
           onChangeText={setDisplayName}
+          onFocus={() => setMode("signup")}
           maxLength={30}
         />
         <TextInput
@@ -217,6 +223,18 @@ export default function LoginScreen({
           value={password}
           onChangeText={setPassword}
         />
+        {mode === "signup" ? (
+          <Text
+            style={{
+              marginTop: 6,
+              opacity: 0.75,
+              fontSize: 12,
+              color: "#000000",
+            }}
+          >
+            Пароль: минимум 6 символов
+          </Text>
+        ) : null}
         <TouchableOpacity
           style={[styles.button, authDisabled ? styles.buttonDisabled : null]}
           onPress={login}

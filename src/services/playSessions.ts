@@ -12,7 +12,7 @@ import {
   setDoc,
   where,
 } from "firebase/firestore";
-import { auth } from "@/config/firebaseConfig";
+import { getBackendUserId } from "@/services/api/sessionStorage";
 import { getRuntimeLocale, translate } from "@/i18n/translations";
 import {
   getPlayDrawChallengeById,
@@ -314,7 +314,7 @@ function createNoCurrentUserError() {
 }
 
 function requireCurrentUserForPlayQueue(uid?: string) {
-  const currentUid = auth?.currentUser?.uid ?? "";
+  const currentUid = getBackendUserId();
   if (!currentUid || (uid && currentUid !== uid)) {
     throw createNoCurrentUserError();
   }

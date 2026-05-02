@@ -16,7 +16,8 @@ import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/nativ
 import CoreStateCard from "@/components/CoreStateCard";
 import ScreenShell from "@/components/ScreenShell";
 import UserAvatar from "@/components/UserAvatar";
-import { auth, db } from "@/config/firebaseConfig";
+import { db } from "@/config/firebaseConfig";
+import { useAuth } from "@/contexts/AuthContext";
 import { useLocale } from "@/contexts/LocaleContext";
 import {
   type DmChatRouteProp,
@@ -88,6 +89,7 @@ function buildReportReasonButtons(
 
 export default function DMChatScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"DMChat">>();
+  const { user: authUser } = useAuth();
   const { t } = useLocale();
   const tt = useCallback(
     (key: string, fallback: string, params?: Record<string, string>) => {
@@ -97,7 +99,7 @@ export default function DMChatScreen() {
     [t]
   );
   const route = useRoute<DmChatRouteProp>();
-  const myId = auth?.currentUser?.uid ?? "";
+  const myId = authUser?.id ?? "";
   const routePeerId = String(route.params?.peerId ?? "");
   const threadId = String(
     route.params?.threadId ?? (myId && routePeerId ? buildDmThreadId(myId, routePeerId) : "")

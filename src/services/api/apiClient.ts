@@ -1,14 +1,31 @@
 import { getApiBaseUrl } from "@/config/apiConfig";
+import {
+  emitAuthSignedOut,
+  emitAuthUpdated,
+} from "@/services/session/authEvents";
+import {
+  getAccessToken,
+  getRefreshToken,
+  setAccessToken,
+  setRefreshToken,
+} from "@/services/session/tokenStore";
+import type { AuthResponse } from "@/services/api/types";
 import type { ApiErrorFields, ApiErrorResponse } from "@/services/api/types";
 
 type HttpMethod = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
 
 export type ApiRequestOptions = {
   method?: HttpMethod;
-  accessToken?: string;
+  accessToken?: string | null;
   body?: unknown;
   headers?: Record<string, string>;
+  auth?: boolean;
+  retryOnUnauthorized?: boolean;
 };
+
+type RequestOptions = Omit<ApiRequestOptions, "method" | "body">;
+
+let refreshSessionPromise: Promise<AuthResponse> | null = null;
 
 export class ApiError extends Error {
   status: number;
@@ -90,31 +107,52 @@ function buildError(response: Response, data: unknown) {
   });
 }
 
-export async function apiRequest<TResponse>(
+function isAuthResponse(data: unknown): data is AuthResponse {
+  if (!data || typeof data !== "object") return false;
+  const value = data as Partial<AuthResponse>;
+  const expiresAt = value.accessTokenExpiresAt ?? value.expiresAt;
+  return (
+    typeof value.accessToken === "string" &&
+    value.accessToken.trim().length > 0 &&
+    typeof value.refreshToken === "string" &&
+    value.refreshToken.trim().length > 0 &&
+    typeof expiresAt === "string" &&
+    expiresAt.trim().length > 0 &&
+    Boolean(value.user)
+  );
+}
+
+async function rawRequest<TResponse>(
+  method: HttpMethod,
   path: string,
-  options: ApiRequestOptions = {}
+  bodyValue?: unknown,
+  options: RequestOptions = {}
 ): Promise<TResponse> {
   const headers: Record<string, string> = {
     Accept: "application/json",
     ...options.headers,
   };
 
-  if (options.accessToken) {
-    headers.Authorization = `Bearer ${options.accessToken}`;
+  const token = options.auth === false
+    ? null
+    : options.accessToken ?? getAccessToken();
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
   }
 
   let body: BodyInit | undefined;
-  if (options.body != null) {
-    if (isFormData(options.body)) {
-      body = options.body;
+  if (bodyValue != null) {
+    if (isFormData(bodyValue)) {
+      body = bodyValue;
     } else {
       headers["Content-Type"] = "application/json";
-      body = JSON.stringify(options.body);
+      body = JSON.stringify(bodyValue);
     }
   }
 
   const response = await fetch(buildUrl(path), {
-    method: options.method ?? "GET",
+    method,
     headers,
     ...(body != null ? { body } : {}),
   });
@@ -125,4 +163,97 @@ export async function apiRequest<TResponse>(
   }
 
   return data as TResponse;
+}
+
+async function clearTokensAfterRefreshFailure() {
+  setAccessToken(null);
+  try {
+    await setRefreshToken(null);
+  } finally {
+    emitAuthSignedOut();
+  }
+}
+
+async function refreshSessionOnce(): Promise<AuthResponse> {
+  const refreshToken = await getRefreshToken();
+  if (!refreshToken) {
+    throw new ApiError({
+      status: 401,
+      message: "Refresh token is missing.",
+      code: "missing_refresh_token",
+    });
+  }
+
+  const response = await rawRequest<AuthResponse>(
+    "POST",
+    "/auth/refresh",
+    { refreshToken },
+    { auth: false, retryOnUnauthorized: false }
+  );
+
+  if (!isAuthResponse(response)) {
+    throw new ApiError({
+      status: 500,
+      message: "Backend returned an invalid auth response.",
+      code: "invalid_auth_response",
+    });
+  }
+
+  setAccessToken(response.accessToken);
+  await setRefreshToken(response.refreshToken);
+  emitAuthUpdated(response);
+  return response;
+}
+
+export function refreshSession(): Promise<AuthResponse> {
+  if (!refreshSessionPromise) {
+    refreshSessionPromise = refreshSessionOnce()
+      .catch(async (error) => {
+        await clearTokensAfterRefreshFailure();
+        throw error;
+      })
+      .finally(() => {
+        refreshSessionPromise = null;
+      });
+  }
+
+  return refreshSessionPromise;
+}
+
+export async function request<TResponse>(
+  method: HttpMethod,
+  path: string,
+  body?: unknown,
+  options: RequestOptions = {}
+): Promise<TResponse> {
+  try {
+    return await rawRequest<TResponse>(method, path, body, options);
+  } catch (error) {
+    const shouldRefresh =
+      options.auth !== false &&
+      options.retryOnUnauthorized !== false &&
+      error instanceof ApiError &&
+      error.status === 401;
+
+    if (!shouldRefresh) throw error;
+
+    await refreshSession();
+    return rawRequest<TResponse>(method, path, body, {
+      ...options,
+      accessToken: getAccessToken(),
+      retryOnUnauthorized: false,
+    });
+  }
+}
+
+export async function apiRequest<TResponse>(
+  path: string,
+  options: ApiRequestOptions = {}
+): Promise<TResponse> {
+  return request<TResponse>(
+    options.method ?? "GET",
+    path,
+    options.body,
+    options
+  );
 }

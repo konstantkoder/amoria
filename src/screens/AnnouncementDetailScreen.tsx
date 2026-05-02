@@ -16,7 +16,8 @@ import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/nativ
 import ScreenShell from "@/components/ScreenShell";
 import CoreStateCard from "@/components/CoreStateCard";
 import UserAvatar from "@/components/UserAvatar";
-import { auth, db } from "@/config/firebaseConfig";
+import { db } from "@/config/firebaseConfig";
+import { useAuth } from "@/contexts/AuthContext";
 import { useLocale } from "@/contexts/LocaleContext";
 import {
   type AnnouncementDetailRouteProp,
@@ -229,11 +230,12 @@ function DetailRow({
 export default function AnnouncementDetailScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"AnnouncementDetail">>();
   const route = useRoute<AnnouncementDetailRouteProp>();
+  const { user: authUser } = useAuth();
   const { t } = useLocale();
   const announcementId = route.params.announcementId.trim();
   const initialAnnouncement: NearbyAnnouncement | null =
     route.params.initialAnnouncement ?? null;
-  const currentUid = auth?.currentUser?.uid ?? "";
+  const currentUid = authUser?.id ?? "";
   const [announcement, setAnnouncement] = React.useState<NearbyAnnouncement | null>(
     initialAnnouncement
   );

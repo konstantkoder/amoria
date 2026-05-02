@@ -5,7 +5,8 @@ import { Ionicons } from "@expo/vector-icons";
 
 import CoreStateCard from "@/components/CoreStateCard";
 import ScreenShell from "@/components/ScreenShell";
-import { auth, db } from "@/config/firebaseConfig";
+import { db } from "@/config/firebaseConfig";
+import { useAuth } from "@/contexts/AuthContext";
 import { useLocale } from "@/contexts/LocaleContext";
 import { type RootStackNavigationProp } from "@/navigation/appRoutes";
 import {
@@ -303,6 +304,7 @@ function mapThreadToFallbackCard(
 
 export default function ConnectionsFeedScreen() {
   const navigation = useNavigation<RootStackNavigationProp>();
+  const { user: authUser } = useAuth();
   const { t } = useLocale();
   const tt = useCallback(
     (key: string, fallback: string, params?: Record<string, string>) => {
@@ -311,7 +313,7 @@ export default function ConnectionsFeedScreen() {
     },
     [t]
   );
-  const uid = auth?.currentUser?.uid ?? "";
+  const uid = authUser?.id ?? "";
   const freshnessState = useActivityFreshnessState();
   const [now, setNow] = useState(() => Date.now());
   const [threads, setThreads] = useState<DmThreadDoc[]>([]);

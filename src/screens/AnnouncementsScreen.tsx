@@ -5,7 +5,7 @@ import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/nativ
 import CoreStateCard from "@/components/CoreStateCard";
 import ScreenShell from "@/components/ScreenShell";
 import NearbyAnnouncementsSection from "@/components/nearby/NearbyAnnouncementsSection";
-import { auth } from "@/config/firebaseConfig";
+import { useAuth } from "@/contexts/AuthContext";
 import { useLocale } from "@/contexts/LocaleContext";
 import {
   type AnnouncementsTabNavigationProp,
@@ -39,8 +39,9 @@ function copyOrFallback(
 export default function AnnouncementsScreen() {
   const navigation = useNavigation<AnnouncementsTabNavigationProp>();
   const route = useRoute<AnnouncementsTabRouteProp>();
+  const { user: authUser } = useAuth();
   const { t } = useLocale();
-  const currentUid = auth?.currentUser?.uid ?? "";
+  const currentUid = authUser?.id ?? "";
   const [announcements, setAnnouncements] = React.useState<NearbyAnnouncement[]>([]);
   const [blockedUserIds, setBlockedUserIds] = React.useState<string[]>([]);
   const [announcementCategory, setAnnouncementCategory] = React.useState<

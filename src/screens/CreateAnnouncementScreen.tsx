@@ -16,7 +16,7 @@ import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 
 import ScreenShell from "@/components/ScreenShell";
-import { auth } from "@/config/firebaseConfig";
+import { useAuth } from "@/contexts/AuthContext";
 import { useLocale } from "@/contexts/LocaleContext";
 import { type RootStackNavigationProp } from "@/navigation/appRoutes";
 import {
@@ -77,6 +77,7 @@ function getPublishErrorCopy(
 
 export default function CreateAnnouncementScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"CreateAnnouncement">>();
+  const { user: authUser } = useAuth();
   const { t } = useLocale();
   const scrollRef = React.useRef<ScrollView>(null);
   const photoSectionYRef = React.useRef(0);
@@ -90,7 +91,7 @@ export default function CreateAnnouncementScreen() {
   const [saving, setSaving] = React.useState(false);
   const [category, setCategory] = React.useState<NearbyAnnouncementCategory>("walk");
   const [authorDisplayName, setAuthorDisplayName] = React.useState("");
-  const currentUid = auth?.currentUser?.uid ?? "";
+  const currentUid = authUser?.id ?? "";
   const authorLabel =
     authorDisplayName || copyOrFallback(t, "profile.amoriaUser", "Пользователь Amoria");
 

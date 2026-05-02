@@ -3,6 +3,7 @@ import { deleteObject, getDownloadURL, ref, uploadBytes } from "firebase/storage
 import { firebaseConfig, storage } from "@/config/firebaseConfig";
 import { uploadAvatarToBackend } from "@/services/api/mediaApi";
 import {
+  getBackendAccessToken,
   loadBackendSession,
   saveBackendSession,
 } from "@/services/api/sessionStorage";
@@ -75,14 +76,15 @@ async function uploadBackendUserAvatar(stableUid: string, stableUri: string) {
 
   const contentType = inferImageContentType(stableUri);
   const extension = inferImageExtension(contentType);
-  const response = await uploadAvatarToBackend(session.accessToken, {
+  const response = await uploadAvatarToBackend({
     uri: stableUri,
     name: `avatar.${extension}`,
     type: contentType,
   });
+  const accessToken = await getBackendAccessToken();
 
   await saveBackendSession({
-    accessToken: session.accessToken,
+    accessToken: accessToken ?? session.accessToken,
     user: response.user,
   });
 
@@ -118,7 +120,7 @@ export async function uploadUserAvatar(uid: string, localUri: string) {
   const backendAvatarUrl = await uploadBackendUserAvatar(stableUid, stableUri);
   if (backendAvatarUrl !== null) return backendAvatarUrl;
 
-  return uploadImageToPath(stableUri, `users/${stableUid}/profile/avatar.jpg`);
+  throw new Error("auth.sessionRequired");
 }
 
 export async function uploadProfileAvatar(uid: string, uri: string) {

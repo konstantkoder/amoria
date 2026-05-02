@@ -23,7 +23,8 @@ import {
 } from "@/assets/play/drawExamples";
 import CoreStateCard from "@/components/CoreStateCard";
 import ScreenShell from "@/components/ScreenShell";
-import { auth, db } from "@/config/firebaseConfig";
+import { db } from "@/config/firebaseConfig";
+import { useAuth } from "@/contexts/AuthContext";
 import { useLocale } from "@/contexts/LocaleContext";
 import {
   type PlayCanvasRouteProp,
@@ -90,6 +91,7 @@ type GuardState = {
 export default function PlayCanvasScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"PlayCanvas">>();
   const route = useRoute<PlayCanvasRouteProp>();
+  const { user: authUser } = useAuth();
   const { t } = useLocale();
   const tt = React.useCallback(
     (key: string, fallback: string, params?: Record<string, string>) => {
@@ -99,7 +101,7 @@ export default function PlayCanvasScreen() {
     [t]
   );
   const sessionId = route.params.sessionId.trim();
-  const uid = auth?.currentUser?.uid ?? "";
+  const uid = authUser?.id ?? "";
   const [session, setSession] = React.useState<PlaySessionDoc | null>(null);
   const [events, setEvents] = React.useState<PlayStrokeBatch[]>([]);
   const [loadingSession, setLoadingSession] = React.useState(true);
