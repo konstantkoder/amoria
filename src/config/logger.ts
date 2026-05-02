@@ -15,6 +15,8 @@ export function loggerOptions(): FastifyServerOptions["logger"] {
       "password_hash",
       "passwordHash",
       "accessToken",
+      "refreshToken",
+      "tokenHash",
     ],
   };
 }

@@ -1,6 +1,8 @@
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
+  boolean,
   integer,
+  jsonb,
   pgTable,
   text,
   timestamp,
@@ -16,6 +18,13 @@ export const users = pgTable("users", {
   about: text("about"),
   amoriaId: varchar("amoria_id", { length: 16 }).notNull().unique(),
   avatarUrl: text("avatar_url"),
+  photos: jsonb("photos").$type<ProfilePhoto[]>().default(sql`'[]'::jsonb`).notNull(),
+  goal: text("goal"),
+  mood: text("mood"),
+  interests: jsonb("interests").$type<string[]>().default(sql`'[]'::jsonb`).notNull(),
+  flirtEnabled: boolean("flirt_enabled").default(false).notNull(),
+  allowAdultMode: boolean("allow_adult_mode").default(false).notNull(),
+  mysteryMode: boolean("mystery_mode").default(false).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
@@ -43,7 +52,11 @@ export const refreshTokens = pgTable("refresh_tokens", {
     .references(() => users.id, { onDelete: "cascade" }),
   tokenHash: text("token_hash").notNull().unique(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
   revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  replacedByTokenId: uuid("replaced_by_token_id"),
+  deviceId: text("device_id"),
+  userAgent: text("user_agent"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
@@ -72,3 +85,8 @@ export type MediaFileRow = typeof mediaFiles.$inferSelect;
 export type NewMediaFileRow = typeof mediaFiles.$inferInsert;
 export type RefreshTokenRow = typeof refreshTokens.$inferSelect;
 export type NewRefreshTokenRow = typeof refreshTokens.$inferInsert;
+
+export type ProfilePhoto = {
+  mediaId: string;
+  url: string;
+};

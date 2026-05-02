@@ -8,6 +8,11 @@ type AccessTokenPayload = {
   typ: "access";
 };
 
+export type SignedAccessToken = {
+  accessToken: string;
+  accessTokenExpiresAt: string;
+};
+
 export function signAccessToken(userId: string): string {
   return jwt.sign(
     {
@@ -21,6 +26,20 @@ export function signAccessToken(userId: string): string {
       issuer: SERVICE_NAME,
     },
   );
+}
+
+export function signAccessTokenWithExpiry(userId: string): SignedAccessToken {
+  const accessToken = signAccessToken(userId);
+  const decoded = jwt.decode(accessToken);
+
+  if (!decoded || typeof decoded !== "object" || typeof decoded.exp !== "number") {
+    throw new Error("Signed access token is missing an expiry");
+  }
+
+  return {
+    accessToken,
+    accessTokenExpiresAt: new Date(decoded.exp * 1000).toISOString(),
+  };
 }
 
 export function verifyAccessToken(token: string): AccessTokenPayload {

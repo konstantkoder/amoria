@@ -9,6 +9,7 @@ Standalone backend foundation for Amoria. It contains the API, PostgreSQL schema
 - PostgreSQL
 - Drizzle ORM migrations
 - JWT access tokens
+- Rotating hashed refresh tokens
 - Argon2id password hashing with bcrypt fallback
 - Sharp avatar processing
 - Local file uploads
@@ -40,8 +41,13 @@ Standalone backend foundation for Amoria. It contains the API, PostgreSQL schema
 - `GET /health`
 - `POST /auth/register`
 - `POST /auth/login`
+- `POST /auth/refresh`
+- `POST /auth/logout`
+- `POST /auth/logout-all`
 - `GET /me`
 - `PATCH /me/profile`
+- `GET /users/:id/public`
+- `GET /users/by-amoria-id/:amoriaId`
 - `POST /media/avatar`
 - `GET /media/users/:userId/avatar.webp`
 
@@ -52,12 +58,74 @@ Errors use a consistent envelope:
   "error": {
     "code": "validation_error",
     "message": "Human readable message",
-    "fields": {
+    "details": {
       "email": "invalid"
     }
   }
 }
 ```
+
+Successful auth responses include:
+
+```json
+{
+  "accessToken": "...",
+  "refreshToken": "...",
+  "accessTokenExpiresAt": "2026-05-02T12:00:00.000Z",
+  "user": {
+    "id": "...",
+    "email": "user@example.com",
+    "displayName": "User",
+    "amoriaId": "AM123",
+    "avatarUrl": null
+  }
+}
+```
+
+Refresh tokens are stored only as hashes and are rotated on every `POST /auth/refresh`.
+
+Auth lifecycle test cases:
+
+- `login -> refresh -> refresh(old)` returns `401` with code `invalid_refresh`
+- `logout -> refresh(token)` returns `401` with code `invalid_refresh`
+- `logout-all -> refresh(any)` returns `401` with code `invalid_refresh`
+
+`GET /me` returns the full profile, including private fields:
+
+```json
+{
+  "id": "...",
+  "email": "user@example.com",
+  "displayName": "User",
+  "about": null,
+  "amoriaId": "AM123",
+  "avatarUrl": null,
+  "photos": [
+    {
+      "mediaId": "00000000-0000-4000-8000-000000000000",
+      "url": "https://api.example.test/media/users/u/photo.webp"
+    }
+  ],
+  "goal": "relationship",
+  "mood": "romantic",
+  "interests": ["music", "travel"],
+  "flirtEnabled": true,
+  "allowAdultMode": false,
+  "mysteryMode": false,
+  "createdAt": "2026-05-02T12:00:00.000Z",
+  "updatedAt": "2026-05-02T12:00:00.000Z"
+}
+```
+
+`PATCH /me/profile` accepts any subset of `displayName`, `about`, `avatarUrl`,
+`photos`, `goal`, `mood`, `interests`, `flirtEnabled`, `allowAdultMode`, and
+`mysteryMode`. `photos` is capped at 9 items, `interests` at 20 items, and
+interest strings are trimmed. `goal` values are `relationship`, `dating`,
+`friendship`, `chat`, or `unsure`; `mood` values are `romantic`, `playful`,
+`chill`, `curious`, or `adventurous`.
+
+Public profile endpoints return the same profile shape without `email` and
+`allowAdultMode`.
 
 ## Local Development
 

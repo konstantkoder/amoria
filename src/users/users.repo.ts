@@ -8,12 +8,27 @@ export async function findUserById(userId: string): Promise<UserRow | undefined>
   });
 }
 
+export async function findUserByAmoriaId(amoriaId: string): Promise<UserRow | undefined> {
+  return db.query.users.findFirst({
+    where: eq(users.amoriaId, amoriaId),
+  });
+}
+
 export async function updateUserProfile(
   userId: string,
-  input: {
-    displayName?: string;
-    about?: string | null;
-  },
+  input: Partial<Pick<
+    UserRow,
+    | "displayName"
+    | "about"
+    | "avatarUrl"
+    | "photos"
+    | "goal"
+    | "mood"
+    | "interests"
+    | "flirtEnabled"
+    | "allowAdultMode"
+    | "mysteryMode"
+  >>,
 ): Promise<UserRow | undefined> {
   const [updated] = await db
     .update(users)

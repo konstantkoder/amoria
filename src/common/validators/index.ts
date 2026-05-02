@@ -4,10 +4,21 @@ import {
   DISPLAY_NAME_MIN_LENGTH,
   PASSWORD_MAX_LENGTH,
   PASSWORD_MIN_LENGTH,
+  PROFILE_GOALS,
+  PROFILE_INTERESTS_MAX_COUNT,
+  PROFILE_INTEREST_MAX_LENGTH,
+  PROFILE_MOODS,
+  PROFILE_PHOTOS_MAX_COUNT,
+  PROFILE_URL_MAX_LENGTH,
 } from "../../config/constants";
 import { validationError } from "../errors";
+import type { ProfilePhoto } from "../../db/schema";
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export type ProfileGoal = (typeof PROFILE_GOALS)[number];
+export type ProfileMood = (typeof PROFILE_MOODS)[number];
 
 export function normalizeEmail(email: unknown): string {
   if (typeof email !== "string") {
@@ -76,4 +87,166 @@ export function normalizeOptionalAbout(about: unknown): string | null | undefine
   }
 
   return normalized.length === 0 ? null : normalized;
+}
+
+export function normalizeOptionalUrl(value: unknown, field: string): string | null | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (value === null) {
+    return null;
+  }
+
+  if (typeof value !== "string") {
+    throw validationError(`${field} must be a URL`, { [field]: "invalid" });
+  }
+
+  const normalized = value.trim();
+  if (!normalized) {
+    return null;
+  }
+
+  if (normalized.length > PROFILE_URL_MAX_LENGTH) {
+    throw validationError(`${field} must be ${PROFILE_URL_MAX_LENGTH} characters or fewer`, {
+      [field]: "too_long",
+    });
+  }
+
+  try {
+    new URL(normalized);
+  } catch {
+    throw validationError(`${field} must be a valid URL`, { [field]: "invalid" });
+  }
+
+  return normalized;
+}
+
+export function normalizeOptionalPhotos(value: unknown): ProfilePhoto[] | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (!Array.isArray(value)) {
+    throw validationError("Photos must be an array", { photos: "invalid" });
+  }
+
+  if (value.length > PROFILE_PHOTOS_MAX_COUNT) {
+    throw validationError(`Photos must contain ${PROFILE_PHOTOS_MAX_COUNT} items or fewer`, {
+      photos: "too_many",
+    });
+  }
+
+  return value.map((item, index) => {
+    const prefix = `photos.${index}`;
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      throw validationError("Photo must be an object", { [prefix]: "invalid" });
+    }
+
+    const candidate = item as { mediaId?: unknown; url?: unknown };
+    if (typeof candidate.mediaId !== "string" || !uuidPattern.test(candidate.mediaId.trim())) {
+      throw validationError("Photo mediaId must be a UUID", { [`${prefix}.mediaId`]: "invalid" });
+    }
+
+    const url = normalizeOptionalUrl(candidate.url, `${prefix}.url`);
+    if (!url) {
+      throw validationError("Photo URL is required", { [`${prefix}.url`]: "required" });
+    }
+
+    return {
+      mediaId: candidate.mediaId.trim(),
+      url,
+    };
+  });
+}
+
+export function normalizeOptionalInterests(value: unknown): string[] | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (!Array.isArray(value)) {
+    throw validationError("Interests must be an array", { interests: "invalid" });
+  }
+
+  if (value.length > PROFILE_INTERESTS_MAX_COUNT) {
+    throw validationError(
+      `Interests must contain ${PROFILE_INTERESTS_MAX_COUNT} items or fewer`,
+      { interests: "too_many" },
+    );
+  }
+
+  const normalized: string[] = [];
+  for (const [index, item] of value.entries()) {
+    if (typeof item !== "string") {
+      throw validationError("Interest must be text", { [`interests.${index}`]: "invalid" });
+    }
+
+    const interest = item.trim();
+    if (!interest) {
+      continue;
+    }
+
+    if (interest.length > PROFILE_INTEREST_MAX_LENGTH) {
+      throw validationError(
+        `Interest must be ${PROFILE_INTEREST_MAX_LENGTH} characters or fewer`,
+        { [`interests.${index}`]: "too_long" },
+      );
+    }
+
+    if (!normalized.includes(interest)) {
+      normalized.push(interest);
+    }
+  }
+
+  return normalized;
+}
+
+export function normalizeOptionalGoal(value: unknown): ProfileGoal | null | undefined {
+  return normalizeOptionalEnum(value, "goal", PROFILE_GOALS);
+}
+
+export function normalizeOptionalMood(value: unknown): ProfileMood | null | undefined {
+  return normalizeOptionalEnum(value, "mood", PROFILE_MOODS);
+}
+
+export function normalizeOptionalBoolean(value: unknown, field: string): boolean | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (typeof value !== "boolean") {
+    throw validationError(`${field} must be a boolean`, { [field]: "invalid" });
+  }
+
+  return value;
+}
+
+function normalizeOptionalEnum<T extends string>(
+  value: unknown,
+  field: string,
+  allowed: readonly T[],
+): T | null | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (value === null) {
+    return null;
+  }
+
+  if (typeof value !== "string") {
+    throw validationError(`${field} is invalid`, { [field]: "invalid" });
+  }
+
+  const normalized = value.trim();
+  if (!normalized) {
+    return null;
+  }
+
+  if (!allowed.includes(normalized as T)) {
+    throw validationError(`${field} is invalid`, { [field]: "invalid" });
+  }
+
+  return normalized as T;
 }

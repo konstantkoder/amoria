@@ -8,6 +8,20 @@
       "when": 1777568337324,
       "tag": "0000_sad_red_wolf",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1777716083079,
+      "tag": "0001_happy_taskmaster",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1777718323849,
+      "tag": "0002_fat_madame_hydra",
+      "breakpoints": true
     }
   ]
 }

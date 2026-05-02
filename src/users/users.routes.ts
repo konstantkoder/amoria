@@ -3,7 +3,12 @@ import { authMiddleware } from "../common/security/auth-middleware";
 import { unauthorized } from "../common/errors";
 import { withErrorResponses } from "../common/http";
 import type { UpdateProfileBody } from "./users.service";
-import { getMeRouteSchema, updateProfileRouteSchema } from "./users.schemas";
+import {
+  getMeRouteSchema,
+  getPublicUserByAmoriaIdRouteSchema,
+  getPublicUserByIdRouteSchema,
+  updateProfileRouteSchema,
+} from "./users.schemas";
 import * as usersService from "./users.service";
 
 function currentUserId(request: { auth?: { userId: string } }): string {
@@ -15,6 +20,18 @@ function currentUserId(request: { auth?: { userId: string } }): string {
 }
 
 export async function usersRoutes(fastify: FastifyInstance): Promise<void> {
+  fastify.get<{ Params: { id: string } }>(
+    "/users/:id/public",
+    { schema: withErrorResponses(getPublicUserByIdRouteSchema) },
+    async (request) => usersService.getPublicUserById(request.params.id),
+  );
+
+  fastify.get<{ Params: { amoriaId: string } }>(
+    "/users/by-amoria-id/:amoriaId",
+    { schema: withErrorResponses(getPublicUserByAmoriaIdRouteSchema) },
+    async (request) => usersService.getPublicUserByAmoriaId(request.params.amoriaId),
+  );
+
   fastify.get(
     "/me",
     {

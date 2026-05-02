@@ -3,7 +3,9 @@ import type { FastifyError, FastifyReply, FastifyRequest } from "fastify";
 export type ErrorCode =
   | "validation_error"
   | "invalid_credentials"
+  | "invalid_refresh"
   | "unauthorized"
+  | "not_found"
   | "email_taken"
   | "file_too_large"
   | "unsupported_media_type"
@@ -11,43 +13,43 @@ export type ErrorCode =
   | "storage_write_failed"
   | "internal_error";
 
-export type ErrorFields = Record<string, string>;
+export type ErrorDetails = Record<string, string>;
 
 export class AppError extends Error {
   readonly code: ErrorCode;
   readonly statusCode: number;
-  readonly fields?: ErrorFields;
+  readonly details?: ErrorDetails;
 
-  constructor(code: ErrorCode, message: string, statusCode: number, fields?: ErrorFields) {
+  constructor(code: ErrorCode, message: string, statusCode: number, details?: ErrorDetails) {
     super(message);
     this.name = "AppError";
     this.code = code;
     this.statusCode = statusCode;
-    this.fields = fields;
+    this.details = details;
   }
 }
 
-export function validationError(message: string, fields?: ErrorFields): AppError {
-  return new AppError("validation_error", message, 400, fields);
+export function validationError(message: string, details?: ErrorDetails): AppError {
+  return new AppError("validation_error", message, 400, details);
 }
 
 export function unauthorized(message = "Authentication is required"): AppError {
   return new AppError("unauthorized", message, 401);
 }
 
-function validationFields(error: FastifyError): ErrorFields | undefined {
+function validationDetails(error: FastifyError): ErrorDetails | undefined {
   if (!error.validation?.length) {
     return undefined;
   }
 
-  const fields: ErrorFields = {};
+  const details: ErrorDetails = {};
   for (const item of error.validation) {
     const params = item.params as { missingProperty?: string } | undefined;
     const fieldFromPath = item.instancePath?.replace(/^\//, "").replace(/\//g, ".");
     const field = params?.missingProperty ?? fieldFromPath ?? "body";
-    fields[field] = item.message ?? "invalid";
+    details[field] = item.message ?? "invalid";
   }
-  return fields;
+  return details;
 }
 
 export function errorHandler(error: FastifyError, request: FastifyRequest, reply: FastifyReply): void {
@@ -56,7 +58,7 @@ export function errorHandler(error: FastifyError, request: FastifyRequest, reply
       error: {
         code: error.code,
         message: error.message,
-        ...(error.fields ? { fields: error.fields } : {}),
+        ...(error.details ? { details: error.details } : {}),
       },
     });
     return;
@@ -67,7 +69,7 @@ export function errorHandler(error: FastifyError, request: FastifyRequest, reply
       error: {
         code: "validation_error",
         message: "Request validation failed",
-        fields: validationFields(error),
+        details: validationDetails(error),
       },
     });
     return;

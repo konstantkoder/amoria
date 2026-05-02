@@ -15,19 +15,34 @@ export type LoginBody = {
   password: string;
 };
 
+export type RefreshBody = {
+  refreshToken: string;
+};
+
+export type LogoutBody = RefreshBody;
+
+export type AuthRequestContext = {
+  deviceId?: string;
+  userAgent?: string;
+};
+
 export type AuthUserProfile = {
   id: string;
   email: string;
   displayName: string;
   amoriaId: string;
   avatarUrl: string | null;
-  createdAt: string;
-  updatedAt: string;
 };
 
 export type AuthResponse = {
   accessToken: string;
+  refreshToken: string;
+  accessTokenExpiresAt: string;
   user: AuthUserProfile;
+};
+
+export type OkResponse = {
+  ok: true;
 };
 
 export function toAuthUserProfile(user: UserRow): AuthUserProfile {
@@ -37,8 +52,6 @@ export function toAuthUserProfile(user: UserRow): AuthUserProfile {
     displayName: user.displayName,
     amoriaId: user.amoriaId,
     avatarUrl: user.avatarUrl,
-    createdAt: user.createdAt.toISOString(),
-    updatedAt: user.updatedAt.toISOString(),
   };
 }
 

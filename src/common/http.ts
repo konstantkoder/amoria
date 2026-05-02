@@ -12,7 +12,7 @@ export const errorEnvelopeSchema = {
       properties: {
         code: { type: "string" },
         message: { type: "string" },
-        fields: {
+        details: {
           type: "object",
           additionalProperties: { type: "string" },
         },
@@ -28,6 +28,7 @@ export function withErrorResponses(schema: FastifySchema): FastifySchema {
       ...(schema.response ?? {}),
       400: errorEnvelopeSchema,
       401: errorEnvelopeSchema,
+      404: errorEnvelopeSchema,
       409: errorEnvelopeSchema,
       413: errorEnvelopeSchema,
       415: errorEnvelopeSchema,
