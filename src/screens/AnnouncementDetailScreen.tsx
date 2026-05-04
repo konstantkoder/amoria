@@ -16,7 +16,6 @@ import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/nativ
 import ScreenShell from "@/components/ScreenShell";
 import CoreStateCard from "@/components/CoreStateCard";
 import UserAvatar from "@/components/UserAvatar";
-import { db } from "@/config/firebaseConfig";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocale } from "@/contexts/LocaleContext";
 import {
@@ -24,23 +23,18 @@ import {
   type RootStackNavigationProp,
 } from "@/navigation/appRoutes";
 import { goBackOrOpenAnnouncements } from "@/navigation/nearbyNavigation";
-import { buildDmChatRouteParams, ensureDmThread } from "@/services/dm";
+import * as announcementsApi from "@/services/api/announcementsApi";
 import {
-  nearbyAnnouncementsRepository,
+  mapAnnouncementDtoToNearbyAnnouncement,
   type NearbyAnnouncement,
-} from "@/services/nearbyAnnouncements";
+} from "@/services/announcementsModel";
 import {
   blockUser,
   createReport,
   getBlockedUserIds,
   type SafetyReportReason,
 } from "@/services/safety";
-import { getUserProfile, getUserProfileById } from "@/services/user";
 import { theme } from "@/theme";
-import {
-  isFirestoreMissingIndexError,
-  logFirestoreMissingIndexError,
-} from "@/utils/firestoreErrors";
 import { formatAgoLong } from "@/utils/timeAgo";
 
 type AnnouncementResponseMode = "own" | "direct_dm" | "unavailable";
@@ -65,7 +59,6 @@ function copyOrFallback(
 function resolveAnnouncementResponseMode(params: {
   announcement: NearbyAnnouncement | null;
   currentUid: string;
-  canOpenDirectChat: boolean;
   override?: AnnouncementResponseMode | null;
 }): AnnouncementResponseMode {
   if (params.override) {
@@ -73,10 +66,13 @@ function resolveAnnouncementResponseMode(params: {
   }
 
   const authorUid = String(params.announcement?.authorUid ?? "").trim();
-  if (authorUid && params.currentUid && authorUid === params.currentUid) {
+  if (
+    params.announcement?.isMine ||
+    (authorUid && params.currentUid && authorUid === params.currentUid)
+  ) {
     return "own";
   }
-  if (authorUid && params.currentUid && params.canOpenDirectChat) {
+  if (authorUid && params.currentUid) {
     return "direct_dm";
   }
   return "unavailable";
@@ -94,10 +90,10 @@ function buildAnnouncementResponsePresentation(
         body: copyOrFallback(
           t,
           "nearby.detail.ownBody",
-          "Это объявление уже опубликовано в разделе «Объявления». Отсюда можно спокойно вернуться к списку."
+          "Это объявление уже опубликовано в разделе «Объявления». Его можно закрыть, когда запрос больше не актуален."
         ),
-        actionLabel: copyOrFallback(t, "nearby.detail.backToList", "К объявлениям"),
-        busyLabel: copyOrFallback(t, "nearby.detail.backToList", "К объявлениям"),
+        actionLabel: copyOrFallback(t, "common.close", "Закрыть"),
+        busyLabel: copyOrFallback(t, "common.close", "Закрыть"),
         buttonVariant: "secondary",
       };
     case "direct_dm":
@@ -116,7 +112,7 @@ function buildAnnouncementResponsePresentation(
         ),
         actionLabel: hasResponded
           ? copyOrFallback(t, "nearby.detail.openChat", "Открыть чат")
-          : copyOrFallback(t, "nearby.detail.messageAuthor", "Написать автору"),
+          : copyOrFallback(t, "nearby.detail.messageAuthor", "Ответить"),
         busyLabel: copyOrFallback(t, "nearby.detail.openingChat", "Открываем чат..."),
         buttonVariant: "primary",
       };
@@ -240,8 +236,11 @@ export default function AnnouncementDetailScreen() {
     initialAnnouncement
   );
   const [loading, setLoading] = React.useState(!initialAnnouncement);
-  const [respondedAt, setRespondedAt] = React.useState<number | null>(null);
+  const [hasRespondedOverride, setHasRespondedOverride] = React.useState<boolean | null>(
+    null
+  );
   const [responding, setResponding] = React.useState(false);
+  const [closing, setClosing] = React.useState(false);
   const [loadError, setLoadError] = React.useState<string | null>(null);
   const [responseError, setResponseError] = React.useState<string | null>(null);
   const [responseModeOverride, setResponseModeOverride] =
@@ -253,7 +252,6 @@ export default function AnnouncementDetailScreen() {
   const [authorDisplayName, setAuthorDisplayName] = React.useState(
     initialAnnouncement?.authorName?.trim() || initialAnnouncement?.authorLabel?.trim() || ""
   );
-  const [currentProfileName, setCurrentProfileName] = React.useState("");
   const [safetyBusy, setSafetyBusy] = React.useState(false);
 
   useFocusEffect(
@@ -261,7 +259,7 @@ export default function AnnouncementDetailScreen() {
       let alive = true;
       if (!announcementId) {
         setAnnouncement(null);
-        setRespondedAt(null);
+        setHasRespondedOverride(null);
         setAuthorBlocked(false);
         setLoading(false);
         return () => {
@@ -273,20 +271,16 @@ export default function AnnouncementDetailScreen() {
       setLoadError(null);
       setResponseError(null);
       setResponseModeOverride(null);
+      setHasRespondedOverride(null);
       void Promise.all([
-        nearbyAnnouncementsRepository.getAnnouncementById(announcementId),
-        currentUid
-          ? nearbyAnnouncementsRepository.getAnnouncementResponseState(
-              announcementId,
-              currentUid
-            )
-          : Promise.resolve({ respondedAt: null, hasResponded: false }),
+        announcementsApi.getAnnouncement(announcementId),
         currentUid ? getBlockedUserIds(currentUid).catch(() => []) : Promise.resolve([]),
       ])
-        .then(([nextAnnouncement, responseState, blockedIds]) => {
+        .then(([nextAnnouncementDto, blockedIds]) => {
           if (!alive) return;
+          const nextAnnouncement =
+            mapAnnouncementDtoToNearbyAnnouncement(nextAnnouncementDto);
           setAnnouncement(nextAnnouncement);
-          setRespondedAt(responseState.respondedAt);
           setAuthorAvatarUrl(nextAnnouncement?.authorAvatarUrl ?? "");
           setAuthorDisplayName(
             nextAnnouncement?.authorName?.trim() || nextAnnouncement?.authorLabel?.trim() || ""
@@ -301,27 +295,16 @@ export default function AnnouncementDetailScreen() {
         .catch((error) => {
           if (!alive) return;
           setAnnouncement(null);
-          setRespondedAt(null);
+          setHasRespondedOverride(null);
           setAuthorAvatarUrl("");
           setAuthorDisplayName("");
           setAuthorBlocked(false);
-          if (isFirestoreMissingIndexError(error)) {
-            logFirestoreMissingIndexError("Announcement detail", error);
-            setLoadError(
-              copyOrFallback(
-                t,
-                "common.serviceSetupError",
-                "Сервис временно настраивается. Попробуйте позже."
-              )
-            );
-            return;
-          }
 
           setLoadError(
             copyOrFallback(
               t,
               "nearby.detail.loadErrorBody",
-              "Не удалось загрузить это объявление из Firestore. Попробуй ещё раз позже."
+              "Не удалось загрузить это объявление с сервера. Попробуй ещё раз позже."
             )
           );
         })
@@ -368,20 +351,17 @@ export default function AnnouncementDetailScreen() {
     "Место не указано"
   );
   const announcementAuthorUid = String(announcement?.authorUid ?? "").trim();
-  const canOpenDirectChat = Boolean(db);
-  const hasResponded = respondedAt !== null;
+  const hasResponded = hasRespondedOverride ?? Boolean(announcement?.hasResponded);
   const responseMode = React.useMemo(
     () =>
       resolveAnnouncementResponseMode({
         announcement,
         currentUid,
-        canOpenDirectChat,
         override: responseModeOverride,
       }),
-    [announcement, canOpenDirectChat, currentUid, responseModeOverride]
+    [announcement, currentUid, responseModeOverride]
   );
   const amoriaUserLabel = copyOrFallback(t, "profile.amoriaUser", "Пользователь Amoria");
-  const currentAuthorLabel = currentProfileName || amoriaUserLabel;
   const rawAnnouncementAuthorLabel =
     authorDisplayName || announcement?.authorName?.trim() || announcement?.authorLabel?.trim() || amoriaUserLabel;
   const announcementAuthorLabel =
@@ -393,60 +373,42 @@ export default function AnnouncementDetailScreen() {
     () => buildAnnouncementResponsePresentation(t, responseMode, hasResponded),
     [hasResponded, responseMode, t]
   );
+  const responseBusy = responding || closing;
 
   React.useEffect(() => {
-    let alive = true;
-    if (!announcementAuthorUid) {
-      setAuthorAvatarUrl("");
-      return () => {
-        alive = false;
-      };
+    setAuthorAvatarUrl(announcement?.authorAvatarUrl ?? "");
+    setAuthorDisplayName(
+      announcement?.authorName?.trim() || announcement?.authorLabel?.trim() || ""
+    );
+  }, [announcement]);
+
+  const handleCloseAnnouncement = React.useCallback(async () => {
+    if (!announcement || closing) return;
+
+    setClosing(true);
+    setResponseError(null);
+    try {
+      const closedDto = await announcementsApi.closeAnnouncement(announcementId);
+      const closedAnnouncement = mapAnnouncementDtoToNearbyAnnouncement(closedDto);
+      setAnnouncement(
+        closedAnnouncement ?? {
+          ...announcement,
+          status: "closed",
+          updatedAt: Date.now(),
+        }
+      );
+    } catch {
+      setResponseError(
+        copyOrFallback(
+          t,
+          "common.tryAgainLater",
+          "Попробуй ещё раз позже."
+        )
+      );
+    } finally {
+      setClosing(false);
     }
-
-    void getUserProfileById(announcementAuthorUid)
-      .then((profile) => {
-        if (!alive) return;
-        setAuthorAvatarUrl(profile?.avatarUrl ?? announcement?.authorAvatarUrl ?? "");
-        setAuthorDisplayName(
-          profile?.displayName?.trim() ||
-            announcement?.authorName?.trim() ||
-            announcement?.authorLabel?.trim() ||
-            ""
-        );
-      })
-      .catch(() => {
-        if (!alive) return;
-        setAuthorAvatarUrl(announcement?.authorAvatarUrl ?? "");
-      });
-
-    return () => {
-      alive = false;
-    };
-  }, [announcement?.authorAvatarUrl, announcementAuthorUid]);
-
-  React.useEffect(() => {
-    let alive = true;
-    if (!currentUid) {
-      setCurrentProfileName("");
-      return () => {
-        alive = false;
-      };
-    }
-
-    void getUserProfile()
-      .then((profile) => {
-        if (!alive) return;
-        setCurrentProfileName(profile.displayName?.trim() ?? "");
-      })
-      .catch(() => {
-        if (!alive) return;
-        setCurrentProfileName("");
-      });
-
-    return () => {
-      alive = false;
-    };
-  }, [currentUid]);
+  }, [announcement, announcementId, closing, t]);
 
   const handleRespond = React.useCallback(async () => {
     if (responding) return;
@@ -459,7 +421,7 @@ export default function AnnouncementDetailScreen() {
         handleBack();
         return;
       case "direct_dm":
-        if (!announcement || !db || !currentUid || !announcementAuthorUid) {
+        if (!announcement || !currentUid || !announcementAuthorUid) {
           setResponseModeOverride("unavailable");
           return;
         }
@@ -467,34 +429,23 @@ export default function AnnouncementDetailScreen() {
         setResponding(true);
         setResponseError(null);
         try {
-          const threadId = await ensureDmThread(db, currentUid, announcementAuthorUid, {
-            memberNames: {
-              [currentUid]: currentAuthorLabel,
-              [announcementAuthorUid]: announcementAuthorLabel,
-            },
-            source: "announcement",
-            sourceSessionId: announcementId,
-          });
-          const responseState =
-            await nearbyAnnouncementsRepository.respondToAnnouncement(announcementId, {
-              uid: currentUid,
-              dmThreadId: threadId,
-            });
-          setRespondedAt(responseState.respondedAt);
+          const response = await announcementsApi.respondAndOpenChat(announcementId);
+          const threadId = String(response.threadId ?? "").trim();
+          if (!threadId) {
+            throw new Error("announcements.threadMissing");
+          }
+          setHasRespondedOverride(true);
 
-          navigation.navigate(
-            "DMChat",
-            buildDmChatRouteParams({
-              threadId,
-              peerId: announcementAuthorUid,
-              peerName: announcementAuthorLabel,
-              backTarget: "inbox",
-              sourceContext: {
-                source: "announcement",
-                sourceSessionId: announcementId,
-              },
-            })
-          );
+          navigation.navigate("DMChat", {
+            threadId,
+            peerId: announcement.authorUid,
+            peerName: announcementAuthorLabel,
+            backTarget: "inbox",
+            sourceContext: {
+              source: "announcement",
+              sourceSessionId: announcementId,
+            },
+          });
         } catch {
           setResponseError(
             copyOrFallback(
@@ -511,7 +462,6 @@ export default function AnnouncementDetailScreen() {
     announcement,
     announcementAuthorLabel,
     announcementAuthorUid,
-    currentAuthorLabel,
     currentUid,
     handleBack,
     announcementId,
@@ -559,7 +509,7 @@ export default function AnnouncementDetailScreen() {
           copyOrFallback(
             t,
             "safety.reportErrorBody",
-            "Не удалось сохранить жалобу в Firestore. Попробуй ещё раз позже."
+            "Не удалось сохранить жалобу. Попробуй ещё раз позже."
           )
         );
       } finally {
@@ -626,7 +576,7 @@ export default function AnnouncementDetailScreen() {
                   copyOrFallback(
                     t,
                     "safety.blockErrorBody",
-                    "Блокировка не сохранилась в Firestore. Попробуй ещё раз позже."
+                    "Блокировка не сохранилась. Попробуй ещё раз позже."
                   )
                 );
               })
@@ -639,9 +589,9 @@ export default function AnnouncementDetailScreen() {
 
   const screenTitle = copyOrFallback(t, "nearby.detail.title", "Объявление");
   const announcementPhotoUrl = String(
-    announcement?.photoUrl?.startsWith("https://")
+    announcement?.photoUrl?.startsWith("http")
       ? announcement.photoUrl
-      : announcement?.photoUri?.startsWith("https://")
+      : announcement?.photoUri?.startsWith("http")
         ? announcement.photoUri
         : ""
   );
@@ -866,13 +816,17 @@ export default function AnnouncementDetailScreen() {
               ) : null}
 
               <Pressable
-                onPress={() => void handleRespond()}
-                disabled={responding}
+                onPress={() =>
+                  responseMode === "own"
+                    ? void handleCloseAnnouncement()
+                    : void handleRespond()
+                }
+                disabled={responseBusy}
                 style={[
                   responsePresentation.buttonVariant === "secondary"
                     ? styles.secondaryButton
                     : styles.primaryButton,
-                  responding ? styles.primaryButtonDisabled : null,
+                  responseBusy ? styles.primaryButtonDisabled : null,
                 ]}
               >
                 <Text
@@ -882,7 +836,7 @@ export default function AnnouncementDetailScreen() {
                       : styles.primaryButtonText
                   }
                 >
-                  {responding
+                  {responseBusy
                     ? responsePresentation.busyLabel
                     : responsePresentation.actionLabel}
                 </Text>
@@ -897,7 +851,7 @@ export default function AnnouncementDetailScreen() {
                 {copyOrFallback(
                   t,
                   "safety.announcementSafetyBody",
-                  "Если объявление нарушает правила или автор нежелателен, действие сохранится в Firestore."
+                  "Если объявление нарушает правила или автор нежелателен, действие сохранится для проверки."
                 )}
               </Text>
               <View style={styles.safetyActions}>

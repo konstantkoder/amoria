@@ -119,6 +119,33 @@ export type CompleteUploadResponse = {
   media: MediaDto;
 };
 
+export type AnnouncementDto = {
+  id: string;
+  status: string;
+  title: string;
+  description: string;
+  category: string;
+  placeLabel: string | null;
+  photoUrl: string | null;
+  author: { id: string; displayName: string; avatarUrl: string | null };
+  responseCount: number;
+  createdAt: string;
+  updatedAt: string;
+  isMine?: boolean;
+  hasResponded?: boolean;
+};
+
+export type AnnouncementsListResponse = {
+  items: AnnouncementDto[];
+  nextCursor: string | null;
+};
+
+export type RespondAnnouncementResponse = {
+  threadId?: string;
+  threadStatus?: string;
+  respondedAt: string;
+};
+
 export type ThreadPeerDto = {
   id: string;
   displayName: string;

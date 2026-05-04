@@ -12,6 +12,7 @@ import {
   View,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
+import * as FileSystem from "expo-file-system/legacy";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -19,17 +20,16 @@ import ScreenShell from "@/components/ScreenShell";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocale } from "@/contexts/LocaleContext";
 import { type RootStackNavigationProp } from "@/navigation/appRoutes";
-import {
-  goBackOrOpenAnnouncements,
-  openAnnouncements,
-} from "@/navigation/nearbyNavigation";
+import { goBackOrOpenAnnouncements } from "@/navigation/nearbyNavigation";
+import * as announcementsApi from "@/services/api/announcementsApi";
+import * as uploadsApi from "@/services/api/uploadsApi";
 import {
   NEARBY_ANNOUNCEMENT_CATEGORY_ORDER,
-  nearbyAnnouncementsRepository,
   type NearbyAnnouncementCategory,
-} from "@/services/nearbyAnnouncements";
+  mapAnnouncementDtoToNearbyAnnouncement,
+} from "@/services/announcementsModel";
+import { uploadFileToPresignedPut } from "@/services/media/uploadPut";
 import { containsUnsafeAnnouncementContent } from "@/services/safety";
-import { getUserProfile } from "@/services/user";
 import { theme } from "@/theme";
 
 function copyOrFallback(
@@ -48,9 +48,9 @@ function getPublishErrorCopy(
   const message = String((error as { message?: string } | null)?.message ?? "");
   if (
     message.includes("announcements.photo") ||
-    message.includes("announcements.photoBackendUnavailable") ||
-    message.includes("photoUploadUnavailable") ||
-    message.includes("photoReadFailed")
+    message.includes("media.uploadPutFailed") ||
+    message.includes("photos.readFailed") ||
+    message.includes("photos.sizeRequired")
   ) {
     return {
       title: copyOrFallback(
@@ -61,7 +61,7 @@ function getPublishErrorCopy(
       body: copyOrFallback(
         t,
         "nearby.create.photoUploadErrorBody",
-        "Announcements backend еще не подключен"
+        "Фото не загрузилось. Попробуй выбрать другое изображение или опубликовать без фото."
       ),
     };
   }
@@ -71,9 +71,58 @@ function getPublishErrorCopy(
     body: copyOrFallback(
       t,
       "nearby.create.errorBody",
-      "Firestore не сохранил объявление. Попробуй ещё раз чуть позже."
+      "Сервер не сохранил объявление. Попробуй ещё раз чуть позже."
     ),
   };
+}
+
+function inferImageContentType(uri: string) {
+  const normalized = String(uri ?? "").split("?")[0].toLowerCase();
+  if (normalized.endsWith(".png")) return "image/png";
+  if (normalized.endsWith(".webp")) return "image/webp";
+  if (normalized.endsWith(".heic")) return "image/heic";
+  if (normalized.endsWith(".heif")) return "image/heif";
+  return "image/jpeg";
+}
+
+function normalizeImageMimeType(value: unknown, uri: string) {
+  const mimeType = String(value ?? "").trim().toLowerCase();
+  return mimeType.startsWith("image/") ? mimeType : inferImageContentType(uri);
+}
+
+async function uploadAnnouncementPhoto(fileUri: string, mimeType?: string) {
+  const stableUri = String(fileUri ?? "").trim();
+  if (!stableUri) {
+    throw new Error("photos.uriRequired");
+  }
+
+  const fileInfo = await FileSystem.getInfoAsync(stableUri);
+  if (!fileInfo.exists) {
+    throw new Error("photos.readFailed");
+  }
+
+  const sizeBytes = Number(fileInfo.size ?? 0);
+  if (!Number.isFinite(sizeBytes) || sizeBytes <= 0) {
+    throw new Error("photos.sizeRequired");
+  }
+
+  const upload = await uploadsApi.prepareUpload({
+    purpose: "announcement_photo",
+    mimeType: normalizeImageMimeType(mimeType, stableUri),
+    sizeBytes,
+  });
+
+  await uploadFileToPresignedPut(upload.uploadUrl, stableUri, upload.headers);
+
+  const completed = await uploadsApi.completeUpload(upload.uploadId, {
+    sizeBytes,
+  });
+  const mediaId = String(completed.media.id ?? completed.media.mediaId ?? "").trim();
+  if (!mediaId) {
+    throw new Error("announcements.photoInvalidMedia");
+  }
+
+  return mediaId;
 }
 
 export default function CreateAnnouncementScreen() {
@@ -89,10 +138,11 @@ export default function CreateAnnouncementScreen() {
   const [description, setDescription] = React.useState("");
   const [placeLabel, setPlaceLabel] = React.useState("");
   const [photoUri, setPhotoUri] = React.useState("");
+  const [photoMimeType, setPhotoMimeType] = React.useState("");
   const [saving, setSaving] = React.useState(false);
   const [category, setCategory] = React.useState<NearbyAnnouncementCategory>("walk");
-  const [authorDisplayName, setAuthorDisplayName] = React.useState("");
   const currentUid = authUser?.id ?? "";
+  const authorDisplayName = authUser?.displayName?.trim() ?? "";
   const authorLabel =
     authorDisplayName || copyOrFallback(t, "profile.amoriaUser", "Пользователь Amoria");
 
@@ -148,6 +198,7 @@ export default function CreateAnnouncementScreen() {
     if (photoPreviewErrorShownRef.current) return;
     photoPreviewErrorShownRef.current = true;
     setPhotoUri("");
+    setPhotoMimeType("");
     Alert.alert(
       copyOrFallback(t, "photos.previewFailed", "Не удалось показать фото"),
       copyOrFallback(
@@ -165,32 +216,6 @@ export default function CreateAnnouncementScreen() {
     }, 80);
     return () => clearTimeout(timeoutId);
   }, [photoUri, revealPreviewFeedback]);
-
-  useFocusEffect(
-    React.useCallback(() => {
-      let alive = true;
-      if (!currentUid) {
-        setAuthorDisplayName("");
-        return () => {
-          alive = false;
-        };
-      }
-
-      void getUserProfile()
-        .then((profile) => {
-          if (!alive) return;
-          setAuthorDisplayName(profile.displayName?.trim() ?? "");
-        })
-        .catch(() => {
-          if (!alive) return;
-          setAuthorDisplayName("");
-        });
-
-      return () => {
-        alive = false;
-      };
-    }, [currentUid])
-  );
 
   useFocusEffect(
     React.useCallback(() => {
@@ -254,8 +279,9 @@ export default function CreateAnnouncementScreen() {
     }
 
     if (result.canceled) return;
-    const nextUri = result.assets?.[0]?.uri?.trim() ?? "";
-    if (!result.assets || result.assets.length === 0 || !nextUri) {
+    const asset = result.assets?.[0];
+    const nextUri = asset?.uri?.trim() ?? "";
+    if (!asset || !nextUri) {
       Alert.alert(
         copyOrFallback(t, "photos.pickFailed", "Не удалось выбрать фото"),
         copyOrFallback(
@@ -267,16 +293,10 @@ export default function CreateAnnouncementScreen() {
       return;
     }
 
-    Alert.alert(
-      copyOrFallback(
-        t,
-        "nearby.create.photoBackendUnavailable",
-        "Announcements backend еще не подключен"
-      )
-    );
-    pendingPhotoRevealRef.current = false;
+    pendingPhotoRevealRef.current = true;
     photoPreviewErrorShownRef.current = false;
-    setPhotoUri("");
+    setPhotoMimeType(asset.mimeType ?? "");
+    setPhotoUri(nextUri);
   }, [saving, t]);
 
   const publish = React.useCallback(async () => {
@@ -319,21 +339,9 @@ export default function CreateAnnouncementScreen() {
       return;
     }
 
-    if (photoUri) {
-      Alert.alert(
-        copyOrFallback(
-          t,
-          "nearby.create.photoBackendUnavailable",
-          "Announcements backend еще не подключен"
-        )
-      );
-      return;
-    }
-
     setSaving(true);
     try {
-      const currentProfile = await getUserProfile();
-      const publicDisplayName = currentProfile.displayName?.trim();
+      const publicDisplayName = authUser?.displayName?.trim();
       if (!publicDisplayName) {
         Alert.alert(
           copyOrFallback(t, "profile.completeProfile", "Заполните профиль"),
@@ -341,18 +349,24 @@ export default function CreateAnnouncementScreen() {
         );
         return;
       }
-      const createdAnnouncement = await nearbyAnnouncementsRepository.createAnnouncement({
+
+      const photoMediaId = photoUri
+        ? await uploadAnnouncementPhoto(photoUri, photoMimeType)
+        : "";
+      const createdAnnouncement = await announcementsApi.createAnnouncement({
         title: trimmedTitle,
         description: trimmedDescription,
         category,
-        placeLabel: trimmedPlaceLabel,
-        authorLabel: publicDisplayName,
-        authorUid: currentUid,
-        ...(currentProfile.avatarUrl ? { authorAvatarUrl: currentProfile.avatarUrl } : {}),
-        ...(photoUri ? { photoUri } : {}),
+        placeLabel: trimmedPlaceLabel || null,
+        ...(photoMediaId ? { photoMediaId } : {}),
       });
+      const initialAnnouncement =
+        mapAnnouncementDtoToNearbyAnnouncement(createdAnnouncement);
 
-      openAnnouncements(navigation, createdAnnouncement.id);
+      navigation.navigate("AnnouncementDetail", {
+        announcementId: createdAnnouncement.id,
+        ...(initialAnnouncement ? { initialAnnouncement } : {}),
+      });
     } catch (error) {
       const errorCopy = getPublishErrorCopy(t, error);
       Alert.alert(errorCopy.title, errorCopy.body);
@@ -361,10 +375,12 @@ export default function CreateAnnouncementScreen() {
     }
   }, [
     category,
+    authUser?.displayName,
     trimmedPlaceLabel,
     currentUid,
     description,
     navigation,
+    photoMimeType,
     photoUri,
     t,
     title,
@@ -430,7 +446,7 @@ export default function CreateAnnouncementScreen() {
                   {copyOrFallback(
                     t,
                     "nearby.create.photoAttachedHint",
-                    "Announcements backend еще не подключен"
+                    "Фото будет загружено через сервер при публикации объявления."
                   )}
                 </Text>
                 <View style={styles.photoActions}>
@@ -444,7 +460,10 @@ export default function CreateAnnouncementScreen() {
                     </Text>
                   </Pressable>
                   <Pressable
-                    onPress={() => setPhotoUri("")}
+                    onPress={() => {
+                      setPhotoUri("");
+                      setPhotoMimeType("");
+                    }}
                     disabled={saving}
                     style={styles.secondaryButton}
                   >
@@ -654,7 +673,7 @@ export default function CreateAnnouncementScreen() {
               ? copyOrFallback(
                   t,
                   "nearby.create.publishReadyHint",
-                  "После успешной записи в Firestore вернёшься в раздел «Объявления», где карточка появится в общем списке."
+                  "После публикации откроется созданное объявление."
                 )
               : copyOrFallback(
                   t,

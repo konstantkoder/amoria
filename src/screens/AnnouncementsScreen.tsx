@@ -16,16 +16,13 @@ import {
   openCreateAnnouncement,
   resetAnnouncementsRouteParams,
 } from "@/navigation/nearbyNavigation";
+import * as announcementsApi from "@/services/api/announcementsApi";
 import {
-  nearbyAnnouncementsRepository,
+  mapAnnouncementDtosToNearbyAnnouncements,
   type NearbyAnnouncement,
   type NearbyAnnouncementCategory,
-} from "@/services/nearbyAnnouncements";
+} from "@/services/announcementsModel";
 import { getBlockedUserIds } from "@/services/safety";
-import {
-  isFirestoreMissingIndexError,
-  logFirestoreMissingIndexError,
-} from "@/utils/firestoreErrors";
 
 function copyOrFallback(
   t: (key: string, params?: Record<string, string>) => string,
@@ -53,53 +50,38 @@ export default function AnnouncementsScreen() {
   const [loading, setLoading] = React.useState(true);
   const [loadError, setLoadError] = React.useState<string | null>(null);
   const getLoadError = React.useCallback(
-    (error: unknown) => {
-      if (isFirestoreMissingIndexError(error)) {
-        logFirestoreMissingIndexError("Announcements list", error);
-        return copyOrFallback(
-          t,
-          "common.serviceSetupError",
-          "Сервис временно настраивается. Попробуйте позже."
-        );
-      }
-
-      return copyOrFallback(
+    () =>
+      copyOrFallback(
         t,
         "nearby.announcements.loadErrorBody",
-        "Не удалось загрузить общие объявления из Firestore. Попробуй ещё раз позже."
-      );
-    },
+        "Не удалось загрузить объявления с сервера. Попробуй ещё раз позже."
+      ),
     [t]
   );
+  const loadAnnouncements = React.useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const [response, blockedIds] = await Promise.all([
+        announcementsApi.listAnnouncements(),
+        currentUid ? getBlockedUserIds(currentUid).catch(() => []) : Promise.resolve([]),
+      ]);
+      setAnnouncements(mapAnnouncementDtosToNearbyAnnouncements(response.items ?? []));
+      setBlockedUserIds(blockedIds);
+    } catch {
+      setAnnouncements([]);
+      setBlockedUserIds([]);
+      setLoadError(getLoadError());
+    } finally {
+      setLoading(false);
+    }
+  }, [currentUid, getLoadError]);
 
   useFocusEffect(
     React.useCallback(() => {
-      let alive = true;
-      setLoading(true);
-      setLoadError(null);
-      void Promise.all([
-        nearbyAnnouncementsRepository.listAnnouncements(),
-        currentUid ? getBlockedUserIds(currentUid) : Promise.resolve([]),
-      ])
-        .then(([next, blockedIds]) => {
-          if (!alive) return;
-          setAnnouncements(next);
-          setBlockedUserIds(blockedIds);
-        })
-        .catch((error) => {
-          if (!alive) return;
-          setAnnouncements([]);
-          setBlockedUserIds([]);
-          setLoadError(getLoadError(error));
-        })
-        .finally(() => {
-          if (!alive) return;
-          setLoading(false);
-        });
-      return () => {
-        alive = false;
-      };
-    }, [currentUid, getLoadError])
+      void loadAnnouncements();
+      return undefined;
+    }, [loadAnnouncements])
   );
 
   React.useEffect(() => {
@@ -151,7 +133,7 @@ export default function AnnouncementsScreen() {
               body={copyOrFallback(
                 t,
                 "nearby.announcements.loadingBody",
-                "Подключаем общий список объявлений из Firestore."
+                "Загружаем общий список объявлений с сервера."
               )}
             />
           </View>
@@ -167,24 +149,7 @@ export default function AnnouncementsScreen() {
               body={loadError}
               primaryAction={{
                 label: copyOrFallback(t, "common.retry", "Повторить"),
-                onPress: () => {
-                  setLoading(true);
-                  setLoadError(null);
-                  void Promise.all([
-                    nearbyAnnouncementsRepository.listAnnouncements(),
-                    currentUid ? getBlockedUserIds(currentUid) : Promise.resolve([]),
-                  ])
-                    .then(([next, blockedIds]) => {
-                      setAnnouncements(next);
-                      setBlockedUserIds(blockedIds);
-                    })
-                    .catch((error) => {
-                      setAnnouncements([]);
-                      setBlockedUserIds([]);
-                      setLoadError(getLoadError(error));
-                    })
-                    .finally(() => setLoading(false));
-                },
+                onPress: () => void loadAnnouncements(),
               }}
             />
           </View>

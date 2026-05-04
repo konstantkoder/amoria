@@ -6,8 +6,8 @@ import type {
 } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
+import type { NearbyAnnouncement } from "@/services/announcementsModel";
 import type { DmChatRouteParams, DmSourceContext } from "@/services/dm";
-import type { NearbyAnnouncement } from "@/services/nearbyAnnouncements";
 import type { ReleasePlayActivity } from "@/services/playSessions";
 
 export type AppStackParamList = {

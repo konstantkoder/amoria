@@ -7,7 +7,7 @@ import {
   NEARBY_ANNOUNCEMENT_CATEGORY_ORDER,
   type NearbyAnnouncement,
   type NearbyAnnouncementCategory,
-} from "@/services/nearbyAnnouncements";
+} from "@/services/announcementsModel";
 import { useLocale } from "@/contexts/LocaleContext";
 import { theme } from "@/theme";
 import { formatAgoLong } from "@/utils/timeAgo";
@@ -176,9 +176,9 @@ export default function NearbyAnnouncementsSection({
       {visibleItems.length ? (
         visibleItems.map((item) => {
           const highlighted = highlightedId === item.id;
-          const photoUrl = item.photoUrl?.startsWith("https://")
+          const photoUrl = item.photoUrl?.startsWith("http")
             ? item.photoUrl
-            : item.photoUri?.startsWith("https://")
+            : item.photoUri?.startsWith("http")
               ? item.photoUri
               : "";
           const rawAuthorLabel = item.authorName?.trim() || item.authorLabel;

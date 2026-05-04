@@ -5,7 +5,7 @@ import type {
   RootStackNavigationProp,
   TabsNavigatorParams,
 } from "@/navigation/appRoutes";
-import type { NearbyAnnouncement } from "@/services/nearbyAnnouncements";
+import type { NearbyAnnouncement } from "@/services/announcementsModel";
 
 type NearbyFlowNavigator = Pick<
   RootStackNavigationProp,
