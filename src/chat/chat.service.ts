@@ -23,10 +23,25 @@ export type SendMessageResult = {
   created: boolean;
 };
 
+export type OpenDirectThreadResult = {
+  thread: ThreadDto;
+  status: "created" | "existing";
+};
+
 export async function openDirectThread(
   userId: string,
   input: OpenDirectThreadBody,
 ): Promise<ThreadResponse> {
+  const result = await openDirectThreadWithStatus(userId, input);
+  return {
+    thread: result.thread,
+  };
+}
+
+export async function openDirectThreadWithStatus(
+  userId: string,
+  input: OpenDirectThreadBody,
+): Promise<OpenDirectThreadResult> {
   if (input.peerUserId === userId) {
     throw validationError("Cannot open a direct thread with yourself", {
       peerUserId: "self",
@@ -39,14 +54,17 @@ export async function openDirectThread(
   }
 
   let thread = await chatRepo.findDirectThreadBetween(userId, input.peerUserId);
+  let status: OpenDirectThreadResult["status"] = "existing";
   if (!thread) {
     thread = await chatRepo.createDirectThread(userId, input.peerUserId, input.source);
+    status = "created";
   } else if (input.source) {
     thread = await chatRepo.setThreadSourceIfEmpty(thread, input.source);
   }
 
   return {
     thread: await toThreadDto(thread, userId),
+    status,
   };
 }
 

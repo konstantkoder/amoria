@@ -11,6 +11,7 @@ import { MAX_AVATAR_INPUT_BYTES, MAX_JSON_BODY_BYTES, SERVICE_NAME } from "./con
 import { env } from "./config/env";
 import { loggerOptions } from "./config/logger";
 import { authRoutes } from "./auth/auth.routes";
+import { announcementsRoutes } from "./announcements/announcements.routes";
 import { usersRoutes } from "./users/users.routes";
 import { chatRoutes } from "./chat/chat.routes";
 import { mediaRoutes } from "./media/media.routes";
@@ -75,6 +76,7 @@ export function buildApp(): FastifyInstance {
   }));
 
   void app.register(authRoutes, { prefix: "/auth" });
+  void app.register(announcementsRoutes, { prefix: "/announcements" });
   void app.register(usersRoutes);
   void app.register(mediaRoutes, { prefix: "/media" });
   void app.register(mediaUploadRoutes, { prefix: "/media/uploads" });

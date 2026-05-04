@@ -63,6 +63,43 @@ export const mediaUploads = pgTable("media_uploads", {
   completedAt: timestamp("completed_at", { withTimezone: true }),
 });
 
+export const announcements = pgTable("announcements", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  authorUserId: uuid("author_user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  status: text("status").default("active").notNull(),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  category: text("category").notNull(),
+  placeLabel: text("place_label"),
+  photoMediaId: uuid("photo_media_id").references(() => mediaFiles.id, {
+    onDelete: "set null",
+  }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const announcementResponses = pgTable(
+  "announcement_responses",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    announcementId: uuid("announcement_id")
+      .notNull()
+      .references(() => announcements.id, { onDelete: "cascade" }),
+    fromUserId: uuid("from_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique("announcement_responses_announcement_from_unique").on(
+      table.announcementId,
+      table.fromUserId,
+    ),
+  ],
+);
+
 export const threads = pgTable("threads", {
   id: uuid("id").defaultRandom().primaryKey(),
   type: text("type").notNull(),
@@ -146,22 +183,48 @@ export const refreshTokens = pgTable("refresh_tokens", {
 export const usersRelations = relations(users, ({ many }) => ({
   mediaFiles: many(mediaFiles),
   mediaUploads: many(mediaUploads),
+  announcements: many(announcements),
+  announcementResponses: many(announcementResponses),
   threadMembers: many(threadMembers),
   messages: many(messages),
   threadReads: many(threadReads),
   refreshTokens: many(refreshTokens),
 }));
 
-export const mediaFilesRelations = relations(mediaFiles, ({ one }) => ({
+export const mediaFilesRelations = relations(mediaFiles, ({ one, many }) => ({
   owner: one(users, {
     fields: [mediaFiles.ownerUserId],
     references: [users.id],
   }),
+  photoAnnouncements: many(announcements),
 }));
 
 export const mediaUploadsRelations = relations(mediaUploads, ({ one }) => ({
   owner: one(users, {
     fields: [mediaUploads.ownerUserId],
+    references: [users.id],
+  }),
+}));
+
+export const announcementsRelations = relations(announcements, ({ one, many }) => ({
+  author: one(users, {
+    fields: [announcements.authorUserId],
+    references: [users.id],
+  }),
+  photo: one(mediaFiles, {
+    fields: [announcements.photoMediaId],
+    references: [mediaFiles.id],
+  }),
+  responses: many(announcementResponses),
+}));
+
+export const announcementResponsesRelations = relations(announcementResponses, ({ one }) => ({
+  announcement: one(announcements, {
+    fields: [announcementResponses.announcementId],
+    references: [announcements.id],
+  }),
+  fromUser: one(users, {
+    fields: [announcementResponses.fromUserId],
     references: [users.id],
   }),
 }));
@@ -222,6 +285,10 @@ export type MediaFileRow = typeof mediaFiles.$inferSelect;
 export type NewMediaFileRow = typeof mediaFiles.$inferInsert;
 export type MediaUploadRow = typeof mediaUploads.$inferSelect;
 export type NewMediaUploadRow = typeof mediaUploads.$inferInsert;
+export type AnnouncementRow = typeof announcements.$inferSelect;
+export type NewAnnouncementRow = typeof announcements.$inferInsert;
+export type AnnouncementResponseRow = typeof announcementResponses.$inferSelect;
+export type NewAnnouncementResponseRow = typeof announcementResponses.$inferInsert;
 export type ThreadRow = typeof threads.$inferSelect;
 export type NewThreadRow = typeof threads.$inferInsert;
 export type ThreadMemberRow = typeof threadMembers.$inferSelect;

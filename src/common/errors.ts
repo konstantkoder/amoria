@@ -5,6 +5,7 @@ export type ErrorCode =
   | "invalid_credentials"
   | "invalid_refresh"
   | "unauthorized"
+  | "forbidden"
   | "not_found"
   | "email_taken"
   | "file_too_large"
@@ -35,6 +36,10 @@ export function validationError(message: string, details?: ErrorDetails): AppErr
 
 export function unauthorized(message = "Authentication is required"): AppError {
   return new AppError("unauthorized", message, 401);
+}
+
+export function forbidden(message = "Access is forbidden"): AppError {
+  return new AppError("forbidden", message, 403);
 }
 
 function validationDetails(error: FastifyError): ErrorDetails | undefined {

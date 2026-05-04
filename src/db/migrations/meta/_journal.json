@@ -36,6 +36,13 @@
       "when": 1777837229713,
       "tag": "0004_broken_queen_noir",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1777903273595,
+      "tag": "0005_acoustic_valeria_richards",
+      "breakpoints": true
     }
   ]
 }

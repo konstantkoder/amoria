@@ -28,6 +28,7 @@ export function withErrorResponses(schema: FastifySchema): FastifySchema {
       ...(schema.response ?? {}),
       400: errorEnvelopeSchema,
       401: errorEnvelopeSchema,
+      403: errorEnvelopeSchema,
       404: errorEnvelopeSchema,
       409: errorEnvelopeSchema,
       413: errorEnvelopeSchema,
