@@ -1,6 +1,7 @@
 import { relations, sql } from "drizzle-orm";
 import {
   boolean,
+  doublePrecision,
   integer,
   jsonb,
   pgTable,
@@ -100,6 +101,48 @@ export const announcementResponses = pgTable(
   ],
 );
 
+export const blockedUsers = pgTable(
+  "blocked_users",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    blockedUserId: uuid("blocked_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.blockedUserId] })],
+);
+
+export const safetyReports = pgTable("safety_reports", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  reporterUserId: uuid("reporter_user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  targetType: text("target_type").notNull(),
+  targetId: text("target_id").notNull(),
+  targetOwnerUserId: uuid("target_owner_user_id").references(() => users.id, {
+    onDelete: "set null",
+  }),
+  reason: text("reason").notNull(),
+  comment: text("comment"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const nearbyStatuses = pgTable("nearby_statuses", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  authorUserId: uuid("author_user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  text: text("text").notNull(),
+  lat: doublePrecision("lat").notNull(),
+  lng: doublePrecision("lng").notNull(),
+  radiusMeters: integer("radius_meters").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 export const threads = pgTable("threads", {
   id: uuid("id").defaultRandom().primaryKey(),
   type: text("type").notNull(),
@@ -185,6 +228,11 @@ export const usersRelations = relations(users, ({ many }) => ({
   mediaUploads: many(mediaUploads),
   announcements: many(announcements),
   announcementResponses: many(announcementResponses),
+  blockedUsers: many(blockedUsers, { relationName: "blocker" }),
+  blockedByUsers: many(blockedUsers, { relationName: "blocked" }),
+  safetyReports: many(safetyReports, { relationName: "reporter" }),
+  ownedSafetyReports: many(safetyReports, { relationName: "target_owner" }),
+  nearbyStatuses: many(nearbyStatuses),
   threadMembers: many(threadMembers),
   messages: many(messages),
   threadReads: many(threadReads),
@@ -225,6 +273,39 @@ export const announcementResponsesRelations = relations(announcementResponses, (
   }),
   fromUser: one(users, {
     fields: [announcementResponses.fromUserId],
+    references: [users.id],
+  }),
+}));
+
+export const blockedUsersRelations = relations(blockedUsers, ({ one }) => ({
+  user: one(users, {
+    fields: [blockedUsers.userId],
+    references: [users.id],
+    relationName: "blocker",
+  }),
+  blockedUser: one(users, {
+    fields: [blockedUsers.blockedUserId],
+    references: [users.id],
+    relationName: "blocked",
+  }),
+}));
+
+export const safetyReportsRelations = relations(safetyReports, ({ one }) => ({
+  reporter: one(users, {
+    fields: [safetyReports.reporterUserId],
+    references: [users.id],
+    relationName: "reporter",
+  }),
+  targetOwner: one(users, {
+    fields: [safetyReports.targetOwnerUserId],
+    references: [users.id],
+    relationName: "target_owner",
+  }),
+}));
+
+export const nearbyStatusesRelations = relations(nearbyStatuses, ({ one }) => ({
+  author: one(users, {
+    fields: [nearbyStatuses.authorUserId],
     references: [users.id],
   }),
 }));
@@ -289,6 +370,12 @@ export type AnnouncementRow = typeof announcements.$inferSelect;
 export type NewAnnouncementRow = typeof announcements.$inferInsert;
 export type AnnouncementResponseRow = typeof announcementResponses.$inferSelect;
 export type NewAnnouncementResponseRow = typeof announcementResponses.$inferInsert;
+export type BlockedUserRow = typeof blockedUsers.$inferSelect;
+export type NewBlockedUserRow = typeof blockedUsers.$inferInsert;
+export type SafetyReportRow = typeof safetyReports.$inferSelect;
+export type NewSafetyReportRow = typeof safetyReports.$inferInsert;
+export type NearbyStatusRow = typeof nearbyStatuses.$inferSelect;
+export type NewNearbyStatusRow = typeof nearbyStatuses.$inferInsert;
 export type ThreadRow = typeof threads.$inferSelect;
 export type NewThreadRow = typeof threads.$inferInsert;
 export type ThreadMemberRow = typeof threadMembers.$inferSelect;

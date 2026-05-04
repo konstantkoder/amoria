@@ -1,10 +1,11 @@
-import { and, count, desc, eq, gt, ne, sql } from "drizzle-orm";
+import { and, count, desc, eq, gt, ne, notExists, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "../db/client";
 import {
   type MessageRow,
   type NewMessageRow,
   type ThreadRow,
+  blockedUsers,
   messages,
   threadMembers,
   threadReads,
@@ -121,6 +122,25 @@ export async function isThreadMember(threadId: string, userId: string): Promise<
 }
 
 export async function listThreadsForUser(userId: string, limit: number): Promise<ThreadRow[]> {
+  const blockedPeerMember = alias(threadMembers, "blocked_peer_member");
+  const inboxBlock = alias(blockedUsers, "inbox_block");
+  const blockedPeerSubquery = db
+    .select({ blockedUserId: inboxBlock.blockedUserId })
+    .from(blockedPeerMember)
+    .innerJoin(
+      inboxBlock,
+      and(
+        eq(inboxBlock.userId, userId),
+        eq(inboxBlock.blockedUserId, blockedPeerMember.userId),
+      ),
+    )
+    .where(
+      and(
+        eq(blockedPeerMember.threadId, threads.id),
+        ne(blockedPeerMember.userId, userId),
+      ),
+    );
+
   const rows = await db
     .select({ thread: threads })
     .from(threads)
@@ -128,6 +148,7 @@ export async function listThreadsForUser(userId: string, limit: number): Promise
       threadMembers,
       and(eq(threadMembers.threadId, threads.id), eq(threadMembers.userId, userId)),
     )
+    .where(notExists(blockedPeerSubquery))
     .orderBy(sql`${threads.lastMessageAt} desc nulls last`, desc(threads.updatedAt))
     .limit(limit);
 

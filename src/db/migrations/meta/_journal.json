@@ -43,6 +43,13 @@
       "when": 1777903273595,
       "tag": "0005_acoustic_valeria_richards",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1777906875354,
+      "tag": "0006_material_pixie",
+      "breakpoints": true
     }
   ]
 }

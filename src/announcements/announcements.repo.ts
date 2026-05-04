@@ -1,4 +1,4 @@
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "../db/client";
 import {
@@ -9,6 +9,7 @@ import {
   type NewAnnouncementRow,
   announcementResponses,
   announcements,
+  blockedUsers,
   mediaFiles,
   users,
 } from "../db/schema";
@@ -69,7 +70,14 @@ export async function listActiveAnnouncementDetails(
       myResponse,
       and(eq(myResponse.announcementId, announcements.id), eq(myResponse.fromUserId, viewerUserId)),
     )
-    .where(eq(announcements.status, "active"))
+    .leftJoin(
+      blockedUsers,
+      and(
+        eq(blockedUsers.userId, viewerUserId),
+        eq(blockedUsers.blockedUserId, announcements.authorUserId),
+      ),
+    )
+    .where(and(eq(announcements.status, "active"), isNull(blockedUsers.blockedUserId)))
     .orderBy(desc(announcements.createdAt), desc(announcements.id))
     .limit(limit);
 }
@@ -109,7 +117,14 @@ export async function findAnnouncementDetails(
       myResponse,
       and(eq(myResponse.announcementId, announcements.id), eq(myResponse.fromUserId, viewerUserId)),
     )
-    .where(eq(announcements.id, announcementId))
+    .leftJoin(
+      blockedUsers,
+      and(
+        eq(blockedUsers.userId, viewerUserId),
+        eq(blockedUsers.blockedUserId, announcements.authorUserId),
+      ),
+    )
+    .where(and(eq(announcements.id, announcementId), isNull(blockedUsers.blockedUserId)))
     .limit(1);
 
   return row;
