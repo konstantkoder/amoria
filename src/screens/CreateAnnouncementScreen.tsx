@@ -48,6 +48,7 @@ function getPublishErrorCopy(
   const message = String((error as { message?: string } | null)?.message ?? "");
   if (
     message.includes("announcements.photo") ||
+    message.includes("announcements.photoBackendUnavailable") ||
     message.includes("photoUploadUnavailable") ||
     message.includes("photoReadFailed")
   ) {
@@ -60,7 +61,7 @@ function getPublishErrorCopy(
       body: copyOrFallback(
         t,
         "nearby.create.photoUploadErrorBody",
-        "Объявление не опубликовано. Убери фото и опубликуй без него или попробуй загрузить изображение позже."
+        "Announcements backend еще не подключен"
       ),
     };
   }
@@ -265,9 +266,17 @@ export default function CreateAnnouncementScreen() {
       );
       return;
     }
-    pendingPhotoRevealRef.current = true;
+
+    Alert.alert(
+      copyOrFallback(
+        t,
+        "nearby.create.photoBackendUnavailable",
+        "Announcements backend еще не подключен"
+      )
+    );
+    pendingPhotoRevealRef.current = false;
     photoPreviewErrorShownRef.current = false;
-    setPhotoUri(nextUri);
+    setPhotoUri("");
   }, [saving, t]);
 
   const publish = React.useCallback(async () => {
@@ -305,6 +314,17 @@ export default function CreateAnnouncementScreen() {
           t,
           "safety.unsafeAnnouncementBody",
           "Объявления не могут предлагать сексуальные услуги или оплатные встречи."
+        )
+      );
+      return;
+    }
+
+    if (photoUri) {
+      Alert.alert(
+        copyOrFallback(
+          t,
+          "nearby.create.photoBackendUnavailable",
+          "Announcements backend еще не подключен"
         )
       );
       return;
@@ -410,7 +430,7 @@ export default function CreateAnnouncementScreen() {
                   {copyOrFallback(
                     t,
                     "nearby.create.photoAttachedHint",
-                    "Фото выбрано для публикации. При сохранении оно будет загружено в Firebase Storage."
+                    "Announcements backend еще не подключен"
                   )}
                 </Text>
                 <View style={styles.photoActions}>

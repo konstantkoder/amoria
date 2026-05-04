@@ -481,8 +481,8 @@ export default function UserProfileScreen() {
             <View style={styles.galleryGrid}>
               {photos.map((photo, index) => (
                 <Image
-                  key={`${photo}-${index}`}
-                  source={{ uri: photo }}
+                  key={`${photo.mediaId ?? photo.url}-${index}`}
+                  source={{ uri: photo.url }}
                   style={styles.galleryPhoto}
                 />
               ))}

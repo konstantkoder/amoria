@@ -6,7 +6,6 @@ import { ActivityIndicator, Text, TextInput, TouchableOpacity, View } from "reac
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Drawer } from "react-native-drawer-layout";
 
-import { db } from "@/config/firebaseConfig";
 import PlayLobbyScreen from "@/screens/PlayLobbyScreen";
 import NearbyHubScreen from "@/screens/NearbyHubScreen";
 import AnnouncementsScreen from "@/screens/AnnouncementsScreen";
@@ -40,11 +39,9 @@ import {
 import { registerDrawerControls } from "@/navigation/drawerController";
 import { useLocale } from "@/contexts/LocaleContext";
 import { useAuth } from "@/contexts/AuthContext";
-import {
-  getDmThreadActivitySignal,
-  useActivityFreshnessState,
-} from "@/services/activityFreshness";
-import { subscribeDmThreads, type DmThreadDoc } from "@/services/dm";
+import * as chatApi from "@/services/api/chatApi";
+import type { ThreadDto } from "@/services/api/types";
+import * as wsClient from "@/services/realtime/wsClient";
 import {
   getDisplayNameValidationErrorKey,
   getUserProfile,
@@ -228,28 +225,47 @@ function MainTabs() {
   const insets = useSafeAreaInsets();
   const { t } = useLocale();
   const { user } = useAuth();
-  const freshnessState = useActivityFreshnessState();
   const uid = user?.id ?? "";
-  const [threads, setThreads] = React.useState<DmThreadDoc[]>([]);
+  const [threads, setThreads] = React.useState<ThreadDto[]>([]);
 
   React.useEffect(() => {
-    if (!db || !uid) {
+    let alive = true;
+    if (!uid) {
       setThreads([]);
-      return;
+      wsClient.disconnect();
+      return () => {
+        alive = false;
+      };
     }
 
-    return subscribeDmThreads(db, uid, (next) => {
-      setThreads(next);
+    async function loadInboxBadge() {
+      try {
+        const response = await chatApi.listInbox(30);
+        if (!alive) return;
+        setThreads(response.items ?? []);
+      } catch {
+        if (!alive) return;
+        setThreads([]);
+      }
+    }
+
+    void loadInboxBadge();
+    wsClient.connect();
+    wsClient.subscribeInbox();
+    const unsubscribe = wsClient.onMessage((message) => {
+      if (!alive || message.type !== "inbox.updated") return;
+      void loadInboxBadge();
     });
+
+    return () => {
+      alive = false;
+      unsubscribe();
+    };
   }, [uid]);
 
   const freshChatsCount = React.useMemo(
-    () =>
-      threads.filter((thread) => {
-        const signal = getDmThreadActivitySignal(thread, freshnessState.dmThreads[thread.id] ?? 0);
-        return signal?.tone === "fresh";
-      }).length,
-    [freshnessState.dmThreads, threads]
+    () => threads.reduce((total, thread) => total + Math.max(thread.unreadCount ?? 0, 0), 0),
+    [threads]
   );
   const nearbyTabLabel = React.useMemo(() => {
     const nearby = t("tabs.nearby");

@@ -348,7 +348,11 @@ export default function ProfileScreen() {
           {photos.length ? (
             <View style={styles.galleryGrid}>
               {photos.map((photo, index) => (
-                <Image key={`${photo}-${index}`} source={{ uri: photo }} style={styles.galleryPhoto} />
+                <Image
+                  key={`${photo.mediaId ?? photo.url}-${index}`}
+                  source={{ uri: photo.url }}
+                  style={styles.galleryPhoto}
+                />
               ))}
             </View>
           ) : (

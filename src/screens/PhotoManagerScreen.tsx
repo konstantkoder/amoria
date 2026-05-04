@@ -14,7 +14,8 @@ import { useFocusEffect } from "@react-navigation/native";
 
 import ScreenShell from "@/components/ScreenShell";
 import { useLocale } from "@/contexts/LocaleContext";
-import { deleteImage, uploadImage } from "@/services/storage";
+import type { UserProfilePhoto } from "@/models/User";
+import { deleteProfilePhoto, uploadProfilePhoto } from "@/services/storage";
 import { getUserProfile, updateUserPhotos } from "@/services/user";
 import { theme } from "@/theme";
 
@@ -24,7 +25,7 @@ export default function PhotoManagerScreen() {
   const { t } = useLocale();
   const [loading, setLoading] = React.useState(true);
   const [busy, setBusy] = React.useState(false);
-  const [photos, setPhotos] = React.useState<string[]>([]);
+  const [photos, setPhotos] = React.useState<UserProfilePhoto[]>([]);
   const [pendingPhotoUri, setPendingPhotoUri] = React.useState("");
 
   const refreshPhotos = React.useCallback(async () => {
@@ -86,8 +87,9 @@ export default function PhotoManagerScreen() {
 
     if (result.canceled) return;
 
-    const uri = result.assets?.[0]?.uri?.trim() ?? "";
-    if (!result.assets || result.assets.length === 0 || !uri) {
+    const asset = result.assets?.[0];
+    const uri = asset?.uri?.trim() ?? "";
+    if (!asset || !uri) {
       Alert.alert(t("photos.pickFailed"), t("photos.noAssetReturned"));
       return;
     }
@@ -103,17 +105,26 @@ export default function PhotoManagerScreen() {
         return;
       }
 
-      let url = "";
+      let uploadedPhoto: UserProfilePhoto | null = null;
       try {
-        url = await uploadImage(profile.uid, uri);
+        uploadedPhoto = await uploadProfilePhoto(uri, {
+          ...(asset.mimeType ? { mimeType: asset.mimeType } : {}),
+        });
       } catch {
         Alert.alert(t("photos.uploadFailed"), t("photos.uploadErrorBody"));
         return;
       }
 
-      const next = [url, ...profile.photos].slice(0, MAX_PHOTOS);
-      await updateUserPhotos(next);
-      setPhotos(next);
+      const next = [uploadedPhoto, ...profile.photos].slice(0, MAX_PHOTOS);
+      try {
+        const savedProfile = await updateUserPhotos(next);
+        setPhotos(savedProfile.photos ?? next);
+      } catch (error) {
+        if (uploadedPhoto.mediaId) {
+          await deleteProfilePhoto(uploadedPhoto.mediaId).catch(() => undefined);
+        }
+        throw error;
+      }
       setPendingPhotoUri("");
       Alert.alert(t("common.done"), t("photos.saved"));
     } catch {
@@ -130,18 +141,13 @@ export default function PhotoManagerScreen() {
       const target = profile.photos[index];
       if (!target) return;
 
-      try {
-        await deleteImage(target);
-      } catch (error: any) {
-        const code = String(error?.code ?? error?.message ?? "");
-        if (!code.includes("object-not-found")) {
-          throw error;
-        }
-      }
-
       const next = profile.photos.filter((_, itemIndex) => itemIndex !== index);
-      await updateUserPhotos(next);
-      setPhotos(next);
+      const savedProfile = await updateUserPhotos(next);
+      setPhotos(savedProfile.photos ?? next);
+
+      if (target.mediaId) {
+        await deleteProfilePhoto(target.mediaId).catch(() => undefined);
+      }
     } catch {
       Alert.alert(t("photos.removeErrorTitle"), t("photos.removeErrorBody"));
     } finally {
@@ -214,8 +220,11 @@ export default function PhotoManagerScreen() {
         {photos.length ? (
           <View style={styles.grid}>
             {photos.map((photo, index) => (
-              <View key={`${photo}-${index}`} style={styles.photoCard}>
-                <Image source={{ uri: photo }} style={styles.photoImage} />
+              <View
+                key={`${photo.mediaId ?? photo.url}-${index}`}
+                style={styles.photoCard}
+              >
+                <Image source={{ uri: photo.url }} style={styles.photoImage} />
                 <TouchableOpacity
                   activeOpacity={0.86}
                   onPress={() => void removePhoto(index)}

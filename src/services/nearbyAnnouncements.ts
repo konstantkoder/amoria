@@ -13,7 +13,6 @@ import {
 
 import { db } from "@/config/firebaseConfig";
 import { getBackendUserId } from "@/services/api/sessionStorage";
-import { uploadAnnouncementPhoto } from "@/services/storage";
 
 export type NearbyAnnouncementCategory =
   | "walk"
@@ -255,9 +254,9 @@ export function createFirestoreNearbyAnnouncementsRepository(options: {
       const announcementRef = doc(collection(currentDb, ANNOUNCEMENTS_COLLECTION));
       const now = Date.now();
       const localPhotoUri = String(input.photoUri ?? "").trim();
-      const photoUrl = localPhotoUri
-        ? await uploadAnnouncementPhoto(currentUid, announcementRef.id, localPhotoUri)
-        : "";
+      if (localPhotoUri) {
+        throw new Error("announcements.photoBackendUnavailable");
+      }
 
       const announcement: NearbyAnnouncement = {
         id: announcementRef.id,
@@ -273,8 +272,7 @@ export function createFirestoreNearbyAnnouncementsRepository(options: {
         updatedAt: now,
         status: "active",
         responseCount: 0,
-        hasPhoto: Boolean(photoUrl),
-        ...(photoUrl ? { photoUrl, photoUri: photoUrl } : {}),
+        hasPhoto: false,
       };
 
       await setDoc(announcementRef, {
@@ -293,8 +291,7 @@ export function createFirestoreNearbyAnnouncementsRepository(options: {
         updatedAtServer: serverTimestamp(),
         status: "active",
         responseCount: 0,
-        hasPhoto: Boolean(photoUrl),
-        ...(photoUrl ? { photoUrl } : {}),
+        hasPhoto: false,
       });
 
       return announcement;

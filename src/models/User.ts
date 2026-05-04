@@ -9,6 +9,11 @@ export type Goal =
   | "casual"
   | "sex";
 
+export type UserProfilePhoto = {
+  mediaId?: string;
+  url: string;
+};
+
 export interface UserProfile {
   uid: string;
   displayName: string;
@@ -19,7 +24,7 @@ export interface UserProfile {
   about?: string;
   avatarUrl?: string;
   interests: string[];
-  photos: string[];
+  photos: UserProfilePhoto[];
   mood?: Mood;
   goal?: Goal;
   createdAt: number;

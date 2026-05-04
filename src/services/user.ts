@@ -1,7 +1,7 @@
 import { doc, getDoc } from "firebase/firestore";
 
 import { db } from "@/config/firebaseConfig";
-import type { Goal, Mood, UserProfile } from "@/models/User";
+import type { Goal, Mood, UserProfile, UserProfilePhoto } from "@/models/User";
 import { ApiError } from "@/services/api/apiClient";
 import { refreshBackendUser } from "@/services/api/backendSession";
 import { patchMeProfileOnBackend } from "@/services/api/profileApi";
@@ -14,6 +14,7 @@ import {
 import type {
   AuthUserDto,
   PatchProfileRequest,
+  ProfilePhotoDto,
   SelfUserProfileDto,
 } from "@/services/api/types";
 import { uploadUserAvatar } from "@/services/storage";
@@ -96,12 +97,45 @@ function normalizeStringArray(value: unknown) {
     .filter(Boolean);
 }
 
-function normalizeSharedMediaUrlArray(value: unknown) {
+function normalizeProfilePhotos(value: unknown): UserProfilePhoto[] {
   if (!Array.isArray(value)) return [];
 
   return value
-    .map((entry) => normalizeSharedMediaUrl(entry))
-    .filter((entry): entry is string => Boolean(entry));
+    .map((entry) => {
+      if (typeof entry === "string") {
+        const url = normalizeSharedMediaUrl(entry);
+        return url ? { url } : null;
+      }
+
+      if (!entry || typeof entry !== "object") return null;
+      const candidate = entry as {
+        id?: unknown;
+        mediaId?: unknown;
+        url?: unknown;
+      };
+      const url = normalizeSharedMediaUrl(candidate.url);
+      if (!url) return null;
+
+      const mediaId = normalizeString(candidate.mediaId ?? candidate.id);
+      return {
+        ...(mediaId ? { mediaId } : {}),
+        url,
+      };
+    })
+    .filter((entry): entry is UserProfilePhoto => Boolean(entry));
+}
+
+function toBackendProfilePhotos(value: unknown): ProfilePhotoDto[] {
+  return normalizeProfilePhotos(value)
+    .map((photo) => {
+      const mediaId = normalizeString(photo.mediaId);
+      if (!mediaId) return null;
+      return {
+        mediaId,
+        url: photo.url,
+      };
+    })
+    .filter((entry): entry is ProfilePhotoDto => Boolean(entry));
 }
 
 function normalizeGoal(value: unknown): Goal | undefined {
@@ -167,7 +201,7 @@ function normalizeUserProfile(
     ...(about ? { about } : {}),
     ...(avatarUrl ? { avatarUrl } : {}),
     interests: normalizeStringArray(raw?.interests),
-    photos: normalizeSharedMediaUrlArray(raw?.photos),
+    photos: normalizeProfilePhotos(raw?.photos),
     ...(mood ? { mood } : {}),
     ...(goal ? { goal } : {}),
     createdAt: Number.isFinite(createdAt) && createdAt > 0 ? createdAt : now,
@@ -199,6 +233,8 @@ function mapBackendUserProfile(user: AuthUserDto | SelfUserProfileDto): UserProf
   const amoriaId = normalizeAmoriaId(user.amoriaId);
   const about = normalizeOptionalString(user.about);
   const avatarUrl = normalizeSharedMediaUrl(user.avatarUrl);
+  const goal = normalizeGoal(user.goal);
+  const mood = normalizeMood(user.mood);
 
   return {
     uid: normalizeString(user.id),
@@ -207,11 +243,15 @@ function mapBackendUserProfile(user: AuthUserDto | SelfUserProfileDto): UserProf
     ...(amoriaId ? { amoriaIdNormalized: amoriaId } : {}),
     ...(about ? { about } : {}),
     ...(avatarUrl ? { avatarUrl } : {}),
-    // Backend profile currently exposes only the core profile fields.
-    interests: [],
-    photos: [],
+    interests: normalizeStringArray(user.interests),
+    photos: normalizeProfilePhotos(user.photos),
+    ...(mood ? { mood } : {}),
+    ...(goal ? { goal } : {}),
     createdAt,
     updatedAt,
+    allowAdultMode: Boolean(user.allowAdultMode),
+    flirtEnabled: Boolean(user.flirtEnabled),
+    mysteryMode: Boolean(user.mysteryMode),
   };
 }
 
@@ -219,8 +259,20 @@ function isBackendAuthError(error: unknown) {
   return error instanceof ApiError && (error.status === 401 || error.status === 403);
 }
 
+const BACKEND_PROFILE_FIELD_KEYS = new Set([
+  "displayName",
+  "about",
+  "goal",
+  "mood",
+  "interests",
+  "photos",
+  "flirtEnabled",
+  "allowAdultMode",
+  "mysteryMode",
+]);
+
 function getUnsupportedBackendProfileFields(fields: Partial<UserProfile>) {
-  return Object.keys(fields).filter((key) => key !== "displayName" && key !== "about");
+  return Object.keys(fields).filter((key) => !BACKEND_PROFILE_FIELD_KEYS.has(key));
 }
 
 async function getCurrentBackendUserProfile() {
@@ -239,8 +291,29 @@ async function updateBackendSupportedProfileFields(
     const about = normalizeString(fields.about);
     input.about = about || null;
   }
+  if ("goal" in fields) {
+    input.goal = normalizeGoal(fields.goal) ?? null;
+  }
+  if ("mood" in fields) {
+    input.mood = normalizeMood(fields.mood) ?? null;
+  }
+  if ("interests" in fields) {
+    input.interests = normalizeStringArray(fields.interests);
+  }
+  if ("photos" in fields) {
+    input.photos = toBackendProfilePhotos(fields.photos);
+  }
+  if ("allowAdultMode" in fields) {
+    input.allowAdultMode = Boolean(fields.allowAdultMode);
+  }
+  if ("flirtEnabled" in fields) {
+    input.flirtEnabled = Boolean(fields.flirtEnabled);
+  }
+  if ("mysteryMode" in fields) {
+    input.mysteryMode = Boolean(fields.mysteryMode);
+  }
 
-  if (!("displayName" in input) && !("about" in input)) {
+  if (!Object.keys(input).length) {
     return getCurrentBackendUserProfile();
   }
 
@@ -346,8 +419,10 @@ export async function uploadCurrentUserAvatar(uri: string): Promise<UserProfile>
   throw new Error("auth.sessionRequired");
 }
 
-export async function updateUserPhotos(photos: string[]): Promise<UserProfile> {
-  return updateUserFields({ photos: normalizeSharedMediaUrlArray(photos) });
+export async function updateUserPhotos(
+  photos: Array<UserProfilePhoto | string>
+): Promise<UserProfile> {
+  return updateUserFields({ photos: normalizeProfilePhotos(photos) });
 }
 
 export async function updateFlirtSettings(

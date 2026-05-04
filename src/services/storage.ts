@@ -1,73 +1,57 @@
-import { deleteObject, getDownloadURL, ref, uploadBytes } from "firebase/storage";
+import * as FileSystem from "expo-file-system/legacy";
 
-import { firebaseConfig, storage } from "@/config/firebaseConfig";
 import { uploadAvatarToBackend } from "@/services/api/mediaApi";
+import {
+  completeUpload,
+  deleteMedia,
+  prepareUpload,
+} from "@/services/api/uploadsApi";
 import {
   getBackendAccessToken,
   loadBackendSession,
   saveBackendSession,
 } from "@/services/api/sessionStorage";
+import type { MediaDto } from "@/services/api/types";
+import { uploadFileToPresignedPut } from "@/services/media/uploadPut";
 
-function requireStorage(errorCode = "photos.uploadUnavailable") {
-  const storageBucket = String(firebaseConfig.storageBucket ?? "").trim();
-  if (!storage || !storageBucket) {
-    throw new Error(errorCode);
-  }
-
-  return storage;
-}
+export type UploadedProfilePhoto = {
+  mediaId: string;
+  url: string;
+};
 
 function inferImageContentType(uri: string) {
-  const lower = uri.toLowerCase();
-  if (lower.includes(".png")) return "image/png";
-  if (lower.includes(".webp")) return "image/webp";
+  const normalized = String(uri ?? "").split("?")[0].toLowerCase();
+  if (normalized.endsWith(".png")) return "image/png";
+  if (normalized.endsWith(".webp")) return "image/webp";
+  if (normalized.endsWith(".heic")) return "image/heic";
+  if (normalized.endsWith(".heif")) return "image/heif";
   return "image/jpeg";
 }
 
 function inferImageExtension(contentType: string) {
   if (contentType === "image/png") return "png";
   if (contentType === "image/webp") return "webp";
+  if (contentType === "image/heic") return "heic";
+  if (contentType === "image/heif") return "heif";
   return "jpg";
 }
 
-async function uploadImageToPath(uri: string, path: string, errorPrefix = "photos") {
-  const stableUri = String(uri ?? "").trim();
-  if (!stableUri) {
-    throw new Error(`${errorPrefix}.uriRequired`);
+function normalizeMimeType(value: unknown, fileUri: string) {
+  const mimeType = String(value ?? "").trim().toLowerCase();
+  return mimeType.startsWith("image/")
+    ? mimeType
+    : inferImageContentType(fileUri);
+}
+
+function mapMediaToProfilePhoto(media: MediaDto): UploadedProfilePhoto {
+  const mediaId = String(media.mediaId ?? media.id ?? "").trim();
+  const url = String(media.url ?? media.publicUrl ?? "").trim();
+
+  if (!mediaId || !url) {
+    throw new Error("photos.completeInvalidMedia");
   }
 
-  const bucket = requireStorage(`${errorPrefix}.uploadUnavailable`);
-  let response;
-  try {
-    response = await fetch(stableUri);
-  } catch {
-    throw new Error(`${errorPrefix}.readFailed`);
-  }
-
-  if (!response.ok) {
-    throw new Error(`${errorPrefix}.readFailed`);
-  }
-
-  let blob;
-  try {
-    blob = await response.blob();
-  } catch {
-    throw new Error(`${errorPrefix}.readFailed`);
-  }
-
-  const contentType = inferImageContentType(stableUri);
-  const objectRef = ref(bucket, path);
-  try {
-    await uploadBytes(objectRef, blob, { contentType });
-  } catch {
-    throw new Error(`${errorPrefix}.uploadFailed`);
-  }
-
-  try {
-    return await getDownloadURL(objectRef);
-  } catch {
-    throw new Error(`${errorPrefix}.downloadUrlFailed`);
-  }
+  return { mediaId, url };
 }
 
 async function uploadBackendUserAvatar(stableUid: string, stableUri: string) {
@@ -91,20 +75,52 @@ async function uploadBackendUserAvatar(stableUid: string, stableUri: string) {
   return response.avatarUrl;
 }
 
-export async function uploadImage(uid: string, uri: string) {
-  const stableUid = String(uid ?? "").trim();
-  const stableUri = String(uri ?? "").trim();
-  if (!stableUid) {
-    throw new Error("User id is required");
-  }
+export async function uploadProfilePhoto(
+  fileUri: string,
+  options: { mimeType?: string; checksumSha256?: string } = {}
+): Promise<UploadedProfilePhoto> {
+  const stableUri = String(fileUri ?? "").trim();
   if (!stableUri) {
-    throw new Error("Image uri is required");
+    throw new Error("photos.uriRequired");
   }
 
-  const contentType = inferImageContentType(stableUri);
-  const extension = inferImageExtension(contentType);
-  const id = Date.now() + "_" + Math.random().toString(36).slice(2, 8);
-  return uploadImageToPath(stableUri, `users/${stableUid}/photos/${id}.${extension}`);
+  const fileInfo = await FileSystem.getInfoAsync(stableUri);
+  if (!fileInfo.exists) {
+    throw new Error("photos.readFailed");
+  }
+
+  const sizeBytes = Number(fileInfo.size ?? 0);
+  if (!Number.isFinite(sizeBytes) || sizeBytes <= 0) {
+    throw new Error("photos.sizeRequired");
+  }
+
+  const mimeType = normalizeMimeType(options.mimeType, stableUri);
+  const upload = await prepareUpload({
+    purpose: "profile_photo",
+    mimeType,
+    sizeBytes,
+    ...(options.checksumSha256
+      ? { checksumSha256: options.checksumSha256 }
+      : {}),
+  });
+
+  await uploadFileToPresignedPut(upload.uploadUrl, stableUri, upload.headers);
+
+  const completed = await completeUpload(upload.uploadId, {
+    sizeBytes,
+    ...(options.checksumSha256
+      ? { checksumSha256: options.checksumSha256 }
+      : {}),
+  });
+
+  return mapMediaToProfilePhoto(completed.media);
+}
+
+export async function deleteProfilePhoto(mediaId: string): Promise<void> {
+  const stableMediaId = String(mediaId ?? "").trim();
+  if (!stableMediaId) return;
+
+  await deleteMedia(stableMediaId);
 }
 
 export async function uploadUserAvatar(uid: string, localUri: string) {
@@ -125,38 +141,4 @@ export async function uploadUserAvatar(uid: string, localUri: string) {
 
 export async function uploadProfileAvatar(uid: string, uri: string) {
   return uploadUserAvatar(uid, uri);
-}
-
-export async function uploadAnnouncementPhoto(
-  authorUid: string,
-  announcementId: string,
-  localUri: string
-) {
-  const stableUid = String(authorUid ?? "").trim();
-  const stableAnnouncementId = String(announcementId ?? "").trim();
-  const stableUri = String(localUri ?? "").trim();
-  if (!stableUid) {
-    throw new Error("announcements.photoUserRequired");
-  }
-  if (!stableAnnouncementId) {
-    throw new Error("announcements.photoAnnouncementRequired");
-  }
-  if (!stableUri) {
-    throw new Error("announcements.photoUriRequired");
-  }
-
-  return uploadImageToPath(
-    stableUri,
-    `announcements/${stableUid}/${stableAnnouncementId}/cover.jpg`,
-    "announcements.photo"
-  );
-}
-
-export async function deleteImage(uri: string) {
-  const stableUri = String(uri ?? "").trim();
-  if (!stableUri || (!stableUri.startsWith("https://") && !stableUri.startsWith("gs://"))) {
-    return;
-  }
-
-  await deleteObject(ref(requireStorage(), stableUri));
 }

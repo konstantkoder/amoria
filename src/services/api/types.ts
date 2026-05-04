@@ -1,11 +1,39 @@
-export type ApiErrorFields = Record<string, string | string[]>;
+export type ApiErrorDetails = Record<string, string | string[]>;
+export type ApiErrorFields = ApiErrorDetails;
 
 export type ApiErrorResponse = {
   error: {
     code?: string;
     message: string;
-    fields?: ApiErrorFields;
+    details?: ApiErrorDetails;
+    fields?: ApiErrorDetails;
   };
+};
+
+export type ProfileGoal =
+  | "dating"
+  | "friends"
+  | "chat"
+  | "long_term"
+  | "short_term"
+  | "casual"
+  | "sex";
+
+export type ProfileMood = "happy" | "chill" | "active" | "serious" | "party";
+
+export type ProfilePhotoDto = {
+  mediaId: string;
+  url: string;
+};
+
+export type BackendProfileFields = {
+  goal?: ProfileGoal | null;
+  mood?: ProfileMood | null;
+  interests?: string[];
+  photos?: ProfilePhotoDto[];
+  flirtEnabled?: boolean;
+  allowAdultMode?: boolean;
+  mysteryMode?: boolean;
 };
 
 export type SelfUserProfileDto = {
@@ -17,7 +45,7 @@ export type SelfUserProfileDto = {
   avatarUrl: string | null;
   createdAt: string;
   updatedAt: string;
-};
+} & BackendProfileFields;
 
 export type AuthUserDto = {
   id: string;
@@ -28,7 +56,7 @@ export type AuthUserDto = {
   about?: string | null;
   createdAt?: string;
   updatedAt?: string;
-};
+} & BackendProfileFields;
 
 export type RegisterRequest = {
   email: string;
@@ -56,6 +84,74 @@ export type MeResponse = SelfUserProfileDto;
 export type PatchProfileRequest = {
   displayName?: string;
   about?: string | null;
+} & BackendProfileFields;
+
+export type MediaDto = {
+  id?: string;
+  mediaId?: string;
+  url?: string;
+  publicUrl?: string;
+  mimeType?: string;
+  sizeBytes?: number;
+  createdAt?: string;
+};
+
+export type PrepareUploadRequest = {
+  purpose: string;
+  mimeType: string;
+  sizeBytes: number;
+  checksumSha256?: string;
+};
+
+export type PrepareUploadResponse = {
+  uploadId: string;
+  uploadUrl: string;
+  headers: Record<string, string>;
+  expiresAt: string;
+};
+
+export type CompleteUploadRequest = {
+  sizeBytes: number;
+  checksumSha256?: string;
+};
+
+export type CompleteUploadResponse = {
+  media: MediaDto;
+};
+
+export type ThreadPeerDto = {
+  id: string;
+  displayName: string;
+  avatarUrl: string | null;
+};
+
+export type ThreadSourceDto = { type: string; sourceId: string } | null;
+
+export type ThreadDto = {
+  id: string;
+  type: "direct";
+  peer: ThreadPeerDto;
+  lastMessage: { id: string; text: string; createdAt: string } | null;
+  unreadCount: number;
+  source: ThreadSourceDto;
+};
+
+export type InboxResponse = {
+  items: ThreadDto[];
+  nextCursor: string | null;
+};
+
+export type MessageDto = {
+  id: string;
+  threadId: string;
+  fromUserId: string;
+  text: string;
+  createdAt: string;
+  clientMessageId: string;
+};
+
+export type MessagesResponse = {
+  items: MessageDto[];
 };
 
 export type AvatarUploadResponse = {

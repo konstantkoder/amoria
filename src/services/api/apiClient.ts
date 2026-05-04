@@ -10,7 +10,7 @@ import {
   setRefreshToken,
 } from "@/services/session/tokenStore";
 import type { AuthResponse } from "@/services/api/types";
-import type { ApiErrorFields, ApiErrorResponse } from "@/services/api/types";
+import type { ApiErrorDetails, ApiErrorResponse } from "@/services/api/types";
 
 type HttpMethod = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
 
@@ -30,13 +30,13 @@ let refreshSessionPromise: Promise<AuthResponse> | null = null;
 export class ApiError extends Error {
   status: number;
   code?: string;
-  fields?: ApiErrorFields;
+  fields?: ApiErrorDetails;
 
   constructor(input: {
     status: number;
     message: string;
     code?: string;
-    fields?: ApiErrorFields;
+    fields?: ApiErrorDetails;
   }) {
     super(input.message);
     this.name = "ApiError";
@@ -94,9 +94,11 @@ function buildError(response: Response, data: unknown) {
     typeof errorPayload?.code === "string" && errorPayload.code.trim()
       ? errorPayload.code
       : undefined;
+  const details =
+    (errorPayload as any)?.details ?? (errorPayload as any)?.fields;
   const fields =
-    errorPayload?.fields && typeof errorPayload.fields === "object"
-      ? errorPayload.fields
+    details && typeof details === "object"
+      ? (details as ApiErrorDetails)
       : undefined;
 
   return new ApiError({

@@ -16,44 +16,27 @@ import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/nativ
 import CoreStateCard from "@/components/CoreStateCard";
 import ScreenShell from "@/components/ScreenShell";
 import UserAvatar from "@/components/UserAvatar";
-import { db } from "@/config/firebaseConfig";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocale } from "@/contexts/LocaleContext";
 import {
   type DmChatRouteProp,
   type RootStackNavigationProp,
 } from "@/navigation/appRoutes";
-import { markDmThreadSeen } from "@/services/activityFreshness";
-import {
-  buildDmThreadId,
-  mapDmThreadToPeer,
-  sendDmMessage,
-  subscribeDmMessages,
-  subscribeDmThreads,
-  type DmMessageDoc,
-  type DmThreadDoc,
-} from "@/services/dm";
-import { nearbyAnnouncementsRepository } from "@/services/nearbyAnnouncements";
-import { getNowPostById } from "@/services/now";
-import {
-  getPlayColorMoodCombinedPalette,
-  getPlaySessionById,
-  getPlaySessionPrompt,
-} from "@/services/playSessions";
+import * as chatApi from "@/services/api/chatApi";
+import type { MessageDto } from "@/services/api/types";
+import * as wsClient from "@/services/realtime/wsClient";
 import {
   blockUser,
   createReport,
   getBlockedUserIds,
   type SafetyReportReason,
 } from "@/services/safety";
-import { getUserProfileById } from "@/services/user";
 import { theme } from "@/theme";
-import {
-  isFirestoreMissingIndexError,
-  logFirestoreMissingIndexError,
-} from "@/utils/firestoreErrors";
 
-type RenderMessage = DmMessageDoc & { failed?: boolean };
+type RenderMessage = MessageDto & {
+  pending?: boolean;
+  failed?: boolean;
+};
 
 function buildReportReasonButtons(
   tt: (key: string, fallback: string, params?: Record<string, string>) => string,
@@ -87,8 +70,65 @@ function buildReportReasonButtons(
   ];
 }
 
+function messageTime(value: string) {
+  const timestamp = Date.parse(String(value ?? ""));
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function messageKey(message: Pick<MessageDto, "clientMessageId" | "id">) {
+  return String(message.clientMessageId || message.id);
+}
+
+function mergeMessages(current: RenderMessage[], incoming: RenderMessage[]) {
+  const byKey = new Map<string, RenderMessage>();
+  for (const message of current) {
+    byKey.set(messageKey(message), message);
+  }
+  for (const message of incoming) {
+    byKey.set(messageKey(message), {
+      ...byKey.get(messageKey(message)),
+      ...message,
+      pending: message.pending,
+      failed: message.failed,
+    });
+  }
+
+  return Array.from(byKey.values()).sort(
+    (left, right) => messageTime(right.createdAt) - messageTime(left.createdAt)
+  );
+}
+
+function readThreadMessage(payload: wsClient.RealtimeMessage): MessageDto | null {
+  const candidate =
+    payload.message && typeof payload.message === "object"
+      ? payload.message
+      : payload;
+  if (!candidate || typeof candidate !== "object") return null;
+
+  const value = candidate as Partial<MessageDto>;
+  const id = String(value.id ?? "").trim();
+  const threadId = String(value.threadId ?? payload.threadId ?? "").trim();
+  const fromUserId = String(value.fromUserId ?? "").trim();
+  const text = String(value.text ?? "").trim();
+  const createdAt = String(value.createdAt ?? "").trim();
+  const clientMessageId = String(value.clientMessageId ?? id).trim();
+  if (!id || !threadId || !fromUserId || !text || !createdAt || !clientMessageId) {
+    return null;
+  }
+
+  return {
+    id,
+    threadId,
+    fromUserId,
+    text,
+    createdAt,
+    clientMessageId,
+  };
+}
+
 export default function DMChatScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"DMChat">>();
+  const route = useRoute<DmChatRouteProp>();
   const { user: authUser } = useAuth();
   const { t } = useLocale();
   const tt = useCallback(
@@ -98,75 +138,105 @@ export default function DMChatScreen() {
     },
     [t]
   );
-  const route = useRoute<DmChatRouteProp>();
-  const myId = authUser?.id ?? "";
-  const routePeerId = String(route.params?.peerId ?? "");
-  const threadId = String(
-    route.params?.threadId ?? (myId && routePeerId ? buildDmThreadId(myId, routePeerId) : "")
-  );
-  const routePeerName = String(route.params?.peerName ?? "").trim();
-  const peerId = routePeerId || "";
-  const backTarget = route.params?.backTarget;
-  const backSessionId = String(route.params?.backSessionId ?? "");
-  const routeSourceContext = route.params?.sourceContext;
 
+  const myId = authUser?.id ?? "";
+  const threadId = String(route.params?.threadId ?? "").trim();
+  const peerId = String(route.params?.peerId ?? "").trim();
+  const routePeerName = String(route.params?.peerName ?? "").trim();
+  const backTarget = route.params?.backTarget;
+  const sourceContext = route.params?.sourceContext ?? null;
+
+  const [messages, setMessages] = useState<RenderMessage[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
-  const [thread, setThread] = useState<DmThreadDoc | null>(null);
-  const [msgs, setMsgs] = useState<DmMessageDoc[]>([]);
-  const [failedById, setFailedById] = useState<Record<string, true>>({});
-  const [threadLoading, setThreadLoading] = useState(true);
-  const [messagesLoading, setMessagesLoading] = useState(true);
-  const [subscriptionError, setSubscriptionError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
   const [safetyBusy, setSafetyBusy] = useState(false);
-  const [peerAvatarUrl, setPeerAvatarUrl] = useState("");
-  const [peerProfileName, setPeerProfileName] = useState("");
-  const [sourceDetailText, setSourceDetailText] = useState("");
 
   const textRef = useRef("");
   const inputRef = useRef<TextInput>(null);
   const listRef = useRef<FlatList<RenderMessage>>(null);
-  const sendGuardRef = useRef(false);
   const mountedRef = useRef(true);
-  const activeThreadRef = useRef(threadId);
-  const sendResetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const amoriaUserLabel = tt("profile.amoriaUser", "Пользователь Amoria");
+  const peerDisplayName = routePeerName || amoriaUserLabel;
+  const peerBlocked = Boolean(peerId && blockedUserIds.includes(peerId));
 
   useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
-      if (sendResetTimeoutRef.current) {
-        clearTimeout(sendResetTimeoutRef.current);
-      }
     };
   }, []);
 
   useEffect(() => {
-    activeThreadRef.current = threadId;
-    sendGuardRef.current = false;
-    if (sendResetTimeoutRef.current) {
-      clearTimeout(sendResetTimeoutRef.current);
-      sendResetTimeoutRef.current = null;
-    }
-    setSending(false);
-    setThread(null);
-    setMsgs([]);
-    setFailedById({});
-    setThreadLoading(Boolean(db && myId && threadId));
-    setMessagesLoading(Boolean(db && threadId));
-    setSubscriptionError(null);
-    textRef.current = "";
+    setMessages([]);
     setText("");
-    inputRef.current?.setNativeProps?.({ text: "" });
+    textRef.current = "";
     inputRef.current?.clear?.();
     listRef.current?.scrollToOffset?.({ offset: 0, animated: false });
-  }, [myId, routePeerName, threadId]);
+  }, [threadId]);
+
+  const loadMessages = useCallback(async () => {
+    if (!threadId || !myId) {
+      setMessages([]);
+      setLoading(false);
+      setError(null);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await chatApi.listMessages(threadId, 50);
+      setMessages(mergeMessages([], response.items ?? []));
+      await chatApi.markRead(threadId).catch(() => undefined);
+    } catch {
+      setError(
+        tt(
+          "dm.errorBody",
+          "Не удалось подключить этот разговор прямо сейчас. Попробуй ещё раз."
+        )
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [myId, threadId, tt]);
+
+  useEffect(() => {
+    void loadMessages();
+  }, [loadMessages, reloadKey]);
 
   useEffect(() => {
     let alive = true;
-    if (!db || !myId) {
+    if (!threadId || !myId) return () => {
+      alive = false;
+    };
+
+    wsClient.connect();
+    wsClient.subscribeThread(threadId);
+    const unsubscribe = wsClient.onMessage((payload) => {
+      if (!alive || payload.type !== "thread.message") return;
+
+      const message = readThreadMessage(payload);
+      if (!message || message.threadId !== threadId) return;
+
+      setMessages((current) => mergeMessages(current, [message]));
+      void chatApi.markRead(threadId, message.id).catch(() => undefined);
+    });
+
+    return () => {
+      alive = false;
+      unsubscribe();
+      wsClient.unsubscribeThread(threadId);
+    };
+  }, [myId, threadId]);
+
+  useEffect(() => {
+    let alive = true;
+    if (!myId) {
       setBlockedUserIds([]);
       return () => {
         alive = false;
@@ -188,366 +258,11 @@ export default function DMChatScreen() {
     };
   }, [myId, reloadKey]);
 
-  useEffect(() => {
-    if (!threadId) return;
-    if (threadLoading && !msgs.length) return;
-    if (!thread && !msgs.length) return;
-    void markDmThreadSeen(threadId);
-  }, [msgs.length, thread, threadId, threadLoading]);
-
-  useEffect(() => {
-    if (!db || !myId || !threadId) {
-      setThread(null);
-      setThreadLoading(false);
-      return;
-    }
-
-    setThreadLoading(true);
-    setSubscriptionError(null);
-    const unsubscribe = subscribeDmThreads(
-      db,
-      myId,
-      (threads) => {
-        if (!mountedRef.current || activeThreadRef.current !== threadId) return;
-        setThread(threads.find((item) => item.id === threadId) ?? null);
-        setThreadLoading(false);
-      },
-      (error) => {
-        if (!mountedRef.current || activeThreadRef.current !== threadId) return;
-        if (isFirestoreMissingIndexError(error)) {
-          logFirestoreMissingIndexError("DMChat dmThreads", error);
-          setSubscriptionError(
-            tt(
-              "common.serviceSetupError",
-              "Сервис временно настраивается. Попробуйте позже."
-            )
-          );
-          setThreadLoading(false);
-          return;
-        }
-
-        setSubscriptionError(
-          tt(
-            "dm.errorBody",
-            "Не удалось подключить этот разговор прямо сейчас. Попробуй ещё раз."
-          )
-        );
-        setThreadLoading(false);
-      }
-    );
-
-    return unsubscribe;
-  }, [myId, threadId, tt, reloadKey]);
-
-  useEffect(() => {
-    if (!db || !threadId) {
-      setMsgs([]);
-      setMessagesLoading(false);
-      return;
-    }
-
-    setMessagesLoading(true);
-    setSubscriptionError(null);
-    return subscribeDmMessages(
-      db,
-      threadId,
-      (next) => {
-        if (!mountedRef.current || activeThreadRef.current !== threadId) return;
-        setMsgs(next);
-        setMessagesLoading(false);
-      },
-      (error) => {
-        if (!mountedRef.current || activeThreadRef.current !== threadId) return;
-        if (isFirestoreMissingIndexError(error)) {
-          logFirestoreMissingIndexError("DMChat messages", error);
-          setSubscriptionError(
-            tt(
-              "common.serviceSetupError",
-              "Сервис временно настраивается. Попробуйте позже."
-            )
-          );
-          setMessagesLoading(false);
-          return;
-        }
-
-        setSubscriptionError(
-          tt(
-            "dm.errorBody",
-            "Не удалось подключить этот разговор прямо сейчас. Попробуй ещё раз."
-          )
-        );
-        setMessagesLoading(false);
-      }
-    );
-  }, [threadId, tt, reloadKey]);
-
-  useEffect(() => {
-    if (!msgs.length) return;
-    setFailedById((prev) => {
-      let changed = false;
-      const next = { ...prev };
-      for (const message of msgs) {
-        if (next[message.clientId] && !message.pending) {
-          delete next[message.clientId];
-          changed = true;
-        }
-      }
-      return changed ? next : prev;
-    });
-  }, [msgs]);
-
-  const amoriaUserLabel = tt("profile.amoriaUser", "Пользователь Amoria");
-  const peer = useMemo(() => {
-    if (!thread) {
-      return {
-        uid: peerId,
-        name: routePeerName || amoriaUserLabel,
-      };
-    }
-    return mapDmThreadToPeer(thread, myId) ?? {
-      uid: peerId,
-      name: routePeerName || amoriaUserLabel,
-    };
-  }, [amoriaUserLabel, myId, peerId, routePeerName, thread]);
-  const peerBlocked = useMemo(
-    () => Boolean(peer.uid && blockedUserIds.includes(peer.uid)),
-    [blockedUserIds, peer.uid]
-  );
-  useEffect(() => {
-    let alive = true;
-    if (!peer.uid) {
-      setPeerAvatarUrl("");
-      setPeerProfileName("");
-      return () => {
-        alive = false;
-      };
-    }
-
-    void getUserProfileById(peer.uid)
-      .then((profile) => {
-        if (!alive) return;
-        setPeerAvatarUrl(profile?.avatarUrl ?? "");
-        setPeerProfileName(profile?.displayName?.trim() ?? "");
-      })
-      .catch(() => {
-        if (!alive) return;
-        setPeerAvatarUrl("");
-        setPeerProfileName("");
-      });
-
-    return () => {
-      alive = false;
-    };
-  }, [peer.uid]);
-  const sourceContext = useMemo(() => {
-    if (
-      routeSourceContext?.source === "play" ||
-      routeSourceContext?.source === "announcement" ||
-      routeSourceContext?.source === "nearby"
-    ) {
-      return routeSourceContext;
-    }
-    if (
-      thread?.source === "play" ||
-      thread?.source === "announcement" ||
-      thread?.source === "nearby"
-    ) {
-      return {
-        source: thread.source,
-        ...(thread.sourceSessionId ? { sourceSessionId: thread.sourceSessionId } : {}),
-        ...(thread.artworkSummary ? { artworkSummary: thread.artworkSummary } : {}),
-      };
-    }
-    return null;
-  }, [routeSourceContext, thread?.artworkSummary, thread?.source, thread?.sourceSessionId]);
-  const sourceSessionId = String(sourceContext?.sourceSessionId ?? "");
-  const sourceActivity = sourceContext?.artworkSummary?.activity;
-  const sourceStrokeCount = sourceContext?.artworkSummary?.strokeCount;
-  const storySessionId =
-    backTarget === "sessionDetail"
-      ? String(backSessionId || sourceSessionId || "")
-      : "";
-
-  useEffect(() => {
-    let alive = true;
-    if (!db || !sourceContext?.source || !sourceSessionId) {
-      setSourceDetailText("");
-      return () => {
-        alive = false;
-      };
-    }
-
-    async function loadSourceDetail() {
-      try {
-        if (!db) return "";
-
-        if (sourceContext.source === "play") {
-          const session = await getPlaySessionById(db, sourceSessionId);
-          if (!session) return "";
-
-          const prompt = getPlaySessionPrompt(session)?.text?.trim() ?? "";
-          if (prompt) return prompt;
-
-          if (session.activity === "color_mood") {
-            const paletteSize = getPlayColorMoodCombinedPalette(session).length;
-            if (paletteSize > 0) {
-              return tt("dm.sourceColorMoodPaletteContext", "Mood palette: {count} colors", {
-                count: String(paletteSize),
-              });
-            }
-          }
-        }
-
-        if (sourceContext.source === "announcement") {
-          const announcement = await nearbyAnnouncementsRepository.getAnnouncementById(
-            sourceSessionId
-          );
-          return announcement?.title?.trim() ?? "";
-        }
-
-        if (sourceContext.source === "nearby") {
-          const post = await getNowPostById(db, sourceSessionId);
-          return post?.text?.trim() ?? "";
-        }
-      } catch {
-        return "";
-      }
-
-      return "";
-    }
-
-    void loadSourceDetail().then((value) => {
-      if (!alive) return;
-      setSourceDetailText(value);
-    });
-
-    return () => {
-      alive = false;
-    };
-  }, [sourceContext?.source, sourceSessionId, tt]);
-
-  const mergedMsgs = useMemo(() => {
-    const byId = new Map<string, RenderMessage>();
-    for (const message of msgs) {
-      const key = String(message.clientId || message.id);
-      byId.set(key, {
-        ...message,
-        failed: Boolean(failedById[key]),
-      });
-    }
-    return Array.from(byId.values()).sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
-  }, [failedById, msgs]);
-
-  const send = useCallback(() => {
-    const value = (textRef.current || "").trim();
-    if (!value || !db || !threadId || !myId || !peer.uid || peerBlocked) return;
-    if (sendGuardRef.current) return;
-
-    const targetThreadId = threadId;
-    const targetPeerId = peer.uid;
-    const clientId = `m_${myId}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-    sendGuardRef.current = true;
-
-    if (mountedRef.current) {
-      setSending(true);
-    }
-
-    textRef.current = "";
-    setText("");
-    inputRef.current?.setNativeProps?.({ text: "" });
-    inputRef.current?.clear?.();
-
-    setFailedById((prev) => {
-      if (!prev[clientId]) return prev;
-      const next = { ...prev };
-      delete next[clientId];
-      return next;
-    });
-
-    void sendDmMessage(db, targetThreadId, myId, targetPeerId, value, clientId)
-      .catch(() => {
-        if (!mountedRef.current || activeThreadRef.current !== targetThreadId) return;
-        setFailedById((prev) => ({ ...prev, [clientId]: true }));
-      })
-      .finally(() => {
-        if (mountedRef.current && activeThreadRef.current === targetThreadId) {
-          setSending(false);
-        }
-        sendResetTimeoutRef.current = setTimeout(() => {
-          if (activeThreadRef.current === targetThreadId) {
-            sendGuardRef.current = false;
-          }
-        }, 250);
-      });
-  }, [db, myId, peer.uid, peerBlocked, threadId]);
-
-  const retrySend = useCallback(
-    (clientId: string) => {
-      if (!db || !threadId || !myId) return;
-      const target = msgs.find((message) => String(message.clientId || message.id) === clientId);
-      if (!target?.text) return;
-
-      setFailedById((prev) => {
-        if (!prev[clientId]) return prev;
-        const next = { ...prev };
-        delete next[clientId];
-        return next;
-      });
-
-      void sendDmMessage(db, threadId, target.from || myId, target.to || peer.uid, target.text, clientId).catch(
-        () => {
-          if (!mountedRef.current || activeThreadRef.current !== threadId) return;
-          setFailedById((prev) => ({ ...prev, [clientId]: true }));
-        }
-      );
-    },
-    [db, msgs, myId, peer.uid, threadId]
-  );
-
-  const handleTextChange = useCallback((value: string) => {
-    textRef.current = value;
-    setText(value);
+  const retry = useCallback(() => {
+    wsClient.disconnect();
+    setReloadKey((prev) => prev + 1);
   }, []);
 
-  const canSend = text.trim().length > 0 && !peerBlocked;
-  const canOpenSourceDetail = Boolean(
-    sourceSessionId &&
-      (sourceContext?.source === "play" || sourceContext?.source === "announcement")
-  );
-  const sourceActionLabel = useMemo(() => {
-    if (sourceContext?.source === "play") {
-      return tt("dm.openSourceStory", "Открыть общую историю");
-    }
-    if (sourceContext?.source === "announcement") {
-      return tt("dm.openSourceAnnouncement", "Открыть объявление");
-    }
-    return "";
-  }, [sourceContext?.source, tt]);
-  const openSourceDetail = useCallback(() => {
-    if (!sourceSessionId) return;
-    if (sourceContext?.source === "play") {
-      navigation.navigate("PlaySessionDetail", { sessionId: sourceSessionId });
-      return;
-    }
-    if (sourceContext?.source === "announcement") {
-      navigation.navigate("AnnouncementDetail", { announcementId: sourceSessionId });
-    }
-  }, [navigation, sourceContext?.source, sourceSessionId]);
-  const sourceEyebrow = useMemo(
-    () => {
-      if (sourceContext?.source === "play") {
-        return tt("dm.sourceEyebrow", "Общая история этого разговора");
-      }
-      if (sourceContext?.source === "announcement") {
-        return tt("dm.sourceAnnouncementEyebrow", "Контекст объявления");
-      }
-      if (sourceContext?.source === "nearby") {
-        return tt("dm.sourceNearbyEyebrow", "Контекст Рядом");
-      }
-      return "";
-    },
-    [sourceContext?.source, tt]
-  );
   const sourceTitle = useMemo(() => {
     if (sourceContext?.source === "announcement") {
       return tt("dm.sourceAnnouncement", "Вы начали разговор после объявления");
@@ -555,12 +270,12 @@ export default function DMChatScreen() {
     if (sourceContext?.source === "nearby") {
       return tt("dm.sourceNearby", "Вы начали разговор из Рядом");
     }
-    if (sourceContext?.source !== "play") return "";
-    if (sourceActivity === "color_mood") {
-      return tt("dm.sourcePlayColorMood", "Вы начали разговор после палитры настроения");
+    if (sourceContext?.source === "play") {
+      return tt("dm.sourcePlay", "Вы начали разговор после общего рисунка");
     }
-    return tt("dm.sourcePlay", "Вы начали разговор после общего рисунка");
-  }, [sourceActivity, sourceContext?.source, tt]);
+    return "";
+  }, [sourceContext?.source, tt]);
+
   const headerSourceLabel = useMemo(() => {
     if (sourceContext?.source === "announcement") {
       return tt("inbox.sourceAnnouncement", "После объявления");
@@ -568,102 +283,51 @@ export default function DMChatScreen() {
     if (sourceContext?.source === "nearby") {
       return tt("inbox.sourceNearby", "Из Рядом");
     }
-    if (sourceContext?.source !== "play") return "";
-    if (sourceActivity === "color_mood") {
-      return tt("inbox.sourcePlayColorMood", "После палитры настроения");
+    if (sourceContext?.source === "play") {
+      return tt("inbox.sourcePlay", "После общего рисунка");
     }
-    return tt("inbox.sourcePlay", "После общего рисунка");
-  }, [sourceActivity, sourceContext?.source, tt]);
-  const sourceMeta = useMemo(() => {
-    if (sourceContext?.source === "announcement") {
-      if (sourceDetailText) {
-        return tt(
-          "dm.sourceAnnouncementBodyWithTitle",
-          "This chat opened from the announcement “{title}”. The personal reply continues here in Chats.",
-          { title: sourceDetailText }
-        );
-      }
-      return tt(
-        "dm.sourceAnnouncementBody",
-        "Этот чат открыт из объявления. Личный ответ продолжается здесь, в Чатах."
-      );
-    }
-    if (sourceContext?.source === "nearby") {
-      if (sourceDetailText) {
-        return tt(
-          "dm.sourceNearbyBodyWithText",
-          "This chat opened from the nearby status “{text}”. The chat continues here in Chats.",
-          { text: sourceDetailText }
-        );
-      }
-      return tt(
-        "dm.sourceNearbyBody",
-        "Этот чат открыт из Рядом. Переписка продолжается здесь, в Чатах."
-      );
-    }
-    if (sourceContext?.source !== "play") return "";
-    if (sourceActivity === "color_mood") {
-      if (sourceDetailText) {
-        return tt(
-          "dm.sourceColorMoodDetail",
-          "The shared palette is saved as context: {context}. The chat continues here.",
-          { context: sourceDetailText }
-        );
-      }
-      return tt(
-        "dm.sourcePaletteReady",
-        "Общая палитра уже сохранена в истории этого разговора. Она остаётся в общем контексте, а здесь начинается ваше личное продолжение."
-      );
-    }
-    if (sourceDetailText) {
-      return tt(
-        "dm.sourcePlayBodyWithPrompt",
-        "You started this conversation after the shared drawing challenge “{prompt}”. The shared story stays linked while the chat continues here.",
-        { prompt: sourceDetailText }
-      );
-    }
-    if (sourceStrokeCount != null) {
-      return tt(
-        "dm.sourceStrokeCount",
-        "Общий результат уже сохранён в истории этого разговора. Он остаётся вашим общим контекстом, а здесь разговор продолжается уже лично. Штрихов: {count}",
-        { count: String(sourceStrokeCount) }
-      );
-    }
-    return tt(
-      "dm.contextReady",
-      "Общий момент уже сохранён в истории этого чата. К нему можно вернуться в любой момент, а переписка продолжается здесь."
-    );
-  }, [
-    sourceActivity,
-    sourceContext?.source,
-    sourceDetailText,
-    sourceStrokeCount,
-    tt,
-  ]);
-  const isLoading = threadLoading || messagesLoading;
-  const threadMissing = !isLoading && !subscriptionError && !thread && mergedMsgs.length === 0;
-  const isEmpty = !isLoading && mergedMsgs.length === 0;
-  const canShowComposer =
-    Boolean(db && myId && threadId && peer.uid) &&
-    !peerBlocked &&
-    !subscriptionError &&
-    !threadMissing;
-  const screenTitleName =
-    peer.name === "profile.amoriaUser" ? routePeerName || "" : peer.name || routePeerName || "";
-  const peerDisplayName = peerProfileName || screenTitleName || amoriaUserLabel;
-  const screenTitle = screenTitleName
+    return "";
+  }, [sourceContext?.source, tt]);
+
+  const screenTitle = peerDisplayName
     ? t("dm.title", { name: peerDisplayName })
     : tt("dm.genericTitle", "Разговор");
+
+  const handleBack = useCallback(() => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+      return;
+    }
+
+    if (backTarget === "inbox") {
+      navigation.navigate("Tabs", { screen: "Inbox" });
+      return;
+    }
+
+    navigation.navigate("Tabs", { screen: "Together" });
+  }, [backTarget, navigation]);
+
+  useFocusEffect(
+    useCallback(() => {
+      const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+        handleBack();
+        return true;
+      });
+      return () => sub.remove();
+    }, [handleBack])
+  );
+
   const openPeerProfile = useCallback(() => {
-    if (!peer.uid) return;
+    if (!peerId) return;
     navigation.navigate("UserProfile", {
-      userId: peer.uid,
+      userId: peerId,
       peerName: peerDisplayName,
       ...(threadId ? { threadId } : {}),
       ...(sourceContext ? { sourceContext } : {}),
     });
-  }, [navigation, peer.uid, peerDisplayName, sourceContext, threadId]);
-  const chatHeader = peer.uid ? (
+  }, [navigation, peerDisplayName, peerId, sourceContext, threadId]);
+
+  const chatHeader = peerId ? (
     <TouchableOpacity
       onPress={openPeerProfile}
       style={styles.chatHeader}
@@ -671,7 +335,7 @@ export default function DMChatScreen() {
       accessibilityRole="button"
       accessibilityLabel={tt("dm.openPeerProfile", "Профиль собеседника")}
     >
-      <UserAvatar avatarUrl={peerAvatarUrl} label={peerDisplayName} size={34} />
+      <UserAvatar avatarUrl="" label={peerDisplayName} size={34} />
       <View style={styles.chatHeaderCopy}>
         <Text style={styles.chatHeaderName} numberOfLines={1}>
           {peerDisplayName}
@@ -684,90 +348,79 @@ export default function DMChatScreen() {
       </View>
     </TouchableOpacity>
   ) : null;
-  const missingChatBody = useMemo(() => {
-    if (backTarget === "sessionDetail" || backTarget === "history") {
-      return tt(
-        "dm.notFoundFromStoryBody",
-        "Для этой общей истории чат пока не загрузился. Попробуй ещё раз чуть позже или спокойно вернись к самой истории."
+
+  const handleTextChange = useCallback((value: string) => {
+    textRef.current = value;
+    setText(value);
+  }, []);
+
+  const send = useCallback(async () => {
+    const value = textRef.current.trim();
+    if (!value || !threadId || !myId || peerBlocked) return;
+
+    const clientMessageId = `m_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+    const optimistic: RenderMessage = {
+      id: clientMessageId,
+      threadId,
+      fromUserId: myId,
+      text: value,
+      createdAt: new Date().toISOString(),
+      clientMessageId,
+      pending: true,
+    };
+
+    textRef.current = "";
+    setText("");
+    inputRef.current?.clear?.();
+    setSending(true);
+    setMessages((current) => mergeMessages(current, [optimistic]));
+
+    try {
+      const sent = await chatApi.sendMessage(threadId, clientMessageId, value);
+      if (!mountedRef.current) return;
+      setMessages((current) => mergeMessages(current, [sent]));
+      await chatApi.markRead(threadId, sent.id).catch(() => undefined);
+    } catch {
+      if (!mountedRef.current) return;
+      setMessages((current) =>
+        mergeMessages(
+          current.filter((message) => messageKey(message) !== clientMessageId),
+          [{ ...optimistic, pending: false, failed: true }]
+        )
       );
-    }
-    if (backTarget === "inbox") {
-      return tt(
-        "dm.notFoundFromInboxBody",
-        "Этот чат пока не открылся из списка. Вернись к «Чатам» или попробуй открыть его чуть позже."
-      );
-    }
-    return tt(
-      "dm.notFoundBody",
-      "Мы не нашли этот разговор в текущем контексте. Возможно, старая ссылка уже устарела или он ещё не успел появиться."
-    );
-  }, [backTarget, tt]);
-  const emptyBackLabel = useMemo(() => {
-    if (backTarget === "history") {
-      return tt("playDetail.goToHistory", "Вернуться к историям");
-    }
-    if (backTarget === "sessionDetail") {
-      return tt("dm.backToSessionStory", "Вернуться к общей истории");
-    }
-    if (backTarget === "inbox") {
-      return tt("dm.backToInbox", "Вернуться к чатам");
-    }
-    return tt("common.back", "Назад");
-  }, [backTarget, tt]);
-  const fallbackBack = useCallback(() => {
-    if (backTarget === "history") {
-      navigation.navigate("PlayHistory");
-      return true;
-    }
-    if (backTarget === "inbox") {
-      navigation.navigate("Tabs", { screen: "Inbox" });
-      return true;
-    }
-    return false;
-  }, [backTarget, navigation]);
-  const handleBack = useCallback(() => {
-    if (backTarget === "sessionDetail" && storySessionId) {
-      const routes = navigation.getState().routes;
-      const previousRoute = routes[routes.length - 2];
-      if (previousRoute?.name === "PlaySessionDetail" && navigation.canGoBack()) {
-        navigation.goBack();
-        return;
+    } finally {
+      if (mountedRef.current) {
+        setSending(false);
       }
-      navigation.replace("PlaySessionDetail", { sessionId: storySessionId });
-      return;
     }
+  }, [myId, peerBlocked, threadId]);
 
-    if (navigation.canGoBack()) {
-      navigation.goBack();
-      return;
-    }
-
-    if (fallbackBack()) {
-      return;
-    }
-    navigation.navigate("Tabs", { screen: "Together" });
-  }, [backTarget, fallbackBack, navigation, storySessionId]);
-
-  useFocusEffect(
-    useCallback(() => {
-      const sub = BackHandler.addEventListener("hardwareBackPress", () => {
-        handleBack();
-        return true;
-      });
-      return () => sub.remove();
-    }, [handleBack])
+  const retrySend = useCallback(
+    (clientMessageId: string) => {
+      const target = messages.find(
+        (message) => message.clientMessageId === clientMessageId && message.failed
+      );
+      if (!target) return;
+      textRef.current = target.text;
+      setText(target.text);
+      setMessages((current) =>
+        current.filter((message) => messageKey(message) !== clientMessageId)
+      );
+      void send();
+    },
+    [messages, send]
   );
 
   const reportChat = useCallback(
     async (reason: SafetyReportReason) => {
-      if (!threadId || !peer.uid || safetyBusy) return;
+      if (!threadId || !peerId || safetyBusy) return;
 
       setSafetyBusy(true);
       try {
         await createReport({
           targetType: "dmThread",
           targetId: threadId,
-          targetOwnerUid: peer.uid,
+          targetOwnerUid: peerId,
           reason,
         });
         Alert.alert(
@@ -777,16 +430,13 @@ export default function DMChatScreen() {
       } catch {
         Alert.alert(
           tt("safety.reportErrorTitle", "Жалоба не отправилась"),
-          tt(
-            "safety.reportErrorBody",
-            "Не удалось сохранить жалобу в Firestore. Попробуй ещё раз позже."
-          )
+          tt("safety.reportErrorBody", "Не удалось сохранить жалобу. Попробуй ещё раз позже.")
         );
       } finally {
         setSafetyBusy(false);
       }
     },
-    [peer.uid, safetyBusy, threadId, tt]
+    [peerId, safetyBusy, threadId, tt]
   );
 
   const handleReportChat = useCallback(() => {
@@ -798,7 +448,7 @@ export default function DMChatScreen() {
   }, [reportChat, tt]);
 
   const handleBlockPeer = useCallback(() => {
-    if (!peer.uid || peer.uid === myId) return;
+    if (!peerId || peerId === myId) return;
     Alert.alert(
       tt("safety.blockTitle", "Заблокировать пользователя?"),
       tt(
@@ -815,26 +465,16 @@ export default function DMChatScreen() {
           style: "destructive",
           onPress: () => {
             setSafetyBusy(true);
-            void blockUser(peer.uid, "dm")
+            void blockUser(peerId, "dm")
               .then(() => {
                 setBlockedUserIds((current) =>
-                  current.includes(peer.uid) ? current : [...current, peer.uid]
-                );
-                Alert.alert(
-                  tt("safety.userBlockedTitle", "Пользователь заблокирован"),
-                  tt(
-                    "safety.userBlockedBody",
-                    "Этот пользователь скрыт из релизных списков на вашем аккаунте."
-                  )
+                  current.includes(peerId) ? current : [...current, peerId]
                 );
               })
               .catch(() => {
                 Alert.alert(
                   tt("safety.blockErrorTitle", "Не удалось заблокировать"),
-                  tt(
-                    "safety.blockErrorBody",
-                    "Блокировка не сохранилась в Firestore. Попробуй ещё раз позже."
-                  )
+                  tt("safety.blockErrorBody", "Попробуй ещё раз позже.")
                 );
               })
               .finally(() => setSafetyBusy(false));
@@ -842,49 +482,36 @@ export default function DMChatScreen() {
         },
       ]
     );
-  }, [myId, peer.uid, tt]);
+  }, [myId, peerId, tt]);
 
   const renderSourceCard = useCallback(
     () =>
       sourceTitle ? (
         <View style={styles.sourceCard}>
-          {sourceEyebrow ? (
-            <Text style={styles.sourceEyebrow}>{sourceEyebrow}</Text>
-          ) : null}
+          <Text style={styles.sourceEyebrow}>
+            {tt("dm.sourceEyebrow", "Контекст разговора")}
+          </Text>
           <Text style={styles.sourceTitle}>{sourceTitle}</Text>
-          <Text style={styles.sourceMeta}>{sourceMeta}</Text>
-          {canOpenSourceDetail && sourceActionLabel ? (
-            <TouchableOpacity
-              onPress={openSourceDetail}
-              style={styles.sourceLink}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.sourceLinkText}>
-                {sourceActionLabel}
-              </Text>
-            </TouchableOpacity>
-          ) : null}
+          <Text style={styles.sourceMeta}>
+            {tt(
+              "dm.contextReady",
+              "Общий момент сохранён как контекст, а переписка продолжается здесь."
+            )}
+          </Text>
         </View>
       ) : null,
-    [
-      canOpenSourceDetail,
-      openSourceDetail,
-      sourceActionLabel,
-      sourceEyebrow,
-      sourceMeta,
-      sourceTitle,
-    ]
+    [sourceTitle, tt]
   );
 
   const renderPeerCard = useCallback(
     () =>
-      peer.uid ? (
+      peerId ? (
         <TouchableOpacity
           onPress={openPeerProfile}
           style={styles.peerCard}
           activeOpacity={0.85}
         >
-          <UserAvatar avatarUrl={peerAvatarUrl} label={peerDisplayName} size={42} />
+          <UserAvatar avatarUrl="" label={peerDisplayName} size={42} />
           <View style={styles.peerCopy}>
             <Text style={styles.peerName}>{peerDisplayName}</Text>
             <Text style={styles.peerMeta}>
@@ -894,12 +521,12 @@ export default function DMChatScreen() {
           <Text style={styles.peerActionText}>{tt("menu.profile", "Профиль")}</Text>
         </TouchableOpacity>
       ) : null,
-    [openPeerProfile, peer.uid, peerAvatarUrl, peerDisplayName, tt]
+    [openPeerProfile, peerDisplayName, peerId, tt]
   );
 
   const renderSafetyCard = useCallback(
     () =>
-      peer.uid ? (
+      peerId ? (
         <View style={styles.safetyCard}>
           <Text style={styles.safetyTitle}>
             {peerBlocked
@@ -914,7 +541,7 @@ export default function DMChatScreen() {
                 )
               : tt(
                   "safety.chatSafetyBody",
-                  "Можно пожаловаться на разговор или заблокировать пользователя. Действие сохранится в Firestore."
+                  "Можно пожаловаться на разговор или заблокировать пользователя."
                 )}
           </Text>
           <View style={styles.safetyActions}>
@@ -928,7 +555,7 @@ export default function DMChatScreen() {
                 {tt("safety.report", "Пожаловаться")}
               </Text>
             </TouchableOpacity>
-            {!peerBlocked && peer.uid !== myId ? (
+            {!peerBlocked && peerId !== myId ? (
               <TouchableOpacity
                 onPress={handleBlockPeer}
                 disabled={safetyBusy}
@@ -947,8 +574,8 @@ export default function DMChatScreen() {
       handleBlockPeer,
       handleReportChat,
       myId,
-      peer.uid,
       peerBlocked,
+      peerId,
       safetyBusy,
       tt,
     ]
@@ -967,15 +594,15 @@ export default function DMChatScreen() {
 
   const renderItem = useCallback(
     ({ item }: { item: RenderMessage }) => {
+      const isOwn = item.fromUserId === myId;
       const failed = item.failed === true;
       const pending = !failed && item.pending === true;
-      const isOwn = item.from === myId;
 
       return (
         <TouchableOpacity
           activeOpacity={failed ? 0.85 : 1}
           disabled={!failed}
-          onPress={() => retrySend(String(item.clientId || item.id))}
+          onPress={() => retrySend(item.clientMessageId)}
           style={[styles.msgWrap, isOwn ? styles.msgWrapOwn : styles.msgWrapPeer]}
         >
           <View
@@ -1001,6 +628,10 @@ export default function DMChatScreen() {
     [myId, retrySend, t]
   );
 
+  const canSend = text.trim().length > 0 && !peerBlocked && !sending;
+  const canShowComposer = Boolean(myId && threadId) && !peerBlocked && !loading && !error;
+  const isEmpty = !loading && !error && messages.length === 0;
+
   if (!threadId) {
     return (
       <ScreenShell
@@ -1016,10 +647,6 @@ export default function DMChatScreen() {
             title={tt("dm.unavailableTitle", "Разговор недоступен")}
             body={tt("dm.unavailableBody", "Не удалось открыть чат без корректного идентификатора.")}
             primaryAction={{ label: tt("common.back", "Назад"), onPress: handleBack }}
-            secondaryAction={{
-              label: tt("common.backToTogether", "Вернуться во Вместе"),
-              onPress: () => navigation.navigate("Tabs", { screen: "Together" }),
-            }}
           />
         </View>
       </ScreenShell>
@@ -1039,37 +666,12 @@ export default function DMChatScreen() {
           <CoreStateCard
             icon="person-circle-outline"
             title={tt("dm.authRequiredTitle", "Чат доступен после входа")}
-            body={tt("dm.authRequiredBody", "Войди в аккаунт, чтобы открыть чат и продолжить уже открытую связь.")}
+            body={tt("dm.authRequiredBody", "Войди в аккаунт, чтобы открыть чат.")}
             primaryAction={{
               label: tt("common.openProfile", "Открыть профиль"),
               onPress: () => navigation.navigate("Profile"),
             }}
             secondaryAction={{ label: tt("common.back", "Назад"), onPress: handleBack }}
-          />
-        </View>
-      </ScreenShell>
-    );
-  }
-
-  if (!db) {
-    return (
-      <ScreenShell
-        title={screenTitle}
-        headerCenter={chatHeader}
-        background="togetherChat"
-        showBack
-        onBack={handleBack}
-      >
-        <View style={styles.centerState}>
-          <CoreStateCard
-            icon="cloud-offline-outline"
-            title={tt("dm.errorTitle", "Разговор временно недоступен")}
-            body={tt("dm.offlineBody", "Мы не смогли подключить этот чат прямо сейчас. Попробуй позже или вернись назад.")}
-            primaryAction={{ label: tt("common.back", "Назад"), onPress: handleBack }}
-            secondaryAction={{
-              label: tt("common.backToTogether", "Вернуться во Вместе"),
-              onPress: () => navigation.navigate("Tabs", { screen: "Together" }),
-            }}
           />
         </View>
       </ScreenShell>
@@ -1084,7 +686,7 @@ export default function DMChatScreen() {
       showBack
       onBack={handleBack}
     >
-      {isLoading ? (
+      {loading ? (
         <View style={styles.centerState}>
           <CoreStateCard
             loading
@@ -1093,24 +695,14 @@ export default function DMChatScreen() {
             body={tt("dm.loading", "Подключаем чат…")}
           />
         </View>
-      ) : subscriptionError ? (
+      ) : error ? (
         <View style={styles.centerState}>
           <CoreStateCard
             icon="cloud-offline-outline"
             title={tt("dm.errorTitle", "Разговор временно недоступен")}
-            body={subscriptionError}
-            primaryAction={{ label: tt("common.retry", "Повторить"), onPress: () => setReloadKey((prev) => prev + 1) }}
-            secondaryAction={{ label: emptyBackLabel, onPress: handleBack }}
-          />
-        </View>
-      ) : threadMissing ? (
-        <View style={styles.centerState}>
-          <CoreStateCard
-            icon="chatbox-ellipses-outline"
-            title={tt("dm.notReadyTitle", "Разговор пока не прикрепился")}
-            body={missingChatBody}
-            primaryAction={{ label: tt("common.retry", "Повторить"), onPress: () => setReloadKey((prev) => prev + 1) }}
-            secondaryAction={{ label: emptyBackLabel, onPress: handleBack }}
+            body={error}
+            primaryAction={{ label: tt("common.retry", "Повторить"), onPress: retry }}
+            secondaryAction={{ label: tt("common.back", "Назад"), onPress: handleBack }}
           />
         </View>
       ) : isEmpty ? (
@@ -1129,31 +721,12 @@ export default function DMChatScreen() {
                     "safety.cannotMessageBlockedUser",
                     "Вы заблокировали этого пользователя. История разговора остаётся доступной, но новые сообщения отключены."
                   )
-                : sourceTitle
-                ? tt(
-                    "dm.emptyBodyWithSourceCoreLoop",
-                    "Вы уже не с нуля: общий опыт сохранён в истории связи, а первый личный шаг можно сделать прямо ниже."
-                  )
                 : tt(
                     "dm.emptyBodyCoreLoop",
-                    "Разговор уже открыт. Можно написать первым ниже и мягко задать тон этому личному продолжению."
+                    "Разговор уже открыт. Можно написать первым ниже."
                   )
             }
-            primaryAction={{
-              label:
-                canOpenSourceDetail && backTarget !== "sessionDetail"
-                  ? sourceActionLabel
-                  : emptyBackLabel,
-              onPress:
-                canOpenSourceDetail && backTarget !== "sessionDetail"
-                  ? openSourceDetail
-                  : handleBack,
-            }}
-            secondaryAction={
-              canOpenSourceDetail && backTarget !== "sessionDetail"
-                ? { label: emptyBackLabel, onPress: handleBack }
-                : undefined
-            }
+            primaryAction={{ label: tt("common.back", "Назад"), onPress: handleBack }}
           />
         </View>
       ) : (
@@ -1161,8 +734,8 @@ export default function DMChatScreen() {
           ref={listRef}
           key={threadId}
           inverted
-          data={mergedMsgs}
-          keyExtractor={(item) => String(item.clientId || item.id)}
+          data={messages}
+          keyExtractor={(item) => messageKey(item)}
           style={{ flex: 1 }}
           contentContainerStyle={styles.listContent}
           renderItem={renderItem}
@@ -1189,9 +762,9 @@ export default function DMChatScreen() {
               maxLength={1000}
             />
             <TouchableOpacity
-              onPress={send}
-              disabled={!canSend || sending}
-              style={[styles.sendBtn, !canSend || sending ? styles.sendBtnDisabled : null]}
+              onPress={() => void send()}
+              disabled={!canSend}
+              style={[styles.sendBtn, !canSend ? styles.sendBtnDisabled : null]}
             >
               <Text style={styles.sendTxt}>{t("common.send")}</Text>
             </TouchableOpacity>
@@ -1270,21 +843,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     lineHeight: 19,
     textAlign: "left",
-  },
-  sourceLink: {
-    alignSelf: "flex-start",
-    marginTop: 12,
-    paddingHorizontal: 13,
-    paddingVertical: 8,
-    borderRadius: theme.shapes.pill,
-    backgroundColor: "rgba(255,255,255,0.05)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
-  },
-  sourceLinkText: {
-    color: theme.colors.text,
-    fontSize: 12,
-    fontWeight: "800",
   },
   peerCard: {
     alignSelf: "stretch",
