@@ -3,6 +3,7 @@ import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import multipart from "@fastify/multipart";
 import fastifyStatic from "@fastify/static";
+import websocket from "@fastify/websocket";
 import Fastify, { type FastifyInstance } from "fastify";
 import { errorHandler } from "./common/errors";
 import { withErrorResponses } from "./common/http";
@@ -11,8 +12,11 @@ import { env } from "./config/env";
 import { loggerOptions } from "./config/logger";
 import { authRoutes } from "./auth/auth.routes";
 import { usersRoutes } from "./users/users.routes";
+import { chatRoutes } from "./chat/chat.routes";
 import { mediaRoutes } from "./media/media.routes";
+import { mediaManagementRoutes, mediaUploadRoutes } from "./media/uploads.routes";
 import { ensureUploadsRootSync } from "./media/local-storage";
+import { wsRoutes } from "./realtime/ws.routes";
 
 const healthRouteSchema = {
   response: {
@@ -62,6 +66,8 @@ export function buildApp(): FastifyInstance {
     decorateReply: false,
   });
 
+  void app.register(websocket);
+
   app.get("/health", { schema: withErrorResponses(healthRouteSchema) }, async () => ({
     ok: true,
     service: SERVICE_NAME,
@@ -71,6 +77,10 @@ export function buildApp(): FastifyInstance {
   void app.register(authRoutes, { prefix: "/auth" });
   void app.register(usersRoutes);
   void app.register(mediaRoutes, { prefix: "/media" });
+  void app.register(mediaUploadRoutes, { prefix: "/media/uploads" });
+  void app.register(mediaManagementRoutes, { prefix: "/media" });
+  void app.register(chatRoutes);
+  void app.register(wsRoutes, { prefix: "/ws" });
 
   return app;
 }

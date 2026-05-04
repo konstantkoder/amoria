@@ -6,6 +6,18 @@ export const REFRESH_TOKEN_EXPIRES_IN_DAYS = 30;
 export const MAX_JSON_BODY_BYTES = 1024 * 1024;
 export const MAX_AVATAR_INPUT_BYTES = 8 * 1024 * 1024;
 export const MAX_AVATAR_DIMENSION = 1024;
+export const MAX_MEDIA_UPLOAD_BYTES = 10 * 1024 * 1024;
+export const MEDIA_UPLOAD_EXPIRES_IN_SEC = 10 * 60;
+export const MEDIA_UPLOAD_PURPOSES = [
+  "avatar",
+  "profile_photo",
+  "announcement_photo",
+  "together_asset",
+] as const;
+export const MEDIA_UPLOAD_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
+export const CHAT_SOURCE_TYPES = ["announcement", "nearby", "together"] as const;
+export const CHAT_MESSAGE_TEXT_MAX_LENGTH = 2000;
+export const CHAT_CLIENT_MESSAGE_ID_MAX_LENGTH = 200;
 
 export const PASSWORD_MIN_LENGTH = 8;
 export const PASSWORD_MAX_LENGTH = 128;

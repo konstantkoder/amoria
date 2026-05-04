@@ -22,6 +22,20 @@
       "when": 1777718323849,
       "tag": "0002_fat_madame_hydra",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1777833614883,
+      "tag": "0003_plain_liz_osborn",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1777837229713,
+      "tag": "0004_broken_queen_noir",
+      "breakpoints": true
     }
   ]
 }

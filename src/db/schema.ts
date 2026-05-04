@@ -4,8 +4,10 @@ import {
   integer,
   jsonb,
   pgTable,
+  primaryKey,
   text,
   timestamp,
+  unique,
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
@@ -45,6 +47,87 @@ export const mediaFiles = pgTable("media_files", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+export const mediaUploads = pgTable("media_uploads", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  ownerUserId: uuid("owner_user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  purpose: text("purpose").notNull(),
+  objectKey: text("object_key").notNull(),
+  mimeType: text("mime_type").notNull(),
+  sizeBytes: integer("size_bytes").notNull(),
+  checksumSha256: text("checksum_sha256"),
+  status: text("status").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+});
+
+export const threads = pgTable("threads", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  type: text("type").notNull(),
+  sourceType: text("source_type"),
+  sourceId: uuid("source_id"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  lastMessageAt: timestamp("last_message_at", { withTimezone: true }),
+  lastMessageText: text("last_message_text"),
+});
+
+export const threadMembers = pgTable(
+  "thread_members",
+  {
+    threadId: uuid("thread_id")
+      .notNull()
+      .references(() => threads.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    joinedAt: timestamp("joined_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.threadId, table.userId] })],
+);
+
+export const messages = pgTable(
+  "messages",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    threadId: uuid("thread_id")
+      .notNull()
+      .references(() => threads.id, { onDelete: "cascade" }),
+    fromUserId: uuid("from_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    text: text("text").notNull(),
+    clientMessageId: text("client_message_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique("messages_thread_from_client_message_unique").on(
+      table.threadId,
+      table.fromUserId,
+      table.clientMessageId,
+    ),
+  ],
+);
+
+export const threadReads = pgTable(
+  "thread_reads",
+  {
+    threadId: uuid("thread_id")
+      .notNull()
+      .references(() => threads.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    lastReadAt: timestamp("last_read_at", { withTimezone: true }).defaultNow().notNull(),
+    lastReadMessageId: uuid("last_read_message_id").references(() => messages.id, {
+      onDelete: "set null",
+    }),
+  },
+  (table) => [primaryKey({ columns: [table.threadId, table.userId] })],
+);
+
 export const refreshTokens = pgTable("refresh_tokens", {
   id: uuid("id").defaultRandom().primaryKey(),
   userId: uuid("user_id")
@@ -62,6 +145,10 @@ export const refreshTokens = pgTable("refresh_tokens", {
 
 export const usersRelations = relations(users, ({ many }) => ({
   mediaFiles: many(mediaFiles),
+  mediaUploads: many(mediaUploads),
+  threadMembers: many(threadMembers),
+  messages: many(messages),
+  threadReads: many(threadReads),
   refreshTokens: many(refreshTokens),
 }));
 
@@ -69,6 +156,56 @@ export const mediaFilesRelations = relations(mediaFiles, ({ one }) => ({
   owner: one(users, {
     fields: [mediaFiles.ownerUserId],
     references: [users.id],
+  }),
+}));
+
+export const mediaUploadsRelations = relations(mediaUploads, ({ one }) => ({
+  owner: one(users, {
+    fields: [mediaUploads.ownerUserId],
+    references: [users.id],
+  }),
+}));
+
+export const threadsRelations = relations(threads, ({ many }) => ({
+  members: many(threadMembers),
+  messages: many(messages),
+  reads: many(threadReads),
+}));
+
+export const threadMembersRelations = relations(threadMembers, ({ one }) => ({
+  thread: one(threads, {
+    fields: [threadMembers.threadId],
+    references: [threads.id],
+  }),
+  user: one(users, {
+    fields: [threadMembers.userId],
+    references: [users.id],
+  }),
+}));
+
+export const messagesRelations = relations(messages, ({ one }) => ({
+  thread: one(threads, {
+    fields: [messages.threadId],
+    references: [threads.id],
+  }),
+  fromUser: one(users, {
+    fields: [messages.fromUserId],
+    references: [users.id],
+  }),
+}));
+
+export const threadReadsRelations = relations(threadReads, ({ one }) => ({
+  thread: one(threads, {
+    fields: [threadReads.threadId],
+    references: [threads.id],
+  }),
+  user: one(users, {
+    fields: [threadReads.userId],
+    references: [users.id],
+  }),
+  lastReadMessage: one(messages, {
+    fields: [threadReads.lastReadMessageId],
+    references: [messages.id],
   }),
 }));
 
@@ -83,6 +220,16 @@ export type UserRow = typeof users.$inferSelect;
 export type NewUserRow = typeof users.$inferInsert;
 export type MediaFileRow = typeof mediaFiles.$inferSelect;
 export type NewMediaFileRow = typeof mediaFiles.$inferInsert;
+export type MediaUploadRow = typeof mediaUploads.$inferSelect;
+export type NewMediaUploadRow = typeof mediaUploads.$inferInsert;
+export type ThreadRow = typeof threads.$inferSelect;
+export type NewThreadRow = typeof threads.$inferInsert;
+export type ThreadMemberRow = typeof threadMembers.$inferSelect;
+export type NewThreadMemberRow = typeof threadMembers.$inferInsert;
+export type MessageRow = typeof messages.$inferSelect;
+export type NewMessageRow = typeof messages.$inferInsert;
+export type ThreadReadRow = typeof threadReads.$inferSelect;
+export type NewThreadReadRow = typeof threadReads.$inferInsert;
 export type RefreshTokenRow = typeof refreshTokens.$inferSelect;
 export type NewRefreshTokenRow = typeof refreshTokens.$inferInsert;
 
