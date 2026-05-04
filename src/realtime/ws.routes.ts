@@ -2,6 +2,7 @@ import type { WebSocket } from "@fastify/websocket";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { verifyAccessToken } from "../auth/jwt";
 import * as chatService from "../chat/chat.service";
+import * as togetherService from "../together/together.service";
 import { wsHub } from "./ws.hub";
 
 type ClientWsMessage =
@@ -15,6 +16,11 @@ type ClientWsMessage =
       threadId: string;
     }
   | {
+      type: "subscribe";
+      channel: "together";
+      sessionId: string;
+    }
+  | {
       type: "unsubscribe";
       channel: "inbox";
     }
@@ -22,6 +28,11 @@ type ClientWsMessage =
       type: "unsubscribe";
       channel: "thread";
       threadId: string;
+    }
+  | {
+      type: "unsubscribe";
+      channel: "together";
+      sessionId: string;
     };
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -84,15 +95,29 @@ async function handleClientMessage(
     return;
   }
 
-  if (!(await chatService.canAccessThread(userId, message.threadId))) {
-    wsHub.sendError(socket, "not_found", "Thread not found");
+  if (message.channel === "thread") {
+    if (!(await chatService.canAccessThread(userId, message.threadId))) {
+      wsHub.sendError(socket, "not_found", "Thread not found");
+      return;
+    }
+
+    if (message.type === "subscribe") {
+      wsHub.subscribeThread(socket, message.threadId);
+    } else {
+      wsHub.unsubscribeThread(socket, message.threadId);
+    }
+    return;
+  }
+
+  if (!(await togetherService.canAccessSession(userId, message.sessionId))) {
+    wsHub.sendError(socket, "not_found", "Together session not found");
     return;
   }
 
   if (message.type === "subscribe") {
-    wsHub.subscribeThread(socket, message.threadId);
+    wsHub.subscribeTogether(socket, message.sessionId);
   } else {
-    wsHub.unsubscribeThread(socket, message.threadId);
+    wsHub.unsubscribeTogether(socket, message.sessionId);
   }
 }
 
@@ -129,6 +154,18 @@ function parseClientMessage(raw: string): ClientWsMessage | undefined {
       type: candidate.type,
       channel: "thread",
       threadId: candidate.threadId,
+    };
+  }
+
+  if (
+    candidate.channel === "together" &&
+    typeof candidate.sessionId === "string" &&
+    uuidPattern.test(candidate.sessionId)
+  ) {
+    return {
+      type: candidate.type,
+      channel: "together",
+      sessionId: candidate.sessionId,
     };
   }
 

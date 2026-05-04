@@ -19,6 +19,15 @@ export const CHAT_SOURCE_TYPES = ["announcement", "nearby", "together"] as const
 export const CHAT_MESSAGE_TEXT_MAX_LENGTH = 2000;
 export const CHAT_CLIENT_MESSAGE_ID_MAX_LENGTH = 200;
 
+export const TOGETHER_QUEUE_TTL_MS = 5 * 60 * 1000;
+export const TOGETHER_ACTIVITIES = ["draw"] as const;
+export const TOGETHER_EVENT_TYPES = ["stroke_batch", "palette", "system"] as const;
+export const TOGETHER_REVEAL_DECISIONS = ["open", "skip"] as const;
+export const TOGETHER_CLIENT_EVENT_ID_MAX_LENGTH = 200;
+export const TOGETHER_EVENT_PAYLOAD_MAX_BYTES = 64 * 1024;
+export const TOGETHER_HISTORY_LIMIT_DEFAULT = 30;
+export const TOGETHER_HISTORY_LIMIT_MAX = 100;
+
 export const PASSWORD_MIN_LENGTH = 8;
 export const PASSWORD_MAX_LENGTH = 128;
 export const DISPLAY_NAME_MIN_LENGTH = 2;

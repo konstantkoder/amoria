@@ -9,6 +9,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
@@ -143,6 +144,91 @@ export const nearbyStatuses = pgTable("nearby_statuses", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+export const togetherSessions = pgTable("together_sessions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  activity: text("activity").notNull(),
+  status: text("status").default("active").notNull(),
+  promptText: text("prompt_text").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
+});
+
+export const togetherQueue = pgTable(
+  "together_queue",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    activity: text("activity").default("draw").notNull(),
+    status: text("status").default("waiting").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    matchedSessionId: uuid("matched_session_id").references(() => togetherSessions.id, {
+      onDelete: "set null",
+    }),
+  },
+  (table) => [
+    uniqueIndex("together_queue_user_waiting_unique")
+      .on(table.userId)
+      .where(sql`${table.status} = 'waiting'`),
+  ],
+);
+
+export const togetherSessionMembers = pgTable(
+  "together_session_members",
+  {
+    sessionId: uuid("session_id")
+      .notNull()
+      .references(() => togetherSessions.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+  },
+  (table) => [primaryKey({ columns: [table.sessionId, table.userId] })],
+);
+
+export const togetherEvents = pgTable(
+  "together_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    sessionId: uuid("session_id")
+      .notNull()
+      .references(() => togetherSessions.id, { onDelete: "cascade" }),
+    fromUserId: uuid("from_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    clientEventId: text("client_event_id").notNull(),
+    type: text("type").notNull(),
+    payload: jsonb("payload").$type<JsonValue>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique("together_events_session_from_client_unique").on(
+      table.sessionId,
+      table.fromUserId,
+      table.clientEventId,
+    ),
+  ],
+);
+
+export const togetherReveals = pgTable(
+  "together_reveals",
+  {
+    sessionId: uuid("session_id")
+      .notNull()
+      .references(() => togetherSessions.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    decision: text("decision").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique("together_reveals_session_user_unique").on(table.sessionId, table.userId),
+  ],
+);
+
 export const threads = pgTable("threads", {
   id: uuid("id").defaultRandom().primaryKey(),
   type: text("type").notNull(),
@@ -233,6 +319,10 @@ export const usersRelations = relations(users, ({ many }) => ({
   safetyReports: many(safetyReports, { relationName: "reporter" }),
   ownedSafetyReports: many(safetyReports, { relationName: "target_owner" }),
   nearbyStatuses: many(nearbyStatuses),
+  togetherQueueEntries: many(togetherQueue),
+  togetherSessionMembers: many(togetherSessionMembers),
+  togetherEvents: many(togetherEvents),
+  togetherReveals: many(togetherReveals),
   threadMembers: many(threadMembers),
   messages: many(messages),
   threadReads: many(threadReads),
@@ -310,6 +400,60 @@ export const nearbyStatusesRelations = relations(nearbyStatuses, ({ one }) => ({
   }),
 }));
 
+export const togetherSessionsRelations = relations(togetherSessions, ({ many }) => ({
+  queueEntries: many(togetherQueue),
+  members: many(togetherSessionMembers),
+  events: many(togetherEvents),
+  reveals: many(togetherReveals),
+}));
+
+export const togetherQueueRelations = relations(togetherQueue, ({ one }) => ({
+  user: one(users, {
+    fields: [togetherQueue.userId],
+    references: [users.id],
+  }),
+  matchedSession: one(togetherSessions, {
+    fields: [togetherQueue.matchedSessionId],
+    references: [togetherSessions.id],
+  }),
+}));
+
+export const togetherSessionMembersRelations = relations(
+  togetherSessionMembers,
+  ({ one }) => ({
+    session: one(togetherSessions, {
+      fields: [togetherSessionMembers.sessionId],
+      references: [togetherSessions.id],
+    }),
+    user: one(users, {
+      fields: [togetherSessionMembers.userId],
+      references: [users.id],
+    }),
+  }),
+);
+
+export const togetherEventsRelations = relations(togetherEvents, ({ one }) => ({
+  session: one(togetherSessions, {
+    fields: [togetherEvents.sessionId],
+    references: [togetherSessions.id],
+  }),
+  fromUser: one(users, {
+    fields: [togetherEvents.fromUserId],
+    references: [users.id],
+  }),
+}));
+
+export const togetherRevealsRelations = relations(togetherReveals, ({ one }) => ({
+  session: one(togetherSessions, {
+    fields: [togetherReveals.sessionId],
+    references: [togetherSessions.id],
+  }),
+  user: one(users, {
+    fields: [togetherReveals.userId],
+    references: [users.id],
+  }),
+}));
+
 export const threadsRelations = relations(threads, ({ many }) => ({
   members: many(threadMembers),
   messages: many(messages),
@@ -376,6 +520,16 @@ export type SafetyReportRow = typeof safetyReports.$inferSelect;
 export type NewSafetyReportRow = typeof safetyReports.$inferInsert;
 export type NearbyStatusRow = typeof nearbyStatuses.$inferSelect;
 export type NewNearbyStatusRow = typeof nearbyStatuses.$inferInsert;
+export type TogetherQueueRow = typeof togetherQueue.$inferSelect;
+export type NewTogetherQueueRow = typeof togetherQueue.$inferInsert;
+export type TogetherSessionRow = typeof togetherSessions.$inferSelect;
+export type NewTogetherSessionRow = typeof togetherSessions.$inferInsert;
+export type TogetherSessionMemberRow = typeof togetherSessionMembers.$inferSelect;
+export type NewTogetherSessionMemberRow = typeof togetherSessionMembers.$inferInsert;
+export type TogetherEventRow = typeof togetherEvents.$inferSelect;
+export type NewTogetherEventRow = typeof togetherEvents.$inferInsert;
+export type TogetherRevealRow = typeof togetherReveals.$inferSelect;
+export type NewTogetherRevealRow = typeof togetherReveals.$inferInsert;
 export type ThreadRow = typeof threads.$inferSelect;
 export type NewThreadRow = typeof threads.$inferInsert;
 export type ThreadMemberRow = typeof threadMembers.$inferSelect;
@@ -391,3 +545,11 @@ export type ProfilePhoto = {
   mediaId: string;
   url: string;
 };
+
+export type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JsonValue[]
+  | { [key: string]: JsonValue };

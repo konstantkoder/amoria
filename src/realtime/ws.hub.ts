@@ -1,15 +1,18 @@
 import type { WebSocket } from "@fastify/websocket";
 import type { MessageDto } from "../chat/chat.types";
+import type { TogetherEventDto } from "../together/together.types";
 
 type SocketState = {
   userId: string;
   inboxSubscribed: boolean;
   threadIds: Set<string>;
+  togetherSessionIds: Set<string>;
 };
 
 class WsHub {
   private readonly userSockets = new Map<string, Set<WebSocket>>();
   private readonly threadSockets = new Map<string, Set<WebSocket>>();
+  private readonly togetherSessionSockets = new Map<string, Set<WebSocket>>();
   private readonly socketState = new WeakMap<WebSocket, SocketState>();
 
   addSocket(userId: string, socket: WebSocket): void {
@@ -24,6 +27,7 @@ class WsHub {
       userId,
       inboxSubscribed: false,
       threadIds: new Set(),
+      togetherSessionIds: new Set(),
     });
   }
 
@@ -44,6 +48,14 @@ class WsHub {
       sockets?.delete(socket);
       if (sockets?.size === 0) {
         this.threadSockets.delete(threadId);
+      }
+    }
+
+    for (const sessionId of state.togetherSessionIds) {
+      const sockets = this.togetherSessionSockets.get(sessionId);
+      sockets?.delete(socket);
+      if (sockets?.size === 0) {
+        this.togetherSessionSockets.delete(sessionId);
       }
     }
 
@@ -91,11 +103,46 @@ class WsHub {
     }
   }
 
+  subscribeTogether(socket: WebSocket, sessionId: string): void {
+    const state = this.socketState.get(socket);
+    if (!state) {
+      return;
+    }
+
+    let sockets = this.togetherSessionSockets.get(sessionId);
+    if (!sockets) {
+      sockets = new Set();
+      this.togetherSessionSockets.set(sessionId, sockets);
+    }
+
+    sockets.add(socket);
+    state.togetherSessionIds.add(sessionId);
+  }
+
+  unsubscribeTogether(socket: WebSocket, sessionId: string): void {
+    const state = this.socketState.get(socket);
+    state?.togetherSessionIds.delete(sessionId);
+
+    const sockets = this.togetherSessionSockets.get(sessionId);
+    sockets?.delete(socket);
+    if (sockets?.size === 0) {
+      this.togetherSessionSockets.delete(sessionId);
+    }
+  }
+
   broadcastThreadMessage(threadId: string, message: MessageDto): void {
     this.broadcastToSockets(this.threadSockets.get(threadId), {
       type: "thread.message",
       threadId,
       message,
+    });
+  }
+
+  broadcastTogetherEvent(sessionId: string, event: TogetherEventDto): void {
+    this.broadcastToSockets(this.togetherSessionSockets.get(sessionId), {
+      type: "together.event",
+      sessionId,
+      event,
     });
   }
 

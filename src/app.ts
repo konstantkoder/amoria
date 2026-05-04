@@ -18,6 +18,7 @@ import { mediaRoutes } from "./media/media.routes";
 import { mediaManagementRoutes, mediaUploadRoutes } from "./media/uploads.routes";
 import { nearbyRoutes } from "./nearby/nearby.routes";
 import { safetyRoutes } from "./safety/safety.routes";
+import { togetherRoutes } from "./together/together.routes";
 import { ensureUploadsRootSync } from "./media/local-storage";
 import { wsRoutes } from "./realtime/ws.routes";
 
@@ -86,6 +87,7 @@ export function buildApp(): FastifyInstance {
   void app.register(chatRoutes);
   void app.register(safetyRoutes, { prefix: "/safety" });
   void app.register(nearbyRoutes, { prefix: "/nearby" });
+  void app.register(togetherRoutes, { prefix: "/together" });
   void app.register(wsRoutes, { prefix: "/ws" });
 
   return app;
