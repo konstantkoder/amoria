@@ -15,7 +15,6 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import CoreStateCard from "@/components/CoreStateCard";
 import ScreenShell from "@/components/ScreenShell";
 import UserAvatar from "@/components/UserAvatar";
-import { db } from "@/config/firebaseConfig";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocale } from "@/contexts/LocaleContext";
 import {
@@ -25,12 +24,6 @@ import {
 import * as announcementsApi from "@/services/api/announcementsApi";
 import * as safetyApi from "@/services/api/safetyApi";
 import type { SafetyReportReason } from "@/services/api/safetyApi";
-import { buildDmChatRouteParams } from "@/services/dm";
-import {
-  getPlayColorMoodCombinedPalette,
-  getPlaySessionById,
-  getPlaySessionPrompt,
-} from "@/services/playSessions";
 import { getUserProfileById } from "@/services/user";
 import type { UserProfile } from "@/models/User";
 import { theme } from "@/theme";
@@ -171,25 +164,17 @@ export default function UserProfileScreen() {
     async function loadSourceDetail() {
       try {
         if (sourceContext.source === "play") {
-          if (!db) return "";
-          const session = await getPlaySessionById(db, sourceSessionId);
-          if (!session) return "";
-
           if (alive) {
             setSharedStoryAvailable(true);
           }
 
-          const prompt = getPlaySessionPrompt(session)?.text?.trim() ?? "";
-          if (prompt) return prompt;
-
-          if (session.activity === "color_mood") {
-            const paletteSize = getPlayColorMoodCombinedPalette(session).length;
-            if (paletteSize > 0) {
-              return tt("dm.sourceColorMoodPaletteContext", "Палитра настроения: {count} цветов", {
-                count: String(paletteSize),
-              });
-            }
+          if (sourceContext.artworkSummary?.strokeCount != null) {
+            return tt("dm.sourceDrawingStrokeContext", "Общий рисунок: {count} штрихов", {
+              count: String(sourceContext.artworkSummary.strokeCount),
+            });
           }
+
+          return "";
         }
 
         if (sourceContext.source === "announcement") {
@@ -215,7 +200,7 @@ export default function UserProfileScreen() {
     return () => {
       alive = false;
     };
-  }, [sourceContext?.source, sourceSessionId, tt]);
+  }, [sourceContext?.artworkSummary?.strokeCount, sourceContext?.source, sourceSessionId, tt]);
 
   const displayName =
     profile?.displayName?.trim() ||
@@ -267,15 +252,12 @@ export default function UserProfileScreen() {
     }
 
     if (!threadId || !userId) return;
-    navigation.replace(
-      "DMChat",
-      buildDmChatRouteParams({
-        threadId,
-        peerId: userId,
-        peerName: displayName,
-        ...(sourceContext ? { sourceContext } : {}),
-      })
-    );
+    navigation.replace("DMChat", {
+      threadId,
+      peerId: userId,
+      peerName: displayName,
+      ...(sourceContext ? { sourceContext } : {}),
+    });
   }, [displayName, navigation, sourceContext, threadId, userId]);
 
   const openSharedStory = useCallback(() => {

@@ -19,8 +19,7 @@
       "@services/*": ["./src/services/*"],
       "@models/*": ["./src/models/*"],
       "@theme/*": ["./src/theme/*"],
-      "@navigation/*": ["./src/navigation/*"],
-      "firebase/auth": ["./node_modules/firebase/auth/dist/auth/index.d.ts"]
+      "@navigation/*": ["./src/navigation/*"]
     },
     "customConditions": ["react-native"]
   },

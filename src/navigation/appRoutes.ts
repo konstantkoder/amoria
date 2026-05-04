@@ -7,9 +7,35 @@ import type {
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import type { NearbyAnnouncement } from "@/services/announcementsModel";
-import type { DmChatRouteParams, DmSourceContext } from "@/services/dm";
 
 export type ReleasePlayActivity = "draw";
+export type DmSource = "play" | "announcement" | "nearby";
+export type DmArtworkSummary = {
+  activity: ReleasePlayActivity | "color_mood";
+  strokeCount?: number;
+};
+export type DmSourceContext = {
+  source: DmSource;
+  sourceSessionId?: string;
+  artworkSummary?: DmArtworkSummary;
+};
+
+type DmChatBackRouteParams =
+  | {
+      backTarget?: "history" | "inbox";
+      backSessionId?: never;
+    }
+  | {
+      backTarget: "sessionDetail";
+      backSessionId: string;
+    };
+
+export type DmChatRouteParams = {
+  threadId: string;
+  peerId: string;
+  peerName?: string;
+  sourceContext?: DmSourceContext;
+} & DmChatBackRouteParams;
 
 export type AppStackParamList = {
   Login: undefined;

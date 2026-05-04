@@ -1,6 +1,3 @@
-import { doc, getDoc } from "firebase/firestore";
-
-import { db } from "@/config/firebaseConfig";
 import type { Goal, Mood, UserProfile, UserProfilePhoto } from "@/models/User";
 import { ApiError } from "@/services/api/apiClient";
 import { refreshBackendUser } from "@/services/api/backendSession";
@@ -19,7 +16,6 @@ import type {
 } from "@/services/api/types";
 import { uploadUserAvatar } from "@/services/storage";
 
-const USERS_COLLECTION = "users";
 const AMORIA_ID_RE = /^AM-[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{5}$/;
 const LEGACY_NICKNAME_RE = /^nick\.[a-z]+(\.[a-z]+)?\.\d{3}$/;
 export const DISPLAY_NAME_MIN_LENGTH = 2;
@@ -378,14 +374,9 @@ export async function updateUserDisplayName(displayName: string): Promise<UserPr
 
 export async function getUserProfileById(uid: string): Promise<UserProfile | null> {
   const stableUid = normalizeString(uid);
-  if (!stableUid || !db) return null;
+  if (!stableUid) return null;
 
-  const snap = await getDoc(doc(db, USERS_COLLECTION, stableUid));
-  if (!snap.exists()) return null;
-  return normalizeUserProfile(stableUid, {
-    uid: stableUid,
-    ...(snap.data() as Partial<UserProfile>),
-  }, { allowAuthFallback: false });
+  return null;
 }
 
 export async function updateUserAvatarUrl(avatarUrl: string): Promise<UserProfile> {

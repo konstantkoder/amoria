@@ -1,13 +1,9 @@
-# Amoria — Sprint 1 MVP
+# Amoria
 
-Этот каркас включает:
-- Онбординг (согласия, разрешение локации, профиль, интересы/цели/настроение)
-- Экран Nearby с жалобой/блокировкой
-- Профиль с кнопкой удаления аккаунта
-- Экран с Политикой конфиденциальности (RU/EN/HR)
-- Безопасные разрешения для Google Play (без фоновой локации)
+Mobile app for Amoria, built with Expo and a backend-only data layer.
 
 ## Запуск
+
 1. Установи зависимости:
    ```
    npm i
@@ -16,23 +12,10 @@
    ```
    npx expo start
    ```
-3. В `src/services/firebase.ts` вставь конфиг Firebase. Пока конфиг не задан, все вызовы работают в mock-режиме (без сети).
 
-## Что ещё сделать перед публикацией
-- Добавить реальную ссылку на Privacy Policy (Play Console) и на сайте.
-- Включить Firebase Auth/Firestore и заменить mock.
-- Заполнить Data Safety в Google Play.
+## Стек
 
-
-## Новые фичи (этот пакет)
-- Лента карточек со свайпом (react-native-deck-swiper) + лайки/матчи
-- Фильтры Nearby (радиус, цель, настроение)
-- Вопрос дня + сохранение ответа (Firestore или локально)
-- Random Chat (простейший матчмейкинг; работает локально и с Firestore)
-- Экран Условий использования
-
-
-## Профиль и фото (новое)
-- Экран **EditProfile**: редактирование имени, описания, интересов, цели, настроения.
-- Экран **PhotoManager**: добавление фото через Expo Image Picker, загрузка в Firebase Storage (или локальный mock), удаление из профиля.
-- Список фото хранится в поле `users/{uid}.photos` (Firestore) — в mock-режиме сохраняется только локально.
+- Expo / React Native
+- Backend API services under `src/services/api`
+- Realtime WebSocket client under `src/services/realtime`
+- Local client state via AsyncStorage where needed

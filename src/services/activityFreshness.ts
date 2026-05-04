@@ -1,12 +1,23 @@
 import React from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-import type { DmThreadDoc } from "@/services/dm";
-import type { PlayHistoryItem, PlaySessionDoc } from "@/services/playSessions";
-
 const STORAGE_KEY = "amoria_activity_freshness_v1";
 const FRESH_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 const RECENT_WINDOW_MS = 3 * 24 * 60 * 60 * 1000;
+
+type DmThreadActivity = {
+  lastMessageText?: string;
+  lastMessageAt?: number;
+  updatedAt?: number;
+  createdAt?: number;
+};
+
+type PlaySessionActivity = {
+  createdAt?: number;
+  startedAt?: number;
+  endedAt?: number;
+  sortAt?: number;
+};
 
 export type SeenActivityState = {
   dmThreads: Record<string, number>;
@@ -154,19 +165,17 @@ export async function markPlaySessionSeen(sessionId: string, seenAt = Date.now()
   await persistState(cache);
 }
 
-export function getDmThreadActivityAt(thread: Pick<DmThreadDoc, "lastMessageAt" | "updatedAt" | "createdAt">) {
+export function getDmThreadActivityAt(thread: Pick<DmThreadActivity, "lastMessageAt" | "updatedAt" | "createdAt">) {
   return thread.lastMessageAt ?? thread.updatedAt ?? thread.createdAt ?? 0;
 }
 
-function getPlaySessionActivityAt(
-  session: Pick<PlaySessionDoc, "createdAt" | "startedAt" | "endedAt"> | Pick<PlayHistoryItem, "sortAt">
-) {
-  if ("sortAt" in session) return session.sortAt ?? 0;
+function getPlaySessionActivityAt(session: PlaySessionActivity) {
+  if (session.sortAt != null) return session.sortAt;
   return session.endedAt ?? session.startedAt ?? session.createdAt ?? 0;
 }
 
 export function getDmThreadActivitySignal(
-  thread: Pick<DmThreadDoc, "lastMessageText" | "lastMessageAt" | "updatedAt" | "createdAt">,
+  thread: DmThreadActivity,
   seenAt = 0,
   now = Date.now()
 ): ActivitySignal {
@@ -197,7 +206,7 @@ export function getDmThreadActivitySignal(
 }
 
 export function getPlaySessionActivitySignal(
-  session: Pick<PlaySessionDoc, "createdAt" | "startedAt" | "endedAt"> | Pick<PlayHistoryItem, "sortAt">,
+  session: PlaySessionActivity,
   seenAt = 0,
   now = Date.now()
 ): ActivitySignal {

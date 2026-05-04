@@ -15,7 +15,7 @@ Updated: 2026-01-29
 - You can turn Nearby location off anytime in Settings.
 
 **Sharing**
-- No selling. Service providers (e.g., Firebase) only, as needed.
+- No selling. Service providers only, as needed.
 
 **Retention & Deletion**
 - Until the account is deleted by the user (in-app).

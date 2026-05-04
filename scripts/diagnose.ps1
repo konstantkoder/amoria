@@ -35,12 +35,8 @@ if (Test-Path $envPath) {
     }
   }
   $required = @(
-    "EXPO_PUBLIC_FIREBASE_API_KEY",
-    "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN",
-    "EXPO_PUBLIC_FIREBASE_PROJECT_ID",
-    "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET",
-    "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID",
-    "EXPO_PUBLIC_FIREBASE_APP_ID"
+    "EXPO_PUBLIC_API_URL",
+    "EXPO_PUBLIC_WS_URL"
   )
   $missing = @()
   foreach ($k in $required) {
@@ -51,7 +47,7 @@ if (Test-Path $envPath) {
   if ($missing.Count -gt 0) {
     Log "ENV: missing keys -> $($missing -join ', ')"
   } else {
-    Log "ENV: all required Firebase keys are present"
+    Log "ENV: all required backend keys are present"
   }
 } else {
   Log "ENV: .env NOT found"
@@ -67,19 +63,6 @@ if (Test-Path ".gitignore") {
   }
 } else {
   Log ".gitignore: NOT found"
-}
-
-# firebaseConfig.ts sanity
-$fbCfg = "src/config/firebaseConfig.ts"
-if (Test-Path $fbCfg) {
-  $src = Get-Content $fbCfg -Raw
-  if ($src -match "EXPO_PUBLIC_FIREBASE_") {
-    Log "firebaseConfig.ts: uses env vars (process.env)  ✅"
-  } else {
-    Log "firebaseConfig.ts: does NOT use env vars  ❌"
-  }
-} else {
-  Log "firebaseConfig.ts: NOT found at $fbCfg"
 }
 
 # babel plugins

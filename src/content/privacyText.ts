@@ -15,7 +15,7 @@ Nearby quick status
 - You can turn Nearby location off anytime in Settings
 
 Sharing
-- No selling. Service providers (e.g., Firebase) only, as needed.
+- No selling. Service providers only, as needed.
 
 Retention & Deletion
 - We keep account data until the user deletes the account in the app.
@@ -39,7 +39,7 @@ Contact
 - Геолокацию для «Рядом» можно выключить в настройках
 
 Передача третьим лицам
-- Не продаём данные. Делимся ими только с сервисами-провайдерами (например, Firebase), когда это нужно для работы приложения.
+- Не продаём данные. Делимся ими только с сервисами-провайдерами, когда это нужно для работы приложения.
 
 Хранение и удаление
 - До удаления аккаунта пользователем. Удаление доступно внутри приложения.
@@ -63,7 +63,7 @@ Brzi status u blizini
 - Lokaciju za Nearby možete isključiti u postavkama
 
 Dijeljenje
-- Ne prodajemo podatke. Dijelimo samo s pružateljima usluga (npr. Firebase), prema potrebi.
+- Ne prodajemo podatke. Dijelimo samo s pružateljima usluga prema potrebi.
 
 Zadržavanje i brisanje
 - Do brisanja računa od strane korisnika (u aplikaciji).

@@ -40,14 +40,6 @@ Invoke-OrSkip -Path "src/navigation/AppNavigator.tsx" -Description "AppNavigator
     Write-Host 'OK'
 }
 
-Write-Host '== Sanity: Firebase service (swipe/matches) =='
-Invoke-OrSkip -Path "src/services/firebase.ts" -Description "firebase service" -Block {
-    $svc = Get-Content "src/services/firebase.ts" -Raw
-    if ($svc -notmatch 'export async function swipeOn') { throw 'firebase.ts: swipeOn() not found' }
-    if ($svc -notmatch 'export function listenMyMatches') { throw 'firebase.ts: listenMyMatches() not found' }
-    Write-Host 'OK'
-}
-
 Write-Host '== Sanity: SwipeScreen uses new Gesture API =='
 Invoke-OrSkip -Path "src/screens/SwipeScreen.tsx" -Description "SwipeScreen" -Block {
     $sw = Get-Content "src/screens/SwipeScreen.tsx" -Raw

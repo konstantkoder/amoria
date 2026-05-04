@@ -16,7 +16,7 @@ Ažurirano: 29.01.2026.
 - Prisutnost se osvježava; zastarjele lokacije (npr. starije od 5 minuta) se ne prikazuju.
 
 **Dijeljenje**
-- Ne prodajemo podatke. Dijelimo samo s pružateljima usluga (npr. Firebase), prema potrebi.
+- Ne prodajemo podatke. Dijelimo samo s pružateljima usluga prema potrebi.
 
 **Zadržavanje i brisanje**
 - Do brisanja računa od strane korisnika (u aplikaciji).
