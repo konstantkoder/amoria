@@ -16,6 +16,7 @@ let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let manualDisconnect = false;
 const handlers = new Set<RealtimeHandler>();
 const subscribedThreads = new Set<string>();
+const subscribedTogetherSessions = new Set<string>();
 let inboxSubscribed = false;
 
 function getWsUrl() {
@@ -34,11 +35,15 @@ function sendJson(payload: Record<string, unknown>) {
 
 function replaySubscriptions() {
   if (inboxSubscribed) {
-    sendJson({ type: "inbox.subscribe" });
+    sendJson({ type: "subscribe", channel: "inbox" });
   }
 
   for (const threadId of subscribedThreads) {
-    sendJson({ type: "thread.subscribe", threadId });
+    sendJson({ type: "subscribe", channel: "thread", threadId });
+  }
+
+  for (const sessionId of subscribedTogetherSessions) {
+    sendJson({ type: "subscribe", channel: "together", sessionId });
   }
 }
 
@@ -108,7 +113,7 @@ export function onMessage(handler: RealtimeHandler): () => void {
 export function subscribeInbox(): void {
   inboxSubscribed = true;
   connect();
-  sendJson({ type: "inbox.subscribe" });
+  sendJson({ type: "subscribe", channel: "inbox" });
 }
 
 export function subscribeThread(threadId: string): void {
@@ -117,7 +122,7 @@ export function subscribeThread(threadId: string): void {
 
   subscribedThreads.add(stableThreadId);
   connect();
-  sendJson({ type: "thread.subscribe", threadId: stableThreadId });
+  sendJson({ type: "subscribe", channel: "thread", threadId: stableThreadId });
 }
 
 export function unsubscribeThread(threadId: string): void {
@@ -125,7 +130,24 @@ export function unsubscribeThread(threadId: string): void {
   if (!stableThreadId) return;
 
   subscribedThreads.delete(stableThreadId);
-  sendJson({ type: "thread.unsubscribe", threadId: stableThreadId });
+  sendJson({ type: "unsubscribe", channel: "thread", threadId: stableThreadId });
+}
+
+export function subscribeTogetherSession(sessionId: string): void {
+  const stableSessionId = String(sessionId ?? "").trim();
+  if (!stableSessionId) return;
+
+  subscribedTogetherSessions.add(stableSessionId);
+  connect();
+  sendJson({ type: "subscribe", channel: "together", sessionId: stableSessionId });
+}
+
+export function unsubscribeTogetherSession(sessionId: string): void {
+  const stableSessionId = String(sessionId ?? "").trim();
+  if (!stableSessionId) return;
+
+  subscribedTogetherSessions.delete(stableSessionId);
+  sendJson({ type: "unsubscribe", channel: "together", sessionId: stableSessionId });
 }
 
 export function disconnect(): void {

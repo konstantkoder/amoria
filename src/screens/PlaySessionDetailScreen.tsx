@@ -10,172 +10,54 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 
 import CoreStateCard from "@/components/CoreStateCard";
 import ScreenShell from "@/components/ScreenShell";
-import PlayModeContextCard from "@/components/play/PlayModeContextCard";
 import ReplayCanvasWebView from "@/components/play/ReplayCanvasWebView";
-import type { SharedCanvasStroke } from "@/components/play/SharedCanvasWebView";
-import { db } from "@/config/firebaseConfig";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocale } from "@/contexts/LocaleContext";
 import {
   type PlaySessionDetailRouteProp,
   type RootStackNavigationProp,
 } from "@/navigation/appRoutes";
+import * as togetherApi from "@/services/api/togetherApi";
+import type { TogetherHistoryItem, TogetherSessionResponse } from "@/services/api/types";
 import { markPlaySessionSeen } from "@/services/activityFreshness";
 import {
-  buildDmChatRouteParams,
-  ensureDmThread,
-  mapDmThreadToPeer,
-  subscribeDmThreads,
-  type DmThreadDoc,
-} from "@/services/dm";
-import {
-  getPlayActivityLabel,
-  getPlayActivityMetricLabel,
-  getPlayActivityStoryText,
-  getPlayColorMoodChoices,
-  getPlayColorMoodCombinedPalette,
-  getPeerFromSession,
-  getPlayRevealCopy,
-  getPlayReplayCopy,
-  getPlaySessionPrompt,
-  playActivityUsesReplay,
-  resolvePlayRevealOutcome,
-  subscribePlayEvents,
-  subscribePlaySession,
-  type PlaySessionDoc,
-  type PlayStrokeBatch,
-} from "@/services/playSessions";
-import { getUserProfile } from "@/services/user";
+  getRememberedTogetherSession,
+  getTogetherPeer,
+  getTogetherStrokes,
+  rememberTogetherSession,
+} from "@/services/togetherCanvasState";
 import { theme } from "@/theme";
 
-function formatDateTime(value: number) {
-  if (!value) return "";
+function formatDateTime(value: string) {
+  const timestamp = Date.parse(String(value ?? ""));
+  if (!Number.isFinite(timestamp)) return "";
   try {
     return new Intl.DateTimeFormat(undefined, {
       day: "2-digit",
       month: "short",
       hour: "2-digit",
       minute: "2-digit",
-    }).format(new Date(value));
+    }).format(new Date(timestamp));
   } catch {
-    return new Date(value).toLocaleString();
+    return new Date(timestamp).toLocaleString();
   }
 }
 
-function mapReplayStrokes(events: PlayStrokeBatch[]): SharedCanvasStroke[] {
-  return events.flatMap((batch) =>
-    batch.strokes.map((stroke) => ({
-      id: stroke.id,
-      uid: batch.uid,
-      color: stroke.color,
-      width: stroke.width,
-      points: stroke.points.map((point) => ({
-        x: point.x,
-        y: point.y,
-      })),
-    }))
-  );
-}
-
-type StoryConnectionPrimaryIntent =
-  | "open_chat"
-  | "start_new"
-  | "open_profile"
-  | "open_chats";
-
-type StoryConnectionCopy = {
-  title: string;
-  body: string;
-  hint: string;
-  primaryIntent: StoryConnectionPrimaryIntent;
-  primaryLabel: string;
-};
-
-function getStoryConnectionCopy(options: {
-  revealOutcome: ReturnType<typeof resolvePlayRevealOutcome>;
-  canOpenChat: boolean;
-  hasAccount: boolean;
-  tt: (key: string, fallback: string, params?: Record<string, string>) => string;
-}): StoryConnectionCopy {
-  const { canOpenChat, hasAccount, revealOutcome, tt } = options;
-
-  if (revealOutcome === "open_open") {
-    if (!hasAccount) {
-      return {
-        title: tt("playDetail.bridgeChatNeedsAccountTitle", "Связь уже открылась из этой истории"),
-        body: tt(
-          "playDetail.bridgeChatNeedsAccountBody",
-          "После этой общей истории чат уже открылся и живёт в «Чатах». Чтобы перейти в чат, сначала нужен активный аккаунт."
-        ),
-        hint: tt(
-          "playDetail.bridgeChatNeedsAccountHint",
-          "Сама история остаётся здесь как общий контекст: после входа можно будет вернуться сюда и перейти в чат."
-        ),
-        primaryIntent: "open_profile",
-        primaryLabel: tt("common.openProfile", "Открыть профиль"),
-      };
-    }
-
-    if (!canOpenChat) {
-      return {
-        title: tt("playDetail.bridgeConnectionReadyTitle", "Связь уже открылась из этой истории"),
-        body: tt(
-          "playDetail.bridgeConnectionReadyBody",
-          "Общий результат уже сохранился как контекст чата. Если чат не открывается прямо отсюда, можно вернуться в «Чаты»."
-        ),
-        hint: tt(
-          "playDetail.bridgeConnectionReadyHint",
-          "Эта история всё равно остаётся её домом: общий результат, replay и контекст не пропадут."
-        ),
-        primaryIntent: "open_chats",
-        primaryLabel: tt("tabs.chats", "Чаты"),
-      };
-    }
-
-    return {
-      title: tt("playDetail.bridgeChatReadyTitle", "Из этой истории уже можно вернуться в чат"),
-      body: tt(
-        "playDetail.bridgeChatReadyBody",
-        "Эта история уже стала частью открытого чата. Отсюда можно сразу перейти в чат, а общий результат, replay и весь контекст останутся здесь."
-      ),
-      hint: tt(
-        "playDetail.bridgeChatReadyHint",
-        "Даже когда вы уйдёте в чат, replay, общий итог и контекст этой сессии останутся здесь."
-      ),
-      primaryIntent: "open_chat",
-      primaryLabel: tt("playDetail.openPrivateChat", "Открыть чат"),
-    };
+function getOutcomeLabel(
+  outcome: string,
+  tt: (key: string, fallback: string, params?: Record<string, string>) => string
+) {
+  switch (outcome) {
+    case "open_open":
+      return tt("playDetail.outcomeOpen", "Чат открыт");
+    case "open_skip":
+      return tt("playDetail.outcomeMixed", "Осталось историей");
+    case "skip_skip":
+      return tt("playDetail.outcomeClosed", "Без чата");
+    case "pending":
+    default:
+      return tt("playDetail.outcomeWaiting", "Ждём ответ");
   }
-
-  if (revealOutcome === "waiting") {
-    return {
-      title: tt("playDetail.bridgeWaitingTitle", "История уже сохранена, связь ещё решается"),
-      body: tt(
-        "playDetail.bridgeWaitingBody",
-        "Общая история уже осталась здесь. Если второй человек тоже откроет контакт, чат появится как её продолжение."
-      ),
-      hint: tt(
-        "playDetail.bridgeWaitingHint",
-        "Пока можно спокойно оставить эту историю в архиве и вернуться во Вместе за новым общим опытом."
-      ),
-      primaryIntent: "start_new",
-      primaryLabel: tt("playDetail.startAnotherSession", "Начать ещё одну совместную сессию"),
-    };
-  }
-
-  return {
-    title: tt("playDetail.bridgeStoryOnlyTitle", "Эта история осталась вашим общим моментом"),
-    body: tt(
-      "playDetail.bridgeStoryOnlyBody",
-      "Контакт не перешёл в чат, но вся общая история остаётся здесь: с replay, контекстом и итогом между вами."
-    ),
-    hint: tt(
-      "playDetail.bridgeStoryOnlyHint",
-      "Если хочешь ещё один шанс на продолжение, лучшее следующее действие — новая совместная сессия во Вместе."
-    ),
-    primaryIntent: "start_new",
-    primaryLabel: tt("playDetail.startAnotherSession", "Начать ещё одну совместную сессию"),
-  };
 }
 
 export default function PlaySessionDetailScreen() {
@@ -190,23 +72,18 @@ export default function PlaySessionDetailScreen() {
     },
     [t]
   );
-  const sessionId = route.params.sessionId.trim();
-  const replayFocus = route.params.focus === "replay";
-  const uid = authUser?.id ?? "";
 
-  const [session, setSession] = React.useState<PlaySessionDoc | null>(null);
-  const [events, setEvents] = React.useState<PlayStrokeBatch[]>([]);
-  const [threads, setThreads] = React.useState<DmThreadDoc[]>([]);
-  const [loadingSession, setLoadingSession] = React.useState(true);
-  const [loadingEvents, setLoadingEvents] = React.useState(true);
-  const [loadingThreads, setLoadingThreads] = React.useState(true);
+  const sessionId = route.params.sessionId.trim();
+  const uid = authUser?.id ?? "";
+  const remembered = React.useMemo(() => getRememberedTogetherSession(sessionId), [sessionId]);
+  const [sessionResponse, setSessionResponse] = React.useState<TogetherSessionResponse | null>(remembered);
+  const [historyItem, setHistoryItem] = React.useState<TogetherHistoryItem | null>(null);
+  const [loading, setLoading] = React.useState(!remembered);
   const [loadError, setLoadError] = React.useState<string | null>(null);
+  const [openingChat, setOpeningChat] = React.useState(false);
   const [chatActionError, setChatActionError] = React.useState<string | null>(null);
   const [reloadKey, setReloadKey] = React.useState(0);
-  const [replayOpen, setReplayOpen] = React.useState(replayFocus);
-  const [openingChat, setOpeningChat] = React.useState(false);
   const mountedRef = React.useRef(true);
-  const openChatPromiseRef = React.useRef<Promise<void> | null>(null);
 
   const goToTogether = React.useCallback(() => {
     navigation.navigate("Tabs", { screen: "Together" });
@@ -214,9 +91,6 @@ export default function PlaySessionDetailScreen() {
 
   const goToHistory = React.useCallback(() => {
     navigation.navigate("PlayHistory");
-  }, [navigation]);
-  const goToChats = React.useCallback(() => {
-    navigation.navigate("Tabs", { screen: "Inbox" });
   }, [navigation]);
 
   const handleBack = React.useCallback(() => {
@@ -229,293 +103,90 @@ export default function PlaySessionDetailScreen() {
 
   React.useEffect(() => {
     mountedRef.current = true;
-    setSession(null);
-    setEvents([]);
-    setThreads([]);
-    setReplayOpen(replayFocus);
     setLoadError(null);
     setChatActionError(null);
-
-    if (!db || !sessionId) {
-      setLoadingSession(false);
-      setLoadingEvents(false);
-      setLoadingThreads(false);
+    if (!sessionId) {
+      setLoading(false);
       return () => {
         mountedRef.current = false;
       };
     }
 
-    setLoadingSession(true);
-    setLoadingEvents(true);
-    setLoadingThreads(Boolean(uid));
-    const sessionLoadError = () => {
-      if (!mountedRef.current) return;
-      setLoadError(
-        tt(
-          "playDetail.errorBody",
-          "Не удалось открыть эту совместную историю прямо сейчас. Попробуй еще раз."
-        )
-      );
-      setLoadingSession(false);
-    };
-    const eventsLoadError = () => {
-      if (!mountedRef.current) return;
-      setLoadError(
-        tt(
-          "playDetail.errorBody",
-          "Не удалось открыть эту совместную историю прямо сейчас. Попробуй еще раз."
-        )
-      );
-      setLoadingEvents(false);
-    };
-
-    const unsubscribeSession = subscribePlaySession(
-      db,
-      sessionId,
-      (next) => {
+    setLoading(!remembered);
+    void Promise.all([
+      togetherApi.getSession(sessionId),
+      togetherApi.history(100).catch(() => ({ items: [], nextCursor: null })),
+    ])
+      .then(([session, history]) => {
         if (!mountedRef.current) return;
-        setSession(next);
-        setLoadingSession(false);
-      },
-      sessionLoadError
-    );
-    const unsubscribeEvents = subscribePlayEvents(
-      db,
-      sessionId,
-      (next) => {
+        rememberTogetherSession(session);
+        setSessionResponse(session);
+        setHistoryItem(history.items.find((item) => item.sessionId === sessionId) ?? null);
+        setLoading(false);
+        void markPlaySessionSeen(sessionId);
+      })
+      .catch(() => {
         if (!mountedRef.current) return;
-        setEvents(next);
-        setLoadingEvents(false);
-      },
-      eventsLoadError
-    );
-    const unsubscribeThreads =
-      uid && db
-        ? subscribeDmThreads(
-            db,
-            uid,
-            (next) => {
-              if (!mountedRef.current) return;
-              setThreads(next);
-              setLoadingThreads(false);
-            },
-            () => {
-              if (!mountedRef.current) return;
-              setThreads([]);
-              setLoadingThreads(false);
-            }
+        setLoadError(
+          tt(
+            "playDetail.errorBody",
+            "Не удалось открыть эту совместную историю прямо сейчас. Попробуй еще раз."
           )
-        : () => {};
+        );
+        setLoading(false);
+      });
 
     return () => {
       mountedRef.current = false;
-      unsubscribeSession();
-      unsubscribeEvents();
-      unsubscribeThreads();
     };
-  }, [replayFocus, reloadKey, sessionId, tt, uid]);
+  }, [remembered, reloadKey, sessionId, tt]);
 
-  React.useEffect(() => {
-    if (!sessionId || loadingSession || !session) return;
-    void markPlaySessionSeen(sessionId);
-  }, [loadingSession, session, sessionId]);
-
-  const peer = React.useMemo(() => {
-    if (!session) return null;
-    return getPeerFromSession(session, uid);
-  }, [session, uid]);
-
+  const session = sessionResponse?.session ?? null;
+  const peer = React.useMemo(
+    () => getTogetherPeer(sessionResponse, uid),
+    [sessionResponse, uid]
+  );
   const peerName =
-    peer?.nickname && peer.nickname !== "profile.amoriaUser"
-      ? peer.nickname
-      : tt("profile.amoriaUser", "Пользователь Amoria");
-  const threadByPeerId = React.useMemo(() => {
-    const next = new Map<string, DmThreadDoc>();
-    for (const thread of threads) {
-      const threadPeer = mapDmThreadToPeer(thread, uid);
-      if (!threadPeer?.uid || next.has(threadPeer.uid)) continue;
-      next.set(threadPeer.uid, thread);
-    }
-    return next;
-  }, [threads, uid]);
-  const detailThread = React.useMemo(
-    () => (peer?.uid ? threadByPeerId.get(peer.uid) ?? null : null),
-    [peer?.uid, threadByPeerId]
-  );
-  const totalStrokeCount = React.useMemo(() => {
-    if (session?.resultStrokeCount != null) {
-      return session.resultStrokeCount;
-    }
-    return events.reduce((sum, batch) => sum + batch.strokes.length, 0);
-  }, [events, session?.resultStrokeCount]);
-  const activityHasReplay = playActivityUsesReplay(session?.activity ?? "draw");
-  const sessionPrompt = React.useMemo(() => getPlaySessionPrompt(session), [session]);
-  const promptContext = sessionPrompt?.text?.trim() ?? "";
-  const showPromptContext = Boolean(
-    promptContext && (session?.activity === "draw" || session?.activity === "daily_prompt")
-  );
-  const sessionPromptDisplay =
-    promptContext || tt("playDetail.pendingPrompt", "Тема уточняется");
-  const combinedPalette = React.useMemo(() => getPlayColorMoodCombinedPalette(session), [session]);
-  const ownPalette = React.useMemo(() => getPlayColorMoodChoices(session, uid), [session, uid]);
-  const peerPalette = React.useMemo(
-    () => getPlayColorMoodChoices(session, peer?.uid ?? ""),
-    [peer?.uid, session]
-  );
-  const replayStrokes = React.useMemo(() => mapReplayStrokes(events), [events]);
-  const hasReplay = replayStrokes.length > 0;
-  const revealOutcome = React.useMemo(
-    () => (session ? resolvePlayRevealOutcome(session) : "waiting"),
-    [session]
-  );
-  const revealCopy = React.useMemo(() => getPlayRevealCopy(revealOutcome), [revealOutcome]);
-  const replayCopy = React.useMemo(
-    () => getPlayReplayCopy(session?.activity ?? "draw"),
-    [session?.activity]
-  );
-  const metricLabel = React.useMemo(
-    () => getPlayActivityMetricLabel(session?.activity ?? "draw", "detail"),
-    [session?.activity]
-  );
-  const metricValue =
-    session?.activity === "color_mood"
-      ? combinedPalette.length || ownPalette.length || peerPalette.length
-      : totalStrokeCount;
-  const canOpenChat = revealOutcome === "open_open" && Boolean(db && session && uid && peer?.uid);
-  const isLoading =
-    loadingSession ||
-    loadingEvents ||
-    (revealOutcome === "open_open" && Boolean(uid) && loadingThreads);
-  const sortAt = session?.endedAt ?? session?.startedAt ?? session?.createdAt ?? 0;
-  const summaryItems = React.useMemo(
-    () => [
-      {
-        label: tt("playDetail.activity", "Режим"),
-        value: getPlayActivityLabel(session?.activity ?? "draw", "history"),
-      },
-      { label: tt("playDetail.date", "Дата"), value: formatDateTime(sortAt) },
-      { label: metricLabel, value: String(metricValue) },
-    ],
-    [metricLabel, metricValue, session?.activity, sortAt, tt]
-  );
-  const connectionCopy = React.useMemo(
-    () =>
-      getStoryConnectionCopy({
-        revealOutcome,
-        canOpenChat,
-        hasAccount: Boolean(uid),
-        tt,
-      }),
-    [canOpenChat, revealOutcome, tt, uid]
-  );
-  const storyHomeText = React.useMemo(() => {
-    if (revealOutcome === "open_open") {
-      return tt(
-        "playDetail.heroHomeTextOpen",
-        "Эта страница хранит общий результат, replay и путь обратно в чат. Связь уже открыта, а сама история остаётся её спокойной опорой."
-      );
-    }
+    historyItem?.peer.displayName ||
+    peer?.displayName?.trim() ||
+    tt("profile.amoriaUser", "Пользователь Amoria");
+  const outcome = historyItem?.outcome ?? "pending";
+  const strokes = React.useMemo(() => getTogetherStrokes(sessionId), [sessionId]);
+  const hasReplay = strokes.length > 0;
 
-    if (revealOutcome === "waiting") {
-      return tt(
-        "playDetail.heroHomeTextWaiting",
-        "Эта страница уже удерживает общий итог вашей сессии. Если открытие станет взаимным, чат вырастет именно из этой истории."
-      );
-    }
-
-    return tt(
-      "playDetail.heroHomeTextStoryOnly",
-      "Даже без чата общий момент не пропадает: здесь остаются итог, replay и весь контекст того, что между вами уже произошло."
-    );
-  }, [revealOutcome, tt]);
-  const showChatsButton =
-    revealOutcome === "open_open" && connectionCopy.primaryIntent !== "open_chats";
-
-  const openChat = React.useCallback(() => {
-    if (!db || !session || !uid || !peer?.uid) return;
-    if (openChatPromiseRef.current) {
-      void openChatPromiseRef.current;
-      return;
-    }
-
-    if (mountedRef.current) {
-      setChatActionError(null);
-    }
-
-    const task = (async () => {
-      if (mountedRef.current) {
-        setOpeningChat(true);
-      }
-
-      const currentProfile = await getUserProfile().catch(() => null);
-      const currentDisplayName =
-        currentProfile?.displayName?.trim() || tt("profile.amoriaUser", "Пользователь Amoria");
-      const threadId =
-        detailThread?.id ??
-        (await ensureDmThread(db, uid, peer.uid, {
-          memberNames: {
-            [uid]: currentDisplayName,
-            [peer.uid]: peerName,
-          },
+  const openChat = React.useCallback(async () => {
+    if (outcome !== "open_open" || !peer?.id) return;
+    setOpeningChat(true);
+    setChatActionError(null);
+    try {
+      const response = await togetherApi.reveal(sessionId, "open");
+      if (!response.threadId) throw new Error("Thread was not returned");
+      navigation.navigate("DMChat", {
+        threadId: response.threadId,
+        peerId: peer.id,
+        peerName,
+        backTarget: "sessionDetail",
+        backSessionId: sessionId,
+        sourceContext: {
           source: "play",
           sourceSessionId: sessionId,
           artworkSummary: {
-            activity: session.activity,
-            strokeCount: totalStrokeCount,
+            activity: "draw",
+            strokeCount: strokes.length,
           },
-        }));
-
-      if (!mountedRef.current) return;
-      navigation.push(
-        "DMChat",
-        buildDmChatRouteParams({
-          threadId,
-          peerId: peer.uid,
-          peerName,
-          backTarget: "sessionDetail",
-          backSessionId: sessionId,
-          sourceContext: {
-            source: "play",
-            sourceSessionId: sessionId,
-            artworkSummary: {
-              activity: session.activity,
-              ...(totalStrokeCount != null ? { strokeCount: totalStrokeCount } : {}),
-            },
-          },
-        })
+        },
+      });
+    } catch {
+      setChatActionError(
+        tt(
+          "playDetail.openChatFailed",
+          "Не удалось открыть чат прямо сейчас. Попробуй ещё раз чуть позже."
+        )
       );
-      if (mountedRef.current) {
-        setChatActionError(null);
-      }
-    })().catch(() => {
-      if (mountedRef.current) {
-        setChatActionError(
-          tt(
-            "playDetail.openChatFailed",
-            "Не удалось открыть чат прямо сейчас. Попробуй ещё раз чуть позже."
-          )
-        );
-      }
-    }).finally(() => {
-      openChatPromiseRef.current = null;
-      if (mountedRef.current) {
-        setOpeningChat(false);
-      }
-    });
-
-    openChatPromiseRef.current = task;
-    void task;
-  }, [db, detailThread?.id, navigation, peer?.uid, peerName, session, sessionId, totalStrokeCount, tt, uid]);
-
-  const startNewSession = React.useCallback(() => {
-    navigation.navigate("PlayMatch", {
-      activity: session?.activity === "color_mood" ? "color_mood" : "draw",
-    });
-  }, [navigation, session?.activity]);
-
-  const openReplay = React.useCallback(() => {
-    setReplayOpen((prev) => !prev);
-  }, []);
+    } finally {
+      if (mountedRef.current) setOpeningChat(false);
+    }
+  }, [navigation, outcome, peer?.id, peerName, sessionId, strokes.length, tt]);
 
   if (!sessionId) {
     return (
@@ -529,55 +200,16 @@ export default function PlaySessionDetailScreen() {
           <CoreStateCard
             icon="alert-circle-outline"
             title={tt("playDetail.missingTitle", "История не найдена")}
-            body={tt(
-              "playDetail.missingBody",
-              "Не удалось открыть страницу истории без идентификатора совместной сессии."
-            )}
-            primaryAction={{
-              label: tt("playDetail.goToHistory", "Вернуться к историям"),
-              onPress: goToHistory,
-            }}
-            secondaryAction={{
-              label: tt("playDetail.goToTogether", "Вернуться во Вместе"),
-              onPress: goToTogether,
-            }}
+            body={tt("playDetail.missingBody", "Не удалось открыть историю без идентификатора сессии.")}
+            primaryAction={{ label: tt("common.backToTogether", "Вернуться во Вместе"), onPress: goToTogether }}
+            secondaryAction={{ label: tt("common.back", "Назад"), onPress: handleBack }}
           />
         </View>
       </ScreenShell>
     );
   }
 
-  if (!db) {
-    return (
-      <ScreenShell
-        title={tt("playDetail.title", "Совместная история")}
-        background="togetherStory"
-        showBack
-        onBack={handleBack}
-      >
-        <View style={styles.centerState}>
-          <CoreStateCard
-            icon="cloud-offline-outline"
-            title={tt("playDetail.errorTitle", "История временно недоступна")}
-            body={tt(
-              "playDetail.offlineBody",
-              "Мы не смогли подключить эту общую историю прямо сейчас. Вернись назад или попробуй ещё раз позже."
-            )}
-            primaryAction={{
-              label: tt("playDetail.goToHistory", "Вернуться к историям"),
-              onPress: goToHistory,
-            }}
-            secondaryAction={{
-              label: tt("playDetail.goToTogether", "Вернуться во Вместе"),
-              onPress: goToTogether,
-            }}
-          />
-        </View>
-      </ScreenShell>
-    );
-  }
-
-  if (isLoading) {
+  if (loading) {
     return (
       <ScreenShell
         title={tt("playDetail.title", "Совместная история")}
@@ -589,15 +221,18 @@ export default function PlaySessionDetailScreen() {
           <CoreStateCard
             loading
             icon="albums-outline"
-            title={tt("playDetail.title", "Совместная история")}
-            body={tt("playDetail.loading", "Собираем страницу вашей совместной истории…")}
+            title={tt("playDetail.loadingTitle", "Открываем историю")}
+            body={tt(
+              "playDetail.loadingBody",
+              "Собираем общий результат, партнёра и контекст этой сессии."
+            )}
           />
         </View>
       </ScreenShell>
     );
   }
 
-  if (loadError) {
+  if (loadError || !session) {
     return (
       <ScreenShell
         title={tt("playDetail.title", "Совместная история")}
@@ -609,45 +244,9 @@ export default function PlaySessionDetailScreen() {
           <CoreStateCard
             icon="cloud-offline-outline"
             title={tt("playDetail.errorTitle", "История временно недоступна")}
-            body={loadError}
-            primaryAction={{
-              label: tt("common.retry", "Повторить"),
-              onPress: () => setReloadKey((prev) => prev + 1),
-            }}
-            secondaryAction={{
-              label: tt("playDetail.goToHistory", "Вернуться к историям"),
-              onPress: goToHistory,
-            }}
-          />
-        </View>
-      </ScreenShell>
-    );
-  }
-
-  if (!session) {
-    return (
-      <ScreenShell
-        title={tt("playDetail.title", "Совместная история")}
-        background="togetherStory"
-        showBack
-        onBack={handleBack}
-      >
-        <View style={styles.centerState}>
-          <CoreStateCard
-            icon="albums-outline"
-            title={tt("playDetail.notFoundTitle", "Эта история больше недоступна")}
-            body={tt(
-              "playDetail.notFoundBody",
-              "Документ совместной сессии не найден. Можно вернуться к общим историям или начать новую сессию."
-            )}
-            primaryAction={{
-              label: tt("playDetail.goToHistory", "Вернуться к историям"),
-              onPress: goToHistory,
-            }}
-            secondaryAction={{
-              label: tt("playDetail.goToTogether", "Вернуться во Вместе"),
-              onPress: goToTogether,
-            }}
+            body={loadError || tt("playDetail.notFoundBody", "Эта история больше недоступна.")}
+            primaryAction={{ label: tt("common.retry", "Повторить"), onPress: () => setReloadKey((prev) => prev + 1) }}
+            secondaryAction={{ label: tt("playDetail.backToHistory", "Вернуться к историям"), onPress: goToHistory }}
           />
         </View>
       </ScreenShell>
@@ -662,168 +261,85 @@ export default function PlaySessionDetailScreen() {
       onBack={handleBack}
     >
       <ScrollView
-        style={styles.scroll}
+        style={{ flex: 1 }}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.heroCard}>
-          <View style={styles.heroHeader}>
-            <View style={styles.heroHeaderText}>
-              <Text style={styles.heroKicker}>
-                {tt("playDetail.heroKicker", "Постоянный дом этой истории")}
-              </Text>
-              <Text style={styles.heroTitle}>{peerName}</Text>
-            </View>
-            <View
-              style={[
-                styles.statusBadge,
-                revealOutcome === "open_open"
-                  ? styles.statusBadgePrimary
-                  : revealOutcome === "waiting"
-                    ? styles.statusBadgeNeutral
-                    : styles.statusBadgeMuted,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.statusBadgeText,
-                  revealOutcome === "open_open"
-                    ? styles.statusBadgeTextPrimary
-                    : revealOutcome === "waiting"
-                      ? styles.statusBadgeTextNeutral
-                      : styles.statusBadgeTextMuted,
-                ]}
-              >
-                {revealCopy.shortLabel}
-              </Text>
-            </View>
-          </View>
-          <Text style={styles.heroText}>
-            {getPlayActivityStoryText(session.activity, sessionPrompt?.text)}
+          <Text style={styles.kicker}>{tt("playDetail.kicker", "Together")}</Text>
+          <Text style={styles.title}>{session.promptText}</Text>
+          <Text style={styles.body}>
+            {tt("playDetail.storyBody", "Общая история с {name}", { name: peerName })}
           </Text>
-          <Text style={styles.heroSupportText}>{storyHomeText}</Text>
-          {showPromptContext ? (
-            <View style={styles.contextPill}>
-              <Text style={styles.contextLabel}>
-                {tt("playDetail.challengeLabel", "Творческий вызов")}
-              </Text>
-              <Text style={styles.contextText}>{sessionPromptDisplay}</Text>
-            </View>
-          ) : null}
           <View style={styles.metaGrid}>
             <View style={styles.metaItem}>
               <Text style={styles.metaLabel}>{tt("playDetail.partner", "Партнёр")}</Text>
               <Text style={styles.metaValue}>{peerName}</Text>
             </View>
-            {summaryItems.map((item) => (
-              <View key={item.label} style={styles.metaItem}>
-                <Text style={styles.metaLabel}>{item.label}</Text>
-                <Text style={styles.metaValue}>{item.value}</Text>
-              </View>
-            ))}
+            <View style={styles.metaItem}>
+              <Text style={styles.metaLabel}>{tt("playDetail.status", "Статус")}</Text>
+              <Text style={styles.metaValue}>{getOutcomeLabel(outcome, tt)}</Text>
+            </View>
+            <View style={styles.metaItem}>
+              <Text style={styles.metaLabel}>{tt("playDetail.createdAt", "Создано")}</Text>
+              <Text style={styles.metaValue}>{formatDateTime(session.createdAt)}</Text>
+            </View>
           </View>
         </View>
 
-        <PlayModeContextCard
-          activity={session.activity}
-          promptText={sessionPrompt?.text}
-          combinedPalette={combinedPalette}
-          ownPalette={ownPalette}
-          peerPalette={peerPalette}
-          peerTitle={tt("playDetail.peerPaletteTitle", "Цвета второго участника")}
-          compact
-          surface="detail"
-        />
+        <View style={styles.replayCard}>
+          <Text style={styles.sectionTitle}>{tt("playDetail.replayTitle", "Replay")}</Text>
+          {hasReplay ? (
+            <View style={styles.replayWrap}>
+              <ReplayCanvasWebView strokes={strokes} autoplay={route.params.focus === "replay"} showControls />
+            </View>
+          ) : (
+            <Text style={styles.emptyText}>
+              {tt(
+                "playDetail.replayEmpty",
+                "Replay доступен сразу после сессии на текущем устройстве. Backend history пока хранит только контекст и решение."
+              )}
+            </Text>
+          )}
+        </View>
 
-        {activityHasReplay ? (
-          <View style={styles.replayBlock}>
-            <View style={styles.replayHeader}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.replayTitle}>{replayCopy.title}</Text>
-                <Text style={styles.replayText}>{replayCopy.body}</Text>
-              </View>
-              <Pressable onPress={openReplay} style={styles.replayToggle}>
-                <Text style={styles.replayToggleText}>
-                  {replayOpen
-                    ? tt("playDetail.hideReplay", "Скрыть replay")
-                    : tt("playDetail.openReplay", "Показать replay")}
+        <View style={styles.bridgeCard}>
+          <Text style={styles.sectionTitle}>
+            {outcome === "open_open"
+              ? tt("playDetail.bridgeChatReadyTitle", "Из этой истории уже можно вернуться в чат")
+              : tt("playDetail.bridgeStoryOnlyTitle", "Эта история осталась вашим общим моментом")}
+          </Text>
+          <Text style={styles.body}>
+            {outcome === "open_open"
+              ? tt(
+                  "playDetail.bridgeChatReadyBody",
+                  "Эта история уже стала частью открытого чата. Отсюда можно сразу перейти в разговор."
+                )
+              : tt(
+                  "playDetail.bridgeStoryOnlyBody",
+                  "Контакт не перешёл в чат или ещё ждёт второго решения, но вся общая история остаётся здесь."
+                )}
+          </Text>
+          {chatActionError ? <Text style={styles.errorText}>{chatActionError}</Text> : null}
+          <View style={styles.actionRow}>
+            {outcome === "open_open" ? (
+              <Pressable
+                style={[styles.primaryButton, openingChat ? styles.buttonDisabled : null]}
+                onPress={() => void openChat()}
+                disabled={openingChat}
+              >
+                <Text style={styles.primaryButtonText}>
+                  {openingChat
+                    ? tt("playDetail.openingChat", "Открываем…")
+                    : tt("playDetail.openPrivateChat", "Открыть чат")}
                 </Text>
               </Pressable>
-            </View>
-            {showPromptContext ? (
-              <View style={styles.contextPill}>
-                <Text style={styles.contextLabel}>
-                  {tt("playDetail.challengeLabel", "Творческий вызов")}
-                </Text>
-                <Text style={styles.contextText}>{sessionPromptDisplay}</Text>
-              </View>
             ) : null}
-
-            {replayOpen ? (
-              hasReplay ? (
-                <ReplayCanvasWebView
-                  key={`${sessionId}_${replayStrokes.length}`}
-                  strokes={replayStrokes}
-                  autoplay
-                  speed={1.25}
-                  showControls
-                />
-              ) : (
-                <View style={styles.emptyReplayCard}>
-                  <Text style={styles.emptyReplayTitle}>{replayCopy.emptyTitle}</Text>
-                  <Text style={styles.emptyReplayText}>{replayCopy.emptyBody}</Text>
-                </View>
-              )
-            ) : null}
-          </View>
-        ) : null}
-
-        <View style={styles.actionCard}>
-          <Text style={styles.actionEyebrow}>
-            {tt("playDetail.actionEyebrowCoreLoop", "Что эта история значит для связи сейчас")}
-          </Text>
-          <Text style={styles.actionTitle}>{connectionCopy.title}</Text>
-          <Text style={styles.actionText}>{connectionCopy.body}</Text>
-          {chatActionError ? <Text style={styles.actionErrorText}>{chatActionError}</Text> : null}
-          <Pressable
-            onPress={
-              connectionCopy.primaryIntent === "open_chat"
-                ? openChat
-                : connectionCopy.primaryIntent === "open_profile"
-                  ? () => navigation.navigate("Profile")
-                  : connectionCopy.primaryIntent === "open_chats"
-                    ? goToChats
-                  : startNewSession
-            }
-            style={styles.primaryButton}
-            disabled={connectionCopy.primaryIntent === "open_chat" ? openingChat : false}
-          >
-            <Text style={styles.primaryButtonText}>
-              {connectionCopy.primaryIntent === "open_chat" && openingChat
-                ? tt("playDetail.openingChat", "Открываем чат…")
-                : connectionCopy.primaryLabel}
-            </Text>
-          </Pressable>
-          <Text style={styles.actionHint}>{connectionCopy.hint}</Text>
-          <View style={styles.actionRow}>
-            <Pressable onPress={goToHistory} style={styles.secondaryButton}>
+            <Pressable style={styles.secondaryButton} onPress={() => navigation.navigate("PlayMatch", { activity: "draw" })}>
               <Text style={styles.secondaryButtonText}>
-                {tt("playDetail.allStories", "Все общие истории")}
+                {tt("playDetail.startAnotherSession", "Начать ещё одну совместную сессию")}
               </Text>
             </Pressable>
-            {showChatsButton ? (
-              <Pressable onPress={goToChats} style={styles.secondaryButton}>
-                <Text style={styles.secondaryButtonText}>
-                  {tt("tabs.chats", "Чаты")}
-                </Text>
-              </Pressable>
-            ) : (
-              <Pressable onPress={goToTogether} style={styles.secondaryButton}>
-                <Text style={styles.secondaryButtonText}>
-                  {tt("playDetail.goToTogether", "Вернуться во Вместе")}
-                </Text>
-              </Pressable>
-            )}
           </View>
         </View>
       </ScrollView>
@@ -832,260 +348,130 @@ export default function PlaySessionDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  scroll: { flex: 1 },
-  content: {
-    padding: 16,
-    paddingBottom: 40,
-    gap: 18,
-  },
   centerState: {
     flex: 1,
+    padding: 18,
     alignItems: "center",
     justifyContent: "center",
-    gap: 14,
-    paddingHorizontal: 28,
+  },
+  content: {
+    padding: 16,
+    paddingBottom: 42,
+    gap: 16,
   },
   heroCard: {
-    padding: 18,
     borderRadius: theme.shapes.card,
-    backgroundColor: "rgba(13, 18, 34, 0.9)",
+    padding: 18,
+    gap: 10,
+    backgroundColor: "rgba(10, 13, 26, 0.86)",
     borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
-    gap: 12,
+    borderColor: "rgba(255,255,255,0.14)",
   },
-  heroHeader: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    gap: 12,
-  },
-  heroHeaderText: {
-    flex: 1,
-    gap: 6,
-  },
-  heroKicker: {
-    color: theme.colors.accent,
-    fontSize: 12,
+  kicker: {
+    color: "#FFE0B8",
+    fontSize: 11,
     fontWeight: "800",
     letterSpacing: 1,
+    textTransform: "uppercase",
   },
-  heroTitle: {
+  title: {
     color: theme.colors.text,
-    fontSize: 26,
-    lineHeight: 31,
+    fontSize: 24,
+    lineHeight: 30,
     fontWeight: "800",
   },
-  heroText: {
-    color: theme.colors.text,
+  body: {
+    color: theme.colors.subtext,
     fontSize: 14,
     lineHeight: 20,
   },
-  heroSupportText: {
-    color: theme.colors.subtext,
-    fontSize: 14,
-    lineHeight: 21,
-  },
-  statusBadge: {
-    borderRadius: theme.shapes.pill,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderWidth: 1,
-  },
-  statusBadgePrimary: {
-    backgroundColor: "rgba(255, 78, 138, 0.14)",
-    borderColor: "rgba(255, 78, 138, 0.24)",
-  },
-  statusBadgeMuted: {
-    backgroundColor: "rgba(255,255,255,0.06)",
-    borderColor: theme.colors.borderSubtle,
-  },
-  statusBadgeNeutral: {
-    backgroundColor: "rgba(255, 122, 60, 0.12)",
-    borderColor: "rgba(255, 122, 60, 0.22)",
-  },
-  statusBadgeText: {
-    fontSize: 11,
-    fontWeight: "800",
-  },
-  statusBadgeTextPrimary: {
-    color: theme.colors.primary,
-  },
-  statusBadgeTextMuted: {
-    color: theme.colors.text,
-  },
-  statusBadgeTextNeutral: {
-    color: theme.colors.accent,
-  },
   metaGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
+    gap: 10,
   },
   metaItem: {
-    minWidth: "46%",
-    flexGrow: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 11,
-    borderRadius: theme.shapes.cardInner,
-    backgroundColor: "rgba(255,255,255,0.04)",
-    borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
-    gap: 4,
+    borderRadius: 14,
+    padding: 12,
+    backgroundColor: "rgba(255,255,255,0.08)",
   },
   metaLabel: {
-    color: theme.colors.muted,
+    color: theme.colors.subtext,
     fontSize: 11,
-    fontWeight: "700",
+    fontWeight: "800",
     textTransform: "uppercase",
-    letterSpacing: 0.6,
   },
   metaValue: {
     color: theme.colors.text,
-    fontSize: 14,
-    lineHeight: 18,
-    fontWeight: "700",
+    fontSize: 15,
+    fontWeight: "800",
+    marginTop: 4,
   },
-  actionCard: {
-    padding: 16,
+  replayCard: {
     borderRadius: theme.shapes.card,
-    backgroundColor: "rgba(11, 16, 30, 0.92)",
-    borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
+    padding: 16,
     gap: 12,
+    backgroundColor: "rgba(13, 17, 31, 0.84)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
   },
-  actionEyebrow: {
-    color: theme.colors.accent,
-    fontSize: 11,
-    fontWeight: "800",
-    letterSpacing: 0.9,
-    textTransform: "uppercase",
-  },
-  actionTitle: {
+  sectionTitle: {
     color: theme.colors.text,
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "800",
   },
-  actionText: {
+  replayWrap: {
+    height: 320,
+    overflow: "hidden",
+    borderRadius: 18,
+    backgroundColor: "#FFFFFF",
+  },
+  emptyText: {
     color: theme.colors.subtext,
     fontSize: 14,
-    lineHeight: 21,
+    lineHeight: 20,
   },
-  actionHint: {
-    color: theme.colors.muted,
-    fontSize: 12,
+  bridgeCard: {
+    borderRadius: theme.shapes.card,
+    padding: 16,
+    gap: 12,
+    backgroundColor: "rgba(16, 20, 38, 0.90)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+  },
+  errorText: {
+    color: "#FFB4B4",
+    fontSize: 13,
     lineHeight: 18,
-  },
-  actionErrorText: {
-    color: theme.colors.danger,
-    fontSize: 13,
-    lineHeight: 19,
-    fontWeight: "600",
-  },
-  primaryButton: {
-    borderRadius: theme.shapes.cardInner,
-    paddingHorizontal: 16,
-    paddingVertical: 13,
-    backgroundColor: theme.colors.primary,
-    alignItems: "center",
-  },
-  primaryButtonText: {
-    color: "#fff",
-    fontSize: 13,
-    fontWeight: "800",
   },
   actionRow: {
     gap: 10,
   },
-  secondaryButton: {
-    borderRadius: theme.shapes.cardInner,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: "rgba(255,255,255,0.05)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
+  primaryButton: {
+    minHeight: 50,
+    borderRadius: theme.shapes.pill,
     alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.colors.primary,
+  },
+  primaryButtonText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  secondaryButton: {
+    minHeight: 48,
+    borderRadius: theme.shapes.pill,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.14)",
   },
   secondaryButtonText: {
     color: theme.colors.text,
-    fontSize: 13,
-    fontWeight: "800",
-  },
-  replayBlock: {
-    padding: 18,
-    borderRadius: theme.shapes.card,
-    backgroundColor: "rgba(10, 14, 26, 0.92)",
-    borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
-    gap: 14,
-  },
-  replayHeader: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    gap: 12,
-  },
-  contextPill: {
-    alignSelf: "flex-start",
-    borderRadius: theme.shapes.pill,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    backgroundColor: theme.colors.pillBg,
-    borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
-    gap: 4,
-  },
-  contextLabel: {
-    color: theme.colors.muted,
-    fontSize: 11,
-    fontWeight: "800",
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-  },
-  contextText: {
-    color: theme.colors.text,
     fontSize: 14,
-    fontWeight: "700",
-  },
-  replayTitle: {
-    color: theme.colors.text,
-    fontSize: 20,
-    fontWeight: "800",
-    marginBottom: 4,
-  },
-  replayText: {
-    color: theme.colors.subtext,
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  replayToggle: {
-    borderRadius: theme.shapes.pill,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: theme.colors.pillBg,
-    borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
-  },
-  replayToggleText: {
-    color: theme.colors.text,
-    fontSize: 12,
     fontWeight: "800",
   },
-  emptyReplayCard: {
-    padding: 16,
-    borderRadius: theme.shapes.cardInner,
-    backgroundColor: "rgba(255,255,255,0.04)",
-    borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
-    gap: 8,
-  },
-  emptyReplayTitle: {
-    color: theme.colors.text,
-    fontSize: 16,
-    fontWeight: "800",
-  },
-  emptyReplayText: {
-    color: theme.colors.subtext,
-    fontSize: 14,
-    lineHeight: 20,
+  buttonDisabled: {
+    opacity: 0.58,
   },
 });

@@ -5,7 +5,6 @@ import { useNavigation } from "@react-navigation/native";
 import ScreenShell from "@/components/ScreenShell";
 import { useLocale } from "@/contexts/LocaleContext";
 import { type RootStackNavigationProp } from "@/navigation/appRoutes";
-import { getPlayLobbyModeCardCopy } from "@/services/playSessions";
 import { theme } from "@/theme";
 
 export default function PlayLobbyScreen() {
@@ -18,7 +17,17 @@ export default function PlayLobbyScreen() {
     },
     [t]
   );
-  const colorMoodCopy = getPlayLobbyModeCardCopy("color_mood");
+  const colorMoodCopy = {
+    title: tt("together.lobby.colorMoodTitle", "Палитра настроения"),
+    description: tt(
+      "together.lobby.colorMoodDescription",
+      "Мягкий сценарий вернется после миграции на backend."
+    ),
+    details: tt(
+      "together.lobby.colorMoodDetails",
+      "Сейчас доступен основной общий рисунок."
+    ),
+  };
 
   return (
     <ScreenShell title={t("tabs.together")} background="togetherMain">
@@ -91,10 +100,7 @@ export default function PlayLobbyScreen() {
           </Text>
         </View>
 
-        <Pressable
-          onPress={() => navigation.navigate("PlayMatch", { activity: "color_mood" })}
-          style={styles.secondaryCard}
-        >
+        <View style={[styles.secondaryCard, styles.secondaryCardDisabled]}>
           <View style={styles.cardHeader}>
             <Text style={styles.cardTitle}>{colorMoodCopy.title}</Text>
             <View style={styles.badge}>
@@ -105,7 +111,7 @@ export default function PlayLobbyScreen() {
           </View>
           <Text style={styles.cardDescription}>{colorMoodCopy.description}</Text>
           <Text style={styles.cardDetails}>{colorMoodCopy.details}</Text>
-        </Pressable>
+        </View>
 
         <Pressable
           onPress={() => navigation.navigate("PlayHistory")}
@@ -288,6 +294,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.12)",
     gap: 10,
+  },
+  secondaryCardDisabled: {
+    opacity: 0.68,
   },
   cardHeader: {
     flexDirection: "row",

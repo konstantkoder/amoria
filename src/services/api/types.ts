@@ -208,6 +208,60 @@ export type MessagesResponse = {
   items: MessageDto[];
 };
 
+export type TogetherQueueEntry = {
+  id: string;
+  status: string;
+  sessionId?: string;
+  expiresAt: string;
+};
+
+export type TogetherQueueResponse = {
+  entry: TogetherQueueEntry;
+};
+
+export type TogetherSessionDto = {
+  id: string;
+  activity: string;
+  status: string;
+  promptText: string;
+  createdAt: string;
+};
+
+export type TogetherParticipantDto = {
+  id: string;
+  displayName: string;
+  avatarUrl: string | null;
+};
+
+export type TogetherSessionResponse = {
+  session: TogetherSessionDto;
+  participants: TogetherParticipantDto[];
+  stateVersion: number;
+};
+
+export type TogetherRevealResponse = {
+  outcome: string;
+  threadId?: string;
+};
+
+export type TogetherHistoryItem = {
+  sessionId: string;
+  activity: string;
+  promptText: string;
+  peer: {
+    id: string;
+    displayName: string;
+    avatarUrl: string | null;
+  };
+  outcome: string;
+  createdAt: string;
+};
+
+export type TogetherHistoryResponse = {
+  items: TogetherHistoryItem[];
+  nextCursor: null;
+};
+
 export type AvatarUploadResponse = {
   avatarUrl: string;
   user: SelfUserProfileDto;

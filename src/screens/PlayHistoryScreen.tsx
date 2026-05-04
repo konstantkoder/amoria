@@ -10,94 +10,57 @@ import { useNavigation } from "@react-navigation/native";
 
 import CoreStateCard from "@/components/CoreStateCard";
 import ScreenShell from "@/components/ScreenShell";
-import { db } from "@/config/firebaseConfig";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocale } from "@/contexts/LocaleContext";
-import { getRuntimeLocale } from "@/i18n/translations";
 import { type RootStackNavigationProp } from "@/navigation/appRoutes";
-import {
-  formatActivitySignalLabel,
-  getPlaySessionActivitySignal,
-  useActivityFreshnessState,
-} from "@/services/activityFreshness";
-import {
-  buildDmChatRouteParams,
-  ensureDmThread,
-  mapDmThreadToPeer,
-  subscribeDmThreads,
-  type DmThreadDoc,
-} from "@/services/dm";
-import {
-  getPlayActivityLabel,
-  getPlayActivityMetricLabel,
-  getPlayRevealCopy,
-  subscribeMyPlayHistory,
-  type PlayHistoryItem,
-} from "@/services/playSessions";
-import { getUserProfile } from "@/services/user";
+import * as togetherApi from "@/services/api/togetherApi";
+import type { TogetherHistoryItem } from "@/services/api/types";
 import { theme } from "@/theme";
 
-function formatDateTime(value: number) {
-  if (!value) return "";
+function formatDateTime(value: string) {
+  const timestamp = Date.parse(String(value ?? ""));
+  if (!Number.isFinite(timestamp)) return "";
   try {
     return new Intl.DateTimeFormat(undefined, {
       day: "2-digit",
       month: "short",
       hour: "2-digit",
       minute: "2-digit",
-    }).format(new Date(value));
+    }).format(new Date(timestamp));
   } catch {
-    return new Date(value).toLocaleString();
+    return new Date(timestamp).toLocaleString();
   }
 }
 
-type HistoryCard = PlayHistoryItem & {
-  threadId?: string;
-  signalLabel?: string;
-  signalTone?: "fresh" | "recent";
-};
-
-function getHistoryContextText(
-  item: HistoryCard,
-  releaseText: (en: string, ru: string) => string,
+function getOutcomeLabel(
+  outcome: string,
   tt: (key: string, fallback: string, params?: Record<string, string>) => string
 ) {
-  switch (item.activity) {
-    case "daily_prompt":
-      return (
-        item.promptText?.trim() ||
-        releaseText("Shared drawing on one canvas", "Общий рисунок на одном холсте")
-      );
-    case "color_mood":
-      return item.combinedPalette?.length
-        ? tt("playHistory.contextColorMoodCount", "Shared palette: {count} colors", {
-            count: String(item.combinedPalette.length),
-          })
-        : tt("playHistory.contextColorMood", "Shared palette");
-    case "chain_draw":
-      return releaseText("Shared drawing on one canvas", "Общий рисунок на одном холсте");
-    case "draw":
+  switch (outcome) {
+    case "open_open":
+      return tt("playHistory.storyStatusOpenShort", "Чат открыт");
+    case "open_skip":
+      return tt("playHistory.storyStatusMixedShort", "Осталось историей");
+    case "skip_skip":
+      return tt("playHistory.storyStatusClosedShort", "Без чата");
+    case "pending":
     default:
-      return item.promptText?.trim()
-        ? tt("playHistory.contextDrawChallenge", "Creative challenge: {challenge}", {
-            challenge: item.promptText.trim(),
-          })
-        : releaseText("Shared drawing on one canvas", "Общий рисунок на одном холсте");
+      return tt("playHistory.storyStatusWaitingShort", "Ждём ответ");
   }
 }
 
-function getHistoryRelationshipText(
-  item: HistoryCard,
+function getRelationshipText(
+  item: TogetherHistoryItem,
   tt: (key: string, fallback: string, params?: Record<string, string>) => string
 ) {
-  if (item.revealOutcome === "open_open") {
+  if (item.outcome === "open_open") {
     return tt(
       "playHistory.storyStatusOpen",
       "Эта история уже стала открытой связью. Отсюда можно вернуться и к самому моменту, и в чат."
     );
   }
 
-  if (item.revealOutcome === "waiting") {
+  if (item.outcome === "pending") {
     return tt(
       "playHistory.storyStatusWaiting",
       "История уже сохранена. Если открытие станет взаимным, чат вырастет именно из этого общего момента."
@@ -114,10 +77,6 @@ export default function PlayHistoryScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"PlayHistory">>();
   const { user: authUser } = useAuth();
   const { t } = useLocale();
-  const releaseText = useCallback(
-    (en: string, ru: string) => (getRuntimeLocale() === "ru" ? ru : en),
-    []
-  );
   const tt = useCallback(
     (key: string, fallback: string, params?: Record<string, string>) => {
       const value = t(key, params);
@@ -125,126 +84,58 @@ export default function PlayHistoryScreen() {
     },
     [t]
   );
+
   const uid = authUser?.id ?? "";
-  const freshnessState = useActivityFreshnessState();
-  const [history, setHistory] = useState<PlayHistoryItem[]>([]);
-  const [threads, setThreads] = useState<DmThreadDoc[]>([]);
-  const [historyLoaded, setHistoryLoaded] = useState(false);
-  const [threadsLoaded, setThreadsLoaded] = useState(false);
+  const [history, setHistory] = useState<TogetherHistoryItem[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [openingChatId, setOpeningChatId] = useState<string | null>(null);
+
   const goToTogether = useCallback(() => {
     navigation.navigate("Tabs", { screen: "Together" });
   }, [navigation]);
-  const goToChats = useCallback(() => {
-    navigation.navigate("Tabs", { screen: "Inbox" });
-  }, [navigation]);
-  const handleLoadError = useCallback(() => {
-    setError(
-      tt(
-        "playHistory.errorBody",
-        "Не удалось собрать ваши совместные истории. Попробуй еще раз."
-      )
-    );
-  }, [tt]);
 
-  useEffect(() => {
-    let alive = true;
-    if (!db || !uid) {
+  const loadHistory = useCallback(async () => {
+    if (!uid) {
       setHistory([]);
-      setHistoryLoaded(true);
+      setLoaded(true);
       setError(null);
       setActionError(null);
       return;
     }
 
-    setHistoryLoaded(false);
+    setLoaded(false);
     setError(null);
     setActionError(null);
-    const unsubscribe = subscribeMyPlayHistory(
-      db,
-      uid,
-      (next) => {
-        if (!alive) return;
-        setHistory(next);
-        setHistoryLoaded(true);
-      },
-      () => {
-        if (!alive) return;
-        handleLoadError();
-        setHistoryLoaded(true);
-      }
-    );
-
-    return () => {
-      alive = false;
-      unsubscribe();
-    };
-  }, [handleLoadError, reloadKey, uid]);
+    try {
+      const response = await togetherApi.history(30);
+      setHistory(response.items ?? []);
+    } catch {
+      setError(
+        tt(
+          "playHistory.errorBody",
+          "Не удалось собрать ваши совместные истории. Попробуй еще раз."
+        )
+      );
+    } finally {
+      setLoaded(true);
+    }
+  }, [tt, uid]);
 
   useEffect(() => {
-    let alive = true;
-    if (!db || !uid) {
-      setThreads([]);
-      setThreadsLoaded(true);
-      return;
-    }
+    void loadHistory();
+  }, [loadHistory, reloadKey]);
 
-    setThreadsLoaded(false);
-    const unsubscribe = subscribeDmThreads(
-      db,
-      uid,
-      (next) => {
-        if (!alive) return;
-        setThreads(next);
-        setThreadsLoaded(true);
-      },
-      () => {
-        if (!alive) return;
-        handleLoadError();
-        setThreadsLoaded(true);
-      }
-    );
-
-    return () => {
-      alive = false;
-      unsubscribe();
-    };
-  }, [handleLoadError, reloadKey, uid]);
-
-  const cards = useMemo<HistoryCard[]>(
-    () => {
-      const threadByPeerId = new Map<string, DmThreadDoc>();
-      for (const thread of threads) {
-        const peer = mapDmThreadToPeer(thread, uid);
-        if (!peer?.uid || threadByPeerId.has(peer.uid)) continue;
-        threadByPeerId.set(peer.uid, thread);
-      }
-
-      return history.map((item) => {
-        const thread = threadByPeerId.get(item.peer.uid);
-        const signal = getPlaySessionActivitySignal(
-          item,
-          freshnessState.playSessions[item.sessionId] ?? 0
-        );
-        return {
-          ...item,
-          ...(thread?.id ? { threadId: thread.id } : {}),
-          ...(signal
-            ? {
-                signalLabel: formatActivitySignalLabel(signal, tt),
-                signalTone: signal.tone,
-              }
-            : {}),
-        };
-      });
-    },
-    [freshnessState.playSessions, history, threads, tt, uid]
+  const cards = useMemo(
+    () =>
+      history.map((item) => ({
+        ...item,
+        id: item.sessionId,
+      })),
+    [history]
   );
-
-  const isLoading = !historyLoaded || !threadsLoaded;
 
   const openDetail = useCallback(
     (sessionId: string) => {
@@ -254,52 +145,28 @@ export default function PlayHistoryScreen() {
   );
 
   const openChat = useCallback(
-    async (card: HistoryCard) => {
-      if (!db || !uid || card.revealOutcome !== "open_open") return;
-
-      setOpeningChatId(card.id);
+    async (item: TogetherHistoryItem) => {
+      if (item.outcome !== "open_open") return;
+      setOpeningChatId(item.sessionId);
+      setActionError(null);
       try {
-        const currentProfile = await getUserProfile().catch(() => null);
-        const currentDisplayName =
-          currentProfile?.displayName?.trim() ||
-          tt("profile.amoriaUser", "Пользователь Amoria");
-        const peerName =
-          card.peer.nickname === "profile.amoriaUser"
-            ? tt("profile.amoriaUser", "Пользователь Amoria")
-            : card.peer.nickname;
-        const threadId =
-          card.threadId ??
-          (await ensureDmThread(db, uid, card.peer.uid, {
-            memberNames: {
-              [uid]: currentDisplayName,
-              [card.peer.uid]: peerName,
-            },
+        const response = await togetherApi.reveal(item.sessionId, "open");
+        if (!response.threadId) {
+          throw new Error("Thread was not returned");
+        }
+        navigation.navigate("DMChat", {
+          threadId: response.threadId,
+          peerId: item.peer.id,
+          peerName: item.peer.displayName,
+          backTarget: "history",
+          sourceContext: {
             source: "play",
-            sourceSessionId: card.sessionId,
+            sourceSessionId: item.sessionId,
             artworkSummary: {
-              activity: card.activity,
-              strokeCount: card.strokeCount,
+              activity: "draw",
             },
-          }));
-
-        navigation.navigate(
-          "DMChat",
-          buildDmChatRouteParams({
-            threadId,
-            peerId: card.peer.uid,
-            peerName,
-            backTarget: "history",
-            sourceContext: {
-              source: "play",
-              sourceSessionId: card.sessionId,
-              artworkSummary: {
-                activity: card.activity,
-                ...(card.strokeCount != null ? { strokeCount: card.strokeCount } : {}),
-              },
-            },
-          })
-        );
-        setActionError(null);
+          },
+        });
       } catch {
         setActionError(
           tt(
@@ -308,10 +175,10 @@ export default function PlayHistoryScreen() {
           )
         );
       } finally {
-        setOpeningChatId((prev) => (prev === card.id ? null : prev));
+        setOpeningChatId((prev) => (prev === item.sessionId ? null : prev));
       }
     },
-    [navigation, tt, uid]
+    [navigation, tt]
   );
 
   const goToStart = useCallback(() => {
@@ -319,88 +186,57 @@ export default function PlayHistoryScreen() {
   }, [navigation]);
 
   const renderCard = useCallback(
-    (item: HistoryCard) => {
-      const isColorMood = item.activity === "color_mood";
-      const metricLabel = getPlayActivityMetricLabel(item.activity, "history");
-      const revealCopy = getPlayRevealCopy(item.revealOutcome);
-      const contextText = getHistoryContextText(item, releaseText, tt);
-      const relationshipText = getHistoryRelationshipText(item, tt);
+    (item: TogetherHistoryItem & { id: string }) => {
+      const outcomeLabel = getOutcomeLabel(item.outcome, tt);
+      const relationshipText = getRelationshipText(item, tt);
+      const opening = openingChatId === item.sessionId;
 
       return (
         <Pressable
-          key={item.id}
+          key={item.sessionId}
           onPress={() => openDetail(item.sessionId)}
           style={styles.card}
         >
           <View style={styles.cardTop}>
             <View style={styles.cardTopText}>
               <View style={styles.cardTitleRow}>
-                <Text style={styles.cardTitle}>
-                  {item.peer.nickname === "profile.amoriaUser"
-                    ? tt("profile.amoriaUser", "Пользователь Amoria")
-                    : item.peer.nickname}
-                </Text>
-                {item.signalLabel ? (
-                  <View
-                    style={[
-                      styles.signalBadge,
-                      item.signalTone === "fresh"
-                        ? styles.signalBadgeFresh
-                        : styles.signalBadgeRecent,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.signalBadgeText,
-                        item.signalTone === "fresh"
-                          ? styles.signalBadgeTextFresh
-                          : styles.signalBadgeTextRecent,
-                      ]}
-                    >
-                      {item.signalLabel}
-                    </Text>
-                  </View>
-                ) : null}
+                <Text style={styles.cardTitle}>{item.peer.displayName}</Text>
+                <View style={styles.statusBadge}>
+                  <Text style={styles.statusBadgeText}>{outcomeLabel}</Text>
+                </View>
               </View>
-              <Text style={styles.cardActivity}>
-                {getPlayActivityLabel(item.activity, "history")}
-              </Text>
-            </View>
-            <Text style={styles.cardDate}>{formatDateTime(item.sortAt)}</Text>
-          </View>
-
-          <Text style={styles.cardContext}>{contextText}</Text>
-          <Text style={styles.cardStatus}>{relationshipText}</Text>
-
-          <View style={styles.metaGrid}>
-            <View style={styles.metaChip}>
-              <Text style={styles.metaText}>
-                {isColorMood
-                  ? `${metricLabel}: ${String(item.combinedPalette?.length ?? 0)}`
-                  : `${metricLabel}: ${String(item.strokeCount ?? 0)}`}
-              </Text>
-            </View>
-            <View style={styles.metaChip}>
-              <Text style={styles.metaText}>{revealCopy.shortLabel}</Text>
+              <Text style={styles.cardDate}>{formatDateTime(item.createdAt)}</Text>
             </View>
           </View>
 
-          <View style={styles.actionsRow}>
-            <Pressable onPress={() => openDetail(item.sessionId)} style={styles.primaryButton}>
-              <Text style={styles.primaryButtonText}>
+          <Text style={styles.contextText}>
+            {item.promptText?.trim()
+              ? tt("playHistory.contextDrawChallenge", "Creative challenge: {challenge}", {
+                  challenge: item.promptText.trim(),
+                })
+              : tt("playHistory.contextDraw", "Shared drawing on one canvas")}
+          </Text>
+          <Text style={styles.relationshipText}>{relationshipText}</Text>
+
+          <View style={styles.cardActions}>
+            <Pressable
+              onPress={() => openDetail(item.sessionId)}
+              style={styles.secondaryButton}
+            >
+              <Text style={styles.secondaryButtonText}>
                 {tt("playHistory.openStory", "Открыть историю")}
               </Text>
             </Pressable>
-            {item.revealOutcome === "open_open" ? (
+            {item.outcome === "open_open" ? (
               <Pressable
                 onPress={() => void openChat(item)}
-                style={styles.secondaryButton}
-                disabled={openingChatId === item.id}
+                style={[styles.primaryButton, opening ? styles.buttonDisabled : null]}
+                disabled={opening}
               >
-                <Text style={styles.secondaryButtonText}>
-                  {openingChatId === item.id
-                    ? tt("connections.openingChat", "Открываем чат…")
-                    : tt("connections.openChat", "Открыть чат")}
+                <Text style={styles.primaryButtonText}>
+                  {opening
+                    ? tt("playHistory.openingChat", "Открываем…")
+                    : tt("playHistory.openChat", "Открыть чат")}
                 </Text>
               </Pressable>
             ) : null}
@@ -408,80 +244,60 @@ export default function PlayHistoryScreen() {
         </Pressable>
       );
     },
-    [openChat, openDetail, openingChatId, releaseText, tt]
-  );
-
-  const renderEmpty = () => (
-    <View style={styles.centerBlock}>
-      <CoreStateCard
-        icon="albums-outline"
-        title={tt("playHistory.emptyTitle", "Общие истории появятся здесь")}
-        body={tt(
-          "playHistory.emptyBody",
-          "После первой совместной сессии её история останется здесь: с общим итогом, replay или палитрой и дальнейшим путём связи."
-        )}
-        primaryAction={{
-          label: tt("playHistory.startCta", "Начать совместную сессию"),
-          onPress: goToStart,
-        }}
-        secondaryAction={{
-          label: t("connections.goToTogether"),
-          onPress: goToTogether,
-        }}
-      />
-    </View>
-  );
-
-  const renderError = () => (
-    <View style={styles.centerBlock}>
-      <CoreStateCard
-        icon="cloud-offline-outline"
-        title={tt("playHistory.errorTitle", "История временно недоступна")}
-        body={error ?? tt("playHistory.errorBody", "Не удалось собрать ваши совместные истории. Попробуй еще раз.")}
-        primaryAction={{
-          label: tt("common.retry", "Повторить"),
-          onPress: () => setReloadKey((prev) => prev + 1),
-        }}
-        secondaryAction={{
-          label: t("connections.goToTogether"),
-          onPress: goToTogether,
-        }}
-      />
-    </View>
+    [openChat, openDetail, openingChatId, tt]
   );
 
   if (!uid) {
     return (
-      <ScreenShell title={tt("playHistory.title", "Мои совместные истории")} background="togetherStory" showBack onBack={goToTogether}>
-        <View style={styles.centerBlock}>
+      <ScreenShell
+        title={tt("playHistory.title", "Совместные истории")}
+        background="togetherStory"
+        showBack
+      >
+        <View style={styles.centerState}>
           <CoreStateCard
             icon="person-circle-outline"
-            title={tt("playHistory.authRequiredTitle", "Истории доступны после входа")}
+            title={tt("playHistory.authTitle", "Нужен вход в аккаунт")}
             body={tt(
-              "playHistory.authRequiredBody",
-              "Войдите, чтобы вернуться к своим общим историям, открыть replay или палитру и продолжить путь в чат, если связь уже открылась."
+              "playHistory.authBody",
+              "Истории Together доступны после входа в профиль."
             )}
-            primaryAction={{ label: t("menu.profile"), onPress: () => navigation.navigate("Profile") }}
-            secondaryAction={{ label: t("connections.goToTogether"), onPress: goToTogether }}
+            primaryAction={{ label: tt("common.openProfile", "Открыть профиль"), onPress: () => navigation.navigate("Profile") }}
+            secondaryAction={{ label: tt("common.backToTogether", "Вернуться во Вместе"), onPress: goToTogether }}
           />
         </View>
       </ScreenShell>
     );
   }
 
-  if (!db) {
+  if (!loaded) {
     return (
-      <ScreenShell title={tt("playHistory.title", "Мои совместные истории")} background="togetherStory" showBack onBack={goToTogether}>
-        <View style={styles.centerBlock}>
+      <ScreenShell title={tt("playHistory.title", "Совместные истории")} background="togetherStory" showBack>
+        <View style={styles.centerState}>
+          <CoreStateCard
+            loading
+            icon="albums-outline"
+            title={tt("playHistory.loadingTitle", "Собираем истории")}
+            body={tt(
+              "playHistory.loadingBody",
+              "Загружаем ваши совместные рисунки и решения."
+            )}
+          />
+        </View>
+      </ScreenShell>
+    );
+  }
+
+  if (error) {
+    return (
+      <ScreenShell title={tt("playHistory.title", "Совместные истории")} background="togetherStory" showBack>
+        <View style={styles.centerState}>
           <CoreStateCard
             icon="cloud-offline-outline"
-            title={tt("playHistory.errorTitle", "История временно недоступна")}
-            body={tt(
-              "playHistory.offlineBody",
-              "Сейчас не получается подключить ваши общие истории. Попробуй позже или вернись во Вместе."
-            )}
-            primaryAction={{ label: t("connections.goToTogether"), onPress: goToTogether }}
-            secondaryAction={{ label: t("tabs.chats"), onPress: goToChats }}
+            title={tt("playHistory.errorTitle", "Истории временно недоступны")}
+            body={error}
+            primaryAction={{ label: tt("common.retry", "Повторить"), onPress: () => setReloadKey((prev) => prev + 1) }}
+            secondaryAction={{ label: tt("common.backToTogether", "Вернуться во Вместе"), onPress: goToTogether }}
           />
         </View>
       </ScreenShell>
@@ -489,332 +305,213 @@ export default function PlayHistoryScreen() {
   }
 
   return (
-    <ScreenShell
-      title={tt("playHistory.title", "Мои совместные истории")}
-      background="togetherStory"
-      showBack
-      onBack={() => {
-        if (navigation.canGoBack()) {
-          navigation.goBack();
-          return;
-        }
-        goToTogether();
-      }}
-    >
-      {isLoading ? (
-        <View style={styles.centerBlock}>
-          <CoreStateCard
-            loading
-            icon="albums-outline"
-            title={tt("playHistory.title", "Мои совместные истории")}
-            body={tt("playHistory.loading", "Собираем ваши совместные истории…")}
-          />
+    <ScreenShell title={tt("playHistory.title", "Совместные истории")} background="togetherStory" showBack>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.headerCard}>
+          <Text style={styles.headerKicker}>
+            {tt("playHistory.headerKicker", "Together")}
+          </Text>
+          <Text style={styles.headerTitle}>
+            {tt("playHistory.headerTitle", "Истории из общих рисунков")}
+          </Text>
+          <Text style={styles.headerBody}>
+            {tt(
+              "playHistory.headerBody",
+              "Здесь остаются совместные сессии, творческие вызовы и решения после результата."
+            )}
+          </Text>
         </View>
-      ) : error ? (
-        renderError()
-      ) : !cards.length ? (
-        renderEmpty()
-      ) : (
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={styles.content}
-          showsVerticalScrollIndicator={false}
-        >
-          {actionError ? (
-            <View style={styles.inlineErrorCard}>
-              <Text style={styles.inlineErrorTitle}>
-                {tt("playHistory.inlineErrorTitle", "Чат ещё не прикрепился к этой истории")}
-              </Text>
-              <Text style={styles.inlineErrorText}>{actionError}</Text>
-            </View>
-          ) : null}
 
-          <View style={styles.heroCard}>
-            <Text style={styles.heroKicker}>
-              {tt("playHistory.heroKicker", "Совместные истории")}
+        {actionError ? <Text style={styles.actionError}>{actionError}</Text> : null}
+
+        {cards.length ? (
+          cards.map(renderCard)
+        ) : (
+          <View style={styles.emptyCard}>
+            <Text style={styles.emptyTitle}>
+              {tt("playHistory.emptyTitle", "Пока нет совместных историй")}
             </Text>
-            <Text style={styles.heroTitle}>{tt("playHistory.heroTitle", "Архив ваших завершённых сессий")}</Text>
-            <Text style={styles.heroText}>
+            <Text style={styles.emptyBody}>
               {tt(
-                "playHistory.heroBody",
-                "Здесь остаётся всё, что уже произошло между вами: общий итог, путь в чат и спокойный способ вернуться к каждой истории."
+                "playHistory.emptyBody",
+                "Начни общий рисунок, и после завершения он появится здесь."
               )}
             </Text>
-            <View style={styles.heroCountPill}>
-              <Text style={styles.heroCountText}>
-                {tt("playHistory.count", "Историй: {count}", {
-                  count: String(cards.length),
-                })}
+            <Pressable onPress={goToStart} style={styles.primaryButtonWide}>
+              <Text style={styles.primaryButtonText}>
+                {tt("playHistory.startNewSession", "Начать новую совместную сессию")}
               </Text>
-            </View>
-            <View style={styles.heroActions}>
-              <Pressable onPress={goToStart} style={styles.heroPrimaryButton}>
-                <Text style={styles.heroPrimaryButtonText}>
-                  {tt("playHistory.startNewSession", "Начать новую совместную сессию")}
-                </Text>
-              </Pressable>
-              <Pressable onPress={goToChats} style={styles.heroSecondaryButton}>
-                <Text style={styles.heroSecondaryButtonText}>{t("tabs.chats")}</Text>
-              </Pressable>
-            </View>
+            </Pressable>
           </View>
-
-          <View style={styles.section}>
-            <View style={styles.sectionIntro}>
-              <Text style={styles.sectionTitle}>
-                {tt("playHistory.sectionTitle", "Истории, которые уже случились между вами")}
-              </Text>
-              <Text style={styles.sectionText}>
-                {tt(
-                  "playHistory.sectionBody",
-                  "Открывай историю, возвращайся в чат, если связь уже открылась, или начинай новый общий момент из этого же контекста."
-                )}
-              </Text>
-            </View>
-            {cards.map(renderCard)}
-          </View>
-        </ScrollView>
-      )}
+        )}
+      </ScrollView>
     </ScreenShell>
   );
 }
 
 const styles = StyleSheet.create({
-  scroll: { flex: 1 },
-  content: {
-    padding: 16,
-    paddingBottom: 40,
-    gap: 20,
-  },
-  centerBlock: {
+  centerState: {
     flex: 1,
+    padding: 18,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 28,
+  },
+  scroll: {
+    flex: 1,
+  },
+  content: {
+    padding: 16,
+    paddingBottom: 42,
     gap: 14,
   },
-  inlineErrorCard: {
-    padding: 16,
+  headerCard: {
     borderRadius: theme.shapes.card,
-    backgroundColor: "rgba(255, 77, 103, 0.12)",
-    borderWidth: 1,
-    borderColor: "rgba(255, 77, 103, 0.22)",
-    gap: 6,
-  },
-  inlineErrorTitle: {
-    color: theme.colors.text,
-    fontSize: 16,
-    fontWeight: "800",
-  },
-  inlineErrorText: {
-    color: theme.colors.subtext,
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  heroCard: {
     padding: 18,
-    borderRadius: theme.shapes.card,
-    backgroundColor: "rgba(13, 18, 34, 0.9)",
+    gap: 8,
+    backgroundColor: "rgba(10, 13, 26, 0.86)",
     borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
-    gap: 10,
+    borderColor: "rgba(255,255,255,0.14)",
   },
-  heroKicker: {
-    color: theme.colors.accent,
-    fontSize: 12,
+  headerKicker: {
+    color: "#FFE0B8",
+    fontSize: 11,
     fontWeight: "800",
     letterSpacing: 1,
+    textTransform: "uppercase",
   },
-  heroTitle: {
+  headerTitle: {
     color: theme.colors.text,
     fontSize: 24,
     lineHeight: 30,
     fontWeight: "800",
   },
-  heroText: {
-    color: theme.colors.subtext,
-    fontSize: 14,
-    lineHeight: 21,
-  },
-  heroCountPill: {
-    alignSelf: "flex-start",
-    borderRadius: theme.shapes.pill,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    backgroundColor: theme.colors.pillBg,
-    borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
-  },
-  heroCountText: {
-    color: theme.colors.text,
-    fontSize: 12,
-    fontWeight: "800",
-  },
-  heroActions: {
-    gap: 10,
-  },
-  heroPrimaryButton: {
-    borderRadius: theme.shapes.cardInner,
-    paddingHorizontal: 16,
-    paddingVertical: 13,
-    backgroundColor: theme.colors.primary,
-    alignItems: "center",
-  },
-  heroPrimaryButtonText: {
-    color: "#fff",
-    fontSize: 13,
-    fontWeight: "800",
-  },
-  heroSecondaryButton: {
-    borderRadius: theme.shapes.cardInner,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: "rgba(255,255,255,0.05)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
-    alignItems: "center",
-  },
-  heroSecondaryButtonText: {
-    color: theme.colors.text,
-    fontSize: 13,
-    fontWeight: "800",
-  },
-  section: {
-    gap: 12,
-  },
-  sectionIntro: {
-    paddingHorizontal: 2,
-    gap: 6,
-  },
-  sectionTitle: {
-    color: theme.colors.text,
-    fontSize: 17,
-    fontWeight: "800",
-  },
-  sectionText: {
+  headerBody: {
     color: theme.colors.subtext,
     fontSize: 14,
     lineHeight: 20,
   },
+  actionError: {
+    color: "#FFB4B4",
+    fontSize: 13,
+    lineHeight: 18,
+  },
   card: {
     borderRadius: theme.shapes.card,
-    padding: 17,
-    backgroundColor: "rgba(16, 20, 38, 0.92)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
+    padding: 16,
     gap: 12,
+    backgroundColor: "rgba(13, 17, 31, 0.86)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
   },
   cardTop: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    gap: 12,
+    gap: 6,
   },
   cardTopText: {
-    flex: 1,
     gap: 4,
   },
   cardTitleRow: {
     flexDirection: "row",
-    alignItems: "center",
-    flexWrap: "wrap",
-    gap: 8,
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 10,
   },
   cardTitle: {
+    flex: 1,
     color: theme.colors.text,
     fontSize: 18,
+    lineHeight: 23,
     fontWeight: "800",
   },
-  cardActivity: {
-    color: theme.colors.accent,
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  signalBadge: {
+  statusBadge: {
     borderRadius: theme.shapes.pill,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderWidth: 1,
-  },
-  signalBadgeFresh: {
-    backgroundColor: "rgba(255, 78, 138, 0.16)",
-    borderColor: "rgba(255, 78, 138, 0.28)",
-  },
-  signalBadgeRecent: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     backgroundColor: "rgba(255,255,255,0.08)",
-    borderColor: theme.colors.borderSubtle,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
   },
-  signalBadgeText: {
+  statusBadgeText: {
+    color: theme.colors.text,
     fontSize: 11,
     fontWeight: "800",
   },
-  signalBadgeTextFresh: {
-    color: theme.colors.primary,
-  },
-  signalBadgeTextRecent: {
-    color: theme.colors.text,
-  },
   cardDate: {
-    color: theme.colors.muted,
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  cardContext: {
     color: theme.colors.subtext,
+    fontSize: 12,
+  },
+  contextText: {
+    color: theme.colors.text,
     fontSize: 14,
     lineHeight: 20,
-  },
-  cardStatus: {
-    color: theme.colors.text,
-    fontSize: 13,
-    lineHeight: 19,
-    fontWeight: "600",
-  },
-  metaGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  metaChip: {
-    borderRadius: theme.shapes.pill,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    backgroundColor: theme.colors.pillBg,
-    borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
-  },
-  metaText: {
-    color: theme.colors.text,
-    fontSize: 13,
     fontWeight: "700",
   },
-  actionsRow: {
+  relationshipText: {
+    color: theme.colors.subtext,
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  cardActions: {
+    flexDirection: "row",
     gap: 10,
   },
   primaryButton: {
-    borderRadius: theme.shapes.cardInner,
-    paddingHorizontal: 16,
-    paddingVertical: 13,
-    backgroundColor: theme.colors.primary,
+    flex: 1,
+    minHeight: 44,
+    borderRadius: theme.shapes.pill,
     alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.colors.primary,
+  },
+  primaryButtonWide: {
+    minHeight: 50,
+    borderRadius: theme.shapes.pill,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.colors.primary,
   },
   primaryButtonText: {
-    color: "#fff",
+    color: "#FFFFFF",
     fontSize: 14,
     fontWeight: "800",
   },
   secondaryButton: {
-    borderRadius: theme.shapes.cardInner,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: "rgba(255,255,255,0.05)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
+    flex: 1,
+    minHeight: 44,
+    borderRadius: theme.shapes.pill,
     alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.14)",
   },
   secondaryButtonText: {
     color: theme.colors.text,
     fontSize: 13,
     fontWeight: "800",
+  },
+  buttonDisabled: {
+    opacity: 0.58,
+  },
+  emptyCard: {
+    borderRadius: theme.shapes.card,
+    padding: 18,
+    gap: 12,
+    backgroundColor: "rgba(13, 17, 31, 0.84)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+  },
+  emptyTitle: {
+    color: theme.colors.text,
+    fontSize: 18,
+    fontWeight: "800",
+  },
+  emptyBody: {
+    color: theme.colors.subtext,
+    fontSize: 14,
+    lineHeight: 20,
   },
 });
