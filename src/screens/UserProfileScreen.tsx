@@ -22,20 +22,15 @@ import {
   type RootStackNavigationProp,
   type UserProfileRouteProp,
 } from "@/navigation/appRoutes";
+import * as announcementsApi from "@/services/api/announcementsApi";
+import * as safetyApi from "@/services/api/safetyApi";
+import type { SafetyReportReason } from "@/services/api/safetyApi";
 import { buildDmChatRouteParams } from "@/services/dm";
-import { nearbyAnnouncementsRepository } from "@/services/nearbyAnnouncements";
-import { getNowPostById } from "@/services/now";
 import {
   getPlayColorMoodCombinedPalette,
   getPlaySessionById,
   getPlaySessionPrompt,
 } from "@/services/playSessions";
-import {
-  blockUser,
-  createReport,
-  getBlockedUserIds,
-  type SafetyReportReason,
-} from "@/services/safety";
 import { getUserProfileById } from "@/services/user";
 import type { UserProfile } from "@/models/User";
 import { theme } from "@/theme";
@@ -99,6 +94,7 @@ export default function UserProfileScreen() {
   const [sharedStoryAvailable, setSharedStoryAvailable] = useState(false);
   const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
   const [safetyBusy, setSafetyBusy] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let alive = true;
@@ -139,14 +135,14 @@ export default function UserProfileScreen() {
 
   useEffect(() => {
     let alive = true;
-    if (!db || !myId) {
+    if (!myId) {
       setBlockedUserIds([]);
       return () => {
         alive = false;
       };
     }
 
-    void getBlockedUserIds(myId)
+    void safetyApi.listBlockedUserIds()
       .then((ids) => {
         if (!alive) return;
         setBlockedUserIds(ids);
@@ -159,14 +155,14 @@ export default function UserProfileScreen() {
     return () => {
       alive = false;
     };
-  }, [myId]);
+  }, [myId, reloadKey]);
 
   useEffect(() => {
     let alive = true;
     setSourceDetailText("");
     setSharedStoryAvailable(false);
 
-    if (!db || !sourceContext?.source || !sourceSessionId) {
+    if (!sourceContext?.source || !sourceSessionId) {
       return () => {
         alive = false;
       };
@@ -174,9 +170,8 @@ export default function UserProfileScreen() {
 
     async function loadSourceDetail() {
       try {
-        if (!db) return "";
-
         if (sourceContext.source === "play") {
+          if (!db) return "";
           const session = await getPlaySessionById(db, sourceSessionId);
           if (!session) return "";
 
@@ -198,15 +193,12 @@ export default function UserProfileScreen() {
         }
 
         if (sourceContext.source === "announcement") {
-          const announcement = await nearbyAnnouncementsRepository.getAnnouncementById(
-            sourceSessionId
-          );
-          return announcement?.title?.trim() ?? "";
+          const announcement = await announcementsApi.getAnnouncement(sourceSessionId);
+          return announcement.title?.trim() ?? "";
         }
 
         if (sourceContext.source === "nearby") {
-          const post = await getNowPostById(db, sourceSessionId);
-          return post?.text?.trim() ?? "";
+          return "";
         }
       } catch {
         return "";
@@ -297,7 +289,7 @@ export default function UserProfileScreen() {
 
       setSafetyBusy(true);
       try {
-        await createReport({
+        await safetyApi.report({
           targetType: "user",
           targetId: userId,
           targetOwnerUid: userId,
@@ -312,7 +304,7 @@ export default function UserProfileScreen() {
           tt("safety.reportErrorTitle", "Жалоба не отправилась"),
           tt(
             "safety.reportErrorBody",
-            "Не удалось сохранить жалобу в Firestore. Попробуй ещё раз позже."
+            "Не удалось сохранить жалобу. Попробуй ещё раз позже."
           )
         );
       } finally {
@@ -348,11 +340,12 @@ export default function UserProfileScreen() {
           style: "destructive",
           onPress: () => {
             setSafetyBusy(true);
-            void blockUser(userId, "profile")
+            void safetyApi.blockUser(userId)
               .then(() => {
                 setBlockedUserIds((current) =>
                   current.includes(userId) ? current : [...current, userId]
                 );
+                setReloadKey((prev) => prev + 1);
                 Alert.alert(
                   tt("safety.userBlockedTitle", "Пользователь заблокирован"),
                   tt(
@@ -366,7 +359,7 @@ export default function UserProfileScreen() {
                   tt("safety.blockErrorTitle", "Не удалось заблокировать"),
                   tt(
                     "safety.blockErrorBody",
-                    "Блокировка не сохранилась в Firestore. Попробуй ещё раз позже."
+                    "Блокировка не сохранилась. Попробуй ещё раз позже."
                   )
                 );
               })

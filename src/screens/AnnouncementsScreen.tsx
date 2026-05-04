@@ -22,7 +22,7 @@ import {
   type NearbyAnnouncement,
   type NearbyAnnouncementCategory,
 } from "@/services/announcementsModel";
-import { getBlockedUserIds } from "@/services/safety";
+import { listBlockedUserIds } from "@/services/api/safetyApi";
 
 function copyOrFallback(
   t: (key: string, params?: Record<string, string>) => string,
@@ -64,7 +64,7 @@ export default function AnnouncementsScreen() {
     try {
       const [response, blockedIds] = await Promise.all([
         announcementsApi.listAnnouncements(),
-        currentUid ? getBlockedUserIds(currentUid).catch(() => []) : Promise.resolve([]),
+        currentUid ? listBlockedUserIds().catch(() => []) : Promise.resolve([]),
       ]);
       setAnnouncements(mapAnnouncementDtosToNearbyAnnouncements(response.items ?? []));
       setBlockedUserIds(blockedIds);

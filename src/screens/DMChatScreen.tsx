@@ -23,14 +23,10 @@ import {
   type RootStackNavigationProp,
 } from "@/navigation/appRoutes";
 import * as chatApi from "@/services/api/chatApi";
+import * as safetyApi from "@/services/api/safetyApi";
+import type { SafetyReportReason } from "@/services/api/safetyApi";
 import type { MessageDto } from "@/services/api/types";
 import * as wsClient from "@/services/realtime/wsClient";
-import {
-  blockUser,
-  createReport,
-  getBlockedUserIds,
-  type SafetyReportReason,
-} from "@/services/safety";
 import { theme } from "@/theme";
 
 type RenderMessage = MessageDto & {
@@ -243,7 +239,7 @@ export default function DMChatScreen() {
       };
     }
 
-    void getBlockedUserIds(myId)
+    void safetyApi.listBlockedUserIds()
       .then((ids) => {
         if (!alive) return;
         setBlockedUserIds(ids);
@@ -417,7 +413,7 @@ export default function DMChatScreen() {
 
       setSafetyBusy(true);
       try {
-        await createReport({
+        await safetyApi.report({
           targetType: "dmThread",
           targetId: threadId,
           targetOwnerUid: peerId,
@@ -465,11 +461,12 @@ export default function DMChatScreen() {
           style: "destructive",
           onPress: () => {
             setSafetyBusy(true);
-            void blockUser(peerId, "dm")
+            void safetyApi.blockUser(peerId)
               .then(() => {
                 setBlockedUserIds((current) =>
                   current.includes(peerId) ? current : [...current, peerId]
                 );
+                setReloadKey((prev) => prev + 1);
               })
               .catch(() => {
                 Alert.alert(

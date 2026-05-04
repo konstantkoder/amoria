@@ -28,12 +28,8 @@ import {
   mapAnnouncementDtoToNearbyAnnouncement,
   type NearbyAnnouncement,
 } from "@/services/announcementsModel";
-import {
-  blockUser,
-  createReport,
-  getBlockedUserIds,
-  type SafetyReportReason,
-} from "@/services/safety";
+import * as safetyApi from "@/services/api/safetyApi";
+import type { SafetyReportReason } from "@/services/api/safetyApi";
 import { theme } from "@/theme";
 import { formatAgoLong } from "@/utils/timeAgo";
 
@@ -253,6 +249,7 @@ export default function AnnouncementDetailScreen() {
     initialAnnouncement?.authorName?.trim() || initialAnnouncement?.authorLabel?.trim() || ""
   );
   const [safetyBusy, setSafetyBusy] = React.useState(false);
+  const [reloadKey, setReloadKey] = React.useState(0);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -274,7 +271,7 @@ export default function AnnouncementDetailScreen() {
       setHasRespondedOverride(null);
       void Promise.all([
         announcementsApi.getAnnouncement(announcementId),
-        currentUid ? getBlockedUserIds(currentUid).catch(() => []) : Promise.resolve([]),
+        currentUid ? safetyApi.listBlockedUserIds().catch(() => []) : Promise.resolve([]),
       ])
         .then(([nextAnnouncementDto, blockedIds]) => {
           if (!alive) return;
@@ -316,7 +313,7 @@ export default function AnnouncementDetailScreen() {
       return () => {
         alive = false;
       };
-    }, [announcementId, currentUid, t])
+    }, [announcementId, currentUid, reloadKey, t])
   );
 
   const handleBack = React.useCallback(() => {
@@ -489,7 +486,7 @@ export default function AnnouncementDetailScreen() {
 
       setSafetyBusy(true);
       try {
-        await createReport({
+        await safetyApi.report({
           targetType: "announcement",
           targetId: announcement.id,
           targetOwnerUid: announcementAuthorUid,
@@ -558,9 +555,10 @@ export default function AnnouncementDetailScreen() {
           style: "destructive",
           onPress: () => {
             setSafetyBusy(true);
-            void blockUser(announcementAuthorUid, "announcement")
+            void safetyApi.blockUser(announcementAuthorUid)
               .then(() => {
                 setAuthorBlocked(true);
+                setReloadKey((prev) => prev + 1);
                 Alert.alert(
                   copyOrFallback(t, "safety.userBlockedTitle", "Пользователь заблокирован"),
                   copyOrFallback(

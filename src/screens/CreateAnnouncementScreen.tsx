@@ -29,7 +29,7 @@ import {
   mapAnnouncementDtoToNearbyAnnouncement,
 } from "@/services/announcementsModel";
 import { uploadFileToPresignedPut } from "@/services/media/uploadPut";
-import { containsUnsafeAnnouncementContent } from "@/services/safety";
+import { containsUnsafeAnnouncementContent } from "@/services/safetyContent";
 import { theme } from "@/theme";
 
 function copyOrFallback(

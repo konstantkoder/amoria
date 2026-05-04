@@ -21,37 +21,26 @@ import { Ionicons } from "@expo/vector-icons";
 import UserAvatar from "@/components/UserAvatar";
 import { type NearbyTabNavigationProp } from "@/navigation/appRoutes";
 import { theme } from "@/theme";
-import { db, isFirebaseConfigured } from "@/config/firebaseConfig";
 import { useAuth } from "@/contexts/AuthContext";
+import * as chatApi from "@/services/api/chatApi";
+import * as nearbyApi from "@/services/api/nearbyApi";
+import * as safetyApi from "@/services/api/safetyApi";
+import type { SafetyReportReason } from "@/services/api/safetyApi";
 import {
   NEARBY_STATUS_TTL_MS,
   type NowMood,
   type NowPost,
-  createNowPost,
-  deleteNowPost,
-  makeRegion,
-  subscribeNowPosts,
-} from "@/services/now";
+  mapNearbyStatusDtoToNowPost,
+  mapNearbyStatusDtosToNowPosts,
+} from "@/services/nearbyModel";
 import {
   loadLocationPrefs,
   setLocationConsent,
   setNearbyEnabled,
   type LocationPrefs,
 } from "@/services/locationPrivacy";
-import { makeNickname } from "@/services/rooms";
 import { useLocale } from "@/contexts/LocaleContext";
 import { formatAgoLong } from "@/utils/timeAgo";
-import { getUserProfile } from "@/services/user";
-import { buildDmChatRouteParams, ensureDmThread } from "@/services/dm";
-import {
-  createReport,
-  getBlockedUserIds,
-  type SafetyReportReason,
-} from "@/services/safety";
-import {
-  isFirestoreMissingIndexError,
-  logFirestoreMissingIndexError,
-} from "@/utils/firestoreErrors";
 
 type Pos = { lat: number; lng: number; accuracy?: number | null };
 type RadiusOption = number | null;
@@ -64,7 +53,13 @@ type Props = {
 
 const RADIUS_OPTIONS: RadiusOption[] = [5, 10, 25, 50, 100, null];
 
-function distanceKm(pos: Pos | null, item: { lat?: number; lng?: number }): number | null {
+function distanceKm(
+  pos: Pos | null,
+  item: { lat?: number; lng?: number; distanceMeters?: number }
+): number | null {
+  if (Number.isFinite(item.distanceMeters)) {
+    return Math.round(Number(item.distanceMeters) / 100) / 10;
+  }
   if (!pos || item.lat == null || item.lng == null) return null;
   const earthRadiusKm = 6371;
   const dLat = ((item.lat - pos.lat) * Math.PI) / 180;
@@ -156,7 +151,6 @@ export default function NearbyNowSection({
   const [posLoading, setPosLoading] = useState(false);
   const [permissionBlocked, setPermissionBlocked] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
-  const [region, setRegion] = useState<string | null>(null);
   const [posts, setPosts] = useState<NowPost[]>([]);
   const [loading, setLoading] = useState(false);
   const [feedError, setFeedError] = useState<string | null>(null);
@@ -164,13 +158,12 @@ export default function NearbyNowSection({
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [radiusKm, setRadiusKm] = useState<RadiusOption>(25);
-  const [profileAvatarUrl, setProfileAvatarUrl] = useState("");
-  const [profileDisplayName, setProfileDisplayName] = useState("");
   const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
   const [chatOpeningPostId, setChatOpeningPostId] = useState<string | null>(null);
   const [deletingPostId, setDeletingPostId] = useState<string | null>(null);
   const [reportingPostId, setReportingPostId] = useState<string | null>(null);
   const [lastPublishedAt, setLastPublishedAt] = useState<number | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -193,11 +186,6 @@ export default function NearbyNowSection({
     ],
     [t]
   );
-
-  const nickname = useMemo(() => {
-    if (!user?.uid) return "common.anonymous";
-    return makeNickname(user.uid);
-  }, [user?.uid]);
 
   const updatePrefs = useCallback((patch: Partial<LocationPrefs>) => {
     setPrefs((prev) => ({ ...prev, ...patch }));
@@ -243,7 +231,6 @@ export default function NearbyNowSection({
       if (!granted) {
         setPermissionBlocked(canAskAgain === false);
         setPos(null);
-        setRegion(null);
         setLocationError(
           canAskAgain === false ? t("geo.permissionBlockedHelp") : t("geo.permissionRequired")
         );
@@ -265,12 +252,10 @@ export default function NearbyNowSection({
       };
       if (!mountedRef.current) return;
       setPos(nextPos);
-      setRegion(makeRegion(nextPos.lat, nextPos.lng));
       setLocationError(null);
     } catch (error: any) {
       if (!mountedRef.current) return;
       setPos(null);
-      setRegion(null);
       setLocationError(getNearbyNowLocationError(t, error));
     } finally {
       if (mountedRef.current) {
@@ -296,7 +281,6 @@ export default function NearbyNowSection({
 
       if (!granted) {
         setPos(null);
-        setRegion(null);
         setLocationError(
           blocked
             ? t("geo.permissionBlockedHelp")
@@ -309,7 +293,6 @@ export default function NearbyNowSection({
 
       if (nextPrefs.consent !== "accepted" || !nextPrefs.nearbyEnabled) {
         setPos(null);
-        setRegion(null);
         setLocationError(null);
         return;
       }
@@ -336,41 +319,13 @@ export default function NearbyNowSection({
     useCallback(() => {
       let alive = true;
       if (!user?.uid) {
-        setProfileAvatarUrl("");
-        return () => {
-          alive = false;
-        };
-      }
-
-      void getUserProfile()
-        .then((profile) => {
-          if (!alive) return;
-          setProfileAvatarUrl(profile.avatarUrl ?? "");
-          setProfileDisplayName(profile.displayName ?? "");
-        })
-        .catch(() => {
-          if (!alive) return;
-          setProfileAvatarUrl("");
-          setProfileDisplayName("");
-        });
-
-      return () => {
-        alive = false;
-      };
-    }, [user?.uid])
-  );
-
-  useFocusEffect(
-    useCallback(() => {
-      let alive = true;
-      if (!user?.uid) {
         setBlockedUserIds([]);
         return () => {
           alive = false;
         };
       }
 
-      void getBlockedUserIds(user.uid)
+      void safetyApi.listBlockedUserIds()
         .then((ids) => {
           if (!alive) return;
           setBlockedUserIds(ids);
@@ -383,7 +338,7 @@ export default function NearbyNowSection({
       return () => {
         alive = false;
       };
-    }, [user?.uid])
+    }, [reloadKey, user?.uid])
   );
 
   useEffect(() => {
@@ -395,47 +350,40 @@ export default function NearbyNowSection({
     return () => subscription.remove();
   }, [syncLocationState]);
 
-  useEffect(() => {
-    if (!region || !db || !isFirebaseConfigured()) {
+  const loadFeed = useCallback(async () => {
+    if (!pos) {
       setPosts([]);
       setLoading(false);
       setFeedError(null);
       return;
     }
+
     setLoading(true);
     setFeedError(null);
-    const unsubscribe = subscribeNowPosts(
-      db,
-      region,
-      (list) => {
-        if (!mountedRef.current) return;
-        setPosts(list);
-        setFeedError(null);
-        setLoading(false);
-      },
-      (error) => {
-        if (!mountedRef.current) return;
-        setPosts([]);
-        if (isFirestoreMissingIndexError(error)) {
-          logFirestoreMissingIndexError("Nearby now nearbyPosts", error);
-          setFeedError(t("common.serviceSetupError"));
-        } else {
-          setFeedError(null);
-        }
+    try {
+      const radiusMeters = radiusKm == null ? 100000 : radiusKm * 1000;
+      const response = await nearbyApi.listFeed(pos.lat, pos.lng, radiusMeters, 30);
+      if (!mountedRef.current) return;
+      setPosts(mapNearbyStatusDtosToNowPosts(response.items ?? []));
+    } catch {
+      if (!mountedRef.current) return;
+      setPosts([]);
+      setFeedError(t("common.tryAgainLater"));
+    } finally {
+      if (mountedRef.current) {
         setLoading(false);
       }
-    );
-    return () => unsubscribe?.();
-  }, [region, t]);
+    }
+  }, [pos, radiusKm, t]);
+
+  useEffect(() => {
+    void loadFeed();
+  }, [loadFeed, reloadKey]);
 
   const onSend = useCallback(async () => {
     if (sendGuardRef.current) return;
     if (!user) {
       Alert.alert(t("now.signInTitle"), t("now.signInBody"));
-      return;
-    }
-    if (!db || !isFirebaseConfigured()) {
-      Alert.alert(t("now.firebaseTitle"), t("now.firebaseBody"));
       return;
     }
 
@@ -451,26 +399,24 @@ export default function NearbyNowSection({
 
     sendGuardRef.current = true;
     const previousMessage = message;
-    const clientId = `m_${user.uid}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
     setMessage("");
 
     try {
       if (mountedRef.current) {
         setSending(true);
       }
-      await createNowPost(db, {
-        clientId,
-        uid: user.uid,
-        nickname,
-        authorName: profileDisplayName || t("profile.amoriaUser"),
-        avatarUrl: profileAvatarUrl,
+      const created = await nearbyApi.createStatus({
         text: trimmed,
-        mood,
         lat: pos.lat,
         lng: pos.lng,
       });
       if (mountedRef.current) {
+        const createdPost = mapNearbyStatusDtoToNowPost(created);
+        if (createdPost) {
+          setPosts((current) => [createdPost, ...current]);
+        }
         setLastPublishedAt(Date.now());
+        setReloadKey((prev) => prev + 1);
       }
     } catch (error: any) {
       if (mountedRef.current) {
@@ -485,7 +431,7 @@ export default function NearbyNowSection({
         sendGuardRef.current = false;
       }, 250);
     }
-  }, [locationError, message, mood, nickname, pos, profileAvatarUrl, profileDisplayName, t, user]);
+  }, [locationError, message, pos, t, user]);
 
   const goToTogether = useCallback(() => {
     navigation.navigate("Tabs", { screen: "Together" });
@@ -531,39 +477,26 @@ export default function NearbyNowSection({
         Alert.alert(t("now.signInTitle"), t("now.signInBody"));
         return;
       }
-      if (!db || !isFirebaseConfigured()) {
-        Alert.alert(t("now.firebaseTitle"), t("now.firebaseBody"));
-        return;
-      }
-
       const peerUid = String(item.authorUid || item.uid || "").trim();
       if (!peerUid || peerUid === user.uid) return;
 
       setChatOpeningPostId(item.id);
       try {
         const peerName = resolveAuthorLabel(item);
-        const myName = profileDisplayName || t("profile.amoriaUser");
-        const threadId = await ensureDmThread(db, user.uid, peerUid, {
-          source: "nearby",
-          sourceSessionId: item.id,
-          memberNames: {
-            [user.uid]: myName,
-            [peerUid]: peerName,
-          },
+        const thread = await chatApi.openDirectThread(peerUid, {
+          type: "nearby",
+          sourceId: item.id,
         });
 
-        navigation.navigate(
-          "DMChat",
-          buildDmChatRouteParams({
-            threadId,
-            peerId: peerUid,
-            peerName,
-            sourceContext: {
-              source: "nearby",
-              sourceSessionId: item.id,
-            },
-          })
-        );
+        navigation.navigate("DMChat", {
+          threadId: thread.id,
+          peerId: thread.peer?.id || peerUid,
+          peerName: thread.peer?.displayName?.trim() || peerName,
+          sourceContext: {
+            source: "nearby",
+            sourceSessionId: item.id,
+          },
+        });
       } catch {
         Alert.alert(t("now.chatFailedTitle"), t("now.chatFailedBody"));
       } finally {
@@ -572,16 +505,18 @@ export default function NearbyNowSection({
         }
       }
     },
-    [navigation, profileDisplayName, resolveAuthorLabel, t, user?.uid]
+    [navigation, resolveAuthorLabel, t, user?.uid]
   );
 
   const removeOwnStatus = useCallback(
     async (item: NowPost) => {
-      if (!user?.uid || !db || item.authorUid !== user.uid) return;
+      if (!user?.uid || item.authorUid !== user.uid) return;
 
       setDeletingPostId(item.id);
       try {
-        await deleteNowPost(db, item.id, user.uid);
+        await nearbyApi.deleteStatus(item.id);
+        setPosts((current) => current.filter((post) => post.id !== item.id));
+        setReloadKey((prev) => prev + 1);
       } catch {
         Alert.alert(t("now.deleteFailedTitle"), t("now.deleteFailedBody"));
       } finally {
@@ -600,7 +535,7 @@ export default function NearbyNowSection({
 
       setReportingPostId(item.id);
       try {
-        await createReport({
+        await safetyApi.report({
           targetType: "nearbyPost",
           targetId: item.id,
           targetOwnerUid: authorUid,
@@ -1009,7 +944,7 @@ export default function NearbyNowSection({
             <View style={styles.emptyCard}>
               <Text style={styles.emptyTitle}>
                 {feedError
-                  ? t("now.firebaseTitle")
+                  ? copyOrFallback(t, "now.feedErrorTitle", "Лента временно недоступна")
                   : copyOrFallback(t, "nearby.now.emptyTitle", "Пока рядом тихо")}
               </Text>
               <Text style={styles.emptyText}>

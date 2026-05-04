@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -11,6 +11,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useLocale } from "@/contexts/LocaleContext";
 import { type RootStackNavigationProp } from "@/navigation/appRoutes";
 import * as chatApi from "@/services/api/chatApi";
+import { listBlockedUserIds } from "@/services/api/safetyApi";
 import type { ThreadDto } from "@/services/api/types";
 import * as wsClient from "@/services/realtime/wsClient";
 import { theme } from "@/theme";
@@ -53,6 +54,7 @@ export default function InboxScreen() {
   );
   const uid = authUser?.id ?? "";
   const [threads, setThreads] = useState<ThreadDto[]>([]);
+  const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -60,6 +62,7 @@ export default function InboxScreen() {
   const loadInbox = useCallback(async () => {
     if (!uid) {
       setThreads([]);
+      setBlockedUserIds([]);
       wsClient.disconnect();
       setLoading(false);
       setError(null);
@@ -69,8 +72,12 @@ export default function InboxScreen() {
     setLoading(true);
     setError(null);
     try {
-      const response = await chatApi.listInbox(30);
+      const [response, blockedIds] = await Promise.all([
+        chatApi.listInbox(30),
+        listBlockedUserIds().catch(() => []),
+      ]);
       setThreads(response.items ?? []);
+      setBlockedUserIds(blockedIds);
     } catch {
       setError(
         tt(
@@ -103,6 +110,13 @@ export default function InboxScreen() {
     };
   }, [loadInbox, reloadKey, uid]);
 
+  useFocusEffect(
+    useCallback(() => {
+      void loadInbox();
+      return undefined;
+    }, [loadInbox])
+  );
+
   const retry = useCallback(() => {
     wsClient.disconnect();
     setReloadKey((prev) => prev + 1);
@@ -123,14 +137,18 @@ export default function InboxScreen() {
   }, [navigation]);
 
   const cards = useMemo(
-    () =>
-      [...threads].sort((left, right) => {
+    () => {
+      const blocked = new Set(blockedUserIds);
+      return threads
+        .filter((thread) => !blocked.has(thread.peer.id))
+        .sort((left, right) => {
         const leftTime = Date.parse(String(left.lastMessage?.createdAt ?? ""));
         const rightTime = Date.parse(String(right.lastMessage?.createdAt ?? ""));
         return (Number.isFinite(rightTime) ? rightTime : 0) -
           (Number.isFinite(leftTime) ? leftTime : 0);
-      }),
-    [threads]
+      });
+    },
+    [blockedUserIds, threads]
   );
 
   const renderHeroCard = () => (

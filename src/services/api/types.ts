@@ -146,6 +146,33 @@ export type RespondAnnouncementResponse = {
   respondedAt: string;
 };
 
+export type BlockItemDto = {
+  blockedUserId: string;
+  createdAt: string;
+};
+
+export type BlocksResponse = {
+  items: BlockItemDto[];
+};
+
+export type NearbyStatusDto = {
+  id: string;
+  author: {
+    id: string;
+    displayName: string;
+    avatarUrl: string | null;
+  };
+  text: string;
+  distanceMeters: number;
+  createdAt: string;
+  expiresAt: string;
+};
+
+export type NearbyFeedResponse = {
+  items: NearbyStatusDto[];
+  nextCursor: string | null;
+};
+
 export type ThreadPeerDto = {
   id: string;
   displayName: string;
