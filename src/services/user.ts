@@ -3,6 +3,10 @@ import { ApiError } from "@/services/api/apiClient";
 import { refreshBackendUser } from "@/services/api/backendSession";
 import { patchMeProfileOnBackend } from "@/services/api/profileApi";
 import {
+  getPublicUserByAmoriaId,
+  getPublicUserById as fetchPublicUserById,
+} from "@/services/api/publicUsersApi";
+import {
   clearBackendSession,
   getBackendAccessToken,
   loadBackendSession,
@@ -11,25 +15,30 @@ import {
 import type {
   AuthUserDto,
   PatchProfileRequest,
-  ProfilePhotoDto,
+  ProfilePhotoPatchDto,
+  PublicUserProfileDto,
   SelfUserProfileDto,
 } from "@/services/api/types";
 import { uploadUserAvatar } from "@/services/storage";
 
-const AMORIA_ID_RE = /^AM-[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{5}$/;
+const AMORIA_ID_RE = /^AM-?[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{5}$/;
 const LEGACY_NICKNAME_RE = /^nick\.[a-z]+(\.[a-z]+)?\.\d{3}$/;
 export const DISPLAY_NAME_MIN_LENGTH = 2;
 export const DISPLAY_NAME_MAX_LENGTH = 30;
 const GOAL_VALUES: Goal[] = [
+  "relationship",
   "dating",
-  "friends",
+  "friendship",
   "chat",
-  "long_term",
-  "short_term",
-  "casual",
-  "sex",
+  "unsure",
 ];
-const MOOD_VALUES: Mood[] = ["happy", "chill", "active", "serious", "party"];
+const MOOD_VALUES: Mood[] = [
+  "romantic",
+  "playful",
+  "chill",
+  "curious",
+  "adventurous",
+];
 
 function normalizeString(value: unknown) {
   return String(value ?? "").trim();
@@ -98,40 +107,29 @@ function normalizeProfilePhotos(value: unknown): UserProfilePhoto[] {
 
   return value
     .map((entry) => {
-      if (typeof entry === "string") {
-        const url = normalizeSharedMediaUrl(entry);
-        return url ? { url } : null;
-      }
-
       if (!entry || typeof entry !== "object") return null;
       const candidate = entry as {
         id?: unknown;
         mediaId?: unknown;
         url?: unknown;
       };
-      const url = normalizeSharedMediaUrl(candidate.url);
-      if (!url) return null;
-
       const mediaId = normalizeString(candidate.mediaId ?? candidate.id);
-      return {
-        ...(mediaId ? { mediaId } : {}),
-        url,
-      };
+      const url = normalizeSharedMediaUrl(candidate.url);
+      if (!mediaId || !url) return null;
+
+      return { mediaId, url };
     })
     .filter((entry): entry is UserProfilePhoto => Boolean(entry));
 }
 
-function toBackendProfilePhotos(value: unknown): ProfilePhotoDto[] {
+function toBackendProfilePhotos(value: unknown): ProfilePhotoPatchDto[] {
   return normalizeProfilePhotos(value)
     .map((photo) => {
       const mediaId = normalizeString(photo.mediaId);
       if (!mediaId) return null;
-      return {
-        mediaId,
-        url: photo.url,
-      };
+      return { mediaId };
     })
-    .filter((entry): entry is ProfilePhotoDto => Boolean(entry));
+    .filter((entry): entry is ProfilePhotoPatchDto => Boolean(entry));
 }
 
 function normalizeGoal(value: unknown): Goal | undefined {
@@ -147,82 +145,14 @@ function normalizeAmoriaId(value: unknown) {
   return AMORIA_ID_RE.test(normalized) ? normalized : "";
 }
 
-function normalizeGeo(value: unknown): UserProfile["geo"] | undefined {
-  if (!value || typeof value !== "object") return undefined;
-
-  const candidate = value as Partial<UserProfile["geo"]>;
-  const lat = Number(candidate.lat);
-  const lng = Number(candidate.lng);
-  const geohash = normalizeString(candidate.geohash);
-  if (!Number.isFinite(lat) || !Number.isFinite(lng) || !geohash) return undefined;
-
-  return { lat, lng, geohash };
-}
-
-function normalizeUserProfile(
-  uid: string,
-  raw?: Partial<UserProfile> | null,
-  options: { allowAuthFallback?: boolean } = { allowAuthFallback: true }
-): UserProfile {
-  const now = Date.now();
-  const createdAt = Number(raw?.createdAt);
-  const updatedAt = Number(raw?.updatedAt);
-  const displayName = normalizeStoredDisplayName(raw?.displayName);
-  const amoriaId = normalizeAmoriaId(raw?.amoriaId);
-  const avatarUrl =
-    normalizeSharedMediaUrl(raw?.avatarUrl) ||
-    normalizeSharedMediaUrl((raw as { photoURL?: unknown } | null | undefined)?.photoURL);
-  const birthdate = normalizeOptionalString(raw?.birthdate);
-  const about = normalizeOptionalString(raw?.about);
-  const goal = normalizeGoal(raw?.goal);
-  const mood = normalizeMood(raw?.mood);
-  const geo = normalizeGeo(raw?.geo);
-  const voiceIntroUrl = normalizeOptionalString(raw?.voiceIntroUrl);
-  const trustLevel = Number(raw?.trustLevel);
-  const revealStage = Number(raw?.revealStage);
-  const voiceIntroDurationSec = Number(raw?.voiceIntroDurationSec);
-  const lastActive = Number(raw?.lastActive);
-  const greenFlags = normalizeStringArray(raw?.greenFlags);
-  const redFlags = normalizeStringArray(raw?.redFlags);
-
-  return {
-    uid,
-    displayName,
-    amoriaId,
-    ...(amoriaId ? { amoriaIdNormalized: amoriaId } : {}),
-    ...(birthdate ? { birthdate } : {}),
-    ...(raw?.gender === "male" || raw?.gender === "female" || raw?.gender === "other"
-      ? { gender: raw.gender }
-      : {}),
-    ...(about ? { about } : {}),
-    ...(avatarUrl ? { avatarUrl } : {}),
-    interests: normalizeStringArray(raw?.interests),
-    photos: normalizeProfilePhotos(raw?.photos),
-    ...(mood ? { mood } : {}),
-    ...(goal ? { goal } : {}),
-    createdAt: Number.isFinite(createdAt) && createdAt > 0 ? createdAt : now,
-    updatedAt: Number.isFinite(updatedAt) && updatedAt > 0 ? updatedAt : now,
-    ...(geo ? { geo } : {}),
-    ...(Number.isFinite(trustLevel) ? { trustLevel } : {}),
-    ...(Number.isFinite(revealStage) ? { revealStage } : {}),
-    allowAdultMode: Boolean(raw?.allowAdultMode),
-    flirtEnabled: Boolean(raw?.flirtEnabled),
-    mysteryMode: Boolean(raw?.mysteryMode),
-    ...(voiceIntroUrl ? { voiceIntroUrl } : {}),
-    hasVoiceIntro: Boolean(raw?.hasVoiceIntro),
-    ...(Number.isFinite(voiceIntroDurationSec) ? { voiceIntroDurationSec } : {}),
-    ...(Number.isFinite(lastActive) ? { lastActive } : {}),
-    ...(greenFlags.length ? { greenFlags } : {}),
-    ...(redFlags.length ? { redFlags } : {}),
-  };
-}
-
 function normalizeBackendTimestamp(value: unknown, fallback: number) {
   const timestamp = Date.parse(String(value ?? ""));
   return Number.isFinite(timestamp) && timestamp > 0 ? timestamp : fallback;
 }
 
-function mapBackendUserProfile(user: AuthUserDto | SelfUserProfileDto): UserProfile {
+function mapBackendUserProfile(
+  user: AuthUserDto | SelfUserProfileDto | PublicUserProfileDto
+): UserProfile {
   const now = Date.now();
   const createdAt = normalizeBackendTimestamp(user.createdAt, now);
   const updatedAt = normalizeBackendTimestamp(user.updatedAt, createdAt);
@@ -233,10 +163,9 @@ function mapBackendUserProfile(user: AuthUserDto | SelfUserProfileDto): UserProf
   const mood = normalizeMood(user.mood);
 
   return {
-    uid: normalizeString(user.id),
+    id: normalizeString(user.id),
     displayName: normalizeStoredDisplayName(user.displayName),
     amoriaId,
-    ...(amoriaId ? { amoriaIdNormalized: amoriaId } : {}),
     ...(about ? { about } : {}),
     ...(avatarUrl ? { avatarUrl } : {}),
     interests: normalizeStringArray(user.interests),
@@ -245,7 +174,7 @@ function mapBackendUserProfile(user: AuthUserDto | SelfUserProfileDto): UserProf
     ...(goal ? { goal } : {}),
     createdAt,
     updatedAt,
-    allowAdultMode: Boolean(user.allowAdultMode),
+    allowAdultMode: "allowAdultMode" in user ? Boolean(user.allowAdultMode) : false,
     flirtEnabled: Boolean(user.flirtEnabled),
     mysteryMode: Boolean(user.mysteryMode),
   };
@@ -335,7 +264,7 @@ export async function createUserProfileForRegistration(displayName: string): Pro
 
 export async function getCurrentUser() {
   const profile = await getUserProfile();
-  return { id: profile.uid, ...profile };
+  return profile;
 }
 
 export async function updateMySettings(patch: Record<string, any>) {
@@ -372,11 +301,20 @@ export async function updateUserDisplayName(displayName: string): Promise<UserPr
   return updateUserFields({ displayName });
 }
 
-export async function getUserProfileById(uid: string): Promise<UserProfile | null> {
-  const stableUid = normalizeString(uid);
-  if (!stableUid) return null;
+export async function getUserProfileById(id: string): Promise<UserProfile | null> {
+  const stableId = normalizeString(id);
+  if (!stableId) return null;
 
-  return null;
+  try {
+    const stableAmoriaId = normalizeAmoriaId(stableId);
+    const user = stableAmoriaId
+      ? await getPublicUserByAmoriaId(stableAmoriaId)
+      : await fetchPublicUserById(stableId);
+    return mapBackendUserProfile(user);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null;
+    throw error;
+  }
 }
 
 export async function updateUserAvatarUrl(avatarUrl: string): Promise<UserProfile> {
@@ -411,7 +349,7 @@ export async function uploadCurrentUserAvatar(uri: string): Promise<UserProfile>
 }
 
 export async function updateUserPhotos(
-  photos: Array<UserProfilePhoto | string>
+  photos: UserProfilePhoto[]
 ): Promise<UserProfile> {
   return updateUserFields({ photos: normalizeProfilePhotos(photos) });
 }

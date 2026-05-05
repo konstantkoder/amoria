@@ -11,19 +11,26 @@ export type ApiErrorResponse = {
 };
 
 export type ProfileGoal =
+  | "relationship"
   | "dating"
-  | "friends"
+  | "friendship"
   | "chat"
-  | "long_term"
-  | "short_term"
-  | "casual"
-  | "sex";
+  | "unsure";
 
-export type ProfileMood = "happy" | "chill" | "active" | "serious" | "party";
+export type ProfileMood =
+  | "romantic"
+  | "playful"
+  | "chill"
+  | "curious"
+  | "adventurous";
 
 export type ProfilePhotoDto = {
   mediaId: string;
   url: string;
+};
+
+export type ProfilePhotoPatchDto = {
+  mediaId: string;
 };
 
 export type BackendProfileFields = {
@@ -64,6 +71,16 @@ export type RegisterRequest = {
   displayName: string;
 };
 
+export type PublicUserProfileDto = {
+  id: string;
+  displayName: string;
+  about: string | null;
+  amoriaId: string;
+  avatarUrl: string | null;
+  createdAt: string;
+  updatedAt: string;
+} & Omit<BackendProfileFields, "allowAdultMode">;
+
 export type LoginRequest = {
   email: string;
   password: string;
@@ -84,7 +101,15 @@ export type MeResponse = SelfUserProfileDto;
 export type PatchProfileRequest = {
   displayName?: string;
   about?: string | null;
-} & BackendProfileFields;
+  avatarUrl?: string | null;
+  goal?: ProfileGoal | null;
+  mood?: ProfileMood | null;
+  interests?: string[];
+  photos?: ProfilePhotoPatchDto[];
+  flirtEnabled?: boolean;
+  allowAdultMode?: boolean;
+  mysteryMode?: boolean;
+};
 
 export type MediaDto = {
   id?: string;

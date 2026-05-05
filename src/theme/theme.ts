@@ -17,30 +17,30 @@ const moodPalettes: Record<MoodKey, MoodPalette> = {
     badgeBg: "rgba(148, 163, 253, 0.20)",
     badgeText: "#E5E7FF",
   },
-  happy: {
+  romantic: {
     glow: "rgba(255, 200, 87, 0.35)",
     badgeBg: "rgba(251, 191, 36, 0.25)",
     badgeText: "#FEF9C3",
+  },
+  playful: {
+    glow: "rgba(244, 63, 94, 0.45)",
+    badgeBg: "rgba(236, 72, 153, 0.35)",
+    badgeText: "#FFE4E6",
   },
   chill: {
     glow: "rgba(79, 209, 197, 0.35)",
     badgeBg: "rgba(45, 212, 191, 0.22)",
     badgeText: "#ECFEFF",
   },
-  active: {
-    glow: "rgba(168, 85, 247, 0.40)",
-    badgeBg: "rgba(139, 92, 246, 0.30)",
-    badgeText: "#F5F3FF",
-  },
-  serious: {
+  curious: {
     glow: "rgba(56, 189, 248, 0.25)",
     badgeBg: "rgba(30, 64, 175, 0.55)",
     badgeText: "#E0F2FE",
   },
-  party: {
-    glow: "rgba(244, 63, 94, 0.45)",
-    badgeBg: "rgba(236, 72, 153, 0.35)",
-    badgeText: "#FFE4E6",
+  adventurous: {
+    glow: "rgba(168, 85, 247, 0.40)",
+    badgeBg: "rgba(139, 92, 246, 0.30)",
+    badgeText: "#F5F3FF",
   },
 };
 

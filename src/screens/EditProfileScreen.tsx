@@ -24,34 +24,61 @@ import {
 } from "@/services/user";
 
 const GOAL_OPTIONS: Goal[] = [
+  "relationship",
   "dating",
-  "friends",
+  "friendship",
   "chat",
-  "long_term",
-  "short_term",
-  "casual",
-  "sex",
+  "unsure",
 ];
 
-const MOOD_OPTIONS: Mood[] = ["happy", "chill", "active", "serious", "party"];
+const MOOD_OPTIONS: Mood[] = [
+  "romantic",
+  "playful",
+  "chill",
+  "curious",
+  "adventurous",
+];
 
 const GOAL_LABEL_KEYS: Record<Goal, string> = {
+  relationship: "profile.goal.relationship",
   dating: "profile.goal.dating",
-  friends: "profile.goal.friends",
+  friendship: "profile.goal.friendship",
   chat: "profile.goal.chat",
-  long_term: "profile.goal.long_term",
-  short_term: "profile.goal.short_term",
-  casual: "profile.goal.casual",
-  sex: "profile.goal.sex",
+  unsure: "profile.goal.unsure",
 };
 
 const MOOD_LABEL_KEYS: Record<Mood, string> = {
-  happy: "profile.mood.happy",
+  romantic: "profile.mood.romantic",
+  playful: "profile.mood.playful",
   chill: "profile.mood.chill",
-  active: "profile.mood.active",
-  serious: "profile.mood.serious",
-  party: "profile.mood.party",
+  curious: "profile.mood.curious",
+  adventurous: "profile.mood.adventurous",
 };
+
+const GOAL_LABEL_FALLBACKS: Record<Goal, string> = {
+  relationship: "Relationship",
+  dating: "Dating",
+  friendship: "Friendship",
+  chat: "Chat",
+  unsure: "Not sure yet",
+};
+
+const MOOD_LABEL_FALLBACKS: Record<Mood, string> = {
+  romantic: "Romantic",
+  playful: "Playful",
+  chill: "Chill",
+  curious: "Curious",
+  adventurous: "Adventurous",
+};
+
+function translatedOptionLabel(
+  t: (key: string) => string,
+  key: string,
+  fallback: string
+) {
+  const value = t(key);
+  return value === key ? fallback : value;
+}
 
 export default function EditProfileScreen() {
   const { t } = useLocale();
@@ -61,7 +88,7 @@ export default function EditProfileScreen() {
   const [about, setAbout] = React.useState("");
   const [interestsText, setInterestsText] = React.useState("");
   const [goal, setGoal] = React.useState<Goal>("dating");
-  const [mood, setMood] = React.useState<Mood>("happy");
+  const [mood, setMood] = React.useState<Mood>("chill");
   const [allowAdultMode, setAllowAdultMode] = React.useState(false);
   const [mysteryMode, setMysteryMode] = React.useState(false);
 
@@ -70,7 +97,7 @@ export default function EditProfileScreen() {
     setAbout(profile.about ?? "");
     setInterestsText((profile.interests ?? []).join(", "));
     setGoal(profile.goal ?? "dating");
-    setMood(profile.mood ?? "happy");
+    setMood(profile.mood ?? "chill");
     setAllowAdultMode(profile.allowAdultMode ?? false);
     setMysteryMode(profile.mysteryMode ?? false);
   }, []);
@@ -212,7 +239,11 @@ export default function EditProfileScreen() {
                       active ? styles.optionButtonTextActive : null,
                     ]}
                   >
-                    {t(GOAL_LABEL_KEYS[option])}
+                    {translatedOptionLabel(
+                      t,
+                      GOAL_LABEL_KEYS[option],
+                      GOAL_LABEL_FALLBACKS[option]
+                    )}
                   </Text>
                 </TouchableOpacity>
               );
@@ -238,7 +269,11 @@ export default function EditProfileScreen() {
                       active ? styles.optionButtonTextActive : null,
                     ]}
                   >
-                    {t(MOOD_LABEL_KEYS[option])}
+                    {translatedOptionLabel(
+                      t,
+                      MOOD_LABEL_KEYS[option],
+                      MOOD_LABEL_FALLBACKS[option]
+                    )}
                   </Text>
                 </TouchableOpacity>
               );

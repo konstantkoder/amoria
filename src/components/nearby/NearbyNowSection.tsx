@@ -136,7 +136,7 @@ export default function NearbyNowSection({
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NearbyTabNavigationProp>();
   const { user: authUser } = useAuth();
-  const user = authUser ? { uid: authUser.id } : null;
+  const currentUserId = authUser?.id ?? "";
   const { t } = useLocale();
   const mountedRef = useRef(true);
   const sendResetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -318,7 +318,7 @@ export default function NearbyNowSection({
   useFocusEffect(
     useCallback(() => {
       let alive = true;
-      if (!user?.uid) {
+      if (!currentUserId) {
         setBlockedUserIds([]);
         return () => {
           alive = false;
@@ -338,7 +338,7 @@ export default function NearbyNowSection({
       return () => {
         alive = false;
       };
-    }, [reloadKey, user?.uid])
+    }, [currentUserId, reloadKey])
   );
 
   useEffect(() => {
@@ -382,7 +382,7 @@ export default function NearbyNowSection({
 
   const onSend = useCallback(async () => {
     if (sendGuardRef.current) return;
-    if (!user) {
+    if (!currentUserId) {
       Alert.alert(t("now.signInTitle"), t("now.signInBody"));
       return;
     }
@@ -431,7 +431,7 @@ export default function NearbyNowSection({
         sendGuardRef.current = false;
       }, 250);
     }
-  }, [locationError, message, pos, t, user]);
+  }, [currentUserId, locationError, message, pos, t]);
 
   const goToTogether = useCallback(() => {
     navigation.navigate("Tabs", { screen: "Together" });
@@ -452,7 +452,7 @@ export default function NearbyNowSection({
     const now = Date.now();
     const deduped = new Map<string, NowPost>();
     for (const post of posts) {
-      const authorUid = String(post.authorUid || post.uid || "").trim();
+      const authorUid = String(post.authorUid ?? "").trim();
       if (!authorUid) continue;
       if (post.status !== "active" || post.expiresAt <= now) continue;
       if (blockedUserIds.includes(authorUid)) continue;
@@ -473,12 +473,12 @@ export default function NearbyNowSection({
 
   const openNearbyChat = useCallback(
     async (item: NowPost) => {
-      if (!user?.uid) {
+      if (!currentUserId) {
         Alert.alert(t("now.signInTitle"), t("now.signInBody"));
         return;
       }
-      const peerUid = String(item.authorUid || item.uid || "").trim();
-      if (!peerUid || peerUid === user.uid) return;
+      const peerUid = String(item.authorUid ?? "").trim();
+      if (!peerUid || peerUid === currentUserId) return;
 
       setChatOpeningPostId(item.id);
       try {
@@ -505,12 +505,12 @@ export default function NearbyNowSection({
         }
       }
     },
-    [navigation, resolveAuthorLabel, t, user?.uid]
+    [currentUserId, navigation, resolveAuthorLabel, t]
   );
 
   const removeOwnStatus = useCallback(
     async (item: NowPost) => {
-      if (!user?.uid || item.authorUid !== user.uid) return;
+      if (!currentUserId || item.authorUid !== currentUserId) return;
 
       setDeletingPostId(item.id);
       try {
@@ -525,12 +525,12 @@ export default function NearbyNowSection({
         }
       }
     },
-    [t, user?.uid]
+    [currentUserId, t]
   );
 
   const reportNearbyPost = useCallback(
     async (item: NowPost, reason: SafetyReportReason) => {
-      const authorUid = String(item.authorUid || item.uid || "").trim();
+      const authorUid = String(item.authorUid ?? "").trim();
       if (!item.id || !authorUid || reportingPostId) return;
 
       setReportingPostId(item.id);
@@ -837,8 +837,8 @@ export default function NearbyNowSection({
   const renderPostItem = ({ item }: { item: NowPost }) => {
     const moodInfo = moodMeta.find((meta) => meta.key === item.mood) ?? moodMeta[0];
     const distance = distanceKm(pos, item);
-    const authorUid = String(item.authorUid || item.uid || "").trim();
-    const isOwnPost = Boolean(user?.uid && authorUid === user.uid);
+    const authorUid = String(item.authorUid ?? "").trim();
+    const isOwnPost = Boolean(currentUserId && authorUid === currentUserId);
     const authorLabel = resolveAuthorLabel(item);
     const opening = chatOpeningPostId === item.id;
     const deleting = deletingPostId === item.id;
@@ -860,7 +860,7 @@ export default function NearbyNowSection({
         </View>
         <Text style={styles.postText}>{item.text}</Text>
         <View style={styles.postFooter}>
-          <UserAvatar avatarUrl={item.avatarUrl} label={authorLabel} size={24} />
+          <UserAvatar avatarUrl={item.authorAvatarUrl} label={authorLabel} size={24} />
           <Text style={styles.postAuthor}>{authorLabel}</Text>
           {isOwnPost ? (
             <View style={styles.ownPostPill}>

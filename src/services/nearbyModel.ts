@@ -8,9 +8,6 @@ export type NowPost = {
   authorUid: string;
   authorName?: string;
   authorAvatarUrl?: string;
-  uid: string;
-  nickname: string;
-  avatarUrl?: string;
   text: string;
   mood: NowMood;
   createdAt: number;
@@ -48,9 +45,7 @@ export function mapNearbyStatusDtoToNowPost(dto: NearbyStatusDto): NowPost | nul
     id,
     authorUid,
     ...(authorName ? { authorName } : {}),
-    ...(avatarUrl ? { authorAvatarUrl: avatarUrl, avatarUrl } : {}),
-    uid: authorUid,
-    nickname: authorName || "profile.amoriaUser",
+    ...(avatarUrl ? { authorAvatarUrl: avatarUrl } : {}),
     text,
     mood: "other",
     createdAt,

@@ -32,22 +32,45 @@ import { theme } from "@/theme";
 type ProfileNav = NativeStackNavigationProp<ProfileStackParamList, "ProfileMain">;
 
 const GOAL_LABEL_KEYS: Record<Goal, string> = {
+  relationship: "profile.goal.relationship",
   dating: "profile.goal.dating",
-  friends: "profile.goal.friends",
+  friendship: "profile.goal.friendship",
   chat: "profile.goal.chat",
-  long_term: "profile.goal.long_term",
-  short_term: "profile.goal.short_term",
-  casual: "profile.goal.casual",
-  sex: "profile.goal.sex",
+  unsure: "profile.goal.unsure",
 };
 
 const MOOD_LABEL_KEYS: Record<Mood, string> = {
-  happy: "profile.mood.happy",
+  romantic: "profile.mood.romantic",
+  playful: "profile.mood.playful",
   chill: "profile.mood.chill",
-  active: "profile.mood.active",
-  serious: "profile.mood.serious",
-  party: "profile.mood.party",
+  curious: "profile.mood.curious",
+  adventurous: "profile.mood.adventurous",
 };
+
+const GOAL_LABEL_FALLBACKS: Record<Goal, string> = {
+  relationship: "Relationship",
+  dating: "Dating",
+  friendship: "Friendship",
+  chat: "Chat",
+  unsure: "Not sure yet",
+};
+
+const MOOD_LABEL_FALLBACKS: Record<Mood, string> = {
+  romantic: "Romantic",
+  playful: "Playful",
+  chill: "Chill",
+  curious: "Curious",
+  adventurous: "Adventurous",
+};
+
+function translatedOptionLabel(
+  t: (key: string) => string,
+  key: string,
+  fallback: string
+) {
+  const value = t(key);
+  return value === key ? fallback : value;
+}
 
 export default function ProfileScreen() {
   const navigation = useNavigation<ProfileNav>();
@@ -91,8 +114,12 @@ export default function ProfileScreen() {
 
   const photos = profile?.photos ?? [];
   const avatarUrl = profile?.avatarUrl ?? "";
-  const goalLabel = profile?.goal ? t(GOAL_LABEL_KEYS[profile.goal]) : t("profile.goal.unknown");
-  const moodLabel = profile?.mood ? t(MOOD_LABEL_KEYS[profile.mood]) : t("profile.mood.unknown");
+  const goalLabel = profile?.goal
+    ? translatedOptionLabel(t, GOAL_LABEL_KEYS[profile.goal], GOAL_LABEL_FALLBACKS[profile.goal])
+    : t("profile.goal.unknown");
+  const moodLabel = profile?.mood
+    ? translatedOptionLabel(t, MOOD_LABEL_KEYS[profile.mood], MOOD_LABEL_FALLBACKS[profile.mood])
+    : t("profile.mood.unknown");
   const about = profile?.about?.trim() ? profile.about : t("profile.noDescription");
   const displayName = profile?.displayName || t("profile.amoriaUser");
   const amoriaId = profile?.amoriaId ?? "";
@@ -171,7 +198,7 @@ export default function ProfileScreen() {
 
       let avatarDownloadUrl = "";
       try {
-        avatarDownloadUrl = await uploadUserAvatar(currentProfile.uid, uri);
+        avatarDownloadUrl = await uploadUserAvatar(currentProfile.id, uri);
       } catch {
         Alert.alert(t("photos.uploadFailed"), t("photos.avatarUploadErrorBody"));
         return;
