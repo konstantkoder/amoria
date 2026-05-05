@@ -21,7 +21,7 @@ export default function PlayLobbyScreen() {
     title: tt("together.lobby.colorMoodTitle", "Палитра настроения"),
     description: tt(
       "together.lobby.colorMoodDescription",
-      "Мягкий сценарий вернется после миграции на backend."
+      "В разработке."
     ),
     details: tt(
       "together.lobby.colorMoodDetails",
@@ -95,7 +95,7 @@ export default function PlayLobbyScreen() {
           <Text style={styles.secondarySectionText}>
             {tt(
               "together.lobby.colorMoodSectionBody",
-              "Если рисовать сейчас слишком прямо, начни через цвет. Палитра настроения короче и мягче, но всё равно создаёт общий результат."
+              "Палитра настроения задумана как мягкий второй сценарий. Сейчас основной доступный режим — общий рисунок."
             )}
           </Text>
         </View>
@@ -105,7 +105,7 @@ export default function PlayLobbyScreen() {
             <Text style={styles.cardTitle}>{colorMoodCopy.title}</Text>
             <View style={styles.badge}>
               <Text style={styles.badgeText}>
-                {tt("together.lobby.colorMoodBadge", "Второй сценарий")}
+                {tt("together.lobby.colorMoodBadge", "В разработке")}
               </Text>
             </View>
           </View>
