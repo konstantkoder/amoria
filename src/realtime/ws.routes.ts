@@ -61,7 +61,7 @@ export async function wsRoutes(fastify: FastifyInstance): Promise<void> {
 }
 
 function authenticateSocket(socket: WebSocket, request: FastifyRequest): string | undefined {
-  const token = new URL(request.url, "http://localhost").searchParams.get("token");
+  const token = authTokenFromRequest(request);
   if (!token) {
     socket.close(1008, "Authentication is required");
     return undefined;
@@ -73,6 +73,27 @@ function authenticateSocket(socket: WebSocket, request: FastifyRequest): string 
     socket.close(1008, "Invalid access token");
     return undefined;
   }
+}
+
+function authTokenFromRequest(request: FastifyRequest): string | undefined {
+  const queryToken = new URL(request.url, "http://localhost").searchParams.get("token")?.trim();
+  if (queryToken) {
+    return queryToken;
+  }
+
+  const authorization = firstHeaderValue(request.headers.authorization);
+  if (!authorization?.startsWith("Bearer ")) {
+    return undefined;
+  }
+
+  const token = authorization.slice("Bearer ".length).trim();
+  return token || undefined;
+}
+
+function firstHeaderValue(value: string | string[] | undefined): string | undefined {
+  const candidate = Array.isArray(value) ? value[0] : value;
+  const normalized = candidate?.trim();
+  return normalized ? normalized : undefined;
 }
 
 async function handleClientMessage(

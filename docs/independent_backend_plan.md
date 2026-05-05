@@ -1,12 +1,12 @@
 # Independent Backend Plan
 
-Amoria is moving backend ownership into this standalone API so the app can control its own data model, hosting location, backups, media storage, auth lifecycle, and future realtime behavior. This backend does not depend on Firebase.
+Amoria is moving backend ownership into this standalone API so the app can control its own data model, hosting location, backups, media storage, auth lifecycle, and realtime behavior. This backend does not depend on Firebase.
 
 ## Target Architecture
 
 The long-term request path is:
 
-`Mobile app -> https://api.amoria.app -> Amoria API -> PostgreSQL + local uploads + WebSocket later`
+`Mobile app -> https://api.amoria.app -> Amoria API -> PostgreSQL + local uploads + WebSocket`
 
 For local development, the API runs at `http://localhost:4000`. The stable public entry point remains `https://api.amoria.app`, even if the physical server changes later.
 
@@ -23,8 +23,8 @@ The server location can change; the API DNS name should not.
 1. Backend foundation: Fastify API, PostgreSQL schema, auth/profile/media endpoints, local uploads, Docker Compose.
 2. Mobile profile/media integration: point selected profile and avatar flows at `API_URL`.
 3. Custom auth cutover: switch client auth only after backend auth and token storage are ready.
-4. Chats: add persistence and realtime delivery in the backend.
-5. Together queue/draw/color_mood: move Together matching and shared state to the backend.
+4. Chats: maintain backend persistence, block policy, and realtime delivery.
+5. Together queue/draw/color_mood: continue moving Together matching and shared state to the backend.
 6. History: migrate historical play/session records.
 7. Nearby/announcements: migrate location-aware and announcement data carefully.
 8. Remove old client-side dependencies only after every flow is fully migrated and verified.
