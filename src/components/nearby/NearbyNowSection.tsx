@@ -536,9 +536,9 @@ export default function NearbyNowSection({
       setReportingPostId(item.id);
       try {
         await safetyApi.report({
-          targetType: "nearbyPost",
+          targetType: "message",
           targetId: item.id,
-          targetOwnerUid: authorUid,
+          targetOwnerUserId: authorUid,
           reason,
         });
         Alert.alert(t("safety.reportSentTitle"), t("safety.reportSentBody"));

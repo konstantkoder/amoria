@@ -274,7 +274,7 @@ export default function UserProfileScreen() {
         await safetyApi.report({
           targetType: "user",
           targetId: userId,
-          targetOwnerUid: userId,
+          targetOwnerUserId: userId,
           reason,
         });
         Alert.alert(

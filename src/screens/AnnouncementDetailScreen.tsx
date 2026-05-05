@@ -489,7 +489,7 @@ export default function AnnouncementDetailScreen() {
         await safetyApi.report({
           targetType: "announcement",
           targetId: announcement.id,
-          targetOwnerUid: announcementAuthorUid,
+          targetOwnerUserId: announcementAuthorUid,
           reason,
         });
         Alert.alert(

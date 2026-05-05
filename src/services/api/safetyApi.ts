@@ -3,10 +3,9 @@ import type { BlocksResponse } from "@/services/api/types";
 
 export type SafetyReportTargetType =
   | "announcement"
+  | "thread"
   | "user"
-  | "dmThread"
-  | "message"
-  | "nearbyPost";
+  | "message";
 
 export type SafetyReportReason =
   | "spam"
@@ -18,9 +17,9 @@ export type SafetyReportReason =
 export type CreateSafetyReportPayload = {
   targetType: SafetyReportTargetType;
   targetId: string;
-  targetOwnerUid?: string;
+  targetOwnerUserId?: string;
   reason: SafetyReportReason;
-  details?: string;
+  comment?: string;
 };
 
 export function listBlocks(): Promise<BlocksResponse> {

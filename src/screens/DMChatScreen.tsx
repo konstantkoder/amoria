@@ -414,9 +414,9 @@ export default function DMChatScreen() {
       setSafetyBusy(true);
       try {
         await safetyApi.report({
-          targetType: "dmThread",
+          targetType: "thread",
           targetId: threadId,
-          targetOwnerUid: peerId,
+          targetOwnerUserId: peerId,
           reason,
         });
         Alert.alert(
