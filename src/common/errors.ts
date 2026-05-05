@@ -7,6 +7,7 @@ export type ErrorCode =
   | "unauthorized"
   | "forbidden"
   | "media_not_owned"
+  | "blocked_pair"
   | "not_found"
   | "email_taken"
   | "file_too_large"

@@ -5,7 +5,7 @@ export type TogetherQueueStatus = "waiting" | "matched" | "cancelled" | "expired
 export type TogetherSessionStatus = "active" | "finished";
 export type TogetherEventType = "stroke_batch" | "palette" | "system";
 export type TogetherRevealDecision = "open" | "skip";
-export type TogetherRevealOutcome = "pending" | "open_open" | "open_skip" | "skip_skip";
+export type TogetherRevealOutcome = "pending" | "open_open" | "open_skip" | "skip_skip" | "blocked";
 
 export type TogetherQueueBody = {
   activity: TogetherActivity;

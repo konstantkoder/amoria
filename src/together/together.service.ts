@@ -8,6 +8,7 @@ import type {
   TogetherSessionRow,
 } from "../db/schema";
 import * as chatService from "../chat/chat.service";
+import { isBlockedEitherWay } from "../safety/safety.repo";
 import * as togetherRepo from "./together.repo";
 import type {
   OkResponse,
@@ -156,6 +157,10 @@ export async function reveal(
   const peerUserId = memberUserIds.find((memberUserId) => memberUserId !== userId);
   if (!peerUserId) {
     return { outcome };
+  }
+
+  if (await isBlockedEitherWay(userId, peerUserId)) {
+    return { outcome: "blocked" };
   }
 
   const response = await chatService.openDirectThread(userId, {

@@ -139,7 +139,7 @@ const eventSchema = {
 
 const revealOutcomeSchema = {
   type: "string",
-  enum: ["pending", "open_open", "open_skip", "skip_skip"],
+  enum: ["pending", "open_open", "open_skip", "skip_skip", "blocked"],
 } as const;
 
 const historyItemSchema = {

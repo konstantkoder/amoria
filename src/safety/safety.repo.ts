@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, or } from "drizzle-orm";
 import { db } from "../db/client";
 import {
   type BlockedUserRow,
@@ -37,6 +37,24 @@ export async function listBlockedUsers(userId: string): Promise<BlockedUserRow[]
     .from(blockedUsers)
     .where(eq(blockedUsers.userId, userId))
     .orderBy(desc(blockedUsers.createdAt));
+}
+
+export async function isBlockedEitherWay(
+  aUserId: string,
+  bUserId: string,
+): Promise<boolean> {
+  const [row] = await db
+    .select({ userId: blockedUsers.userId })
+    .from(blockedUsers)
+    .where(
+      or(
+        and(eq(blockedUsers.userId, aUserId), eq(blockedUsers.blockedUserId, bUserId)),
+        and(eq(blockedUsers.userId, bUserId), eq(blockedUsers.blockedUserId, aUserId)),
+      ),
+    )
+    .limit(1);
+
+  return Boolean(row);
 }
 
 export async function createSafetyReport(input: NewSafetyReportRow): Promise<void> {

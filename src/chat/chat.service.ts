@@ -1,5 +1,6 @@
 import { AppError, validationError } from "../common/errors";
 import type { MessageRow, ThreadRow } from "../db/schema";
+import { isBlockedEitherWay } from "../safety/safety.repo";
 import * as chatRepo from "./chat.repo";
 import type {
   ChatSourceType,
@@ -53,6 +54,8 @@ export async function openDirectThreadWithStatus(
     throw new AppError("not_found", "Peer user not found", 404);
   }
 
+  await assertNotBlockedPair(userId, input.peerUserId);
+
   let thread = await chatRepo.findDirectThreadBetween(userId, input.peerUserId);
   let status: OpenDirectThreadResult["status"] = "existing";
   if (!thread) {
@@ -95,7 +98,13 @@ export async function sendMessage(
   threadId: string,
   input: SendMessageBody,
 ): Promise<SendMessageResult> {
-  await requireThreadMembership(userId, threadId);
+  const thread = await requireThreadMembership(userId, threadId);
+  const peer = await chatRepo.findThreadPeer(thread.id, userId);
+  if (!peer) {
+    throw new AppError("not_found", "Thread peer not found", 404);
+  }
+
+  await assertNotBlockedPair(userId, peer.id);
 
   const result = await chatRepo.createMessageIdempotent({
     threadId,
@@ -135,6 +144,14 @@ export async function markThreadRead(
 
 export async function canAccessThread(userId: string, threadId: string): Promise<boolean> {
   return chatRepo.isThreadMember(threadId, userId);
+}
+
+async function assertNotBlockedPair(userId: string, peerUserId: string): Promise<void> {
+  if (await isBlockedEitherWay(userId, peerUserId)) {
+    throw new AppError("blocked_pair", "Blocked users cannot interact", 403, {
+      peerUserId: "blocked_pair",
+    });
+  }
 }
 
 async function requireThreadMembership(userId: string, threadId: string): Promise<ThreadRow> {

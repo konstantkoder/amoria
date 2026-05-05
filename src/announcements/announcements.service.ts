@@ -1,5 +1,6 @@
 import { AppError, forbidden, validationError } from "../common/errors";
 import * as chatService from "../chat/chat.service";
+import { isBlockedEitherWay } from "../safety/safety.repo";
 import * as announcementsRepo from "./announcements.repo";
 import type { AnnouncementDetailsRow } from "./announcements.repo";
 import type {
@@ -96,6 +97,12 @@ export async function respondToAnnouncement(
   if (announcement.authorUserId === userId) {
     throw validationError("Cannot respond to your own announcement", {
       announcementId: "own_announcement",
+    });
+  }
+
+  if (await isBlockedEitherWay(userId, announcement.authorUserId)) {
+    throw new AppError("blocked_pair", "Blocked users cannot interact", 403, {
+      authorUserId: "blocked_pair",
     });
   }
 
