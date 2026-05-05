@@ -4,10 +4,11 @@ import type {
   MessageDto,
   MessagesResponse,
   ThreadDto,
+  ThreadSourceType,
 } from "@/services/api/types";
 
 export type ThreadSourceInput = {
-  type: string;
+  type: ThreadSourceType;
   sourceId: string;
 };
 

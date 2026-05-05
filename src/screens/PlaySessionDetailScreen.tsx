@@ -168,7 +168,7 @@ export default function PlaySessionDetailScreen() {
         backTarget: "sessionDetail",
         backSessionId: sessionId,
         sourceContext: {
-          source: "play",
+          source: "together",
           sourceSessionId: sessionId,
           artworkSummary: {
             activity: "draw",

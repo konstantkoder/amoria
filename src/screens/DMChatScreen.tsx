@@ -94,6 +94,10 @@ function mergeMessages(current: RenderMessage[], incoming: RenderMessage[]) {
   );
 }
 
+function isTogetherSource(source: unknown): boolean {
+  return source === "together" || source === "play";
+}
+
 function readThreadMessage(payload: wsClient.RealtimeMessage): MessageDto | null {
   const candidate =
     payload.message && typeof payload.message === "object"
@@ -266,8 +270,8 @@ export default function DMChatScreen() {
     if (sourceContext?.source === "nearby") {
       return tt("dm.sourceNearby", "Вы начали разговор из Рядом");
     }
-    if (sourceContext?.source === "play") {
-      return tt("dm.sourcePlay", "Вы начали разговор после общего рисунка");
+    if (isTogetherSource(sourceContext?.source)) {
+      return tt("dm.sourceTogether", "Вы начали разговор после Вместе");
     }
     return "";
   }, [sourceContext?.source, tt]);
@@ -279,8 +283,8 @@ export default function DMChatScreen() {
     if (sourceContext?.source === "nearby") {
       return tt("inbox.sourceNearby", "Из Рядом");
     }
-    if (sourceContext?.source === "play") {
-      return tt("inbox.sourcePlay", "После общего рисунка");
+    if (isTogetherSource(sourceContext?.source)) {
+      return tt("inbox.sourceTogether", "После Вместе");
     }
     return "";
   }, [sourceContext?.source, tt]);

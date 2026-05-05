@@ -16,7 +16,7 @@ import type { ThreadDto } from "@/services/api/types";
 import * as wsClient from "@/services/realtime/wsClient";
 import { theme } from "@/theme";
 
-type InboxSourceKey = "play" | "announcement" | "nearby" | "direct";
+type InboxSourceKey = "together" | "announcement" | "nearby" | "direct";
 
 function formatThreadDate(value: string | null | undefined) {
   const timestamp = Date.parse(String(value ?? ""));
@@ -36,8 +36,13 @@ function formatThreadDate(value: string | null | undefined) {
 
 function getSourceKey(thread: ThreadDto): InboxSourceKey {
   const type = String(thread.source?.type ?? "").trim();
-  if (type === "play" || type === "announcement" || type === "nearby") return type;
+  if (isTogetherSource(type)) return "together";
+  if (type === "announcement" || type === "nearby") return type;
   return "direct";
+}
+
+function isTogetherSource(source: unknown): boolean {
+  return source === "together" || source === "play";
 }
 
 export default function InboxScreen() {
@@ -124,7 +129,7 @@ export default function InboxScreen() {
 
   const sourceLabels = useMemo(
     () => ({
-      play: tt("inbox.sourcePlay", "После общего рисунка"),
+      together: tt("inbox.sourceTogether", "После Вместе"),
       announcement: tt("inbox.sourceAnnouncement", "После объявления"),
       nearby: tt("inbox.sourceNearby", "Из Рядом"),
       direct: tt("inbox.sourceDefault", "Личный чат"),

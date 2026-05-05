@@ -9,7 +9,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { NearbyAnnouncement } from "@/services/announcementsModel";
 
 export type ReleasePlayActivity = "draw";
-export type DmSource = "play" | "announcement" | "nearby";
+export type DmSource = "together" | "announcement" | "nearby";
 export type DmArtworkSummary = {
   activity: ReleasePlayActivity | "color_mood";
   strokeCount?: number;

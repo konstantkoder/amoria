@@ -160,7 +160,7 @@ export default function PlayHistoryScreen() {
           peerName: item.peer.displayName,
           backTarget: "history",
           sourceContext: {
-            source: "play",
+            source: "together",
             sourceSessionId: item.sessionId,
             artworkSummary: {
               activity: "draw",

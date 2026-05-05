@@ -60,6 +60,10 @@ function buildReportReasonButtons(
   ];
 }
 
+function isTogetherSource(source: unknown): boolean {
+  return source === "together" || source === "play";
+}
+
 export default function UserProfileScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"UserProfile">>();
   const route = useRoute<UserProfileRouteProp>();
@@ -163,7 +167,7 @@ export default function UserProfileScreen() {
 
     async function loadSourceDetail() {
       try {
-        if (sourceContext.source === "play") {
+        if (isTogetherSource(sourceContext.source)) {
           if (alive) {
             setSharedStoryAvailable(true);
           }
@@ -220,7 +224,7 @@ export default function UserProfileScreen() {
     if (sourceContext?.source === "nearby") {
       return tt("profile.sourceNearby", "Вы начали разговор из Рядом");
     }
-    if (sourceContext?.source !== "play") return "";
+    if (!isTogetherSource(sourceContext?.source)) return "";
     if (sourceContext.artworkSummary?.activity === "color_mood") {
       return tt("profile.sourceColorMood", "Вы познакомились через палитру настроения");
     }
@@ -233,7 +237,7 @@ export default function UserProfileScreen() {
         context: sourceDetailText,
       });
     }
-    if (sourceContext?.source === "play" && sourceSessionId) {
+    if (isTogetherSource(sourceContext?.source) && sourceSessionId) {
       return tt(
         "profile.sourceSharedStoryBody",
         "Общая история связана с этим чатом и доступна, когда сохранённая сессия загружена."

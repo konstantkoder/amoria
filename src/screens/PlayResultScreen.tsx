@@ -138,7 +138,7 @@ export default function PlayResultScreen() {
         peerName: nextPeer.displayName,
         backTarget: "history",
         sourceContext: {
-          source: "play",
+          source: "together",
           sourceSessionId: sessionId,
           artworkSummary: {
             activity: "draw",

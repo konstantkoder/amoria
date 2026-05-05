@@ -179,7 +179,9 @@ export type ThreadPeerDto = {
   avatarUrl: string | null;
 };
 
-export type ThreadSourceDto = { type: string; sourceId: string } | null;
+export type ThreadSourceType = "announcement" | "nearby" | "together";
+
+export type ThreadSourceDto = { type: ThreadSourceType | "play"; sourceId: string } | null;
 
 export type ThreadDto = {
   id: string;
