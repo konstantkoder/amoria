@@ -12,13 +12,15 @@ import {
   PROFILE_URL_MAX_LENGTH,
 } from "../../config/constants";
 import { validationError } from "../errors";
-import type { ProfilePhoto } from "../../db/schema";
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export type ProfileGoal = (typeof PROFILE_GOALS)[number];
 export type ProfileMood = (typeof PROFILE_MOODS)[number];
+export type ProfilePhotoInput = {
+  mediaId: string;
+};
 
 export function normalizeEmail(email: unknown): string {
   if (typeof email !== "string") {
@@ -122,7 +124,7 @@ export function normalizeOptionalUrl(value: unknown, field: string): string | nu
   return normalized;
 }
 
-export function normalizeOptionalPhotos(value: unknown): ProfilePhoto[] | undefined {
+export function normalizeOptionalPhotos(value: unknown): ProfilePhotoInput[] | undefined {
   if (value === undefined) {
     return undefined;
   }
@@ -143,19 +145,13 @@ export function normalizeOptionalPhotos(value: unknown): ProfilePhoto[] | undefi
       throw validationError("Photo must be an object", { [prefix]: "invalid" });
     }
 
-    const candidate = item as { mediaId?: unknown; url?: unknown };
+    const candidate = item as { mediaId?: unknown };
     if (typeof candidate.mediaId !== "string" || !uuidPattern.test(candidate.mediaId.trim())) {
       throw validationError("Photo mediaId must be a UUID", { [`${prefix}.mediaId`]: "invalid" });
     }
 
-    const url = normalizeOptionalUrl(candidate.url, `${prefix}.url`);
-    if (!url) {
-      throw validationError("Photo URL is required", { [`${prefix}.url`]: "required" });
-    }
-
     return {
       mediaId: candidate.mediaId.trim(),
-      url,
     };
   });
 }

@@ -6,6 +6,7 @@ export type ErrorCode =
   | "invalid_refresh"
   | "unauthorized"
   | "forbidden"
+  | "media_not_owned"
   | "not_found"
   | "email_taken"
   | "file_too_large"

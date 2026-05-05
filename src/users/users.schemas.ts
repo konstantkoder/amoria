@@ -26,6 +26,21 @@ const profilePhotosSchema = {
   items: profilePhotoSchema,
 } as const;
 
+const updateProfilePhotoSchema = {
+  type: "object",
+  required: ["mediaId"],
+  additionalProperties: false,
+  properties: {
+    mediaId: { type: "string", format: "uuid" },
+  },
+} as const;
+
+const updateProfilePhotosSchema = {
+  type: "array",
+  maxItems: PROFILE_PHOTOS_MAX_COUNT,
+  items: updateProfilePhotoSchema,
+} as const;
+
 const interestsSchema = {
   type: "array",
   maxItems: PROFILE_INTERESTS_MAX_COUNT,
@@ -152,7 +167,7 @@ export const updateProfileRouteSchema = {
           { type: "null" },
         ],
       },
-      photos: profilePhotosSchema,
+      photos: updateProfilePhotosSchema,
       goal: nullableGoalSchema,
       mood: nullableMoodSchema,
       interests: interestsSchema,

@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "../db/client";
 import {
   type MediaFileRow,
@@ -32,6 +32,33 @@ export async function findMediaFileByOwner(
     .select()
     .from(mediaFiles)
     .where(and(eq(mediaFiles.id, mediaId), eq(mediaFiles.ownerUserId, ownerUserId)))
+    .limit(1);
+
+  return media;
+}
+
+export async function findOwnedMediaFilesByIds(
+  ownerUserId: string,
+  ids: string[],
+): Promise<MediaFileRow[]> {
+  if (ids.length === 0) {
+    return [];
+  }
+
+  return db
+    .select()
+    .from(mediaFiles)
+    .where(and(eq(mediaFiles.ownerUserId, ownerUserId), inArray(mediaFiles.id, ids)));
+}
+
+export async function findOwnedMediaFileByUrl(
+  ownerUserId: string,
+  url: string,
+): Promise<MediaFileRow | undefined> {
+  const [media] = await db
+    .select()
+    .from(mediaFiles)
+    .where(and(eq(mediaFiles.ownerUserId, ownerUserId), eq(mediaFiles.url, url)))
     .limit(1);
 
   return media;

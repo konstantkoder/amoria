@@ -2,6 +2,7 @@ import { AppError, unauthorized, validationError } from "../common/errors";
 import {
   type ProfileGoal,
   type ProfileMood,
+  type ProfilePhotoInput,
   normalizeDisplayName,
   normalizeOptionalAbout,
   normalizeOptionalBoolean,
@@ -12,6 +13,7 @@ import {
   normalizeOptionalUrl,
 } from "../common/validators";
 import type { ProfilePhoto, UserRow } from "../db/schema";
+import { findOwnedMediaFileByUrl, findOwnedMediaFilesByIds } from "../media/media.repo";
 import { findUserByAmoriaId, findUserById, updateUserProfile } from "./users.repo";
 
 export type SelfUserProfile = {
@@ -38,7 +40,7 @@ export type UpdateProfileBody = {
   displayName?: string;
   about?: string | null;
   avatarUrl?: string | null;
-  photos?: ProfilePhoto[];
+  photos?: ProfilePhotoInput[];
   goal?: ProfileGoal | null;
   mood?: ProfileMood | null;
   interests?: string[];
@@ -60,6 +62,8 @@ type UserProfileUpdate = Partial<Pick<
   | "allowAdultMode"
   | "mysteryMode"
 >>;
+
+const avatarMediaTypes = new Set(["avatar", "profile_avatar"]);
 
 export function toSelfUserProfile(user: UserRow): SelfUserProfile {
   return {
@@ -128,11 +132,11 @@ export async function updateCurrentUserProfile(
   }
 
   if ("avatarUrl" in input) {
-    setIfDefined(update, "avatarUrl", normalizeOptionalUrl(input.avatarUrl, "avatarUrl"));
+    setIfDefined(update, "avatarUrl", await normalizeOwnedAvatarUrl(userId, input.avatarUrl));
   }
 
   if ("photos" in input) {
-    setIfDefined(update, "photos", normalizeOptionalPhotos(input.photos));
+    setIfDefined(update, "photos", await normalizeOwnedPhotos(userId, input.photos));
   }
 
   if ("goal" in input) {
@@ -179,6 +183,59 @@ export async function updateCurrentUserProfile(
   }
 
   return toSelfUserProfile(updated);
+}
+
+async function normalizeOwnedAvatarUrl(
+  userId: string,
+  avatarUrl: unknown,
+): Promise<string | null | undefined> {
+  const normalized = normalizeOptionalUrl(avatarUrl, "avatarUrl");
+  if (!normalized) {
+    return normalized;
+  }
+
+  const media = await findOwnedMediaFileByUrl(userId, normalized);
+  if (!media || !avatarMediaTypes.has(media.type)) {
+    throw mediaNotOwned("avatarUrl");
+  }
+
+  return media.url;
+}
+
+async function normalizeOwnedPhotos(
+  userId: string,
+  photos: unknown,
+): Promise<ProfilePhoto[] | undefined> {
+  const normalized = normalizeOptionalPhotos(photos);
+  if (!normalized) {
+    return normalized;
+  }
+
+  const mediaIds = normalized.map((photo) => photo.mediaId);
+  const ownedMedia = await findOwnedMediaFilesByIds(userId, [...new Set(mediaIds)]);
+  const ownedMediaById = new Map(ownedMedia.map((media) => [media.id, media]));
+
+  if (mediaIds.some((mediaId) => !ownedMediaById.has(mediaId))) {
+    throw mediaNotOwned("photos");
+  }
+
+  return mediaIds.map((mediaId) => {
+    const media = ownedMediaById.get(mediaId);
+    if (!media) {
+      throw mediaNotOwned("photos");
+    }
+
+    return {
+      mediaId,
+      url: media.url,
+    };
+  });
+}
+
+function mediaNotOwned(field: "avatarUrl" | "photos"): AppError {
+  return new AppError("media_not_owned", "Media file is not owned by current user", 403, {
+    [field]: "media_not_owned",
+  });
 }
 
 function toProfileGoal(value: string | null): ProfileGoal | null {
