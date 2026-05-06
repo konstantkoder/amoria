@@ -15,7 +15,7 @@ Copy the root example file and change secrets before production:
 cp .env.example .env
 ```
 
-The default `DATABASE_URL` uses host `postgres` because Docker Compose runs the API and database on the same Compose network. If you run `npm run dev` directly on the host while PostgreSQL is in Docker, set `DATABASE_URL=postgresql://amoria:amoria_password@localhost:5432/amoria` in your shell or in `.env`.
+The default `DATABASE_URL` uses host `postgres` because Docker Compose runs the API and database on the same Compose network. The default `S3_ENDPOINT` uses host `minio` for the same reason. If you run `npm run dev` directly on the host while PostgreSQL and MinIO are in Docker, set `DATABASE_URL=postgres://amoria:amoria_password@localhost:5432/amoria` and `S3_ENDPOINT=http://localhost:9000` in your shell.
 
 ## Install Dependencies
 
@@ -28,7 +28,7 @@ npm install
 Docker Compose runs migrations before starting the API container. For direct local Node development, start PostgreSQL first and then run:
 
 ```bash
-DATABASE_URL=postgresql://amoria:amoria_password@localhost:5432/amoria npm run db:migrate
+DATABASE_URL=postgres://amoria:amoria_password@localhost:5432/amoria S3_ENDPOINT=http://localhost:9000 npm run db:migrate
 ```
 
 ## Start With Docker Compose
@@ -37,12 +37,14 @@ From the repo root:
 
 ```bash
 docker compose up -d --build
+docker compose exec api npm run db:migrate
 docker compose logs -f api
 ```
 
 Data lives in:
 
 - PostgreSQL volume: `amoria_postgres_data`
+- MinIO volume: `amoria_minio_data`
 - Uploads bind mount: `./uploads`
 
 ## Test Health
@@ -55,6 +57,20 @@ Expected shape:
 
 ```json
 {"ok":true,"service":"amoria-api","time":"..."}
+```
+
+## Test MinIO
+
+Open `http://localhost:9001` and sign in with `minioadmin` / `minioadmin`.
+The Compose init job creates bucket `amoria` and allows anonymous downloads.
+
+## Connect Mobile Client
+
+Use your PC LAN IP address, not `localhost`, from a physical phone:
+
+```bash
+EXPO_PUBLIC_API_URL=http://<LAN_IP_PC>:4000
+EXPO_PUBLIC_WS_URL=ws://<LAN_IP_PC>:4000/ws
 ```
 
 ## Test Register And Login
@@ -86,11 +102,7 @@ curl -s http://localhost:4000/media/avatar \
   -F "file=@$AVATAR_FILE"
 ```
 
-The processed avatar is saved as:
-
-`uploads/users/{userId}/avatar.webp`
-
-It is served locally at:
+The processed avatar is stored in MinIO and served locally at:
 
 `http://localhost:4000/media/users/{userId}/avatar.webp`
 

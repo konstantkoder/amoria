@@ -20,6 +20,7 @@ ENV NODE_ENV=production
 COPY package*.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 
+COPY scripts ./scripts
 COPY --from=build /app/dist ./dist
 COPY src/db/migrations ./dist/src/db/migrations
 
@@ -28,4 +29,4 @@ RUN mkdir -p /app/uploads && chown -R node:node /app/uploads
 USER node
 EXPOSE 4000
 
-CMD ["sh", "-c", "node dist/src/db/migrate.js && node dist/src/server.js"]
+CMD ["sh", "-c", "npm run db:migrate && node dist/src/server.js"]

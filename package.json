@@ -12,8 +12,13 @@
     "lint": "tsc -p tsconfig.json --noEmit",
     "test": "node --test --import tsx tests/*.test.ts",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "tsx src/db/migrate.ts",
-    "db:push": "drizzle-kit push"
+    "db:migrate": "node scripts/run-db-migrate.mjs",
+    "db:push": "drizzle-kit push",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f api",
+    "docker:migrate": "docker compose exec api npm run db:migrate",
+    "docker:dev": "docker compose up -d && docker compose logs -f api"
   },
   "engines": {
     "node": ">=22"

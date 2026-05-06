@@ -1,6 +1,6 @@
 # Amoria API
 
-Standalone backend foundation for Amoria. It contains the API, PostgreSQL schema, auth/profile/media flows, and local upload handling only.
+Standalone backend foundation for Amoria. It contains the API, PostgreSQL schema, auth/profile/media flows, and S3-compatible media storage.
 
 ## Stack
 
@@ -12,7 +12,7 @@ Standalone backend foundation for Amoria. It contains the API, PostgreSQL schema
 - Rotating hashed refresh tokens
 - Argon2id password hashing with bcrypt fallback
 - Sharp avatar processing
-- Local file uploads
+- S3-compatible media storage with local MinIO
 
 ## Scripts
 
@@ -25,15 +25,28 @@ Standalone backend foundation for Amoria. It contains the API, PostgreSQL schema
 - `npm run db:generate`: generate Drizzle migrations from schema changes
 - `npm run db:migrate`: apply Drizzle migrations
 - `npm run db:push`: push schema directly for local development only
+- `npm run docker:up`: start Docker Compose services
+- `npm run docker:down`: stop Docker Compose services
+- `npm run docker:logs`: follow API container logs
+- `npm run docker:migrate`: run migrations inside the API container
+- `npm run docker:dev`: start Docker Compose services and follow API logs
 
 ## Environment
 
 - `PORT`: API port, default local value `4000`
-- `DATABASE_URL`: PostgreSQL connection string
+- `DATABASE_URL`: PostgreSQL connection string; use host `postgres` inside Docker
 - `JWT_SECRET`: long random secret for access tokens
 - `PUBLIC_API_URL`: public API base URL
 - `PUBLIC_MEDIA_URL`: public media base URL
 - `UPLOADS_DIR`: local upload directory controlled by the server
+- `OBJECT_STORAGE_PROVIDER`: must be `s3`
+- `S3_ENDPOINT`: S3 endpoint for the server; use `http://minio:9000` inside Docker
+- `S3_REGION`: S3 region, default local value `us-east-1`
+- `S3_ACCESS_KEY`: MinIO/S3 access key
+- `S3_SECRET_KEY`: MinIO/S3 secret key
+- `S3_BUCKET`: S3 bucket name, default local value `amoria`
+- `S3_PUBLIC_BASE_URL`: browser-visible media base URL, default local value `http://localhost:9000/amoria`
+- `S3_FORCE_PATH_STYLE`: use `1` for MinIO
 - `NODE_ENV`: `development`, `test`, or `production`
 
 ## Endpoints
@@ -133,15 +146,27 @@ From the repo root:
 
 ```bash
 cp .env.example .env
-docker compose up -d --build
+docker compose up -d
+docker compose exec api npm run db:migrate
+curl http://localhost:4000/health
+```
+
+MinIO console is available at `http://localhost:9001` with `minioadmin` / `minioadmin`.
+The local bucket is `amoria`, and public media URLs use `http://localhost:9000/amoria`.
+
+For an Expo mobile client on the same LAN, set:
+
+```bash
+EXPO_PUBLIC_API_URL=http://<LAN_IP_PC>:4000
+EXPO_PUBLIC_WS_URL=ws://<LAN_IP_PC>:4000/ws
 ```
 
 For direct Node development:
 
 ```bash
 npm install
-DATABASE_URL=postgresql://amoria:amoria_password@localhost:5432/amoria npm run db:migrate
-DATABASE_URL=postgresql://amoria:amoria_password@localhost:5432/amoria npm run dev
+DATABASE_URL=postgres://amoria:amoria_password@localhost:5432/amoria S3_ENDPOINT=http://localhost:9000 npm run db:migrate
+DATABASE_URL=postgres://amoria:amoria_password@localhost:5432/amoria S3_ENDPOINT=http://localhost:9000 npm run dev
 ```
 
-Uploaded avatars are processed to WebP and stored under `uploads/users/{userId}/avatar.webp`.
+Uploaded avatars are processed to WebP and stored in the configured S3 bucket.
