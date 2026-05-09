@@ -26,7 +26,10 @@ import {
   type RootStackNavigationProp,
 } from "@/navigation/appRoutes";
 import * as togetherApi from "@/services/api/togetherApi";
-import type { TogetherParticipantDto, TogetherSessionResponse } from "@/services/api/types";
+import type {
+  TogetherSessionResponse,
+  TogetherSessionStatus,
+} from "@/services/api/types";
 import * as wsClient from "@/services/realtime/wsClient";
 import {
   getTogetherPeer,
@@ -67,6 +70,32 @@ function readTogetherEvent(payload: wsClient.RealtimeMessage): TogetherEventDto 
   return event as TogetherEventDto;
 }
 
+type TogetherSessionUpdatedMessage = {
+  sessionId: string;
+  session: TogetherSessionResponse;
+  reason?: string;
+  actorUserId?: string;
+};
+
+function readTogetherSessionUpdate(
+  payload: wsClient.RealtimeMessage
+): TogetherSessionUpdatedMessage | null {
+  if (payload.type !== "together.session.updated") return null;
+  const session = payload.session && typeof payload.session === "object" ? payload.session : null;
+  if (!session || !("session" in session)) return null;
+
+  return {
+    sessionId: String(payload.sessionId ?? ""),
+    session: session as TogetherSessionResponse,
+    reason: typeof payload.reason === "string" ? payload.reason : undefined,
+    actorUserId: typeof payload.actorUserId === "string" ? payload.actorUserId : undefined,
+  };
+}
+
+function isTerminalClosedStatus(status?: TogetherSessionStatus | string | null) {
+  return status === "abandoned" || status === "cancelled";
+}
+
 export default function PlayCanvasScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"PlayCanvas">>();
   const route = useRoute<PlayCanvasRouteProp>();
@@ -89,12 +118,17 @@ export default function PlayCanvasScreen() {
   const [loading, setLoading] = React.useState(true);
   const [loadError, setLoadError] = React.useState("");
   const [finishing, setFinishing] = React.useState(false);
+  const [leaving, setLeaving] = React.useState(false);
+  const [strokeError, setStrokeError] = React.useState("");
   const [drawingStarted, setDrawingStarted] = React.useState(false);
   const [tick, setTick] = React.useState(Date.now());
+  const [canvasRevision, setCanvasRevision] = React.useState(0);
+  const [closedActorUserId, setClosedActorUserId] = React.useState<string | null>(null);
   const mountedRef = React.useRef(true);
   const navigationHandledRef = React.useRef(false);
   const allowExitRef = React.useRef(false);
   const finishPromiseRef = React.useRef<Promise<void> | null>(null);
+  const leavePromiseRef = React.useRef<Promise<void> | null>(null);
 
   const goToTogether = React.useCallback(() => {
     navigation.navigate("Tabs", { screen: "Together" });
@@ -118,16 +152,26 @@ export default function PlayCanvasScreen() {
     navigation.replace("PlayCanvas", { sessionId });
   }, [goToTogether, navigation, sessionId]);
 
+  const startNewSession = React.useCallback(() => {
+    allowExitRef.current = true;
+    navigation.navigate("PlayMatch", { activity: "draw" });
+  }, [navigation]);
+
   React.useEffect(() => {
     mountedRef.current = true;
     navigationHandledRef.current = false;
     allowExitRef.current = false;
     finishPromiseRef.current = null;
+    leavePromiseRef.current = null;
     setLoading(true);
     setLoadError("");
     setFinishing(false);
+    setLeaving(false);
+    setStrokeError("");
     setDrawingStarted(false);
     setTick(Date.now());
+    setCanvasRevision((value) => value + 1);
+    setClosedActorUserId(null);
     setStrokes(getTogetherStrokes(sessionId));
 
     if (!uid || !sessionId) {
@@ -161,26 +205,6 @@ export default function PlayCanvasScreen() {
     };
   }, [sessionId, tt, uid]);
 
-  React.useEffect(() => {
-    if (!uid || !sessionId) return;
-    let alive = true;
-    wsClient.connect();
-    wsClient.subscribeTogetherSession(sessionId);
-    const unsubscribe = wsClient.onMessage((payload) => {
-      if (!alive) return;
-      if (String(payload.sessionId ?? "") !== sessionId) return;
-      const event = readTogetherEvent(payload);
-      if (!event) return;
-      setStrokes(rememberTogetherEvent(sessionId, event));
-    });
-
-    return () => {
-      alive = false;
-      unsubscribe();
-      wsClient.unsubscribeTogetherSession(sessionId);
-    };
-  }, [sessionId, uid]);
-
   const session = sessionResponse?.session ?? null;
   const participants = sessionResponse?.participants ?? [];
   const peer = React.useMemo(
@@ -210,6 +234,54 @@ export default function PlayCanvasScreen() {
     navigation.replace("PlayResult", { sessionId });
   }, [navigation, sessionId]);
 
+  const applySessionResponse = React.useCallback(
+    (response: TogetherSessionResponse, actorUserId?: string) => {
+      rememberTogetherSession(response);
+      if (!mountedRef.current) return;
+      setSessionResponse(response);
+      if (actorUserId) {
+        setClosedActorUserId(actorUserId);
+      }
+
+      if (response.session.status === "finished") {
+        openResultScreen();
+      } else if (isTerminalClosedStatus(response.session.status)) {
+        setDrawingStarted(true);
+        if (actorUserId && actorUserId === uid) {
+          allowExitRef.current = true;
+          goToTogether();
+        }
+      }
+    },
+    [goToTogether, openResultScreen, uid]
+  );
+
+  React.useEffect(() => {
+    if (!uid || !sessionId) return;
+    let alive = true;
+    wsClient.connect();
+    wsClient.subscribeTogetherSession(sessionId);
+    const unsubscribe = wsClient.onMessage((payload) => {
+      if (!alive) return;
+      if (String(payload.sessionId ?? "") !== sessionId) return;
+      const sessionUpdate = readTogetherSessionUpdate(payload);
+      if (sessionUpdate) {
+        applySessionResponse(sessionUpdate.session, sessionUpdate.actorUserId);
+        return;
+      }
+
+      const event = readTogetherEvent(payload);
+      if (!event) return;
+      setStrokes(rememberTogetherEvent(sessionId, event));
+    });
+
+    return () => {
+      alive = false;
+      unsubscribe();
+      wsClient.unsubscribeTogetherSession(sessionId);
+    };
+  }, [applySessionResponse, sessionId, uid]);
+
   const completeSession = React.useCallback(async () => {
     if (!sessionId) {
       openResultScreen();
@@ -223,7 +295,9 @@ export default function PlayCanvasScreen() {
     const task = (async () => {
       if (mountedRef.current) setFinishing(true);
       if (session?.status === "active") {
-        await togetherApi.finish(sessionId).catch(() => undefined);
+        const response = await togetherApi.finish(sessionId);
+        applySessionResponse(response, uid);
+        return;
       }
       openResultScreen();
     })().finally(() => {
@@ -232,13 +306,88 @@ export default function PlayCanvasScreen() {
     });
 
     finishPromiseRef.current = task;
-    await task.catch(() => undefined);
-  }, [openResultScreen, session?.status, sessionId]);
+    await task.catch(() => {
+      if (!mountedRef.current) return;
+      setStrokeError(
+        tt(
+          "play.canvas.finishFailed",
+          "Не удалось завершить сессию. Проверь подключение и попробуй ещё раз."
+        )
+      );
+    });
+  }, [applySessionResponse, openResultScreen, session?.status, sessionId, tt, uid]);
+
+  const leaveSessionAndExit = React.useCallback(async () => {
+    if (!sessionId) {
+      goToTogether();
+      return;
+    }
+    if (leavePromiseRef.current) {
+      await leavePromiseRef.current;
+      return;
+    }
+
+    const task = (async () => {
+      if (mountedRef.current) setLeaving(true);
+      const response = await togetherApi.leave(sessionId);
+      applySessionResponse(response, uid);
+      allowExitRef.current = true;
+      goToTogether();
+    })().finally(() => {
+      leavePromiseRef.current = null;
+      if (mountedRef.current) setLeaving(false);
+    });
+
+    leavePromiseRef.current = task;
+    await task.catch(() => {
+      if (!mountedRef.current) return;
+      setStrokeError(
+        tt(
+          "play.canvas.leaveFailed",
+          "Не удалось выйти из сессии. Сессия не закрыта локально, попробуй ещё раз."
+        )
+      );
+    });
+  }, [applySessionResponse, goToTogether, sessionId, tt, uid]);
+
+  React.useEffect(() => {
+    if (!uid || !sessionId || session?.status !== "active" || finishing || leaving) return;
+
+    let cancelled = false;
+    const sendHeartbeat = async () => {
+      try {
+        const response = await togetherApi.heartbeat(sessionId);
+        if (!cancelled) {
+          applySessionResponse(response);
+        }
+      } catch {
+        if (!cancelled && mountedRef.current) {
+          setStrokeError(
+            tt(
+              "play.canvas.heartbeatFailed",
+              "Связь с совместной сессией нестабильна. Новые штрихи могут не сохраниться."
+            )
+          );
+        }
+      }
+    };
+
+    const timer = setInterval(() => {
+      void sendHeartbeat();
+    }, 12000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [applySessionResponse, finishing, leaving, session?.status, sessionId, tt, uid]);
 
   React.useEffect(() => {
     if (!session) return;
     if (session.status === "finished") {
       openResultScreen();
+    } else if (isTerminalClosedStatus(session.status)) {
+      setDrawingStarted(true);
     }
   }, [openResultScreen, session]);
 
@@ -257,18 +406,18 @@ export default function PlayCanvasScreen() {
 
         event.preventDefault();
         Alert.alert(
-          tt("play.canvas.leaveTitle", "Завершить сессию?"),
+          tt("play.canvas.leaveTitle", "Выйти из сессии?"),
           tt(
             "play.canvas.leaveBody",
-            "Если выйти сейчас, мы мягко завершим общий рисунок и сразу откроем итог."
+            "Если выйти сейчас, совместная сессия завершится для обоих."
           ),
           [
             { text: tt("common.stay", "Остаться"), style: "cancel" },
             {
-              text: tt("common.finish", "Завершить"),
+              text: tt("common.exit", "Выйти"),
               style: "destructive",
               onPress: () => {
-                void completeSession();
+                void leaveSessionAndExit();
               },
             },
           ]
@@ -277,7 +426,7 @@ export default function PlayCanvasScreen() {
     );
 
     return unsubscribe;
-  }, [completeSession, navigation, session?.status, tt]);
+  }, [leaveSessionAndExit, navigation, session?.status, tt]);
 
   const handleCanvasBack = React.useCallback(() => {
     if (session?.status !== "active") {
@@ -285,27 +434,27 @@ export default function PlayCanvasScreen() {
       return;
     }
     Alert.alert(
-      tt("play.canvas.leaveTitle", "Завершить сессию?"),
+      tt("play.canvas.leaveTitle", "Выйти из сессии?"),
       tt(
         "play.canvas.leaveBody",
-        "Если выйти сейчас, мы мягко завершим общий рисунок и сразу откроем итог."
+        "Если выйти сейчас, совместная сессия завершится для обоих."
       ),
       [
         { text: tt("common.stay", "Остаться"), style: "cancel" },
         {
-          text: tt("common.finish", "Завершить"),
+          text: tt("common.exit", "Выйти"),
           style: "destructive",
           onPress: () => {
-            void completeSession();
+            void leaveSessionAndExit();
           },
         },
       ]
     );
-  }, [completeSession, handleSafeBack, session?.status, tt]);
+  }, [handleSafeBack, leaveSessionAndExit, session?.status, tt]);
 
   const handleLocalBatch = React.useCallback(
     async (localStrokes: SharedCanvasStroke[]) => {
-      if (!uid || !sessionId || session?.status !== "active" || finishing) return;
+      if (!uid || !sessionId || session?.status !== "active" || finishing || leaving) return;
 
       const clientEventId = buildClientEventId(uid);
       const payload = {
@@ -322,16 +471,30 @@ export default function PlayCanvasScreen() {
         })),
       };
 
-      setStrokes(rememberLocalTogetherStrokes(sessionId, uid, clientEventId, localStrokes));
+      setStrokeError("");
       try {
-        await togetherApi.sendEvent(sessionId, {
+        const response = await togetherApi.sendEvent(sessionId, {
           clientEventId,
           type: "stroke_batch",
           payload,
         });
-      } catch {}
+        if (!mountedRef.current) return;
+        if (response.created) {
+          setStrokes(rememberLocalTogetherStrokes(sessionId, uid, clientEventId, localStrokes));
+        }
+      } catch {
+        if (!mountedRef.current) return;
+        setStrokes(getTogetherStrokes(sessionId));
+        setCanvasRevision((value) => value + 1);
+        setStrokeError(
+          tt(
+            "play.canvas.strokeFailed",
+            "Штрих не сохранился на сервере. Холст вернулся к последнему подтверждённому состоянию."
+          )
+        );
+      }
     },
-    [finishing, session?.status, sessionId, uid]
+    [finishing, leaving, session?.status, sessionId, tt, uid]
   );
 
   const canvasToolLabels = React.useMemo(
@@ -422,6 +585,41 @@ export default function PlayCanvasScreen() {
     );
   }
 
+  if (isTerminalClosedStatus(session.status)) {
+    const closedByPartner = Boolean(closedActorUserId && closedActorUserId !== uid);
+    return (
+      <ScreenShell
+        title={tt("play.canvas.title", "Совместная сессия")}
+        background="nightCity"
+        showBack
+        onBack={goToTogether}
+      >
+        <View style={styles.centerState}>
+          <CoreStateCard
+            icon="exit-outline"
+            title={
+              closedByPartner
+                ? tt("play.canvas.partnerLeftTitle", "Партнёр вышел из сессии")
+                : tt("play.canvas.sessionInterruptedTitle", "Сессия была прервана")
+            }
+            body={tt(
+              "play.canvas.sessionInterruptedBody",
+              "Совместная сессия завершена. Итог и чат по этой сессии недоступны."
+            )}
+            primaryAction={{
+              label: tt("common.backToTogether", "Вернуться во Вместе"),
+              onPress: goToTogether,
+            }}
+            secondaryAction={{
+              label: tt("play.canvas.findNewPartner", "Найти нового партнёра"),
+              onPress: startNewSession,
+            }}
+          />
+        </View>
+      </ScreenShell>
+    );
+  }
+
   if (!drawingStarted && session.status === "active") {
     return (
       <ScreenShell
@@ -460,6 +658,8 @@ export default function PlayCanvasScreen() {
             </View>
           </View>
 
+          {strokeError ? <Text style={styles.previewError}>{strokeError}</Text> : null}
+
           <Pressable
             style={styles.primaryButton}
             onPress={() => setDrawingStarted(true)}
@@ -474,7 +674,7 @@ export default function PlayCanvasScreen() {
   }
 
   const timerValue = formatRemaining(drawRemaining);
-  const canvasDisabled = session.status !== "active" || finishing;
+  const canvasDisabled = session.status !== "active" || finishing || leaving;
 
   return (
     <ScreenShell
@@ -507,18 +707,19 @@ export default function PlayCanvasScreen() {
         </View>
 
         <SharedCanvasWebView
+          key={`${sessionId}-${canvasRevision}`}
           localUid={uid}
           strokes={strokes}
           onLocalStrokeBatch={handleLocalBatch}
           disabled={canvasDisabled}
           disabledTitle={
-            finishing
+            finishing || leaving
               ? tt("play.canvas.disabledFinishingTitle", "Завершаем сессию")
               : tt("play.canvas.disabledClosedTitle", "Холст закрыт")
           }
           disabledBody={
-            finishing
-              ? tt("play.canvas.disabledFinishingBody", "Сейчас откроем итог вашей совместной сессии.")
+            finishing || leaving
+              ? tt("play.canvas.disabledFinishingBody", "Сейчас сохраняем состояние совместной сессии.")
               : undefined
           }
           fullscreen
@@ -526,19 +727,24 @@ export default function PlayCanvasScreen() {
         />
 
         <View style={styles.footerBar}>
-          <Text style={styles.footerText}>
-            {tt("play.canvas.strokeCount", "Штрихов: {count}", {
-              count: String(totalStrokeCount),
-            })}
-          </Text>
+          <View style={styles.footerTextWrap}>
+            <Text style={styles.footerText}>
+              {tt("play.canvas.strokeCount", "Штрихов: {count}", {
+                count: String(totalStrokeCount),
+              })}
+            </Text>
+            {strokeError ? <Text style={styles.footerError}>{strokeError}</Text> : null}
+          </View>
           <Pressable
-            style={[styles.finishButton, finishing ? styles.buttonDisabled : null]}
+            style={[styles.finishButton, finishing || leaving ? styles.buttonDisabled : null]}
             onPress={() => void completeSession()}
-            disabled={finishing}
+            disabled={finishing || leaving}
           >
             <Text style={styles.finishButtonText}>
               {finishing
                 ? tt("play.canvas.finishing", "Завершаем…")
+                : leaving
+                  ? tt("common.exiting", "Выходим…")
                 : tt("common.finish", "Завершить")}
             </Text>
           </Pressable>
@@ -609,6 +815,11 @@ const styles = StyleSheet.create({
   },
   sessionCardBody: {
     color: theme.colors.subtext,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  previewError: {
+    color: "#FFB4B4",
     fontSize: 13,
     lineHeight: 18,
   },
@@ -688,10 +899,19 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: "rgba(255,255,255,0.1)",
   },
+  footerTextWrap: {
+    flex: 1,
+    gap: 3,
+  },
   footerText: {
     color: theme.colors.subtext,
     fontSize: 13,
     fontWeight: "700",
+  },
+  footerError: {
+    color: "#FFB4B4",
+    fontSize: 11,
+    lineHeight: 15,
   },
   finishButton: {
     minHeight: 40,

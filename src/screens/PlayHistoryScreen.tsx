@@ -43,16 +43,36 @@ function getOutcomeLabel(
       return tt("playHistory.storyStatusMixedShort", "Осталось историей");
     case "skip_skip":
       return tt("playHistory.storyStatusClosedShort", "Без чата");
+    case "blocked":
+      return tt("playHistory.storyStatusBlockedShort", "Контакт недоступен");
     case "pending":
     default:
       return tt("playHistory.storyStatusWaitingShort", "Ждём ответ");
   }
 }
 
+function isTerminalClosedStatus(status?: string | null) {
+  return status === "abandoned" || status === "cancelled";
+}
+
 function getRelationshipText(
   item: TogetherHistoryItem,
   tt: (key: string, fallback: string, params?: Record<string, string>) => string
 ) {
+  if (isTerminalClosedStatus(item.status)) {
+    return tt(
+      "playHistory.storyStatusInterrupted",
+      "Сессия была прервана. Чат по этой сессии недоступен."
+    );
+  }
+
+  if (item.outcome === "blocked") {
+    return tt(
+      "playHistory.storyStatusBlocked",
+      "Контакт недоступен. Чат не может быть открыт из-за настроек безопасности."
+    );
+  }
+
   if (item.outcome === "open_open") {
     return tt(
       "playHistory.storyStatusOpen",
@@ -146,7 +166,7 @@ export default function PlayHistoryScreen() {
 
   const openChat = useCallback(
     async (item: TogetherHistoryItem) => {
-      if (item.outcome !== "open_open") return;
+      if (isTerminalClosedStatus(item.status) || item.outcome !== "open_open") return;
       setOpeningChatId(item.sessionId);
       setActionError(null);
       try {
@@ -190,6 +210,7 @@ export default function PlayHistoryScreen() {
       const outcomeLabel = getOutcomeLabel(item.outcome, tt);
       const relationshipText = getRelationshipText(item, tt);
       const opening = openingChatId === item.sessionId;
+      const chatUnavailable = isTerminalClosedStatus(item.status);
 
       return (
         <Pressable
@@ -227,7 +248,7 @@ export default function PlayHistoryScreen() {
                 {tt("playHistory.openStory", "Открыть историю")}
               </Text>
             </Pressable>
-            {item.outcome === "open_open" ? (
+            {item.outcome === "open_open" && !chatUnavailable ? (
               <Pressable
                 onPress={() => void openChat(item)}
                 style={[styles.primaryButton, opening ? styles.buttonDisabled : null]}

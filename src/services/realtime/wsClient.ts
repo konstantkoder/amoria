@@ -8,7 +8,9 @@ export type RealtimeMessage = {
 
 type RealtimeHandler = (message: RealtimeMessage) => void;
 
-const MAX_DEV_RECONNECT_ATTEMPTS = 3;
+const MAX_RECONNECT_ATTEMPTS = 8;
+const RECONNECT_BASE_DELAY_MS = 1000;
+const RECONNECT_MAX_DELAY_MS = 30000;
 
 let socket: WebSocket | null = null;
 let reconnectAttempts = 0;
@@ -48,18 +50,22 @@ function replaySubscriptions() {
 }
 
 function scheduleReconnect() {
-  if (manualDisconnect || !__DEV__) return;
-  if (reconnectAttempts >= MAX_DEV_RECONNECT_ATTEMPTS) return;
+  if (manualDisconnect) return;
+  if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) return;
 
   reconnectAttempts += 1;
   if (reconnectTimer) {
     clearTimeout(reconnectTimer);
   }
 
+  const exponentialDelay = RECONNECT_BASE_DELAY_MS * 2 ** (reconnectAttempts - 1);
+  const jitter = Math.floor(Math.random() * 300);
+  const delayMs = Math.min(exponentialDelay + jitter, RECONNECT_MAX_DELAY_MS);
+
   reconnectTimer = setTimeout(() => {
     reconnectTimer = null;
     void connect();
-  }, reconnectAttempts * 1000);
+  }, delayMs);
 }
 
 export function connect(): WebSocket | null {

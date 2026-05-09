@@ -54,10 +54,16 @@ function getOutcomeLabel(
       return tt("playDetail.outcomeMixed", "Осталось историей");
     case "skip_skip":
       return tt("playDetail.outcomeClosed", "Без чата");
+    case "blocked":
+      return tt("playDetail.outcomeBlocked", "Контакт недоступен");
     case "pending":
     default:
       return tt("playDetail.outcomeWaiting", "Ждём ответ");
   }
+}
+
+function isTerminalClosedStatus(status?: string | null) {
+  return status === "abandoned" || status === "cancelled";
 }
 
 export default function PlaySessionDetailScreen() {
@@ -153,9 +159,10 @@ export default function PlaySessionDetailScreen() {
   const outcome = historyItem?.outcome ?? "pending";
   const strokes = React.useMemo(() => getTogetherStrokes(sessionId), [sessionId]);
   const hasReplay = strokes.length > 0;
+  const sessionClosed = isTerminalClosedStatus(session?.status ?? historyItem?.status);
 
   const openChat = React.useCallback(async () => {
-    if (outcome !== "open_open" || !peer?.id) return;
+    if (sessionClosed || outcome !== "open_open" || !peer?.id) return;
     setOpeningChat(true);
     setChatActionError(null);
     try {
@@ -186,7 +193,7 @@ export default function PlaySessionDetailScreen() {
     } finally {
       if (mountedRef.current) setOpeningChat(false);
     }
-  }, [navigation, outcome, peer?.id, peerName, sessionId, strokes.length, tt]);
+  }, [navigation, outcome, peer?.id, peerName, sessionClosed, sessionId, strokes.length, tt]);
 
   if (!sessionId) {
     return (
@@ -269,7 +276,9 @@ export default function PlaySessionDetailScreen() {
           <Text style={styles.kicker}>{tt("playDetail.kicker", "Together")}</Text>
           <Text style={styles.title}>{session.promptText}</Text>
           <Text style={styles.body}>
-            {tt("playDetail.storyBody", "Общая история с {name}", { name: peerName })}
+            {sessionClosed
+              ? tt("playDetail.interruptedBody", "Сессия была прервана. Чат по этой сессии недоступен.")
+              : tt("playDetail.storyBody", "Общая история с {name}", { name: peerName })}
           </Text>
           <View style={styles.metaGrid}>
             <View style={styles.metaItem}>
@@ -278,7 +287,11 @@ export default function PlaySessionDetailScreen() {
             </View>
             <View style={styles.metaItem}>
               <Text style={styles.metaLabel}>{tt("playDetail.status", "Статус")}</Text>
-              <Text style={styles.metaValue}>{getOutcomeLabel(outcome, tt)}</Text>
+              <Text style={styles.metaValue}>
+                {sessionClosed
+                  ? tt("playDetail.outcomeInterrupted", "Сессия прервана")
+                  : getOutcomeLabel(outcome, tt)}
+              </Text>
             </View>
             <View style={styles.metaItem}>
               <Text style={styles.metaLabel}>{tt("playDetail.createdAt", "Создано")}</Text>
@@ -306,11 +319,23 @@ export default function PlaySessionDetailScreen() {
         <View style={styles.bridgeCard}>
           <Text style={styles.sectionTitle}>
             {outcome === "open_open"
-              ? tt("playDetail.bridgeChatReadyTitle", "Из этой истории уже можно вернуться в чат")
+              ? sessionClosed
+                ? tt("playDetail.bridgeInterruptedTitle", "Сессия была прервана")
+                : tt("playDetail.bridgeChatReadyTitle", "Из этой истории уже можно вернуться в чат")
               : tt("playDetail.bridgeStoryOnlyTitle", "Эта история осталась вашим общим моментом")}
           </Text>
           <Text style={styles.body}>
-            {outcome === "open_open"
+            {sessionClosed
+              ? tt(
+                  "playDetail.bridgeInterruptedBody",
+                  "Reveal и чат недоступны, потому что эта совместная сессия не была завершена."
+                )
+              : outcome === "blocked"
+                ? tt(
+                    "playDetail.bridgeBlockedBody",
+                    "Контакт недоступен. Чат не может быть открыт из-за настроек безопасности."
+                  )
+              : outcome === "open_open"
               ? tt(
                   "playDetail.bridgeChatReadyBody",
                   "Эта история уже стала частью открытого чата. Отсюда можно сразу перейти в разговор."
@@ -322,7 +347,7 @@ export default function PlaySessionDetailScreen() {
           </Text>
           {chatActionError ? <Text style={styles.errorText}>{chatActionError}</Text> : null}
           <View style={styles.actionRow}>
-            {outcome === "open_open" ? (
+            {outcome === "open_open" && !sessionClosed ? (
               <Pressable
                 style={[styles.primaryButton, openingChat ? styles.buttonDisabled : null]}
                 onPress={() => void openChat()}

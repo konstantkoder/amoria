@@ -62,10 +62,24 @@ export function sendEvent(
   );
 }
 
-export function finish(sessionId: string): Promise<{ ok: true }> {
-  return request<{ ok: true }>(
+export function finish(sessionId: string): Promise<TogetherSessionResponse> {
+  return request<TogetherSessionResponse>(
     "POST",
     `/together/sessions/${encodeURIComponent(sessionId)}/finish`
+  );
+}
+
+export function leave(sessionId: string): Promise<TogetherSessionResponse> {
+  return request<TogetherSessionResponse>(
+    "POST",
+    `/together/sessions/${encodeURIComponent(sessionId)}/leave`
+  );
+}
+
+export function heartbeat(sessionId: string): Promise<TogetherSessionResponse> {
+  return request<TogetherSessionResponse>(
+    "POST",
+    `/together/sessions/${encodeURIComponent(sessionId)}/heartbeat`
   );
 }
 

@@ -40,10 +40,16 @@ function getRevealLabel(
       return tt("play.reveal.openSkipShort", "Осталось историей");
     case "skip_skip":
       return tt("play.reveal.skipSkipShort", "Без чата");
+    case "blocked":
+      return tt("play.reveal.blockedShort", "Контакт недоступен");
     case "pending":
     default:
       return tt("play.reveal.waitingShort", "Ждём ответ");
   }
+}
+
+function isTerminalClosedStatus(status?: string | null) {
+  return status === "abandoned" || status === "cancelled";
 }
 
 export default function PlayResultScreen() {
@@ -152,7 +158,7 @@ export default function PlayResultScreen() {
 
   const submitDecision = React.useCallback(
     async (nextDecision: RevealDecision) => {
-      if (!sessionId || submitting || decision) return;
+      if (!sessionId || submitting || decision || session?.status !== "finished") return;
       setSubmitting(true);
       setDecision(nextDecision);
       setActionError("");
@@ -177,7 +183,7 @@ export default function PlayResultScreen() {
         if (mountedRef.current) setSubmitting(false);
       }
     },
-    [decision, navigateToThread, peer, sessionId, submitting, tt]
+    [decision, navigateToThread, peer, session?.status, sessionId, submitting, tt]
   );
 
   const goToDetail = React.useCallback(() => {
@@ -238,6 +244,31 @@ export default function PlayResultScreen() {
             body={loadError || tt("play.result.stateNotFoundBody", "Сессия уже исчезла или не успела сохраниться.")}
             primaryAction={{ label: tt("common.retry", "Повторить"), onPress: () => navigation.replace("PlayResult", { sessionId }) }}
             secondaryAction={{ label: tt("common.back", "Назад"), onPress: handleBack }}
+          />
+        </View>
+      </ScreenShell>
+    );
+  }
+
+  if (isTerminalClosedStatus(session.status)) {
+    return (
+      <ScreenShell title={screenTitle} background="togetherStory" showBack onBack={handleBack}>
+        <View style={styles.centerState}>
+          <CoreStateCard
+            icon="ban-outline"
+            title={tt("play.result.interruptedTitle", "Сессия была прервана")}
+            body={tt(
+              "play.result.interruptedBody",
+              "Чат по этой сессии недоступен, потому что совместная сессия не была завершена."
+            )}
+            primaryAction={{
+              label: tt("common.backToTogether", "Вернуться во Вместе"),
+              onPress: goToTogether,
+            }}
+            secondaryAction={{
+              label: tt("playHistory.startNewSession", "Начать новую совместную сессию"),
+              onPress: startNewSession,
+            }}
           />
         </View>
       </ScreenShell>
@@ -308,7 +339,12 @@ export default function PlayResultScreen() {
           </Text>
           <Text style={styles.bridgeBody}>
             {decision
-              ? outcome === "pending"
+              ? outcome === "blocked"
+                ? tt(
+                    "play.result.bridgeBlockedBody",
+                    "Контакт недоступен. Чат не может быть открыт из-за настроек безопасности."
+                  )
+                : outcome === "pending"
                 ? tt(
                     "play.result.bridgeWaitingBody",
                     "Твой ответ сохранён. Если второй человек тоже выберет открыть, появится чат."

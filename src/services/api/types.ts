@@ -246,12 +246,24 @@ export type TogetherQueueResponse = {
   entry: TogetherQueueEntry;
 };
 
+export type TogetherSessionStatus = "active" | "finished" | "abandoned" | "cancelled";
+
+export type TogetherRevealOutcome =
+  | "pending"
+  | "open_open"
+  | "open_skip"
+  | "skip_skip"
+  | "blocked";
+
 export type TogetherSessionDto = {
   id: string;
   activity: string;
-  status: string;
+  status: TogetherSessionStatus;
   promptText: string;
   createdAt: string;
+  endedAt?: string | null;
+  endedReason?: string | null;
+  deadlineAt?: string | null;
 };
 
 export type TogetherParticipantDto = {
@@ -267,21 +279,24 @@ export type TogetherSessionResponse = {
 };
 
 export type TogetherRevealResponse = {
-  outcome: string;
+  outcome: TogetherRevealOutcome;
   threadId?: string;
 };
 
 export type TogetherHistoryItem = {
   sessionId: string;
   activity: string;
+  status?: TogetherSessionStatus;
   promptText: string;
   peer: {
     id: string;
     displayName: string;
     avatarUrl: string | null;
   };
-  outcome: string;
+  outcome: TogetherRevealOutcome;
   createdAt: string;
+  endedAt?: string | null;
+  endedReason?: string | null;
 };
 
 export type TogetherHistoryResponse = {
