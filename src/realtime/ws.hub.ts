@@ -1,6 +1,17 @@
 import type { WebSocket } from "@fastify/websocket";
 import type { MessageDto } from "../chat/chat.types";
-import type { TogetherEventDto } from "../together/together.types";
+import type {
+  TogetherEventDto,
+  TogetherSessionResponse,
+  TogetherSessionUpdateReason,
+} from "../together/together.types";
+
+export type TogetherSessionUpdatedPayload = {
+  sessionId: string;
+  session: TogetherSessionResponse;
+  reason: TogetherSessionUpdateReason;
+  actorUserId: string;
+};
 
 type SocketState = {
   userId: string;
@@ -143,6 +154,16 @@ class WsHub {
       type: "together.event",
       sessionId,
       event,
+    });
+  }
+
+  broadcastTogetherSessionUpdated(
+    sessionId: string,
+    payload: TogetherSessionUpdatedPayload,
+  ): void {
+    this.broadcastToSockets(this.togetherSessionSockets.get(sessionId), {
+      type: "together.session.updated",
+      ...payload,
     });
   }
 

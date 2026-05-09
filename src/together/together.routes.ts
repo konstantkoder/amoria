@@ -14,10 +14,13 @@ import {
   parseTogetherRevealBody,
   postTogetherEventRouteSchema,
   postTogetherFinishRouteSchema,
+  postTogetherHeartbeatRouteSchema,
+  postTogetherLeaveRouteSchema,
   postTogetherQueueRouteSchema,
   postTogetherRevealRouteSchema,
 } from "./together.schemas";
 import * as togetherService from "./together.service";
+import type { TogetherSessionUpdateResult } from "./together.types";
 
 function currentUserId(request: { auth?: { userId: string } }): string {
   if (!request.auth?.userId) {
@@ -92,7 +95,46 @@ export async function togetherRoutes(fastify: FastifyInstance): Promise<void> {
       preHandler: authMiddleware,
       schema: withErrorResponses(postTogetherFinishRouteSchema),
     },
-    async (request) => togetherService.finishSession(currentUserId(request), request.params.id),
+    async (request) => {
+      const result = await togetherService.finishSession(
+        currentUserId(request),
+        request.params.id,
+      );
+      broadcastSessionUpdate(request.params.id, result);
+      return result.response;
+    },
+  );
+
+  fastify.post<{ Params: { id: string } }>(
+    "/sessions/:id/leave",
+    {
+      preHandler: authMiddleware,
+      schema: withErrorResponses(postTogetherLeaveRouteSchema),
+    },
+    async (request) => {
+      const result = await togetherService.leaveSession(
+        currentUserId(request),
+        request.params.id,
+      );
+      broadcastSessionUpdate(request.params.id, result);
+      return result.response;
+    },
+  );
+
+  fastify.post<{ Params: { id: string } }>(
+    "/sessions/:id/heartbeat",
+    {
+      preHandler: authMiddleware,
+      schema: withErrorResponses(postTogetherHeartbeatRouteSchema),
+    },
+    async (request) => {
+      const result = await togetherService.heartbeatSession(
+        currentUserId(request),
+        request.params.id,
+      );
+      broadcastSessionUpdate(request.params.id, result);
+      return result.response;
+    },
   );
 
   fastify.post<{ Params: { id: string } }>(
@@ -120,4 +162,20 @@ export async function togetherRoutes(fastify: FastifyInstance): Promise<void> {
       return togetherService.getHistory(currentUserId(request), query.limit);
     },
   );
+}
+
+function broadcastSessionUpdate(
+  sessionId: string,
+  result: TogetherSessionUpdateResult,
+): void {
+  if (!result.changed || !result.reason || !result.actorUserId) {
+    return;
+  }
+
+  wsHub.broadcastTogetherSessionUpdated(sessionId, {
+    sessionId,
+    session: result.response,
+    reason: result.reason,
+    actorUserId: result.actorUserId,
+  });
 }

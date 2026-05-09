@@ -9,6 +9,7 @@ import {
   TOGETHER_HISTORY_LIMIT_DEFAULT,
   TOGETHER_HISTORY_LIMIT_MAX,
   TOGETHER_REVEAL_DECISIONS,
+  TOGETHER_SESSION_STATUSES,
 } from "../config/constants";
 import type { JsonValue } from "../db/schema";
 import type {
@@ -111,14 +112,26 @@ const participantSchema = {
 
 const sessionSchema = {
   type: "object",
-  required: ["id", "activity", "status", "promptText", "createdAt"],
+  required: [
+    "id",
+    "activity",
+    "status",
+    "promptText",
+    "createdAt",
+    "endedAt",
+    "endedReason",
+    "deadlineAt",
+  ],
   additionalProperties: false,
   properties: {
     id: { type: "string", format: "uuid" },
     activity: { type: "string", enum: TOGETHER_ACTIVITIES },
-    status: { type: "string", enum: ["active", "finished"] },
+    status: { type: "string", enum: TOGETHER_SESSION_STATUSES },
     promptText: { type: "string" },
     createdAt: { type: "string", format: "date-time" },
+    endedAt: { type: ["string", "null"], format: "date-time" },
+    endedReason: { type: ["string", "null"] },
+    deadlineAt: { type: ["string", "null"], format: "date-time" },
   },
 } as const;
 
@@ -144,15 +157,28 @@ const revealOutcomeSchema = {
 
 const historyItemSchema = {
   type: "object",
-  required: ["sessionId", "activity", "promptText", "peer", "outcome", "createdAt"],
+  required: [
+    "sessionId",
+    "activity",
+    "status",
+    "promptText",
+    "peer",
+    "outcome",
+    "createdAt",
+    "endedAt",
+    "endedReason",
+  ],
   additionalProperties: false,
   properties: {
     sessionId: { type: "string", format: "uuid" },
     activity: { type: "string", enum: TOGETHER_ACTIVITIES },
+    status: { type: "string", enum: TOGETHER_SESSION_STATUSES },
     promptText: { type: "string" },
     peer: participantSchema,
     outcome: revealOutcomeSchema,
     createdAt: { type: "string", format: "date-time" },
+    endedAt: { type: ["string", "null"], format: "date-time" },
+    endedReason: { type: ["string", "null"] },
   },
 } as const;
 
@@ -234,17 +260,12 @@ export const postTogetherEventRouteSchema = {
 
 export const postTogetherFinishRouteSchema = {
   params: uuidParamSchema,
-  response: {
-    200: {
-      type: "object",
-      required: ["ok"],
-      additionalProperties: false,
-      properties: {
-        ok: { type: "boolean" },
-      },
-    },
-  },
+  response: getTogetherSessionRouteSchema.response,
 } as const satisfies FastifySchema;
+
+export const postTogetherLeaveRouteSchema = postTogetherFinishRouteSchema;
+
+export const postTogetherHeartbeatRouteSchema = postTogetherFinishRouteSchema;
 
 export const postTogetherRevealRouteSchema = {
   params: uuidParamSchema,

@@ -1,5 +1,5 @@
 import { AppError } from "../common/errors";
-import { TOGETHER_QUEUE_TTL_MS } from "../config/constants";
+import { TOGETHER_HEARTBEAT_TIMEOUT_MS, TOGETHER_QUEUE_TTL_MS } from "../config/constants";
 import type {
   JsonValue,
   TogetherEventRow,
@@ -9,9 +9,8 @@ import type {
 } from "../db/schema";
 import * as chatService from "../chat/chat.service";
 import { isBlockedEitherWay } from "../safety/safety.repo";
-import * as togetherRepo from "./together.repo";
+import * as togetherRepoImpl from "./together.repo";
 import type {
-  OkResponse,
   TogetherActivity,
   TogetherEventBody,
   TogetherEventDto,
@@ -27,6 +26,7 @@ import type {
   TogetherSessionDto,
   TogetherSessionResponse,
   TogetherSessionStatus,
+  TogetherSessionUpdateResult,
 } from "./together.types";
 
 const PROMPTS = [
@@ -41,12 +41,40 @@ export type CreateEventResult = {
   created: boolean;
 };
 
+type TogetherServiceDeps = {
+  repo: typeof togetherRepoImpl;
+  openDirectThread: typeof chatService.openDirectThread;
+  isBlockedEitherWay: typeof isBlockedEitherWay;
+};
+
+const defaultDeps: TogetherServiceDeps = {
+  repo: togetherRepoImpl,
+  openDirectThread: chatService.openDirectThread,
+  isBlockedEitherWay,
+};
+
+let deps: TogetherServiceDeps = defaultDeps;
+
+export function __setTogetherServiceDepsForTests(
+  overrides: Partial<TogetherServiceDeps>,
+): () => void {
+  const previous = deps;
+  deps = {
+    ...deps,
+    ...overrides,
+  };
+
+  return () => {
+    deps = previous;
+  };
+}
+
 export async function enqueue(
   userId: string,
   input: TogetherQueueBody,
 ): Promise<TogetherQueueResponse> {
   const expiresAt = new Date(Date.now() + TOGETHER_QUEUE_TTL_MS);
-  const entry = await togetherRepo.enqueueAndMatch({
+  const entry = await deps.repo.enqueueAndMatch({
     userId,
     activity: input.activity,
     expiresAt,
@@ -62,7 +90,7 @@ export async function getQueueEntry(
   userId: string,
   entryId: string,
 ): Promise<TogetherQueueResponse> {
-  const entry = await togetherRepo.findQueueEntryForOwner(entryId, userId);
+  const entry = await deps.repo.findQueueEntryForOwner(entryId, userId);
   if (!entry) {
     throw new AppError("not_found", "Queue entry not found", 404);
   }
@@ -76,7 +104,7 @@ export async function cancelQueueEntry(
   userId: string,
   entryId: string,
 ): Promise<TogetherQueueResponse> {
-  const entry = await togetherRepo.cancelQueueEntryForOwner(entryId, userId);
+  const entry = await deps.repo.cancelQueueEntryForOwner(entryId, userId);
   if (!entry) {
     throw new AppError("not_found", "Queue entry not found", 404);
   }
@@ -91,16 +119,7 @@ export async function getSession(
   sessionId: string,
 ): Promise<TogetherSessionResponse> {
   const session = await requireSessionMembership(userId, sessionId);
-  const [participants, stateVersion] = await Promise.all([
-    togetherRepo.listSessionParticipants(sessionId),
-    togetherRepo.countSessionEvents(sessionId),
-  ]);
-
-  return {
-    session: toSessionDto(session),
-    participants,
-    stateVersion,
-  };
+  return buildSessionResponse(session);
 }
 
 export async function createEvent(
@@ -108,9 +127,16 @@ export async function createEvent(
   sessionId: string,
   input: TogetherEventBody,
 ): Promise<CreateEventResult> {
-  await requireSessionMembership(userId, sessionId);
+  const session = await requireSessionMembership(userId, sessionId);
+  if (session.status !== "active") {
+    throw new AppError(
+      "together_session_closed",
+      "Together session is closed and no longer accepts events",
+      409,
+    );
+  }
 
-  const result = await togetherRepo.createEventIdempotent({
+  const result = await deps.repo.createEventIdempotent({
     sessionId,
     fromUserId: userId,
     clientEventId: input.clientEventId,
@@ -131,10 +157,99 @@ export async function createEvent(
 export async function finishSession(
   userId: string,
   sessionId: string,
-): Promise<OkResponse> {
-  await requireSessionMembership(userId, sessionId);
-  await togetherRepo.finishSession(sessionId);
-  return { ok: true };
+): Promise<TogetherSessionUpdateResult> {
+  const session = await requireSessionMembership(userId, sessionId);
+  if (session.status !== "active") {
+    return {
+      response: await buildSessionResponse(session),
+      changed: false,
+    };
+  }
+
+  const finishedAt = new Date();
+  const updatedSession =
+    (await deps.repo.finishActiveSession(sessionId, finishedAt)) ?? session;
+
+  return {
+    response: await buildSessionResponse(updatedSession),
+    changed: updatedSession.status === "finished",
+    reason: "completed",
+    actorUserId: userId,
+  };
+}
+
+export async function leaveSession(
+  userId: string,
+  sessionId: string,
+): Promise<TogetherSessionUpdateResult> {
+  const session = await requireSessionMembership(userId, sessionId);
+  if (session.status !== "active") {
+    return {
+      response: await buildSessionResponse(session),
+      changed: false,
+    };
+  }
+
+  const leftAt = new Date();
+  await deps.repo.markSessionMemberLeft(sessionId, userId, leftAt);
+  const updatedSession =
+    (await deps.repo.closeActiveSession(
+      sessionId,
+      "abandoned",
+      "participant_left",
+      leftAt,
+    )) ?? session;
+
+  return {
+    response: await buildSessionResponse(updatedSession),
+    changed: updatedSession.status === "abandoned",
+    reason: "participant_left",
+    actorUserId: userId,
+  };
+}
+
+export async function heartbeatSession(
+  userId: string,
+  sessionId: string,
+): Promise<TogetherSessionUpdateResult> {
+  const session = await requireSessionMembership(userId, sessionId);
+  if (session.status !== "active") {
+    return {
+      response: await buildSessionResponse(session),
+      changed: false,
+    };
+  }
+
+  const now = new Date();
+  await deps.repo.updateSessionMemberLastSeen(sessionId, userId, now);
+
+  const stalePeerUserId = await deps.repo.findStalePeerUserId(
+    sessionId,
+    userId,
+    new Date(now.getTime() - TOGETHER_HEARTBEAT_TIMEOUT_MS),
+  );
+
+  if (!stalePeerUserId) {
+    return {
+      response: await buildSessionResponse(session),
+      changed: false,
+    };
+  }
+
+  const updatedSession =
+    (await deps.repo.closeActiveSession(
+      sessionId,
+      "abandoned",
+      "partner_disconnected",
+      now,
+    )) ?? session;
+
+  return {
+    response: await buildSessionResponse(updatedSession),
+    changed: updatedSession.status === "abandoned",
+    reason: "partner_disconnected",
+    actorUserId: stalePeerUserId,
+  };
 }
 
 export async function reveal(
@@ -142,12 +257,20 @@ export async function reveal(
   sessionId: string,
   input: TogetherRevealBody,
 ): Promise<TogetherRevealResponse> {
-  await requireSessionMembership(userId, sessionId);
-  await togetherRepo.upsertReveal(sessionId, userId, input.decision);
+  const session = await requireSessionMembership(userId, sessionId);
+  if (session.status !== "finished") {
+    throw new AppError(
+      "together_session_closed",
+      "Together session outcome is unavailable until the session is finished",
+      409,
+    );
+  }
+
+  await deps.repo.upsertReveal(sessionId, userId, input.decision);
 
   const [reveals, memberUserIds] = await Promise.all([
-    togetherRepo.listSessionReveals(sessionId),
-    togetherRepo.listSessionMemberUserIds(sessionId),
+    deps.repo.listSessionReveals(sessionId),
+    deps.repo.listSessionMemberUserIds(sessionId),
   ]);
   const outcome = getOutcome(reveals, memberUserIds);
   if (outcome !== "open_open") {
@@ -159,11 +282,11 @@ export async function reveal(
     return { outcome };
   }
 
-  if (await isBlockedEitherWay(userId, peerUserId)) {
+  if (await deps.isBlockedEitherWay(userId, peerUserId)) {
     return { outcome: "blocked" };
   }
 
-  const response = await chatService.openDirectThread(userId, {
+  const response = await deps.openDirectThread(userId, {
     peerUserId,
     source: {
       type: "together",
@@ -181,8 +304,8 @@ export async function getHistory(
   userId: string,
   limit: number,
 ): Promise<TogetherHistoryResponse> {
-  const rows = await togetherRepo.listHistorySessions(userId, limit);
-  const reveals = await togetherRepo.listRevealsForSessions(
+  const rows = await deps.repo.listHistorySessions(userId, limit);
+  const reveals = await deps.repo.listRevealsForSessions(
     rows.map((row) => row.session.id),
   );
   const revealsBySessionId = groupRevealsBySessionId(reveals);
@@ -191,6 +314,7 @@ export async function getHistory(
     items: rows.map((row) => ({
       sessionId: row.session.id,
       activity: row.session.activity as TogetherActivity,
+      status: row.session.status as TogetherSessionStatus,
       promptText: row.session.promptText,
       peer: row.peer,
       outcome: getOutcome(revealsBySessionId.get(row.session.id) ?? [], [
@@ -198,19 +322,21 @@ export async function getHistory(
         row.peer.id,
       ]),
       createdAt: row.session.createdAt.toISOString(),
+      endedAt: row.session.finishedAt?.toISOString() ?? null,
+      endedReason: row.session.endedReason ?? null,
     })),
   };
 }
 
 export async function canAccessSession(userId: string, sessionId: string): Promise<boolean> {
-  return togetherRepo.isSessionMember(sessionId, userId);
+  return deps.repo.isSessionMember(sessionId, userId);
 }
 
 async function requireSessionMembership(
   userId: string,
   sessionId: string,
 ): Promise<TogetherSessionRow> {
-  const session = await togetherRepo.findSessionForMember(sessionId, userId);
+  const session = await deps.repo.findSessionForMember(sessionId, userId);
   if (!session) {
     throw new AppError("not_found", "Together session not found", 404);
   }
@@ -234,6 +360,24 @@ function toSessionDto(session: TogetherSessionRow): TogetherSessionDto {
     status: session.status as TogetherSessionStatus,
     promptText: session.promptText,
     createdAt: session.createdAt.toISOString(),
+    endedAt: session.finishedAt?.toISOString() ?? null,
+    endedReason: session.endedReason ?? null,
+    deadlineAt: session.deadlineAt?.toISOString() ?? null,
+  };
+}
+
+async function buildSessionResponse(
+  session: TogetherSessionRow,
+): Promise<TogetherSessionResponse> {
+  const [participants, stateVersion] = await Promise.all([
+    deps.repo.listSessionParticipants(session.id),
+    deps.repo.countSessionEvents(session.id),
+  ]);
+
+  return {
+    session: toSessionDto(session),
+    participants,
+    stateVersion,
   };
 }
 

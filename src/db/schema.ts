@@ -151,6 +151,9 @@ export const togetherSessions = pgTable("together_sessions", {
   promptText: text("prompt_text").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   finishedAt: timestamp("finished_at", { withTimezone: true }),
+  endedReason: text("ended_reason"),
+  deadlineAt: timestamp("deadline_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const togetherQueue = pgTable(
@@ -184,6 +187,8 @@ export const togetherSessionMembers = pgTable(
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
+    leftAt: timestamp("left_at", { withTimezone: true }),
   },
   (table) => [primaryKey({ columns: [table.sessionId, table.userId] })],
 );

@@ -2,7 +2,7 @@ import type { JsonValue } from "../db/schema";
 
 export type TogetherActivity = "draw";
 export type TogetherQueueStatus = "waiting" | "matched" | "cancelled" | "expired";
-export type TogetherSessionStatus = "active" | "finished";
+export type TogetherSessionStatus = "active" | "finished" | "abandoned" | "cancelled";
 export type TogetherEventType = "stroke_batch" | "palette" | "system";
 export type TogetherRevealDecision = "open" | "skip";
 export type TogetherRevealOutcome = "pending" | "open_open" | "open_skip" | "skip_skip" | "blocked";
@@ -34,6 +34,9 @@ export type TogetherSessionDto = {
   status: TogetherSessionStatus;
   promptText: string;
   createdAt: string;
+  endedAt: string | null;
+  endedReason: string | null;
+  deadlineAt: string | null;
 };
 
 export type TogetherSessionResponse = {
@@ -63,6 +66,18 @@ export type TogetherEventResponse = {
   created: boolean;
 };
 
+export type TogetherSessionUpdateReason =
+  | "completed"
+  | "participant_left"
+  | "partner_disconnected";
+
+export type TogetherSessionUpdateResult = {
+  response: TogetherSessionResponse;
+  changed: boolean;
+  reason?: TogetherSessionUpdateReason;
+  actorUserId?: string;
+};
+
 export type TogetherRevealBody = {
   decision: TogetherRevealDecision;
 };
@@ -79,10 +94,13 @@ export type TogetherHistoryQuery = {
 export type TogetherHistoryItemDto = {
   sessionId: string;
   activity: TogetherActivity;
+  status: TogetherSessionStatus;
   promptText: string;
   peer: TogetherParticipantDto;
   outcome: TogetherRevealOutcome;
   createdAt: string;
+  endedAt: string | null;
+  endedReason: string | null;
 };
 
 export type TogetherHistoryResponse = {

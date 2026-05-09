@@ -8,6 +8,7 @@ export type ErrorCode =
   | "forbidden"
   | "media_not_owned"
   | "blocked_pair"
+  | "together_session_closed"
   | "not_found"
   | "email_taken"
   | "file_too_large"

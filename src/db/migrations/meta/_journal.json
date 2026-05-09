@@ -57,6 +57,13 @@
       "when": 1777917832095,
       "tag": "0007_smiling_talon",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1778327612786,
+      "tag": "0008_together_session_lifecycle",
+      "breakpoints": true
     }
   ]
 }

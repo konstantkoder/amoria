@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, gt, inArray, lte, ne, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, inArray, lt, lte, ne, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "../db/client";
 import {
@@ -21,6 +21,7 @@ export type EnqueueInput = {
   activity: string;
   expiresAt: Date;
   promptText: string;
+  deadlineAt?: Date | null;
 };
 
 export type EventInsertResult = {
@@ -95,6 +96,7 @@ export async function enqueueAndMatch(input: EnqueueInput): Promise<TogetherQueu
       .values({
         activity: input.activity,
         promptText: input.promptText,
+        deadlineAt: input.deadlineAt ?? null,
       })
       .returning();
 
@@ -102,10 +104,12 @@ export async function enqueueAndMatch(input: EnqueueInput): Promise<TogetherQueu
       {
         sessionId: session.id,
         userId: peer.userId,
+        lastSeenAt: now,
       },
       {
         sessionId: session.id,
         userId: input.userId,
+        lastSeenAt: now,
       },
     ]);
 
@@ -296,14 +300,91 @@ export async function createEventIdempotent(
   });
 }
 
-export async function finishSession(sessionId: string): Promise<void> {
+export async function updateSessionMemberLastSeen(
+  sessionId: string,
+  userId: string,
+  lastSeenAt: Date,
+): Promise<void> {
   await db
+    .update(togetherSessionMembers)
+    .set({ lastSeenAt })
+    .where(
+      and(
+        eq(togetherSessionMembers.sessionId, sessionId),
+        eq(togetherSessionMembers.userId, userId),
+      ),
+    );
+}
+
+export async function markSessionMemberLeft(
+  sessionId: string,
+  userId: string,
+  leftAt: Date,
+): Promise<void> {
+  await db
+    .update(togetherSessionMembers)
+    .set({ leftAt, lastSeenAt: leftAt })
+    .where(
+      and(
+        eq(togetherSessionMembers.sessionId, sessionId),
+        eq(togetherSessionMembers.userId, userId),
+      ),
+    );
+}
+
+export async function findStalePeerUserId(
+  sessionId: string,
+  userId: string,
+  cutoff: Date,
+): Promise<string | undefined> {
+  const [row] = await db
+    .select({ userId: togetherSessionMembers.userId })
+    .from(togetherSessionMembers)
+    .where(
+      and(
+        eq(togetherSessionMembers.sessionId, sessionId),
+        ne(togetherSessionMembers.userId, userId),
+        lt(togetherSessionMembers.lastSeenAt, cutoff),
+      ),
+    )
+    .limit(1);
+
+  return row?.userId;
+}
+
+export async function finishActiveSession(sessionId: string, finishedAt: Date): Promise<TogetherSessionRow | undefined> {
+  const [session] = await db
     .update(togetherSessions)
     .set({
       status: "finished",
-      finishedAt: new Date(),
+      finishedAt,
+      endedReason: "completed",
+      updatedAt: finishedAt,
     })
-    .where(eq(togetherSessions.id, sessionId));
+    .where(and(eq(togetherSessions.id, sessionId), eq(togetherSessions.status, "active")))
+    .returning();
+
+  return session;
+}
+
+export async function closeActiveSession(
+  sessionId: string,
+  status: "abandoned" | "cancelled",
+  endedReason: string,
+  endedAt: Date,
+): Promise<TogetherSessionRow | undefined> {
+  const [session] = await db
+    .update(togetherSessions)
+    .set({
+      status,
+      finishedAt: endedAt,
+      endedReason,
+      updatedAt: endedAt,
+    })
+    .where(and(eq(togetherSessions.id, sessionId), eq(togetherSessions.status, "active")))
+    .returning();
+
+  return session;
 }
 
 export async function upsertReveal(
@@ -372,6 +453,7 @@ export async function listHistorySessions(
       and(eq(peerMember.sessionId, togetherSessions.id), ne(peerMember.userId, userId)),
     )
     .innerJoin(users, eq(users.id, peerMember.userId))
+    .where(eq(togetherSessions.status, "finished"))
     .orderBy(desc(togetherSessions.createdAt))
     .limit(limit);
 }
