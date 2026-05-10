@@ -208,6 +208,14 @@ export type ThreadSourceType = "announcement" | "nearby" | "together";
 
 export type ThreadSourceDto = { type: ThreadSourceType | "play"; sourceId: string } | null;
 
+export type ThreadContextDto = {
+  id: string;
+  sourceType: ThreadSourceType | "play";
+  sourceId: string;
+  metadata: unknown | null;
+  createdAt: string;
+};
+
 export type ThreadDto = {
   id: string;
   type: "direct";
@@ -215,6 +223,7 @@ export type ThreadDto = {
   lastMessage: { id: string; text: string; createdAt: string } | null;
   unreadCount: number;
   source: ThreadSourceDto;
+  contexts?: ThreadContextDto[];
 };
 
 export type ThreadResponse = {
