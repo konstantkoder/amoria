@@ -39,6 +39,7 @@ export type CachedTogetherSession = {
   session: TogetherSessionDto;
   participants: TogetherParticipantDto[];
   stateVersion: number;
+  revealState?: TogetherSessionResponse["revealState"];
 };
 
 const sessions = new Map<string, CachedTogetherSession>();

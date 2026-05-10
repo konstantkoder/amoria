@@ -18,7 +18,12 @@ import {
   type RootStackNavigationProp,
 } from "@/navigation/appRoutes";
 import * as togetherApi from "@/services/api/togetherApi";
-import type { TogetherParticipantDto, TogetherSessionResponse } from "@/services/api/types";
+import type {
+  TogetherParticipantDto,
+  TogetherRevealStateDto,
+  TogetherSessionResponse,
+} from "@/services/api/types";
+import * as wsClient from "@/services/realtime/wsClient";
 import {
   getRememberedTogetherSession,
   getTogetherPeer,
@@ -52,6 +57,34 @@ function isTerminalClosedStatus(status?: string | null) {
   return status === "abandoned" || status === "cancelled";
 }
 
+function readRevealState(payload: wsClient.RealtimeMessage): TogetherRevealStateDto | null {
+  if (payload.type !== "together.reveal.updated") return null;
+  const value = payload.revealState;
+  if (!value || typeof value !== "object") return null;
+
+  const candidate = value as Partial<TogetherRevealStateDto>;
+  if (
+    candidate.outcome !== "pending" &&
+    candidate.outcome !== "open_open" &&
+    candidate.outcome !== "open_skip" &&
+    candidate.outcome !== "skip_skip" &&
+    candidate.outcome !== "blocked"
+  ) {
+    return null;
+  }
+
+  return {
+    myDecision:
+      candidate.myDecision === "open" || candidate.myDecision === "skip"
+        ? candidate.myDecision
+        : null,
+    outcome: candidate.outcome,
+    threadId: typeof candidate.threadId === "string" ? candidate.threadId : null,
+    canOpenChat: candidate.canOpenChat === true,
+    peerDecisionKnown: candidate.peerDecisionKnown === true,
+  };
+}
+
 export default function PlayResultScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"PlayResult">>();
   const route = useRoute<PlayResultRouteProp>();
@@ -71,8 +104,9 @@ export default function PlayResultScreen() {
   const [sessionResponse, setSessionResponse] = React.useState<TogetherSessionResponse | null>(remembered);
   const [loading, setLoading] = React.useState(!remembered);
   const [loadError, setLoadError] = React.useState("");
-  const [decision, setDecision] = React.useState<RevealDecision | null>(null);
-  const [outcome, setOutcome] = React.useState("pending");
+  const [revealState, setRevealState] = React.useState<TogetherRevealStateDto | null>(
+    remembered?.revealState ?? null
+  );
   const [submitting, setSubmitting] = React.useState(false);
   const [actionError, setActionError] = React.useState("");
   const mountedRef = React.useRef(true);
@@ -101,12 +135,14 @@ export default function PlayResultScreen() {
     }
 
     setLoading(!remembered);
+    setRevealState(remembered?.revealState ?? null);
     void togetherApi
       .getSession(sessionId)
       .then((response) => {
         if (!mountedRef.current) return;
         rememberTogetherSession(response);
         setSessionResponse(response);
+        setRevealState(response.revealState ?? null);
         setLoading(false);
       })
       .catch(() => {
@@ -125,6 +161,30 @@ export default function PlayResultScreen() {
     };
   }, [remembered, sessionId, tt]);
 
+  React.useEffect(() => {
+    let alive = true;
+    if (!sessionId) {
+      return () => {
+        alive = false;
+      };
+    }
+
+    wsClient.connect();
+    wsClient.subscribeTogetherSession(sessionId);
+    const unsubscribe = wsClient.onMessage((payload) => {
+      if (!alive || payload.sessionId !== sessionId) return;
+      const nextRevealState = readRevealState(payload);
+      if (!nextRevealState) return;
+      setRevealState(nextRevealState);
+    });
+
+    return () => {
+      alive = false;
+      unsubscribe();
+      wsClient.unsubscribeTogetherSession(sessionId);
+    };
+  }, [sessionId]);
+
   const session = sessionResponse?.session ?? null;
   const peer = React.useMemo(
     () => getTogetherPeer(sessionResponse, uid),
@@ -133,6 +193,15 @@ export default function PlayResultScreen() {
   const peerName = peer?.displayName?.trim() || tt("profile.amoriaUser", "Пользователь Amoria");
   const strokes = React.useMemo(() => getTogetherStrokes(sessionId), [sessionId]);
   const hasReplay = strokes.length > 0;
+  const decision = revealState?.myDecision ?? null;
+  const outcome = revealState?.outcome ?? "pending";
+  const revealThreadId = revealState?.threadId ?? null;
+  const canRevealDecision =
+    session?.status === "finished" &&
+    !decision &&
+    (revealState?.canOpenChat ?? true) &&
+    outcome !== "blocked";
+  const canOpenExistingChat = outcome === "open_open" && Boolean(revealThreadId);
   const revealLabel = getRevealLabel(outcome, tt);
 
   const navigateToThread = React.useCallback(
@@ -158,21 +227,24 @@ export default function PlayResultScreen() {
 
   const submitDecision = React.useCallback(
     async (nextDecision: RevealDecision) => {
-      if (!sessionId || submitting || decision || session?.status !== "finished") return;
+      if (!sessionId || submitting || !canRevealDecision) return;
       setSubmitting(true);
-      setDecision(nextDecision);
       setActionError("");
 
       try {
         const response = await togetherApi.reveal(sessionId, nextDecision);
         if (!mountedRef.current) return;
-        setOutcome(response.outcome);
-        if (response.outcome === "open_open" && response.threadId) {
-          navigateToThread(response.threadId, peer);
+        const nextRevealState = response.revealState;
+        setRevealState(nextRevealState);
+        if (
+          nextDecision === "open" &&
+          nextRevealState.outcome === "open_open" &&
+          nextRevealState.threadId
+        ) {
+          navigateToThread(nextRevealState.threadId, peer);
         }
       } catch {
         if (!mountedRef.current) return;
-        setDecision(null);
         setActionError(
           tt(
             "play.result.saveDecisionFailed",
@@ -183,8 +255,17 @@ export default function PlayResultScreen() {
         if (mountedRef.current) setSubmitting(false);
       }
     },
-    [decision, navigateToThread, peer, session?.status, sessionId, submitting, tt]
+    [canRevealDecision, navigateToThread, peer, sessionId, submitting, tt]
   );
+
+  const handleOpenChatPress = React.useCallback(() => {
+    if (canOpenExistingChat && revealThreadId) {
+      navigateToThread(revealThreadId, peer);
+      return;
+    }
+
+    void submitDecision("open");
+  }, [canOpenExistingChat, navigateToThread, peer, revealThreadId, submitDecision]);
 
   const goToDetail = React.useCallback(() => {
     if (!sessionId) return;
@@ -338,13 +419,13 @@ export default function PlayResultScreen() {
             {tt("play.result.bridgeDecisionTitle", "Решить, хочешь ли открыть контакт")}
           </Text>
           <Text style={styles.bridgeBody}>
-            {decision
-              ? outcome === "blocked"
-                ? tt(
+            {outcome === "blocked"
+              ? tt(
                     "play.result.bridgeBlockedBody",
                     "Контакт недоступен. Чат не может быть открыт из-за настроек безопасности."
                   )
-                : outcome === "pending"
+              : decision
+              ? outcome === "pending"
                 ? tt(
                     "play.result.bridgeWaitingBody",
                     "Твой ответ сохранён. Если второй человек тоже выберет открыть, появится чат."
@@ -363,13 +444,17 @@ export default function PlayResultScreen() {
             <Pressable
               style={[
                 styles.primaryButton,
-                submitting || Boolean(decision) ? styles.buttonDisabled : null,
+                submitting || (!canOpenExistingChat && !canRevealDecision)
+                  ? styles.buttonDisabled
+                  : null,
               ]}
-              onPress={() => void submitDecision("open")}
-              disabled={submitting || Boolean(decision)}
+              onPress={handleOpenChatPress}
+              disabled={submitting || (!canOpenExistingChat && !canRevealDecision)}
             >
               <Text style={styles.primaryButtonText}>
-                {submitting && decision === "open"
+                {canOpenExistingChat
+                  ? tt("play.result.chatReady", "Чат открыт")
+                  : submitting
                   ? tt("play.result.savingDecision", "Сохраняем…")
                   : tt("play.result.primaryOpenChat", "Открыть чат")}
               </Text>
@@ -377,10 +462,10 @@ export default function PlayResultScreen() {
             <Pressable
               style={[
                 styles.secondaryButton,
-                submitting || Boolean(decision) ? styles.buttonDisabled : null,
+                submitting || !canRevealDecision ? styles.buttonDisabled : null,
               ]}
               onPress={() => void submitDecision("skip")}
-              disabled={submitting || Boolean(decision)}
+              disabled={submitting || !canRevealDecision}
             >
               <Text style={styles.secondaryButtonText}>
                 {tt("play.result.skipChat", "Оставить историей")}

@@ -2,12 +2,12 @@ import { request } from "@/services/api/apiClient";
 import type {
   TogetherHistoryResponse,
   TogetherQueueResponse,
+  TogetherRevealDecision,
   TogetherRevealResponse,
   TogetherSessionResponse,
 } from "@/services/api/types";
 
 export type TogetherEventType = "stroke_batch" | "palette" | "system";
-export type TogetherRevealDecision = "open" | "skip";
 
 export type TogetherEventInput = {
   clientEventId: string;

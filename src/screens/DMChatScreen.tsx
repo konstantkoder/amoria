@@ -164,6 +164,7 @@ export default function DMChatScreen() {
   const amoriaUserLabel = tt("profile.amoriaUser", "Пользователь Amoria");
   const peerDisplayName = routePeerName || amoriaUserLabel;
   const peerBlocked = Boolean(peerId && blockedUserIds.includes(peerId));
+  const sourceIsTogether = isTogetherSource(sourceContext?.source);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -342,6 +343,10 @@ export default function DMChatScreen() {
     });
   }, [navigation, peerDisplayName, peerId, sourceContext, threadId]);
 
+  const startAnotherTogetherSession = useCallback(() => {
+    navigation.navigate("PlayMatch", { activity: "draw" });
+  }, [navigation]);
+
   const chatHeader = peerId ? (
     <TouchableOpacity
       onPress={openPeerProfile}
@@ -514,9 +519,23 @@ export default function DMChatScreen() {
               "Общий момент сохранён как контекст, а переписка продолжается здесь."
             )}
           </Text>
+          {sourceIsTogether ? (
+            <TouchableOpacity
+              onPress={startAnotherTogetherSession}
+              style={styles.sourceActionButton}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.sourceActionText}>
+                {tt(
+                  "dm.startAnotherTogetherSession",
+                  "Начать ещё одну совместную сессию"
+                )}
+              </Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
       ) : null,
-    [sourceTitle, tt]
+    [sourceIsTogether, sourceTitle, startAnotherTogetherSession, tt]
   );
 
   const renderPeerCard = useCallback(
@@ -859,6 +878,21 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     lineHeight: 19,
     textAlign: "left",
+  },
+  sourceActionButton: {
+    minHeight: 44,
+    borderRadius: theme.shapes.pill,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 12,
+    paddingHorizontal: 14,
+    backgroundColor: theme.colors.primary,
+  },
+  sourceActionText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "800",
+    textAlign: "center",
   },
   peerCard: {
     alignSelf: "stretch",

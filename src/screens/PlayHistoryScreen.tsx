@@ -55,6 +55,18 @@ function isTerminalClosedStatus(status?: string | null) {
   return status === "abandoned" || status === "cancelled";
 }
 
+function canRevealOpen(item: TogetherHistoryItem) {
+  return !isTerminalClosedStatus(item.status) && item.canOpenChat === true && item.myDecision == null;
+}
+
+function hasExistingThread(item: TogetherHistoryItem) {
+  return (
+    !isTerminalClosedStatus(item.status) &&
+    item.outcome === "open_open" &&
+    Boolean(item.threadId)
+  );
+}
+
 function getRelationshipText(
   item: TogetherHistoryItem,
   tt: (key: string, fallback: string, params?: Record<string, string>) => string
@@ -166,16 +178,50 @@ export default function PlayHistoryScreen() {
 
   const openChat = useCallback(
     async (item: TogetherHistoryItem) => {
-      if (isTerminalClosedStatus(item.status) || item.outcome !== "open_open") return;
+      if (isTerminalClosedStatus(item.status)) return;
+      if (hasExistingThread(item)) {
+        navigation.navigate("DMChat", {
+          threadId: String(item.threadId),
+          peerId: item.peer.id,
+          peerName: item.peer.displayName,
+          backTarget: "history",
+          sourceContext: {
+            source: "together",
+            sourceSessionId: item.sessionId,
+            artworkSummary: {
+              activity: "draw",
+            },
+          },
+        });
+        return;
+      }
+      if (!canRevealOpen(item)) return;
+
       setOpeningChatId(item.sessionId);
       setActionError(null);
       try {
         const response = await togetherApi.reveal(item.sessionId, "open");
-        if (!response.threadId) {
-          throw new Error("Thread was not returned");
+        const nextRevealState = response.revealState;
+        setHistory((current) =>
+          current.map((entry) =>
+            entry.sessionId === item.sessionId
+              ? {
+                  ...entry,
+                  outcome: nextRevealState.outcome,
+                  myDecision: nextRevealState.myDecision,
+                  threadId: nextRevealState.threadId,
+                  canOpenChat: nextRevealState.canOpenChat,
+                  peerDecisionKnown: nextRevealState.peerDecisionKnown,
+                }
+              : entry
+          )
+        );
+
+        if (nextRevealState.outcome !== "open_open" || !nextRevealState.threadId) {
+          return;
         }
         navigation.navigate("DMChat", {
-          threadId: response.threadId,
+          threadId: nextRevealState.threadId,
           peerId: item.peer.id,
           peerName: item.peer.displayName,
           backTarget: "history",
@@ -211,6 +257,7 @@ export default function PlayHistoryScreen() {
       const relationshipText = getRelationshipText(item, tt);
       const opening = openingChatId === item.sessionId;
       const chatUnavailable = isTerminalClosedStatus(item.status);
+      const showChatAction = hasExistingThread(item) || canRevealOpen(item);
 
       return (
         <Pressable
@@ -248,7 +295,7 @@ export default function PlayHistoryScreen() {
                 {tt("playHistory.openStory", "Открыть историю")}
               </Text>
             </Pressable>
-            {item.outcome === "open_open" && !chatUnavailable ? (
+            {showChatAction && !chatUnavailable ? (
               <Pressable
                 onPress={() => void openChat(item)}
                 style={[styles.primaryButton, opening ? styles.buttonDisabled : null]}
@@ -257,7 +304,9 @@ export default function PlayHistoryScreen() {
                 <Text style={styles.primaryButtonText}>
                   {opening
                     ? tt("playHistory.openingChat", "Открываем…")
-                    : tt("playHistory.openChat", "Открыть чат")}
+                    : hasExistingThread(item)
+                    ? tt("playHistory.openChat", "Открыть чат")
+                    : tt("playHistory.chooseOpenChat", "Открыть чат")}
                 </Text>
               </Pressable>
             ) : null}

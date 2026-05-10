@@ -263,6 +263,16 @@ export type TogetherRevealOutcome =
   | "skip_skip"
   | "blocked";
 
+export type TogetherRevealDecision = "open" | "skip";
+
+export type TogetherRevealStateDto = {
+  myDecision: TogetherRevealDecision | null;
+  outcome: TogetherRevealOutcome;
+  threadId: string | null;
+  canOpenChat: boolean;
+  peerDecisionKnown: boolean;
+};
+
 export type TogetherSessionDto = {
   id: string;
   activity: string;
@@ -284,11 +294,13 @@ export type TogetherSessionResponse = {
   session: TogetherSessionDto;
   participants: TogetherParticipantDto[];
   stateVersion: number;
+  revealState?: TogetherRevealStateDto;
 };
 
 export type TogetherRevealResponse = {
   outcome: TogetherRevealOutcome;
   threadId?: string;
+  revealState: TogetherRevealStateDto;
 };
 
 export type TogetherHistoryItem = {
@@ -302,6 +314,10 @@ export type TogetherHistoryItem = {
     avatarUrl: string | null;
   };
   outcome: TogetherRevealOutcome;
+  myDecision?: TogetherRevealDecision | null;
+  threadId?: string | null;
+  canOpenChat?: boolean;
+  peerDecisionKnown?: boolean;
   createdAt: string;
   endedAt?: string | null;
   endedReason?: string | null;

@@ -18,7 +18,11 @@ import {
   type RootStackNavigationProp,
 } from "@/navigation/appRoutes";
 import * as togetherApi from "@/services/api/togetherApi";
-import type { TogetherHistoryItem, TogetherSessionResponse } from "@/services/api/types";
+import type {
+  TogetherHistoryItem,
+  TogetherRevealStateDto,
+  TogetherSessionResponse,
+} from "@/services/api/types";
 import { markPlaySessionSeen } from "@/services/activityFreshness";
 import {
   getRememberedTogetherSession,
@@ -64,6 +68,19 @@ function getOutcomeLabel(
 
 function isTerminalClosedStatus(status?: string | null) {
   return status === "abandoned" || status === "cancelled";
+}
+
+function revealStateFromHistoryItem(
+  item: TogetherHistoryItem | null
+): TogetherRevealStateDto | null {
+  if (!item) return null;
+  return {
+    myDecision: item.myDecision ?? null,
+    outcome: item.outcome,
+    threadId: item.threadId ?? null,
+    canOpenChat: item.canOpenChat === true,
+    peerDecisionKnown: item.peerDecisionKnown === true,
+  };
 }
 
 export default function PlaySessionDetailScreen() {
@@ -156,20 +173,66 @@ export default function PlaySessionDetailScreen() {
     historyItem?.peer.displayName ||
     peer?.displayName?.trim() ||
     tt("profile.amoriaUser", "Пользователь Amoria");
-  const outcome = historyItem?.outcome ?? "pending";
+  const revealState = sessionResponse?.revealState ?? revealStateFromHistoryItem(historyItem);
+  const outcome = revealState?.outcome ?? "pending";
+  const revealThreadId = revealState?.threadId ?? null;
+  const canRevealOpen =
+    session?.status === "finished" &&
+    revealState?.canOpenChat === true &&
+    revealState.myDecision == null &&
+    outcome !== "blocked";
+  const canOpenExistingThread = outcome === "open_open" && Boolean(revealThreadId);
   const strokes = React.useMemo(() => getTogetherStrokes(sessionId), [sessionId]);
   const hasReplay = strokes.length > 0;
   const sessionClosed = isTerminalClosedStatus(session?.status ?? historyItem?.status);
 
   const openChat = React.useCallback(async () => {
-    if (sessionClosed || outcome !== "open_open" || !peer?.id) return;
+    if (sessionClosed || !peer?.id) return;
+    if (canOpenExistingThread && revealThreadId) {
+      navigation.navigate("DMChat", {
+        threadId: revealThreadId,
+        peerId: peer.id,
+        peerName,
+        backTarget: "sessionDetail",
+        backSessionId: sessionId,
+        sourceContext: {
+          source: "together",
+          sourceSessionId: sessionId,
+          artworkSummary: {
+            activity: "draw",
+            strokeCount: strokes.length,
+          },
+        },
+      });
+      return;
+    }
+    if (!canRevealOpen) return;
+
     setOpeningChat(true);
     setChatActionError(null);
     try {
       const response = await togetherApi.reveal(sessionId, "open");
-      if (!response.threadId) throw new Error("Thread was not returned");
+      const nextRevealState = response.revealState;
+      setSessionResponse((current) =>
+        current ? { ...current, revealState: nextRevealState } : current
+      );
+      setHistoryItem((current) =>
+        current
+          ? {
+              ...current,
+              outcome: nextRevealState.outcome,
+              myDecision: nextRevealState.myDecision,
+              threadId: nextRevealState.threadId,
+              canOpenChat: nextRevealState.canOpenChat,
+              peerDecisionKnown: nextRevealState.peerDecisionKnown,
+            }
+          : current
+      );
+      if (nextRevealState.outcome !== "open_open" || !nextRevealState.threadId) {
+        return;
+      }
       navigation.navigate("DMChat", {
-        threadId: response.threadId,
+        threadId: nextRevealState.threadId,
         peerId: peer.id,
         peerName,
         backTarget: "sessionDetail",
@@ -193,7 +256,18 @@ export default function PlaySessionDetailScreen() {
     } finally {
       if (mountedRef.current) setOpeningChat(false);
     }
-  }, [navigation, outcome, peer?.id, peerName, sessionClosed, sessionId, strokes.length, tt]);
+  }, [
+    canOpenExistingThread,
+    canRevealOpen,
+    navigation,
+    peer?.id,
+    peerName,
+    revealThreadId,
+    sessionClosed,
+    sessionId,
+    strokes.length,
+    tt,
+  ]);
 
   if (!sessionId) {
     return (
@@ -347,7 +421,7 @@ export default function PlaySessionDetailScreen() {
           </Text>
           {chatActionError ? <Text style={styles.errorText}>{chatActionError}</Text> : null}
           <View style={styles.actionRow}>
-            {outcome === "open_open" && !sessionClosed ? (
+            {(canOpenExistingThread || canRevealOpen) && !sessionClosed ? (
               <Pressable
                 style={[styles.primaryButton, openingChat ? styles.buttonDisabled : null]}
                 onPress={() => void openChat()}
@@ -356,7 +430,9 @@ export default function PlaySessionDetailScreen() {
                 <Text style={styles.primaryButtonText}>
                   {openingChat
                     ? tt("playDetail.openingChat", "Открываем…")
-                    : tt("playDetail.openPrivateChat", "Открыть чат")}
+                    : canOpenExistingThread
+                    ? tt("playDetail.openPrivateChat", "Открыть чат")
+                    : tt("playDetail.chooseOpenChat", "Открыть чат")}
                 </Text>
               </Pressable>
             ) : null}
