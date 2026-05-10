@@ -64,6 +64,13 @@
       "when": 1778327612786,
       "tag": "0008_together_session_lifecycle",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1778414010000,
+      "tag": "0009_direct_thread_context_history",
+      "breakpoints": true
     }
   ]
 }

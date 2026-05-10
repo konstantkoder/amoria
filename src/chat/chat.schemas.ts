@@ -107,9 +107,22 @@ const sourceResponseSchema = {
   },
 } as const;
 
+const threadContextSchema = {
+  type: "object",
+  required: ["id", "sourceType", "sourceId", "metadata", "createdAt"],
+  additionalProperties: false,
+  properties: {
+    id: { type: "string", format: "uuid" },
+    sourceType: { type: "string", enum: CHAT_SOURCE_TYPES },
+    sourceId: { type: "string", format: "uuid" },
+    metadata: {},
+    createdAt: { type: "string", format: "date-time" },
+  },
+} as const;
+
 const threadSchema = {
   type: "object",
-  required: ["id", "type", "peer", "lastMessage", "unreadCount", "source"],
+  required: ["id", "type", "peer", "lastMessage", "unreadCount", "source", "contexts"],
   additionalProperties: false,
   properties: {
     id: { type: "string", format: "uuid" },
@@ -121,6 +134,10 @@ const threadSchema = {
     unreadCount: { type: "integer", minimum: 0 },
     source: {
       anyOf: [sourceResponseSchema, { type: "null" }],
+    },
+    contexts: {
+      type: "array",
+      items: threadContextSchema,
     },
   },
 } as const;

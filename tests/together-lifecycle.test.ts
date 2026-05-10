@@ -241,6 +241,7 @@ test("second open reveal returns open_open with threadId", async (t) => {
 
   const reveals: TogetherRevealRow[] = [revealRow(userAId, "open")];
   let sourceThreadId: string | null = null;
+  let openedSource: unknown = null;
   mockRepo(
     {
       findSessionForMember: async () =>
@@ -256,7 +257,8 @@ test("second open reveal returns open_open with threadId", async (t) => {
       listSessionReveals: async () => reveals,
     },
     {
-      openDirectThread: async () => {
+      openDirectThread: async (_userId, input) => {
+        openedSource = input.source;
         sourceThreadId = threadId;
         return {
           thread: {
@@ -266,6 +268,7 @@ test("second open reveal returns open_open with threadId", async (t) => {
             lastMessage: null,
             unreadCount: 0,
             source: { type: "together", sourceId: sessionId },
+            contexts: [],
           },
         };
       },
@@ -277,6 +280,14 @@ test("second open reveal returns open_open with threadId", async (t) => {
 
   assert.equal(result.response.outcome, "open_open");
   assert.equal(result.response.threadId, threadId);
+  assert.deepEqual(openedSource, {
+    type: "together",
+    sourceId: sessionId,
+    metadata: {
+      activity: "draw",
+      promptText: "Draw together",
+    },
+  });
   assert.deepEqual(result.response.revealState, {
     myDecision: "open",
     outcome: "open_open",

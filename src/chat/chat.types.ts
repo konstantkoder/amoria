@@ -1,3 +1,5 @@
+import type { JsonValue } from "../db/schema";
+
 export type ChatSourceType = "announcement" | "nearby" | "together";
 
 export type ThreadPeerDto = {
@@ -22,6 +24,15 @@ export type ThreadDto = {
     type: ChatSourceType;
     sourceId: string;
   } | null;
+  contexts: ThreadContextDto[];
+};
+
+export type ThreadContextDto = {
+  id: string;
+  sourceType: ChatSourceType;
+  sourceId: string;
+  metadata: JsonValue | null;
+  createdAt: string;
 };
 
 export type MessageDto = {
@@ -38,6 +49,7 @@ export type OpenDirectThreadBody = {
   source?: {
     type: ChatSourceType;
     sourceId: string;
+    metadata?: JsonValue | null;
   };
 };
 

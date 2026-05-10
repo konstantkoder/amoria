@@ -4,13 +4,17 @@ import { db } from "../db/client";
 import {
   type MessageRow,
   type NewMessageRow,
+  type ThreadContextRow,
   type ThreadRow,
   blockedUsers,
+  directThreadPairs,
   messages,
+  threadContexts,
   threadMembers,
   threadReads,
   threads,
   users,
+  type JsonValue,
 } from "../db/schema";
 import type { ChatSourceType, ThreadPeerDto } from "./chat.types";
 
@@ -19,10 +23,44 @@ export type MessageInsertResult = {
   created: boolean;
 };
 
+export type DirectThreadResult = {
+  thread: ThreadRow;
+  created: boolean;
+};
+
+export type ThreadSourceInput = {
+  type: ChatSourceType;
+  sourceId: string;
+  metadata?: JsonValue | null;
+};
+
+function directPairFor(userId: string, peerUserId: string) {
+  return userId < peerUserId
+    ? { userAId: userId, userBId: peerUserId }
+    : { userAId: peerUserId, userBId: userId };
+}
+
 export async function findDirectThreadBetween(
   userId: string,
   peerUserId: string,
 ): Promise<ThreadRow | undefined> {
+  const pair = directPairFor(userId, peerUserId);
+  const [pairRow] = await db
+    .select({ thread: threads })
+    .from(directThreadPairs)
+    .innerJoin(threads, eq(threads.id, directThreadPairs.threadId))
+    .where(
+      and(
+        eq(directThreadPairs.userAId, pair.userAId),
+        eq(directThreadPairs.userBId, pair.userBId),
+      ),
+    )
+    .limit(1);
+
+  if (pairRow?.thread) {
+    return pairRow.thread;
+  }
+
   const meMember = alias(threadMembers, "me_member");
   const peerMember = alias(threadMembers, "peer_member");
 
@@ -46,6 +84,24 @@ export async function findDirectThreadBetween(
 export async function findDirectThreadBySource(
   source: { type: ChatSourceType; sourceId: string },
 ): Promise<ThreadRow | undefined> {
+  const [contextRow] = await db
+    .select({ thread: threads })
+    .from(threadContexts)
+    .innerJoin(threads, eq(threads.id, threadContexts.threadId))
+    .where(
+      and(
+        eq(threads.type, "direct"),
+        eq(threadContexts.sourceType, source.type),
+        eq(threadContexts.sourceId, source.sourceId),
+      ),
+    )
+    .orderBy(desc(threadContexts.createdAt))
+    .limit(1);
+
+  if (contextRow?.thread) {
+    return contextRow.thread;
+  }
+
   const [thread] = await db
     .select()
     .from(threads)
@@ -61,18 +117,71 @@ export async function findDirectThreadBySource(
   return thread;
 }
 
-export async function createDirectThread(
+export async function findOrCreateDirectThreadBetween(
   userId: string,
   peerUserId: string,
-  source?: { type: ChatSourceType; sourceId: string },
-): Promise<ThreadRow> {
+): Promise<DirectThreadResult> {
+  const pair = directPairFor(userId, peerUserId);
+  const pairKey = `${pair.userAId}:${pair.userBId}`;
+
   return db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${pairKey}))`);
+
+    const [existingPair] = await tx
+      .select({ thread: threads })
+      .from(directThreadPairs)
+      .innerJoin(threads, eq(threads.id, directThreadPairs.threadId))
+      .where(
+        and(
+          eq(directThreadPairs.userAId, pair.userAId),
+          eq(directThreadPairs.userBId, pair.userBId),
+        ),
+      )
+      .limit(1);
+
+    if (existingPair?.thread) {
+      return {
+        thread: existingPair.thread,
+        created: false,
+      };
+    }
+
+    const meMember = alias(threadMembers, "tx_me_member");
+    const peerMember = alias(threadMembers, "tx_peer_member");
+    const [legacy] = await tx
+      .select({ thread: threads })
+      .from(threads)
+      .innerJoin(
+        meMember,
+        and(eq(meMember.threadId, threads.id), eq(meMember.userId, userId)),
+      )
+      .innerJoin(
+        peerMember,
+        and(eq(peerMember.threadId, threads.id), eq(peerMember.userId, peerUserId)),
+      )
+      .where(eq(threads.type, "direct"))
+      .limit(1);
+
+    if (legacy?.thread) {
+      await tx
+        .insert(directThreadPairs)
+        .values({
+          userAId: pair.userAId,
+          userBId: pair.userBId,
+          threadId: legacy.thread.id,
+        })
+        .onConflictDoNothing();
+
+      return {
+        thread: legacy.thread,
+        created: false,
+      };
+    }
+
     const [thread] = await tx
       .insert(threads)
       .values({
         type: "direct",
-        sourceType: source?.type,
-        sourceId: source?.sourceId,
       })
       .returning();
 
@@ -87,7 +196,16 @@ export async function createDirectThread(
       },
     ]);
 
-    return thread;
+    await tx.insert(directThreadPairs).values({
+      userAId: pair.userAId,
+      userBId: pair.userBId,
+      threadId: thread.id,
+    });
+
+    return {
+      thread,
+      created: true,
+    };
   });
 }
 
@@ -110,6 +228,37 @@ export async function setThreadSourceIfEmpty(
     .returning();
 
   return updated ?? thread;
+}
+
+export async function addThreadContext(
+  threadId: string,
+  source: ThreadSourceInput,
+  createdByUserId?: string,
+): Promise<void> {
+  await db
+    .insert(threadContexts)
+    .values({
+      threadId,
+      sourceType: source.type,
+      sourceId: source.sourceId,
+      metadata: source.metadata ?? null,
+      createdByUserId,
+    })
+    .onConflictDoNothing({
+      target: [
+        threadContexts.threadId,
+        threadContexts.sourceType,
+        threadContexts.sourceId,
+      ],
+    });
+}
+
+export async function listThreadContexts(threadId: string): Promise<ThreadContextRow[]> {
+  return db
+    .select()
+    .from(threadContexts)
+    .where(eq(threadContexts.threadId, threadId))
+    .orderBy(desc(threadContexts.createdAt), desc(threadContexts.id));
 }
 
 export async function findThreadForMember(

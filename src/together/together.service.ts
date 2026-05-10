@@ -284,6 +284,10 @@ export async function reveal(
       source: {
         type: "together",
         sourceId: sessionId,
+        metadata: {
+          activity: session.activity,
+          promptText: session.promptText,
+        },
       },
     });
   }

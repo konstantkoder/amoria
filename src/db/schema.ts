@@ -2,6 +2,7 @@ import { relations, sql } from "drizzle-orm";
 import {
   boolean,
   doublePrecision,
+  index,
   integer,
   jsonb,
   pgTable,
@@ -245,6 +246,26 @@ export const threads = pgTable("threads", {
   lastMessageText: text("last_message_text"),
 });
 
+export const directThreadPairs = pgTable(
+  "direct_thread_pairs",
+  {
+    userAId: uuid("user_a_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    userBId: uuid("user_b_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    threadId: uuid("thread_id")
+      .notNull()
+      .references(() => threads.id, { onDelete: "cascade" })
+      .unique(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userAId, table.userBId] }),
+  ],
+);
+
 export const threadMembers = pgTable(
   "thread_members",
   {
@@ -257,6 +278,32 @@ export const threadMembers = pgTable(
     joinedAt: timestamp("joined_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [primaryKey({ columns: [table.threadId, table.userId] })],
+);
+
+export const threadContexts = pgTable(
+  "thread_contexts",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    threadId: uuid("thread_id")
+      .notNull()
+      .references(() => threads.id, { onDelete: "cascade" }),
+    sourceType: text("source_type").notNull(),
+    sourceId: uuid("source_id").notNull(),
+    metadata: jsonb("metadata").$type<JsonValue | null>(),
+    createdByUserId: uuid("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique("thread_contexts_thread_source_unique").on(
+      table.threadId,
+      table.sourceType,
+      table.sourceId,
+    ),
+    index("thread_contexts_thread_id_idx").on(table.threadId),
+    index("thread_contexts_source_idx").on(table.sourceType, table.sourceId),
+  ],
 );
 
 export const messages = pgTable(
@@ -461,8 +508,25 @@ export const togetherRevealsRelations = relations(togetherReveals, ({ one }) => 
 
 export const threadsRelations = relations(threads, ({ many }) => ({
   members: many(threadMembers),
+  directPair: many(directThreadPairs),
+  contexts: many(threadContexts),
   messages: many(messages),
   reads: many(threadReads),
+}));
+
+export const directThreadPairsRelations = relations(directThreadPairs, ({ one }) => ({
+  userA: one(users, {
+    fields: [directThreadPairs.userAId],
+    references: [users.id],
+  }),
+  userB: one(users, {
+    fields: [directThreadPairs.userBId],
+    references: [users.id],
+  }),
+  thread: one(threads, {
+    fields: [directThreadPairs.threadId],
+    references: [threads.id],
+  }),
 }));
 
 export const threadMembersRelations = relations(threadMembers, ({ one }) => ({
@@ -472,6 +536,17 @@ export const threadMembersRelations = relations(threadMembers, ({ one }) => ({
   }),
   user: one(users, {
     fields: [threadMembers.userId],
+    references: [users.id],
+  }),
+}));
+
+export const threadContextsRelations = relations(threadContexts, ({ one }) => ({
+  thread: one(threads, {
+    fields: [threadContexts.threadId],
+    references: [threads.id],
+  }),
+  createdByUser: one(users, {
+    fields: [threadContexts.createdByUserId],
     references: [users.id],
   }),
 }));
@@ -537,8 +612,12 @@ export type TogetherRevealRow = typeof togetherReveals.$inferSelect;
 export type NewTogetherRevealRow = typeof togetherReveals.$inferInsert;
 export type ThreadRow = typeof threads.$inferSelect;
 export type NewThreadRow = typeof threads.$inferInsert;
+export type DirectThreadPairRow = typeof directThreadPairs.$inferSelect;
+export type NewDirectThreadPairRow = typeof directThreadPairs.$inferInsert;
 export type ThreadMemberRow = typeof threadMembers.$inferSelect;
 export type NewThreadMemberRow = typeof threadMembers.$inferInsert;
+export type ThreadContextRow = typeof threadContexts.$inferSelect;
+export type NewThreadContextRow = typeof threadContexts.$inferInsert;
 export type MessageRow = typeof messages.$inferSelect;
 export type NewMessageRow = typeof messages.$inferInsert;
 export type ThreadReadRow = typeof threadReads.$inferSelect;

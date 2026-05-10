@@ -1,5 +1,5 @@
 import { AppError, validationError } from "../common/errors";
-import type { MessageRow, ThreadRow } from "../db/schema";
+import type { MessageRow, ThreadContextRow, ThreadRow } from "../db/schema";
 import { isBlockedEitherWay } from "../safety/safety.repo";
 import * as chatRepo from "./chat.repo";
 import type {
@@ -11,6 +11,7 @@ import type {
   MessagesResponse,
   OpenDirectThreadBody,
   SendMessageBody,
+  ThreadContextDto,
   ThreadDto,
   ThreadResponse,
 } from "./chat.types";
@@ -28,6 +29,32 @@ export type OpenDirectThreadResult = {
   thread: ThreadDto;
   status: "created" | "existing";
 };
+
+type ChatServiceDeps = {
+  repo: typeof chatRepo;
+  isBlockedEitherWay: typeof isBlockedEitherWay;
+};
+
+const defaultDeps: ChatServiceDeps = {
+  repo: chatRepo,
+  isBlockedEitherWay,
+};
+
+let deps: ChatServiceDeps = defaultDeps;
+
+export function __setChatServiceDepsForTests(
+  overrides: Partial<ChatServiceDeps>,
+): () => void {
+  const previous = deps;
+  deps = {
+    ...deps,
+    ...overrides,
+  };
+
+  return () => {
+    deps = previous;
+  };
+}
 
 export async function openDirectThread(
   userId: string,
@@ -49,30 +76,28 @@ export async function openDirectThreadWithStatus(
     });
   }
 
-  const peer = await chatRepo.findUserPeerById(input.peerUserId);
+  const peer = await deps.repo.findUserPeerById(input.peerUserId);
   if (!peer) {
     throw new AppError("not_found", "Peer user not found", 404);
   }
 
   await assertNotBlockedPair(userId, input.peerUserId);
 
-  let thread = await chatRepo.findDirectThreadBetween(userId, input.peerUserId);
-  let status: OpenDirectThreadResult["status"] = "existing";
-  if (!thread) {
-    thread = await chatRepo.createDirectThread(userId, input.peerUserId, input.source);
-    status = "created";
-  } else if (input.source) {
-    thread = await chatRepo.setThreadSourceIfEmpty(thread, input.source);
+  const result = await deps.repo.findOrCreateDirectThreadBetween(userId, input.peerUserId);
+  let thread = result.thread;
+  if (input.source) {
+    await deps.repo.addThreadContext(thread.id, input.source, userId);
+    thread = await deps.repo.setThreadSourceIfEmpty(thread, input.source);
   }
 
   return {
     thread: await toThreadDto(thread, userId),
-    status,
+    status: result.created ? "created" : "existing",
   };
 }
 
 export async function getInbox(userId: string, limit: number): Promise<InboxResponse> {
-  const threads = await chatRepo.listThreadsForUser(userId, limit);
+  const threads = await deps.repo.listThreadsForUser(userId, limit);
 
   return {
     items: await Promise.all(threads.map((thread) => toThreadDto(thread, userId))),
@@ -87,7 +112,7 @@ export async function getThreadMessages(
 ): Promise<MessagesResponse> {
   await requireThreadMembership(userId, threadId);
 
-  const messages = await chatRepo.listMessagesForThread(threadId, query.limit);
+  const messages = await deps.repo.listMessagesForThread(threadId, query.limit);
   return {
     items: messages.map(toMessageDto),
   };
@@ -99,20 +124,20 @@ export async function sendMessage(
   input: SendMessageBody,
 ): Promise<SendMessageResult> {
   const thread = await requireThreadMembership(userId, threadId);
-  const peer = await chatRepo.findThreadPeer(thread.id, userId);
+  const peer = await deps.repo.findThreadPeer(thread.id, userId);
   if (!peer) {
     throw new AppError("not_found", "Thread peer not found", 404);
   }
 
   await assertNotBlockedPair(userId, peer.id);
 
-  const result = await chatRepo.createMessageIdempotent({
+  const result = await deps.repo.createMessageIdempotent({
     threadId,
     fromUserId: userId,
     text: input.text,
     clientMessageId: input.clientMessageId,
   });
-  const participantUserIds = await chatRepo.listThreadMemberUserIds(threadId);
+  const participantUserIds = await deps.repo.listThreadMemberUserIds(threadId);
 
   return {
     response: {
@@ -132,24 +157,24 @@ export async function markThreadRead(
   await requireThreadMembership(userId, threadId);
 
   if (input.readThroughMessageId) {
-    const message = await chatRepo.findMessageInThread(threadId, input.readThroughMessageId);
+    const message = await deps.repo.findMessageInThread(threadId, input.readThroughMessageId);
     if (!message) {
       throw new AppError("not_found", "Read-through message not found", 404);
     }
   }
 
-  await chatRepo.upsertThreadRead(threadId, userId, input.readThroughMessageId);
+  await deps.repo.upsertThreadRead(threadId, userId, input.readThroughMessageId);
   return { ok: true };
 }
 
 export async function canAccessThread(userId: string, threadId: string): Promise<boolean> {
-  return chatRepo.isThreadMember(threadId, userId);
+  return deps.repo.isThreadMember(threadId, userId);
 }
 
 export async function findDirectThreadIdBySource(
   source: { type: ChatSourceType; sourceId: string },
 ): Promise<string | null> {
-  const thread = await chatRepo.findDirectThreadBySource(source);
+  const thread = await deps.repo.findDirectThreadBySource(source);
   return thread?.id ?? null;
 }
 
@@ -157,12 +182,12 @@ export async function findDirectThreadIdBetween(
   userId: string,
   peerUserId: string,
 ): Promise<string | null> {
-  const thread = await chatRepo.findDirectThreadBetween(userId, peerUserId);
+  const thread = await deps.repo.findDirectThreadBetween(userId, peerUserId);
   return thread?.id ?? null;
 }
 
 async function assertNotBlockedPair(userId: string, peerUserId: string): Promise<void> {
-  if (await isBlockedEitherWay(userId, peerUserId)) {
+  if (await deps.isBlockedEitherWay(userId, peerUserId)) {
     throw new AppError("blocked_pair", "Blocked users cannot interact", 403, {
       peerUserId: "blocked_pair",
     });
@@ -170,7 +195,7 @@ async function assertNotBlockedPair(userId: string, peerUserId: string): Promise
 }
 
 async function requireThreadMembership(userId: string, threadId: string): Promise<ThreadRow> {
-  const thread = await chatRepo.findThreadForMember(threadId, userId);
+  const thread = await deps.repo.findThreadForMember(threadId, userId);
   if (!thread) {
     throw new AppError("not_found", "Thread not found", 404);
   }
@@ -179,14 +204,15 @@ async function requireThreadMembership(userId: string, threadId: string): Promis
 }
 
 async function toThreadDto(thread: ThreadRow, userId: string): Promise<ThreadDto> {
-  const peer = await chatRepo.findThreadPeer(thread.id, userId);
+  const peer = await deps.repo.findThreadPeer(thread.id, userId);
   if (!peer) {
     throw new AppError("not_found", "Thread peer not found", 404);
   }
 
-  const [lastMessage, unreadCount] = await Promise.all([
-    chatRepo.findLatestMessage(thread.id),
-    chatRepo.getUnreadCount(thread.id, userId),
+  const [lastMessage, unreadCount, contexts] = await Promise.all([
+    deps.repo.findLatestMessage(thread.id),
+    deps.repo.getUnreadCount(thread.id, userId),
+    deps.repo.listThreadContexts(thread.id),
   ]);
 
   return {
@@ -202,6 +228,7 @@ async function toThreadDto(thread: ThreadRow, userId: string): Promise<ThreadDto
             sourceId: thread.sourceId,
           }
         : null,
+    contexts: contexts.map(toThreadContextDto),
   };
 }
 
@@ -221,5 +248,15 @@ function toMessageDto(message: MessageRow): MessageDto {
     text: message.text,
     createdAt: message.createdAt.toISOString(),
     clientMessageId: message.clientMessageId,
+  };
+}
+
+function toThreadContextDto(context: ThreadContextRow): ThreadContextDto {
+  return {
+    id: context.id,
+    sourceType: context.sourceType as ChatSourceType,
+    sourceId: context.sourceId,
+    metadata: context.metadata ?? null,
+    createdAt: context.createdAt.toISOString(),
   };
 }
