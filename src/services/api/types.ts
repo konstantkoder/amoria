@@ -217,6 +217,10 @@ export type ThreadDto = {
   source: ThreadSourceDto;
 };
 
+export type ThreadResponse = {
+  thread: ThreadDto;
+};
+
 export type InboxResponse = {
   items: ThreadDto[];
   nextCursor: string | null;
@@ -229,6 +233,10 @@ export type MessageDto = {
   text: string;
   createdAt: string;
   clientMessageId: string;
+};
+
+export type MessageResponse = {
+  message: MessageDto;
 };
 
 export type MessagesResponse = {

@@ -2,8 +2,10 @@ import { request } from "@/services/api/apiClient";
 import type {
   InboxResponse,
   MessageDto,
+  MessageResponse,
   MessagesResponse,
   ThreadDto,
+  ThreadResponse,
   ThreadSourceType,
 } from "@/services/api/types";
 
@@ -23,14 +25,20 @@ function buildQuery(params: Record<string, string | number | undefined>) {
   return value ? `?${value}` : "";
 }
 
-export function openDirectThread(
+export async function openDirectThread(
   peerUserId: string,
   source?: ThreadSourceInput
 ): Promise<ThreadDto> {
-  return request<ThreadDto>("POST", "/threads/direct", {
+  const response = await request<ThreadResponse>("POST", "/threads/direct", {
     peerUserId,
     ...(source ? { source } : {}),
   });
+
+  if (!response?.thread) {
+    throw new Error("Invalid /threads/direct response: missing thread");
+  }
+
+  return response.thread;
 }
 
 export function listInbox(
@@ -53,12 +61,12 @@ export function listMessages(
   );
 }
 
-export function sendMessage(
+export async function sendMessage(
   threadId: string,
   clientMessageId: string,
   text: string
 ): Promise<MessageDto> {
-  return request<MessageDto>(
+  const response = await request<MessageResponse>(
     "POST",
     `/threads/${encodeURIComponent(threadId)}/messages`,
     {
@@ -66,6 +74,12 @@ export function sendMessage(
       text,
     }
   );
+
+  if (!response?.message) {
+    throw new Error("Invalid /threads/:id/messages response: missing message");
+  }
+
+  return response.message;
 }
 
 export async function markRead(

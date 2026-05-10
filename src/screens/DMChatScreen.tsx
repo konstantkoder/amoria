@@ -144,6 +144,7 @@ export default function DMChatScreen() {
   const peerId = String(route.params?.peerId ?? "").trim();
   const routePeerName = String(route.params?.peerName ?? "").trim();
   const backTarget = route.params?.backTarget;
+  const backSessionId = String(route.params?.backSessionId ?? "").trim();
   const sourceContext = route.params?.sourceContext ?? null;
 
   const [messages, setMessages] = useState<RenderMessage[]>([]);
@@ -294,18 +295,32 @@ export default function DMChatScreen() {
     : tt("dm.genericTitle", "Разговор");
 
   const handleBack = useCallback(() => {
-    if (navigation.canGoBack()) {
-      navigation.goBack();
-      return;
-    }
-
     if (backTarget === "inbox") {
       navigation.navigate("Tabs", { screen: "Inbox" });
       return;
     }
 
+    if (backTarget === "history") {
+      navigation.navigate("PlayHistory");
+      return;
+    }
+
+    if (backTarget === "sessionDetail") {
+      if (backSessionId) {
+        navigation.navigate("PlaySessionDetail", { sessionId: backSessionId });
+      } else {
+        navigation.navigate("Tabs", { screen: "Together" });
+      }
+      return;
+    }
+
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+      return;
+    }
+
     navigation.navigate("Tabs", { screen: "Together" });
-  }, [backTarget, navigation]);
+  }, [backSessionId, backTarget, navigation]);
 
   useFocusEffect(
     useCallback(() => {
