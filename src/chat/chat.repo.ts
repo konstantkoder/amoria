@@ -43,6 +43,24 @@ export async function findDirectThreadBetween(
   return row?.thread;
 }
 
+export async function findDirectThreadBySource(
+  source: { type: ChatSourceType; sourceId: string },
+): Promise<ThreadRow | undefined> {
+  const [thread] = await db
+    .select()
+    .from(threads)
+    .where(
+      and(
+        eq(threads.type, "direct"),
+        eq(threads.sourceType, source.type),
+        eq(threads.sourceId, source.sourceId),
+      ),
+    )
+    .limit(1);
+
+  return thread;
+}
+
 export async function createDirectThread(
   userId: string,
   peerUserId: string,

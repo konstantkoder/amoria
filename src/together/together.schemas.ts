@@ -155,6 +155,32 @@ const revealOutcomeSchema = {
   enum: ["pending", "open_open", "open_skip", "skip_skip", "blocked"],
 } as const;
 
+const revealDecisionResponseSchema = {
+  anyOf: [
+    { type: "string", enum: TOGETHER_REVEAL_DECISIONS },
+    { type: "null" },
+  ],
+} as const;
+
+const revealStateSchema = {
+  type: "object",
+  required: [
+    "myDecision",
+    "outcome",
+    "threadId",
+    "canOpenChat",
+    "peerDecisionKnown",
+  ],
+  additionalProperties: false,
+  properties: {
+    myDecision: revealDecisionResponseSchema,
+    outcome: revealOutcomeSchema,
+    threadId: { type: ["string", "null"], format: "uuid" },
+    canOpenChat: { type: "boolean" },
+    peerDecisionKnown: { type: "boolean" },
+  },
+} as const;
+
 const historyItemSchema = {
   type: "object",
   required: [
@@ -164,6 +190,10 @@ const historyItemSchema = {
     "promptText",
     "peer",
     "outcome",
+    "myDecision",
+    "threadId",
+    "canOpenChat",
+    "peerDecisionKnown",
     "createdAt",
     "endedAt",
     "endedReason",
@@ -176,6 +206,10 @@ const historyItemSchema = {
     promptText: { type: "string" },
     peer: participantSchema,
     outcome: revealOutcomeSchema,
+    myDecision: revealDecisionResponseSchema,
+    threadId: { type: ["string", "null"], format: "uuid" },
+    canOpenChat: { type: "boolean" },
+    peerDecisionKnown: { type: "boolean" },
     createdAt: { type: "string", format: "date-time" },
     endedAt: { type: ["string", "null"], format: "date-time" },
     endedReason: { type: ["string", "null"] },
@@ -215,7 +249,7 @@ export const getTogetherSessionRouteSchema = {
   response: {
     200: {
       type: "object",
-      required: ["session", "participants", "stateVersion"],
+      required: ["session", "participants", "stateVersion", "revealState"],
       additionalProperties: false,
       properties: {
         session: sessionSchema,
@@ -224,6 +258,7 @@ export const getTogetherSessionRouteSchema = {
           items: participantSchema,
         },
         stateVersion: { type: "integer", minimum: 0 },
+        revealState: revealStateSchema,
       },
     },
   },
@@ -280,11 +315,12 @@ export const postTogetherRevealRouteSchema = {
   response: {
     200: {
       type: "object",
-      required: ["outcome"],
+      required: ["outcome", "revealState"],
       additionalProperties: false,
       properties: {
         outcome: revealOutcomeSchema,
         threadId: { type: "string", format: "uuid" },
+        revealState: revealStateSchema,
       },
     },
   },

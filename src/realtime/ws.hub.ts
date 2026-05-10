@@ -2,6 +2,8 @@ import type { WebSocket } from "@fastify/websocket";
 import type { MessageDto } from "../chat/chat.types";
 import type {
   TogetherEventDto,
+  TogetherRevealBroadcastState,
+  TogetherRevealStateDto,
   TogetherSessionResponse,
   TogetherSessionUpdateReason,
 } from "../together/together.types";
@@ -10,6 +12,12 @@ export type TogetherSessionUpdatedPayload = {
   sessionId: string;
   session: TogetherSessionResponse;
   reason: TogetherSessionUpdateReason;
+  actorUserId: string;
+};
+
+export type TogetherRevealUpdatedPayload = {
+  sessionId: string;
+  revealState: TogetherRevealStateDto;
   actorUserId: string;
 };
 
@@ -165,6 +173,35 @@ class WsHub {
       type: "together.session.updated",
       ...payload,
     });
+  }
+
+  broadcastTogetherRevealUpdated(
+    sessionId: string,
+    revealStates: TogetherRevealBroadcastState[],
+    actorUserId: string,
+  ): void {
+    const sockets = this.togetherSessionSockets.get(sessionId);
+    if (!sockets) {
+      return;
+    }
+
+    const statesByUserId = new Map(
+      revealStates.map((state) => [state.userId, state.revealState]),
+    );
+    for (const socket of sockets) {
+      const state = this.socketState.get(socket);
+      const revealState = state ? statesByUserId.get(state.userId) : undefined;
+      if (!revealState) {
+        continue;
+      }
+
+      this.sendJson(socket, {
+        type: "together.reveal.updated",
+        sessionId,
+        revealState,
+        actorUserId,
+      } satisfies TogetherRevealUpdatedPayload & { type: "together.reveal.updated" });
+    }
   }
 
   broadcastInboxUpdated(userIds: string[]): void {

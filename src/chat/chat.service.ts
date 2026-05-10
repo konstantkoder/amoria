@@ -146,6 +146,21 @@ export async function canAccessThread(userId: string, threadId: string): Promise
   return chatRepo.isThreadMember(threadId, userId);
 }
 
+export async function findDirectThreadIdBySource(
+  source: { type: ChatSourceType; sourceId: string },
+): Promise<string | null> {
+  const thread = await chatRepo.findDirectThreadBySource(source);
+  return thread?.id ?? null;
+}
+
+export async function findDirectThreadIdBetween(
+  userId: string,
+  peerUserId: string,
+): Promise<string | null> {
+  const thread = await chatRepo.findDirectThreadBetween(userId, peerUserId);
+  return thread?.id ?? null;
+}
+
 async function assertNotBlockedPair(userId: string, peerUserId: string): Promise<void> {
   if (await isBlockedEitherWay(userId, peerUserId)) {
     throw new AppError("blocked_pair", "Blocked users cannot interact", 403, {

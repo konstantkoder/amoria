@@ -20,9 +20,12 @@ import type {
   TogetherQueueEntryDto,
   TogetherQueueResponse,
   TogetherQueueStatus,
+  TogetherRevealBroadcastState,
   TogetherRevealBody,
   TogetherRevealOutcome,
+  TogetherRevealResult,
   TogetherRevealResponse,
+  TogetherRevealStateDto,
   TogetherSessionDto,
   TogetherSessionResponse,
   TogetherSessionStatus,
@@ -44,12 +47,16 @@ export type CreateEventResult = {
 type TogetherServiceDeps = {
   repo: typeof togetherRepoImpl;
   openDirectThread: typeof chatService.openDirectThread;
+  findDirectThreadIdBySource: typeof chatService.findDirectThreadIdBySource;
+  findDirectThreadIdBetween: typeof chatService.findDirectThreadIdBetween;
   isBlockedEitherWay: typeof isBlockedEitherWay;
 };
 
 const defaultDeps: TogetherServiceDeps = {
   repo: togetherRepoImpl,
   openDirectThread: chatService.openDirectThread,
+  findDirectThreadIdBySource: chatService.findDirectThreadIdBySource,
+  findDirectThreadIdBetween: chatService.findDirectThreadIdBetween,
   isBlockedEitherWay,
 };
 
@@ -119,7 +126,7 @@ export async function getSession(
   sessionId: string,
 ): Promise<TogetherSessionResponse> {
   const session = await requireSessionMembership(userId, sessionId);
-  return buildSessionResponse(session);
+  return buildSessionResponse(session, userId);
 }
 
 export async function createEvent(
@@ -161,7 +168,7 @@ export async function finishSession(
   const session = await requireSessionMembership(userId, sessionId);
   if (session.status !== "active") {
     return {
-      response: await buildSessionResponse(session),
+      response: await buildSessionResponse(session, userId),
       changed: false,
     };
   }
@@ -171,7 +178,7 @@ export async function finishSession(
     (await deps.repo.finishActiveSession(sessionId, finishedAt)) ?? session;
 
   return {
-    response: await buildSessionResponse(updatedSession),
+    response: await buildSessionResponse(updatedSession, userId),
     changed: updatedSession.status === "finished",
     reason: "completed",
     actorUserId: userId,
@@ -185,7 +192,7 @@ export async function leaveSession(
   const session = await requireSessionMembership(userId, sessionId);
   if (session.status !== "active") {
     return {
-      response: await buildSessionResponse(session),
+      response: await buildSessionResponse(session, userId),
       changed: false,
     };
   }
@@ -201,7 +208,7 @@ export async function leaveSession(
     )) ?? session;
 
   return {
-    response: await buildSessionResponse(updatedSession),
+    response: await buildSessionResponse(updatedSession, userId),
     changed: updatedSession.status === "abandoned",
     reason: "participant_left",
     actorUserId: userId,
@@ -215,7 +222,7 @@ export async function heartbeatSession(
   const session = await requireSessionMembership(userId, sessionId);
   if (session.status !== "active") {
     return {
-      response: await buildSessionResponse(session),
+      response: await buildSessionResponse(session, userId),
       changed: false,
     };
   }
@@ -231,7 +238,7 @@ export async function heartbeatSession(
 
   if (!stalePeerUserId) {
     return {
-      response: await buildSessionResponse(session),
+      response: await buildSessionResponse(session, userId),
       changed: false,
     };
   }
@@ -245,7 +252,7 @@ export async function heartbeatSession(
     )) ?? session;
 
   return {
-    response: await buildSessionResponse(updatedSession),
+    response: await buildSessionResponse(updatedSession, userId),
     changed: updatedSession.status === "abandoned",
     reason: "partner_disconnected",
     actorUserId: stalePeerUserId,
@@ -256,7 +263,7 @@ export async function reveal(
   userId: string,
   sessionId: string,
   input: TogetherRevealBody,
-): Promise<TogetherRevealResponse> {
+): Promise<TogetherRevealResult> {
   const session = await requireSessionMembership(userId, sessionId);
   if (session.status !== "finished") {
     throw new AppError(
@@ -268,35 +275,27 @@ export async function reveal(
 
   await deps.repo.upsertReveal(sessionId, userId, input.decision);
 
-  const [reveals, memberUserIds] = await Promise.all([
-    deps.repo.listSessionReveals(sessionId),
-    deps.repo.listSessionMemberUserIds(sessionId),
-  ]);
-  const outcome = getOutcome(reveals, memberUserIds);
-  if (outcome !== "open_open") {
-    return { outcome };
-  }
-
+  const memberUserIds = await deps.repo.listSessionMemberUserIds(sessionId);
   const peerUserId = memberUserIds.find((memberUserId) => memberUserId !== userId);
-  if (!peerUserId) {
-    return { outcome };
+  const preliminaryState = await buildRevealStateForUser(session, userId, memberUserIds);
+  if (preliminaryState.outcome === "open_open" && peerUserId) {
+    await deps.openDirectThread(userId, {
+      peerUserId,
+      source: {
+        type: "together",
+        sourceId: sessionId,
+      },
+    });
   }
 
-  if (await deps.isBlockedEitherWay(userId, peerUserId)) {
-    return { outcome: "blocked" };
-  }
-
-  const response = await deps.openDirectThread(userId, {
-    peerUserId,
-    source: {
-      type: "together",
-      sourceId: sessionId,
-    },
-  });
+  const broadcasts = await buildRevealBroadcastStates(session, memberUserIds);
+  const revealState =
+    broadcasts.find((broadcast) => broadcast.userId === userId)?.revealState ??
+    (await buildRevealStateForUser(session, userId, memberUserIds));
 
   return {
-    outcome,
-    threadId: response.thread.id,
+    response: toRevealResponse(revealState),
+    broadcasts,
   };
 }
 
@@ -311,20 +310,32 @@ export async function getHistory(
   const revealsBySessionId = groupRevealsBySessionId(reveals);
 
   return {
-    items: rows.map((row) => ({
-      sessionId: row.session.id,
-      activity: row.session.activity as TogetherActivity,
-      status: row.session.status as TogetherSessionStatus,
-      promptText: row.session.promptText,
-      peer: row.peer,
-      outcome: getOutcome(revealsBySessionId.get(row.session.id) ?? [], [
-        userId,
-        row.peer.id,
-      ]),
-      createdAt: row.session.createdAt.toISOString(),
-      endedAt: row.session.finishedAt?.toISOString() ?? null,
-      endedReason: row.session.endedReason ?? null,
-    })),
+    items: await Promise.all(
+      rows.map(async (row) => {
+        const revealState = await buildRevealStateForUser(
+          row.session,
+          userId,
+          [userId, row.peer.id],
+          revealsBySessionId.get(row.session.id) ?? [],
+        );
+
+        return {
+          sessionId: row.session.id,
+          activity: row.session.activity as TogetherActivity,
+          status: row.session.status as TogetherSessionStatus,
+          promptText: row.session.promptText,
+          peer: row.peer,
+          outcome: revealState.outcome,
+          myDecision: revealState.myDecision,
+          threadId: revealState.threadId,
+          canOpenChat: revealState.canOpenChat,
+          peerDecisionKnown: revealState.peerDecisionKnown,
+          createdAt: row.session.createdAt.toISOString(),
+          endedAt: row.session.finishedAt?.toISOString() ?? null,
+          endedReason: row.session.endedReason ?? null,
+        };
+      }),
+    ),
   };
 }
 
@@ -368,16 +379,86 @@ function toSessionDto(session: TogetherSessionRow): TogetherSessionDto {
 
 async function buildSessionResponse(
   session: TogetherSessionRow,
+  userId: string,
 ): Promise<TogetherSessionResponse> {
   const [participants, stateVersion] = await Promise.all([
     deps.repo.listSessionParticipants(session.id),
     deps.repo.countSessionEvents(session.id),
   ]);
+  const revealState = await buildRevealStateForUser(
+    session,
+    userId,
+    participants.map((participant) => participant.id),
+  );
 
   return {
     session: toSessionDto(session),
     participants,
     stateVersion,
+    revealState,
+  };
+}
+
+async function buildRevealBroadcastStates(
+  session: TogetherSessionRow,
+  memberUserIds: string[],
+): Promise<TogetherRevealBroadcastState[]> {
+  return Promise.all(
+    memberUserIds.map(async (memberUserId) => ({
+      userId: memberUserId,
+      revealState: await buildRevealStateForUser(session, memberUserId, memberUserIds),
+    })),
+  );
+}
+
+async function buildRevealStateForUser(
+  session: TogetherSessionRow,
+  userId: string,
+  memberUserIds: string[],
+  reveals?: TogetherRevealRow[],
+): Promise<TogetherRevealStateDto> {
+  const sessionReveals = reveals ?? (await deps.repo.listSessionReveals(session.id));
+  const decisionsByUserId = new Map(
+    sessionReveals.map((reveal) => [
+      reveal.userId,
+      reveal.decision as TogetherRevealStateDto["myDecision"],
+    ]),
+  );
+  const peerUserId = memberUserIds.find((memberUserId) => memberUserId !== userId);
+  const myDecision = decisionsByUserId.get(userId) ?? null;
+  const peerDecisionKnown = Boolean(peerUserId && decisionsByUserId.has(peerUserId));
+  const blocked = session.status === "finished" && peerUserId
+    ? await deps.isBlockedEitherWay(userId, peerUserId)
+    : false;
+  const outcome = blocked ? "blocked" : getOutcome(sessionReveals, memberUserIds);
+  const canOpenChat = session.status === "finished" && !blocked;
+  let threadId: string | null = null;
+
+  if (outcome === "open_open" && peerUserId) {
+    threadId = await deps.findDirectThreadIdBySource({
+      type: "together",
+      sourceId: session.id,
+    });
+
+    if (!threadId) {
+      threadId = await deps.findDirectThreadIdBetween(userId, peerUserId);
+    }
+  }
+
+  return {
+    myDecision,
+    outcome,
+    threadId,
+    canOpenChat,
+    peerDecisionKnown,
+  };
+}
+
+function toRevealResponse(revealState: TogetherRevealStateDto): TogetherRevealResponse {
+  return {
+    outcome: revealState.outcome,
+    ...(revealState.threadId ? { threadId: revealState.threadId } : {}),
+    revealState,
   };
 }
 

@@ -43,6 +43,7 @@ export type TogetherSessionResponse = {
   session: TogetherSessionDto;
   participants: TogetherParticipantDto[];
   stateVersion: number;
+  revealState: TogetherRevealStateDto;
 };
 
 export type TogetherEventBody = {
@@ -82,9 +83,28 @@ export type TogetherRevealBody = {
   decision: TogetherRevealDecision;
 };
 
+export type TogetherRevealStateDto = {
+  myDecision: TogetherRevealDecision | null;
+  outcome: TogetherRevealOutcome;
+  threadId: string | null;
+  canOpenChat: boolean;
+  peerDecisionKnown: boolean;
+};
+
 export type TogetherRevealResponse = {
   outcome: TogetherRevealOutcome;
   threadId?: string;
+  revealState: TogetherRevealStateDto;
+};
+
+export type TogetherRevealBroadcastState = {
+  userId: string;
+  revealState: TogetherRevealStateDto;
+};
+
+export type TogetherRevealResult = {
+  response: TogetherRevealResponse;
+  broadcasts: TogetherRevealBroadcastState[];
 };
 
 export type TogetherHistoryQuery = {
@@ -98,6 +118,10 @@ export type TogetherHistoryItemDto = {
   promptText: string;
   peer: TogetherParticipantDto;
   outcome: TogetherRevealOutcome;
+  myDecision: TogetherRevealDecision | null;
+  threadId: string | null;
+  canOpenChat: boolean;
+  peerDecisionKnown: boolean;
   createdAt: string;
   endedAt: string | null;
   endedReason: string | null;

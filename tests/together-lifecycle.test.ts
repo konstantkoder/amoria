@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { TogetherSessionRow } from "../src/db/schema";
+import type { TogetherRevealRow, TogetherSessionRow } from "../src/db/schema";
 
 process.env.NODE_ENV = "test";
 process.env.DATABASE_URL = "postgresql://amoria:amoria_password@localhost:5432/amoria_test";
@@ -15,10 +15,12 @@ const togetherService = require(
 const { closeDb } = require("../src/db/client") as typeof import("../src/db/client");
 
 type RepoMock = Partial<Record<keyof typeof import("../src/together/together.repo"), unknown>>;
+type ServiceDepsMock = Parameters<typeof togetherService.__setTogetherServiceDepsForTests>[0];
 
 const sessionId = "00000000-0000-4000-8000-000000000101";
 const userAId = "00000000-0000-4000-8000-000000000001";
 const userBId = "00000000-0000-4000-8000-000000000002";
+const threadId = "00000000-0000-4000-8000-000000000301";
 const createdAt = new Date("2026-01-01T00:00:00.000Z");
 const endedAt = new Date("2026-01-01T00:01:00.000Z");
 
@@ -170,6 +172,275 @@ test("reveal abandoned Together session does not create outcome or chat", async 
   assert.equal(revealWritten, false);
 });
 
+test("getSession includes empty revealState before any decision", async (t) => {
+  t.after(restoreRepoMock);
+
+  mockRepo({
+    findSessionForMember: async () =>
+      sessionRow({
+        status: "finished",
+        finishedAt: endedAt,
+        endedReason: "completed",
+      }),
+  });
+
+  const response = await togetherService.getSession(userAId, sessionId);
+
+  assert.deepEqual(response.revealState, {
+    myDecision: null,
+    outcome: "pending",
+    threadId: null,
+    canOpenChat: true,
+    peerDecisionKnown: false,
+  });
+});
+
+test("first open reveal stores decision and remains pending without a thread", async (t) => {
+  t.after(restoreRepoMock);
+
+  const reveals: TogetherRevealRow[] = [];
+  let openedThread = false;
+  mockRepo(
+    {
+      findSessionForMember: async () =>
+        sessionRow({
+          status: "finished",
+          finishedAt: endedAt,
+          endedReason: "completed",
+        }),
+      upsertReveal: async (_sessionId: string, userId: string, decision: string) => {
+        upsertRevealRow(reveals, userId, decision);
+      },
+      listSessionMemberUserIds: async () => [userAId, userBId],
+      listSessionReveals: async () => reveals,
+    },
+    {
+      openDirectThread: async () => {
+        openedThread = true;
+        throw new Error("First reveal must not open a thread");
+      },
+    },
+  );
+
+  const result = await togetherService.reveal(userAId, sessionId, { decision: "open" });
+
+  assert.equal(openedThread, false);
+  assert.equal(result.response.outcome, "pending");
+  assert.equal(result.response.threadId, undefined);
+  assert.deepEqual(result.response.revealState, {
+    myDecision: "open",
+    outcome: "pending",
+    threadId: null,
+    canOpenChat: true,
+    peerDecisionKnown: false,
+  });
+});
+
+test("second open reveal returns open_open with threadId", async (t) => {
+  t.after(restoreRepoMock);
+
+  const reveals: TogetherRevealRow[] = [revealRow(userAId, "open")];
+  let sourceThreadId: string | null = null;
+  mockRepo(
+    {
+      findSessionForMember: async () =>
+        sessionRow({
+          status: "finished",
+          finishedAt: endedAt,
+          endedReason: "completed",
+        }),
+      upsertReveal: async (_sessionId: string, userId: string, decision: string) => {
+        upsertRevealRow(reveals, userId, decision);
+      },
+      listSessionMemberUserIds: async () => [userAId, userBId],
+      listSessionReveals: async () => reveals,
+    },
+    {
+      openDirectThread: async () => {
+        sourceThreadId = threadId;
+        return {
+          thread: {
+            id: threadId,
+            type: "direct",
+            peer: { id: userAId, displayName: "User A", avatarUrl: null },
+            lastMessage: null,
+            unreadCount: 0,
+            source: { type: "together", sourceId: sessionId },
+          },
+        };
+      },
+      findDirectThreadIdBySource: async () => sourceThreadId,
+    },
+  );
+
+  const result = await togetherService.reveal(userBId, sessionId, { decision: "open" });
+
+  assert.equal(result.response.outcome, "open_open");
+  assert.equal(result.response.threadId, threadId);
+  assert.deepEqual(result.response.revealState, {
+    myDecision: "open",
+    outcome: "open_open",
+    threadId,
+    canOpenChat: true,
+    peerDecisionKnown: true,
+  });
+  assert.equal(result.broadcasts.length, 2);
+  assert.equal(
+    result.broadcasts.find((broadcast) => broadcast.userId === userAId)?.revealState.threadId,
+    threadId,
+  );
+});
+
+test("first opener getSession after peer opens sees same threadId", async (t) => {
+  t.after(restoreRepoMock);
+
+  mockRepo(
+    {
+      findSessionForMember: async () =>
+        sessionRow({
+          status: "finished",
+          finishedAt: endedAt,
+          endedReason: "completed",
+        }),
+      listSessionReveals: async () => [revealRow(userAId, "open"), revealRow(userBId, "open")],
+    },
+    {
+      findDirectThreadIdBySource: async () => threadId,
+    },
+  );
+
+  const response = await togetherService.getSession(userAId, sessionId);
+
+  assert.equal(response.revealState.outcome, "open_open");
+  assert.equal(response.revealState.threadId, threadId);
+  assert.equal(response.revealState.myDecision, "open");
+});
+
+test("skip and open reveal does not create a thread", async (t) => {
+  t.after(restoreRepoMock);
+
+  const reveals: TogetherRevealRow[] = [revealRow(userAId, "skip")];
+  let openedThread = false;
+  mockRepo(
+    {
+      findSessionForMember: async () =>
+        sessionRow({
+          status: "finished",
+          finishedAt: endedAt,
+          endedReason: "completed",
+        }),
+      upsertReveal: async (_sessionId: string, userId: string, decision: string) => {
+        upsertRevealRow(reveals, userId, decision);
+      },
+      listSessionMemberUserIds: async () => [userAId, userBId],
+      listSessionReveals: async () => reveals,
+    },
+    {
+      openDirectThread: async () => {
+        openedThread = true;
+        throw new Error("Mixed reveal must not open a thread");
+      },
+    },
+  );
+
+  const result = await togetherService.reveal(userBId, sessionId, { decision: "open" });
+
+  assert.equal(openedThread, false);
+  assert.equal(result.response.outcome, "open_skip");
+  assert.equal(result.response.revealState.threadId, null);
+});
+
+test("history item exposes reveal read model fields", async (t) => {
+  t.after(restoreRepoMock);
+
+  mockRepo(
+    {
+      listHistorySessions: async () => [
+        {
+          session: sessionRow({
+            status: "finished",
+            finishedAt: endedAt,
+            endedReason: "completed",
+          }),
+          peer: { id: userBId, displayName: "User B", avatarUrl: null },
+        },
+      ],
+      listRevealsForSessions: async () => [
+        revealRow(userAId, "open"),
+        revealRow(userBId, "open"),
+      ],
+    },
+    {
+      findDirectThreadIdBySource: async () => threadId,
+    },
+  );
+
+  const response = await togetherService.getHistory(userAId, 30);
+
+  assert.equal(response.items.length, 1);
+  assert.equal(response.items[0]?.outcome, "open_open");
+  assert.equal(response.items[0]?.myDecision, "open");
+  assert.equal(response.items[0]?.threadId, threadId);
+  assert.equal(response.items[0]?.canOpenChat, true);
+  assert.equal(response.items[0]?.peerDecisionKnown, true);
+});
+
+test("reveal updated broadcast sends recipient-specific reveal state", async () => {
+  const { wsHub } = require("../src/realtime/ws.hub") as typeof import("../src/realtime/ws.hub");
+  const sentA: string[] = [];
+  const sentB: string[] = [];
+  const socketA = {
+    readyState: 1,
+    send: (payload: string) => sentA.push(payload),
+  };
+  const socketB = {
+    readyState: 1,
+    send: (payload: string) => sentB.push(payload),
+  };
+
+  wsHub.addSocket(userAId, socketA as never);
+  wsHub.addSocket(userBId, socketB as never);
+  wsHub.subscribeTogether(socketA as never, sessionId);
+  wsHub.subscribeTogether(socketB as never, sessionId);
+
+  try {
+    wsHub.broadcastTogetherRevealUpdated(
+      sessionId,
+      [
+        {
+          userId: userAId,
+          revealState: {
+            myDecision: "open",
+            outcome: "pending",
+            threadId: null,
+            canOpenChat: true,
+            peerDecisionKnown: false,
+          },
+        },
+        {
+          userId: userBId,
+          revealState: {
+            myDecision: null,
+            outcome: "pending",
+            threadId: null,
+            canOpenChat: true,
+            peerDecisionKnown: true,
+          },
+        },
+      ],
+      userAId,
+    );
+
+    const payloadA = JSON.parse(sentA[0] ?? "{}") as { revealState?: { myDecision?: string | null } };
+    const payloadB = JSON.parse(sentB[0] ?? "{}") as { revealState?: { myDecision?: string | null } };
+    assert.equal(payloadA.revealState?.myDecision, "open");
+    assert.equal(payloadB.revealState?.myDecision, null);
+  } finally {
+    wsHub.removeSocket(socketA as never);
+    wsHub.removeSocket(socketB as never);
+  }
+});
+
 test("heartbeat timeout marks session abandoned with stale peer as actor", async (t) => {
   t.after(restoreRepoMock);
 
@@ -197,7 +468,10 @@ test("heartbeat timeout marks session abandoned with stale peer as actor", async
   assert.equal(result.response.session.status, "abandoned");
 });
 
-function mockRepo(overrides: RepoMock): void {
+function mockRepo(
+  overrides: RepoMock,
+  serviceOverrides: ServiceDepsMock = {},
+): void {
   restoreRepoMock();
   const defaults: RepoMock = {
     listSessionParticipants: async () => [
@@ -205,6 +479,10 @@ function mockRepo(overrides: RepoMock): void {
       { id: userBId, displayName: "User B", avatarUrl: null },
     ],
     countSessionEvents: async () => 0,
+    listSessionMemberUserIds: async () => [userAId, userBId],
+    listSessionReveals: async () => [],
+    listRevealsForSessions: async () => [],
+    listHistorySessions: async () => [],
   };
 
   const repo = new Proxy(
@@ -221,6 +499,13 @@ function mockRepo(overrides: RepoMock): void {
 
   restoreDeps = togetherService.__setTogetherServiceDepsForTests({
     repo: repo as unknown as typeof import("../src/together/together.repo"),
+    openDirectThread: (async () => {
+      throw new Error("Unexpected openDirectThread call");
+    }) as never,
+    findDirectThreadIdBySource: (async () => null) as never,
+    findDirectThreadIdBetween: (async () => null) as never,
+    isBlockedEitherWay: (async () => false) as never,
+    ...serviceOverrides,
   });
 }
 
@@ -244,4 +529,28 @@ function sessionRow(overrides: Partial<TogetherSessionRow> = {}): TogetherSessio
     updatedAt: createdAt,
     ...overrides,
   };
+}
+
+function revealRow(userId: string, decision: string): TogetherRevealRow {
+  return {
+    sessionId,
+    userId,
+    decision,
+    createdAt,
+  };
+}
+
+function upsertRevealRow(
+  reveals: TogetherRevealRow[],
+  userId: string,
+  decision: string,
+): void {
+  const index = reveals.findIndex((reveal) => reveal.userId === userId);
+  const next = revealRow(userId, decision);
+  if (index >= 0) {
+    reveals[index] = next;
+    return;
+  }
+
+  reveals.push(next);
 }

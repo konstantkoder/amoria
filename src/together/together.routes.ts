@@ -143,12 +143,22 @@ export async function togetherRoutes(fastify: FastifyInstance): Promise<void> {
       preHandler: authMiddleware,
       schema: withErrorResponses(postTogetherRevealRouteSchema),
     },
-    async (request) =>
-      togetherService.reveal(
-        currentUserId(request),
+    async (request) => {
+      const actorUserId = currentUserId(request);
+      const result = await togetherService.reveal(
+        actorUserId,
         request.params.id,
         parseTogetherRevealBody(request.body),
-      ),
+      );
+
+      wsHub.broadcastTogetherRevealUpdated(
+        request.params.id,
+        result.broadcasts,
+        actorUserId,
+      );
+
+      return result.response;
+    },
   );
 
   fastify.get(
