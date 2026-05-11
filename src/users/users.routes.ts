@@ -22,14 +22,21 @@ function currentUserId(request: { auth?: { userId: string } }): string {
 export async function usersRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.get<{ Params: { id: string } }>(
     "/users/:id/public",
-    { schema: withErrorResponses(getPublicUserByIdRouteSchema) },
-    async (request) => usersService.getPublicUserById(request.params.id),
+    {
+      preHandler: authMiddleware,
+      schema: withErrorResponses(getPublicUserByIdRouteSchema),
+    },
+    async (request) => usersService.getPublicUserById(currentUserId(request), request.params.id),
   );
 
   fastify.get<{ Params: { amoriaId: string } }>(
     "/users/by-amoria-id/:amoriaId",
-    { schema: withErrorResponses(getPublicUserByAmoriaIdRouteSchema) },
-    async (request) => usersService.getPublicUserByAmoriaId(request.params.amoriaId),
+    {
+      preHandler: authMiddleware,
+      schema: withErrorResponses(getPublicUserByAmoriaIdRouteSchema),
+    },
+    async (request) =>
+      usersService.getPublicUserByAmoriaId(currentUserId(request), request.params.amoriaId),
   );
 
   fastify.get(

@@ -14,7 +14,8 @@ import {
 } from "../common/validators";
 import type { ProfilePhoto, UserRow } from "../db/schema";
 import { findOwnedMediaFileByUrl, findOwnedMediaFilesByIds } from "../media/media.repo";
-import { findUserByAmoriaId, findUserById, updateUserProfile } from "./users.repo";
+import { isBlockedEitherWay } from "../safety/safety.repo";
+import * as usersRepo from "./users.repo";
 
 export type SelfUserProfile = {
   id: string;
@@ -34,7 +35,10 @@ export type SelfUserProfile = {
   updatedAt: string;
 };
 
-export type PublicUserProfile = Omit<SelfUserProfile, "email" | "allowAdultMode">;
+export type PublicUserProfile = Pick<
+  SelfUserProfile,
+  "id" | "displayName" | "amoriaId" | "about" | "avatarUrl" | "photos"
+>;
 
 export type UpdateProfileBody = {
   displayName?: string;
@@ -65,6 +69,32 @@ type UserProfileUpdate = Partial<Pick<
 
 const avatarMediaTypes = new Set(["avatar", "profile_avatar"]);
 
+type UsersServiceDeps = {
+  repo: typeof usersRepo;
+  isBlockedEitherWay: typeof isBlockedEitherWay;
+};
+
+const defaultDeps: UsersServiceDeps = {
+  repo: usersRepo,
+  isBlockedEitherWay,
+};
+
+let deps: UsersServiceDeps = defaultDeps;
+
+export function __setUsersServiceDepsForTests(
+  overrides: Partial<UsersServiceDeps>,
+): () => void {
+  const previous = deps;
+  deps = {
+    ...deps,
+    ...overrides,
+  };
+
+  return () => {
+    deps = previous;
+  };
+}
+
 export function toSelfUserProfile(user: UserRow): SelfUserProfile {
   return {
     id: user.id,
@@ -86,12 +116,18 @@ export function toSelfUserProfile(user: UserRow): SelfUserProfile {
 }
 
 export function toPublicUserProfile(user: UserRow): PublicUserProfile {
-  const { email: _email, allowAdultMode: _allowAdultMode, ...profile } = toSelfUserProfile(user);
-  return profile;
+  return {
+    id: user.id,
+    displayName: user.displayName,
+    amoriaId: user.amoriaId,
+    about: user.about,
+    avatarUrl: user.avatarUrl,
+    photos: user.photos,
+  };
 }
 
 export async function getCurrentUser(userId: string): Promise<SelfUserProfile> {
-  const user = await findUserById(userId);
+  const user = await deps.repo.findUserById(userId);
   if (!user) {
     throw unauthorized("User no longer exists");
   }
@@ -99,21 +135,29 @@ export async function getCurrentUser(userId: string): Promise<SelfUserProfile> {
   return toSelfUserProfile(user);
 }
 
-export async function getPublicUserById(userId: string): Promise<PublicUserProfile> {
-  const user = await findUserById(userId);
+export async function getPublicUserById(
+  currentUserId: string,
+  targetUserId: string,
+): Promise<PublicUserProfile> {
+  const user = await deps.repo.findUserById(targetUserId);
   if (!user) {
     throw new AppError("not_found", "User not found", 404);
   }
 
+  await assertPublicProfileVisible(currentUserId, user.id);
   return toPublicUserProfile(user);
 }
 
-export async function getPublicUserByAmoriaId(amoriaId: string): Promise<PublicUserProfile> {
-  const user = await findUserByAmoriaId(amoriaId);
+export async function getPublicUserByAmoriaId(
+  currentUserId: string,
+  amoriaId: string,
+): Promise<PublicUserProfile> {
+  const user = await deps.repo.findUserByAmoriaId(amoriaId);
   if (!user) {
     throw new AppError("not_found", "User not found", 404);
   }
 
+  await assertPublicProfileVisible(currentUserId, user.id);
   return toPublicUserProfile(user);
 }
 
@@ -177,12 +221,25 @@ export async function updateCurrentUserProfile(
     });
   }
 
-  const updated = await updateUserProfile(userId, update);
+  const updated = await deps.repo.updateUserProfile(userId, update);
   if (!updated) {
     throw unauthorized("User no longer exists");
   }
 
   return toSelfUserProfile(updated);
+}
+
+async function assertPublicProfileVisible(
+  currentUserId: string,
+  targetUserId: string,
+): Promise<void> {
+  if (currentUserId === targetUserId) {
+    return;
+  }
+
+  if (await deps.isBlockedEitherWay(currentUserId, targetUserId)) {
+    throw new AppError("profile_unavailable", "Profile is unavailable", 403);
+  }
 }
 
 async function normalizeOwnedAvatarUrl(
