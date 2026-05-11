@@ -12,6 +12,7 @@ import {
   saveBackendSession,
 } from "@/services/api/sessionStorage";
 import type { MediaDto } from "@/services/api/types";
+import { normalizePublicMediaUrl } from "@/services/media/mediaUrl";
 import { uploadFileToPresignedPut } from "@/services/media/uploadPut";
 
 export type UploadedProfilePhoto = {
@@ -45,7 +46,10 @@ function normalizeMimeType(value: unknown, fileUri: string) {
 
 function mapMediaToProfilePhoto(media: MediaDto): UploadedProfilePhoto {
   const mediaId = String(media.mediaId ?? media.id ?? "").trim();
-  const url = String(media.url ?? media.publicUrl ?? "").trim();
+  const url = normalizePublicMediaUrl(
+    media.url ?? media.publicUrl,
+    "completed profile photo URL"
+  );
 
   if (!mediaId || !url) {
     throw new Error("photos.completeInvalidMedia");

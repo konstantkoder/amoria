@@ -1,4 +1,5 @@
 import type { AnnouncementDto } from "@/services/api/types";
+import { normalizePublicMediaUrl } from "@/services/media/mediaUrl";
 
 export type NearbyAnnouncementCategory =
   | "walk"
@@ -54,8 +55,7 @@ function normalizeStatus(value: unknown): NearbyAnnouncementStatus {
 }
 
 function normalizeSharedMediaUrl(value: unknown) {
-  const url = String(value ?? "").trim();
-  return url.startsWith("https://") || url.startsWith("http://") ? url : "";
+  return normalizePublicMediaUrl(value, "announcement media URL") ?? "";
 }
 
 function readTimestamp(value: unknown, fallback = Date.now()) {

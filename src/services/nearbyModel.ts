@@ -1,4 +1,5 @@
 import type { NearbyStatusDto } from "@/services/api/types";
+import { normalizePublicMediaUrl } from "@/services/media/mediaUrl";
 
 export type NowMood = "chill" | "talk" | "drink" | "walk" | "fun" | "other";
 export type NowPostStatus = "active" | "expired" | "deleted";
@@ -20,8 +21,7 @@ export type NowPost = {
 export const NEARBY_STATUS_TTL_MS = 2 * 60 * 60 * 1000;
 
 function normalizeSharedMediaUrl(value: unknown) {
-  const url = String(value ?? "").trim();
-  return url.startsWith("https://") || url.startsWith("http://") ? url : "";
+  return normalizePublicMediaUrl(value, "nearby media URL") ?? "";
 }
 
 function readTimestamp(value: unknown, fallback = Date.now()) {

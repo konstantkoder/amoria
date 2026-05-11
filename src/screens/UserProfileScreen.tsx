@@ -22,6 +22,7 @@ import {
   type UserProfileRouteProp,
 } from "@/navigation/appRoutes";
 import * as announcementsApi from "@/services/api/announcementsApi";
+import { ApiError } from "@/services/api/apiClient";
 import * as safetyApi from "@/services/api/safetyApi";
 import type { SafetyReportReason } from "@/services/api/safetyApi";
 import { getUserProfileById } from "@/services/user";
@@ -64,6 +65,16 @@ function isTogetherSource(source: unknown): boolean {
   return source === "together" || source === "play";
 }
 
+type ProfileLoadState = "loading" | "ready" | "blocked" | "not_found" | "network";
+
+function isProfileUnavailableError(error: unknown): boolean {
+  return (
+    error instanceof ApiError &&
+    error.status === 403 &&
+    (error.code === "profile_unavailable" || error.code === "user_blocked")
+  );
+}
+
 export default function UserProfileScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"UserProfile">>();
   const route = useRoute<UserProfileRouteProp>();
@@ -85,8 +96,7 @@ export default function UserProfileScreen() {
   const myId = authUser?.id ?? "";
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [loadingProfile, setLoadingProfile] = useState(true);
-  const [profileLoadError, setProfileLoadError] = useState("");
+  const [profileLoadState, setProfileLoadState] = useState<ProfileLoadState>("loading");
   const [sourceDetailText, setSourceDetailText] = useState("");
   const [sharedStoryAvailable, setSharedStoryAvailable] = useState(false);
   const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
@@ -96,39 +106,38 @@ export default function UserProfileScreen() {
   useEffect(() => {
     let alive = true;
     setProfile(null);
-    setProfileLoadError("");
 
     if (!userId) {
-      setLoadingProfile(false);
+      setProfileLoadState("not_found");
       return () => {
         alive = false;
       };
     }
 
-    setLoadingProfile(true);
+    setProfileLoadState("loading");
     void getUserProfileById(userId)
       .then((nextProfile) => {
         if (!alive) return;
         setProfile(nextProfile);
+        setProfileLoadState(nextProfile ? "ready" : "not_found");
       })
-      .catch(() => {
+      .catch((error) => {
         if (!alive) return;
-        setProfileLoadError(
-          tt(
-            "profile.peerLoadError",
-            "Не удалось загрузить профиль собеседника прямо сейчас."
-          )
-        );
-      })
-      .finally(() => {
-        if (!alive) return;
-        setLoadingProfile(false);
+        if (isProfileUnavailableError(error)) {
+          setProfileLoadState("blocked");
+          return;
+        }
+        if (error instanceof ApiError && error.status === 404) {
+          setProfileLoadState("not_found");
+          return;
+        }
+        setProfileLoadState("network");
       });
 
     return () => {
       alive = false;
     };
-  }, [tt, userId]);
+  }, [reloadKey, userId]);
 
   useEffect(() => {
     let alive = true;
@@ -215,6 +224,7 @@ export default function UserProfileScreen() {
   const photos = profile?.photos ?? [];
   const about = profile?.about?.trim() || tt("profile.publicNoDescription", "Описание пока не добавлено.");
   const isBlocked = Boolean(userId && blockedUserIds.includes(userId));
+  const profileUnavailable = isBlocked || profileLoadState === "blocked";
   const hasThread = Boolean(threadId && userId);
 
   const sourceTitle = useMemo(() => {
@@ -378,6 +388,88 @@ export default function UserProfileScreen() {
     );
   }
 
+  if (profileUnavailable) {
+    return (
+      <ScreenShell
+        title={tt("profile.peerTitle", "Профиль собеседника")}
+        background="profile"
+        showBack
+      >
+        <View style={styles.centerState}>
+          <CoreStateCard
+            icon="lock-closed-outline"
+            title={tt("profile.blockedUnavailableTitle", "Профиль недоступен")}
+            body={tt(
+              "profile.blockedUnavailableBody",
+              "Вы не можете просматривать профиль этого пользователя."
+            )}
+            primaryAction={{ label: tt("common.back", "Назад"), onPress: () => navigation.goBack() }}
+          />
+        </View>
+      </ScreenShell>
+    );
+  }
+
+  if (profileLoadState === "loading") {
+    return (
+      <ScreenShell
+        title={tt("profile.peerTitle", "Профиль собеседника")}
+        background="profile"
+        showBack
+      >
+        <View style={styles.centerState}>
+          <CoreStateCard
+            loading
+            title={tt("profile.peerLoadingTitle", "Загружаем профиль")}
+            body={tt("profile.peerLoading", "Загружаем профиль…")}
+          />
+        </View>
+      </ScreenShell>
+    );
+  }
+
+  if (profileLoadState === "network") {
+    return (
+      <ScreenShell
+        title={tt("profile.peerTitle", "Профиль собеседника")}
+        background="profile"
+        showBack
+      >
+        <View style={styles.centerState}>
+          <CoreStateCard
+            icon="cloud-offline-outline"
+            title={tt("profile.loadFailedTitle", "Не удалось загрузить профиль")}
+            body={tt(
+              "profile.loadFailedBody",
+              "Проверь соединение и попробуй ещё раз."
+            )}
+            primaryAction={{ label: tt("common.retry", "Повторить"), onPress: () => setReloadKey((prev) => prev + 1) }}
+            secondaryAction={{ label: tt("common.back", "Назад"), onPress: () => navigation.goBack() }}
+          />
+        </View>
+      </ScreenShell>
+    );
+  }
+
+  if (profileLoadState === "not_found" || !profile) {
+    return (
+      <ScreenShell
+        title={tt("profile.peerTitle", "Профиль собеседника")}
+        background="profile"
+        showBack
+      >
+        <View style={styles.centerState}>
+          <CoreStateCard
+            icon="person-circle-outline"
+            title={tt("profile.notFoundTitle", "Профиль не найден")}
+            body={tt("profile.notFoundBody", "Этот профиль больше недоступен.")}
+            primaryAction={{ label: tt("common.back", "Назад"), onPress: () => navigation.goBack() }}
+          />
+        </View>
+      </ScreenShell>
+    );
+  }
+
   return (
     <ScreenShell
       title={tt("profile.peerTitle", "Профиль собеседника")}
@@ -410,14 +502,6 @@ export default function UserProfileScreen() {
               </Text>
             </View>
           </View>
-
-          {loadingProfile ? (
-            <Text style={styles.mutedText}>
-              {tt("profile.peerLoading", "Загружаем профиль…")}
-            </Text>
-          ) : profileLoadError ? (
-            <Text style={styles.errorText}>{profileLoadError}</Text>
-          ) : null}
 
           <Text style={styles.about}>{about}</Text>
         </View>
@@ -454,9 +538,9 @@ export default function UserProfileScreen() {
           </View>
         ) : null}
 
-        {photos.length ? (
-          <View style={styles.galleryCard}>
-            <Text style={styles.cardTitle}>{tt("profile.publicPhotos", "Фото")}</Text>
+        <View style={styles.galleryCard}>
+          <Text style={styles.cardTitle}>{tt("profile.publicPhotos", "Фото")}</Text>
+          {photos.length ? (
             <View style={styles.galleryGrid}>
               {photos.map((photo, index) => (
                 <Image
@@ -466,8 +550,12 @@ export default function UserProfileScreen() {
                 />
               ))}
             </View>
-          </View>
-        ) : null}
+          ) : (
+            <Text style={styles.cardText}>
+              {tt("profile.publicPhotosEmpty", "Публичные фото пока не добавлены")}
+            </Text>
+          )}
+        </View>
 
         <View style={styles.actions}>
           {hasThread ? (
@@ -565,16 +653,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 17,
     fontWeight: "700",
-  },
-  mutedText: {
-    color: theme.colors.muted,
-    fontSize: 13,
-  },
-  errorText: {
-    color: theme.colors.danger,
-    fontSize: 13,
-    lineHeight: 19,
-    fontWeight: "600",
   },
   about: {
     color: theme.colors.text,

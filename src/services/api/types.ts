@@ -77,9 +77,8 @@ export type PublicUserProfileDto = {
   about: string | null;
   amoriaId: string;
   avatarUrl: string | null;
-  createdAt: string;
-  updatedAt: string;
-} & Omit<BackendProfileFields, "allowAdultMode">;
+  photos: ProfilePhotoDto[];
+};
 
 export type LoginRequest = {
   email: string;

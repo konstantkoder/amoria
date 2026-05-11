@@ -2,6 +2,7 @@ import React from "react";
 import { Image, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
+import { normalizePublicMediaUrl } from "@/services/media/mediaUrl";
 import { theme } from "@/theme";
 
 type Props = {
@@ -10,16 +11,8 @@ type Props = {
   size?: number;
 };
 
-function isSharedImageUrl(value?: string) {
-  const url = String(value ?? "").trim();
-  return (
-    url.startsWith("https://") ||
-    url.startsWith("http://localhost:") ||
-    url.startsWith("http://127.0.0.1:") ||
-    url.startsWith("http://192.168.") ||
-    url.startsWith("http://10.") ||
-    url.startsWith("http://172.")
-  );
+function normalizeAvatarUrl(value?: string) {
+  return normalizePublicMediaUrl(value, "avatar URL");
 }
 
 function getInitials(label?: string) {
@@ -36,7 +29,7 @@ function getInitials(label?: string) {
 
 export default function UserAvatar({ avatarUrl, label, size = 44 }: Props) {
   const [failed, setFailed] = React.useState(false);
-  const sharedUrl = isSharedImageUrl(avatarUrl) ? String(avatarUrl).trim() : "";
+  const sharedUrl = normalizeAvatarUrl(avatarUrl) ?? "";
   const initials = getInitials(label);
 
   React.useEffect(() => {

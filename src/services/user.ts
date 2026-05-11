@@ -19,6 +19,7 @@ import type {
   PublicUserProfileDto,
   SelfUserProfileDto,
 } from "@/services/api/types";
+import { normalizePublicMediaUrl } from "@/services/media/mediaUrl";
 import { uploadUserAvatar } from "@/services/storage";
 
 const AMORIA_ID_RE = /^AM-?[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{5}$/;
@@ -77,21 +78,7 @@ function normalizeOptionalString(value: unknown) {
 }
 
 function normalizeSharedMediaUrl(value: unknown) {
-  const normalized = normalizeString(value);
-  if (!normalized) return undefined;
-  if (normalized.startsWith("https://")) {
-    return normalized;
-  }
-  if (
-    normalized.startsWith("http://localhost:") ||
-    normalized.startsWith("http://127.0.0.1:") ||
-    normalized.startsWith("http://192.168.") ||
-    normalized.startsWith("http://10.") ||
-    normalized.startsWith("http://172.")
-  ) {
-    return normalized;
-  }
-  return undefined;
+  return normalizePublicMediaUrl(value, "profile media URL");
 }
 
 function normalizeStringArray(value: unknown) {
@@ -154,13 +141,23 @@ function mapBackendUserProfile(
   user: AuthUserDto | SelfUserProfileDto | PublicUserProfileDto
 ): UserProfile {
   const now = Date.now();
-  const createdAt = normalizeBackendTimestamp(user.createdAt, now);
-  const updatedAt = normalizeBackendTimestamp(user.updatedAt, createdAt);
+  const backendFields = user as Partial<{
+    createdAt: string;
+    updatedAt: string;
+    goal: Goal | null;
+    mood: Mood | null;
+    interests: string[];
+    allowAdultMode: boolean;
+    flirtEnabled: boolean;
+    mysteryMode: boolean;
+  }>;
+  const createdAt = normalizeBackendTimestamp(backendFields.createdAt, now);
+  const updatedAt = normalizeBackendTimestamp(backendFields.updatedAt, createdAt);
   const amoriaId = normalizeAmoriaId(user.amoriaId);
   const about = normalizeOptionalString(user.about);
   const avatarUrl = normalizeSharedMediaUrl(user.avatarUrl);
-  const goal = normalizeGoal(user.goal);
-  const mood = normalizeMood(user.mood);
+  const goal = normalizeGoal(backendFields.goal);
+  const mood = normalizeMood(backendFields.mood);
 
   return {
     id: normalizeString(user.id),
@@ -168,15 +165,15 @@ function mapBackendUserProfile(
     amoriaId,
     ...(about ? { about } : {}),
     ...(avatarUrl ? { avatarUrl } : {}),
-    interests: normalizeStringArray(user.interests),
+    interests: normalizeStringArray(backendFields.interests),
     photos: normalizeProfilePhotos(user.photos),
     ...(mood ? { mood } : {}),
     ...(goal ? { goal } : {}),
     createdAt,
     updatedAt,
-    allowAdultMode: "allowAdultMode" in user ? Boolean(user.allowAdultMode) : false,
-    flirtEnabled: Boolean(user.flirtEnabled),
-    mysteryMode: Boolean(user.mysteryMode),
+    allowAdultMode: Boolean(backendFields.allowAdultMode),
+    flirtEnabled: Boolean(backendFields.flirtEnabled),
+    mysteryMode: Boolean(backendFields.mysteryMode),
   };
 }
 
