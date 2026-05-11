@@ -2,6 +2,7 @@ export * from "@/services/api/types";
 export * from "@/services/api/apiClient";
 export * from "@/services/api/authApi";
 export * from "@/services/api/profileApi";
+export * from "@/services/api/publicUsersApi";
 export * from "@/services/api/mediaApi";
 export * from "@/services/api/uploadsApi";
 export * from "@/services/api/chatApi";

@@ -1,5 +1,8 @@
 import { request } from "@/services/api/apiClient";
-import type { PublicUserProfileDto } from "@/services/api/types";
+import type {
+  PublicUserProfileDto,
+  UnlockLockedGalleryResponse,
+} from "@/services/api/types";
 
 export function getPublicUserById(id: string): Promise<PublicUserProfileDto> {
   return request<PublicUserProfileDto>(
@@ -14,5 +17,16 @@ export function getPublicUserByAmoriaId(
   return request<PublicUserProfileDto>(
     "GET",
     `/users/by-amoria-id/${encodeURIComponent(amoriaId)}`
+  );
+}
+
+export function unlockUserLockedGallery(
+  userId: string,
+  password: string
+): Promise<UnlockLockedGalleryResponse> {
+  return request<UnlockLockedGalleryResponse>(
+    "POST",
+    `/users/${encodeURIComponent(userId)}/locked-gallery/unlock`,
+    { password }
   );
 }

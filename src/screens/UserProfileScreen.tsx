@@ -1,11 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Image,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
   type AlertButton,
@@ -23,10 +26,11 @@ import {
 } from "@/navigation/appRoutes";
 import * as announcementsApi from "@/services/api/announcementsApi";
 import { ApiError } from "@/services/api/apiClient";
+import { unlockUserLockedGallery } from "@/services/api/publicUsersApi";
 import * as safetyApi from "@/services/api/safetyApi";
 import type { SafetyReportReason } from "@/services/api/safetyApi";
 import { getUserProfileById } from "@/services/user";
-import type { UserProfile } from "@/models/User";
+import type { UserProfile, UserProfilePhoto } from "@/models/User";
 import { theme } from "@/theme";
 
 function buildReportReasonButtons(
@@ -102,10 +106,19 @@ export default function UserProfileScreen() {
   const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
   const [safetyBusy, setSafetyBusy] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const [unlockModalVisible, setUnlockModalVisible] = useState(false);
+  const [lockedPassword, setLockedPassword] = useState("");
+  const [unlockBusy, setUnlockBusy] = useState(false);
+  const [unlockError, setUnlockError] = useState("");
+  const [unlockedPhotos, setUnlockedPhotos] = useState<UserProfilePhoto[]>([]);
 
   useEffect(() => {
     let alive = true;
     setProfile(null);
+    setUnlockModalVisible(false);
+    setLockedPassword("");
+    setUnlockError("");
+    setUnlockedPhotos([]);
 
     if (!userId) {
       setProfileLoadState("not_found");
@@ -222,6 +235,10 @@ export default function UserProfileScreen() {
   const amoriaId = profile?.amoriaId?.trim() ?? "";
   const avatarUrl = profile?.avatarUrl ?? "";
   const photos = profile?.photos ?? [];
+  const lockedGallery = profile?.lockedGallery;
+  const lockedGalleryAvailable = Boolean(
+    lockedGallery?.enabled && (lockedGallery.count ?? 0) > 0
+  );
   const about = profile?.about?.trim() || tt("profile.publicNoDescription", "Описание пока не добавлено.");
   const isBlocked = Boolean(userId && blockedUserIds.includes(userId));
   const profileUnavailable = isBlocked || profileLoadState === "blocked";
@@ -278,6 +295,39 @@ export default function UserProfileScreen() {
     if (!sourceSessionId || !sharedStoryAvailable) return;
     navigation.navigate("PlaySessionDetail", { sessionId: sourceSessionId });
   }, [navigation, sharedStoryAvailable, sourceSessionId]);
+
+  const unlockLockedGallery = useCallback(async () => {
+    const password = lockedPassword;
+    if (!userId || !password.trim() || unlockBusy) return;
+
+    setUnlockBusy(true);
+    setUnlockError("");
+    try {
+      const response = await unlockUserLockedGallery(userId, password);
+      setUnlockedPhotos(
+        response.photos.map((photo) => ({
+          mediaId: photo.mediaId,
+          url: photo.url,
+          position: photo.position,
+        }))
+      );
+      setUnlockModalVisible(false);
+      setLockedPassword("");
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 403) {
+        setUnlockError(tt("profile.lockedGalleryWrongPassword", "Неверный пароль."));
+        return;
+      }
+      setUnlockError(
+        tt(
+          "profile.lockedGalleryUnlockFailed",
+          "Не удалось открыть закрытую папку. Попробуйте позже."
+        )
+      );
+    } finally {
+      setUnlockBusy(false);
+    }
+  }, [lockedPassword, tt, unlockBusy, userId]);
 
   const reportUser = useCallback(
     async (reason: SafetyReportReason) => {
@@ -557,6 +607,54 @@ export default function UserProfileScreen() {
           )}
         </View>
 
+        {lockedGalleryAvailable ? (
+          <View style={styles.galleryCard}>
+            <Text style={styles.cardKicker}>
+              {tt("profile.lockedGalleryKicker", "Закрытая папка")}
+            </Text>
+            <Text style={styles.cardTitle}>
+              {tt("profile.lockedGalleryTitle", "Закрытая папка")}
+            </Text>
+            <Text style={styles.cardText}>
+              {tt("profile.lockedGalleryBody", "Фотографии доступны по паролю")}
+            </Text>
+            <Text style={styles.cardText}>
+              {tt("profile.lockedGalleryCount", "Фото: {count}", {
+                count: String(lockedGallery?.count ?? 0),
+              })}
+            </Text>
+            <TouchableOpacity
+              onPress={() => {
+                setUnlockError("");
+                setUnlockModalVisible(true);
+              }}
+              style={styles.secondaryButton}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.secondaryButtonText}>
+                {tt("profile.lockedGalleryOpen", "Открыть по паролю")}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+
+        {unlockedPhotos.length ? (
+          <View style={styles.galleryCard}>
+            <Text style={styles.cardTitle}>
+              {tt("profile.lockedGalleryUnlockedTitle", "Закрытые фото")}
+            </Text>
+            <View style={styles.galleryGrid}>
+              {unlockedPhotos.map((photo, index) => (
+                <Image
+                  key={`${photo.mediaId ?? photo.url}-${index}`}
+                  source={{ uri: photo.url }}
+                  style={styles.galleryPhoto}
+                />
+              ))}
+            </View>
+          </View>
+        ) : null}
+
         <View style={styles.actions}>
           {hasThread ? (
             <Pressable onPress={openChat} style={styles.primaryButton}>
@@ -594,6 +692,65 @@ export default function UserProfileScreen() {
           </View>
         </View>
       </ScrollView>
+
+      <Modal
+        visible={unlockModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setUnlockModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.cardTitle}>
+              {tt("profile.lockedGalleryTitle", "Закрытая папка")}
+            </Text>
+            <Text style={styles.cardText}>
+              {tt("profile.lockedGalleryPasswordBody", "Введите пароль закрытой папки.")}
+            </Text>
+            <TextInput
+              value={lockedPassword}
+              onChangeText={(value) => {
+                setLockedPassword(value);
+                setUnlockError("");
+              }}
+              secureTextEntry
+              placeholder={tt("profile.lockedGalleryPasswordPlaceholder", "Пароль")}
+              placeholderTextColor="rgba(255,255,255,0.45)"
+              style={styles.passwordInput}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            {unlockError ? <Text style={styles.inlineError}>{unlockError}</Text> : null}
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                onPress={() => setUnlockModalVisible(false)}
+                disabled={unlockBusy}
+                style={styles.modalSecondaryButton}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.secondaryButtonText}>{tt("common.cancel", "Отмена")}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => void unlockLockedGallery()}
+                disabled={unlockBusy || !lockedPassword.trim()}
+                style={[
+                  styles.modalPrimaryButton,
+                  unlockBusy || !lockedPassword.trim() ? styles.disabledButton : null,
+                ]}
+                activeOpacity={0.85}
+              >
+                {unlockBusy ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.primaryButtonText}>
+                    {tt("profile.lockedGalleryOpen", "Открыть по паролю")}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScreenShell>
   );
 }
@@ -753,5 +910,60 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
     fontSize: 12,
     fontWeight: "800",
+  },
+  modalOverlay: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 22,
+    backgroundColor: "rgba(0,0,0,0.62)",
+  },
+  modalCard: {
+    width: "100%",
+    maxWidth: 420,
+    borderRadius: theme.shapes.card,
+    padding: 18,
+    backgroundColor: "rgba(10, 14, 26, 0.98)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+    gap: 12,
+  },
+  passwordInput: {
+    borderRadius: theme.shapes.cardInner,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.16)",
+    backgroundColor: "rgba(255,255,255,0.06)",
+    color: theme.colors.text,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+  },
+  inlineError: {
+    color: theme.colors.danger,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "700",
+  },
+  modalActions: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  modalSecondaryButton: {
+    flex: 1,
+    borderRadius: theme.shapes.cardInner,
+    paddingVertical: 12,
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+  },
+  modalPrimaryButton: {
+    flex: 1,
+    minHeight: 45,
+    borderRadius: theme.shapes.cardInner,
+    paddingVertical: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.colors.primary,
   },
 });

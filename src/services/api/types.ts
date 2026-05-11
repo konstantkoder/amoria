@@ -27,6 +27,7 @@ export type ProfileMood =
 export type ProfilePhotoDto = {
   mediaId: string;
   url: string;
+  position?: number;
 };
 
 export type ProfilePhotoPatchDto = {
@@ -78,6 +79,51 @@ export type PublicUserProfileDto = {
   amoriaId: string;
   avatarUrl: string | null;
   photos: ProfilePhotoDto[];
+  lockedGallery: LockedGallerySummaryDto;
+};
+
+export type ProfileGalleryVisibility = "public" | "locked";
+
+export type ProfileGalleryPhotoDto = {
+  mediaId: string;
+  url: string;
+  position: number;
+  visibility?: ProfileGalleryVisibility;
+};
+
+export type LockedGallerySummaryDto = {
+  enabled: boolean;
+  count: number;
+};
+
+export type OwnerProfileGalleryResponse = {
+  publicPhotos: (ProfileGalleryPhotoDto & { visibility: "public" })[];
+  lockedPhotos: (ProfileGalleryPhotoDto & { visibility: "locked" })[];
+  lockedFolderEnabled: boolean;
+  lockedPhotosCount: number;
+  visibleImagesCount: number;
+  minVisibleImagesRequired: number;
+};
+
+export type UpdateProfileGalleryItemsRequest = {
+  items: {
+    mediaId: string;
+    visibility: ProfileGalleryVisibility;
+    position?: number;
+  }[];
+};
+
+export type SetLockedGalleryPasswordRequest = {
+  currentAccountPassword: string;
+  newFolderPassword: string;
+};
+
+export type ResetLockedGalleryPasswordRequest = {
+  currentAccountPassword: string;
+};
+
+export type UnlockLockedGalleryResponse = {
+  photos: ProfileGalleryPhotoDto[];
 };
 
 export type LoginRequest = {

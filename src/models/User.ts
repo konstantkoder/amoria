@@ -10,6 +10,13 @@ export type Goal =
 export type UserProfilePhoto = {
   mediaId: string;
   url: string;
+  position?: number;
+  visibility?: "public" | "locked";
+};
+
+export type LockedGallerySummary = {
+  enabled: boolean;
+  count: number;
 };
 
 export interface UserProfile {
@@ -20,6 +27,7 @@ export interface UserProfile {
   avatarUrl?: string;
   interests: string[];
   photos: UserProfilePhoto[];
+  lockedGallery?: LockedGallerySummary;
   mood?: Mood;
   goal?: Goal;
   createdAt: number;

@@ -103,8 +103,13 @@ function normalizeProfilePhotos(value: unknown): UserProfilePhoto[] {
       const mediaId = normalizeString(candidate.mediaId ?? candidate.id);
       const url = normalizeSharedMediaUrl(candidate.url);
       if (!mediaId || !url) return null;
+      const position = Number((candidate as { position?: unknown }).position);
 
-      return { mediaId, url };
+      return {
+        mediaId,
+        url,
+        ...(Number.isInteger(position) && position >= 0 ? { position } : {}),
+      };
     })
     .filter((entry): entry is UserProfilePhoto => Boolean(entry));
 }
@@ -167,6 +172,14 @@ function mapBackendUserProfile(
     ...(avatarUrl ? { avatarUrl } : {}),
     interests: normalizeStringArray(backendFields.interests),
     photos: normalizeProfilePhotos(user.photos),
+    ...("lockedGallery" in user && user.lockedGallery
+      ? {
+          lockedGallery: {
+            enabled: Boolean(user.lockedGallery.enabled),
+            count: Math.max(Number(user.lockedGallery.count ?? 0), 0),
+          },
+        }
+      : {}),
     ...(mood ? { mood } : {}),
     ...(goal ? { goal } : {}),
     createdAt,
