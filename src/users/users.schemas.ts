@@ -26,6 +26,51 @@ const profilePhotosSchema = {
   items: profilePhotoSchema,
 } as const;
 
+const galleryPhotoSchema = {
+  type: "object",
+  required: ["mediaId", "url", "position"],
+  additionalProperties: false,
+  properties: {
+    mediaId: { type: "string", format: "uuid" },
+    url: { type: "string", format: "uri", maxLength: PROFILE_URL_MAX_LENGTH },
+    position: { type: "integer", minimum: 0 },
+  },
+} as const;
+
+const publicGalleryPhotosSchema = {
+  type: "array",
+  maxItems: PROFILE_PHOTOS_MAX_COUNT,
+  items: galleryPhotoSchema,
+} as const;
+
+const ownerGalleryPhotoSchema = {
+  type: "object",
+  required: ["mediaId", "url", "position", "visibility"],
+  additionalProperties: false,
+  properties: {
+    mediaId: { type: "string", format: "uuid" },
+    url: { type: "string", format: "uri", maxLength: PROFILE_URL_MAX_LENGTH },
+    position: { type: "integer", minimum: 0 },
+    visibility: { type: "string", enum: ["public", "locked"] },
+  },
+} as const;
+
+const ownerGalleryPhotosSchema = {
+  type: "array",
+  maxItems: PROFILE_PHOTOS_MAX_COUNT,
+  items: ownerGalleryPhotoSchema,
+} as const;
+
+const lockedGallerySummarySchema = {
+  type: "object",
+  required: ["enabled", "count"],
+  additionalProperties: false,
+  properties: {
+    enabled: { type: "boolean" },
+    count: { type: "integer", minimum: 0 },
+  },
+} as const;
+
 const updateProfilePhotoSchema = {
   type: "object",
   required: ["mediaId"],
@@ -112,6 +157,7 @@ export const publicUserProfileSchema = {
     "about",
     "avatarUrl",
     "photos",
+    "lockedGallery",
   ],
   additionalProperties: false,
   properties: {
@@ -120,7 +166,38 @@ export const publicUserProfileSchema = {
     amoriaId: { type: "string" },
     about: { type: ["string", "null"] },
     avatarUrl: { type: ["string", "null"] },
-    photos: profilePhotosSchema,
+    photos: publicGalleryPhotosSchema,
+    lockedGallery: lockedGallerySummarySchema,
+  },
+} as const;
+
+export const ownerProfileGallerySchema = {
+  type: "object",
+  required: [
+    "publicPhotos",
+    "lockedPhotos",
+    "lockedFolderEnabled",
+    "lockedPhotosCount",
+    "visibleImagesCount",
+    "minVisibleImagesRequired",
+  ],
+  additionalProperties: false,
+  properties: {
+    publicPhotos: ownerGalleryPhotosSchema,
+    lockedPhotos: ownerGalleryPhotosSchema,
+    lockedFolderEnabled: { type: "boolean" },
+    lockedPhotosCount: { type: "integer", minimum: 0 },
+    visibleImagesCount: { type: "integer", minimum: 0 },
+    minVisibleImagesRequired: { type: "integer", minimum: 1 },
+  },
+} as const;
+
+const okSchema = {
+  type: "object",
+  required: ["ok"],
+  additionalProperties: false,
+  properties: {
+    ok: { type: "boolean" },
   },
 } as const;
 
@@ -164,6 +241,97 @@ export const updateProfileRouteSchema = {
   },
   response: {
     200: selfUserProfileSchema,
+  },
+} as const;
+
+export const getOwnerProfileGalleryRouteSchema = {
+  response: {
+    200: ownerProfileGallerySchema,
+  },
+} as const;
+
+export const updateOwnerProfileGalleryItemsRouteSchema = {
+  body: {
+    type: "object",
+    required: ["items"],
+    additionalProperties: false,
+    properties: {
+      items: {
+        type: "array",
+        maxItems: PROFILE_PHOTOS_MAX_COUNT,
+        items: {
+          type: "object",
+          required: ["mediaId", "visibility"],
+          additionalProperties: false,
+          properties: {
+            mediaId: { type: "string", format: "uuid" },
+            visibility: { type: "string", enum: ["public", "locked"] },
+            position: { type: "integer", minimum: 0 },
+          },
+        },
+      },
+    },
+  },
+  response: {
+    200: ownerProfileGallerySchema,
+  },
+} as const;
+
+export const setLockedGalleryPasswordRouteSchema = {
+  body: {
+    type: "object",
+    required: ["currentAccountPassword", "newFolderPassword"],
+    additionalProperties: false,
+    properties: {
+      currentAccountPassword: { type: "string", minLength: 1 },
+      newFolderPassword: { type: "string", minLength: 8 },
+    },
+  },
+  response: {
+    200: okSchema,
+  },
+} as const;
+
+export const resetLockedGalleryPasswordRouteSchema = {
+  body: {
+    type: "object",
+    required: ["currentAccountPassword"],
+    additionalProperties: false,
+    properties: {
+      currentAccountPassword: { type: "string", minLength: 1 },
+    },
+  },
+  response: {
+    200: okSchema,
+  },
+} as const;
+
+export const unlockLockedGalleryRouteSchema = {
+  params: {
+    type: "object",
+    required: ["id"],
+    additionalProperties: false,
+    properties: {
+      id: { type: "string", format: "uuid" },
+    },
+  },
+  body: {
+    type: "object",
+    required: ["password"],
+    additionalProperties: false,
+    properties: {
+      password: { type: "string", minLength: 1 },
+    },
+  },
+  response: {
+    200: {
+      type: "object",
+      required: ["photos"],
+      additionalProperties: false,
+      properties: {
+        photos: publicGalleryPhotosSchema,
+      },
+    },
   },
 } as const;
 

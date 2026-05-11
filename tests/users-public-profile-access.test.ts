@@ -89,6 +89,7 @@ test("authenticated user can load peer public profile without internal fields", 
     "avatarUrl",
     "displayName",
     "id",
+    "lockedGallery",
     "photos",
   ]);
   assert.equal(body.id, userBId);
@@ -97,7 +98,8 @@ test("authenticated user can load peer public profile without internal fields", 
   assert.equal(body.createdAt, undefined);
   assert.equal(body.updatedAt, undefined);
   assert.equal(body.allowAdultMode, undefined);
-  assert.deepEqual(body.photos, [{ mediaId: userBPhotoId, url: userBPhotoUrl }]);
+  assert.deepEqual(body.lockedGallery, { enabled: true, count: 2 });
+  assert.deepEqual(body.photos, [{ mediaId: userBPhotoId, url: userBPhotoUrl, position: 0 }]);
 });
 
 test("own public profile can be loaded without block check", async (t) => {
@@ -199,6 +201,17 @@ function mockUsers(input: {
   restoreDeps = usersService.__setUsersServiceDepsForTests({
     repo: repo as UsersRepo,
     isBlockedEitherWay: input.isBlockedEitherWay ?? (async () => false),
+    gallery: {
+      getPublicGalleryForUser: async (userId: string) => ({
+        photos: userId === userBId
+          ? [{ mediaId: userBPhotoId, url: userBPhotoUrl, position: 0 }]
+          : [],
+        lockedGallery: userId === userBId
+          ? { enabled: true, count: 2 }
+          : { enabled: false, count: 0 },
+      }),
+      replacePublicGalleryPhotosFromProfilePatch: async () => undefined,
+    },
   });
 }
 

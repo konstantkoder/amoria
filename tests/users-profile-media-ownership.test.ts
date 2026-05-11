@@ -26,13 +26,18 @@ const userBId = "00000000-0000-4000-8000-000000000002";
 const userAMediaId = "00000000-0000-4000-8000-000000000101";
 const userBMediaId = "00000000-0000-4000-8000-000000000102";
 const userAMediaUrl = "http://localhost:4000/media/users/user-a/profile/photo.webp";
+let restoreUsersDeps: (() => void) | null = null;
 
 test.after(async () => {
+  restoreServiceDeps();
   await dbClient.closeDb();
 });
 
 test("PATCH /me/profile rejects photos media owned by another user", async (t) => {
-  t.after(restoreDb);
+  t.after(() => {
+    restoreDb();
+    restoreServiceDeps();
+  });
 
   let updateCalled = false;
   let mediaLookupCalled = false;
@@ -47,6 +52,7 @@ test("PATCH /me/profile rejects photos media owned by another user", async (t) =
       return userRow({ id: userAId });
     },
   });
+  mockUsersServiceDeps();
 
   await assert.rejects(
     async () =>
@@ -67,7 +73,10 @@ test("PATCH /me/profile rejects photos media owned by another user", async (t) =
 });
 
 test("PATCH /me/profile stores owned photos with database URLs", async (t) => {
-  t.after(restoreDb);
+  t.after(() => {
+    restoreDb();
+    restoreServiceDeps();
+  });
 
   let mediaLookupCalled = false;
   let updateInput: Partial<Pick<UserRow, "photos" | "updatedAt">> | undefined;
@@ -91,6 +100,7 @@ test("PATCH /me/profile stores owned photos with database URLs", async (t) => {
       });
     },
   });
+  mockUsersServiceDeps();
 
   const response = await usersService.updateCurrentUserProfile(userAId, {
     photos: [
@@ -132,6 +142,26 @@ function mockDb(input: {
 function restoreDb(): void {
   mutableDb.select = originalSelect;
   mutableDb.update = originalUpdate;
+}
+
+function mockUsersServiceDeps(): void {
+  restoreServiceDeps();
+  restoreUsersDeps = usersService.__setUsersServiceDepsForTests({
+    gallery: {
+      getPublicGalleryForUser: async () => ({
+        photos: [],
+        lockedGallery: { enabled: false, count: 0 },
+      }),
+      replacePublicGalleryPhotosFromProfilePatch: async () => undefined,
+    },
+  });
+}
+
+function restoreServiceDeps(): void {
+  if (restoreUsersDeps) {
+    restoreUsersDeps();
+    restoreUsersDeps = null;
+  }
 }
 
 function userRow(overrides: Partial<UserRow>): UserRow {

@@ -1,6 +1,7 @@
 import { relations, sql } from "drizzle-orm";
 import {
   boolean,
+  check,
   doublePrecision,
   index,
   integer,
@@ -64,6 +65,40 @@ export const mediaUploads = pgTable("media_uploads", {
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   completedAt: timestamp("completed_at", { withTimezone: true }),
+});
+
+export const profileGalleryItems = pgTable(
+  "profile_gallery_items",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    mediaId: uuid("media_id")
+      .notNull()
+      .references(() => mediaFiles.id, { onDelete: "cascade" }),
+    visibility: text("visibility").notNull(),
+    position: integer("position").default(0).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique("profile_gallery_items_user_media_unique").on(table.userId, table.mediaId),
+    index("profile_gallery_items_user_visibility_idx").on(table.userId, table.visibility),
+    check(
+      "profile_gallery_items_visibility_check",
+      sql`${table.visibility} IN ('public', 'locked')`,
+    ),
+  ],
+);
+
+export const profileLockedGallerySettings = pgTable("profile_locked_gallery_settings", {
+  userId: uuid("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  passwordHash: text("password_hash"),
+  passwordSetAt: timestamp("password_set_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const announcements = pgTable("announcements", {
@@ -590,6 +625,11 @@ export type MediaFileRow = typeof mediaFiles.$inferSelect;
 export type NewMediaFileRow = typeof mediaFiles.$inferInsert;
 export type MediaUploadRow = typeof mediaUploads.$inferSelect;
 export type NewMediaUploadRow = typeof mediaUploads.$inferInsert;
+export type ProfileGalleryItemRow = typeof profileGalleryItems.$inferSelect;
+export type NewProfileGalleryItemRow = typeof profileGalleryItems.$inferInsert;
+export type ProfileLockedGallerySettingsRow = typeof profileLockedGallerySettings.$inferSelect;
+export type NewProfileLockedGallerySettingsRow =
+  typeof profileLockedGallerySettings.$inferInsert;
 export type AnnouncementRow = typeof announcements.$inferSelect;
 export type NewAnnouncementRow = typeof announcements.$inferInsert;
 export type AnnouncementResponseRow = typeof announcementResponses.$inferSelect;

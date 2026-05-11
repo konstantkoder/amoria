@@ -15,6 +15,7 @@ import {
 import type { ProfilePhoto, UserRow } from "../db/schema";
 import { findOwnedMediaFileByUrl, findOwnedMediaFilesByIds } from "../media/media.repo";
 import { isBlockedEitherWay } from "../safety/safety.repo";
+import * as profileGalleryService from "./profile-gallery.service";
 import * as usersRepo from "./users.repo";
 
 export type SelfUserProfile = {
@@ -38,7 +39,9 @@ export type SelfUserProfile = {
 export type PublicUserProfile = Pick<
   SelfUserProfile,
   "id" | "displayName" | "amoriaId" | "about" | "avatarUrl" | "photos"
->;
+> & {
+  lockedGallery: profileGalleryService.LockedGallerySummary;
+};
 
 export type UpdateProfileBody = {
   displayName?: string;
@@ -72,11 +75,16 @@ const avatarMediaTypes = new Set(["avatar", "profile_avatar"]);
 type UsersServiceDeps = {
   repo: typeof usersRepo;
   isBlockedEitherWay: typeof isBlockedEitherWay;
+  gallery: Pick<
+    typeof profileGalleryService,
+    "getPublicGalleryForUser" | "replacePublicGalleryPhotosFromProfilePatch"
+  >;
 };
 
 const defaultDeps: UsersServiceDeps = {
   repo: usersRepo,
   isBlockedEitherWay,
+  gallery: profileGalleryService,
 };
 
 let deps: UsersServiceDeps = defaultDeps;
@@ -115,14 +123,16 @@ export function toSelfUserProfile(user: UserRow): SelfUserProfile {
   };
 }
 
-export function toPublicUserProfile(user: UserRow): PublicUserProfile {
+export async function toPublicUserProfile(user: UserRow): Promise<PublicUserProfile> {
+  const gallery = await deps.gallery.getPublicGalleryForUser(user.id);
   return {
     id: user.id,
     displayName: user.displayName,
     amoriaId: user.amoriaId,
     about: user.about,
     avatarUrl: user.avatarUrl,
-    photos: user.photos,
+    photos: gallery.photos,
+    lockedGallery: gallery.lockedGallery,
   };
 }
 
@@ -180,7 +190,11 @@ export async function updateCurrentUserProfile(
   }
 
   if ("photos" in input) {
-    setIfDefined(update, "photos", await normalizeOwnedPhotos(userId, input.photos));
+    const photos = await normalizeOwnedPhotos(userId, input.photos);
+    if (photos) {
+      await deps.gallery.replacePublicGalleryPhotosFromProfilePatch(userId, photos);
+    }
+    setIfDefined(update, "photos", photos);
   }
 
   if ("goal" in input) {

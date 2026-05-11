@@ -6,12 +6,14 @@ import type { MediaFileRow, MediaUploadRow } from "../db/schema";
 import {
   completeMediaUploadWithFile,
   createMediaUpload,
-  deleteMediaFileByOwner,
-  findMediaFileByOwner,
   findMediaUploadById,
 } from "./media.repo";
-import { createPutPresignedUrl, deleteObject, headObject } from "./object-storage";
+import { createPutPresignedUrl, headObject } from "./object-storage";
 import type { CompleteUploadBody, PrepareUploadBody } from "./uploads.schemas";
+import {
+  addCompletedProfilePhotoToGallery,
+  deleteOwnedMediaWithGalleryGuards,
+} from "../users/profile-gallery.service";
 
 export type PrepareUploadResponse = {
   uploadId: string;
@@ -133,25 +135,15 @@ export async function completeUpload(
     });
   }
 
+  await addCompletedProfilePhotoToGallery(ownerUserId, media.media);
+
   return {
     media: toMediaUploadResponse(media.media),
   };
 }
 
 export async function deleteMedia(ownerUserId: string, mediaId: string): Promise<DeleteMediaResponse> {
-  const media = await findMediaFileByOwner(mediaId, ownerUserId);
-  if (!media) {
-    throw new AppError("not_found", "Media file not found", 404);
-  }
-
-  await deleteObject({
-    bucket: env.S3_BUCKET,
-    key: media.path,
-  });
-
-  await deleteMediaFileByOwner(mediaId, ownerUserId);
-
-  return { ok: true };
+  return deleteOwnedMediaWithGalleryGuards(ownerUserId, mediaId);
 }
 
 async function loadOwnedPreparedUpload(

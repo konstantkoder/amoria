@@ -71,6 +71,13 @@
       "when": 1778414010000,
       "tag": "0009_direct_thread_context_history",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1778496000000,
+      "tag": "0010_locked_profile_gallery",
+      "breakpoints": true
     }
   ]
 }

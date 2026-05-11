@@ -3,12 +3,24 @@ import { authMiddleware } from "../common/security/auth-middleware";
 import { unauthorized } from "../common/errors";
 import { withErrorResponses } from "../common/http";
 import type { UpdateProfileBody } from "./users.service";
+import type {
+  ResetLockedGalleryPasswordBody,
+  SetLockedGalleryPasswordBody,
+  UnlockLockedGalleryBody,
+  UpdateGalleryItemsBody,
+} from "./profile-gallery.service";
 import {
   getMeRouteSchema,
+  getOwnerProfileGalleryRouteSchema,
   getPublicUserByAmoriaIdRouteSchema,
   getPublicUserByIdRouteSchema,
+  resetLockedGalleryPasswordRouteSchema,
+  setLockedGalleryPasswordRouteSchema,
+  unlockLockedGalleryRouteSchema,
+  updateOwnerProfileGalleryItemsRouteSchema,
   updateProfileRouteSchema,
 } from "./users.schemas";
+import * as profileGalleryService from "./profile-gallery.service";
 import * as usersService from "./users.service";
 
 function currentUserId(request: { auth?: { userId: string } }): string {
@@ -48,6 +60,15 @@ export async function usersRoutes(fastify: FastifyInstance): Promise<void> {
     async (request) => usersService.getCurrentUser(currentUserId(request)),
   );
 
+  fastify.get(
+    "/me/profile/gallery",
+    {
+      preHandler: authMiddleware,
+      schema: withErrorResponses(getOwnerProfileGalleryRouteSchema),
+    },
+    async (request) => profileGalleryService.getOwnerProfileGallery(currentUserId(request)),
+  );
+
   fastify.patch<{ Body: UpdateProfileBody }>(
     "/me/profile",
     {
@@ -56,5 +77,52 @@ export async function usersRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request) =>
       usersService.updateCurrentUserProfile(currentUserId(request), request.body),
+  );
+
+  fastify.patch<{ Body: UpdateGalleryItemsBody }>(
+    "/me/profile/gallery/items",
+    {
+      preHandler: authMiddleware,
+      schema: withErrorResponses(updateOwnerProfileGalleryItemsRouteSchema),
+    },
+    async (request) =>
+      profileGalleryService.updateOwnerProfileGalleryItems(
+        currentUserId(request),
+        request.body,
+      ),
+  );
+
+  fastify.put<{ Body: SetLockedGalleryPasswordBody }>(
+    "/me/profile/locked-gallery/password",
+    {
+      preHandler: authMiddleware,
+      schema: withErrorResponses(setLockedGalleryPasswordRouteSchema),
+    },
+    async (request) =>
+      profileGalleryService.setLockedGalleryPassword(currentUserId(request), request.body),
+  );
+
+  fastify.delete<{ Body: ResetLockedGalleryPasswordBody }>(
+    "/me/profile/locked-gallery/password",
+    {
+      preHandler: authMiddleware,
+      schema: withErrorResponses(resetLockedGalleryPasswordRouteSchema),
+    },
+    async (request) =>
+      profileGalleryService.resetLockedGalleryPassword(currentUserId(request), request.body),
+  );
+
+  fastify.post<{ Params: { id: string }; Body: UnlockLockedGalleryBody }>(
+    "/users/:id/locked-gallery/unlock",
+    {
+      preHandler: authMiddleware,
+      schema: withErrorResponses(unlockLockedGalleryRouteSchema),
+    },
+    async (request) =>
+      profileGalleryService.unlockLockedGallery(
+        currentUserId(request),
+        request.params.id,
+        request.body,
+      ),
   );
 }
