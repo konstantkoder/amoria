@@ -2,6 +2,8 @@ import {
   ABOUT_MAX_LENGTH,
   DISPLAY_NAME_MAX_LENGTH,
   DISPLAY_NAME_MIN_LENGTH,
+  MAX_LOCKED_PROFILE_PHOTOS,
+  MAX_PROFILE_GALLERY_PHOTOS,
   PROFILE_GOALS,
   PROFILE_INTERESTS_MAX_COUNT,
   PROFILE_INTEREST_MAX_LENGTH,
@@ -180,6 +182,8 @@ export const ownerProfileGallerySchema = {
     "lockedPhotosCount",
     "visibleImagesCount",
     "minVisibleImagesRequired",
+    "maxProfileGalleryPhotos",
+    "maxLockedProfilePhotos",
   ],
   additionalProperties: false,
   properties: {
@@ -189,6 +193,8 @@ export const ownerProfileGallerySchema = {
     lockedPhotosCount: { type: "integer", minimum: 0 },
     visibleImagesCount: { type: "integer", minimum: 0 },
     minVisibleImagesRequired: { type: "integer", minimum: 1 },
+    maxProfileGalleryPhotos: { type: "integer", const: MAX_PROFILE_GALLERY_PHOTOS },
+    maxLockedProfilePhotos: { type: "integer", const: MAX_LOCKED_PROFILE_PHOTOS },
   },
 } as const;
 

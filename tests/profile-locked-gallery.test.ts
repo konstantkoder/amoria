@@ -6,6 +6,10 @@ import type {
   ProfileLockedGallerySettingsRow,
   UserRow,
 } from "../src/db/schema";
+import {
+  MAX_LOCKED_PROFILE_PHOTOS,
+  MAX_PROFILE_GALLERY_PHOTOS,
+} from "../src/config/constants";
 
 process.env.NODE_ENV = "test";
 process.env.DATABASE_URL = "postgresql://amoria:amoria_password@localhost:5432/amoria_test";
@@ -146,7 +150,7 @@ test("owner cannot move a photo to locked when fewer than 3 visible images remai
   );
 });
 
-test("owner can move a photo to locked when 3 visible images remain", async (t) => {
+test("owner can move a photo to locked when avatar keeps 3 visible images", async (t) => {
   t.after(restoreGalleryDeps);
   const state = mockGallery();
 
@@ -174,6 +178,8 @@ test("owner gallery endpoint returns public and locked photos to owner", async (
   assert.equal(response.lockedPhotosCount, 2);
   assert.equal(response.visibleImagesCount, 4);
   assert.equal(response.minVisibleImagesRequired, 3);
+  assert.equal(response.maxProfileGalleryPhotos, MAX_PROFILE_GALLERY_PHOTOS);
+  assert.equal(response.maxLockedProfilePhotos, MAX_LOCKED_PROFILE_PHOTOS);
   assert.deepEqual(
     response.publicPhotos.map((photo) => photo.mediaId),
     [publicPhoto1Id, publicPhoto2Id, publicPhoto3Id],
@@ -184,6 +190,69 @@ test("owner gallery endpoint returns public and locked photos to owner", async (
   );
   assert.equal(JSON.stringify(response).includes("passwordHash"), false);
   assert.equal(JSON.stringify(response).includes("users/owner/profile"), false);
+});
+
+test("owner cannot exceed locked gallery photo limit", async (t) => {
+  t.after(restoreGalleryDeps);
+  const lockedItems = Array.from({ length: MAX_LOCKED_PROFILE_PHOTOS }, (_, index) =>
+    galleryEntry(galleryPhotoId(300 + index), "locked", index),
+  );
+  mockGallery({
+    items: [
+      ...lockedItems,
+      galleryEntry(publicPhoto1Id, "public", MAX_LOCKED_PROFILE_PHOTOS),
+      galleryEntry(publicPhoto2Id, "public", MAX_LOCKED_PROFILE_PHOTOS + 1),
+      galleryEntry(publicPhoto3Id, "public", MAX_LOCKED_PROFILE_PHOTOS + 2),
+    ],
+  });
+
+  await assert.rejects(
+    galleryService.updateOwnerProfileGalleryItems(ownerId, {
+      items: [{ mediaId: publicPhoto1Id, visibility: "locked" }],
+    }),
+    (error) => {
+      const appError = error as { code?: string; statusCode?: number; details?: Record<string, string> };
+      assert.equal(appError.code, "locked_gallery_limit_reached");
+      assert.equal(appError.statusCode, 409);
+      assert.equal(appError.details?.maxLockedProfilePhotos, String(MAX_LOCKED_PROFILE_PHOTOS));
+      return true;
+    },
+  );
+});
+
+test("avatar does not count toward profile gallery photo limit", async (t) => {
+  t.after(restoreGalleryDeps);
+  const state = mockGallery({
+    items: Array.from({ length: MAX_PROFILE_GALLERY_PHOTOS - 1 }, (_, index) =>
+      galleryEntry(galleryPhotoId(400 + index), "public", index),
+    ),
+  });
+  const newMediaId = galleryPhotoId(999);
+
+  await galleryService.addCompletedProfilePhotoToGallery(ownerId, mediaRow(newMediaId));
+
+  assert.equal(state.items.length, MAX_PROFILE_GALLERY_PHOTOS);
+  assert.equal(state.items.some((entry) => entry.item.mediaId === newMediaId), true);
+});
+
+test("profile gallery photo limit rejects additional completed profile photo", async (t) => {
+  t.after(restoreGalleryDeps);
+  mockGallery({
+    items: Array.from({ length: MAX_PROFILE_GALLERY_PHOTOS }, (_, index) =>
+      galleryEntry(galleryPhotoId(500 + index), "public", index),
+    ),
+  });
+
+  await assert.rejects(
+    galleryService.addCompletedProfilePhotoToGallery(ownerId, mediaRow(galleryPhotoId(999))),
+    (error) => {
+      const appError = error as { code?: string; statusCode?: number; details?: Record<string, string> };
+      assert.equal(appError.code, "profile_gallery_limit_reached");
+      assert.equal(appError.statusCode, 409);
+      assert.equal(appError.details?.maxProfileGalleryPhotos, String(MAX_PROFILE_GALLERY_PHOTOS));
+      return true;
+    },
+  );
 });
 
 function mockGallery(input: {
@@ -256,7 +325,16 @@ function mockGallery(input: {
         .map((entry) => entry.media)
         .filter((media) => mediaIds.includes(media.id)),
     replacePublicGalleryItems: async () => undefined,
-    upsertPublicGalleryItemForMedia: async () => undefined,
+    upsertPublicGalleryItemForMedia: async (_userId: string, mediaId: string) => {
+      const existing = state.items.find((entry) => entry.item.mediaId === mediaId);
+      if (existing) {
+        existing.item.visibility = "public";
+        existing.item.position = state.items.length - 1;
+        existing.item.updatedAt = new Date();
+        return;
+      }
+      state.items.push(galleryEntry(mediaId, "public", state.items.length));
+    },
     findGalleryItemForMedia: async () => undefined,
   } satisfies Partial<GalleryRepo>;
 
@@ -279,6 +357,10 @@ function mockGallery(input: {
   });
 
   return state;
+}
+
+function galleryPhotoId(index: number): string {
+  return `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`;
 }
 
 function restoreGalleryDeps(): void {

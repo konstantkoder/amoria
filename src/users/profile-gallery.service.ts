@@ -1,6 +1,10 @@
 import { AppError, unauthorized, validationError } from "../common/errors";
 import { normalizePassword } from "../common/validators";
-import { MIN_VISIBLE_PROFILE_IMAGES_FOR_LOCKED_GALLERY } from "../config/constants";
+import {
+  MAX_LOCKED_PROFILE_PHOTOS,
+  MAX_PROFILE_GALLERY_PHOTOS,
+  MIN_VISIBLE_PROFILE_IMAGES_FOR_LOCKED_GALLERY,
+} from "../config/constants";
 import type { MediaFileRow, ProfilePhoto, UserRow } from "../db/schema";
 import { deleteObject } from "../media/object-storage";
 import { env } from "../config/env";
@@ -32,6 +36,8 @@ export type OwnerProfileGalleryResponse = {
   lockedPhotosCount: number;
   visibleImagesCount: number;
   minVisibleImagesRequired: number;
+  maxProfileGalleryPhotos: number;
+  maxLockedProfilePhotos: number;
 };
 
 export type UpdateGalleryItemsBody = {
@@ -196,6 +202,7 @@ export async function updateOwnerProfileGalleryItems(
   }
 
   const nextItems = [...nextByMediaId.values()];
+  assertGalleryCountLimits(nextItems);
   assertVisibleImageRule(user, nextItems, passwordIsSet);
   await deps.repo.updateGalleryItems(userId, nextItems);
   await syncPublicPhotosReadModel(userId);
@@ -211,15 +218,13 @@ export async function setLockedGalleryPassword(
   const newFolderPassword = normalizePassword(input.newFolderPassword);
   const items = await deps.repo.listGalleryItemsForUser(userId);
 
-  assertVisibleImageRule(
-    user,
-    items.map((entry) => ({
-      mediaId: entry.item.mediaId,
-      visibility: entry.item.visibility as galleryRepo.ProfileGalleryVisibility,
-      position: entry.item.position,
-    })),
-    true,
-  );
+  const nextItems = items.map((entry) => ({
+    mediaId: entry.item.mediaId,
+    visibility: entry.item.visibility as galleryRepo.ProfileGalleryVisibility,
+    position: entry.item.position,
+  }));
+  assertGalleryCountLimits(nextItems);
+  assertVisibleImageRule(user, nextItems, true);
 
   await deps.repo.upsertLockedGalleryPasswordHash(
     userId,
@@ -281,8 +286,23 @@ export async function addCompletedProfilePhotoToGallery(
     return;
   }
 
+  await assertCanAddProfilePhotoToGallery(ownerUserId);
   await deps.repo.upsertPublicGalleryItemForMedia(ownerUserId, media.id);
   await syncPublicPhotosReadModel(ownerUserId);
+}
+
+export async function assertCanAddProfilePhotoToGallery(ownerUserId: string): Promise<void> {
+  const items = await deps.repo.listGalleryItemsForUser(ownerUserId);
+  if (items.length >= MAX_PROFILE_GALLERY_PHOTOS) {
+    throw new AppError(
+      "profile_gallery_limit_reached",
+      "Profile gallery photo limit has been reached",
+      409,
+      {
+        maxProfileGalleryPhotos: String(MAX_PROFILE_GALLERY_PHOTOS),
+      },
+    );
+  }
 }
 
 export async function replacePublicGalleryPhotosFromProfilePatch(
@@ -314,7 +334,9 @@ export async function replacePublicGalleryPhotosFromProfilePatch(
     });
   }
 
-  assertVisibleImageRule(user, [...nextByMediaId.values()], Boolean(settings?.passwordHash));
+  const nextItems = [...nextByMediaId.values()];
+  assertGalleryCountLimits(nextItems);
+  assertVisibleImageRule(user, nextItems, Boolean(settings?.passwordHash));
   await deps.repo.replacePublicGalleryItems(userId, mediaIds);
 }
 
@@ -407,6 +429,8 @@ function toOwnerGalleryResponse(
     lockedPhotosCount: lockedPhotos.length,
     visibleImagesCount: visibleImagesCount(user, photos),
     minVisibleImagesRequired: MIN_VISIBLE_PROFILE_IMAGES_FOR_LOCKED_GALLERY,
+    maxProfileGalleryPhotos: MAX_PROFILE_GALLERY_PHOTOS,
+    maxLockedProfilePhotos: MAX_LOCKED_PROFILE_PHOTOS,
   };
 }
 
@@ -436,6 +460,33 @@ function assertVisibleImageRule(
       {
         visibleImagesCount: String(visible),
         minVisibleImagesRequired: String(MIN_VISIBLE_PROFILE_IMAGES_FOR_LOCKED_GALLERY),
+      },
+    );
+  }
+}
+
+function assertGalleryCountLimits(
+  items: { visibility: galleryRepo.ProfileGalleryVisibility }[],
+): void {
+  if (items.length > MAX_PROFILE_GALLERY_PHOTOS) {
+    throw new AppError(
+      "profile_gallery_limit_reached",
+      "Profile gallery photo limit has been reached",
+      409,
+      {
+        maxProfileGalleryPhotos: String(MAX_PROFILE_GALLERY_PHOTOS),
+      },
+    );
+  }
+
+  const lockedPhotosCount = items.filter((item) => item.visibility === "locked").length;
+  if (lockedPhotosCount > MAX_LOCKED_PROFILE_PHOTOS) {
+    throw new AppError(
+      "locked_gallery_limit_reached",
+      "Locked gallery photo limit has been reached",
+      409,
+      {
+        maxLockedProfilePhotos: String(MAX_LOCKED_PROFILE_PHOTOS),
       },
     );
   }

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import test from "node:test";
 import sharp from "sharp";
+import { AppError } from "../src/common/errors";
 import type { MediaFileRow, MediaUploadRow, NewMediaFileRow } from "../src/db/schema";
 
 process.env.NODE_ENV = "test";
@@ -91,6 +92,25 @@ test("completeUpload rejects corrupt profile photo before storing media", async 
   assert.equal(state.galleryMedia, undefined);
 });
 
+test("completeUpload rejects profile photo when gallery limit is reached and cleans raw object", async (t) => {
+  t.after(restoreUploadServiceDeps);
+  const rawBuffer = await imageBuffer("jpeg", 640, 480);
+  const state = mockCompleteProfilePhotoUpload(rawBuffer, "image/jpeg", {
+    galleryLimitReached: true,
+  });
+
+  await assertAppError(
+    uploadsService.completeUpload(ownerId, uploadId, { sizeBytes: rawBuffer.length }),
+    "profile_gallery_limit_reached",
+    409,
+  );
+
+  assert.equal(state.deletedObjectKey, state.upload.objectKey);
+  assert.equal(state.putObject, undefined);
+  assert.equal(state.mediaInput, undefined);
+  assert.equal(state.galleryMedia, undefined);
+});
+
 test("profile photo helper rejects unsupported SVG images", async () => {
   const svg = Buffer.from(
     '<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"><rect width="512" height="512"/></svg>',
@@ -130,7 +150,11 @@ test("profile photo helper rejects too large dimensions", async () => {
   );
 });
 
-function mockCompleteProfilePhotoUpload(rawBuffer: Buffer, contentType: string) {
+function mockCompleteProfilePhotoUpload(
+  rawBuffer: Buffer,
+  contentType: string,
+  options: { galleryLimitReached?: boolean } = {},
+) {
   restoreUploadServiceDeps();
   const upload = uploadRow({
     mimeType: contentType,
@@ -160,6 +184,15 @@ function mockCompleteProfilePhotoUpload(rawBuffer: Buffer, contentType: string) 
     },
     deleteObject: async (input) => {
       state.deletedObjectKey = input.key;
+    },
+    assertCanAddProfilePhotoToGallery: async () => {
+      if (options.galleryLimitReached) {
+        throw new AppError(
+          "profile_gallery_limit_reached",
+          "Profile gallery photo limit has been reached",
+          409,
+        );
+      }
     },
     completeMediaUploadWithFile: async (_completedUploadId, mediaInput, completedAt) => {
       state.mediaInput = mediaInput;

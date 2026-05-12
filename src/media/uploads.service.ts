@@ -18,6 +18,7 @@ import {
 import type { CompleteUploadBody, PrepareUploadBody } from "./uploads.schemas";
 import {
   addCompletedProfilePhotoToGallery,
+  assertCanAddProfilePhotoToGallery,
   deleteOwnedMediaWithGalleryGuards,
 } from "../users/profile-gallery.service";
 import { checksumSha256 } from "./file-guards";
@@ -59,6 +60,7 @@ type UploadsServiceDeps = {
   putObjectBuffer: typeof putObjectBuffer;
   deleteObject: typeof deleteObject;
   addCompletedProfilePhotoToGallery: typeof addCompletedProfilePhotoToGallery;
+  assertCanAddProfilePhotoToGallery: typeof assertCanAddProfilePhotoToGallery;
   processProfilePhotoImage: typeof processProfilePhotoImage;
 };
 
@@ -72,6 +74,7 @@ const defaultDeps: UploadsServiceDeps = {
   putObjectBuffer,
   deleteObject,
   addCompletedProfilePhotoToGallery,
+  assertCanAddProfilePhotoToGallery,
   processProfilePhotoImage,
 };
 
@@ -165,6 +168,10 @@ export async function completeUpload(
     });
   }
 
+  if (upload.purpose === "profile_photo") {
+    await assertCanCompleteProfilePhotoUpload(ownerUserId, upload);
+  }
+
   const mediaInput = await toCompletedMediaInput(ownerUserId, upload, input);
   const media = await deps.completeMediaUploadWithFile(
     upload.id,
@@ -183,6 +190,21 @@ export async function completeUpload(
   return {
     media: toMediaUploadResponse(media.media),
   };
+}
+
+async function assertCanCompleteProfilePhotoUpload(
+  ownerUserId: string,
+  upload: MediaUploadRow,
+): Promise<void> {
+  try {
+    await deps.assertCanAddProfilePhotoToGallery(ownerUserId);
+  } catch (error) {
+    await deps.deleteObject({
+      bucket: env.S3_BUCKET,
+      key: upload.objectKey,
+    }).catch(() => undefined);
+    throw error;
+  }
 }
 
 export async function deleteMedia(ownerUserId: string, mediaId: string): Promise<DeleteMediaResponse> {
