@@ -1,5 +1,6 @@
 import {
   DeleteObjectCommand,
+  GetObjectCommand,
   HeadObjectCommand,
   PutObjectCommand,
   S3Client,
@@ -32,6 +33,15 @@ export type ObjectStorageInput = {
 
 export type HeadObjectResult = {
   sizeBytes: number;
+  contentType: string;
+};
+
+export type GetObjectBufferInput = ObjectStorageInput & {
+  maxBytes: number;
+};
+
+export type PutObjectBufferInput = ObjectStorageInput & {
+  body: Buffer;
   contentType: string;
 };
 
@@ -77,6 +87,49 @@ export async function headObject(input: ObjectStorageInput): Promise<HeadObjectR
   }
 }
 
+export async function getObjectBuffer(input: GetObjectBufferInput): Promise<Buffer> {
+  try {
+    const result = await s3Client.send(
+      new GetObjectCommand({
+        Bucket: input.bucket,
+        Key: input.key,
+      }),
+    );
+
+    if (!result.Body) {
+      throw new AppError("internal_error", "Object storage did not return object body", 500);
+    }
+
+    return await readBodyWithLimit(result.Body, input.maxBytes);
+  } catch (error) {
+    if (error instanceof AppError) {
+      throw error;
+    }
+
+    if (isObjectNotFound(error)) {
+      throw new AppError("not_found", "Object was not found in storage", 404);
+    }
+
+    throw new AppError("internal_error", "Object storage get request failed", 500);
+  }
+}
+
+export async function putObjectBuffer(input: PutObjectBufferInput): Promise<void> {
+  try {
+    await s3Client.send(
+      new PutObjectCommand({
+        Bucket: input.bucket,
+        Key: input.key,
+        Body: input.body,
+        ContentLength: input.body.length,
+        ContentType: input.contentType,
+      }),
+    );
+  } catch {
+    throw new AppError("internal_error", "Object storage put request failed", 500);
+  }
+}
+
 export async function deleteObject(input: ObjectStorageInput): Promise<void> {
   try {
     await s3Client.send(
@@ -97,4 +150,67 @@ function isObjectNotFound(error: unknown): boolean {
     candidate.name === "NotFound" ||
     candidate.name === "NoSuchKey"
   );
+}
+
+async function readBodyWithLimit(body: unknown, maxBytes: number): Promise<Buffer> {
+  if (!Number.isInteger(maxBytes) || maxBytes < 1) {
+    throw new AppError("internal_error", "Object storage read limit is invalid", 500);
+  }
+
+  const chunks: Buffer[] = [];
+  let totalBytes = 0;
+
+  const append = (chunk: Uint8Array | string) => {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    totalBytes += buffer.length;
+    if (totalBytes > maxBytes) {
+      throw new AppError("file_too_large", "Object exceeds maximum allowed size", 413, {
+        file: "too_large",
+      });
+    }
+    chunks.push(buffer);
+  };
+
+  if (body instanceof Uint8Array || typeof body === "string") {
+    append(body);
+    return Buffer.concat(chunks, totalBytes);
+  }
+
+  if (isAsyncIterableBody(body)) {
+    for await (const chunk of body) {
+      append(chunk);
+    }
+    return Buffer.concat(chunks, totalBytes);
+  }
+
+  if (isReadableStreamBody(body)) {
+    const reader = body.getReader();
+    try {
+      for (;;) {
+        const result = await reader.read();
+        if (result.done) {
+          break;
+        }
+        append(result.value);
+      }
+    } finally {
+      reader.releaseLock?.();
+    }
+    return Buffer.concat(chunks, totalBytes);
+  }
+
+  throw new AppError("internal_error", "Object storage body is not readable", 500);
+}
+
+function isAsyncIterableBody(body: unknown): body is AsyncIterable<Uint8Array> {
+  return Boolean(body && typeof (body as { [Symbol.asyncIterator]?: unknown })[Symbol.asyncIterator] === "function");
+}
+
+function isReadableStreamBody(body: unknown): body is {
+  getReader: () => {
+    read: () => Promise<{ done: boolean; value: Uint8Array }>;
+    releaseLock?: () => void;
+  };
+} {
+  return Boolean(body && typeof (body as { getReader?: unknown }).getReader === "function");
 }

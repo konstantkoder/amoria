@@ -33,6 +33,7 @@ export function withErrorResponses(schema: FastifySchema): FastifySchema {
       409: errorEnvelopeSchema,
       413: errorEnvelopeSchema,
       415: errorEnvelopeSchema,
+      422: errorEnvelopeSchema,
       500: errorEnvelopeSchema,
     },
   };

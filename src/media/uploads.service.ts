@@ -1,19 +1,27 @@
 import { randomUUID } from "node:crypto";
 import { AppError } from "../common/errors";
-import { MEDIA_UPLOAD_EXPIRES_IN_SEC } from "../config/constants";
+import { MAX_MEDIA_UPLOAD_BYTES, MEDIA_UPLOAD_EXPIRES_IN_SEC } from "../config/constants";
 import { env } from "../config/env";
-import type { MediaFileRow, MediaUploadRow } from "../db/schema";
+import type { MediaFileRow, MediaUploadRow, NewMediaFileRow } from "../db/schema";
 import {
   completeMediaUploadWithFile,
   createMediaUpload,
   findMediaUploadById,
 } from "./media.repo";
-import { createPutPresignedUrl, headObject } from "./object-storage";
+import {
+  createPutPresignedUrl,
+  deleteObject,
+  getObjectBuffer,
+  headObject,
+  putObjectBuffer,
+} from "./object-storage";
 import type { CompleteUploadBody, PrepareUploadBody } from "./uploads.schemas";
 import {
   addCompletedProfilePhotoToGallery,
   deleteOwnedMediaWithGalleryGuards,
 } from "../users/profile-gallery.service";
+import { checksumSha256 } from "./file-guards";
+import { processProfilePhotoImage } from "./image-processing";
 
 export type PrepareUploadResponse = {
   uploadId: string;
@@ -41,6 +49,48 @@ export type DeleteMediaResponse = {
   ok: true;
 };
 
+type UploadsServiceDeps = {
+  completeMediaUploadWithFile: typeof completeMediaUploadWithFile;
+  createMediaUpload: typeof createMediaUpload;
+  findMediaUploadById: typeof findMediaUploadById;
+  createPutPresignedUrl: typeof createPutPresignedUrl;
+  headObject: typeof headObject;
+  getObjectBuffer: typeof getObjectBuffer;
+  putObjectBuffer: typeof putObjectBuffer;
+  deleteObject: typeof deleteObject;
+  addCompletedProfilePhotoToGallery: typeof addCompletedProfilePhotoToGallery;
+  processProfilePhotoImage: typeof processProfilePhotoImage;
+};
+
+const defaultDeps: UploadsServiceDeps = {
+  completeMediaUploadWithFile,
+  createMediaUpload,
+  findMediaUploadById,
+  createPutPresignedUrl,
+  headObject,
+  getObjectBuffer,
+  putObjectBuffer,
+  deleteObject,
+  addCompletedProfilePhotoToGallery,
+  processProfilePhotoImage,
+};
+
+let deps: UploadsServiceDeps = defaultDeps;
+
+export function __setUploadsServiceDepsForTests(
+  overrides: Partial<UploadsServiceDeps>,
+): () => void {
+  const previous = deps;
+  deps = {
+    ...deps,
+    ...overrides,
+  };
+
+  return () => {
+    deps = previous;
+  };
+}
+
 export async function prepareUpload(
   ownerUserId: string,
   input: PrepareUploadBody,
@@ -49,7 +99,7 @@ export async function prepareUpload(
   const objectKey = `users/${ownerUserId}/${input.purpose}/${uploadId}`;
   const expiresAt = new Date(Date.now() + MEDIA_UPLOAD_EXPIRES_IN_SEC * 1000);
 
-  const upload = await createMediaUpload({
+  const upload = await deps.createMediaUpload({
     id: uploadId,
     ownerUserId,
     purpose: input.purpose,
@@ -61,7 +111,7 @@ export async function prepareUpload(
     expiresAt,
   });
 
-  const uploadUrl = await createPutPresignedUrl({
+  const uploadUrl = await deps.createPutPresignedUrl({
     bucket: env.S3_BUCKET,
     key: upload.objectKey,
     contentType: upload.mimeType,
@@ -115,17 +165,10 @@ export async function completeUpload(
     });
   }
 
-  const media = await completeMediaUploadWithFile(
+  const mediaInput = await toCompletedMediaInput(ownerUserId, upload, input);
+  const media = await deps.completeMediaUploadWithFile(
     upload.id,
-    {
-      ownerUserId,
-      type: upload.purpose,
-      path: upload.objectKey,
-      url: publicMediaUrl(upload.objectKey),
-      mimeType: upload.mimeType,
-      sizeBytes: input.sizeBytes,
-      checksumSha256: input.checksumSha256 ?? upload.checksumSha256,
-    },
+    mediaInput,
     new Date(),
   );
 
@@ -135,7 +178,7 @@ export async function completeUpload(
     });
   }
 
-  await addCompletedProfilePhotoToGallery(ownerUserId, media.media);
+  await deps.addCompletedProfilePhotoToGallery(ownerUserId, media.media);
 
   return {
     media: toMediaUploadResponse(media.media),
@@ -150,7 +193,7 @@ async function loadOwnedPreparedUpload(
   ownerUserId: string,
   uploadId: string,
 ): Promise<MediaUploadRow> {
-  const upload = await findMediaUploadById(uploadId);
+  const upload = await deps.findMediaUploadById(uploadId);
 
   if (!upload || upload.ownerUserId !== ownerUserId) {
     throw new AppError("not_found", "Upload session not found", 404);
@@ -176,7 +219,7 @@ async function getUploadedObject(upload: MediaUploadRow): Promise<{
   contentType: string;
 }> {
   try {
-    return await headObject({
+    return await deps.headObject({
       bucket: env.S3_BUCKET,
       key: upload.objectKey,
     });
@@ -189,6 +232,87 @@ async function getUploadedObject(upload: MediaUploadRow): Promise<{
 
     throw error;
   }
+}
+
+async function toCompletedMediaInput(
+  ownerUserId: string,
+  upload: MediaUploadRow,
+  input: CompleteUploadBody,
+): Promise<NewMediaFileRow> {
+  if (upload.purpose === "profile_photo") {
+    return toCompletedProfilePhotoMediaInput(ownerUserId, upload);
+  }
+
+  return {
+    ownerUserId,
+    type: upload.purpose,
+    path: upload.objectKey,
+    url: publicMediaUrl(upload.objectKey),
+    mimeType: upload.mimeType,
+    sizeBytes: input.sizeBytes,
+    checksumSha256: input.checksumSha256 ?? upload.checksumSha256,
+  };
+}
+
+async function toCompletedProfilePhotoMediaInput(
+  ownerUserId: string,
+  upload: MediaUploadRow,
+): Promise<NewMediaFileRow> {
+  const rawBuffer = await getUploadedObjectBuffer(upload);
+  const processed = await deps.processProfilePhotoImage(rawBuffer);
+  const sanitizedObjectKey = sanitizedProfilePhotoObjectKey(upload.objectKey);
+
+  await deps.putObjectBuffer({
+    bucket: env.S3_BUCKET,
+    key: sanitizedObjectKey,
+    body: processed.buffer,
+    contentType: processed.mimeType,
+  });
+
+  await deps.deleteObject({
+    bucket: env.S3_BUCKET,
+    key: upload.objectKey,
+  });
+
+  return {
+    ownerUserId,
+    type: upload.purpose,
+    path: sanitizedObjectKey,
+    url: publicMediaUrl(sanitizedObjectKey),
+    mimeType: processed.mimeType,
+    sizeBytes: processed.buffer.length,
+    width: processed.width,
+    height: processed.height,
+    checksumSha256: checksumSha256(processed.buffer),
+  };
+}
+
+async function getUploadedObjectBuffer(upload: MediaUploadRow): Promise<Buffer> {
+  try {
+    return await deps.getObjectBuffer({
+      bucket: env.S3_BUCKET,
+      key: upload.objectKey,
+      maxBytes: MAX_MEDIA_UPLOAD_BYTES,
+    });
+  } catch (error) {
+    if (error instanceof AppError && error.code === "not_found") {
+      throw new AppError("validation_error", "Uploaded object was not found", 400, {
+        uploadId: "object_not_found",
+      });
+    }
+
+    if (error instanceof AppError && error.code === "file_too_large") {
+      throw new AppError("image_too_large", "Uploaded profile photo is too large", 413, {
+        file: "too_large",
+      });
+    }
+
+    throw error;
+  }
+}
+
+function sanitizedProfilePhotoObjectKey(objectKey: string): string {
+  return `${objectKey}.webp`;
 }
 
 function toMediaUploadResponse(media: MediaFileRow): MediaUploadResponse {

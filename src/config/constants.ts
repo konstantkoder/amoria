@@ -7,6 +7,10 @@ export const MAX_JSON_BODY_BYTES = 1024 * 1024;
 export const MAX_AVATAR_INPUT_BYTES = 8 * 1024 * 1024;
 export const MAX_AVATAR_DIMENSION = 1024;
 export const MAX_MEDIA_UPLOAD_BYTES = 10 * 1024 * 1024;
+export const PROFILE_PHOTO_MIN_WIDTH = 256;
+export const PROFILE_PHOTO_MIN_HEIGHT = 256;
+export const PROFILE_PHOTO_MAX_WIDTH = 8000;
+export const PROFILE_PHOTO_MAX_HEIGHT = 8000;
 export const MEDIA_UPLOAD_EXPIRES_IN_SEC = 10 * 60;
 export const MEDIA_UPLOAD_PURPOSES = [
   "avatar",

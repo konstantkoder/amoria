@@ -18,6 +18,11 @@ export type ErrorCode =
   | "file_too_large"
   | "unsupported_media_type"
   | "image_decode_failed"
+  | "invalid_image"
+  | "unsupported_image_type"
+  | "image_too_large"
+  | "image_too_small"
+  | "corrupt_image"
   | "storage_write_failed"
   | "internal_error";
 
