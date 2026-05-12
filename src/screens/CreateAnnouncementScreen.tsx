@@ -263,7 +263,7 @@ export default function CreateAnnouncementScreen() {
       result = await ImagePicker.launchImageLibraryAsync({
         quality: 0.65,
         allowsEditing: false,
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ["images"],
         selectionLimit: 1,
       });
     } catch {

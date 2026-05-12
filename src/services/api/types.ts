@@ -103,6 +103,8 @@ export type OwnerProfileGalleryResponse = {
   lockedPhotosCount: number;
   visibleImagesCount: number;
   minVisibleImagesRequired: number;
+  maxProfileGalleryPhotos: number;
+  maxLockedProfilePhotos: number;
 };
 
 export type UpdateProfileGalleryItemsRequest = {

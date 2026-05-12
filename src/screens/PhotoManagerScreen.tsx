@@ -31,6 +31,8 @@ import { deleteProfilePhoto, uploadProfilePhoto } from "@/services/storage";
 import { theme } from "@/theme";
 
 type PasswordMode = "set" | "reset" | "";
+const FALLBACK_MAX_PROFILE_GALLERY_PHOTOS = 15;
+const FALLBACK_MAX_LOCKED_PROFILE_PHOTOS = 10;
 
 export default function PhotoManagerScreen() {
   const { t } = useLocale();
@@ -79,6 +81,17 @@ export default function PhotoManagerScreen() {
     }, [refreshGallery, t])
   );
 
+  const publicPhotos = gallery?.publicPhotos ?? [];
+  const lockedPhotos = gallery?.lockedPhotos ?? [];
+  const totalPhotos = publicPhotos.length + lockedPhotos.length;
+  const maxProfileGalleryPhotos =
+    gallery?.maxProfileGalleryPhotos ?? FALLBACK_MAX_PROFILE_GALLERY_PHOTOS;
+  const maxLockedProfilePhotos =
+    gallery?.maxLockedProfilePhotos ?? FALLBACK_MAX_LOCKED_PROFILE_PHOTOS;
+  const minVisibleImagesRequired = gallery?.minVisibleImagesRequired ?? 3;
+  const galleryLimitReached = totalPhotos >= maxProfileGalleryPhotos;
+  const lockedLimitReached = lockedPhotos.length >= maxLockedProfilePhotos;
+
   function minVisibleMessage() {
     return tt(
       "photos.lockedGalleryMinVisible",
@@ -92,6 +105,23 @@ export default function PhotoManagerScreen() {
         Alert.alert(
           tt("photos.lockedGalleryCannotMoveTitle", "Нельзя скрыть фото"),
           minVisibleMessage()
+        );
+        return;
+      }
+      if (error.code === "profile_gallery_limit_reached") {
+        Alert.alert(
+          tt("photos.galleryLimitReachedTitle", "Лимит фото достигнут"),
+          tt(
+            "photos.galleryLimitReached",
+            "Достигнут лимит фото. Удалите старые фото, чтобы добавить новые."
+          )
+        );
+        return;
+      }
+      if (error.code === "locked_gallery_limit_reached") {
+        Alert.alert(
+          tt("photos.lockedGalleryLimitReachedTitle", "Лимит закрытой папки"),
+          tt("photos.lockedGalleryLimitReached", "В закрытой папке уже максимум фото.")
         );
         return;
       }
@@ -116,6 +146,17 @@ export default function PhotoManagerScreen() {
   }
 
   async function addPhoto() {
+    if (galleryLimitReached) {
+      Alert.alert(
+        tt("photos.galleryLimitReachedTitle", "Лимит фото достигнут"),
+        tt(
+          "photos.galleryLimitReached",
+          "Достигнут лимит фото. Удалите старые фото, чтобы добавить новые."
+        )
+      );
+      return;
+    }
+
     let status = "";
     try {
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -135,7 +176,7 @@ export default function PhotoManagerScreen() {
       result = await ImagePicker.launchImageLibraryAsync({
         quality: 0.8,
         allowsEditing: false,
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ["images"],
         selectionLimit: 1,
       });
     } catch {
@@ -161,8 +202,8 @@ export default function PhotoManagerScreen() {
       await refreshGallery();
       setPendingPhotoUri("");
       Alert.alert(t("common.done"), t("photos.saved"));
-    } catch {
-      Alert.alert(t("photos.uploadFailed"), t("photos.uploadErrorBody"));
+    } catch (error) {
+      handleApiError(error, t("photos.uploadFailed"), t("photos.uploadErrorBody"));
     } finally {
       setBusy(false);
     }
@@ -187,6 +228,13 @@ export default function PhotoManagerScreen() {
         tt("photos.lockedGalleryPasswordRequired", "Сначала задайте пароль закрытой папки")
       );
       setPasswordMode("set");
+      return;
+    }
+    if (visibility === "locked" && lockedLimitReached) {
+      Alert.alert(
+        tt("photos.lockedGalleryLimitReachedTitle", "Лимит закрытой папки"),
+        tt("photos.lockedGalleryLimitReached", "В закрытой папке уже максимум фото.")
+      );
       return;
     }
 
@@ -251,6 +299,7 @@ export default function PhotoManagerScreen() {
     visibility: ProfileGalleryVisibility
   ) {
     const moveTarget = visibility === "public" ? "locked" : "public";
+    const moveDisabled = busy || (moveTarget === "locked" && lockedLimitReached);
     return (
       <View key={photo.mediaId} style={styles.photoCard}>
         <Image source={{ uri: photo.url }} style={styles.photoImage} />
@@ -258,8 +307,11 @@ export default function PhotoManagerScreen() {
           <TouchableOpacity
             activeOpacity={0.86}
             onPress={() => void movePhoto(photo, moveTarget)}
-            disabled={busy}
-            style={styles.photoActionButton}
+            disabled={moveDisabled}
+            style={[
+              styles.photoActionButton,
+              moveDisabled ? styles.photoActionButtonDisabled : null,
+            ]}
           >
             <Text style={styles.photoActionText}>
               {moveTarget === "locked"
@@ -296,9 +348,6 @@ export default function PhotoManagerScreen() {
     );
   }
 
-  const publicPhotos = gallery?.publicPhotos ?? [];
-  const lockedPhotos = gallery?.lockedPhotos ?? [];
-
   return (
     <ScreenShell
       title={t("profile.photos")}
@@ -316,10 +365,22 @@ export default function PhotoManagerScreen() {
             {tt("photos.lockedGalleryTitle", "Закрытая папка")}
           </Text>
           <Text style={styles.summaryText}>
-            {tt("photos.visibleCount", "Открытых изображений: {count}").replace(
-              "{count}",
-              String(gallery?.visibleImagesCount ?? 0)
-            )}
+            {tt("photos.photoLimitCount", "Фото: {count} из {max}")
+              .replace("{count}", String(totalPhotos))
+              .replace("{max}", String(maxProfileGalleryPhotos))}
+          </Text>
+          <Text style={styles.summaryText}>
+            {tt("photos.lockedPhotoLimitCount", "Закрытая папка: {count} из {max}")
+              .replace("{count}", String(lockedPhotos.length))
+              .replace("{max}", String(maxLockedProfilePhotos))}
+          </Text>
+          <Text style={styles.summaryText}>
+            {tt(
+              "photos.visibleCountWithMinimum",
+              "Открытых изображений: {count} из {min} минимум"
+            )
+              .replace("{count}", String(gallery?.visibleImagesCount ?? 0))
+              .replace("{min}", String(minVisibleImagesRequired))}
           </Text>
           <Text style={styles.summaryText}>{minVisibleMessage()}</Text>
           <View style={styles.summaryActions}>
@@ -420,13 +481,28 @@ export default function PhotoManagerScreen() {
         <TouchableOpacity
           activeOpacity={0.86}
           onPress={() => void addPhoto()}
-          disabled={busy}
-          style={[styles.addButton, busy ? styles.addButtonDisabled : null]}
+          disabled={busy || galleryLimitReached}
+          style={[
+            styles.addButton,
+            busy || galleryLimitReached ? styles.addButtonDisabled : null,
+          ]}
         >
           <Text style={styles.addButtonText}>
-            {busy ? t("common.saving") : t("photos.add")}
+            {busy
+              ? t("common.saving")
+              : galleryLimitReached
+                ? tt("photos.galleryLimitReachedTitle", "Лимит фото достигнут")
+                : t("photos.add")}
           </Text>
         </TouchableOpacity>
+        {galleryLimitReached ? (
+          <Text style={styles.limitText}>
+            {tt(
+              "photos.galleryLimitReached",
+              "Достигнут лимит фото. Удалите старые фото, чтобы добавить новые."
+            )}
+          </Text>
+        ) : null}
 
         {pendingPhotoUri ? (
           <View style={styles.pendingCard}>
@@ -581,6 +657,11 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     fontSize: 15,
   },
+  limitText: {
+    color: theme.colors.subtext,
+    fontSize: 12,
+    lineHeight: 18,
+  },
   pendingCard: {
     borderRadius: 18,
     padding: 10,
@@ -644,6 +725,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(255,255,255,0.035)",
+  },
+  photoActionButtonDisabled: {
+    opacity: 0.5,
   },
   photoActionText: {
     color: theme.colors.text,

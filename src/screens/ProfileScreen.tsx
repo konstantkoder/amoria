@@ -165,9 +165,10 @@ export default function ProfileScreen() {
     let result: ImagePicker.ImagePickerResult;
     try {
       result = await ImagePicker.launchImageLibraryAsync({
-        quality: 0.78,
-        allowsEditing: false,
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.8,
+        allowsEditing: true,
+        aspect: [1, 1],
+        mediaTypes: ["images"],
         selectionLimit: 1,
       });
     } catch {
