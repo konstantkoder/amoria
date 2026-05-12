@@ -2,11 +2,10 @@ import { createHash } from "node:crypto";
 import { AppError } from "../common/errors";
 import { MAX_AVATAR_INPUT_BYTES } from "../config/constants";
 
-const supportedImageMimeTypes = new Set([
+const supportedAvatarImageMimeTypes = new Set([
   "image/jpeg",
   "image/png",
   "image/webp",
-  "image/gif",
 ]);
 
 function hasBytes(buffer: Buffer, bytes: number[]): boolean {
@@ -50,8 +49,8 @@ export function assertAvatarInput(buffer: Buffer): string {
   }
 
   const detectedMimeType = detectImageMimeType(buffer);
-  if (!detectedMimeType || !supportedImageMimeTypes.has(detectedMimeType)) {
-    throw new AppError("unsupported_media_type", "Only JPEG, PNG, WebP, or GIF images are supported", 415, {
+  if (!detectedMimeType || !supportedAvatarImageMimeTypes.has(detectedMimeType)) {
+    throw new AppError("unsupported_media_type", "Only JPEG, PNG, or WebP images are supported", 415, {
       file: "unsupported_media_type",
     });
   }

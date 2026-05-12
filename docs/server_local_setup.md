@@ -102,9 +102,14 @@ curl -s http://localhost:4000/media/avatar \
   -F "file=@$AVATAR_FILE"
 ```
 
-The processed avatar is stored in MinIO and served locally at:
+The processed avatar is decoded, resized to a 512x512 WebP, and stored in MinIO.
+The returned `avatarUrl` uses `S3_PUBLIC_BASE_URL`, for example:
 
-`http://localhost:4000/media/users/{userId}/avatar.webp`
+`http://localhost:9000/amoria/users/{userId}/avatar/{mediaId}.webp`
+
+The API may still serve old local avatar URLs under
+`http://localhost:4000/media/...` until the legacy local avatar migration is
+completed. New avatar uploads must not use local filesystem storage.
 
 ## Backups
 
@@ -115,7 +120,7 @@ mkdir -p backups
 docker compose exec -T postgres pg_dump -U amoria amoria > backups/amoria_$(date +%F).sql
 ```
 
-Archive uploads:
+Archive legacy local uploads while old `/media/...` avatar URLs still exist:
 
 ```bash
 mkdir -p backups
@@ -134,4 +139,4 @@ docker compose restart api
 
 ## Moving Later To A VPS
 
-Point `api.amoria.app` at the VPS, copy the Compose files, restore the PostgreSQL dump, restore `uploads`, set production secrets in `.env`, and run the same API image behind TLS. The mobile app should keep using the stable API URL instead of a physical server address.
+Point `api.amoria.app` at the VPS, copy the Compose files, restore the PostgreSQL dump, restore the S3-compatible bucket or MinIO volume, restore legacy `uploads` only while old local avatar URLs still exist, set production secrets in `.env`, and run the same API image behind TLS. The mobile app should keep using the stable API URL instead of a physical server address.

@@ -31,10 +31,11 @@ The server location can change; the API DNS name should not.
 
 ## Data And Backups
 
-PostgreSQL is the source of truth for users, auth metadata, media records, and later app data. Local uploads hold processed media files such as avatars. Backups must include both:
+PostgreSQL is the source of truth for users, auth metadata, media records, and later app data. User-uploaded images such as avatars and profile photos are stored in S3-compatible object storage and exposed through `S3_PUBLIC_BASE_URL`. Backups must include:
 
 - PostgreSQL dumps with `pg_dump`, stored off-machine.
-- Upload directory archives, stored off-machine.
+- S3-compatible bucket or MinIO volume backups, stored off-machine.
+- Legacy upload directory archives while old local avatar URLs still exist.
 
 Backups should be encrypted when stored outside the trusted server, tested with restore drills, and retained with a clear schedule before any production cutover.
 

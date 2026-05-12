@@ -98,6 +98,7 @@ test("authenticated user can load peer public profile without internal fields", 
   assert.equal(body.createdAt, undefined);
   assert.equal(body.updatedAt, undefined);
   assert.equal(body.allowAdultMode, undefined);
+  assert.equal(body.avatarUrl, "https://cdn.example.test/users/user-b/avatar.webp");
   assert.deepEqual(body.lockedGallery, { enabled: true, count: 2 });
   assert.deepEqual(body.photos, [{ mediaId: userBPhotoId, url: userBPhotoUrl, position: 0 }]);
 });
@@ -178,15 +179,44 @@ test("missing public profile returns 404", async (t) => {
   assert.equal(response.json().error.code, "not_found");
 });
 
+test("legacy local avatarUrl is returned without profile failure", async (t) => {
+  t.after(restoreUsersDeps);
+  const app = buildApp();
+  t.after(async () => {
+    await app.close();
+  });
+
+  const legacyAvatarUrl = "http://localhost:4000/media/users/user-b/avatar.webp";
+  mockUsers({
+    userBOverrides: {
+      avatarUrl: legacyAvatarUrl,
+    },
+  });
+
+  const response = await app.inject({
+    method: "GET",
+    url: `/users/${userBId}/public`,
+    headers: {
+      Authorization: `Bearer ${signAccessToken(userAId)}`,
+    },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.json().avatarUrl, legacyAvatarUrl);
+});
+
 function mockUsers(input: {
   isBlockedEitherWay?: (currentUserId: string, targetUserId: string) => Promise<boolean>;
+  userBOverrides?: Partial<UserRow>;
 } = {}): void {
   restoreUsersDeps();
 
   const repo = {
     findUserById: async (userId: string) => {
       if (userId === userAId) return userRow({ id: userAId, amoriaId: "AM23456" });
-      if (userId === userBId) return userRow({ id: userBId, amoriaId: "AM34567" });
+      if (userId === userBId) {
+        return userRow({ id: userBId, amoriaId: "AM34567", ...input.userBOverrides });
+      }
       return undefined;
     },
     findUserByAmoriaId: async (amoriaId: string) => {

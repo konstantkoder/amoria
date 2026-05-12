@@ -37,8 +37,8 @@ Standalone backend foundation for Amoria. It contains the API, PostgreSQL schema
 - `DATABASE_URL`: PostgreSQL connection string; use host `postgres` inside Docker
 - `JWT_SECRET`: long random secret for access tokens
 - `PUBLIC_API_URL`: public API base URL
-- `PUBLIC_MEDIA_URL`: public media base URL
-- `UPLOADS_DIR`: local upload directory controlled by the server
+- `PUBLIC_MEDIA_URL`: public media base URL for legacy local media served by the API
+- `UPLOADS_DIR`: local upload directory used only for legacy local media URLs
 - `OBJECT_STORAGE_PROVIDER`: must be `s3`
 - `S3_ENDPOINT`: S3 endpoint for the server; use `http://minio:9000` inside Docker
 - `S3_REGION`: S3 region, default local value `us-east-1`
@@ -62,7 +62,7 @@ Standalone backend foundation for Amoria. It contains the API, PostgreSQL schema
 - `GET /users/:id/public`
 - `GET /users/by-amoria-id/:amoriaId`
 - `POST /media/avatar`
-- `GET /media/users/:userId/avatar.webp`
+- `GET /media/users/:userId/avatar.webp` for legacy local avatars only
 
 Errors use a consistent envelope:
 
@@ -169,4 +169,9 @@ DATABASE_URL=postgres://amoria:amoria_password@localhost:5432/amoria S3_ENDPOINT
 DATABASE_URL=postgres://amoria:amoria_password@localhost:5432/amoria S3_ENDPOINT=http://localhost:9000 npm run dev
 ```
 
-Uploaded avatars are processed to WebP and stored in the configured S3 bucket.
+Uploaded avatars and profile photos are decoded, validated, re-encoded to WebP,
+and stored in the configured S3 bucket. `S3_ENDPOINT` is the server-side object
+storage endpoint and may point at internal MinIO; URLs returned to mobile clients
+must come from `S3_PUBLIC_BASE_URL`. Production `S3_PUBLIC_BASE_URL` must be an
+HTTPS public URL. Existing legacy local avatar URLs under `/media/...` remain
+served until a separate migration removes or rewrites them.

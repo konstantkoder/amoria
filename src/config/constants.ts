@@ -5,7 +5,7 @@ export const REFRESH_TOKEN_EXPIRES_IN_DAYS = 30;
 
 export const MAX_JSON_BODY_BYTES = 1024 * 1024;
 export const MAX_AVATAR_INPUT_BYTES = 8 * 1024 * 1024;
-export const MAX_AVATAR_DIMENSION = 1024;
+export const AVATAR_IMAGE_SIZE = 512;
 export const MAX_MEDIA_UPLOAD_BYTES = 10 * 1024 * 1024;
 export const PROFILE_PHOTO_MIN_WIDTH = 256;
 export const PROFILE_PHOTO_MIN_HEIGHT = 256;

@@ -1,7 +1,8 @@
 import sharp from "sharp";
 import { AppError } from "../common/errors";
 import {
-  MAX_AVATAR_DIMENSION,
+  AVATAR_IMAGE_SIZE,
+  MAX_AVATAR_INPUT_BYTES,
   MAX_MEDIA_UPLOAD_BYTES,
   PROFILE_PHOTO_MAX_HEIGHT,
   PROFILE_PHOTO_MAX_WIDTH,
@@ -47,14 +48,49 @@ const profilePhotoFormatMimeTypes = {
 } as const;
 
 export async function processAvatarImage(input: Buffer): Promise<ProcessedImage> {
+  if (input.length > MAX_AVATAR_INPUT_BYTES) {
+    throw imageTooLarge("Avatar file is too large", "too_large");
+  }
+
+  const metadata = await readProfilePhotoMetadata(input);
+  const sourceMimeType = profilePhotoMimeType(metadata.format);
+  if (!sourceMimeType) {
+    throw new AppError(
+      "unsupported_image_type",
+      "Only JPEG, PNG, or WebP avatar images are supported",
+      415,
+      { file: "unsupported_image_type" },
+    );
+  }
+
+  if (metadata.pages && metadata.pages > 1) {
+    throw new AppError(
+      "unsupported_image_type",
+      "Animated images are not supported for avatars",
+      415,
+      { file: "animated_image" },
+    );
+  }
+
+  validateImageDimensions(
+    metadata.width,
+    metadata.height,
+    defaultProfilePhotoConstraints,
+    "Avatar",
+  );
+
   try {
-    const result = await sharp(input, { failOn: "warning" })
+    const result = await sharp(input, {
+      failOn: "warning",
+      animated: false,
+      limitInputPixels: PROFILE_PHOTO_MAX_WIDTH * PROFILE_PHOTO_MAX_HEIGHT,
+    })
       .rotate()
       .resize({
-        width: MAX_AVATAR_DIMENSION,
-        height: MAX_AVATAR_DIMENSION,
-        fit: "inside",
-        withoutEnlargement: true,
+        width: AVATAR_IMAGE_SIZE,
+        height: AVATAR_IMAGE_SIZE,
+        fit: "cover",
+        position: "centre",
       })
       .webp({
         quality: 82,
@@ -68,10 +104,12 @@ export async function processAvatarImage(input: Buffer): Promise<ProcessedImage>
       height: result.info.height ?? null,
       mimeType: "image/webp",
     };
-  } catch {
-    throw new AppError("image_decode_failed", "Could not decode image", 400, {
-      file: "decode_failed",
-    });
+  } catch (error) {
+    if (error instanceof AppError) {
+      throw error;
+    }
+
+    throw corruptImage();
   }
 }
 
@@ -108,7 +146,7 @@ export async function processProfilePhotoImage(
     );
   }
 
-  validateProfilePhotoDimensions(metadata.width, metadata.height, limits);
+  validateImageDimensions(metadata.width, metadata.height, limits, "Profile photo");
 
   try {
     const result = await sharp(input, {
@@ -123,10 +161,11 @@ export async function processProfilePhotoImage(
       })
       .toBuffer({ resolveWithObject: true });
 
-    const dimensions = validateProfilePhotoDimensions(
+    const dimensions = validateImageDimensions(
       result.info.width,
       result.info.height,
       limits,
+      "Profile photo",
     );
     if (result.data.length > limits.maxSizeBytes) {
       throw imageTooLarge("Processed profile photo file is too large", "processed_too_large");
@@ -166,10 +205,11 @@ function profilePhotoMimeType(
   return undefined;
 }
 
-function validateProfilePhotoDimensions(
+function validateImageDimensions(
   width: number | undefined,
   height: number | undefined,
   limits: ProfilePhotoImageConstraints,
+  label: "Avatar" | "Profile photo",
 ): { width: number; height: number } {
   if (
     typeof width !== "number" ||
@@ -177,26 +217,26 @@ function validateProfilePhotoDimensions(
     !Number.isInteger(width) ||
     !Number.isInteger(height)
   ) {
-    throw new AppError("invalid_image", "Profile photo dimensions could not be read", 422, {
+    throw new AppError("invalid_image", `${label} dimensions could not be read`, 422, {
       dimensions: "missing",
     });
   }
 
   if (width < limits.minWidth || height < limits.minHeight) {
-    throw new AppError("image_too_small", "Profile photo dimensions are too small", 422, {
+    throw new AppError("image_too_small", `${label} dimensions are too small`, 422, {
       dimensions: "too_small",
     });
   }
 
   if (width > limits.maxWidth || height > limits.maxHeight) {
-    throw imageDimensionsTooLarge();
+    throw imageDimensionsTooLarge(label);
   }
 
   return { width, height };
 }
 
-function imageDimensionsTooLarge(): AppError {
-  return new AppError("image_too_large", "Profile photo dimensions are too large", 422, {
+function imageDimensionsTooLarge(label: string): AppError {
+  return new AppError("image_too_large", `${label} dimensions are too large`, 422, {
     dimensions: "too_large",
   });
 }
