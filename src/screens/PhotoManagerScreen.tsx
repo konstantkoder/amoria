@@ -214,6 +214,7 @@ export default function PhotoManagerScreen() {
       setPendingPhotoUri("");
       Alert.alert(t("common.done"), t("photos.saved"));
     } catch (error) {
+      setPendingPhotoUri("");
       handleApiError(error, t("photos.uploadFailed"), t("photos.uploadErrorBody"));
     } finally {
       setBusy(false);

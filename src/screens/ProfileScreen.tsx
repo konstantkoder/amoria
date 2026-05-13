@@ -216,6 +216,7 @@ export default function ProfileScreen() {
     } catch {
       Alert.alert(t("photos.saveFailed"), t("photos.uploadErrorBody"));
     } finally {
+      setAvatarPreviewUri("");
       setAvatarUploading(false);
     }
   }, [profile, t]);
