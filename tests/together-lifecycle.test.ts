@@ -112,6 +112,83 @@ test("createEvent after abandoned session is rejected", async (t) => {
   assert.equal(eventWritten, false);
 });
 
+test("createEvent after finished or cancelled session is rejected", async (t) => {
+  t.after(restoreRepoMock);
+
+  for (const status of ["finished", "cancelled"] as const) {
+    let eventWritten = false;
+    mockRepo({
+      findSessionForMember: async () => sessionRow({ status }),
+      createEventIdempotent: async () => {
+        eventWritten = true;
+        throw new Error("Unexpected event write");
+      },
+    });
+
+    await assert.rejects(
+      togetherService.createEvent(userAId, sessionId, {
+        clientEventId: `stroke-${status}`,
+        type: "stroke_batch",
+        payload: { strokes: [] },
+      }),
+      (error) => {
+        const appError = error as { code?: string; statusCode?: number };
+        assert.equal(appError.code, "together_session_closed");
+        assert.equal(appError.statusCode, 409);
+        return true;
+      },
+    );
+    assert.equal(eventWritten, false);
+  }
+});
+
+test("draw reveal before finish returns 409", async (t) => {
+  t.after(restoreRepoMock);
+
+  let revealWritten = false;
+  mockRepo({
+    findSessionForMember: async () => sessionRow({ status: "active", activity: "draw" }),
+    upsertReveal: async () => {
+      revealWritten = true;
+    },
+  });
+
+  await assert.rejects(
+    togetherService.reveal(userAId, sessionId, { decision: "open" }),
+    (error) => {
+      const appError = error as { code?: string; statusCode?: number };
+      assert.equal(appError.code, "together_session_closed");
+      assert.equal(appError.statusCode, 409);
+      return true;
+    },
+  );
+  assert.equal(revealWritten, false);
+});
+
+test("color_mood reveal before finish returns 409", async (t) => {
+  t.after(restoreRepoMock);
+
+  let revealWritten = false;
+  mockRepo({
+    findSessionForMember: async () =>
+      sessionRow({ status: "active", activity: "color_mood" }),
+    upsertReveal: async () => {
+      revealWritten = true;
+    },
+  });
+
+  await assert.rejects(
+    togetherService.reveal(userAId, sessionId, { decision: "open" }),
+    (error) => {
+      const appError = error as { code?: string; statusCode?: number };
+      assert.equal(appError.code, "together_session_closed");
+      assert.equal(appError.statusCode, 409);
+      return true;
+    },
+  );
+  assert.equal(revealWritten, false);
+});
+
 test("queue accepts color_mood activity", async (t) => {
   t.after(restoreRepoMock);
   const app = buildApp();
@@ -489,6 +566,30 @@ test("reveal abandoned Together session does not create outcome or chat", async 
   assert.equal(revealWritten, false);
 });
 
+test("reveal abandoned color_mood session does not create outcome or chat", async (t) => {
+  t.after(restoreRepoMock);
+
+  let revealWritten = false;
+  mockRepo({
+    findSessionForMember: async () =>
+      sessionRow({ status: "abandoned", activity: "color_mood" }),
+    upsertReveal: async () => {
+      revealWritten = true;
+    },
+  });
+
+  await assert.rejects(
+    togetherService.reveal(userAId, sessionId, { decision: "open" }),
+    (error) => {
+      const appError = error as { code?: string; statusCode?: number };
+      assert.equal(appError.code, "together_session_closed");
+      assert.equal(appError.statusCode, 409);
+      return true;
+    },
+  );
+  assert.equal(revealWritten, false);
+});
+
 test("getSession includes empty revealState before any decision", async (t) => {
   t.after(restoreRepoMock);
 
@@ -559,6 +660,7 @@ test("second open reveal returns open_open with threadId", async (t) => {
   const reveals: TogetherRevealRow[] = [revealRow(userAId, "open")];
   let sourceThreadId: string | null = null;
   let openedSource: unknown = null;
+  let openThreadCalls = 0;
   mockRepo(
     {
       findSessionForMember: async () =>
@@ -575,6 +677,7 @@ test("second open reveal returns open_open with threadId", async (t) => {
     },
     {
       openDirectThread: async (_userId, input) => {
+        openThreadCalls += 1;
         openedSource = input.source;
         sourceThreadId = threadId;
         return {
@@ -597,6 +700,7 @@ test("second open reveal returns open_open with threadId", async (t) => {
 
   assert.equal(result.response.outcome, "open_open");
   assert.equal(result.response.threadId, threadId);
+  assert.equal(openThreadCalls, 1);
   assert.deepEqual(openedSource, {
     type: "together",
     sourceId: sessionId,
@@ -625,6 +729,7 @@ test("color_mood open_open reveal creates direct thread with together context", 
   const reveals: TogetherRevealRow[] = [revealRow(userAId, "open")];
   let sourceThreadId: string | null = null;
   let openedSource: unknown = null;
+  let openThreadCalls = 0;
   mockRepo(
     {
       findSessionForMember: async () =>
@@ -643,6 +748,7 @@ test("color_mood open_open reveal creates direct thread with together context", 
     },
     {
       openDirectThread: async (_userId, input) => {
+        openThreadCalls += 1;
         openedSource = input.source;
         sourceThreadId = threadId;
         return {
@@ -665,6 +771,7 @@ test("color_mood open_open reveal creates direct thread with together context", 
 
   assert.equal(result.response.outcome, "open_open");
   assert.equal(result.response.threadId, threadId);
+  assert.equal(openThreadCalls, 1);
   assert.deepEqual(openedSource, {
     type: "together",
     sourceId: sessionId,
@@ -673,6 +780,44 @@ test("color_mood open_open reveal creates direct thread with together context", 
       promptText: "Build a small shared palette",
     },
   });
+});
+
+test("repeated open_open reveal reuses existing together thread context", async (t) => {
+  t.after(restoreRepoMock);
+
+  const reveals: TogetherRevealRow[] = [
+    revealRow(userAId, "open"),
+    revealRow(userBId, "open"),
+  ];
+  let openThreadCalls = 0;
+  mockRepo(
+    {
+      findSessionForMember: async () =>
+        sessionRow({
+          status: "finished",
+          finishedAt: endedAt,
+          endedReason: "completed",
+        }),
+      upsertReveal: async (_sessionId: string, userId: string, decision: string) => {
+        upsertRevealRow(reveals, userId, decision);
+      },
+      listSessionMemberUserIds: async () => [userAId, userBId],
+      listSessionReveals: async () => reveals,
+    },
+    {
+      findDirectThreadIdBySource: async () => threadId,
+      openDirectThread: async () => {
+        openThreadCalls += 1;
+        throw new Error("Repeated open_open reveal must not create another thread context");
+      },
+    },
+  );
+
+  const result = await togetherService.reveal(userAId, sessionId, { decision: "open" });
+
+  assert.equal(result.response.outcome, "open_open");
+  assert.equal(result.response.threadId, threadId);
+  assert.equal(openThreadCalls, 0);
 });
 
 test("first opener getSession after peer opens sees same threadId", async (t) => {
@@ -734,6 +879,111 @@ test("skip and open reveal does not create a thread", async (t) => {
   assert.equal(result.response.revealState.threadId, null);
 });
 
+test("color_mood open and skip reveal does not create a mutual chat", async (t) => {
+  t.after(restoreRepoMock);
+
+  const reveals: TogetherRevealRow[] = [revealRow(userAId, "open")];
+  let openedThread = false;
+  mockRepo(
+    {
+      findSessionForMember: async () =>
+        sessionRow({
+          status: "finished",
+          activity: "color_mood",
+          finishedAt: endedAt,
+          endedReason: "completed",
+        }),
+      upsertReveal: async (_sessionId: string, userId: string, decision: string) => {
+        upsertRevealRow(reveals, userId, decision);
+      },
+      listSessionMemberUserIds: async () => [userAId, userBId],
+      listSessionReveals: async () => reveals,
+    },
+    {
+      openDirectThread: async () => {
+        openedThread = true;
+        throw new Error("Mixed color_mood reveal must not open a thread");
+      },
+    },
+  );
+
+  const result = await togetherService.reveal(userBId, sessionId, { decision: "skip" });
+
+  assert.equal(openedThread, false);
+  assert.equal(result.response.outcome, "open_skip");
+  assert.equal(result.response.revealState.threadId, null);
+});
+
+test("skip and skip reveal does not create a mutual chat", async (t) => {
+  t.after(restoreRepoMock);
+
+  const reveals: TogetherRevealRow[] = [revealRow(userAId, "skip")];
+  let openedThread = false;
+  mockRepo(
+    {
+      findSessionForMember: async () =>
+        sessionRow({
+          status: "finished",
+          finishedAt: endedAt,
+          endedReason: "completed",
+        }),
+      upsertReveal: async (_sessionId: string, userId: string, decision: string) => {
+        upsertRevealRow(reveals, userId, decision);
+      },
+      listSessionMemberUserIds: async () => [userAId, userBId],
+      listSessionReveals: async () => reveals,
+    },
+    {
+      openDirectThread: async () => {
+        openedThread = true;
+        throw new Error("skip_skip reveal must not open a thread");
+      },
+    },
+  );
+
+  const result = await togetherService.reveal(userBId, sessionId, { decision: "skip" });
+
+  assert.equal(openedThread, false);
+  assert.equal(result.response.outcome, "skip_skip");
+  assert.equal(result.response.revealState.threadId, null);
+});
+
+test("blocked pair returns blocked reveal outcome without opening chat", async (t) => {
+  t.after(restoreRepoMock);
+
+  const reveals: TogetherRevealRow[] = [revealRow(userAId, "open")];
+  let openedThread = false;
+  mockRepo(
+    {
+      findSessionForMember: async () =>
+        sessionRow({
+          status: "finished",
+          finishedAt: endedAt,
+          endedReason: "completed",
+        }),
+      upsertReveal: async (_sessionId: string, userId: string, decision: string) => {
+        upsertRevealRow(reveals, userId, decision);
+      },
+      listSessionMemberUserIds: async () => [userAId, userBId],
+      listSessionReveals: async () => reveals,
+    },
+    {
+      isBlockedEitherWay: async () => true,
+      openDirectThread: async () => {
+        openedThread = true;
+        throw new Error("Blocked pair must not open a thread");
+      },
+    },
+  );
+
+  const result = await togetherService.reveal(userBId, sessionId, { decision: "open" });
+
+  assert.equal(openedThread, false);
+  assert.equal(result.response.outcome, "blocked");
+  assert.equal(result.response.revealState.threadId, null);
+  assert.equal(result.response.revealState.canOpenChat, false);
+});
+
 test("history item exposes reveal read model fields", async (t) => {
   t.after(restoreRepoMock);
 
@@ -792,6 +1042,64 @@ test("history item exposes color_mood activity", async (t) => {
   assert.equal(response.items.length, 1);
   assert.equal(response.items[0]?.activity, "color_mood");
   assert.equal(response.items[0]?.status, "finished");
+});
+
+test("history includes correct activity and threadId for draw and color_mood", async (t) => {
+  t.after(restoreRepoMock);
+
+  const drawSessionId = "00000000-0000-4000-8000-000000000401";
+  const colorMoodSessionId = "00000000-0000-4000-8000-000000000402";
+  const drawThreadId = "00000000-0000-4000-8000-000000000501";
+  const colorMoodThreadId = "00000000-0000-4000-8000-000000000502";
+
+  mockRepo(
+    {
+      listHistorySessions: async () => [
+        {
+          session: sessionRow({
+            id: drawSessionId,
+            status: "finished",
+            activity: "draw",
+            finishedAt: endedAt,
+            endedReason: "completed",
+          }),
+          peer: { id: userBId, displayName: "User B", avatarUrl: null },
+        },
+        {
+          session: sessionRow({
+            id: colorMoodSessionId,
+            status: "finished",
+            activity: "color_mood",
+            finishedAt: endedAt,
+            endedReason: "completed",
+          }),
+          peer: { id: userBId, displayName: "User B", avatarUrl: null },
+        },
+      ],
+      listRevealsForSessions: async () => [
+        revealRow(userAId, "open", drawSessionId),
+        revealRow(userBId, "open", drawSessionId),
+        revealRow(userAId, "open", colorMoodSessionId),
+        revealRow(userBId, "open", colorMoodSessionId),
+      ],
+    },
+    {
+      findDirectThreadIdBySource: async (source) =>
+        source.sourceId === colorMoodSessionId ? colorMoodThreadId : drawThreadId,
+    },
+  );
+
+  const response = await togetherService.getHistory(userAId, 30);
+
+  assert.equal(response.items.length, 2);
+  assert.equal(response.items[0]?.activity, "draw");
+  assert.equal(response.items[0]?.outcome, "open_open");
+  assert.equal(response.items[0]?.threadId, drawThreadId);
+  assert.equal(response.items[0]?.canOpenChat, true);
+  assert.equal(response.items[1]?.activity, "color_mood");
+  assert.equal(response.items[1]?.outcome, "open_open");
+  assert.equal(response.items[1]?.threadId, colorMoodThreadId);
+  assert.equal(response.items[1]?.canOpenChat, true);
 });
 
 test("nonmember cannot access color_mood session, events, or reveal", async (t) => {
@@ -994,9 +1302,13 @@ function eventRow(overrides: Partial<TogetherEventRow> = {}): TogetherEventRow {
   };
 }
 
-function revealRow(userId: string, decision: string): TogetherRevealRow {
+function revealRow(
+  userId: string,
+  decision: string,
+  revealSessionId = sessionId,
+): TogetherRevealRow {
   return {
-    sessionId,
+    sessionId: revealSessionId,
     userId,
     decision,
     createdAt,

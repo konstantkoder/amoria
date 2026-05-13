@@ -302,17 +302,24 @@ export async function reveal(
   const peerUserId = memberUserIds.find((memberUserId) => memberUserId !== userId);
   const preliminaryState = await buildRevealStateForUser(session, userId, memberUserIds);
   if (preliminaryState.outcome === "open_open" && peerUserId) {
-    await deps.openDirectThread(userId, {
-      peerUserId,
-      source: {
-        type: "together",
-        sourceId: sessionId,
-        metadata: {
-          activity: session.activity,
-          promptText: session.promptText,
-        },
-      },
+    const existingThreadId = await deps.findDirectThreadIdBySource({
+      type: "together",
+      sourceId: sessionId,
     });
+
+    if (!existingThreadId) {
+      await deps.openDirectThread(userId, {
+        peerUserId,
+        source: {
+          type: "together",
+          sourceId: sessionId,
+          metadata: {
+            activity: session.activity,
+            promptText: session.promptText,
+          },
+        },
+      });
+    }
   }
 
   const broadcasts = await buildRevealBroadcastStates(session, memberUserIds);
