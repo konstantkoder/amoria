@@ -1223,5 +1223,9 @@
   "play.result.replayEmpty": "Replay is not available for this story yet.",
   "playDetail.paletteTitle": "Shared palette",
   "playDetail.paletteEmpty": "Palette data for this story is not available yet.",
-  "playDetail.replayEmpty": "Replay is not available for this story yet."
+  "playDetail.replayEmpty": "Replay is not available for this story yet.",
+  "play.result.bridgeWaitingAfterOpenBody": "Your answer is saved. Waiting for the second decision; chat opens only if the other person also chooses to open.",
+  "play.result.bridgeWaitingAfterSkipBody": "Your answer is saved. Waiting for the second decision; chat will not open from your side, but the story remains saved.",
+  "play.colorMood.interruptedTitle": "The session was interrupted",
+  "play.colorMood.interruptedBody": "The palette was not completed, so reveal and chat are unavailable for this session."
 }

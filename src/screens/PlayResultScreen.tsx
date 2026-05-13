@@ -124,6 +124,7 @@ export default function PlayResultScreen() {
   const [submitting, setSubmitting] = React.useState(false);
   const [actionError, setActionError] = React.useState("");
   const mountedRef = React.useRef(true);
+  const chatNavigationRef = React.useRef(false);
 
   const goToTogether = React.useCallback(() => {
     navigation.navigate("Tabs", { screen: "Together" });
@@ -152,6 +153,7 @@ export default function PlayResultScreen() {
     setRevealState(remembered?.revealState ?? null);
     setSessionEvents([]);
     setReplayStrokes(getTogetherStrokes(sessionId));
+    chatNavigationRef.current = false;
     void Promise.all([
       togetherApi.getSession(sessionId),
       togetherApi.getSessionEvents(sessionId),
@@ -185,30 +187,6 @@ export default function PlayResultScreen() {
     };
   }, [remembered, sessionId, tt]);
 
-  React.useEffect(() => {
-    let alive = true;
-    if (!sessionId) {
-      return () => {
-        alive = false;
-      };
-    }
-
-    wsClient.connect();
-    wsClient.subscribeTogetherSession(sessionId);
-    const unsubscribe = wsClient.onMessage((payload) => {
-      if (!alive || payload.sessionId !== sessionId) return;
-      const nextRevealState = readRevealState(payload);
-      if (!nextRevealState) return;
-      setRevealState(nextRevealState);
-    });
-
-    return () => {
-      alive = false;
-      unsubscribe();
-      wsClient.unsubscribeTogetherSession(sessionId);
-    };
-  }, [sessionId]);
-
   const session = sessionResponse?.session ?? null;
   const peer = React.useMemo(
     () => getTogetherPeer(sessionResponse, uid),
@@ -236,7 +214,8 @@ export default function PlayResultScreen() {
 
   const navigateToThread = React.useCallback(
     (threadId: string, nextPeer: TogetherParticipantDto | null) => {
-      if (!threadId || !nextPeer?.id) return;
+      if (!threadId || !nextPeer?.id || chatNavigationRef.current) return;
+      chatNavigationRef.current = true;
       navigation.replace("DMChat", {
         threadId,
         peerId: nextPeer.id,
@@ -254,6 +233,77 @@ export default function PlayResultScreen() {
     },
     [navigation, sessionActivity, sessionId, strokes.length]
   );
+
+  React.useEffect(() => {
+    let alive = true;
+    if (!sessionId) {
+      return () => {
+        alive = false;
+      };
+    }
+
+    wsClient.connect();
+    wsClient.subscribeTogetherSession(sessionId);
+    const unsubscribe = wsClient.onMessage((payload) => {
+      if (!alive || payload.sessionId !== sessionId) return;
+      const nextRevealState = readRevealState(payload);
+      if (!nextRevealState) return;
+      setRevealState(nextRevealState);
+    });
+
+    return () => {
+      alive = false;
+      unsubscribe();
+      wsClient.unsubscribeTogetherSession(sessionId);
+    };
+  }, [sessionId]);
+
+  React.useEffect(() => {
+    if (
+      revealState?.outcome !== "open_open" ||
+      !revealState.threadId ||
+      revealState.myDecision !== "open"
+    ) {
+      return;
+    }
+
+    navigateToThread(revealState.threadId, peer);
+  }, [
+    navigateToThread,
+    peer,
+    revealState?.myDecision,
+    revealState?.outcome,
+    revealState?.threadId,
+  ]);
+
+  React.useEffect(() => {
+    if (!sessionId || session?.status !== "finished") return;
+    const shouldRefresh =
+      outcome === "pending" || (outcome === "open_open" && !revealThreadId);
+    if (!shouldRefresh) return;
+
+    let cancelled = false;
+    const refreshRevealState = async () => {
+      try {
+        const response = await togetherApi.getSession(sessionId);
+        if (cancelled || !mountedRef.current) return;
+        rememberTogetherSession(response);
+        setSessionResponse(response);
+        setRevealState(response.revealState ?? null);
+      } catch {
+        // The explicit retry/error path stays on the initial page load.
+      }
+    };
+
+    const timer = setInterval(() => {
+      void refreshRevealState();
+    }, 5000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [outcome, revealThreadId, session?.status, sessionId]);
 
   const submitDecision = React.useCallback(
     async (nextDecision: RevealDecision) => {
@@ -487,6 +537,16 @@ export default function PlayResultScreen() {
                     "play.result.bridgeBlockedBody",
                     "Контакт недоступен. Чат не может быть открыт из-за настроек безопасности."
                   )
+              : decision && outcome === "pending"
+              ? decision === "open"
+                ? tt(
+                    "play.result.bridgeWaitingAfterOpenBody",
+                    "Твой ответ сохранён. Ждём второе решение; чат откроется только если второй человек тоже выберет открыть."
+                  )
+                : tt(
+                    "play.result.bridgeWaitingAfterSkipBody",
+                    "Твой ответ сохранён. Ждём второе решение; чат по этой сессии не откроется, но история останется сохранённой."
+                  )
               : decision
               ? outcome === "pending"
                 ? tt(
@@ -507,38 +567,42 @@ export default function PlayResultScreen() {
                 )}
           </Text>
           {actionError ? <Text style={styles.errorText}>{actionError}</Text> : null}
-          <View style={styles.actionRow}>
-            <Pressable
-              style={[
-                styles.primaryButton,
-                submitting || (!canOpenExistingChat && !canRevealDecision)
-                  ? styles.buttonDisabled
-                  : null,
-              ]}
-              onPress={handleOpenChatPress}
-              disabled={submitting || (!canOpenExistingChat && !canRevealDecision)}
-            >
-              <Text style={styles.primaryButtonText}>
-                {canOpenExistingChat
-                  ? tt("play.result.chatReady", "Чат открыт")
-                  : submitting
-                  ? tt("play.result.savingDecision", "Сохраняем…")
-                  : tt("play.result.primaryOpenChat", "Открыть чат")}
-              </Text>
-            </Pressable>
-            <Pressable
-              style={[
-                styles.secondaryButton,
-                submitting || !canRevealDecision ? styles.buttonDisabled : null,
-              ]}
-              onPress={() => void submitDecision("skip")}
-              disabled={submitting || !canRevealDecision}
-            >
-              <Text style={styles.secondaryButtonText}>
-                {tt("play.result.skipChat", "Оставить историей")}
-              </Text>
-            </Pressable>
-          </View>
+          {canOpenExistingChat || canRevealDecision ? (
+            <View style={styles.actionRow}>
+              <Pressable
+                style={[
+                  styles.primaryButton,
+                  submitting || (!canOpenExistingChat && !canRevealDecision)
+                    ? styles.buttonDisabled
+                    : null,
+                ]}
+                onPress={handleOpenChatPress}
+                disabled={submitting || (!canOpenExistingChat && !canRevealDecision)}
+              >
+                <Text style={styles.primaryButtonText}>
+                  {canOpenExistingChat
+                    ? tt("play.result.chatReady", "Чат открыт")
+                    : submitting
+                    ? tt("play.result.savingDecision", "Сохраняем…")
+                    : tt("play.result.primaryOpenChat", "Открыть чат")}
+                </Text>
+              </Pressable>
+              {canRevealDecision ? (
+                <Pressable
+                  style={[
+                    styles.secondaryButton,
+                    submitting ? styles.buttonDisabled : null,
+                  ]}
+                  onPress={() => void submitDecision("skip")}
+                  disabled={submitting}
+                >
+                  <Text style={styles.secondaryButtonText}>
+                    {tt("play.result.skipChat", "Оставить историей")}
+                  </Text>
+                </Pressable>
+              ) : null}
+            </View>
+          ) : null}
         </View>
 
         <View style={styles.bottomActions}>

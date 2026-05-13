@@ -121,6 +121,7 @@ export default function PlaySessionDetailScreen() {
   );
   const [reloadKey, setReloadKey] = React.useState(0);
   const mountedRef = React.useRef(true);
+  const chatNavigationRef = React.useRef(false);
 
   const goToTogether = React.useCallback(() => {
     navigation.navigate("Tabs", { screen: "Together" });
@@ -152,6 +153,7 @@ export default function PlaySessionDetailScreen() {
     setLoading(!remembered);
     setSessionEvents([]);
     setReplayStrokes(getTogetherStrokes(sessionId));
+    chatNavigationRef.current = false;
     void Promise.all([
       togetherApi.getSession(sessionId),
       togetherApi.history(100),
@@ -215,9 +217,41 @@ export default function PlaySessionDetailScreen() {
   const hasPalette = palette.length > 0;
   const sessionClosed = isTerminalClosedStatus(session?.status ?? historyItem?.status);
 
+  React.useEffect(() => {
+    if (!sessionId || session?.status !== "finished") return;
+    const shouldRefresh =
+      outcome === "pending" || (outcome === "open_open" && !revealThreadId);
+    if (!shouldRefresh) return;
+
+    let cancelled = false;
+    const refreshRevealState = async () => {
+      try {
+        const response = await togetherApi.getSession(sessionId);
+        if (cancelled || !mountedRef.current) return;
+        rememberTogetherSession(response);
+        setSessionResponse(response);
+      } catch {
+        // The explicit retry state remains tied to the full detail load.
+      }
+    };
+
+    const timer = setInterval(() => {
+      void refreshRevealState();
+    }, 5000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [outcome, revealThreadId, session?.status, sessionId]);
+
   const openChat = React.useCallback(async () => {
-    if (sessionClosed || !peer?.id) return;
+    if (sessionClosed || !peer?.id || chatNavigationRef.current) return;
     if (canOpenExistingThread && revealThreadId) {
+      chatNavigationRef.current = true;
+      setTimeout(() => {
+        chatNavigationRef.current = false;
+      }, 1200);
       navigation.navigate("DMChat", {
         threadId: revealThreadId,
         peerId: peer.id,
@@ -260,6 +294,10 @@ export default function PlaySessionDetailScreen() {
       if (nextRevealState.outcome !== "open_open" || !nextRevealState.threadId) {
         return;
       }
+      chatNavigationRef.current = true;
+      setTimeout(() => {
+        chatNavigationRef.current = false;
+      }, 1200);
       navigation.navigate("DMChat", {
         threadId: nextRevealState.threadId,
         peerId: peer.id,

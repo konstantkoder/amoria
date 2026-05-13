@@ -193,8 +193,13 @@ export default function PlayHistoryScreen() {
 
   const openChat = useCallback(
     async (item: TogetherHistoryItem) => {
+      if (openingChatId === item.sessionId) return;
       if (isTerminalClosedStatus(item.status)) return;
       if (hasExistingThread(item)) {
+        setOpeningChatId(item.sessionId);
+        setTimeout(() => {
+          setOpeningChatId((prev) => (prev === item.sessionId ? null : prev));
+        }, 1200);
         navigation.navigate("DMChat", {
           threadId: String(item.threadId),
           peerId: item.peer.id,
@@ -259,7 +264,7 @@ export default function PlayHistoryScreen() {
         setOpeningChatId((prev) => (prev === item.sessionId ? null : prev));
       }
     },
-    [navigation, tt]
+    [navigation, openingChatId, tt]
   );
 
   const goToStart = useCallback(() => {

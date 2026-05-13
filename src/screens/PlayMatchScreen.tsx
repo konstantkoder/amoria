@@ -269,7 +269,7 @@ export default function PlayMatchScreen() {
       alive = false;
       clearInterval(timer);
     };
-  }, [entry?.id, navigation, queueStartedAt, statusKey, tt]);
+  }, [activity, entry?.id, navigation, queueStartedAt, statusKey, tt]);
 
   React.useEffect(() => {
     const unsubscribe = navigation.addListener(

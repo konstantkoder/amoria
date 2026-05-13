@@ -24,6 +24,7 @@
 - Backend-backed live flows still depend on real auth, API availability, and production-safe server behavior
 - Together replay for completed draw sessions is now backend-persistent through the server `GET /together/sessions/:id/events` API; `PlaySessionDetail` restores replay from backend events after app restart
 - Together `color_mood` is now a real backend-backed scenario: lobby starts a `color_mood` queue, the session saves `palette` events through Together events, result/reveal/history/detail read backend session/events, and open chat context keeps `activity: color_mood`
+- Together lifecycle is hardened for both `draw` and `color_mood`: backend guards membership/status for session, events, finish/leave/heartbeat/reveal/history; mutual `open/open` reuses one direct chat context; skip, blocked, abandoned, and cancelled states do not open chat; mobile result/detail screens recover pending reveal state through backend refresh if WebSocket updates are missed
 - Final native identifiers are still not settled in Expo config: Android package is placeholder-like, and iOS bundle identifier is not declared here
 - Secondary locales still need a final product-language review, but dead keys from removed features no longer stay in the locale set
 - Settings / profile still carry older option groups like `18+` and `mystery mode`; they are live product settings, but they still need a stricter product decision if scope is reduced further
@@ -32,7 +33,8 @@
 
 - No remaining blocker is known for backend-persistent draw replay in this block.
 - No remaining blocker is known for the backend-backed `color_mood` Together flow in this block.
-- A full signed-in device pass against the real backend is still required before release sign-off.
+- No remaining blocker is known for Together lifecycle hardening in this block.
+- A full two-device signed-in smoke pass against the real backend is still required before release sign-off.
 
 ## Next 3–5 tasks before honest release testing
 

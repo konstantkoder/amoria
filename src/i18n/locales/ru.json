@@ -1223,5 +1223,9 @@
   "play.result.replayEmpty": "Replay для этой истории пока недоступен.",
   "playDetail.paletteTitle": "Общая палитра",
   "playDetail.paletteEmpty": "Данные палитры для этой истории пока недоступны.",
-  "playDetail.replayEmpty": "Replay для этой истории пока недоступен."
+  "playDetail.replayEmpty": "Replay для этой истории пока недоступен.",
+  "play.result.bridgeWaitingAfterOpenBody": "Твой ответ сохранён. Ждём второе решение; чат откроется только если второй человек тоже выберет открыть.",
+  "play.result.bridgeWaitingAfterSkipBody": "Твой ответ сохранён. Ждём второе решение; чат по этой сессии не откроется, но история останется сохранённой.",
+  "play.colorMood.interruptedTitle": "Сессия была прервана",
+  "play.colorMood.interruptedBody": "Палитра не была завершена, поэтому reveal и чат по этой сессии недоступны."
 }

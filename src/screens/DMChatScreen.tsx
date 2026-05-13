@@ -165,6 +165,8 @@ export default function DMChatScreen() {
   const peerDisplayName = routePeerName || amoriaUserLabel;
   const peerBlocked = Boolean(peerId && blockedUserIds.includes(peerId));
   const sourceIsTogether = isTogetherSource(sourceContext?.source);
+  const sourceTogetherActivity =
+    sourceContext?.artworkSummary?.activity === "color_mood" ? "color_mood" : "draw";
 
   useEffect(() => {
     mountedRef.current = true;
@@ -344,8 +346,8 @@ export default function DMChatScreen() {
   }, [navigation, peerDisplayName, peerId, sourceContext, threadId]);
 
   const startAnotherTogetherSession = useCallback(() => {
-    navigation.navigate("PlayMatch", { activity: "draw" });
-  }, [navigation]);
+    navigation.navigate("PlayMatch", { activity: sourceTogetherActivity });
+  }, [navigation, sourceTogetherActivity]);
 
   const chatHeader = peerId ? (
     <TouchableOpacity

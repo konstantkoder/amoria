@@ -628,5 +628,9 @@
   "playDetail.paletteEmpty": "Podaci palete za ovu priču još nisu dostupni.",
   "playDetail.replayEmpty": "Replay još nije dostupan za ovu priču.",
   "playHistory.contextDrawChallenge": "Kreativni izazov: {challenge}",
-  "playHistory.openChatFailed": "Nismo mogli otvoriti chat. Pokušajte malo kasnije."
+  "playHistory.openChatFailed": "Nismo mogli otvoriti chat. Pokušajte malo kasnije.",
+  "play.result.bridgeWaitingAfterOpenBody": "Vaš odgovor je spremljen. Čekamo drugu odluku; chat se otvara samo ako druga osoba također odabere otvoriti.",
+  "play.result.bridgeWaitingAfterSkipBody": "Vaš odgovor je spremljen. Čekamo drugu odluku; chat se neće otvoriti s vaše strane, ali priča ostaje spremljena.",
+  "play.colorMood.interruptedTitle": "Sesija je prekinuta",
+  "play.colorMood.interruptedBody": "Paleta nije dovršena, pa reveal i chat nisu dostupni za ovu sesiju."
 }

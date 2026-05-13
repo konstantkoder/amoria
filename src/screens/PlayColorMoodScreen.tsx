@@ -67,6 +67,10 @@ function readTogetherSessionUpdate(
   return session as TogetherSessionResponse;
 }
 
+function isTerminalClosedStatus(status?: string | null) {
+  return status === "abandoned" || status === "cancelled";
+}
+
 function latestByUser(
   selections: TogetherPaletteSelection[],
   userId: string
@@ -196,6 +200,44 @@ export default function PlayColorMoodScreen() {
     };
   }, [applySessionResponse, sessionId, uid]);
 
+  React.useEffect(() => {
+    if (!uid || !sessionId || sessionResponse?.session.status !== "active") return;
+
+    let cancelled = false;
+    const refreshBackendState = async () => {
+      try {
+        const [session, sessionEvents] = await Promise.all([
+          togetherApi.getSession(sessionId),
+          togetherApi.getSessionEvents(sessionId),
+        ]);
+        if (cancelled || !mountedRef.current) return;
+        if (session.session.activity !== "color_mood") {
+          navigation.replace("PlayCanvas", { sessionId });
+          return;
+        }
+        applySessionResponse(session);
+        setEvents(sessionEvents.items);
+      } catch {
+        // Keep the explicit error state for initial load and user actions.
+      }
+    };
+
+    const timer = setInterval(() => {
+      void refreshBackendState();
+    }, 5000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [
+    applySessionResponse,
+    navigation,
+    sessionId,
+    sessionResponse?.session.status,
+    uid,
+  ]);
+
   const session = sessionResponse?.session ?? null;
   const peer = React.useMemo(
     () => getTogetherPeer(sessionResponse, uid),
@@ -244,7 +286,15 @@ export default function PlayColorMoodScreen() {
   }, [completeSession, readyToFinish]);
 
   const confirmSelection = React.useCallback(async () => {
-    if (!uid || !sessionId || !session || session.status !== "active" || mySelection || saving) {
+    if (
+      !uid ||
+      !sessionId ||
+      !session ||
+      session.status !== "active" ||
+      mySelection ||
+      saving ||
+      leaving
+    ) {
       return;
     }
 
@@ -271,7 +321,7 @@ export default function PlayColorMoodScreen() {
     } finally {
       if (mountedRef.current) setSaving(false);
     }
-  }, [mySelection, reloadEvents, saving, selectedOption, session, sessionId, tt, uid]);
+  }, [leaving, mySelection, reloadEvents, saving, selectedOption, session, sessionId, tt, uid]);
 
   const leaveSession = React.useCallback(async () => {
     if (!sessionId || leaving) return;
@@ -383,6 +433,36 @@ export default function PlayColorMoodScreen() {
     );
   }
 
+  if (isTerminalClosedStatus(session.status)) {
+    return (
+      <ScreenShell
+        title={tt("play.colorMood.title", "Палитра настроения")}
+        background="togetherMain"
+        showBack
+        onBack={goToTogether}
+      >
+        <View style={styles.centerState}>
+          <CoreStateCard
+            icon="ban-outline"
+            title={tt("play.colorMood.interruptedTitle", "Сессия была прервана")}
+            body={tt(
+              "play.colorMood.interruptedBody",
+              "Палитра не была завершена, поэтому reveal и чат по этой сессии недоступны."
+            )}
+            primaryAction={{
+              label: tt("common.backToTogether", "Вернуться во Вместе"),
+              onPress: goToTogether,
+            }}
+            secondaryAction={{
+              label: tt("playHistory.startNewSession", "Начать новую совместную сессию"),
+              onPress: () => navigation.navigate("PlayMatch", { activity: "color_mood" }),
+            }}
+          />
+        </View>
+      </ScreenShell>
+    );
+  }
+
   return (
     <ScreenShell
       title={tt("play.colorMood.title", "Палитра настроения")}
@@ -447,13 +527,18 @@ export default function PlayColorMoodScreen() {
           </Text>
           {actionError ? <Text style={styles.errorText}>{actionError}</Text> : null}
           <Pressable
-            style={[styles.primaryButton, saving || Boolean(mySelection) ? styles.buttonDisabled : null]}
+            style={[
+              styles.primaryButton,
+              saving || leaving || Boolean(mySelection) ? styles.buttonDisabled : null,
+            ]}
             onPress={() => void confirmSelection()}
-            disabled={saving || Boolean(mySelection)}
+            disabled={saving || leaving || Boolean(mySelection)}
           >
             <Text style={styles.primaryButtonText}>
               {mySelection
                 ? tt("play.colorMood.primaryWaiting", "Ждём второй выбор")
+                : leaving
+                  ? tt("common.exiting", "Выходим…")
                 : saving
                   ? tt("common.saving", "Сохранение...")
                   : tt("play.colorMood.confirmChoice", "Сохранить настроение")}

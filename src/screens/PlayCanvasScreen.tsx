@@ -37,6 +37,7 @@ import {
   rememberLocalTogetherStrokes,
   rememberTogetherEvent,
   rememberTogetherSession,
+  replaceTogetherStrokesFromEvents,
   type TogetherEventDto,
 } from "@/services/togetherCanvasState";
 import { theme } from "@/theme";
@@ -286,6 +287,30 @@ export default function PlayCanvasScreen() {
       wsClient.unsubscribeTogetherSession(sessionId);
     };
   }, [applySessionResponse, sessionId, uid]);
+
+  React.useEffect(() => {
+    if (!uid || !sessionId || session?.status !== "active" || !drawingStarted) return;
+
+    let cancelled = false;
+    const refreshBackendEvents = async () => {
+      try {
+        const response = await togetherApi.getSessionEvents(sessionId);
+        if (cancelled || !mountedRef.current) return;
+        setStrokes(replaceTogetherStrokesFromEvents(sessionId, response.items));
+      } catch {
+        // Stroke submission errors already surface through the active drawing path.
+      }
+    };
+
+    const timer = setInterval(() => {
+      void refreshBackendEvents();
+    }, 8000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [drawingStarted, session?.status, sessionId, uid]);
 
   const completeSession = React.useCallback(async () => {
     if (!sessionId) {
