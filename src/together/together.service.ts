@@ -27,6 +27,7 @@ import type {
   TogetherRevealResponse,
   TogetherRevealStateDto,
   TogetherSessionDto,
+  TogetherSessionEventsResponse,
   TogetherSessionResponse,
   TogetherSessionStatus,
   TogetherSessionUpdateResult,
@@ -158,6 +159,21 @@ export async function createEvent(
     },
     event: toEventDto(result.event),
     created: result.created,
+  };
+}
+
+export async function listSessionEventsForMember(
+  userId: string,
+  sessionId: string,
+): Promise<TogetherSessionEventsResponse> {
+  const events = await deps.repo.listSessionEventsForMember(userId, sessionId);
+  if (!events) {
+    throw new AppError("not_found", "Together session not found", 404);
+  }
+
+  return {
+    items: sortEventsStable(events).map(toEventDto),
+    nextCursor: null,
   };
 }
 
@@ -476,6 +492,17 @@ function toEventDto(event: TogetherEventRow): TogetherEventDto {
     payload: event.payload as JsonValue,
     createdAt: event.createdAt.toISOString(),
   };
+}
+
+function sortEventsStable(events: TogetherEventRow[]): TogetherEventRow[] {
+  return [...events].sort((left, right) => {
+    const byCreatedAt = left.createdAt.getTime() - right.createdAt.getTime();
+    if (byCreatedAt !== 0) {
+      return byCreatedAt;
+    }
+
+    return left.id.localeCompare(right.id);
+  });
 }
 
 function getOutcome(

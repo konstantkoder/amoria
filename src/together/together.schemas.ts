@@ -264,6 +264,24 @@ export const getTogetherSessionRouteSchema = {
   },
 } as const satisfies FastifySchema;
 
+export const getTogetherSessionEventsRouteSchema = {
+  params: uuidParamSchema,
+  response: {
+    200: {
+      type: "object",
+      required: ["items", "nextCursor"],
+      additionalProperties: false,
+      properties: {
+        items: {
+          type: "array",
+          items: eventSchema,
+        },
+        nextCursor: { type: "null" },
+      },
+    },
+  },
+} as const satisfies FastifySchema;
+
 export const postTogetherEventRouteSchema = {
   params: uuidParamSchema,
   body: {

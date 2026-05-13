@@ -7,6 +7,7 @@ import {
   deleteTogetherQueueRouteSchema,
   getTogetherHistoryRouteSchema,
   getTogetherQueueRouteSchema,
+  getTogetherSessionEventsRouteSchema,
   getTogetherSessionRouteSchema,
   parseTogetherEventBody,
   parseTogetherHistoryQuery,
@@ -66,6 +67,16 @@ export async function togetherRoutes(fastify: FastifyInstance): Promise<void> {
       schema: withErrorResponses(getTogetherSessionRouteSchema),
     },
     async (request) => togetherService.getSession(currentUserId(request), request.params.id),
+  );
+
+  fastify.get<{ Params: { id: string } }>(
+    "/sessions/:id/events",
+    {
+      preHandler: authMiddleware,
+      schema: withErrorResponses(getTogetherSessionEventsRouteSchema),
+    },
+    async (request) =>
+      togetherService.listSessionEventsForMember(currentUserId(request), request.params.id),
   );
 
   fastify.post<{ Params: { id: string } }>(

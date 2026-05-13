@@ -300,6 +300,34 @@ export async function createEventIdempotent(
   });
 }
 
+export async function listSessionEventsForMember(
+  userId: string,
+  sessionId: string,
+): Promise<TogetherEventRow[] | undefined> {
+  return db.transaction(async (tx) => {
+    const [member] = await tx
+      .select({ sessionId: togetherSessionMembers.sessionId })
+      .from(togetherSessionMembers)
+      .where(
+        and(
+          eq(togetherSessionMembers.sessionId, sessionId),
+          eq(togetherSessionMembers.userId, userId),
+        ),
+      )
+      .limit(1);
+
+    if (!member) {
+      return undefined;
+    }
+
+    return tx
+      .select()
+      .from(togetherEvents)
+      .where(eq(togetherEvents.sessionId, sessionId))
+      .orderBy(asc(togetherEvents.createdAt), asc(togetherEvents.id));
+  });
+}
+
 export async function updateSessionMemberLastSeen(
   sessionId: string,
   userId: string,

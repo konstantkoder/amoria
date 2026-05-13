@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { TogetherRevealRow, TogetherSessionRow } from "../src/db/schema";
+import type {
+  NewTogetherEventRow,
+  TogetherEventRow,
+  TogetherRevealRow,
+  TogetherSessionRow,
+} from "../src/db/schema";
 
 process.env.NODE_ENV = "test";
 process.env.DATABASE_URL = "postgresql://amoria:amoria_password@localhost:5432/amoria_test";
@@ -12,6 +17,8 @@ process.env.UPLOADS_DIR = "./uploads-test";
 const togetherService = require(
   "../src/together/together.service",
 ) as typeof import("../src/together/together.service");
+const { buildApp } = require("../src/app") as typeof import("../src/app");
+const { signAccessToken } = require("../src/auth/jwt") as typeof import("../src/auth/jwt");
 const { closeDb } = require("../src/db/client") as typeof import("../src/db/client");
 
 type RepoMock = Partial<Record<keyof typeof import("../src/together/together.repo"), unknown>>;
@@ -102,6 +109,169 @@ test("createEvent after abandoned session is rejected", async (t) => {
     },
   );
   assert.equal(eventWritten, false);
+});
+
+test("participant can get Together session events through endpoint", async (t) => {
+  t.after(restoreRepoMock);
+  const app = buildApp();
+  t.after(async () => {
+    await app.close();
+  });
+
+  mockRepo({
+    listSessionEventsForMember: async () => [
+      eventRow({
+        id: "00000000-0000-4000-8000-000000000111",
+        clientEventId: "stroke-1",
+        payload: { strokes: [] },
+      }),
+      eventRow({
+        id: "00000000-0000-4000-8000-000000000112",
+        clientEventId: "palette-1",
+        type: "palette",
+        payload: { color: "#F97393" },
+      }),
+      eventRow({
+        id: "00000000-0000-4000-8000-000000000113",
+        clientEventId: "system-1",
+        type: "system",
+        payload: { name: "finish" },
+      }),
+    ],
+  });
+
+  const response = await app.inject({
+    method: "GET",
+    url: `/together/sessions/${sessionId}/events`,
+    headers: {
+      Authorization: `Bearer ${signAccessToken(userAId)}`,
+    },
+  });
+  const body = response.json();
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(body.nextCursor, null);
+  assert.equal(body.items.length, 3);
+  assert.equal(body.items[0].sessionId, sessionId);
+  assert.equal(body.items[0].fromUserId, userAId);
+  assert.equal(body.items[0].clientEventId, "stroke-1");
+  assert.equal(body.items[0].type, "stroke_batch");
+  assert.equal(body.items[1].clientEventId, "palette-1");
+  assert.equal(body.items[1].type, "palette");
+  assert.deepEqual(body.items[1].payload, { color: "#F97393" });
+  assert.equal(body.items[2].clientEventId, "system-1");
+  assert.equal(body.items[2].type, "system");
+  assert.deepEqual(body.items[2].payload, { name: "finish" });
+});
+
+test("nonparticipant cannot get Together session events through endpoint", async (t) => {
+  t.after(restoreRepoMock);
+  const app = buildApp();
+  t.after(async () => {
+    await app.close();
+  });
+
+  mockRepo({
+    listSessionEventsForMember: async () => undefined,
+  });
+
+  const response = await app.inject({
+    method: "GET",
+    url: `/together/sessions/${sessionId}/events`,
+    headers: {
+      Authorization: `Bearer ${signAccessToken("00000000-0000-4000-8000-000000000003")}`,
+    },
+  });
+  const body = response.json();
+
+  assert.equal(response.statusCode, 404);
+  assert.equal(body.error.code, "not_found");
+  assert.equal(body.items, undefined);
+});
+
+test("Together session events endpoint returns stable event order", async (t) => {
+  t.after(restoreRepoMock);
+
+  const sameCreatedAt = new Date("2026-01-01T00:00:02.000Z");
+  mockRepo({
+    listSessionEventsForMember: async () => [
+      eventRow({
+        id: "00000000-0000-4000-8000-000000000202",
+        clientEventId: "same-created-b",
+        createdAt: sameCreatedAt,
+      }),
+      eventRow({
+        id: "00000000-0000-4000-8000-000000000101",
+        clientEventId: "earlier",
+        createdAt: new Date("2026-01-01T00:00:01.000Z"),
+      }),
+      eventRow({
+        id: "00000000-0000-4000-8000-000000000201",
+        clientEventId: "same-created-a",
+        createdAt: sameCreatedAt,
+      }),
+    ],
+  });
+
+  const response = await togetherService.listSessionEventsForMember(userAId, sessionId);
+
+  assert.deepEqual(
+    response.items.map((event) => event.clientEventId),
+    ["earlier", "same-created-a", "same-created-b"],
+  );
+  assert.equal(response.nextCursor, null);
+});
+
+test("Together session events endpoint returns empty items for empty member session", async (t) => {
+  t.after(restoreRepoMock);
+
+  mockRepo({
+    listSessionEventsForMember: async () => [],
+  });
+
+  const response = await togetherService.listSessionEventsForMember(userAId, sessionId);
+
+  assert.deepEqual(response, { items: [], nextCursor: null });
+});
+
+test("Together sendEvent endpoint still creates events", async (t) => {
+  t.after(restoreRepoMock);
+  const app = buildApp();
+  t.after(async () => {
+    await app.close();
+  });
+
+  let insertedClientEventId: string | undefined;
+  mockRepo({
+    findSessionForMember: async () => sessionRow({ status: "active" }),
+    createEventIdempotent: async (input: NewTogetherEventRow) => {
+      insertedClientEventId = input.clientEventId;
+      return {
+        event: eventRow({
+          clientEventId: input.clientEventId,
+          payload: input.payload,
+        }),
+        created: true,
+      };
+    },
+  });
+
+  const response = await app.inject({
+    method: "POST",
+    url: `/together/sessions/${sessionId}/events`,
+    headers: {
+      Authorization: `Bearer ${signAccessToken(userAId)}`,
+    },
+    payload: {
+      clientEventId: "stroke-post-1",
+      type: "stroke_batch",
+      payload: { strokes: [] },
+    },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.json(), { ok: true, created: true });
+  assert.equal(insertedClientEventId, "stroke-post-1");
 });
 
 test("finish active Together session marks it finished", async (t) => {
@@ -538,6 +708,19 @@ function sessionRow(overrides: Partial<TogetherSessionRow> = {}): TogetherSessio
     endedReason: null,
     deadlineAt: null,
     updatedAt: createdAt,
+    ...overrides,
+  };
+}
+
+function eventRow(overrides: Partial<TogetherEventRow> = {}): TogetherEventRow {
+  return {
+    id: "00000000-0000-4000-8000-000000000110",
+    sessionId,
+    fromUserId: userAId,
+    clientEventId: "stroke-1",
+    type: "stroke_batch",
+    payload: { strokes: [] },
+    createdAt,
     ...overrides,
   };
 }

@@ -67,6 +67,11 @@ export type TogetherEventResponse = {
   created: boolean;
 };
 
+export type TogetherSessionEventsResponse = {
+  items: TogetherEventDto[];
+  nextCursor: null;
+};
+
 export type TogetherSessionUpdateReason =
   | "completed"
   | "participant_left"
