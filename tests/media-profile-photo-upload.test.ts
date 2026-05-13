@@ -111,6 +111,73 @@ test("completeUpload rejects profile photo when gallery limit is reached and cle
   assert.equal(state.galleryMedia, undefined);
 });
 
+test("completeUpload rejects upload owned by another user", async (t) => {
+  t.after(restoreUploadServiceDeps);
+  const rawBuffer = await imageBuffer("jpeg", 640, 480);
+  const state = mockCompleteProfilePhotoUpload(rawBuffer, "image/jpeg", {
+    uploadOwnerUserId: "00000000-0000-4000-8000-000000000099",
+  });
+
+  await assertAppError(
+    uploadsService.completeUpload(ownerId, uploadId, { sizeBytes: rawBuffer.length }),
+    "not_found",
+    404,
+  );
+
+  assert.equal(state.putObject, undefined);
+  assert.equal(state.mediaInput, undefined);
+  assert.equal(state.galleryMedia, undefined);
+});
+
+test("completeUpload requires checksum when prepare included checksum", async (t) => {
+  t.after(restoreUploadServiceDeps);
+  const rawBuffer = await imageBuffer("jpeg", 640, 480);
+  const state = mockCompleteProfilePhotoUpload(rawBuffer, "image/jpeg", {
+    checksumSha256: sha256(rawBuffer),
+  });
+
+  await assert.rejects(
+    uploadsService.completeUpload(ownerId, uploadId, { sizeBytes: rawBuffer.length }),
+    (error) => {
+      const appError = error as { code?: string; statusCode?: number; details?: Record<string, string> };
+      assert.equal(appError.code, "validation_error");
+      assert.equal(appError.statusCode, 400);
+      assert.equal(appError.details?.checksumSha256, "required");
+      return true;
+    },
+  );
+
+  assert.equal(state.putObject, undefined);
+  assert.equal(state.mediaInput, undefined);
+  assert.equal(state.galleryMedia, undefined);
+});
+
+test("completeUpload rejects checksum mismatch before storing media", async (t) => {
+  t.after(restoreUploadServiceDeps);
+  const rawBuffer = await imageBuffer("jpeg", 640, 480);
+  const state = mockCompleteProfilePhotoUpload(rawBuffer, "image/jpeg", {
+    checksumSha256: sha256(rawBuffer),
+  });
+
+  await assert.rejects(
+    uploadsService.completeUpload(ownerId, uploadId, {
+      sizeBytes: rawBuffer.length,
+      checksumSha256: sha256(Buffer.from("different")),
+    }),
+    (error) => {
+      const appError = error as { code?: string; statusCode?: number; details?: Record<string, string> };
+      assert.equal(appError.code, "validation_error");
+      assert.equal(appError.statusCode, 400);
+      assert.equal(appError.details?.checksumSha256, "mismatch");
+      return true;
+    },
+  );
+
+  assert.equal(state.putObject, undefined);
+  assert.equal(state.mediaInput, undefined);
+  assert.equal(state.galleryMedia, undefined);
+});
+
 test("profile photo helper rejects unsupported SVG images", async () => {
   const svg = Buffer.from(
     '<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"><rect width="512" height="512"/></svg>',
@@ -153,12 +220,18 @@ test("profile photo helper rejects too large dimensions", async () => {
 function mockCompleteProfilePhotoUpload(
   rawBuffer: Buffer,
   contentType: string,
-  options: { galleryLimitReached?: boolean } = {},
+  options: {
+    checksumSha256?: string;
+    galleryLimitReached?: boolean;
+    uploadOwnerUserId?: string;
+  } = {},
 ) {
   restoreUploadServiceDeps();
   const upload = uploadRow({
+    ownerUserId: options.uploadOwnerUserId ?? ownerId,
     mimeType: contentType,
     sizeBytes: rawBuffer.length,
+    checksumSha256: options.checksumSha256 ?? null,
   });
   const state: {
     upload: MediaUploadRow;

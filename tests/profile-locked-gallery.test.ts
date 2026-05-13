@@ -192,6 +192,41 @@ test("owner gallery endpoint returns public and locked photos to owner", async (
   assert.equal(JSON.stringify(response).includes("users/owner/profile"), false);
 });
 
+test("delete media cannot delete another user's media", async (t) => {
+  t.after(restoreGalleryDeps);
+  const state = mockGallery();
+
+  await assert.rejects(
+    galleryService.deleteOwnedMediaWithGalleryGuards(viewerId, publicPhoto1Id),
+    (error) => {
+      const appError = error as { code?: string; statusCode?: number };
+      assert.equal(appError.code, "not_found");
+      assert.equal(appError.statusCode, 404);
+      return true;
+    },
+  );
+
+  assert.deepEqual(state.deletedObjectKeys, []);
+  assert.deepEqual(state.deletedMediaIds, []);
+  assert.equal(state.items.some((entry) => entry.item.mediaId === publicPhoto1Id), true);
+});
+
+test("owner can delete own profile photo and public read model is synced", async (t) => {
+  t.after(restoreGalleryDeps);
+  const state = mockGallery();
+
+  const response = await galleryService.deleteOwnedMediaWithGalleryGuards(ownerId, publicPhoto1Id);
+
+  assert.deepEqual(response, { ok: true });
+  assert.deepEqual(state.deletedObjectKeys, [`users/owner/profile/${publicPhoto1Id}.webp`]);
+  assert.deepEqual(state.deletedMediaIds, [publicPhoto1Id]);
+  assert.equal(state.items.some((entry) => entry.item.mediaId === publicPhoto1Id), false);
+  assert.deepEqual(
+    state.updatedPhotos.map((photo) => photo.mediaId),
+    [publicPhoto2Id, publicPhoto3Id],
+  );
+});
+
 test("owner cannot exceed locked gallery photo limit", async (t) => {
   t.after(restoreGalleryDeps);
   const lockedItems = Array.from({ length: MAX_LOCKED_PROFILE_PHOTOS }, (_, index) =>
@@ -278,6 +313,8 @@ function mockGallery(input: {
       input.passwordHash === undefined
         ? settingsRow("hash:folder-secret")
         : settingsRow(input.passwordHash),
+    deletedMediaIds: [] as string[],
+    deletedObjectKeys: [] as string[],
     updatedPhotos: [] as { mediaId: string; url: string }[],
   };
 
@@ -354,6 +391,21 @@ function mockGallery(input: {
     hashPassword: async (password: string) => `hash:${password}`,
     verifyPassword: async (password: string, passwordHash: string) => passwordHash === `hash:${password}`,
     isBlockedEitherWay: async () => input.blocked === true,
+    findMediaFileByOwner: async (userId, mediaId) => {
+      if (userId !== ownerId) return undefined;
+      return state.items.find((entry) => entry.media.id === mediaId)?.media;
+    },
+    deleteMediaFileByOwner: async (mediaId, userId) => {
+      if (userId !== ownerId) return undefined;
+      const index = state.items.findIndex((entry) => entry.media.id === mediaId);
+      if (index < 0) return undefined;
+      const [entry] = state.items.splice(index, 1);
+      state.deletedMediaIds.push(mediaId);
+      return entry?.media;
+    },
+    deleteObject: async (input) => {
+      state.deletedObjectKeys.push(input.key);
+    },
   });
 
   return state;

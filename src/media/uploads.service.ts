@@ -145,14 +145,18 @@ export async function completeUpload(
     });
   }
 
-  if (
-    upload.checksumSha256 &&
-    input.checksumSha256 &&
-    !sameChecksum(upload.checksumSha256, input.checksumSha256)
-  ) {
-    throw new AppError("validation_error", "Upload checksum does not match prepared checksum", 400, {
-      checksumSha256: "mismatch",
-    });
+  if (upload.checksumSha256) {
+    if (!input.checksumSha256) {
+      throw new AppError("validation_error", "Upload checksum is required", 400, {
+        checksumSha256: "required",
+      });
+    }
+
+    if (!sameChecksum(upload.checksumSha256, input.checksumSha256)) {
+      throw new AppError("validation_error", "Upload checksum does not match prepared checksum", 400, {
+        checksumSha256: "mismatch",
+      });
+    }
   }
 
   const object = await getUploadedObject(upload);
