@@ -105,6 +105,21 @@ function getRelationshipText(
   );
 }
 
+function getHistoryContextText(
+  item: TogetherHistoryItem,
+  tt: (key: string, fallback: string, params?: Record<string, string>) => string
+) {
+  if (item.activity === "color_mood") {
+    return tt("playHistory.contextColorMood", "Палитра, собранная вами вместе");
+  }
+
+  return item.promptText?.trim()
+    ? tt("playHistory.contextDrawChallenge", "Creative challenge: {challenge}", {
+        challenge: item.promptText.trim(),
+      })
+    : tt("playHistory.contextDraw", "Shared drawing on one canvas");
+}
+
 export default function PlayHistoryScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"PlayHistory">>();
   const { user: authUser } = useAuth();
@@ -189,7 +204,7 @@ export default function PlayHistoryScreen() {
             source: "together",
             sourceSessionId: item.sessionId,
             artworkSummary: {
-              activity: "draw",
+              activity: item.activity,
             },
           },
         });
@@ -229,7 +244,7 @@ export default function PlayHistoryScreen() {
             source: "together",
             sourceSessionId: item.sessionId,
             artworkSummary: {
-              activity: "draw",
+              activity: item.activity,
             },
           },
         });
@@ -278,11 +293,7 @@ export default function PlayHistoryScreen() {
           </View>
 
           <Text style={styles.contextText}>
-            {item.promptText?.trim()
-              ? tt("playHistory.contextDrawChallenge", "Creative challenge: {challenge}", {
-                  challenge: item.promptText.trim(),
-                })
-              : tt("playHistory.contextDraw", "Shared drawing on one canvas")}
+            {getHistoryContextText(item, tt)}
           </Text>
           <Text style={styles.relationshipText}>{relationshipText}</Text>
 

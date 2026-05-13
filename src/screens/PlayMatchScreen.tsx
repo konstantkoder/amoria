@@ -21,7 +21,7 @@ import {
   type RootStackNavigationProp,
 } from "@/navigation/appRoutes";
 import * as togetherApi from "@/services/api/togetherApi";
-import type { TogetherQueueEntry } from "@/services/api/types";
+import type { TogetherActivity, TogetherQueueEntry } from "@/services/api/types";
 import { theme } from "@/theme";
 
 type MatchStatusKey =
@@ -102,23 +102,36 @@ function getMatchStateMeta(statusKey: MatchStatusKey, tt: TranslateFn) {
 }
 
 function getStatusTitle(statusKey: MatchStatusKey, tt: TranslateFn) {
+  return getActivityStatusTitle("draw", statusKey, tt);
+}
+
+function getActivityStatusTitle(
+  activity: TogetherActivity,
+  statusKey: MatchStatusKey,
+  tt: TranslateFn
+) {
+  const suffix = activity === "color_mood" ? "ColorMood" : "Draw";
   switch (statusKey) {
     case "searching":
-      return tt("play.match.waitingForPartner", "Ищем второго человека");
+      return tt(`play.match.status.searching${suffix}Title`, "Ищем второго человека");
     case "delayed":
-      return tt("play.match.status.delayedDrawTitle", "Ищем ещё немного");
+      return tt(`play.match.status.delayed${suffix}Title`, "Ищем ещё немного");
     case "found":
-      return tt("play.match.status.foundDrawTitle", "Человек найден");
+      return tt(`play.match.status.found${suffix}Title`, "Человек найден");
     case "cancelled":
       return tt("play.match.status.cancelledTitle", "Поиск остановлен");
     case "expired":
       return tt("play.match.queueExpired", "Поиск завершился");
     case "error":
-      return tt("play.match.status.errorDrawTitle", "Не получилось начать общий рисунок");
+      return tt(`play.match.status.error${suffix}Title`, "Не получилось начать совместную сессию");
     case "preparing":
     default:
-      return tt("play.match.status.preparingDrawTitle", "Готовим общий рисунок");
+      return tt(`play.match.status.preparing${suffix}Title`, "Готовим совместную сессию");
   }
+}
+
+function nextRouteForActivity(activity: TogetherActivity) {
+  return activity === "color_mood" ? "PlayColorMood" : "PlayCanvas";
 }
 
 export default function PlayMatchScreen() {
@@ -135,7 +148,10 @@ export default function PlayMatchScreen() {
   );
 
   const uid = authUser?.id ?? "";
-  const activity = route.params?.activity === "draw" ? "draw" : null;
+  const activity: TogetherActivity | null =
+    route.params?.activity === "draw" || route.params?.activity === "color_mood"
+      ? route.params.activity
+      : null;
   const [statusKey, setStatusKey] = React.useState<MatchStatusKey>("preparing");
   const [entry, setEntry] = React.useState<TogetherQueueEntry | null>(null);
   const [errorText, setErrorText] = React.useState("");
@@ -178,7 +194,7 @@ export default function PlayMatchScreen() {
       if (response.entry.status === "matched" && response.entry.sessionId) {
         matchedRef.current = true;
         setStatusKey("found");
-        navigation.replace("PlayCanvas", { sessionId: response.entry.sessionId });
+        navigation.replace(nextRouteForActivity(activity), { sessionId: response.entry.sessionId });
         return;
       }
       setStatusKey("searching");
@@ -218,7 +234,7 @@ export default function PlayMatchScreen() {
         if (response.entry.status === "matched" && response.entry.sessionId) {
           matchedRef.current = true;
           setStatusKey("found");
-          navigation.replace("PlayCanvas", { sessionId: response.entry.sessionId });
+          navigation.replace(nextRouteForActivity(activity), { sessionId: response.entry.sessionId });
           return;
         }
 
@@ -295,7 +311,7 @@ export default function PlayMatchScreen() {
     ? tt("play.match.authRequired", "Нужно войти, чтобы начать общий рисунок.")
     : tt(
         "play.match.invalidActivity",
-        "Сейчас backend-сценарий Together поддерживает только общий рисунок."
+        "Формат этой Together-сессии не распознан."
       );
 
   if (!uid || !activity) {
@@ -346,7 +362,7 @@ export default function PlayMatchScreen() {
             )}
           </View>
           <Text style={styles.kicker}>{meta.label}</Text>
-          <Text style={styles.title}>{getStatusTitle(statusKey, tt)}</Text>
+          <Text style={styles.title}>{getActivityStatusTitle(activity, statusKey, tt)}</Text>
           <Text style={styles.body}>{errorText || meta.hint}</Text>
           {entry?.expiresAt ? (
             <Text style={styles.expiresText}>

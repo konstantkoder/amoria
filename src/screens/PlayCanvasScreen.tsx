@@ -185,6 +185,11 @@ export default function PlayCanvasScreen() {
       .getSession(sessionId)
       .then((response) => {
         if (!mountedRef.current) return;
+        if (response.session.activity === "color_mood") {
+          allowExitRef.current = true;
+          navigation.replace("PlayColorMood", { sessionId });
+          return;
+        }
         rememberTogetherSession(response);
         setSessionResponse(response);
         setLoading(false);

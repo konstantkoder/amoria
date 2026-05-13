@@ -306,6 +306,8 @@ export type TogetherQueueEntry = {
   expiresAt: string;
 };
 
+export type TogetherActivity = "draw" | "color_mood";
+
 export type TogetherQueueResponse = {
   entry: TogetherQueueEntry;
 };
@@ -348,7 +350,7 @@ export type TogetherRevealStateDto = {
 
 export type TogetherSessionDto = {
   id: string;
-  activity: string;
+  activity: TogetherActivity;
   status: TogetherSessionStatus;
   promptText: string;
   createdAt: string;
@@ -378,7 +380,7 @@ export type TogetherRevealResponse = {
 
 export type TogetherHistoryItem = {
   sessionId: string;
-  activity: string;
+  activity: TogetherActivity;
   status?: TogetherSessionStatus;
   promptText: string;
   peer: {

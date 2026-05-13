@@ -21,11 +21,11 @@ export default function PlayLobbyScreen() {
     title: tt("together.lobby.colorMoodTitle", "Палитра настроения"),
     description: tt(
       "together.lobby.colorMoodDescription",
-      "В разработке."
+      "Выберите настроение цветом и соберите общую палитру с другим человеком."
     ),
     details: tt(
       "together.lobby.colorMoodDetails",
-      "Сейчас доступен основной общий рисунок."
+      "Короткая backend-сессия, общий результат и то же честное решение про чат."
     ),
   };
 
@@ -95,23 +95,26 @@ export default function PlayLobbyScreen() {
           <Text style={styles.secondarySectionText}>
             {tt(
               "together.lobby.colorMoodSectionBody",
-              "Палитра настроения задумана как мягкий второй сценарий. Сейчас основной доступный режим — общий рисунок."
+              "Палитра настроения — короткий сценарий для мягкого общего выбора без рисунка."
             )}
           </Text>
         </View>
 
-        <View style={[styles.secondaryCard, styles.secondaryCardDisabled]}>
+        <Pressable
+          onPress={() => navigation.navigate("PlayMatch", { activity: "color_mood" })}
+          style={styles.secondaryCard}
+        >
           <View style={styles.cardHeader}>
             <Text style={styles.cardTitle}>{colorMoodCopy.title}</Text>
             <View style={styles.badge}>
               <Text style={styles.badgeText}>
-                {tt("together.lobby.colorMoodBadge", "В разработке")}
+                {tt("together.lobby.colorMoodBadge", "Backend")}
               </Text>
             </View>
           </View>
           <Text style={styles.cardDescription}>{colorMoodCopy.description}</Text>
           <Text style={styles.cardDetails}>{colorMoodCopy.details}</Text>
-        </View>
+        </Pressable>
 
         <Pressable
           onPress={() => navigation.navigate("PlayHistory")}
@@ -294,9 +297,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.12)",
     gap: 10,
-  },
-  secondaryCardDisabled: {
-    opacity: 0.68,
   },
   cardHeader: {
     flexDirection: "row",

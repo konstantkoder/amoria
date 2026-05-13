@@ -1,5 +1,6 @@
 import { request } from "@/services/api/apiClient";
 import type {
+  TogetherActivity,
   TogetherEventType,
   TogetherHistoryResponse,
   TogetherQueueResponse,
@@ -28,7 +29,7 @@ function buildQuery(params: Record<string, string | number | undefined>) {
   return value ? `?${value}` : "";
 }
 
-export function joinQueue(activity = "draw"): Promise<TogetherQueueResponse> {
+export function joinQueue(activity: TogetherActivity = "draw"): Promise<TogetherQueueResponse> {
   return request<TogetherQueueResponse>("POST", "/together/queue", { activity });
 }
 

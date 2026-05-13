@@ -19,6 +19,7 @@ import {
 } from "@/navigation/appRoutes";
 import * as togetherApi from "@/services/api/togetherApi";
 import type {
+  TogetherEventDto,
   TogetherHistoryItem,
   TogetherRevealStateDto,
   TogetherSessionResponse,
@@ -31,6 +32,7 @@ import {
   rememberTogetherSession,
   replaceTogetherStrokesFromEvents,
 } from "@/services/togetherCanvasState";
+import { buildTogetherPaletteFromEvents } from "@/services/togetherPaletteState";
 import { theme } from "@/theme";
 
 function formatDateTime(value: string) {
@@ -71,6 +73,13 @@ function isTerminalClosedStatus(status?: string | null) {
   return status === "abandoned" || status === "cancelled";
 }
 
+function getPaletteLabel(
+  label: string,
+  tt: (key: string, fallback: string, params?: Record<string, string>) => string
+) {
+  return tt(`play.colorMood.option.${label}`, label);
+}
+
 function revealStateFromHistoryItem(
   item: TogetherHistoryItem | null
 ): TogetherRevealStateDto | null {
@@ -106,6 +115,7 @@ export default function PlaySessionDetailScreen() {
   const [loadError, setLoadError] = React.useState<string | null>(null);
   const [openingChat, setOpeningChat] = React.useState(false);
   const [chatActionError, setChatActionError] = React.useState<string | null>(null);
+  const [sessionEvents, setSessionEvents] = React.useState<TogetherEventDto[]>([]);
   const [replayStrokes, setReplayStrokes] = React.useState(() =>
     getTogetherStrokes(sessionId)
   );
@@ -140,6 +150,7 @@ export default function PlaySessionDetailScreen() {
     }
 
     setLoading(!remembered);
+    setSessionEvents([]);
     setReplayStrokes(getTogetherStrokes(sessionId));
     void Promise.all([
       togetherApi.getSession(sessionId),
@@ -149,12 +160,13 @@ export default function PlaySessionDetailScreen() {
       .then(([session, history, sessionEvents]) => {
         if (!mountedRef.current) return;
         rememberTogetherSession(session);
-        const backendStrokes = replaceTogetherStrokesFromEvents(
-          sessionId,
-          sessionEvents.items
-        );
+        const backendStrokes =
+          session.session.activity === "draw"
+            ? replaceTogetherStrokesFromEvents(sessionId, sessionEvents.items)
+            : [];
         setSessionResponse(session);
         setHistoryItem(history.items.find((item) => item.sessionId === sessionId) ?? null);
+        setSessionEvents(sessionEvents.items);
         setReplayStrokes(backendStrokes);
         setLoading(false);
         void markPlaySessionSeen(sessionId);
@@ -187,6 +199,11 @@ export default function PlaySessionDetailScreen() {
   const revealState = sessionResponse?.revealState ?? revealStateFromHistoryItem(historyItem);
   const outcome = revealState?.outcome ?? "pending";
   const revealThreadId = revealState?.threadId ?? null;
+  const sessionActivity = session?.activity === "color_mood" ? "color_mood" : "draw";
+  const palette = React.useMemo(
+    () => buildTogetherPaletteFromEvents(sessionEvents),
+    [sessionEvents]
+  );
   const canRevealOpen =
     session?.status === "finished" &&
     revealState?.canOpenChat === true &&
@@ -195,6 +212,7 @@ export default function PlaySessionDetailScreen() {
   const canOpenExistingThread = outcome === "open_open" && Boolean(revealThreadId);
   const strokes = replayStrokes;
   const hasReplay = strokes.length > 0;
+  const hasPalette = palette.length > 0;
   const sessionClosed = isTerminalClosedStatus(session?.status ?? historyItem?.status);
 
   const openChat = React.useCallback(async () => {
@@ -210,8 +228,8 @@ export default function PlaySessionDetailScreen() {
           source: "together",
           sourceSessionId: sessionId,
           artworkSummary: {
-            activity: "draw",
-            strokeCount: strokes.length,
+            activity: sessionActivity,
+            ...(sessionActivity === "draw" ? { strokeCount: strokes.length } : {}),
           },
         },
       });
@@ -252,8 +270,8 @@ export default function PlaySessionDetailScreen() {
           source: "together",
           sourceSessionId: sessionId,
           artworkSummary: {
-            activity: "draw",
-            strokeCount: strokes.length,
+            activity: sessionActivity,
+            ...(sessionActivity === "draw" ? { strokeCount: strokes.length } : {}),
           },
         },
       });
@@ -274,6 +292,7 @@ export default function PlaySessionDetailScreen() {
     peer?.id,
     peerName,
     revealThreadId,
+    sessionActivity,
     sessionClosed,
     sessionId,
     strokes.length,
@@ -386,8 +405,30 @@ export default function PlaySessionDetailScreen() {
         </View>
 
         <View style={styles.replayCard}>
-          <Text style={styles.sectionTitle}>{tt("playDetail.replayTitle", "Replay")}</Text>
-          {hasReplay ? (
+          <Text style={styles.sectionTitle}>
+            {sessionActivity === "color_mood"
+              ? tt("playDetail.paletteTitle", "Общая палитра")
+              : tt("playDetail.replayTitle", "Replay")}
+          </Text>
+          {sessionActivity === "color_mood" ? (
+            hasPalette ? (
+              <View style={styles.paletteRow}>
+                {palette.map((selection) => (
+                  <View key={`${selection.fromUserId}-${selection.id}`} style={styles.paletteItem}>
+                    <View style={[styles.paletteSwatch, { backgroundColor: selection.color }]} />
+                    <Text style={styles.paletteLabel}>{getPaletteLabel(selection.label, tt)}</Text>
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <Text style={styles.emptyText}>
+                {tt(
+                  "playDetail.paletteEmpty",
+                  "Данные палитры для этой истории пока недоступны."
+                )}
+              </Text>
+            )
+          ) : hasReplay ? (
             <View style={styles.replayWrap}>
               <ReplayCanvasWebView strokes={strokes} autoplay={route.params.focus === "replay"} showControls />
             </View>
@@ -447,7 +488,7 @@ export default function PlaySessionDetailScreen() {
                 </Text>
               </Pressable>
             ) : null}
-            <Pressable style={styles.secondaryButton} onPress={() => navigation.navigate("PlayMatch", { activity: "draw" })}>
+            <Pressable style={styles.secondaryButton} onPress={() => navigation.navigate("PlayMatch", { activity: sessionActivity })}>
               <Text style={styles.secondaryButtonText}>
                 {tt("playDetail.startAnotherSession", "Начать ещё одну совместную сессию")}
               </Text>
@@ -535,6 +576,35 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     borderRadius: 18,
     backgroundColor: "#FFFFFF",
+  },
+  paletteRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  paletteItem: {
+    minWidth: 112,
+    flex: 1,
+    borderRadius: 14,
+    padding: 12,
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+  },
+  paletteSwatch: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.55)",
+  },
+  paletteLabel: {
+    color: theme.colors.text,
+    fontSize: 13,
+    fontWeight: "800",
+    textTransform: "capitalize",
   },
   emptyText: {
     color: theme.colors.subtext,
