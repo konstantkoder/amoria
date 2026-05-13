@@ -200,7 +200,11 @@ export default function ProfileScreen() {
       let avatarDownloadUrl = "";
       try {
         avatarDownloadUrl = await uploadUserAvatar(currentProfile.id, uri);
-      } catch {
+      } catch (error) {
+        if (error instanceof Error && error.message === "photos.unsupportedImageType") {
+          Alert.alert(t("photos.unsupportedImageTypeTitle"), t("photos.unsupportedImageTypeBody"));
+          return;
+        }
         Alert.alert(t("photos.uploadFailed"), t("photos.avatarUploadErrorBody"));
         return;
       }

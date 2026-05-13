@@ -537,6 +537,8 @@
   "photos.uploading": "Фото загружается...",
   "photos.uploadFailed": "Не удалось загрузить фото",
   "photos.saveFailed": "Не удалось сохранить фото",
+  "photos.unsupportedImageTypeTitle": "Формат фото не поддерживается",
+  "photos.unsupportedImageTypeBody": "Выберите JPEG, PNG или WebP. Фото не было загружено.",
   "photos.saved": "Фото сохранено.",
   "photos.cancelled": "Выбор фото отменён.",
   "photos.choosePhoto": "Выбрать фото",

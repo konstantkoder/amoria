@@ -100,6 +100,17 @@ export default function PhotoManagerScreen() {
   }
 
   function handleApiError(error: unknown, fallbackTitle: string, fallbackBody: string) {
+    if (error instanceof Error && error.message === "photos.unsupportedImageType") {
+      Alert.alert(
+        tt("photos.unsupportedImageTypeTitle", "Формат фото не поддерживается"),
+        tt(
+          "photos.unsupportedImageTypeBody",
+          "Выберите JPEG, PNG или WebP. Фото не было загружено."
+        )
+      );
+      return;
+    }
+
     if (error instanceof ApiError) {
       if (error.code === "min_visible_required") {
         Alert.alert(

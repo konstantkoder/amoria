@@ -25,9 +25,24 @@
 - Together replay for completed draw sessions is now backend-persistent through the server `GET /together/sessions/:id/events` API; `PlaySessionDetail` restores replay from backend events after app restart
 - Together `color_mood` is now a real backend-backed scenario: lobby starts a `color_mood` queue, the session saves `palette` events through Together events, result/reveal/history/detail read backend session/events, and open chat context keeps `activity: color_mood`
 - Together lifecycle is hardened for both `draw` and `color_mood`: backend guards membership/status for session, events, finish/leave/heartbeat/reveal/history; mutual `open/open` reuses one direct chat context; skip, blocked, abandoned, and cancelled states do not open chat; mobile result/detail screens recover pending reveal state through backend refresh if WebSocket updates are missed
+- Profile media and locked gallery are backend-first for the release path: avatar/profile uploads go through backend media APIs, public profile responses expose public photos only, locked gallery unlock requires backend password verification, and owner gallery management uses backend state.
 - Final native identifiers are still not settled in Expo config: Android package is placeholder-like, and iOS bundle identifier is not declared here
 - Secondary locales still need a final product-language review, but dead keys from removed features no longer stay in the locale set
 - Settings / profile still carry older option groups like `18+` and `mystery mode`; they are live product settings, but they still need a stricter product decision if scope is reduced further
+
+## Gallery / locked gallery status
+
+- Locked photos are not exposed by public profile responses; only a locked-gallery summary count is returned when a password is set and locked photos exist.
+- Locked gallery unlock remains password protected through backend verification; wrong passwords return safe errors without photo URLs.
+- Block-aware visibility is enforced for public profile access and locked gallery unlock.
+- Owner gallery management remains backend-backed for upload, public/locked moves, password set/reset, and delete.
+- Profile upload completion now requires a checksum when a checksum was declared during prepare; another user's prepared upload cannot be completed by the caller.
+- Mobile profile/gallery image uploads now reject unsupported shared-profile formats before starting backend upload; no local-only success path was added.
+
+## Remaining Gallery blockers
+
+- A real signed-in device pass for avatar upload, profile photo upload/delete/move, and locked gallery unlock is still required before release sign-off.
+- Production object storage/CDN configuration must be verified against the same build used for release.
 
 ## Remaining Together blockers
 

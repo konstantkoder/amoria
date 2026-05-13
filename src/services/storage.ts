@@ -20,6 +20,12 @@ export type UploadedProfilePhoto = {
   url: string;
 };
 
+const SUPPORTED_SHARED_PROFILE_IMAGE_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+]);
+
 function inferImageContentType(uri: string) {
   const normalized = String(uri ?? "").split("?")[0].toLowerCase();
   if (normalized.endsWith(".png")) return "image/png";
@@ -44,6 +50,12 @@ function normalizeMimeType(value: unknown, fileUri: string) {
     : inferImageContentType(fileUri);
 }
 
+function assertSupportedSharedProfileImage(mimeType: string) {
+  if (!SUPPORTED_SHARED_PROFILE_IMAGE_TYPES.has(mimeType)) {
+    throw new Error("photos.unsupportedImageType");
+  }
+}
+
 function mapMediaToProfilePhoto(media: MediaDto): UploadedProfilePhoto {
   const mediaId = String(media.mediaId ?? media.id ?? "").trim();
   const url = normalizePublicMediaUrl(
@@ -62,7 +74,8 @@ async function uploadBackendUserAvatar(stableUid: string, stableUri: string) {
   const session = await loadBackendSession();
   if (!session || session.user.id !== stableUid) return null;
 
-  const contentType = inferImageContentType(stableUri);
+  const contentType = normalizeMimeType(undefined, stableUri);
+  assertSupportedSharedProfileImage(contentType);
   const extension = inferImageExtension(contentType);
   const response = await uploadAvatarToBackend({
     uri: stableUri,
@@ -99,6 +112,7 @@ export async function uploadProfilePhoto(
   }
 
   const mimeType = normalizeMimeType(options.mimeType, stableUri);
+  assertSupportedSharedProfileImage(mimeType);
   const upload = await prepareUpload({
     purpose: "profile_photo",
     mimeType,

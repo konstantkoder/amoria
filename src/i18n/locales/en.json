@@ -537,6 +537,8 @@
   "photos.uploading": "Uploading photo...",
   "photos.uploadFailed": "Couldn't upload the photo",
   "photos.saveFailed": "Couldn't save the photo",
+  "photos.unsupportedImageTypeTitle": "Photo format is not supported",
+  "photos.unsupportedImageTypeBody": "Choose a JPEG, PNG, or WebP image. The photo was not uploaded.",
   "photos.saved": "Photo saved.",
   "photos.cancelled": "Photo selection cancelled.",
   "photos.choosePhoto": "Choose photo",

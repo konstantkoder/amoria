@@ -202,6 +202,8 @@
   "flirt.saveErrorBody": "Ne mogu ažurirati postavke.",
   "photos.permissionTitle": "Nema pristupa",
   "photos.permissionBody": "Dopusti pristup fotografiji za učitavanje slike.",
+  "photos.unsupportedImageTypeTitle": "Format fotografije nije podrzan",
+  "photos.unsupportedImageTypeBody": "Odaberite JPEG, PNG ili WebP sliku. Fotografija nije ucitana.",
   "photos.add": "Dodaj fotografiju",
   "photos.remove": "Ukloni",
   "photos.empty": "Još nema fotografija. Dodajte svoj prvi!",
