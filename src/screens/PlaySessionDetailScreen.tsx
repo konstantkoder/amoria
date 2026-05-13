@@ -29,6 +29,7 @@ import {
   getTogetherPeer,
   getTogetherStrokes,
   rememberTogetherSession,
+  replaceTogetherStrokesFromEvents,
 } from "@/services/togetherCanvasState";
 import { theme } from "@/theme";
 
@@ -105,6 +106,9 @@ export default function PlaySessionDetailScreen() {
   const [loadError, setLoadError] = React.useState<string | null>(null);
   const [openingChat, setOpeningChat] = React.useState(false);
   const [chatActionError, setChatActionError] = React.useState<string | null>(null);
+  const [replayStrokes, setReplayStrokes] = React.useState(() =>
+    getTogetherStrokes(sessionId)
+  );
   const [reloadKey, setReloadKey] = React.useState(0);
   const mountedRef = React.useRef(true);
 
@@ -136,15 +140,22 @@ export default function PlaySessionDetailScreen() {
     }
 
     setLoading(!remembered);
+    setReplayStrokes(getTogetherStrokes(sessionId));
     void Promise.all([
       togetherApi.getSession(sessionId),
-      togetherApi.history(100).catch(() => ({ items: [], nextCursor: null })),
+      togetherApi.history(100),
+      togetherApi.getSessionEvents(sessionId),
     ])
-      .then(([session, history]) => {
+      .then(([session, history, sessionEvents]) => {
         if (!mountedRef.current) return;
         rememberTogetherSession(session);
+        const backendStrokes = replaceTogetherStrokesFromEvents(
+          sessionId,
+          sessionEvents.items
+        );
         setSessionResponse(session);
         setHistoryItem(history.items.find((item) => item.sessionId === sessionId) ?? null);
+        setReplayStrokes(backendStrokes);
         setLoading(false);
         void markPlaySessionSeen(sessionId);
       })
@@ -182,7 +193,7 @@ export default function PlaySessionDetailScreen() {
     revealState.myDecision == null &&
     outcome !== "blocked";
   const canOpenExistingThread = outcome === "open_open" && Boolean(revealThreadId);
-  const strokes = React.useMemo(() => getTogetherStrokes(sessionId), [sessionId]);
+  const strokes = replayStrokes;
   const hasReplay = strokes.length > 0;
   const sessionClosed = isTerminalClosedStatus(session?.status ?? historyItem?.status);
 
@@ -384,7 +395,7 @@ export default function PlaySessionDetailScreen() {
             <Text style={styles.emptyText}>
               {tt(
                 "playDetail.replayEmpty",
-                "Replay доступен сразу после сессии на текущем устройстве. Backend history пока хранит только контекст и решение."
+                "Replay для этой истории пока недоступен."
               )}
             </Text>
           )}

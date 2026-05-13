@@ -1,5 +1,6 @@
 import type { SharedCanvasStroke } from "@/components/play/SharedCanvasWebView";
 import type {
+  TogetherEventDto as ApiTogetherEventDto,
   TogetherParticipantDto,
   TogetherSessionDto,
   TogetherSessionResponse,
@@ -25,15 +26,7 @@ export type TogetherStrokeBatchPayload = {
   strokes?: TogetherStroke[];
 };
 
-export type TogetherEventDto = {
-  id?: string;
-  sessionId?: string;
-  fromUserId?: string;
-  clientEventId?: string;
-  type?: string;
-  payload?: unknown;
-  createdAt?: string;
-};
+export type TogetherEventDto = Partial<ApiTogetherEventDto>;
 
 export type CachedTogetherSession = {
   session: TogetherSessionDto;
@@ -65,7 +58,7 @@ export function rememberTogetherEvent(sessionId: string, event: TogetherEventDto
     return getTogetherStrokes(sessionId);
   }
 
-  const eventKey = String(event.clientEventId || event.id || "").trim();
+  const eventKey = getTogetherEventKey(event);
   if (eventKey) {
     let seen = eventIdsBySessionId.get(sessionId);
     if (!seen) {
@@ -78,25 +71,56 @@ export function rememberTogetherEvent(sessionId: string, event: TogetherEventDto
     seen.add(eventKey);
   }
 
-  const payload = normalizeStrokeBatchPayload(event.payload);
-  if (!payload.strokes.length) {
+  const nextStrokes = strokesFromTogetherEvent(event);
+  if (!nextStrokes.length) {
     return getTogetherStrokes(sessionId);
   }
 
-  const fromUserId = String(event.fromUserId || payload.uid || "").trim();
-  const nextStrokes = payload.strokes.map((stroke) => ({
-    id: stroke.id,
-    uid: fromUserId,
-    color: stroke.color,
-    width: stroke.width,
-    points: stroke.points.map((point) => ({
-      x: clampNormalized(point.x),
-      y: clampNormalized(point.y),
-    })),
-  }));
   const merged = [...getTogetherStrokes(sessionId), ...nextStrokes];
   strokesBySessionId.set(sessionId, merged);
   return merged;
+}
+
+export function buildTogetherStrokesFromEvents(
+  events: TogetherEventDto[]
+): SharedCanvasStroke[] {
+  const seenEvents = new Set<string>();
+  const strokes: SharedCanvasStroke[] = [];
+
+  for (const event of events) {
+    if (event.type !== "stroke_batch") continue;
+    const eventKey = getTogetherEventKey(event);
+    if (eventKey) {
+      if (seenEvents.has(eventKey)) continue;
+      seenEvents.add(eventKey);
+    }
+
+    strokes.push(...strokesFromTogetherEvent(event));
+  }
+
+  return strokes;
+}
+
+export function replaceTogetherStrokesFromEvents(
+  sessionId: string,
+  events: TogetherEventDto[]
+): SharedCanvasStroke[] {
+  const strokes = buildTogetherStrokesFromEvents(events);
+  const eventIds = new Set(
+    events
+      .filter((event) => event.type === "stroke_batch")
+      .map(getTogetherEventKey)
+      .filter((eventKey): eventKey is string => Boolean(eventKey))
+  );
+
+  strokesBySessionId.set(sessionId, strokes);
+  if (eventIds.size > 0) {
+    eventIdsBySessionId.set(sessionId, eventIds);
+  } else {
+    eventIdsBySessionId.delete(sessionId);
+  }
+
+  return strokes;
 }
 
 export function rememberLocalTogetherStrokes(
@@ -150,6 +174,29 @@ export function normalizeStrokeBatchPayload(payload: unknown): {
       .map(normalizeStroke)
       .filter((stroke): stroke is TogetherStroke => Boolean(stroke)),
   };
+}
+
+function getTogetherEventKey(event: TogetherEventDto): string {
+  return String(event.clientEventId || event.id || "").trim();
+}
+
+function strokesFromTogetherEvent(event: TogetherEventDto): SharedCanvasStroke[] {
+  const payload = normalizeStrokeBatchPayload(event.payload);
+  if (!payload.strokes.length) {
+    return [];
+  }
+
+  const fromUserId = String(event.fromUserId || payload.uid || "").trim();
+  return payload.strokes.map((stroke) => ({
+    id: stroke.id,
+    uid: fromUserId,
+    color: stroke.color,
+    width: stroke.width,
+    points: stroke.points.map((point) => ({
+      x: clampNormalized(point.x),
+      y: clampNormalized(point.y),
+    })),
+  }));
 }
 
 function normalizeStroke(value: unknown): TogetherStroke | null {

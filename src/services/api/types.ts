@@ -310,6 +310,23 @@ export type TogetherQueueResponse = {
   entry: TogetherQueueEntry;
 };
 
+export type TogetherEventType = "stroke_batch" | "palette" | "system";
+
+export type TogetherEventDto = {
+  id: string;
+  sessionId: string;
+  fromUserId: string;
+  clientEventId: string;
+  type: TogetherEventType;
+  payload: unknown;
+  createdAt: string;
+};
+
+export type TogetherSessionEventsResponse = {
+  items: TogetherEventDto[];
+  nextCursor: null;
+};
+
 export type TogetherSessionStatus = "active" | "finished" | "abandoned" | "cancelled";
 
 export type TogetherRevealOutcome =

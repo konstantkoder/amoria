@@ -1,13 +1,15 @@
 import { request } from "@/services/api/apiClient";
 import type {
+  TogetherEventType,
   TogetherHistoryResponse,
   TogetherQueueResponse,
   TogetherRevealDecision,
   TogetherRevealResponse,
+  TogetherSessionEventsResponse,
   TogetherSessionResponse,
 } from "@/services/api/types";
 
-export type TogetherEventType = "stroke_batch" | "palette" | "system";
+export type { TogetherEventType } from "@/services/api/types";
 
 export type TogetherEventInput = {
   clientEventId: string;
@@ -60,6 +62,20 @@ export function sendEvent(
     `/together/sessions/${encodeURIComponent(sessionId)}/events`,
     payload
   );
+}
+
+export async function getSessionEvents(
+  sessionId: string
+): Promise<TogetherSessionEventsResponse> {
+  const response = await request<Partial<TogetherSessionEventsResponse>>(
+    "GET",
+    `/together/sessions/${encodeURIComponent(sessionId)}/events`
+  );
+
+  return {
+    items: response.items ?? [],
+    nextCursor: null,
+  };
 }
 
 export function finish(sessionId: string): Promise<TogetherSessionResponse> {

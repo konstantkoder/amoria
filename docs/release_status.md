@@ -22,9 +22,15 @@
 ## Current problem zones before a full device pass
 
 - Backend-backed live flows still depend on real auth, API availability, and production-safe server behavior
+- Together replay for completed draw sessions is now backend-persistent through the server `GET /together/sessions/:id/events` API; `PlaySessionDetail` restores replay from backend events after app restart
 - Final native identifiers are still not settled in Expo config: Android package is placeholder-like, and iOS bundle identifier is not declared here
 - Secondary locales still need a final product-language review, but dead keys from removed features no longer stay in the locale set
 - Settings / profile still carry older option groups like `18+` and `mystery mode`; they are live product settings, but they still need a stricter product decision if scope is reduced further
+
+## Remaining Together blockers
+
+- No remaining blocker is known for backend-persistent draw replay in this block.
+- A full signed-in device pass against the real backend is still required before release sign-off.
 
 ## Next 3–5 tasks before honest release testing
 
