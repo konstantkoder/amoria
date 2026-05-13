@@ -1,6 +1,6 @@
 import type { JsonValue } from "../db/schema";
 
-export type TogetherActivity = "draw";
+export type TogetherActivity = "draw" | "color_mood";
 export type TogetherQueueStatus = "waiting" | "matched" | "cancelled" | "expired";
 export type TogetherSessionStatus = "active" | "finished" | "abandoned" | "cancelled";
 export type TogetherEventType = "stroke_batch" | "palette" | "system";

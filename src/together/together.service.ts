@@ -33,11 +33,18 @@ import type {
   TogetherSessionUpdateResult,
 } from "./together.types";
 
-const PROMPTS = [
-  "Draw a tiny place you would both want to visit.",
-  "Draw two characters meeting for the first time.",
-  "Draw a shared dream room.",
-] as const;
+const PROMPTS = {
+  draw: [
+    "Draw a tiny place you would both want to visit.",
+    "Draw two characters meeting for the first time.",
+    "Draw a shared dream room.",
+  ],
+  color_mood: [
+    "Choose the color that best fits your mood right now.",
+    "Build a small shared palette for this moment.",
+    "Pick a mood color before deciding whether to continue.",
+  ],
+} as const satisfies Record<TogetherActivity, readonly string[]>;
 
 export type CreateEventResult = {
   response: TogetherEventResponse;
@@ -86,7 +93,7 @@ export async function enqueue(
     userId,
     activity: input.activity,
     expiresAt,
-    promptText: choosePrompt(),
+    promptText: choosePrompt(input.activity),
   });
 
   return {
@@ -539,6 +546,7 @@ function groupRevealsBySessionId(
   return bySessionId;
 }
 
-function choosePrompt(): string {
-  return PROMPTS[Math.floor(Math.random() * PROMPTS.length)];
+function choosePrompt(activity: TogetherActivity): string {
+  const prompts = PROMPTS[activity];
+  return prompts[Math.floor(Math.random() * prompts.length)];
 }

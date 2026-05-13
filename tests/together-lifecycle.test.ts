@@ -3,6 +3,7 @@ import test from "node:test";
 import type {
   NewTogetherEventRow,
   TogetherEventRow,
+  TogetherQueueRow,
   TogetherRevealRow,
   TogetherSessionRow,
 } from "../src/db/schema";
@@ -109,6 +110,74 @@ test("createEvent after abandoned session is rejected", async (t) => {
     },
   );
   assert.equal(eventWritten, false);
+});
+
+test("queue accepts color_mood activity", async (t) => {
+  t.after(restoreRepoMock);
+  const app = buildApp();
+  t.after(async () => {
+    await app.close();
+  });
+
+  let enqueuedActivity: string | undefined;
+  mockRepo({
+    enqueueAndMatch: async (input: { activity: string }) => {
+      enqueuedActivity = input.activity;
+      return queueRow({
+        activity: input.activity,
+        status: "waiting",
+        matchedSessionId: null,
+      });
+    },
+  });
+
+  const response = await app.inject({
+    method: "POST",
+    url: "/together/queue",
+    headers: {
+      Authorization: `Bearer ${signAccessToken(userAId)}`,
+    },
+    payload: {
+      activity: "color_mood",
+    },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(enqueuedActivity, "color_mood");
+  assert.equal(response.json().entry.status, "waiting");
+});
+
+test("color_mood queue does not reuse a draw-only match", async (t) => {
+  t.after(restoreRepoMock);
+  const app = buildApp();
+  t.after(async () => {
+    await app.close();
+  });
+
+  mockRepo({
+    enqueueAndMatch: async (input: { activity: string }) =>
+      queueRow({
+        activity: input.activity,
+        status: input.activity === "color_mood" ? "waiting" : "matched",
+        matchedSessionId: input.activity === "color_mood" ? null : sessionId,
+      }),
+  });
+
+  const response = await app.inject({
+    method: "POST",
+    url: "/together/queue",
+    headers: {
+      Authorization: `Bearer ${signAccessToken(userAId)}`,
+    },
+    payload: {
+      activity: "color_mood",
+    },
+  });
+  const body = response.json();
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(body.entry.status, "waiting");
+  assert.equal(body.entry.sessionId, undefined);
 });
 
 test("participant can get Together session events through endpoint", async (t) => {
@@ -274,6 +343,62 @@ test("Together sendEvent endpoint still creates events", async (t) => {
   assert.equal(insertedClientEventId, "stroke-post-1");
 });
 
+test("color_mood session accepts palette events", async (t) => {
+  t.after(restoreRepoMock);
+
+  let insertedType: string | undefined;
+  let insertedPayload: unknown;
+  mockRepo({
+    findSessionForMember: async () => sessionRow({ status: "active", activity: "color_mood" }),
+    createEventIdempotent: async (input: NewTogetherEventRow) => {
+      insertedType = input.type;
+      insertedPayload = input.payload;
+      return {
+        event: eventRow({
+          clientEventId: input.clientEventId,
+          type: input.type,
+          payload: input.payload,
+        }),
+        created: true,
+      };
+    },
+  });
+
+  const result = await togetherService.createEvent(userAId, sessionId, {
+    clientEventId: "palette-1",
+    type: "palette",
+    payload: { color: "#38BDF8", label: "calm" },
+  });
+
+  assert.equal(result.response.created, true);
+  assert.equal(result.event.type, "palette");
+  assert.equal(insertedType, "palette");
+  assert.deepEqual(insertedPayload, { color: "#38BDF8", label: "calm" });
+});
+
+test("color_mood events can be fetched through session events endpoint", async (t) => {
+  t.after(restoreRepoMock);
+
+  mockRepo({
+    listSessionEventsForMember: async () => [
+      eventRow({
+        type: "palette",
+        clientEventId: "palette-1",
+        payload: { color: "#A78BFA", label: "romantic" },
+      }),
+    ],
+  });
+
+  const response = await togetherService.listSessionEventsForMember(userAId, sessionId);
+
+  assert.equal(response.items.length, 1);
+  assert.equal(response.items[0]?.type, "palette");
+  assert.deepEqual(response.items[0]?.payload, {
+    color: "#A78BFA",
+    label: "romantic",
+  });
+});
+
 test("finish active Together session marks it finished", async (t) => {
   t.after(restoreRepoMock);
 
@@ -293,6 +418,28 @@ test("finish active Together session marks it finished", async (t) => {
   assert.equal(result.reason, "completed");
   assert.equal(result.response.session.status, "finished");
   assert.equal(result.response.session.endedReason, "completed");
+});
+
+test("finish color_mood Together session keeps activity in response", async (t) => {
+  t.after(restoreRepoMock);
+
+  mockRepo({
+    findSessionForMember: async () =>
+      sessionRow({ status: "active", activity: "color_mood" }),
+    finishActiveSession: async () =>
+      sessionRow({
+        status: "finished",
+        activity: "color_mood",
+        finishedAt: endedAt,
+        endedReason: "completed",
+      }),
+  });
+
+  const result = await togetherService.finishSession(userAId, sessionId);
+
+  assert.equal(result.changed, true);
+  assert.equal(result.response.session.activity, "color_mood");
+  assert.equal(result.response.session.status, "finished");
 });
 
 test("finish abandoned Together session does not turn it finished", async (t) => {
@@ -472,6 +619,62 @@ test("second open reveal returns open_open with threadId", async (t) => {
   );
 });
 
+test("color_mood open_open reveal creates direct thread with together context", async (t) => {
+  t.after(restoreRepoMock);
+
+  const reveals: TogetherRevealRow[] = [revealRow(userAId, "open")];
+  let sourceThreadId: string | null = null;
+  let openedSource: unknown = null;
+  mockRepo(
+    {
+      findSessionForMember: async () =>
+        sessionRow({
+          status: "finished",
+          activity: "color_mood",
+          promptText: "Build a small shared palette",
+          finishedAt: endedAt,
+          endedReason: "completed",
+        }),
+      upsertReveal: async (_sessionId: string, userId: string, decision: string) => {
+        upsertRevealRow(reveals, userId, decision);
+      },
+      listSessionMemberUserIds: async () => [userAId, userBId],
+      listSessionReveals: async () => reveals,
+    },
+    {
+      openDirectThread: async (_userId, input) => {
+        openedSource = input.source;
+        sourceThreadId = threadId;
+        return {
+          thread: {
+            id: threadId,
+            type: "direct",
+            peer: { id: userAId, displayName: "User A", avatarUrl: null },
+            lastMessage: null,
+            unreadCount: 0,
+            source: { type: "together", sourceId: sessionId },
+            contexts: [],
+          },
+        };
+      },
+      findDirectThreadIdBySource: async () => sourceThreadId,
+    },
+  );
+
+  const result = await togetherService.reveal(userBId, sessionId, { decision: "open" });
+
+  assert.equal(result.response.outcome, "open_open");
+  assert.equal(result.response.threadId, threadId);
+  assert.deepEqual(openedSource, {
+    type: "together",
+    sourceId: sessionId,
+    metadata: {
+      activity: "color_mood",
+      promptText: "Build a small shared palette",
+    },
+  });
+});
+
 test("first opener getSession after peer opens sees same threadId", async (t) => {
   t.after(restoreRepoMock);
 
@@ -564,6 +767,59 @@ test("history item exposes reveal read model fields", async (t) => {
   assert.equal(response.items[0]?.threadId, threadId);
   assert.equal(response.items[0]?.canOpenChat, true);
   assert.equal(response.items[0]?.peerDecisionKnown, true);
+});
+
+test("history item exposes color_mood activity", async (t) => {
+  t.after(restoreRepoMock);
+
+  mockRepo({
+    listHistorySessions: async () => [
+      {
+        session: sessionRow({
+          status: "finished",
+          activity: "color_mood",
+          finishedAt: endedAt,
+          endedReason: "completed",
+        }),
+        peer: { id: userBId, displayName: "User B", avatarUrl: null },
+      },
+    ],
+    listRevealsForSessions: async () => [],
+  });
+
+  const response = await togetherService.getHistory(userAId, 30);
+
+  assert.equal(response.items.length, 1);
+  assert.equal(response.items[0]?.activity, "color_mood");
+  assert.equal(response.items[0]?.status, "finished");
+});
+
+test("nonmember cannot access color_mood session, events, or reveal", async (t) => {
+  t.after(restoreRepoMock);
+
+  let revealWritten = false;
+  mockRepo({
+    findSessionForMember: async () => undefined,
+    listSessionEventsForMember: async () => undefined,
+    upsertReveal: async () => {
+      revealWritten = true;
+    },
+  });
+
+  for (const task of [
+    () => togetherService.getSession(userAId, sessionId),
+    () => togetherService.listSessionEventsForMember(userAId, sessionId),
+    () => togetherService.reveal(userAId, sessionId, { decision: "open" }),
+  ]) {
+    await assert.rejects(task, (error) => {
+      const appError = error as { code?: string; statusCode?: number };
+      assert.equal(appError.code, "not_found");
+      assert.equal(appError.statusCode, 404);
+      return true;
+    });
+  }
+
+  assert.equal(revealWritten, false);
 });
 
 test("reveal updated broadcast sends recipient-specific reveal state", async () => {
@@ -708,6 +964,19 @@ function sessionRow(overrides: Partial<TogetherSessionRow> = {}): TogetherSessio
     endedReason: null,
     deadlineAt: null,
     updatedAt: createdAt,
+    ...overrides,
+  };
+}
+
+function queueRow(overrides: Partial<TogetherQueueRow> = {}): TogetherQueueRow {
+  return {
+    id: "00000000-0000-4000-8000-000000000210",
+    userId: userAId,
+    activity: "draw",
+    status: "waiting",
+    createdAt,
+    expiresAt: new Date("2026-01-01T00:05:00.000Z"),
+    matchedSessionId: null,
     ...overrides,
   };
 }
