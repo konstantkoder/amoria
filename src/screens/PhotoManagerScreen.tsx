@@ -17,6 +17,10 @@ import ScreenShell from "@/components/ScreenShell";
 import { useLocale } from "@/contexts/LocaleContext";
 import { ApiError } from "@/services/api/apiClient";
 import {
+  reportClientError,
+  sanitizeErrorForReport,
+} from "@/services/api/clientErrorsApi";
+import {
   getMyProfileGallery,
   resetLockedGalleryPassword,
   setLockedGalleryPassword,
@@ -27,7 +31,12 @@ import type {
   ProfileGalleryPhotoDto,
   ProfileGalleryVisibility,
 } from "@/services/api/types";
-import { deleteProfilePhoto, uploadProfilePhoto } from "@/services/storage";
+import {
+  UploadFlowError,
+  getUriScheme,
+  uploadProfilePhoto,
+  deleteProfilePhoto,
+} from "@/services/storage";
 import { theme } from "@/theme";
 
 type PasswordMode = "set" | "reset" | "";
@@ -205,20 +214,60 @@ export default function PhotoManagerScreen() {
     }
 
     setPendingPhotoUri(uri);
+    let uploadCompleted = false;
     try {
       setBusy(true);
       await uploadProfilePhoto(uri, {
         ...(asset.mimeType ? { mimeType: asset.mimeType } : {}),
       });
+      uploadCompleted = true;
       await refreshGallery();
       setPendingPhotoUri("");
       Alert.alert(t("common.done"), t("photos.saved"));
     } catch (error) {
+      reportPhotoUploadError(error, {
+        uri,
+        mimeType: asset.mimeType,
+        fileSize: asset.fileSize,
+        hasPendingPhotoUri: Boolean(pendingPhotoUri || uri),
+        stepOverride: uploadCompleted ? "refreshGallery" : undefined,
+      });
       setPendingPhotoUri("");
       handleApiError(error, t("photos.uploadFailed"), t("photos.uploadErrorBody"));
     } finally {
       setBusy(false);
     }
+  }
+
+  function reportPhotoUploadError(
+    error: unknown,
+    input: {
+      uri: string;
+      mimeType?: string;
+      fileSize?: number;
+      hasPendingPhotoUri: boolean;
+      stepOverride?: string;
+    }
+  ) {
+    const safeError = sanitizeErrorForReport(error);
+    const uploadError = error instanceof UploadFlowError ? error : null;
+
+    void reportClientError({
+      screen: "PhotoManagerScreen",
+      action: "uploadProfilePhoto",
+      step: input.stepOverride ?? uploadError?.step,
+      code: uploadError?.code ?? safeError.code,
+      message: safeError.message,
+      stack: safeError.stack,
+      metadata: {
+        hasPendingPhotoUri: input.hasPendingPhotoUri,
+        ...(input.mimeType ? { mimeType: input.mimeType } : {}),
+        ...(typeof input.fileSize === "number" ? { fileSize: input.fileSize } : {}),
+        ...(getUriScheme(input.uri) ? { uriScheme: getUriScheme(input.uri) } : {}),
+        ...(uploadError?.status ? { status: uploadError.status } : {}),
+        ...(uploadError?.safeMetadata ?? {}),
+      },
+    });
   }
 
   async function removePhoto(photo: ProfileGalleryPhotoDto) {

@@ -10,5 +10,6 @@ export * from "@/services/api/announcementsApi";
 export * from "@/services/api/safetyApi";
 export * from "@/services/api/nearbyApi";
 export * from "@/services/api/togetherApi";
+export * from "@/services/api/clientErrorsApi";
 export * from "@/services/api/sessionStorage";
 export * from "@/services/api/backendSession";

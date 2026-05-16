@@ -13,12 +13,49 @@ import {
 } from "@/services/api/sessionStorage";
 import type { MediaDto } from "@/services/api/types";
 import { normalizePublicMediaUrl } from "@/services/media/mediaUrl";
-import { uploadFileToPresignedPut } from "@/services/media/uploadPut";
+import {
+  PresignedPutUploadError,
+  uploadFileToPresignedPut,
+} from "@/services/media/uploadPut";
 
 export type UploadedProfilePhoto = {
   mediaId: string;
   url: string;
 };
+
+export type UploadFlowStep =
+  | "getInfo"
+  | "prepareUpload"
+  | "putUpload"
+  | "completeUpload"
+  | "mapMedia"
+  | "uploadAvatar"
+  | "session";
+
+export class UploadFlowError extends Error {
+  code: string;
+  step: UploadFlowStep;
+  status?: number;
+  safeMetadata?: Record<string, unknown>;
+  cause?: unknown;
+
+  constructor(input: {
+    code: string;
+    step: UploadFlowStep;
+    message?: string;
+    status?: number;
+    safeMetadata?: Record<string, unknown>;
+    cause?: unknown;
+  }) {
+    super(input.message ?? input.code);
+    this.name = "UploadFlowError";
+    this.code = input.code;
+    this.step = input.step;
+    this.status = input.status;
+    this.safeMetadata = input.safeMetadata;
+    this.cause = input.cause;
+  }
+}
 
 const SUPPORTED_SHARED_PROFILE_IMAGE_TYPES = new Set([
   "image/jpeg",
@@ -52,7 +89,12 @@ function normalizeMimeType(value: unknown, fileUri: string) {
 
 function assertSupportedSharedProfileImage(mimeType: string) {
   if (!SUPPORTED_SHARED_PROFILE_IMAGE_TYPES.has(mimeType)) {
-    throw new Error("photos.unsupportedImageType");
+    throw new UploadFlowError({
+      code: "photos.unsupportedImageType",
+      step: "getInfo",
+      message: "photos.unsupportedImageType",
+      safeMetadata: { mimeType },
+    });
   }
 }
 
@@ -64,7 +106,15 @@ function mapMediaToProfilePhoto(media: MediaDto): UploadedProfilePhoto {
   );
 
   if (!mediaId || !url) {
-    throw new Error("photos.completeInvalidMedia");
+    throw new UploadFlowError({
+      code: "photos.completeInvalidMedia",
+      step: "mapMedia",
+      message: "photos.completeInvalidMedia",
+      safeMetadata: {
+        hasMediaId: Boolean(mediaId),
+        hasUrl: Boolean(url),
+      },
+    });
   }
 
   return { mediaId, url };
@@ -98,40 +148,89 @@ export async function uploadProfilePhoto(
 ): Promise<UploadedProfilePhoto> {
   const stableUri = String(fileUri ?? "").trim();
   if (!stableUri) {
-    throw new Error("photos.uriRequired");
+    throw new UploadFlowError({
+      code: "photos.uriRequired",
+      step: "getInfo",
+      message: "photos.uriRequired",
+    });
   }
 
-  const fileInfo = await FileSystem.getInfoAsync(stableUri);
+  let fileInfo: FileSystem.FileInfo;
+  try {
+    fileInfo = await FileSystem.getInfoAsync(stableUri);
+  } catch (error) {
+    throw buildUploadFlowError(error, "getInfo", {
+      uriScheme: getUriScheme(stableUri),
+    });
+  }
+
   if (!fileInfo.exists) {
-    throw new Error("photos.readFailed");
+    throw new UploadFlowError({
+      code: "photos.readFailed",
+      step: "getInfo",
+      message: "photos.readFailed",
+      safeMetadata: { uriScheme: getUriScheme(stableUri) },
+    });
   }
 
   const sizeBytes = Number(fileInfo.size ?? 0);
   if (!Number.isFinite(sizeBytes) || sizeBytes <= 0) {
-    throw new Error("photos.sizeRequired");
+    throw new UploadFlowError({
+      code: "photos.sizeRequired",
+      step: "getInfo",
+      message: "photos.sizeRequired",
+      safeMetadata: { uriScheme: getUriScheme(stableUri), fileSize: sizeBytes },
+    });
   }
 
   const mimeType = normalizeMimeType(options.mimeType, stableUri);
   assertSupportedSharedProfileImage(mimeType);
-  const upload = await prepareUpload({
-    purpose: "profile_photo",
+  const baseMetadata = {
+    uriScheme: getUriScheme(stableUri),
+    fileSize: sizeBytes,
     mimeType,
-    sizeBytes,
-    ...(options.checksumSha256
-      ? { checksumSha256: options.checksumSha256 }
-      : {}),
-  });
+  };
 
-  await uploadFileToPresignedPut(upload.uploadUrl, stableUri, upload.headers);
+  let upload: Awaited<ReturnType<typeof prepareUpload>>;
+  try {
+    upload = await prepareUpload({
+      purpose: "profile_photo",
+      mimeType,
+      sizeBytes,
+      ...(options.checksumSha256
+        ? { checksumSha256: options.checksumSha256 }
+        : {}),
+    });
+  } catch (error) {
+    throw buildUploadFlowError(error, "prepareUpload", baseMetadata);
+  }
 
-  const completed = await completeUpload(upload.uploadId, {
-    sizeBytes,
-    ...(options.checksumSha256
-      ? { checksumSha256: options.checksumSha256 }
-      : {}),
-  });
+  try {
+    await uploadFileToPresignedPut(upload.uploadUrl, stableUri, upload.headers);
+  } catch (error) {
+    throw buildUploadFlowError(error, "putUpload", {
+      ...baseMetadata,
+      uploadUrlHost: getUrlHost(upload.uploadUrl),
+    });
+  }
 
-  return mapMediaToProfilePhoto(completed.media);
+  let completed: Awaited<ReturnType<typeof completeUpload>>;
+  try {
+    completed = await completeUpload(upload.uploadId, {
+      sizeBytes,
+      ...(options.checksumSha256
+        ? { checksumSha256: options.checksumSha256 }
+        : {}),
+    });
+  } catch (error) {
+    throw buildUploadFlowError(error, "completeUpload", baseMetadata);
+  }
+
+  try {
+    return mapMediaToProfilePhoto(completed.media);
+  } catch (error) {
+    throw buildUploadFlowError(error, "mapMedia", baseMetadata);
+  }
 }
 
 export async function deleteProfilePhoto(mediaId: string): Promise<void> {
@@ -145,18 +244,95 @@ export async function uploadUserAvatar(uid: string, localUri: string) {
   const stableUid = String(uid ?? "").trim();
   const stableUri = String(localUri ?? "").trim();
   if (!stableUid) {
-    throw new Error("photos.userRequired");
+    throw new UploadFlowError({
+      code: "photos.userRequired",
+      step: "session",
+      message: "photos.userRequired",
+    });
   }
   if (!stableUri) {
-    throw new Error("photos.uriRequired");
+    throw new UploadFlowError({
+      code: "photos.uriRequired",
+      step: "getInfo",
+      message: "photos.uriRequired",
+    });
   }
 
-  const backendAvatarUrl = await uploadBackendUserAvatar(stableUid, stableUri);
+  let backendAvatarUrl: string | null;
+  try {
+    backendAvatarUrl = await uploadBackendUserAvatar(stableUid, stableUri);
+  } catch (error) {
+    throw buildUploadFlowError(error, "uploadAvatar", {
+      uriScheme: getUriScheme(stableUri),
+    });
+  }
   if (backendAvatarUrl !== null) return backendAvatarUrl;
 
-  throw new Error("auth.sessionRequired");
+  throw new UploadFlowError({
+    code: "auth.sessionRequired",
+    step: "session",
+    message: "auth.sessionRequired",
+  });
 }
 
 export async function uploadProfileAvatar(uid: string, uri: string) {
   return uploadUserAvatar(uid, uri);
+}
+
+function buildUploadFlowError(
+  error: unknown,
+  step: UploadFlowStep,
+  safeMetadata: Record<string, unknown> = {}
+): UploadFlowError {
+  if (error instanceof UploadFlowError) {
+    return error;
+  }
+
+  if (error instanceof PresignedPutUploadError) {
+    return new UploadFlowError({
+      code: error.code,
+      step,
+      message: error.message,
+      status: error.status,
+      safeMetadata: {
+        ...safeMetadata,
+        ...(error.uploadUrlHost ? { uploadUrlHost: error.uploadUrlHost } : {}),
+        ...(error.status ? { status: error.status } : {}),
+      },
+      cause: error,
+    });
+  }
+
+  const maybeError = error as { code?: unknown; status?: unknown; message?: unknown };
+  const message = error instanceof Error
+    ? error.message
+    : String(maybeError?.message ?? "upload.failed");
+  const code = String(maybeError?.code ?? message.split(":")[0] ?? "upload.failed");
+  const status = Number(maybeError?.status);
+
+  return new UploadFlowError({
+    code,
+    step,
+    message,
+    ...(Number.isFinite(status) ? { status } : {}),
+    safeMetadata: {
+      ...safeMetadata,
+      ...(Number.isFinite(status) ? { status } : {}),
+    },
+    cause: error,
+  });
+}
+
+export function getUriScheme(uri: string): string | undefined {
+  const scheme = String(uri ?? "").split(":", 1)[0]?.trim();
+  return scheme || undefined;
+}
+
+function getUrlHost(value: string): string | undefined {
+  try {
+    const url = new URL(value);
+    return url.host;
+  } catch {
+    return undefined;
+  }
 }

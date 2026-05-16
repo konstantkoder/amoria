@@ -27,6 +27,7 @@ This launcher is local dev tooling only and is not product logic.
 - `POST /media/uploads/:id/complete` is not observed.
 - Likely failure is between prepare and complete.
 - Likely direct `PUT` to object storage `uploadUrl` / MinIO accessibility issue.
+- After `ADMIN-OPS-02`, reproduce the bug again and inspect `GET /admin/client-errors`. The profile upload report should show `screen=PhotoManagerScreen`, `action=uploadProfilePhoto`, and a step such as `putUpload` if the direct object storage upload fails before complete.
 
 ## Completed blocks
 
@@ -75,15 +76,23 @@ Archived local files:
 
 No fake admin users, fake admin UI, or mock release data were added.
 
+`ADMIN-OPS-02` client error reporting foundation has been implemented:
+
+- `POST /client/error-reports` accepts real mobile error reports with optional auth.
+- `client_error_reports` stores safe redacted error reports.
+- `GET /admin/client-errors` exposes the protected admin error feed to owner/support/ops.
+- Admin reads write audit action `admin.clientErrors.read`.
+- Mobile profile photo and avatar upload failures now report step-level diagnostics without tokens, full local paths, or full signed upload URLs.
+
 ## Next big epic
 
 Continue the full `ADMIN/OPS` release module.
 
-## Remaining blockers before ADMIN-OPS-02
+## Remaining blockers before ADMIN-OPS-03
 
 - Resolve the current profile photo upload failure between prepare and complete, including direct object storage `PUT` accessibility from the mobile device.
 - Complete a real signed-in 2-device smoke pass; `TOGETHER-04` is checklist-only so far.
-- Add real client error reporting before relying on admin/ops diagnostics.
-- Add Admin/Ops client error report storage, ingestion endpoint, redaction rules, and mobile integration.
 - Decide whether dedicated admin auth/session endpoints are needed beyond the existing user auth token plus active admin membership guard.
+- Build the real admin web panel shell and user search experience.
+- Add admin UI access to `/admin/client-errors`; until then use the protected API directly.
 - Keep local tooling and archive files out of release commits.

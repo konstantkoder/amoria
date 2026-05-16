@@ -19,7 +19,15 @@ import UserAvatar from "@/components/UserAvatar";
 import { useLocale } from "@/contexts/LocaleContext";
 import type { Goal, Mood, UserProfile } from "@/models/User";
 import type { ProfileStackParamList } from "@/navigation/appRoutes";
-import { uploadUserAvatar } from "@/services/storage";
+import {
+  UploadFlowError,
+  getUriScheme,
+  uploadUserAvatar,
+} from "@/services/storage";
+import {
+  reportClientError,
+  sanitizeErrorForReport,
+} from "@/services/api/clientErrorsApi";
 import {
   getDisplayNameValidationErrorKey,
   getUserProfile,
@@ -178,8 +186,9 @@ export default function ProfileScreen() {
 
     if (result.canceled) return;
 
-    const uri = result.assets?.[0]?.uri?.trim() ?? "";
-    if (!result.assets || result.assets.length === 0 || !uri) {
+    const asset = result.assets?.[0];
+    const uri = asset?.uri?.trim() ?? "";
+    if (!asset || !uri) {
       Alert.alert(t("photos.pickFailed"), t("photos.noAssetReturned"));
       return;
     }
@@ -201,6 +210,11 @@ export default function ProfileScreen() {
       try {
         avatarDownloadUrl = await uploadUserAvatar(currentProfile.id, uri);
       } catch (error) {
+        reportAvatarUploadError(error, {
+          uri,
+          mimeType: asset.mimeType,
+          fileSize: asset.fileSize,
+        });
         if (error instanceof Error && error.message === "photos.unsupportedImageType") {
           Alert.alert(t("photos.unsupportedImageTypeTitle"), t("photos.unsupportedImageTypeBody"));
           return;
@@ -220,6 +234,35 @@ export default function ProfileScreen() {
       setAvatarUploading(false);
     }
   }, [profile, t]);
+
+  function reportAvatarUploadError(
+    error: unknown,
+    input: {
+      uri: string;
+      mimeType?: string;
+      fileSize?: number;
+    }
+  ) {
+    const safeError = sanitizeErrorForReport(error);
+    const uploadError = error instanceof UploadFlowError ? error : null;
+
+    void reportClientError({
+      screen: "ProfileScreen",
+      action: "uploadAvatar",
+      step: uploadError?.step,
+      code: uploadError?.code ?? safeError.code,
+      message: safeError.message,
+      stack: safeError.stack,
+      metadata: {
+        hasPendingPhotoUri: Boolean(input.uri),
+        ...(input.mimeType ? { mimeType: input.mimeType } : {}),
+        ...(typeof input.fileSize === "number" ? { fileSize: input.fileSize } : {}),
+        ...(getUriScheme(input.uri) ? { uriScheme: getUriScheme(input.uri) } : {}),
+        ...(uploadError?.status ? { status: uploadError.status } : {}),
+        ...(uploadError?.safeMetadata ?? {}),
+      },
+    });
+  }
 
   if (loading) {
     return (

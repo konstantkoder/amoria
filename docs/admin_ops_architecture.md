@@ -1,6 +1,6 @@
 # Admin/Ops Architecture
 
-Updated: 2026-05-16 after `ADMIN-OPS-01`
+Updated: 2026-05-16 after `ADMIN-OPS-02`
 
 This is the plan for a full Admin/Ops release module. It is not a temporary mini-admin and must not rely on mock/stub/fake data, Firebase fallback, or local-only success.
 
@@ -30,10 +30,12 @@ Admin users are stored in `admin_users`, linked to public users by `userId`, wit
 
 ## Client error reporting
 
-- Mobile client reports real runtime/API/upload errors to backend.
+- Mobile client reports real runtime/API/upload errors to backend through `POST /client/error-reports`.
 - Reports include timestamp, app version/build, platform, route/screen context, authenticated `userId` when available, request correlation ID when available, safe error code/message, and redacted metadata.
 - Reports must not include passwords, auth tokens, refresh tokens, private keys, raw `.env`, or full request bodies that may contain secrets.
-- Admin UI supports search/filter by user, screen, error code, time window, and release build.
+- Admin feed is available through `GET /admin/client-errors` for owner/support/ops roles.
+- Admin UI supports search/filter by user, screen, action, error code, time window, and release build.
+- `ADMIN-OPS-02` integrated upload diagnostics for profile photo and avatar failures. Profile photo failures now include the upload step: `getInfo`, `prepareUpload`, `putUpload`, `completeUpload`, `mapMedia`, or caller-side `refreshGallery`.
 
 ## Users search by Amoria ID
 
@@ -99,7 +101,7 @@ Admin users are stored in `admin_users`, linked to public users by `userId`, wit
 - `admin_user_roles`: admin-role assignments. Added in `ADMIN-OPS-01`.
 - `admin_sessions` or protected auth session storage.
 - `admin_audit_log`: immutable admin action trail. Added in `ADMIN-OPS-01`.
-- `client_error_reports`: mobile/client error ingestion.
+- `client_error_reports`: mobile/client error ingestion. Added in `ADMIN-OPS-02`.
 - `admin_support_notes`: support notes tied to user/content.
 - `reports`: user reports/complaints.
 - `moderation_queue_items`: queue state and assignment.
@@ -128,9 +130,10 @@ Admin users are stored in `admin_users`, linked to public users by `userId`, wit
 - `GET /admin/media/:mediaId`
 - `POST /admin/media/:mediaId/decision`
 - `GET /admin/audit-log` (added in `ADMIN-OPS-01`)
+- `GET /admin/client-errors?limit=...&screen=...&action=...&code=...&amoriaId=...&userId=...` (added in `ADMIN-OPS-02`)
 - `GET /admin/ops/health`
 - `GET /admin/ops/rate-limits`
-- `POST /client/error-reports`
+- `POST /client/error-reports` (added in `ADMIN-OPS-02`)
 
 ## Required admin UI screens
 
@@ -165,7 +168,7 @@ Admin users are stored in `admin_users`, linked to public users by `userId`, wit
 ## Implementation blocks
 
 - `ADMIN-OPS-01` admin access + roles + audit log.
-- `ADMIN-OPS-02` client error reporting backend + mobile integration.
+- `ADMIN-OPS-02` client error reporting backend + mobile integration. Completed foundation.
 - `ADMIN-OPS-03` real admin web panel shell + user search.
 - `ADMIN-OPS-04` reports/moderation.
 - `ADMIN-OPS-05` media moderation.
