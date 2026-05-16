@@ -9,6 +9,25 @@ import {
 } from "../client-errors/client-errors.schemas";
 import * as clientErrorsService from "../client-errors/client-errors.service";
 import {
+  adminMediaDecisionRouteSchema,
+  adminMediaDetailRouteSchema,
+  adminMediaListRouteSchema,
+  parseAdminMediaDecisionBody,
+  parseAdminMediaDetailReason,
+  parseAdminMediaQuery,
+} from "./admin-media.schemas";
+import * as adminMediaService from "./admin-media.service";
+import { adminOpsHealthRouteSchema } from "./admin-ops.schemas";
+import * as adminOpsService from "./admin-ops.service";
+import {
+  adminReportActionRouteSchema,
+  adminReportDetailRouteSchema,
+  adminReportsListRouteSchema,
+  parseAdminReportActionBody,
+  parseAdminReportsQuery,
+} from "./admin-reports.schemas";
+import * as adminReportsService from "./admin-reports.service";
+import {
   adminAuditLogRouteSchema,
   adminHealthRouteSchema,
   adminMeRouteSchema,
@@ -92,6 +111,103 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
       adminService.listAdminAuditLog(
         currentAdmin(request),
         parseAdminAuditLogLimit(request.query),
+        adminRequestContext(request),
+      ),
+  );
+
+  fastify.get(
+    "/ops/health",
+    {
+      preHandler: [authMiddleware, requireAdmin(["owner", "support", "ops"])],
+      schema: withErrorResponses(adminOpsHealthRouteSchema),
+    },
+    async (request) =>
+      adminOpsService.getOpsHealth(currentAdmin(request), adminRequestContext(request)),
+  );
+
+  fastify.get(
+    "/reports",
+    {
+      preHandler: [authMiddleware, requireAdmin(["owner", "moderator", "support"])],
+      schema: withErrorResponses(adminReportsListRouteSchema),
+    },
+    async (request) =>
+      adminReportsService.listReportsForAdmin(
+        currentAdmin(request),
+        parseAdminReportsQuery(request.query),
+        adminRequestContext(request),
+      ),
+  );
+
+  fastify.get<{ Params: { id: string } }>(
+    "/reports/:id",
+    {
+      preHandler: [authMiddleware, requireAdmin(["owner", "moderator", "support"])],
+      schema: withErrorResponses(adminReportDetailRouteSchema),
+    },
+    async (request) =>
+      adminReportsService.getReportForAdmin(
+        currentAdmin(request),
+        request.params.id,
+        adminRequestContext(request),
+      ),
+  );
+
+  fastify.post<{ Params: { id: string } }>(
+    "/reports/:id/actions",
+    {
+      preHandler: [authMiddleware, requireAdmin(["owner", "moderator", "support"])],
+      schema: withErrorResponses(adminReportActionRouteSchema),
+    },
+    async (request) =>
+      adminReportsService.createReportActionForAdmin(
+        currentAdmin(request),
+        request.params.id,
+        parseAdminReportActionBody(request.body),
+        adminRequestContext(request),
+      ),
+  );
+
+  fastify.get(
+    "/media",
+    {
+      preHandler: [authMiddleware, requireAdmin(["owner", "moderator", "support"])],
+      schema: withErrorResponses(adminMediaListRouteSchema),
+    },
+    async (request) =>
+      adminMediaService.listMediaForAdmin(
+        currentAdmin(request),
+        parseAdminMediaQuery(request.query),
+        adminRequestContext(request),
+      ),
+  );
+
+  fastify.get<{ Params: { mediaId: string } }>(
+    "/media/:mediaId",
+    {
+      preHandler: [authMiddleware, requireAdmin(["owner", "moderator", "support"])],
+      schema: withErrorResponses(adminMediaDetailRouteSchema),
+    },
+    async (request) =>
+      adminMediaService.getMediaForAdmin(
+        currentAdmin(request),
+        request.params.mediaId,
+        parseAdminMediaDetailReason(request.query),
+        adminRequestContext(request),
+      ),
+  );
+
+  fastify.post<{ Params: { mediaId: string } }>(
+    "/media/:mediaId/decision",
+    {
+      preHandler: [authMiddleware, requireAdmin(["owner", "moderator"])],
+      schema: withErrorResponses(adminMediaDecisionRouteSchema),
+    },
+    async (request) =>
+      adminMediaService.createMediaDecisionForAdmin(
+        currentAdmin(request),
+        request.params.mediaId,
+        parseAdminMediaDecisionBody(request.body),
         adminRequestContext(request),
       ),
   );

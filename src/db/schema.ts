@@ -262,8 +262,66 @@ export const safetyReports = pgTable("safety_reports", {
   }),
   reason: text("reason").notNull(),
   comment: text("comment"),
+  status: text("status").default("open").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-});
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  index("safety_reports_status_created_at_idx").on(table.status, table.createdAt),
+  index("safety_reports_target_type_idx").on(table.targetType),
+  index("safety_reports_reporter_idx").on(table.reporterUserId),
+  index("safety_reports_target_owner_idx").on(table.targetOwnerUserId),
+  check(
+    "safety_reports_status_check",
+    sql`${table.status} IN ('open', 'under_review', 'resolved', 'dismissed', 'escalated')`,
+  ),
+]);
+
+export const reportReviewActions = pgTable("report_review_actions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  reportId: uuid("report_id")
+    .notNull()
+    .references(() => safetyReports.id, { onDelete: "cascade" }),
+  adminUserId: uuid("admin_user_id").references(() => adminUsers.id, {
+    onDelete: "set null",
+  }),
+  action: text("action").notNull(),
+  reason: text("reason"),
+  note: text("note"),
+  metadata: jsonb("metadata").$type<JsonValue | null>(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  index("report_review_actions_report_created_at_idx").on(table.reportId, table.createdAt),
+  index("report_review_actions_admin_user_idx").on(table.adminUserId),
+  check(
+    "report_review_actions_action_check",
+    sql`${table.action} IN ('assign', 'mark_under_review', 'dismiss', 'resolve', 'escalate', 'add_note')`,
+  ),
+]);
+
+export const mediaModerationReviews = pgTable("media_moderation_reviews", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  mediaId: uuid("media_id")
+    .notNull()
+    .references(() => mediaFiles.id, { onDelete: "cascade" }),
+  ownerUserId: uuid("owner_user_id").references(() => users.id, {
+    onDelete: "set null",
+  }),
+  adminUserId: uuid("admin_user_id").references(() => adminUsers.id, {
+    onDelete: "set null",
+  }),
+  action: text("action").notNull(),
+  reason: text("reason"),
+  metadata: jsonb("metadata").$type<JsonValue | null>(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  index("media_moderation_reviews_media_created_at_idx").on(table.mediaId, table.createdAt),
+  index("media_moderation_reviews_owner_idx").on(table.ownerUserId),
+  index("media_moderation_reviews_admin_user_idx").on(table.adminUserId),
+  check(
+    "media_moderation_reviews_action_check",
+    sql`${table.action} IN ('approve', 'restrict', 'remove', 'mark_under_review')`,
+  ),
+]);
 
 export const nearbyStatuses = pgTable("nearby_statuses", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -560,6 +618,7 @@ export const mediaFilesRelations = relations(mediaFiles, ({ one, many }) => ({
     references: [users.id],
   }),
   photoAnnouncements: many(announcements),
+  moderationReviews: many(mediaModerationReviews),
 }));
 
 export const mediaUploadsRelations = relations(mediaUploads, ({ one }) => ({
@@ -615,6 +674,32 @@ export const safetyReportsRelations = relations(safetyReports, ({ one }) => ({
     fields: [safetyReports.targetOwnerUserId],
     references: [users.id],
     relationName: "target_owner",
+  }),
+}));
+
+export const reportReviewActionsRelations = relations(reportReviewActions, ({ one }) => ({
+  report: one(safetyReports, {
+    fields: [reportReviewActions.reportId],
+    references: [safetyReports.id],
+  }),
+  adminUser: one(adminUsers, {
+    fields: [reportReviewActions.adminUserId],
+    references: [adminUsers.id],
+  }),
+}));
+
+export const mediaModerationReviewsRelations = relations(mediaModerationReviews, ({ one }) => ({
+  media: one(mediaFiles, {
+    fields: [mediaModerationReviews.mediaId],
+    references: [mediaFiles.id],
+  }),
+  owner: one(users, {
+    fields: [mediaModerationReviews.ownerUserId],
+    references: [users.id],
+  }),
+  adminUser: one(adminUsers, {
+    fields: [mediaModerationReviews.adminUserId],
+    references: [adminUsers.id],
   }),
 }));
 
@@ -786,6 +871,10 @@ export type BlockedUserRow = typeof blockedUsers.$inferSelect;
 export type NewBlockedUserRow = typeof blockedUsers.$inferInsert;
 export type SafetyReportRow = typeof safetyReports.$inferSelect;
 export type NewSafetyReportRow = typeof safetyReports.$inferInsert;
+export type ReportReviewActionRow = typeof reportReviewActions.$inferSelect;
+export type NewReportReviewActionRow = typeof reportReviewActions.$inferInsert;
+export type MediaModerationReviewRow = typeof mediaModerationReviews.$inferSelect;
+export type NewMediaModerationReviewRow = typeof mediaModerationReviews.$inferInsert;
 export type NearbyStatusRow = typeof nearbyStatuses.$inferSelect;
 export type NewNearbyStatusRow = typeof nearbyStatuses.$inferInsert;
 export type TogetherQueueRow = typeof togetherQueue.$inferSelect;
