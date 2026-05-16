@@ -85,6 +85,13 @@
       "when": 1778922000000,
       "tag": "0011_admin_ops_foundation",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1779008400000,
+      "tag": "0012_client_error_reports",
+      "breakpoints": true
     }
   ]
 }

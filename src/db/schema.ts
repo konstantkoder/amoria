@@ -165,6 +165,40 @@ export const adminAuditLog = pgTable(
   ],
 );
 
+export const clientErrorReports = pgTable(
+  "client_error_reports",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+    amoriaId: text("amoria_id"),
+    displayName: text("display_name"),
+    email: text("email"),
+    screen: text("screen").notNull(),
+    action: text("action").notNull(),
+    step: text("step"),
+    code: text("code"),
+    message: text("message").notNull(),
+    stack: text("stack"),
+    metadata: jsonb("metadata").$type<JsonValue | null>(),
+    platform: text("platform"),
+    appVersion: text("app_version"),
+    buildNumber: text("build_number"),
+    deviceModel: text("device_model"),
+    osVersion: text("os_version"),
+    requestId: text("request_id"),
+    backendUrl: text("backend_url"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("client_error_reports_created_at_idx").on(table.createdAt),
+    index("client_error_reports_user_id_idx").on(table.userId),
+    index("client_error_reports_amoria_id_idx").on(table.amoriaId),
+    index("client_error_reports_screen_idx").on(table.screen),
+    index("client_error_reports_action_idx").on(table.action),
+    index("client_error_reports_code_idx").on(table.code),
+  ],
+);
+
 export const announcements = pgTable("announcements", {
   id: uuid("id").defaultRandom().primaryKey(),
   authorUserId: uuid("author_user_id")
@@ -464,6 +498,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   mediaFiles: many(mediaFiles),
   mediaUploads: many(mediaUploads),
   adminUsers: many(adminUsers),
+  clientErrorReports: many(clientErrorReports),
   announcements: many(announcements),
   announcementResponses: many(announcementResponses),
   blockedUsers: many(blockedUsers, { relationName: "blocker" }),
@@ -509,6 +544,13 @@ export const adminAuditLogRelations = relations(adminAuditLog, ({ one }) => ({
   adminUser: one(adminUsers, {
     fields: [adminAuditLog.adminUserId],
     references: [adminUsers.id],
+  }),
+}));
+
+export const clientErrorReportsRelations = relations(clientErrorReports, ({ one }) => ({
+  user: one(users, {
+    fields: [clientErrorReports.userId],
+    references: [users.id],
   }),
 }));
 
@@ -734,6 +776,8 @@ export type AdminUserRoleRow = typeof adminUserRoles.$inferSelect;
 export type NewAdminUserRoleRow = typeof adminUserRoles.$inferInsert;
 export type AdminAuditLogRow = typeof adminAuditLog.$inferSelect;
 export type NewAdminAuditLogRow = typeof adminAuditLog.$inferInsert;
+export type ClientErrorReportRow = typeof clientErrorReports.$inferSelect;
+export type NewClientErrorReportRow = typeof clientErrorReports.$inferInsert;
 export type AnnouncementRow = typeof announcements.$inferSelect;
 export type NewAnnouncementRow = typeof announcements.$inferInsert;
 export type AnnouncementResponseRow = typeof announcementResponses.$inferSelect;

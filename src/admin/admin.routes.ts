@@ -4,6 +4,11 @@ import { withErrorResponses } from "../common/http";
 import { authMiddleware } from "../common/security/auth-middleware";
 import { requireAdmin } from "./admin.guard";
 import {
+  adminClientErrorsRouteSchema,
+  parseAdminClientErrorsQuery,
+} from "../client-errors/client-errors.schemas";
+import * as clientErrorsService from "../client-errors/client-errors.service";
+import {
   adminAuditLogRouteSchema,
   adminHealthRouteSchema,
   adminMeRouteSchema,
@@ -59,6 +64,20 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
       adminService.searchAdminUsers(
         currentAdmin(request),
         parseAdminUserSearchQuery(request.query),
+        adminRequestContext(request),
+      ),
+  );
+
+  fastify.get(
+    "/client-errors",
+    {
+      preHandler: [authMiddleware, requireAdmin(["owner", "support", "ops"])],
+      schema: withErrorResponses(adminClientErrorsRouteSchema),
+    },
+    async (request) =>
+      clientErrorsService.listClientErrorReportsForAdmin(
+        currentAdmin(request),
+        parseAdminClientErrorsQuery(request.query),
         adminRequestContext(request),
       ),
   );
