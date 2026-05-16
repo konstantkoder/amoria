@@ -84,15 +84,31 @@ No fake admin users, fake admin UI, or mock release data were added.
 - Admin reads write audit action `admin.clientErrors.read`.
 - Mobile profile photo and avatar upload failures now report step-level diagnostics without tokens, full local paths, or full signed upload URLs.
 
+`ADMIN-OPS-03-FULL` Admin/Ops Control Center foundation has been implemented:
+
+- Real owner admin account creation command: `npm run admin:create-owner`.
+- Generated local owner credentials, when needed, are saved outside the repo under `F:\Dev\AmoriaAdminSecrets`.
+- Real admin web console lives in `F:\Dev\AmoriaServer\admin-web`.
+- Admin web uses `/auth/login`, `/auth/refresh`, `/auth/logout`, and `/admin/me`; it does not bypass backend role checks.
+- Implemented screens: Login, Dashboard, Users, Client Errors, Reports, Media Moderation, Audit Log, Ops Health, Bootstrap, and Forbidden.
+- Added reports/complaints admin APIs and `report_review_actions`.
+- Added media moderation admin APIs and `media_moderation_reviews`.
+- Added `GET /admin/ops/health` with real database connectivity status.
+- Locked gallery media detail requires owner/moderator plus reason and writes audit.
+
 ## Next big epic
 
-Continue the full `ADMIN/OPS` release module.
+Continue Admin/Ops hardening and final smoke pass.
 
-## Remaining blockers before ADMIN-OPS-03
+## Remaining blockers before ADMIN-OPS-04 / admin smoke pass
 
 - Resolve the current profile photo upload failure between prepare and complete, including direct object storage `PUT` accessibility from the mobile device.
 - Complete a real signed-in 2-device smoke pass; `TOGETHER-04` is checklist-only so far.
+- Run `npm run admin:create-owner` against the real local/dev database and keep credentials out of Git.
+- Start backend + admin web and complete a real owner login smoke pass.
+- Verify Client Errors after reproducing the profile photo upload bug.
+- Verify Reports and Media Moderation against real user-generated reports/media.
+- Add object storage live health check to `/admin/ops/health`.
+- Add rate limit / anti-spam visibility endpoints and UI.
 - Decide whether dedicated admin auth/session endpoints are needed beyond the existing user auth token plus active admin membership guard.
-- Build the real admin web panel shell and user search experience.
-- Add admin UI access to `/admin/client-errors`; until then use the protected API directly.
 - Keep local tooling and archive files out of release commits.

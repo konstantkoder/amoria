@@ -1,6 +1,6 @@
 # Admin/Ops Architecture
 
-Updated: 2026-05-16 after `ADMIN-OPS-02`
+Updated: 2026-05-16 after `ADMIN-OPS-03-FULL`
 
 This is the plan for a full Admin/Ops release module. It is not a temporary mini-admin and must not rely on mock/stub/fake data, Firebase fallback, or local-only success.
 
@@ -18,6 +18,7 @@ This is the plan for a full Admin/Ops release module. It is not a temporary mini
 - Public users without an active `admin_users` row cannot access `/admin/*`.
 - Admin sessions use secure server-issued user auth tokens with existing expiry/revocation behavior. Future dedicated admin session hardening can build on the same guard.
 - Admin UI cannot infer privileges locally; backend decisions are the source of truth.
+- `ADMIN-OPS-03-FULL` adds `npm run admin:create-owner`, which creates or reuses a real backend auth user and assigns active owner admin access.
 
 ## Admin roles / admin users
 
@@ -27,6 +28,8 @@ This is the plan for a full Admin/Ops release module. It is not a temporary mini
 - `ops`: health, rate limit visibility, error reporting, service diagnostics.
 
 Admin users are stored in `admin_users`, linked to public users by `userId`, with role assignments in `admin_user_roles`. Public app users do not gain admin powers through client state.
+
+The owner admin account is a separate real account, not an existing mobile test account. If no password is supplied, local generated credentials are saved outside the repo under `F:\Dev\AmoriaAdminSecrets`.
 
 ## Client error reporting
 
@@ -49,6 +52,8 @@ Admin users are stored in `admin_users`, linked to public users by `userId`, wit
 - Users can report profiles, media, announcements, chats/messages, and other abuse contexts.
 - Reports keep reporter, target, reason, free text, source object, status, assigned admin, and timestamps.
 - Admin actions include triage, assign, request more info, warn, dismiss, restrict, suspend, or escalate.
+- `ADMIN-OPS-03-FULL` added backend-backed report list/detail/action endpoints and `report_review_actions`.
+- Current report statuses are `open`, `under_review`, `resolved`, `dismissed`, and `escalated`.
 
 ## Moderation queue
 
@@ -61,6 +66,7 @@ Admin users are stored in `admin_users`, linked to public users by `userId`, wit
 - Admins can review avatar, public profile photos, and locked-gallery photo metadata/previews under strict privacy rules.
 - Media review tracks source, owner, visibility, upload status, moderation status, reviewer, and decision reason.
 - Destructive actions require explicit reason and audit log entry.
+- `ADMIN-OPS-03-FULL` added admin media list/detail/decision endpoints and `media_moderation_reviews`.
 
 ## Locked gallery safety visibility
 
@@ -68,6 +74,7 @@ Admin users are stored in `admin_users`, linked to public users by `userId`, wit
 - Admin UI should show safety metadata and counts by default.
 - Viewing locked media requires an allowed moderation reason, elevated role, and audit log entry.
 - No locked-gallery password or secret is ever exposed.
+- Locked media detail URLs are not returned from list responses. Detail access requires owner/moderator plus reason.
 
 ## Blocks / abuse view
 
@@ -87,6 +94,7 @@ Admin users are stored in `admin_users`, linked to public users by `userId`, wit
 - Admin/Ops UI shows backend health, database connectivity, object storage health, media upload prepare/complete rates, error volume, queue depths, and WebSocket status.
 - Health data comes from backend endpoints and metrics, not client guesses.
 - Secrets, passwords, tokens, connection strings, and raw environment values are never displayed.
+- `ADMIN-OPS-03-FULL` added `GET /admin/ops/health` with real API/database status. Object storage health remains explicitly `not_checked` until wired.
 
 ## Rate limit / anti-spam visibility
 
@@ -102,11 +110,12 @@ Admin users are stored in `admin_users`, linked to public users by `userId`, wit
 - `admin_sessions` or protected auth session storage.
 - `admin_audit_log`: immutable admin action trail. Added in `ADMIN-OPS-01`.
 - `client_error_reports`: mobile/client error ingestion. Added in `ADMIN-OPS-02`.
+- `report_review_actions`: admin report review/action history. Added in `ADMIN-OPS-03-FULL`.
 - `admin_support_notes`: support notes tied to user/content.
-- `reports`: user reports/complaints.
+- `safety_reports.status`: report queue status. Added in `ADMIN-OPS-03-FULL`.
 - `moderation_queue_items`: queue state and assignment.
 - `moderation_actions`: decisions and enforcement actions.
-- `media_moderation_reviews`: media review state.
+- `media_moderation_reviews`: media review state. Added in `ADMIN-OPS-03-FULL`.
 - `rate_limit_events` or aggregated rate-limit counters.
 - `ops_health_events` or metrics snapshots, if not handled by the metrics system.
 
@@ -121,34 +130,34 @@ Admin users are stored in `admin_users`, linked to public users by `userId`, wit
 - `GET /admin/users/:userId`
 - `GET /admin/users/:userId/support-context`
 - `GET /admin/reports`
-- `GET /admin/reports/:reportId`
-- `POST /admin/reports/:reportId/actions`
+- `GET /admin/reports/:reportId` (implemented as `/admin/reports/:id` in `ADMIN-OPS-03-FULL`)
+- `POST /admin/reports/:reportId/actions` (implemented as `/admin/reports/:id/actions` in `ADMIN-OPS-03-FULL`)
 - `GET /admin/moderation/queue`
 - `POST /admin/moderation/queue/:itemId/assign`
 - `POST /admin/moderation/queue/:itemId/decision`
-- `GET /admin/media`
-- `GET /admin/media/:mediaId`
-- `POST /admin/media/:mediaId/decision`
+- `GET /admin/media` (added in `ADMIN-OPS-03-FULL`)
+- `GET /admin/media/:mediaId` (added in `ADMIN-OPS-03-FULL`)
+- `POST /admin/media/:mediaId/decision` (added in `ADMIN-OPS-03-FULL`)
 - `GET /admin/audit-log` (added in `ADMIN-OPS-01`)
 - `GET /admin/client-errors?limit=...&screen=...&action=...&code=...&amoriaId=...&userId=...` (added in `ADMIN-OPS-02`)
-- `GET /admin/ops/health`
+- `GET /admin/ops/health` (added in `ADMIN-OPS-03-FULL`)
 - `GET /admin/ops/rate-limits`
 - `POST /client/error-reports` (added in `ADMIN-OPS-02`)
 
 ## Required admin UI screens
 
-- Admin login.
-- Admin dashboard.
-- User search by Amoria ID.
+- Admin login. Added in `ADMIN-OPS-03-FULL`.
+- Admin dashboard. Added in `ADMIN-OPS-03-FULL`.
+- User search by Amoria ID. Added in `ADMIN-OPS-03-FULL`.
 - User detail/support context.
-- Reports list.
-- Report detail/action panel.
+- Reports list. Added in `ADMIN-OPS-03-FULL`.
+- Report detail/action panel. Added in `ADMIN-OPS-03-FULL`.
 - Moderation queue.
-- Media moderation.
-- Locked gallery safety view with elevated access.
+- Media moderation. Added in `ADMIN-OPS-03-FULL`.
+- Locked gallery safety view with elevated access. Foundation added in `ADMIN-OPS-03-FULL`.
 - Blocks/abuse view.
-- Client error reports.
-- Ops health.
+- Client error reports. Added in `ADMIN-OPS-03-FULL`.
+- Ops health. Added in `ADMIN-OPS-03-FULL`.
 - Rate limit/anti-spam visibility.
 - Admin audit log.
 - Admin users/roles management.
@@ -169,8 +178,8 @@ Admin users are stored in `admin_users`, linked to public users by `userId`, wit
 
 - `ADMIN-OPS-01` admin access + roles + audit log.
 - `ADMIN-OPS-02` client error reporting backend + mobile integration. Completed foundation.
-- `ADMIN-OPS-03` real admin web panel shell + user search.
-- `ADMIN-OPS-04` reports/moderation.
-- `ADMIN-OPS-05` media moderation.
-- `ADMIN-OPS-06` ops health/rate limits.
+- `ADMIN-OPS-03-FULL` real admin web console + user search + reports/media moderation foundation + ops health. Completed foundation.
+- `ADMIN-OPS-04` reports/moderation hardening and moderation queue depth.
+- `ADMIN-OPS-05` media moderation enforcement policy hardening.
+- `ADMIN-OPS-06` object storage health + rate limits.
 - `ADMIN-OPS-07` admin smoke pass.

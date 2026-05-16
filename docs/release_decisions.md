@@ -26,6 +26,8 @@ Updated: 2026-05-16
 - Announcements need a later decision: keep, hide, or remove.
 - Rooms, people-on-map, and map presence are not part of the current release UI.
 - Admin/Ops is required for release.
+- Admin/Ops owner account must be a separate real backend auth account, not an existing mobile test account.
+- Admin web must pass backend `/admin/me`; client-side role checks are not security.
 
 ## Local tooling
 
