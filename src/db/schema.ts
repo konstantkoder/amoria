@@ -101,6 +101,70 @@ export const profileLockedGallerySettings = pgTable("profile_locked_gallery_sett
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+export const adminUsers = pgTable(
+  "admin_users",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" })
+      .unique(),
+    email: text("email"),
+    displayName: text("display_name"),
+    status: text("status").default("active").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    check("admin_users_status_check", sql`${table.status} IN ('active', 'disabled')`),
+  ],
+);
+
+export const adminRoles = pgTable("admin_roles", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  key: text("key").notNull().unique(),
+  name: text("name").notNull(),
+  description: text("description"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const adminUserRoles = pgTable(
+  "admin_user_roles",
+  {
+    adminUserId: uuid("admin_user_id")
+      .notNull()
+      .references(() => adminUsers.id, { onDelete: "cascade" }),
+    roleId: uuid("role_id")
+      .notNull()
+      .references(() => adminRoles.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.adminUserId, table.roleId] })],
+);
+
+export const adminAuditLog = pgTable(
+  "admin_audit_log",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    adminUserId: uuid("admin_user_id").references(() => adminUsers.id, {
+      onDelete: "set null",
+    }),
+    action: text("action").notNull(),
+    targetType: text("target_type"),
+    targetId: text("target_id"),
+    reason: text("reason"),
+    metadata: jsonb("metadata").$type<JsonValue | null>(),
+    requestId: text("request_id"),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("admin_audit_log_created_at_idx").on(table.createdAt),
+    index("admin_audit_log_admin_user_created_at_idx").on(table.adminUserId, table.createdAt),
+  ],
+);
+
 export const announcements = pgTable("announcements", {
   id: uuid("id").defaultRandom().primaryKey(),
   authorUserId: uuid("author_user_id")
@@ -399,6 +463,7 @@ export const refreshTokens = pgTable("refresh_tokens", {
 export const usersRelations = relations(users, ({ many }) => ({
   mediaFiles: many(mediaFiles),
   mediaUploads: many(mediaUploads),
+  adminUsers: many(adminUsers),
   announcements: many(announcements),
   announcementResponses: many(announcementResponses),
   blockedUsers: many(blockedUsers, { relationName: "blocker" }),
@@ -414,6 +479,37 @@ export const usersRelations = relations(users, ({ many }) => ({
   messages: many(messages),
   threadReads: many(threadReads),
   refreshTokens: many(refreshTokens),
+}));
+
+export const adminUsersRelations = relations(adminUsers, ({ one, many }) => ({
+  user: one(users, {
+    fields: [adminUsers.userId],
+    references: [users.id],
+  }),
+  roles: many(adminUserRoles),
+  auditLog: many(adminAuditLog),
+}));
+
+export const adminRolesRelations = relations(adminRoles, ({ many }) => ({
+  adminUsers: many(adminUserRoles),
+}));
+
+export const adminUserRolesRelations = relations(adminUserRoles, ({ one }) => ({
+  adminUser: one(adminUsers, {
+    fields: [adminUserRoles.adminUserId],
+    references: [adminUsers.id],
+  }),
+  role: one(adminRoles, {
+    fields: [adminUserRoles.roleId],
+    references: [adminRoles.id],
+  }),
+}));
+
+export const adminAuditLogRelations = relations(adminAuditLog, ({ one }) => ({
+  adminUser: one(adminUsers, {
+    fields: [adminAuditLog.adminUserId],
+    references: [adminUsers.id],
+  }),
 }));
 
 export const mediaFilesRelations = relations(mediaFiles, ({ one, many }) => ({
@@ -630,6 +726,14 @@ export type NewProfileGalleryItemRow = typeof profileGalleryItems.$inferInsert;
 export type ProfileLockedGallerySettingsRow = typeof profileLockedGallerySettings.$inferSelect;
 export type NewProfileLockedGallerySettingsRow =
   typeof profileLockedGallerySettings.$inferInsert;
+export type AdminUserRow = typeof adminUsers.$inferSelect;
+export type NewAdminUserRow = typeof adminUsers.$inferInsert;
+export type AdminRoleRow = typeof adminRoles.$inferSelect;
+export type NewAdminRoleRow = typeof adminRoles.$inferInsert;
+export type AdminUserRoleRow = typeof adminUserRoles.$inferSelect;
+export type NewAdminUserRoleRow = typeof adminUserRoles.$inferInsert;
+export type AdminAuditLogRow = typeof adminAuditLog.$inferSelect;
+export type NewAdminAuditLogRow = typeof adminAuditLog.$inferInsert;
 export type AnnouncementRow = typeof announcements.$inferSelect;
 export type NewAnnouncementRow = typeof announcements.$inferInsert;
 export type AnnouncementResponseRow = typeof announcementResponses.$inferSelect;

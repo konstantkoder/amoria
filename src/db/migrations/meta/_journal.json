@@ -78,6 +78,13 @@
       "when": 1778496000000,
       "tag": "0010_locked_profile_gallery",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1778922000000,
+      "tag": "0011_admin_ops_foundation",
+      "breakpoints": true
     }
   ]
 }

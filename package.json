@@ -13,6 +13,7 @@
     "test": "node --test --import tsx tests/*.test.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node scripts/run-db-migrate.mjs",
+    "admin:bootstrap": "node scripts/admin-bootstrap.mjs",
     "db:push": "drizzle-kit push",
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",
