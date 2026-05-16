@@ -1,6 +1,6 @@
 # Admin/Ops Architecture
 
-Updated: 2026-05-16
+Updated: 2026-05-16 after `ADMIN-OPS-01`
 
 This is the plan for a full Admin/Ops release module. It is not a temporary mini-admin and must not rely on mock/stub/fake data, Firebase fallback, or local-only success.
 
@@ -13,9 +13,10 @@ This is the plan for a full Admin/Ops release module. It is not a temporary mini
 
 ## Admin access model
 
-- Admin access is authenticated against the backend.
-- Admin authorization is role-based and checked on every admin endpoint.
-- Admin sessions use secure server-issued tokens with short lifetimes and refresh/revocation support.
+- `ADMIN-OPS-01` uses the existing backend auth token, then verifies an active `admin_users` row linked to the authenticated `users.id`.
+- Admin authorization is role-based and checked server-side on every protected admin endpoint.
+- Public users without an active `admin_users` row cannot access `/admin/*`.
+- Admin sessions use secure server-issued user auth tokens with existing expiry/revocation behavior. Future dedicated admin session hardening can build on the same guard.
 - Admin UI cannot infer privileges locally; backend decisions are the source of truth.
 
 ## Admin roles / admin users
@@ -25,7 +26,7 @@ This is the plan for a full Admin/Ops release module. It is not a temporary mini
 - `moderator`: reports, complaints, moderation queue, media review, block/abuse views.
 - `ops`: health, rate limit visibility, error reporting, service diagnostics.
 
-Admin users must be stored separately from public profile data or explicitly flagged in a protected admin membership table. Public app users do not gain admin powers through client state.
+Admin users are stored in `admin_users`, linked to public users by `userId`, with role assignments in `admin_user_roles`. Public app users do not gain admin powers through client state.
 
 ## Client error reporting
 
@@ -77,6 +78,7 @@ Admin users must be stored separately from public profile data or explicitly fla
 - Every admin action writes an immutable audit entry.
 - Audit entries include admin user, role, action, target type/id, reason, request ID, IP/user agent where available, before/after safe metadata, and timestamp.
 - Audit log supports search by admin, target, action, and time range.
+- `ADMIN-OPS-01` writes audit entries for admin user search and admin audit-log reads. Metadata is sanitized/truncated and redacts password/token/secret-like keys.
 
 ## Operational health
 
@@ -92,11 +94,11 @@ Admin users must be stored separately from public profile data or explicitly fla
 
 ## Required DB tables
 
-- `admin_users`: backend admin identity, linked user/admin account, status.
-- `admin_roles`: role definitions.
-- `admin_user_roles`: admin-role assignments.
+- `admin_users`: backend admin identity, linked user/admin account, status. Added in `ADMIN-OPS-01`.
+- `admin_roles`: role definitions. Added in `ADMIN-OPS-01`.
+- `admin_user_roles`: admin-role assignments. Added in `ADMIN-OPS-01`.
 - `admin_sessions` or protected auth session storage.
-- `admin_audit_log`: immutable admin action trail.
+- `admin_audit_log`: immutable admin action trail. Added in `ADMIN-OPS-01`.
 - `client_error_reports`: mobile/client error ingestion.
 - `admin_support_notes`: support notes tied to user/content.
 - `reports`: user reports/complaints.
@@ -108,11 +110,12 @@ Admin users must be stored separately from public profile data or explicitly fla
 
 ## Required backend endpoints
 
-- `POST /admin/auth/login`
-- `POST /admin/auth/refresh`
-- `POST /admin/auth/logout`
-- `GET /admin/me`
-- `GET /admin/users?amoriaId=...`
+- `POST /admin/auth/login` (future, if separate admin auth is required)
+- `POST /admin/auth/refresh` (future, if separate admin auth is required)
+- `POST /admin/auth/logout` (future, if separate admin auth is required)
+- `GET /admin/health` (added in `ADMIN-OPS-01`)
+- `GET /admin/me` (added in `ADMIN-OPS-01`)
+- `GET /admin/users?amoriaId=...&q=...&limit=...` (added in `ADMIN-OPS-01`)
 - `GET /admin/users/:userId`
 - `GET /admin/users/:userId/support-context`
 - `GET /admin/reports`
@@ -124,7 +127,7 @@ Admin users must be stored separately from public profile data or explicitly fla
 - `GET /admin/media`
 - `GET /admin/media/:mediaId`
 - `POST /admin/media/:mediaId/decision`
-- `GET /admin/audit-log`
+- `GET /admin/audit-log` (added in `ADMIN-OPS-01`)
 - `GET /admin/ops/health`
 - `GET /admin/ops/rate-limits`
 - `POST /client/error-reports`

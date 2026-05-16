@@ -62,14 +62,28 @@ Archived local files:
 
 - `F:\Dev\AmoriaLocalArchive\2026-05-16_13-43-38`
 
+## Admin/Ops status
+
+`ADMIN-OPS-01` server foundation has been implemented on `backend/standalone-foundation`:
+
+- Admin users are linked to existing real users through `admin_users.user_id`.
+- Required roles are `owner`, `support`, `moderator`, and `ops`.
+- `/admin/*` routes require normal backend auth plus active admin membership.
+- Server-side role policy protects admin user search and audit-log reads.
+- Audit log records admin user search and audit-log read actions with sanitized metadata.
+- Explicit bootstrap command: `npm run admin:bootstrap`, using `ADMIN_BOOTSTRAP_AMORIA_IDS` or `ADMIN_BOOTSTRAP_USER_IDS`.
+
+No fake admin users, fake admin UI, or mock release data were added.
+
 ## Next big epic
 
-Full `ADMIN/OPS` release module.
+Continue the full `ADMIN/OPS` release module.
 
-## Remaining blockers before ADMIN-OPS-01
+## Remaining blockers before ADMIN-OPS-02
 
 - Resolve the current profile photo upload failure between prepare and complete, including direct object storage `PUT` accessibility from the mobile device.
 - Complete a real signed-in 2-device smoke pass; `TOGETHER-04` is checklist-only so far.
-- Define and implement admin access, admin roles, and audit logging as backend-first release infrastructure.
 - Add real client error reporting before relying on admin/ops diagnostics.
+- Add Admin/Ops client error report storage, ingestion endpoint, redaction rules, and mobile integration.
+- Decide whether dedicated admin auth/session endpoints are needed beyond the existing user auth token plus active admin membership guard.
 - Keep local tooling and archive files out of release commits.
