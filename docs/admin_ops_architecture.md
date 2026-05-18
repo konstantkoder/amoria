@@ -1,6 +1,6 @@
 # Admin/Ops Architecture
 
-Updated: 2026-05-16 after `ADMIN-OPS-03-FULL`
+Updated: 2026-05-18 after `ADMIN-OPS-04`
 
 This is the plan for a full Admin/Ops release module. It is not a temporary mini-admin and must not rely on mock/stub/fake data, Firebase fallback, or local-only success.
 
@@ -31,14 +31,17 @@ Admin users are stored in `admin_users`, linked to public users by `userId`, wit
 
 The owner admin account is a separate real account, not an existing mobile test account. If no password is supplied, local generated credentials are saved outside the repo under `F:\Dev\AmoriaAdminSecrets`.
 
+`ADMIN-OPS-04` adds owner-only `GET /admin/admin-users` for safe read access to admin users and roles. It writes audit log entries and does not expose password hashes, refresh tokens, or secrets. Role editing remains future work.
+
 ## Client error reporting
 
 - Mobile client reports real runtime/API/upload errors to backend through `POST /client/error-reports`.
 - Reports include timestamp, app version/build, platform, route/screen context, authenticated `userId` when available, request correlation ID when available, safe error code/message, and redacted metadata.
 - Reports must not include passwords, auth tokens, refresh tokens, private keys, raw `.env`, or full request bodies that may contain secrets.
 - Admin feed is available through `GET /admin/client-errors` for owner/support/ops roles.
-- Admin UI supports search/filter by user, screen, action, error code, time window, and release build.
+- Admin UI supports search/filter by user, screen, action, error code, status, time window, and release build.
 - `ADMIN-OPS-02` integrated upload diagnostics for profile photo and avatar failures. Profile photo failures now include the upload step: `getInfo`, `prepareUpload`, `putUpload`, `completeUpload`, `mapMedia`, or caller-side `refreshGallery`.
+- `ADMIN-OPS-04` adds lifecycle statuses `open`, `resolved`, `ignored`, and `archived`, plus audited single-row actions and bulk archive/resolve/ignore for old noisy errors. Production cleanup is archive/resolve, not destructive delete.
 
 ## Users search by Amoria ID
 
@@ -88,13 +91,15 @@ The owner admin account is a separate real account, not an existing mobile test 
 - Audit entries include admin user, role, action, target type/id, reason, request ID, IP/user agent where available, before/after safe metadata, and timestamp.
 - Audit log supports search by admin, target, action, and time range.
 - `ADMIN-OPS-01` writes audit entries for admin user search and admin audit-log reads. Metadata is sanitized/truncated and redacts password/token/secret-like keys.
+- `ADMIN-OPS-04` writes audit entries for client error lifecycle actions, bulk client error actions, ops health reads, and owner-only admin user reads.
 
 ## Operational health
 
 - Admin/Ops UI shows backend health, database connectivity, object storage health, media upload prepare/complete rates, error volume, queue depths, and WebSocket status.
 - Health data comes from backend endpoints and metrics, not client guesses.
 - Secrets, passwords, tokens, connection strings, and raw environment values are never displayed.
-- `ADMIN-OPS-03-FULL` added `GET /admin/ops/health` with real API/database status. Object storage health remains explicitly `not_checked` until wired.
+- `ADMIN-OPS-03-FULL` added `GET /admin/ops/health` with real API/database status.
+- `ADMIN-OPS-04` adds real open client error, open report, and pending media moderation counts. Object storage remains explicitly `not_checked` until a safe non-mutating check is wired.
 
 ## Rate limit / anti-spam visibility
 
@@ -110,6 +115,7 @@ The owner admin account is a separate real account, not an existing mobile test 
 - `admin_sessions` or protected auth session storage.
 - `admin_audit_log`: immutable admin action trail. Added in `ADMIN-OPS-01`.
 - `client_error_reports`: mobile/client error ingestion. Added in `ADMIN-OPS-02`.
+- `client_error_reports.status`, `resolved_at`, `resolved_by_admin_user_id`, `resolution_note`, `updated_at`: client error lifecycle. Added in `ADMIN-OPS-04`.
 - `report_review_actions`: admin report review/action history. Added in `ADMIN-OPS-03-FULL`.
 - `admin_support_notes`: support notes tied to user/content.
 - `safety_reports.status`: report queue status. Added in `ADMIN-OPS-03-FULL`.
@@ -127,6 +133,7 @@ The owner admin account is a separate real account, not an existing mobile test 
 - `GET /admin/health` (added in `ADMIN-OPS-01`)
 - `GET /admin/me` (added in `ADMIN-OPS-01`)
 - `GET /admin/users?amoriaId=...&q=...&limit=...` (added in `ADMIN-OPS-01`)
+- `GET /admin/admin-users` (owner-only, added in `ADMIN-OPS-04`)
 - `GET /admin/users/:userId`
 - `GET /admin/users/:userId/support-context`
 - `GET /admin/reports`
@@ -139,7 +146,9 @@ The owner admin account is a separate real account, not an existing mobile test 
 - `GET /admin/media/:mediaId` (added in `ADMIN-OPS-03-FULL`)
 - `POST /admin/media/:mediaId/decision` (added in `ADMIN-OPS-03-FULL`)
 - `GET /admin/audit-log` (added in `ADMIN-OPS-01`)
-- `GET /admin/client-errors?limit=...&screen=...&action=...&code=...&amoriaId=...&userId=...` (added in `ADMIN-OPS-02`)
+- `GET /admin/client-errors?limit=...&screen=...&action=...&code=...&amoriaId=...&userId=...&status=...&createdFrom=...&createdTo=...` (added in `ADMIN-OPS-02`, lifecycle filters added in `ADMIN-OPS-04`)
+- `POST /admin/client-errors/:id/actions` (added in `ADMIN-OPS-04`)
+- `POST /admin/client-errors/actions/bulk` (added in `ADMIN-OPS-04`)
 - `GET /admin/ops/health` (added in `ADMIN-OPS-03-FULL`)
 - `GET /admin/ops/rate-limits`
 - `POST /client/error-reports` (added in `ADMIN-OPS-02`)
@@ -158,6 +167,8 @@ The owner admin account is a separate real account, not an existing mobile test 
 - Blocks/abuse view.
 - Client error reports. Added in `ADMIN-OPS-03-FULL`.
 - Ops health. Added in `ADMIN-OPS-03-FULL`.
+- Admin users read view. Added in `ADMIN-OPS-04`.
+- English/Russian language switcher and typed dictionaries. Added in `ADMIN-OPS-04`.
 - Rate limit/anti-spam visibility.
 - Admin audit log.
 - Admin users/roles management.
@@ -179,7 +190,7 @@ The owner admin account is a separate real account, not an existing mobile test 
 - `ADMIN-OPS-01` admin access + roles + audit log.
 - `ADMIN-OPS-02` client error reporting backend + mobile integration. Completed foundation.
 - `ADMIN-OPS-03-FULL` real admin web console + user search + reports/media moderation foundation + ops health. Completed foundation.
-- `ADMIN-OPS-04` reports/moderation hardening and moderation queue depth.
+- `ADMIN-OPS-04` client error lifecycle, safe archive cleanup, ops health counts, admin users read view, and Russian admin-web localization. Completed foundation.
 - `ADMIN-OPS-05` media moderation enforcement policy hardening.
 - `ADMIN-OPS-06` object storage health + rate limits.
 - `ADMIN-OPS-07` admin smoke pass.

@@ -1,6 +1,6 @@
 # Admin Web Console
 
-Updated: 2026-05-16 after `ADMIN-OPS-03-FULL`
+Updated: 2026-05-18 after `ADMIN-OPS-04`
 
 The Admin/Ops Control Center is a real backend-backed web console in the server repo:
 
@@ -63,6 +63,17 @@ Do not commit or paste this file into logs.
 
 Refresh-token support is implemented through `/auth/refresh`. Logout clears local admin web tokens and calls `/auth/logout`.
 
+## Language
+
+Admin Web has built-in English/Russian localization.
+
+Use the language selector on the login screen or in the top bar:
+
+- `English`
+- `Русский`
+
+The selected language is persisted in browser `localStorage`. This is product localization, not browser auto-translation.
+
 ## Users
 
 Use the Users screen for support lookup by:
@@ -72,12 +83,19 @@ Use the Users screen for support lookup by:
 
 The screen reads `GET /admin/users` and shows Amoria ID, display name, email, avatar URL, created time, and updated time.
 
+## Admin Users
+
+Owners can open Admin Users to read `GET /admin/admin-users`.
+
+The screen lists active/disabled admin users, linked app user, roles, created time, and updated time. It does not show password hashes, refresh tokens, or secrets. Support and Ops roles cannot access this owner-only endpoint.
+
 ## Client Errors
 
 The Client Errors screen reads `GET /admin/client-errors`.
 
 Filters:
 
+- status, defaulting to `open`
 - screen
 - action
 - code
@@ -92,6 +110,17 @@ action=uploadProfilePhoto
 ```
 
 For the current upload bug, inspect `step`, `code`, `message`, `metadata.uploadUrlHost`, `metadata.status`, `backendUrl`, and `requestId`.
+
+Client error lifecycle actions are available for the selected row:
+
+- Resolve
+- Ignore
+- Archive
+- Reopen
+
+The note field is saved as the resolution/archive note where applicable. Reopen clears resolution fields.
+
+Use `Archive current filtered errors` to clean old test/release noise safely. It calls the bulk archive endpoint with the current status/screen/action/code/Amoria ID filters, applies the server cap, writes audit history, and does not delete rows.
 
 ## Reports
 
@@ -134,6 +163,20 @@ Locked gallery media requires owner/moderator access plus a reason before detail
 The Audit Log screen reads `GET /admin/audit-log`.
 
 This screen is owner-only. It shows action, admin user, target, reason, request ID, IP, user agent, timestamp, and metadata detail.
+
+## Ops Health
+
+The Ops Health screen reads `GET /admin/ops/health`.
+
+It shows real backend data:
+
+- database status
+- object storage status
+- open client error count
+- open report count
+- pending media moderation count where available
+
+If object storage cannot be checked safely, the backend reports `not_checked` with a reason instead of pretending it is healthy. Secrets and raw env values are not shown.
 
 ## Photo Upload Debugging
 

@@ -1,6 +1,6 @@
 # Amoria Release Control Center
 
-Updated: 2026-05-16
+Updated: 2026-05-18
 
 ## Branches
 
@@ -96,11 +96,24 @@ No fake admin users, fake admin UI, or mock release data were added.
 - Added `GET /admin/ops/health` with real database connectivity status.
 - Locked gallery media detail requires owner/moderator plus reason and writes audit.
 
+`ADMIN-OPS-04` Admin/Ops lifecycle and localization foundation has been implemented:
+
+- `client_error_reports` now supports `open`, `resolved`, `ignored`, and `archived` lifecycle statuses.
+- Single client error actions are available through `POST /admin/client-errors/:id/actions`.
+- Bulk archive/resolve/ignore is available through `POST /admin/client-errors/actions/bulk` with a 500-row cap and audit trail.
+- `GET /admin/client-errors` supports `status`, `createdFrom`, and `createdTo` filters and returns resolution fields.
+- `GET /admin/ops/health` includes database status plus real open client error, open report, and pending media moderation counts.
+- Object storage health remains explicitly `not_checked` until a safe non-mutating check is wired; it is not faked as OK.
+- Owner-only `GET /admin/admin-users` lists admin users and roles without secrets.
+- Admin Web has an English/Russian language switcher persisted in `localStorage`.
+- Client Errors default to open errors and include Resolve, Ignore, Archive, Reopen, and `Archive current filtered errors`.
+- See `docs/admin_ops_04_audit.md`.
+
 ## Next big epic
 
 Continue Admin/Ops hardening and final smoke pass.
 
-## Remaining blockers before ADMIN-OPS-04 / admin smoke pass
+## Remaining blockers before admin smoke pass
 
 - Resolve the current profile photo upload failure between prepare and complete, including direct object storage `PUT` accessibility from the mobile device.
 - Complete a real signed-in 2-device smoke pass; `TOGETHER-04` is checklist-only so far.
@@ -110,5 +123,6 @@ Continue Admin/Ops hardening and final smoke pass.
 - Verify Reports and Media Moderation against real user-generated reports/media.
 - Add object storage live health check to `/admin/ops/health`.
 - Add rate limit / anti-spam visibility endpoints and UI.
+- Add admin role editing/assignment workflow.
 - Decide whether dedicated admin auth/session endpoints are needed beyond the existing user auth token plus active admin membership guard.
 - Keep local tooling and archive files out of release commits.
