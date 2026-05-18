@@ -4,7 +4,16 @@ export const adminOpsHealthRouteSchema = {
   response: {
     200: {
       type: "object",
-      required: ["ok", "service", "time", "admin", "nodeEnv", "database", "objectStorage"],
+      required: [
+        "ok",
+        "service",
+        "time",
+        "admin",
+        "nodeEnv",
+        "database",
+        "objectStorage",
+        "counts",
+      ],
       additionalProperties: false,
       properties: {
         ok: { type: "boolean", const: true },
@@ -34,8 +43,18 @@ export const adminOpsHealthRouteSchema = {
           required: ["status", "reason"],
           additionalProperties: false,
           properties: {
-            status: { type: "string", const: "not_checked" },
+            status: { type: "string", enum: ["ok", "failed", "not_checked"] },
             reason: { type: "string" },
+          },
+        },
+        counts: {
+          type: "object",
+          required: ["openClientErrors", "openReports", "pendingMediaModerationItems"],
+          additionalProperties: false,
+          properties: {
+            openClientErrors: { type: ["integer", "null"], minimum: 0 },
+            openReports: { type: ["integer", "null"], minimum: 0 },
+            pendingMediaModerationItems: { type: ["integer", "null"], minimum: 0 },
           },
         },
       },

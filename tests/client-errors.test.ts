@@ -5,6 +5,7 @@ import type { AdminAuditInput, AdminRoleKey } from "../src/admin/admin.types";
 import type {
   ClientErrorReportListQuery,
   ClientErrorReportSnapshot,
+  ClientErrorStatus,
 } from "../src/client-errors/client-errors.types";
 import type {
   ClientErrorReportRow,
@@ -298,13 +299,149 @@ test("reading admin client errors writes audit log", async (t) => {
       code: null,
       amoriaId: null,
       userId: null,
+      status: null,
+      createdFrom: null,
+      createdTo: null,
     },
     limit: 50,
     resultCount: 1,
   });
 });
 
-function mockClientErrors() {
+for (const input of [
+  { action: "resolve", expectedStatus: "resolved", title: "Admin can resolve client error" },
+  { action: "ignore", expectedStatus: "ignored", title: "Admin can ignore client error" },
+  { action: "archive", expectedStatus: "archived", title: "Admin can archive client error" },
+  { action: "reopen", expectedStatus: "open", title: "Admin can reopen client error" },
+] as const) {
+  test(input.title, async (t) => {
+    t.after(restoreDeps);
+    mockAdmin({ roles: ["ops"] });
+    const state = mockClientErrors({
+      previousStatus: input.action === "reopen" ? "resolved" : "open",
+    });
+    const app = buildApp();
+    t.after(async () => {
+      await app.close();
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: `/admin/client-errors/${reportId}/actions`,
+      headers: authHeaders(userId),
+      payload: {
+        action: input.action,
+        note: "Handled during release smoke",
+      },
+    });
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.json().nextStatus, input.expectedStatus);
+    assert.equal(state.statusUpdates[0]?.status, input.expectedStatus);
+    assert.equal(state.auditInputs[0]?.action, "admin.clientErrors.action");
+    assert.equal(state.auditInputs[0]?.targetType, "client_error_report");
+    assert.equal(state.auditInputs[0]?.targetId, reportId);
+    const auditMetadata = state.auditInputs[0]?.metadata as Record<string, unknown> | undefined;
+    assert.equal(auditMetadata?.action, input.action);
+    assert.equal(auditMetadata?.nextStatus, input.expectedStatus);
+
+    if (input.action === "reopen") {
+      assert.equal(state.statusUpdates[0]?.resolvedAt, null);
+      assert.equal(state.statusUpdates[0]?.resolvedByAdminUserId, null);
+      assert.equal(state.statusUpdates[0]?.resolutionNote, null);
+    } else {
+      assert.ok(state.statusUpdates[0]?.resolvedAt instanceof Date);
+      assert.equal(state.statusUpdates[0]?.resolvedByAdminUserId, adminUserId);
+      assert.equal(state.statusUpdates[0]?.resolutionNote, "Handled during release smoke");
+    }
+  });
+}
+
+test("non-admin cannot act on client error", async (t) => {
+  t.after(restoreDeps);
+  mockAdmin({ adminContext: undefined });
+  mockClientErrors();
+  const app = buildApp();
+  t.after(async () => {
+    await app.close();
+  });
+
+  const response = await app.inject({
+    method: "POST",
+    url: `/admin/client-errors/${reportId}/actions`,
+    headers: authHeaders(userId),
+    payload: {
+      action: "resolve",
+    },
+  });
+
+  assert.equal(response.statusCode, 403);
+});
+
+test("bulk archive with filters updates only matching rows and writes audit log", async (t) => {
+  t.after(restoreDeps);
+  mockAdmin({ roles: ["support"] });
+  const state = mockClientErrors({ bulkCount: 2 });
+  const app = buildApp();
+  t.after(async () => {
+    await app.close();
+  });
+
+  const response = await app.inject({
+    method: "POST",
+    url: "/admin/client-errors/actions/bulk",
+    headers: authHeaders(userId),
+    payload: {
+      action: "archive",
+      filters: {
+        screen: "PhotoManagerScreen",
+        action: "uploadProfilePhoto",
+        code: "media.uploadPutFailed",
+        amoriaId: "AMOWNER1",
+        status: "open",
+      },
+      note: "Archive old release smoke errors",
+    },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.json().count, 2);
+  assert.equal(response.json().maxAffectedRows, 500);
+  assert.deepEqual(state.bulkUpdates[0]?.filters, {
+    screen: "PhotoManagerScreen",
+    action: "uploadProfilePhoto",
+    code: "media.uploadPutFailed",
+    amoriaId: "AMOWNER1",
+    status: "open",
+  });
+  assert.equal(state.bulkUpdates[0]?.actionStatus, "archived");
+  assert.equal(state.bulkUpdates[0]?.limit, 500);
+  assert.equal(state.auditInputs[0]?.action, "admin.clientErrors.bulkAction");
+  assert.equal(state.auditInputs[0]?.targetType, "client_error_reports");
+  const auditMetadata = state.auditInputs[0]?.metadata as Record<string, unknown> | undefined;
+  assert.equal(auditMetadata?.count, 2);
+});
+
+test("GET /admin/client-errors status filter works", async (t) => {
+  t.after(restoreDeps);
+  mockAdmin({ roles: ["owner"] });
+  const state = mockClientErrors();
+  const app = buildApp();
+  t.after(async () => {
+    await app.close();
+  });
+
+  const response = await app.inject({
+    method: "GET",
+    url: "/admin/client-errors?status=archived",
+    headers: authHeaders(userId),
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(state.listQueries[0]?.status, "archived");
+});
+
+function mockClientErrors(input: { previousStatus?: ClientErrorStatus; bulkCount?: number } = {}) {
   restoreClientErrorDeps?.();
   restoreClientErrorDeps = null;
 
@@ -312,10 +449,23 @@ function mockClientErrors() {
     created: NewClientErrorReportRow[];
     listQueries: ClientErrorReportListQuery[];
     auditInputs: AdminAuditInput[];
+    statusUpdates: Array<{
+      status: string;
+      resolvedAt: Date | null;
+      resolvedByAdminUserId: string | null;
+      resolutionNote: string | null;
+    }>;
+    bulkUpdates: Array<{
+      actionStatus: string;
+      filters: Record<string, unknown>;
+      limit: number;
+    }>;
   } = {
     created: [],
     listQueries: [],
     auditInputs: [],
+    statusUpdates: [],
+    bulkUpdates: [],
   };
 
   restoreClientErrorDeps = clientErrorsService.__setClientErrorsServiceDepsForTests({
@@ -328,6 +478,31 @@ function mockClientErrors() {
       listClientErrorReports: async (query) => {
         state.listQueries.push(query);
         return [reportRow({})];
+      },
+      updateClientErrorReportStatus: async (statusInput) => {
+        state.statusUpdates.push({
+          status: statusInput.status,
+          resolvedAt: statusInput.resolvedAt,
+          resolvedByAdminUserId: statusInput.resolvedByAdminUserId,
+          resolutionNote: statusInput.resolutionNote,
+        });
+        return {
+          previousStatus: input.previousStatus ?? "open",
+          row: reportRow({
+            status: statusInput.status,
+            resolvedAt: statusInput.resolvedAt,
+            resolvedByAdminUserId: statusInput.resolvedByAdminUserId,
+            resolutionNote: statusInput.resolutionNote,
+          }),
+        };
+      },
+      bulkUpdateClientErrorReportStatus: async (bulkInput) => {
+        state.bulkUpdates.push({
+          actionStatus: bulkInput.actionStatus,
+          filters: bulkInput.filters,
+          limit: bulkInput.limit,
+        });
+        return { count: input.bulkCount ?? 0 };
       },
     },
     audit: {
@@ -368,6 +543,7 @@ function mockAdmin(input: {
       }),
       assignRole: async () => undefined,
       searchUsers: async () => [],
+      listAdminUsers: async () => [],
       listAuditLog: async () => [],
     },
   });
@@ -443,7 +619,12 @@ function reportRow(input: Partial<NewClientErrorReportRow>): ClientErrorReportRo
     osVersion: input.osVersion ?? "18.0",
     requestId: input.requestId ?? "req-1",
     backendUrl: input.backendUrl ?? "https://api.example.test",
+    status: input.status ?? "open",
+    resolvedAt: input.resolvedAt ?? null,
+    resolvedByAdminUserId: input.resolvedByAdminUserId ?? null,
+    resolutionNote: input.resolutionNote ?? null,
     createdAt: new Date("2026-01-02T00:00:00.000Z"),
+    updatedAt: new Date("2026-01-02T00:00:00.000Z"),
   };
 }
 

@@ -12,6 +12,7 @@ import {
   type AdminRoleKey,
   type AdminUserSearchQuery,
   type AdminUserSearchResponse,
+  type AdminUsersListResponse,
   type BootstrapAdminResult,
   toAdminAuditLogItem,
   toAdminUserWithRoles,
@@ -26,6 +27,7 @@ type AdminServiceDeps = {
     | "findUserById"
     | "findUsersByAmoriaIds"
     | "listAuditLog"
+    | "listAdminUsers"
     | "searchUsers"
     | "upsertActiveAdminUserForUser"
   >;
@@ -116,6 +118,28 @@ export async function searchAdminUsers(
   });
 
   return { items };
+}
+
+export async function listAdminUsersForAdmin(
+  admin: AdminContext,
+  requestContext: AdminRequestContext,
+): Promise<AdminUsersListResponse> {
+  const items = await deps.repo.listAdminUsers();
+
+  await deps.audit.writeAuditLog({
+    adminUserId: admin.adminUser.id,
+    action: "admin.adminUsers.read",
+    targetType: "admin_users",
+    metadata: {
+      resultCount: items.length,
+    },
+    ...requestContext,
+  });
+
+  return {
+    items,
+    nextCursor: null,
+  };
 }
 
 export async function listAdminAuditLog(

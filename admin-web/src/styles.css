@@ -178,6 +178,12 @@ nav button:hover {
   color: #60717a;
 }
 
+.topbar-actions {
+  display: flex;
+  gap: 10px;
+  align-items: end;
+}
+
 .panel {
   background: #fff;
   border: 1px solid #dde5e8;
@@ -219,6 +225,22 @@ nav button:hover {
   margin-bottom: 14px;
 }
 
+.action-bar {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) repeat(5, max-content);
+  gap: 10px;
+  align-items: end;
+  margin-bottom: 14px;
+}
+
+.wide-field {
+  min-width: 220px;
+}
+
+.language-switcher {
+  min-width: 150px;
+}
+
 .stack-form {
   display: grid;
   gap: 10px;
@@ -230,6 +252,11 @@ nav button:hover {
   grid-template-columns: 180px minmax(0, 1fr);
   gap: 10px 16px;
   margin: 0;
+}
+
+.facts.compact {
+  grid-template-columns: 130px minmax(0, 1fr);
+  margin-bottom: 14px;
 }
 
 .facts dt {
@@ -343,5 +370,15 @@ nav button:hover {
   .topbar {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .topbar-actions,
+  .action-bar {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .topbar-actions {
+    display: grid;
   }
 }

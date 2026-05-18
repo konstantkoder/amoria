@@ -248,6 +248,53 @@ test("owner can access /admin/audit-log", async (t) => {
   assert.deepEqual(state.auditInputs[0]?.metadata, { limit: 5 });
 });
 
+test("owner can access /admin/admin-users without secrets", async (t) => {
+  t.after(restoreAdminDeps);
+  const state = mockAdmin({ roles: ["owner"] });
+  const app = buildApp();
+  t.after(async () => {
+    await app.close();
+  });
+
+  const response = await app.inject({
+    method: "GET",
+    url: "/admin/admin-users",
+    headers: authHeaders(userId),
+  });
+  const bodyText = response.body;
+  const body = response.json();
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(body.items[0].id, adminUserId);
+  assert.deepEqual(body.items[0].roles, ["owner"]);
+  assert.equal(body.items[0].user.amoriaId, "AMOWNER1");
+  assert.equal(bodyText.includes("passwordHash"), false);
+  assert.equal(bodyText.includes("refreshToken"), false);
+  assert.equal(bodyText.includes("secret"), false);
+  assert.equal(state.auditInputs[0]?.action, "admin.adminUsers.read");
+  assert.deepEqual(state.auditInputs[0]?.metadata, { resultCount: 1 });
+});
+
+for (const role of ["support", "ops"] as const) {
+  test(`${role} cannot access owner-only /admin/admin-users`, async (t) => {
+    t.after(restoreAdminDeps);
+    const state = mockAdmin({ roles: [role] });
+    const app = buildApp();
+    t.after(async () => {
+      await app.close();
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/admin/admin-users",
+      headers: authHeaders(userId),
+    });
+
+    assert.equal(response.statusCode, 403);
+    assert.equal(state.auditInputs.length, 0);
+  });
+}
+
 function mockAdmin(input: {
   adminContext?: AdminContextRow;
   roles?: AdminRoleKey[];
@@ -292,6 +339,24 @@ function mockAdmin(input: {
           },
         ];
       },
+      listAdminUsers: async () => [
+        {
+          id: adminUserId,
+          userId,
+          email: "owner@example.test",
+          displayName: "Admin Owner",
+          status: "active",
+          roles: ["owner"],
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+          user: {
+            id: userId,
+            amoriaId: "AMOWNER1",
+            displayName: "Admin Owner",
+            email: "owner@example.test",
+          },
+        },
+      ],
       listAuditLog: async () => [
         {
           id: auditLogId,

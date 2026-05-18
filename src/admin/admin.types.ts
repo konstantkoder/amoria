@@ -26,6 +26,17 @@ export type AdminUserRecord = AdminUserRow & {
   status: AdminStatus;
 };
 
+export type AdminUserListItem = AdminUserWithRoles & {
+  email: string | null;
+  displayName: string | null;
+  user: {
+    id: string;
+    amoriaId: string;
+    displayName: string;
+    email: string;
+  };
+};
+
 export type AdminUserSearchQuery = {
   amoriaId?: string;
   q?: string;
@@ -106,6 +117,11 @@ export type AdminUserSearchResponse = {
   items: AdminUserSearchItem[];
 };
 
+export type AdminUsersListResponse = {
+  items: AdminUserListItem[];
+  nextCursor: null;
+};
+
 export type AdminAuditLogResponse = {
   items: AdminAuditLogItem[];
   nextCursor: null;
@@ -140,6 +156,19 @@ export function toAdminUserWithRoles(adminUser: AdminUserRecord, roles: AdminRol
     roles,
     createdAt: adminUser.createdAt.toISOString(),
     updatedAt: adminUser.updatedAt.toISOString(),
+  };
+}
+
+export function toAdminUserListItem(
+  adminUser: AdminUserRecord,
+  roles: AdminRoleKey[],
+  user: AdminUserListItem["user"],
+): AdminUserListItem {
+  return {
+    ...toAdminUserWithRoles(adminUser, roles),
+    email: adminUser.email,
+    displayName: adminUser.displayName,
+    user,
   };
 }
 

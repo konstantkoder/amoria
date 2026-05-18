@@ -57,8 +57,13 @@ export type OpsHealth = {
     ok: boolean;
   };
   objectStorage: {
-    status: "not_checked";
+    status: "ok" | "failed" | "not_checked";
     reason: string;
+  };
+  counts: {
+    openClientErrors: number | null;
+    openReports: number | null;
+    pendingMediaModerationItems: number | null;
   };
 };
 
@@ -92,7 +97,29 @@ export type ClientErrorItem = {
   osVersion: string | null;
   requestId: string | null;
   backendUrl: string | null;
+  status: "open" | "resolved" | "ignored" | "archived";
+  resolvedAt: string | null;
+  resolvedByAdminUserId: string | null;
+  resolutionNote: string | null;
   createdAt: string;
+  updatedAt: string;
+};
+
+export type AdminUserItem = {
+  id: string;
+  userId: string;
+  email: string | null;
+  displayName: string | null;
+  status: "active" | "disabled";
+  roles: string[];
+  createdAt: string;
+  updatedAt: string;
+  user: {
+    id: string;
+    amoriaId: string;
+    displayName: string;
+    email: string;
+  };
 };
 
 export type AuditLogItem = {

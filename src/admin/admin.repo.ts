@@ -13,9 +13,11 @@ import {
 import type {
   AdminRoleKey,
   AdminStatus,
+  AdminUserListItem,
   AdminUserSearchItem,
   AdminUserSearchQuery,
 } from "./admin.types";
+import { toAdminUserListItem } from "./admin.types";
 
 const requiredRoles: Array<{ key: AdminRoleKey; name: string; description: string }> = [
   {
@@ -208,6 +210,51 @@ export async function searchUsers(query: AdminUserSearchQuery): Promise<AdminUse
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   }));
+}
+
+export async function listAdminUsers(): Promise<AdminUserListItem[]> {
+  const rows = await db
+    .select({
+      adminUser: adminUsers,
+      user: {
+        id: users.id,
+        amoriaId: users.amoriaId,
+        displayName: users.displayName,
+        email: users.email,
+      },
+    })
+    .from(adminUsers)
+    .innerJoin(users, eq(adminUsers.userId, users.id))
+    .orderBy(desc(adminUsers.createdAt))
+    .limit(200);
+
+  const adminUserIds = rows.map((row) => row.adminUser.id);
+  const rolesByAdminUserId = new Map<string, AdminRoleKey[]>();
+
+  if (adminUserIds.length > 0) {
+    const roleRows = await db
+      .select({
+        adminUserId: adminUserRoles.adminUserId,
+        key: adminRoles.key,
+      })
+      .from(adminUserRoles)
+      .innerJoin(adminRoles, eq(adminUserRoles.roleId, adminRoles.id))
+      .where(inArray(adminUserRoles.adminUserId, adminUserIds));
+
+    for (const row of roleRows) {
+      const roles = rolesByAdminUserId.get(row.adminUserId) ?? [];
+      roles.push(row.key as AdminRoleKey);
+      rolesByAdminUserId.set(row.adminUserId, roles);
+    }
+  }
+
+  return rows.map((row) =>
+    toAdminUserListItem(
+      row.adminUser as AdminUserRow & { userId: string; status: AdminStatus },
+      rolesByAdminUserId.get(row.adminUser.id) ?? [],
+      row.user,
+    ),
+  );
 }
 
 export async function createAuditLog(input: NewAdminAuditLogRow): Promise<AdminAuditLogRow> {

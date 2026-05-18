@@ -4,7 +4,11 @@ import { withErrorResponses } from "../common/http";
 import { authMiddleware } from "../common/security/auth-middleware";
 import { requireAdmin } from "./admin.guard";
 import {
+  adminClientErrorActionRouteSchema,
+  adminClientErrorBulkActionRouteSchema,
   adminClientErrorsRouteSchema,
+  parseAdminClientErrorActionBody,
+  parseAdminClientErrorBulkActionBody,
   parseAdminClientErrorsQuery,
 } from "../client-errors/client-errors.schemas";
 import * as clientErrorsService from "../client-errors/client-errors.service";
@@ -29,6 +33,7 @@ import {
 import * as adminReportsService from "./admin-reports.service";
 import {
   adminAuditLogRouteSchema,
+  adminAdminUsersRouteSchema,
   adminHealthRouteSchema,
   adminMeRouteSchema,
   adminUsersSearchRouteSchema,
@@ -88,6 +93,19 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
   );
 
   fastify.get(
+    "/admin-users",
+    {
+      preHandler: [authMiddleware, requireAdmin(["owner"])],
+      schema: withErrorResponses(adminAdminUsersRouteSchema),
+    },
+    async (request) =>
+      adminService.listAdminUsersForAdmin(
+        currentAdmin(request),
+        adminRequestContext(request),
+      ),
+  );
+
+  fastify.get(
     "/client-errors",
     {
       preHandler: [authMiddleware, requireAdmin(["owner", "support", "ops"])],
@@ -97,6 +115,35 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
       clientErrorsService.listClientErrorReportsForAdmin(
         currentAdmin(request),
         parseAdminClientErrorsQuery(request.query),
+        adminRequestContext(request),
+      ),
+  );
+
+  fastify.post(
+    "/client-errors/actions/bulk",
+    {
+      preHandler: [authMiddleware, requireAdmin(["owner", "support", "ops"])],
+      schema: withErrorResponses(adminClientErrorBulkActionRouteSchema),
+    },
+    async (request) =>
+      clientErrorsService.bulkActionClientErrorReportsForAdmin(
+        currentAdmin(request),
+        parseAdminClientErrorBulkActionBody(request.body),
+        adminRequestContext(request),
+      ),
+  );
+
+  fastify.post<{ Params: { id: string } }>(
+    "/client-errors/:id/actions",
+    {
+      preHandler: [authMiddleware, requireAdmin(["owner", "support", "ops"])],
+      schema: withErrorResponses(adminClientErrorActionRouteSchema),
+    },
+    async (request) =>
+      clientErrorsService.actionClientErrorReportForAdmin(
+        currentAdmin(request),
+        request.params.id,
+        parseAdminClientErrorActionBody(request.body),
         adminRequestContext(request),
       ),
   );

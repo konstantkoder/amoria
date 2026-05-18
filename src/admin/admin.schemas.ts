@@ -58,6 +58,28 @@ const adminSafeUserSchema = {
   },
 } as const;
 
+const adminUserListItemSchema = {
+  type: "object",
+  required: [
+    "id",
+    "userId",
+    "status",
+    "roles",
+    "createdAt",
+    "updatedAt",
+    "email",
+    "displayName",
+    "user",
+  ],
+  additionalProperties: false,
+  properties: {
+    ...adminUserWithRolesSchema.properties,
+    email: { type: ["string", "null"], format: "email" },
+    displayName: { type: ["string", "null"] },
+    user: adminSafeUserSchema,
+  },
+} as const;
+
 const adminUserSearchItemSchema = {
   type: "object",
   required: ["id", "amoriaId", "displayName", "email", "avatarUrl", "createdAt", "updatedAt"],
@@ -175,6 +197,23 @@ export const adminUsersSearchRouteSchema = {
           type: "array",
           items: adminUserSearchItemSchema,
         },
+      },
+    },
+  },
+} as const satisfies FastifySchema;
+
+export const adminAdminUsersRouteSchema = {
+  response: {
+    200: {
+      type: "object",
+      required: ["items", "nextCursor"],
+      additionalProperties: false,
+      properties: {
+        items: {
+          type: "array",
+          items: adminUserListItemSchema,
+        },
+        nextCursor: { type: "null" },
       },
     },
   },

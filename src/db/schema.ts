@@ -187,15 +187,27 @@ export const clientErrorReports = pgTable(
     osVersion: text("os_version"),
     requestId: text("request_id"),
     backendUrl: text("backend_url"),
+    status: text("status").default("open").notNull(),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    resolvedByAdminUserId: uuid("resolved_by_admin_user_id").references(() => adminUsers.id, {
+      onDelete: "set null",
+    }),
+    resolutionNote: text("resolution_note"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
     index("client_error_reports_created_at_idx").on(table.createdAt),
+    index("client_error_reports_status_created_at_idx").on(table.status, table.createdAt),
     index("client_error_reports_user_id_idx").on(table.userId),
     index("client_error_reports_amoria_id_idx").on(table.amoriaId),
     index("client_error_reports_screen_idx").on(table.screen),
     index("client_error_reports_action_idx").on(table.action),
     index("client_error_reports_code_idx").on(table.code),
+    check(
+      "client_error_reports_status_check",
+      sql`${table.status} IN ('open', 'resolved', 'ignored', 'archived')`,
+    ),
   ],
 );
 

@@ -1,15 +1,24 @@
 import type { JsonValue } from "../db/schema";
+import { AppError } from "../common/errors";
 import * as adminAuditService from "../admin/admin-audit.service";
 import type { AdminContext, AdminRequestContext } from "../admin/admin.types";
 import * as clientErrorsRepo from "./client-errors.repo";
 import type {
+  ClientErrorActionBody,
+  ClientErrorActionResponse,
+  ClientErrorBulkActionBody,
+  ClientErrorBulkActionResponse,
   ClientErrorReportBody,
   ClientErrorReportContext,
   ClientErrorReportListQuery,
   ClientErrorReportListResponse,
   ClientErrorReportResponse,
+  ClientErrorStatus,
 } from "./client-errors.types";
-import { toClientErrorReportItem } from "./client-errors.types";
+import {
+  CLIENT_ERROR_BULK_ACTION_LIMIT,
+  toClientErrorReportItem,
+} from "./client-errors.types";
 
 const blockedMetadataKeyPattern =
   /password|token|secret|authorization|cookie|jwt|refresh|accessToken|refreshToken|s3|database|connection|privateKey|lockedGalleryPassword|folderPassword|accountPassword|headers?|\.env|uploadUrl$|signedUrl$/i;
@@ -24,7 +33,11 @@ const maxStackLength = 8000;
 type ClientErrorsServiceDeps = {
   repo: Pick<
     typeof clientErrorsRepo,
-    "createClientErrorReport" | "findUserSnapshotById" | "listClientErrorReports"
+    | "bulkUpdateClientErrorReportStatus"
+    | "createClientErrorReport"
+    | "findUserSnapshotById"
+    | "listClientErrorReports"
+    | "updateClientErrorReportStatus"
   >;
   audit: Pick<typeof adminAuditService, "writeAuditLog">;
 };
@@ -102,6 +115,9 @@ export async function listClientErrorReportsForAdmin(
         code: query.code ?? null,
         amoriaId: query.amoriaId ?? null,
         userId: query.userId ?? null,
+        status: query.status ?? null,
+        createdFrom: query.createdFrom?.toISOString() ?? null,
+        createdTo: query.createdTo?.toISOString() ?? null,
       },
       limit: query.limit,
       resultCount: rows.length,
@@ -112,6 +128,94 @@ export async function listClientErrorReportsForAdmin(
   return {
     items: rows.map(toClientErrorReportItem),
     nextCursor: null,
+  };
+}
+
+export async function actionClientErrorReportForAdmin(
+  admin: AdminContext,
+  reportId: string,
+  input: ClientErrorActionBody,
+  requestContext: AdminRequestContext,
+): Promise<ClientErrorActionResponse> {
+  const note = cleanOptional(input.note, 2000);
+  const nextStatus = statusForAction(input.action);
+  const isReopen = input.action === "reopen";
+  const result = await deps.repo.updateClientErrorReportStatus({
+    id: reportId,
+    status: nextStatus,
+    resolvedAt: isReopen ? null : new Date(),
+    resolvedByAdminUserId: isReopen ? null : admin.adminUser.id,
+    resolutionNote: isReopen ? null : note,
+  });
+
+  if (!result) {
+    throw new AppError("not_found", "Client error report not found", 404);
+  }
+
+  await deps.audit.writeAuditLog({
+    adminUserId: admin.adminUser.id,
+    action: "admin.clientErrors.action",
+    targetType: "client_error_report",
+    targetId: reportId,
+    reason: note,
+    metadata: {
+      action: input.action,
+      previousStatus: result.previousStatus,
+      nextStatus,
+    },
+    ...requestContext,
+  });
+
+  return {
+    ok: true,
+    previousStatus: result.previousStatus,
+    nextStatus,
+    item: toClientErrorReportItem(result.row),
+  };
+}
+
+export async function bulkActionClientErrorReportsForAdmin(
+  admin: AdminContext,
+  input: ClientErrorBulkActionBody,
+  requestContext: AdminRequestContext,
+): Promise<ClientErrorBulkActionResponse> {
+  const note = cleanOptional(input.note, 2000);
+  const nextStatus = statusForAction(input.action);
+  const result = await deps.repo.bulkUpdateClientErrorReportStatus({
+    actionStatus: nextStatus,
+    filters: input.filters,
+    resolvedAt: new Date(),
+    resolvedByAdminUserId: admin.adminUser.id,
+    resolutionNote: note,
+    limit: CLIENT_ERROR_BULK_ACTION_LIMIT,
+  });
+
+  await deps.audit.writeAuditLog({
+    adminUserId: admin.adminUser.id,
+    action: "admin.clientErrors.bulkAction",
+    targetType: "client_error_reports",
+    reason: note,
+    metadata: {
+      action: input.action,
+      nextStatus,
+      filters: {
+        screen: input.filters.screen ?? null,
+        action: input.filters.action ?? null,
+        code: input.filters.code ?? null,
+        amoriaId: input.filters.amoriaId ?? null,
+        status: input.filters.status ?? null,
+      },
+      count: result.count,
+      maxAffectedRows: CLIENT_ERROR_BULK_ACTION_LIMIT,
+    },
+    ...requestContext,
+  });
+
+  return {
+    ok: true,
+    action: input.action,
+    count: result.count,
+    maxAffectedRows: CLIENT_ERROR_BULK_ACTION_LIMIT,
   };
 }
 
@@ -143,6 +247,19 @@ function cleanOptional(
 ): string | null {
   const normalized = String(value ?? "").trim();
   return normalized ? truncateString(normalized, truncateTo) : null;
+}
+
+function statusForAction(action: ClientErrorActionBody["action"]): ClientErrorStatus {
+  switch (action) {
+    case "resolve":
+      return "resolved";
+    case "ignore":
+      return "ignored";
+    case "archive":
+      return "archived";
+    case "reopen":
+      return "open";
+  }
 }
 
 function truncateString(value: string, maxLength: number): string {

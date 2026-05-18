@@ -1,8 +1,14 @@
-import { sql } from "drizzle-orm";
+import { count, eq, sql } from "drizzle-orm";
 import * as auditService from "./admin-audit.service";
 import type { AdminContext, AdminRequestContext } from "./admin.types";
 import { db } from "../db/client";
 import { env } from "../config/env";
+import {
+  clientErrorReports,
+  mediaFiles,
+  mediaModerationReviews,
+  safetyReports,
+} from "../db/schema";
 
 export type AdminOpsHealthResponse = {
   ok: true;
@@ -18,13 +24,20 @@ export type AdminOpsHealthResponse = {
     ok: boolean;
   };
   objectStorage: {
-    status: "not_checked";
+    status: "ok" | "failed" | "not_checked";
     reason: string;
+  };
+  counts: {
+    openClientErrors: number | null;
+    openReports: number | null;
+    pendingMediaModerationItems: number | null;
   };
 };
 
 type AdminOpsDeps = {
   dbCheck: () => Promise<boolean>;
+  counts: () => Promise<AdminOpsHealthResponse["counts"]>;
+  objectStorageCheck: () => Promise<AdminOpsHealthResponse["objectStorage"]>;
   audit: Pick<typeof auditService, "writeAuditLog">;
 };
 
@@ -33,6 +46,15 @@ const defaultDeps: AdminOpsDeps = {
     await db.execute(sql`select 1`);
     return true;
   },
+  counts: async () => ({
+    openClientErrors: await countOpenClientErrors(),
+    openReports: await countOpenReports(),
+    pendingMediaModerationItems: await countPendingMediaModerationItems(),
+  }),
+  objectStorageCheck: async () => ({
+    status: "not_checked",
+    reason: "No safe non-mutating object storage health check is configured for this release block.",
+  }),
   audit: auditService,
 };
 
@@ -63,13 +85,39 @@ export async function getOpsHealth(
     databaseOk = false;
   }
 
+  let counts: AdminOpsHealthResponse["counts"] = {
+    openClientErrors: null,
+    openReports: null,
+    pendingMediaModerationItems: null,
+  };
+  try {
+    counts = await deps.counts();
+  } catch {
+    counts = {
+      openClientErrors: null,
+      openReports: null,
+      pendingMediaModerationItems: null,
+    };
+  }
+
+  let objectStorage: AdminOpsHealthResponse["objectStorage"];
+  try {
+    objectStorage = await deps.objectStorageCheck();
+  } catch {
+    objectStorage = {
+      status: "failed",
+      reason: "Object storage health check failed.",
+    };
+  }
+
   await deps.audit.writeAuditLog({
     adminUserId: admin.adminUser.id,
     action: "admin.opsHealth.read",
     targetType: "ops_health",
     metadata: {
       databaseOk,
-      objectStorageStatus: "not_checked",
+      objectStorageStatus: objectStorage.status,
+      counts,
     },
     ...requestContext,
   });
@@ -87,9 +135,40 @@ export async function getOpsHealth(
     database: {
       ok: databaseOk,
     },
-    objectStorage: {
-      status: "not_checked",
-      reason: "Object storage health check is not wired yet; no placeholder status is reported.",
-    },
+    objectStorage,
+    counts,
   };
+}
+
+async function countOpenClientErrors(): Promise<number> {
+  const [row] = await db
+    .select({ value: count() })
+    .from(clientErrorReports)
+    .where(eq(clientErrorReports.status, "open"));
+
+  return row?.value ?? 0;
+}
+
+async function countOpenReports(): Promise<number> {
+  const [row] = await db
+    .select({ value: count() })
+    .from(safetyReports)
+    .where(eq(safetyReports.status, "open"));
+
+  return row?.value ?? 0;
+}
+
+async function countPendingMediaModerationItems(): Promise<number> {
+  const [row] = await db
+    .select({ value: count() })
+    .from(mediaFiles)
+    .where(
+      sql`not exists (
+        select 1
+        from ${mediaModerationReviews}
+        where ${mediaModerationReviews.mediaId} = ${mediaFiles.id}
+      )`,
+    );
+
+  return row?.value ?? 0;
 }

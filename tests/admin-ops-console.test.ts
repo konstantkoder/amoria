@@ -26,6 +26,7 @@ const adminService = require("../src/admin/admin.service") as typeof import("../
 const adminOwnerService = require("../src/admin/admin-owner.service") as typeof import("../src/admin/admin-owner.service");
 const adminReportsService = require("../src/admin/admin-reports.service") as typeof import("../src/admin/admin-reports.service");
 const adminMediaService = require("../src/admin/admin-media.service") as typeof import("../src/admin/admin-media.service");
+const adminOpsService = require("../src/admin/admin-ops.service") as typeof import("../src/admin/admin-ops.service");
 
 const userId = "00000000-0000-4000-8000-000000000001";
 const adminUserId = "00000000-0000-4000-8000-0000000000a1";
@@ -37,6 +38,7 @@ let restoreAdminDeps: (() => void) | null = null;
 let restoreOwnerDeps: (() => void) | null = null;
 let restoreReportsDeps: (() => void) | null = null;
 let restoreMediaDeps: (() => void) | null = null;
+let restoreOpsDeps: (() => void) | null = null;
 
 test.after(async () => {
   restoreDeps();
@@ -121,6 +123,37 @@ test("non-admin cannot access new admin web APIs", async (t) => {
   });
 
   assert.equal(response.statusCode, 403);
+});
+
+test("/admin/ops/health returns database status and real counts", async (t) => {
+  t.after(restoreDeps);
+  mockAdmin({ roles: ["ops"] });
+  const state = mockOpsHealth();
+  const app = buildApp();
+  t.after(async () => {
+    await app.close();
+  });
+
+  const response = await app.inject({
+    method: "GET",
+    url: "/admin/ops/health",
+    headers: authHeaders(userId),
+  });
+  const body = response.json();
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(body.database.ok, true);
+  assert.deepEqual(body.counts, {
+    openClientErrors: 3,
+    openReports: 2,
+    pendingMediaModerationItems: 1,
+  });
+  assert.equal(body.objectStorage.status, "not_checked");
+  assert.equal(body.databaseUrl, undefined);
+  assert.equal(body.s3AccessKey, undefined);
+  assert.equal(state.auditInputs[0]?.action, "admin.opsHealth.read");
+  const auditMetadata = state.auditInputs[0]?.metadata as Record<string, unknown> | undefined;
+  assert.equal(auditMetadata?.databaseOk, true);
 });
 
 test("GET /admin/reports enforces report role policy", async (t) => {
@@ -461,6 +494,37 @@ function mockMedia(input: { visibility?: AdminMediaRow["visibility"] } = {}) {
   return state;
 }
 
+function mockOpsHealth() {
+  restoreOpsDeps?.();
+  restoreOpsDeps = null;
+
+  const state: {
+    auditInputs: AdminAuditInput[];
+  } = {
+    auditInputs: [],
+  };
+
+  restoreOpsDeps = adminOpsService.__setAdminOpsServiceDepsForTests({
+    dbCheck: async () => true,
+    counts: async () => ({
+      openClientErrors: 3,
+      openReports: 2,
+      pendingMediaModerationItems: 1,
+    }),
+    objectStorageCheck: async () => ({
+      status: "not_checked",
+      reason: "Not checked in tests.",
+    }),
+    audit: {
+      writeAuditLog: async (input) => {
+        state.auditInputs.push(input);
+      },
+    },
+  });
+
+  return state;
+}
+
 function mockAdmin(input: {
   adminContext?: AdminContextRow;
   roles?: AdminRoleKey[];
@@ -482,6 +546,7 @@ function mockAdmin(input: {
       upsertActiveAdminUserForUser: async () => adminUserRow({}),
       assignRole: async () => undefined,
       searchUsers: async () => [],
+      listAdminUsers: async () => [],
       listAuditLog: async () => [],
     },
   });
@@ -503,6 +568,10 @@ function restoreDeps(): void {
   if (restoreMediaDeps) {
     restoreMediaDeps();
     restoreMediaDeps = null;
+  }
+  if (restoreOpsDeps) {
+    restoreOpsDeps();
+    restoreOpsDeps = null;
   }
 }
 

@@ -1,7 +1,15 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import {
+  createContext,
+  FormEvent,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import {
   AdminHealth,
   AdminMe,
+  AdminUserItem,
   ApiError,
   AuditLogItem,
   ClientErrorItem,
@@ -21,10 +29,19 @@ import {
   saveTokens,
   toQuery,
 } from "./api";
+import {
+  interpolate,
+  loadLanguage,
+  saveLanguage,
+  translate,
+  type Language,
+  type TranslationKey,
+} from "./i18n";
 
 type Screen =
   | "dashboard"
   | "users"
+  | "adminUsers"
   | "clientErrors"
   | "auditLog"
   | "reports"
@@ -32,23 +49,56 @@ type Screen =
   | "opsHealth"
   | "bootstrap";
 
-const screens: Array<{ key: Screen; label: string }> = [
-  { key: "dashboard", label: "Dashboard" },
-  { key: "users", label: "Users" },
-  { key: "clientErrors", label: "Client Errors" },
-  { key: "reports", label: "Reports" },
-  { key: "media", label: "Media Moderation" },
-  { key: "auditLog", label: "Audit Log" },
-  { key: "opsHealth", label: "Ops Health" },
-  { key: "bootstrap", label: "Bootstrap" },
+type ScreenItem = {
+  key: Screen;
+  labelKey: TranslationKey;
+  ownerOnly?: boolean;
+};
+
+const screens: ScreenItem[] = [
+  { key: "dashboard", labelKey: "nav.dashboard" },
+  { key: "users", labelKey: "nav.users" },
+  { key: "adminUsers", labelKey: "nav.adminUsers", ownerOnly: true },
+  { key: "clientErrors", labelKey: "nav.clientErrors" },
+  { key: "reports", labelKey: "nav.reports" },
+  { key: "media", labelKey: "nav.media" },
+  { key: "auditLog", labelKey: "nav.auditLog" },
+  { key: "opsHealth", labelKey: "nav.opsHealth" },
+  { key: "bootstrap", labelKey: "nav.bootstrap" },
 ];
 
+type I18nContextValue = {
+  language: Language;
+  setLanguage: (language: Language) => void;
+  t: (key: TranslationKey) => string;
+  tx: (key: TranslationKey, values: Record<string, string | number>) => string;
+};
+
+const I18nContext = createContext<I18nContextValue | null>(null);
+
 export function App() {
+  const [language, setLanguageState] = useState<Language>(() => loadLanguage());
   const [tokens, setTokens] = useState<Tokens | null>(() => loadTokens());
   const [adminMe, setAdminMe] = useState<AdminMe | null>(null);
   const [screen, setScreen] = useState<Screen>("dashboard");
   const [authState, setAuthState] = useState<"checking" | "login" | "ready" | "forbidden">("checking");
   const [message, setMessage] = useState<string | null>(null);
+
+  const i18n = useMemo<I18nContextValue>(() => {
+    const setLanguage = (nextLanguage: Language) => {
+      saveLanguage(nextLanguage);
+      setLanguageState(nextLanguage);
+    };
+    const t = (key: TranslationKey) => translate(language, key);
+    return {
+      language,
+      setLanguage,
+      t,
+      tx: (key, values) => interpolate(t(key), values),
+    };
+  }, [language]);
+
+  const { t } = i18n;
 
   useEffect(() => {
     if (!tokens) {
@@ -80,12 +130,17 @@ export function App() {
     setAuthState("login");
   }
 
-  if (authState === "checking") {
-    return <div className="center-panel">Checking admin session...</div>;
-  }
+  const visibleScreens = screens.filter(
+    (item) => !item.ownerOnly || adminMe?.adminUser.roles.includes("owner"),
+  );
+  const activeScreen = visibleScreens.some((item) => item.key === screen) ? screen : "dashboard";
+  const activeLabel = screens.find((item) => item.key === activeScreen)?.labelKey ?? "nav.dashboard";
 
-  if (authState === "login") {
-    return (
+  let content;
+  if (authState === "checking") {
+    content = <div className="center-panel">{t("auth.checking")}</div>;
+  } else if (authState === "login") {
+    content = (
       <LoginScreen
         onLogin={(nextTokens) => {
           saveTokens(nextTokens);
@@ -93,67 +148,72 @@ export function App() {
         }}
       />
     );
+  } else if (authState === "forbidden") {
+    content = <ForbiddenScreen onLogout={handleLogout} />;
+  } else {
+    content = (
+      <div className="app-shell">
+        <aside className="sidebar">
+          <div className="brand">
+            <div className="brand-mark">A</div>
+            <div>
+              <strong>Amoria</strong>
+              <span>{t("app.brandSubtitle")}</span>
+            </div>
+          </div>
+          <nav>
+            {visibleScreens.map((item) => (
+              <button
+                key={item.key}
+                className={activeScreen === item.key ? "active" : ""}
+                onClick={() => {
+                  setScreen(item.key);
+                  setMessage(null);
+                }}
+              >
+                {t(item.labelKey)}
+              </button>
+            ))}
+          </nav>
+        </aside>
+
+        <main className="workspace">
+          <header className="topbar">
+            <div>
+              <h1>{t(activeLabel)}</h1>
+              {adminMe ? (
+                <p>
+                  {adminMe.user.displayName} · {adminMe.user.amoriaId} · {formatRoles(adminMe.adminUser.roles, t)}
+                </p>
+              ) : null}
+            </div>
+            <div className="topbar-actions">
+              <LanguageSwitcher />
+              <button className="secondary" onClick={handleLogout}>{t("common.logout")}</button>
+            </div>
+          </header>
+
+          {message ? <div className="notice">{message}</div> : null}
+
+          {activeScreen === "dashboard" ? <Dashboard /> : null}
+          {activeScreen === "users" ? <UsersScreen /> : null}
+          {activeScreen === "adminUsers" ? <AdminUsersScreen /> : null}
+          {activeScreen === "clientErrors" ? <ClientErrorsScreen setMessage={setMessage} /> : null}
+          {activeScreen === "auditLog" ? <AuditLogScreen /> : null}
+          {activeScreen === "reports" ? <ReportsScreen setMessage={setMessage} /> : null}
+          {activeScreen === "media" ? <MediaScreen setMessage={setMessage} /> : null}
+          {activeScreen === "opsHealth" ? <OpsHealthScreen /> : null}
+          {activeScreen === "bootstrap" ? <BootstrapScreen /> : null}
+        </main>
+      </div>
+    );
   }
 
-  if (authState === "forbidden") {
-    return <ForbiddenScreen onLogout={handleLogout} />;
-  }
-
-  return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <div className="brand">
-          <div className="brand-mark">A</div>
-          <div>
-            <strong>Amoria</strong>
-            <span>Admin/Ops</span>
-          </div>
-        </div>
-        <nav>
-          {screens.map((item) => (
-            <button
-              key={item.key}
-              className={screen === item.key ? "active" : ""}
-              onClick={() => {
-                setScreen(item.key);
-                setMessage(null);
-              }}
-            >
-              {item.label}
-            </button>
-          ))}
-        </nav>
-      </aside>
-
-      <main className="workspace">
-        <header className="topbar">
-          <div>
-            <h1>{screens.find((item) => item.key === screen)?.label}</h1>
-            {adminMe ? (
-              <p>
-                {adminMe.user.displayName} · {adminMe.user.amoriaId} · {adminMe.adminUser.roles.join(", ")}
-              </p>
-            ) : null}
-          </div>
-          <button className="secondary" onClick={handleLogout}>Logout</button>
-        </header>
-
-        {message ? <div className="notice">{message}</div> : null}
-
-        {screen === "dashboard" ? <Dashboard /> : null}
-        {screen === "users" ? <UsersScreen /> : null}
-        {screen === "clientErrors" ? <ClientErrorsScreen /> : null}
-        {screen === "auditLog" ? <AuditLogScreen /> : null}
-        {screen === "reports" ? <ReportsScreen setMessage={setMessage} /> : null}
-        {screen === "media" ? <MediaScreen setMessage={setMessage} /> : null}
-        {screen === "opsHealth" ? <OpsHealthScreen /> : null}
-        {screen === "bootstrap" ? <BootstrapScreen /> : null}
-      </main>
-    </div>
-  );
+  return <I18nContext.Provider value={i18n}>{content}</I18nContext.Provider>;
 }
 
 function LoginScreen({ onLogin }: { onLogin: (tokens: Tokens) => void }) {
+  const { t } = useI18n();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -171,9 +231,9 @@ function LoginScreen({ onLogin }: { onLogin: (tokens: Tokens) => void }) {
       onLogin(response);
     } catch (error) {
       if (error instanceof ApiError && error.status === 403) {
-        setError("This account is not authorized for Admin/Ops.");
+        setError(t("auth.loginForbidden"));
       } else {
-        setError(error instanceof Error ? error.message : "Login failed");
+        setError(error instanceof Error ? error.message : t("auth.loginFailed"));
       }
     } finally {
       setLoading(false);
@@ -187,57 +247,62 @@ function LoginScreen({ onLogin }: { onLogin: (tokens: Tokens) => void }) {
           <div className="brand-mark">A</div>
           <div>
             <strong>Amoria</strong>
-            <span>Admin/Ops</span>
+            <span>{t("app.brandSubtitle")}</span>
           </div>
         </div>
+        <LanguageSwitcher />
         <label>
-          Email
+          {t("common.email")}
           <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" required />
         </label>
         <label>
-          Password
+          {t("auth.password")}
           <input value={password} onChange={(event) => setPassword(event.target.value)} type="password" required />
         </label>
         {error ? <div className="error">{error}</div> : null}
-        <button disabled={loading}>{loading ? "Signing in..." : "Sign in"}</button>
+        <button disabled={loading}>{loading ? t("auth.signingIn") : t("auth.signIn")}</button>
       </form>
     </div>
   );
 }
 
 function ForbiddenScreen({ onLogout }: { onLogout: () => void }) {
+  const { t } = useI18n();
   return (
     <div className="center-panel">
-      <h1>Not Authorized</h1>
-      <p>The signed-in account passed auth but is not an active Admin/Ops user.</p>
-      <button onClick={onLogout}>Back to login</button>
+      <LanguageSwitcher />
+      <h1>{t("auth.forbiddenTitle")}</h1>
+      <p>{t("auth.forbiddenMessage")}</p>
+      <button onClick={onLogout}>{t("common.backToLogin")}</button>
     </div>
   );
 }
 
 function Dashboard() {
+  const { language, t } = useI18n();
   const { data: health, error, reload } = useLoad<AdminHealth>("/admin/health");
 
   return (
     <section className="panel">
       <div className="panel-header">
-        <h2>Admin Service</h2>
-        <button className="secondary" onClick={reload}>Refresh</button>
+        <h2>{t("dashboard.title")}</h2>
+        <button className="secondary" onClick={reload}>{t("common.refresh")}</button>
       </div>
       {error ? <div className="error">{error}</div> : null}
       {health ? (
         <dl className="facts">
-          <Fact label="Service" value={health.service} />
-          <Fact label="Time" value={formatDate(health.time)} />
-          <Fact label="Admin User" value={health.admin.userId} />
-          <Fact label="Roles" value={health.admin.roles.join(", ")} />
+          <Fact label={t("common.service")} value={health.service} />
+          <Fact label={t("common.time")} value={formatDate(health.time, language)} />
+          <Fact label={t("common.adminUser")} value={health.admin.userId} />
+          <Fact label={t("common.roles")} value={formatRoles(health.admin.roles, t)} />
         </dl>
-      ) : <EmptyState label="No health response loaded." />}
+      ) : <EmptyState label={t("dashboard.empty")} />}
     </section>
   );
 }
 
 function UsersScreen() {
+  const { language, t } = useI18n();
   const [amoriaId, setAmoriaId] = useState("");
   const [q, setQ] = useState("");
   const [items, setItems] = useState<UserSearchItem[]>([]);
@@ -255,45 +320,95 @@ function UsersScreen() {
       );
       setItems(response.items);
     } catch (error) {
-      setError(errorMessage(error));
+      setError(errorMessage(error, t));
     }
   }
 
   return (
     <section className="panel">
       <form className="filters" onSubmit={search}>
-        <label>Amoria ID<input value={amoriaId} onChange={(event) => setAmoriaId(event.target.value)} /></label>
-        <label>Search<input value={q} onChange={(event) => setQ(event.target.value)} /></label>
-        <button>Search</button>
+        <label>{t("common.amoriaId")}<input value={amoriaId} onChange={(event) => setAmoriaId(event.target.value)} /></label>
+        <label>{t("users.searchLabel")}<input value={q} onChange={(event) => setQ(event.target.value)} /></label>
+        <button>{t("common.search")}</button>
       </form>
       {error ? <div className="error">{error}</div> : null}
       {items.length ? (
         <DataTable
-          columns={["Amoria ID", "Display Name", "Email", "Avatar", "Created", "Updated"]}
+          columns={[
+            t("common.amoriaId"),
+            t("common.displayName"),
+            t("common.email"),
+            t("users.avatar"),
+            t("common.created"),
+            t("common.updated"),
+          ]}
           rows={items.map((item) => [
             item.amoriaId,
             item.displayName,
             item.email,
             item.avatarUrl ?? "",
-            formatDate(item.createdAt),
-            formatDate(item.updatedAt),
+            formatDate(item.createdAt, language),
+            formatDate(item.updatedAt, language),
           ])}
         />
-      ) : <EmptyState label={searched ? "No users matched the query." : "Search by Amoria ID or text."} />}
+      ) : <EmptyState label={searched ? t("users.emptyResults") : t("users.emptyInitial")} />}
     </section>
   );
 }
 
-function ClientErrorsScreen() {
+function AdminUsersScreen() {
+  const { language, t } = useI18n();
+  const { data, error, reload } = useLoad<{ items: AdminUserItem[]; nextCursor: null }>("/admin/admin-users");
+  const items = data?.items ?? [];
+
+  return (
+    <section className="panel">
+      <div className="panel-header">
+        <h2>{t("adminUsers.title")}</h2>
+        <button className="secondary" onClick={reload}>{t("common.refresh")}</button>
+      </div>
+      {error ? <div className="error">{error}</div> : null}
+      {items.length ? (
+        <DataTable
+          columns={[
+            t("common.adminUser"),
+            t("common.email"),
+            t("common.displayName"),
+            t("common.status"),
+            t("common.roles"),
+            t("adminUsers.linkedUser"),
+            t("common.created"),
+            t("common.updated"),
+          ]}
+          rows={items.map((item) => [
+            item.id,
+            item.email ?? "",
+            item.displayName ?? "",
+            formatStatus(item.status, t),
+            formatRoles(item.roles, t),
+            `${item.user.amoriaId} · ${item.user.email}`,
+            formatDate(item.createdAt, language),
+            formatDate(item.updatedAt, language),
+          ])}
+        />
+      ) : <EmptyState label={t("adminUsers.empty")} />}
+    </section>
+  );
+}
+
+function ClientErrorsScreen({ setMessage }: { setMessage: (message: string | null) => void }) {
+  const { language, t, tx } = useI18n();
   const [filters, setFilters] = useState({
     screen: "",
     action: "",
     code: "",
     amoriaId: "",
+    status: "open",
     limit: "50",
   });
   const [items, setItems] = useState<ClientErrorItem[]>([]);
   const [selected, setSelected] = useState<ClientErrorItem | null>(null);
+  const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   async function load(nextFilters = filters) {
@@ -305,7 +420,7 @@ function ClientErrorsScreen() {
       setItems(response.items);
       setSelected(response.items[0] ?? null);
     } catch (error) {
-      setError(errorMessage(error));
+      setError(errorMessage(error, t));
     }
   }
 
@@ -313,16 +428,71 @@ function ClientErrorsScreen() {
     setFilters((current) => ({ ...current, [key]: value }));
   }
 
+  async function submitAction(action: "resolve" | "ignore" | "archive" | "reopen") {
+    if (!selected) {
+      return;
+    }
+
+    setError(null);
+    try {
+      const response = await apiPost<{ item: ClientErrorItem }>(
+        `/admin/client-errors/${selected.id}/actions`,
+        {
+          action,
+          note: note || undefined,
+        },
+      );
+      setMessage(tx("clientErrors.updatedOne", { id: response.item.id }));
+      setNote("");
+      await load();
+    } catch (error) {
+      setError(errorMessage(error, t));
+    }
+  }
+
+  async function bulkArchiveCurrentFilter() {
+    if (!window.confirm(t("clientErrors.bulkArchiveConfirm"))) {
+      return;
+    }
+
+    setError(null);
+    try {
+      const response = await apiPost<{ count: number }>("/admin/client-errors/actions/bulk", {
+        action: "archive",
+        filters: {
+          screen: filters.screen || undefined,
+          action: filters.action || undefined,
+          code: filters.code || undefined,
+          amoriaId: filters.amoriaId || undefined,
+          status: filters.status || undefined,
+        },
+        note: note || undefined,
+      });
+      setMessage(tx("clientErrors.bulkArchived", { count: response.count }));
+      setNote("");
+      await load();
+    } catch (error) {
+      setError(errorMessage(error, t));
+    }
+  }
+
   return (
     <section className="grid-two">
       <div className="panel">
         <form className="filters" onSubmit={(event) => { event.preventDefault(); void load(); }}>
-          <label>Screen<input value={filters.screen} onChange={(event) => update("screen", event.target.value)} /></label>
-          <label>Action<input value={filters.action} onChange={(event) => update("action", event.target.value)} /></label>
-          <label>Code<input value={filters.code} onChange={(event) => update("code", event.target.value)} /></label>
-          <label>Amoria ID<input value={filters.amoriaId} onChange={(event) => update("amoriaId", event.target.value)} /></label>
-          <label>Limit<input value={filters.limit} onChange={(event) => update("limit", event.target.value)} inputMode="numeric" /></label>
-          <button>Load</button>
+          <label>{t("common.status")}<select value={filters.status} onChange={(event) => update("status", event.target.value)}>
+            <option value="">{t("status.any")}</option>
+            <option value="open">{t("status.open")}</option>
+            <option value="resolved">{t("status.resolved")}</option>
+            <option value="ignored">{t("status.ignored")}</option>
+            <option value="archived">{t("status.archived")}</option>
+          </select></label>
+          <label>{t("common.screen")}<input value={filters.screen} onChange={(event) => update("screen", event.target.value)} /></label>
+          <label>{t("common.action")}<input value={filters.action} onChange={(event) => update("action", event.target.value)} /></label>
+          <label>{t("common.code")}<input value={filters.code} onChange={(event) => update("code", event.target.value)} /></label>
+          <label>{t("common.amoriaId")}<input value={filters.amoriaId} onChange={(event) => update("amoriaId", event.target.value)} /></label>
+          <label>{t("common.limit")}<input value={filters.limit} onChange={(event) => update("limit", event.target.value)} inputMode="numeric" /></label>
+          <button>{t("common.load")}</button>
           <button
             className="secondary"
             type="button"
@@ -336,29 +506,48 @@ function ClientErrorsScreen() {
               void load(photoFilters);
             }}
           >
-            Photo upload errors
+            {t("clientErrors.photoUploadErrors")}
           </button>
         </form>
+        <div className="action-bar">
+          <label className="wide-field">
+            {t("common.note")}
+            <input
+              value={note}
+              onChange={(event) => setNote(event.target.value)}
+              placeholder={t("clientErrors.notePlaceholder")}
+            />
+          </label>
+          <button type="button" disabled={!selected} onClick={() => void submitAction("resolve")}>{t("action.resolve")}</button>
+          <button type="button" disabled={!selected} onClick={() => void submitAction("ignore")}>{t("action.ignore")}</button>
+          <button type="button" disabled={!selected} onClick={() => void submitAction("archive")}>{t("action.archive")}</button>
+          <button type="button" disabled={!selected} onClick={() => void submitAction("reopen")}>{t("action.reopen")}</button>
+          <button className="secondary" type="button" onClick={() => void bulkArchiveCurrentFilter()}>
+            {t("clientErrors.archiveCurrent")}
+          </button>
+        </div>
         {error ? <div className="error">{error}</div> : null}
         {items.length ? (
           <table>
             <thead>
               <tr>
-                <th>Created</th>
-                <th>Amoria ID</th>
-                <th>Screen</th>
-                <th>Action</th>
-                <th>Step</th>
-                <th>Code</th>
-                <th>Message</th>
-                <th>Platform</th>
-                <th>Device</th>
+                <th>{t("common.created")}</th>
+                <th>{t("common.status")}</th>
+                <th>{t("common.amoriaId")}</th>
+                <th>{t("common.screen")}</th>
+                <th>{t("common.action")}</th>
+                <th>{t("common.step")}</th>
+                <th>{t("common.code")}</th>
+                <th>{t("common.message")}</th>
+                <th>{t("common.platform")}</th>
+                <th>{t("common.device")}</th>
               </tr>
             </thead>
             <tbody>
               {items.map((item) => (
                 <tr key={item.id} onClick={() => setSelected(item)} className={selected?.id === item.id ? "selected" : ""}>
-                  <td>{formatDate(item.createdAt)}</td>
+                  <td>{formatDate(item.createdAt, language)}</td>
+                  <td>{formatStatus(item.status, t)}</td>
                   <td>{item.amoriaId ?? ""}</td>
                   <td>{item.screen}</td>
                   <td>{item.action}</td>
@@ -371,14 +560,36 @@ function ClientErrorsScreen() {
               ))}
             </tbody>
           </table>
-        ) : <EmptyState label="No client errors loaded." />}
+        ) : <EmptyState label={t("clientErrors.empty")} />}
       </div>
-      <DetailPanel title="Client Error Detail" data={selected} />
+      <ClientErrorDetailPanel item={selected} />
     </section>
   );
 }
 
+function ClientErrorDetailPanel({ item }: { item: ClientErrorItem | null }) {
+  const { language, t } = useI18n();
+  return (
+    <div className="panel">
+      <h2>{t("clientErrors.detailTitle")}</h2>
+      {item ? (
+        <>
+          <dl className="facts compact">
+            <Fact label={t("common.status")} value={formatStatus(item.status, t)} />
+            <Fact label={t("clientErrors.resolvedAt")} value={item.resolvedAt ? formatDate(item.resolvedAt, language) : ""} />
+            <Fact label={t("clientErrors.resolvedBy")} value={item.resolvedByAdminUserId ?? ""} />
+            <Fact label={t("clientErrors.resolutionNote")} value={item.resolutionNote ?? ""} />
+            <Fact label={t("clientErrors.updated")} value={formatDate(item.updatedAt, language)} />
+          </dl>
+          <JsonBlock data={item} />
+        </>
+      ) : <EmptyState label={t("empty.selectRow")} />}
+    </div>
+  );
+}
+
 function AuditLogScreen() {
+  const { language, t } = useI18n();
   const { data, error, reload } = useLoad<{ items: AuditLogItem[] }>("/admin/audit-log?limit=50");
   const [selected, setSelected] = useState<AuditLogItem | null>(null);
   const items = data?.items ?? [];
@@ -391,28 +602,28 @@ function AuditLogScreen() {
     <section className="grid-two">
       <div className="panel">
         <div className="panel-header">
-          <h2>Audit Log</h2>
-          <button className="secondary" onClick={reload}>Refresh</button>
+          <h2>{t("audit.title")}</h2>
+          <button className="secondary" onClick={reload}>{t("common.refresh")}</button>
         </div>
         {error ? <div className="error">{error}</div> : null}
         {items.length ? (
           <table>
             <thead>
               <tr>
-                <th>Created</th>
-                <th>Action</th>
-                <th>Admin</th>
-                <th>Target</th>
-                <th>Reason</th>
-                <th>Request</th>
-                <th>IP</th>
-                <th>User Agent</th>
+                <th>{t("common.created")}</th>
+                <th>{t("common.action")}</th>
+                <th>{t("common.admin")}</th>
+                <th>{t("common.target")}</th>
+                <th>{t("audit.reason")}</th>
+                <th>{t("common.request")}</th>
+                <th>{t("common.ip")}</th>
+                <th>{t("common.userAgent")}</th>
               </tr>
             </thead>
             <tbody>
               {items.map((item) => (
                 <tr key={item.id} onClick={() => setSelected(item)} className={selected?.id === item.id ? "selected" : ""}>
-                  <td>{formatDate(item.createdAt)}</td>
+                  <td>{formatDate(item.createdAt, language)}</td>
                   <td>{item.action}</td>
                   <td>{item.adminUserId ?? ""}</td>
                   <td>{[item.targetType, item.targetId].filter(Boolean).join(":")}</td>
@@ -424,14 +635,15 @@ function AuditLogScreen() {
               ))}
             </tbody>
           </table>
-        ) : <EmptyState label="No audit entries loaded." />}
+        ) : <EmptyState label={t("audit.empty")} />}
       </div>
-      <DetailPanel title="Audit Metadata" data={selected} />
+      <DetailPanel title={t("audit.metadataTitle")} data={selected} />
     </section>
   );
 }
 
 function ReportsScreen({ setMessage }: { setMessage: (message: string | null) => void }) {
+  const { language, t, tx } = useI18n();
   const [filters, setFilters] = useState({ status: "", targetType: "", reporterAmoriaId: "", targetOwnerAmoriaId: "", limit: "50" });
   const [items, setItems] = useState<ReportItem[]>([]);
   const [selected, setSelected] = useState<ReportDetail | null>(null);
@@ -451,7 +663,7 @@ function ReportsScreen({ setMessage }: { setMessage: (message: string | null) =>
         setSelected(null);
       }
     } catch (error) {
-      setError(errorMessage(error));
+      setError(errorMessage(error, t));
     }
   }
 
@@ -472,12 +684,12 @@ function ReportsScreen({ setMessage }: { setMessage: (message: string | null) =>
         reason: reason || undefined,
         note: note || undefined,
       });
-      setMessage(`Report ${response.report.id} updated.`);
+      setMessage(tx("reports.updated", { id: response.report.id }));
       setReason("");
       setNote("");
       await load();
     } catch (error) {
-      setError(errorMessage(error));
+      setError(errorMessage(error, t));
     }
   }
 
@@ -485,38 +697,38 @@ function ReportsScreen({ setMessage }: { setMessage: (message: string | null) =>
     <section className="grid-two">
       <div className="panel">
         <form className="filters" onSubmit={(event) => { event.preventDefault(); void load(); }}>
-          <label>Status<select value={filters.status} onChange={(event) => setFilters({ ...filters, status: event.target.value })}>
-            <option value="">Any</option>
-            <option value="open">Open</option>
-            <option value="under_review">Under review</option>
-            <option value="resolved">Resolved</option>
-            <option value="dismissed">Dismissed</option>
-            <option value="escalated">Escalated</option>
+          <label>{t("common.status")}<select value={filters.status} onChange={(event) => setFilters({ ...filters, status: event.target.value })}>
+            <option value="">{t("status.any")}</option>
+            <option value="open">{t("status.open")}</option>
+            <option value="under_review">{t("status.underReview")}</option>
+            <option value="resolved">{t("status.resolved")}</option>
+            <option value="dismissed">{t("status.dismissed")}</option>
+            <option value="escalated">{t("status.escalated")}</option>
           </select></label>
-          <label>Target Type<input value={filters.targetType} onChange={(event) => setFilters({ ...filters, targetType: event.target.value })} /></label>
-          <label>Reporter Amoria ID<input value={filters.reporterAmoriaId} onChange={(event) => setFilters({ ...filters, reporterAmoriaId: event.target.value })} /></label>
-          <label>Target Owner Amoria ID<input value={filters.targetOwnerAmoriaId} onChange={(event) => setFilters({ ...filters, targetOwnerAmoriaId: event.target.value })} /></label>
-          <label>Limit<input value={filters.limit} onChange={(event) => setFilters({ ...filters, limit: event.target.value })} inputMode="numeric" /></label>
-          <button>Load</button>
+          <label>{t("reports.targetType")}<input value={filters.targetType} onChange={(event) => setFilters({ ...filters, targetType: event.target.value })} /></label>
+          <label>{t("reports.reporterAmoriaId")}<input value={filters.reporterAmoriaId} onChange={(event) => setFilters({ ...filters, reporterAmoriaId: event.target.value })} /></label>
+          <label>{t("reports.targetOwnerAmoriaId")}<input value={filters.targetOwnerAmoriaId} onChange={(event) => setFilters({ ...filters, targetOwnerAmoriaId: event.target.value })} /></label>
+          <label>{t("common.limit")}<input value={filters.limit} onChange={(event) => setFilters({ ...filters, limit: event.target.value })} inputMode="numeric" /></label>
+          <button>{t("common.load")}</button>
         </form>
         {error ? <div className="error">{error}</div> : null}
         {items.length ? (
           <table>
             <thead>
               <tr>
-                <th>Created</th>
-                <th>Status</th>
-                <th>Reporter</th>
-                <th>Target</th>
-                <th>Owner</th>
-                <th>Reason</th>
+                <th>{t("common.created")}</th>
+                <th>{t("common.status")}</th>
+                <th>{t("reports.reporter")}</th>
+                <th>{t("common.target")}</th>
+                <th>{t("reports.owner")}</th>
+                <th>{t("common.reason")}</th>
               </tr>
             </thead>
             <tbody>
               {items.map((item) => (
                 <tr key={item.id} onClick={() => void openDetail(item.id)} className={selected?.id === item.id ? "selected" : ""}>
-                  <td>{formatDate(item.createdAt)}</td>
-                  <td>{item.status}</td>
+                  <td>{formatDate(item.createdAt, language)}</td>
+                  <td>{formatStatus(item.status, t)}</td>
                   <td>{item.reporter.amoriaId}</td>
                   <td>{item.targetType}:{item.targetId}</td>
                   <td>{item.targetOwner?.amoriaId ?? ""}</td>
@@ -525,34 +737,35 @@ function ReportsScreen({ setMessage }: { setMessage: (message: string | null) =>
               ))}
             </tbody>
           </table>
-        ) : <EmptyState label="No reports loaded." />}
+        ) : <EmptyState label={t("reports.empty")} />}
       </div>
       <div className="panel">
-        <h2>Report Detail</h2>
+        <h2>{t("reports.reportDetail")}</h2>
         {selected ? (
           <>
             <JsonBlock data={selected} />
             <form className="stack-form" onSubmit={submitAction}>
-              <label>Action<select value={action} onChange={(event) => setAction(event.target.value)}>
-                <option value="mark_under_review">Mark under review</option>
-                <option value="dismiss">Dismiss</option>
-                <option value="resolve">Resolve</option>
-                <option value="escalate">Escalate</option>
-                <option value="add_note">Add note</option>
-                <option value="assign">Assign</option>
+              <label>{t("common.action")}<select value={action} onChange={(event) => setAction(event.target.value)}>
+                <option value="mark_under_review">{t("reports.markUnderReview")}</option>
+                <option value="dismiss">{t("reports.dismiss")}</option>
+                <option value="resolve">{t("reports.resolve")}</option>
+                <option value="escalate">{t("reports.escalate")}</option>
+                <option value="add_note">{t("reports.addNote")}</option>
+                <option value="assign">{t("reports.assign")}</option>
               </select></label>
-              <label>Reason<input value={reason} onChange={(event) => setReason(event.target.value)} /></label>
-              <label>Note<textarea value={note} onChange={(event) => setNote(event.target.value)} /></label>
-              <button>Apply</button>
+              <label>{t("common.reason")}<input value={reason} onChange={(event) => setReason(event.target.value)} /></label>
+              <label>{t("common.note")}<textarea value={note} onChange={(event) => setNote(event.target.value)} /></label>
+              <button>{t("common.apply")}</button>
             </form>
           </>
-        ) : <EmptyState label="Select a report." />}
+        ) : <EmptyState label={t("reports.select")} />}
       </div>
     </section>
   );
 }
 
 function MediaScreen({ setMessage }: { setMessage: (message: string | null) => void }) {
+  const { language, t, tx } = useI18n();
   const [filters, setFilters] = useState({ ownerAmoriaId: "", type: "", limit: "50" });
   const [items, setItems] = useState<MediaItem[]>([]);
   const [selected, setSelected] = useState<MediaDetail | null>(null);
@@ -568,7 +781,7 @@ function MediaScreen({ setMessage }: { setMessage: (message: string | null) => v
       setItems(response.items);
       setSelected(null);
     } catch (error) {
-      setError(errorMessage(error));
+      setError(errorMessage(error, t));
     }
   }
 
@@ -580,7 +793,7 @@ function MediaScreen({ setMessage }: { setMessage: (message: string | null) => v
       );
       setSelected(response.media);
     } catch (error) {
-      setError(errorMessage(error));
+      setError(errorMessage(error, t));
     }
   }
 
@@ -595,11 +808,11 @@ function MediaScreen({ setMessage }: { setMessage: (message: string | null) => v
         action: decisionAction,
         reason: decisionReason || undefined,
       });
-      setMessage(`Media ${response.media.id} reviewed.`);
+      setMessage(tx("media.reviewed", { id: response.media.id }));
       setDecisionReason("");
       await load();
     } catch (error) {
-      setError(errorMessage(error));
+      setError(errorMessage(error, t));
     }
   }
 
@@ -607,30 +820,30 @@ function MediaScreen({ setMessage }: { setMessage: (message: string | null) => v
     <section className="grid-two">
       <div className="panel">
         <form className="filters" onSubmit={(event) => { event.preventDefault(); void load(); }}>
-          <label>Owner Amoria ID<input value={filters.ownerAmoriaId} onChange={(event) => setFilters({ ...filters, ownerAmoriaId: event.target.value })} /></label>
-          <label>Type<input value={filters.type} onChange={(event) => setFilters({ ...filters, type: event.target.value })} /></label>
-          <label>Limit<input value={filters.limit} onChange={(event) => setFilters({ ...filters, limit: event.target.value })} inputMode="numeric" /></label>
-          <label>Detail reason<input value={detailReason} onChange={(event) => setDetailReason(event.target.value)} /></label>
-          <button>Load</button>
+          <label>{t("media.ownerAmoriaId")}<input value={filters.ownerAmoriaId} onChange={(event) => setFilters({ ...filters, ownerAmoriaId: event.target.value })} /></label>
+          <label>{t("common.type")}<input value={filters.type} onChange={(event) => setFilters({ ...filters, type: event.target.value })} /></label>
+          <label>{t("common.limit")}<input value={filters.limit} onChange={(event) => setFilters({ ...filters, limit: event.target.value })} inputMode="numeric" /></label>
+          <label>{t("media.detailReason")}<input value={detailReason} onChange={(event) => setDetailReason(event.target.value)} /></label>
+          <button>{t("common.load")}</button>
         </form>
         {error ? <div className="error">{error}</div> : null}
         {items.length ? (
           <table>
             <thead>
               <tr>
-                <th>Created</th>
-                <th>Owner</th>
-                <th>Type</th>
-                <th>Visibility</th>
-                <th>MIME</th>
-                <th>Size</th>
-                <th>Status</th>
+                <th>{t("common.created")}</th>
+                <th>{t("common.owner")}</th>
+                <th>{t("common.type")}</th>
+                <th>{t("media.visibility")}</th>
+                <th>{t("media.mime")}</th>
+                <th>{t("media.size")}</th>
+                <th>{t("common.status")}</th>
               </tr>
             </thead>
             <tbody>
               {items.map((item) => (
                 <tr key={item.id} onClick={() => void openDetail(item)} className={selected?.id === item.id ? "selected" : ""}>
-                  <td>{formatDate(item.createdAt)}</td>
+                  <td>{formatDate(item.createdAt, language)}</td>
                   <td>{item.owner.amoriaId}</td>
                   <td>{item.type}</td>
                   <td>{item.visibility ?? ""}</td>
@@ -641,62 +854,80 @@ function MediaScreen({ setMessage }: { setMessage: (message: string | null) => v
               ))}
             </tbody>
           </table>
-        ) : <EmptyState label="No media loaded." />}
+        ) : <EmptyState label={t("media.empty")} />}
       </div>
       <div className="panel">
-        <h2>Media Detail</h2>
+        <h2>{t("media.mediaDetail")}</h2>
         {selected ? (
           <>
             {selected.url ? <img className="media-preview" src={selected.url} alt="" /> : null}
             <JsonBlock data={selected} />
             <form className="stack-form" onSubmit={submitDecision}>
-              <label>Decision<select value={decisionAction} onChange={(event) => setDecisionAction(event.target.value)}>
-                <option value="approve">Approve</option>
-                <option value="restrict">Restrict</option>
-                <option value="remove">Remove</option>
-                <option value="mark_under_review">Mark under review</option>
+              <label>{t("common.decision")}<select value={decisionAction} onChange={(event) => setDecisionAction(event.target.value)}>
+                <option value="approve">{t("media.approve")}</option>
+                <option value="restrict">{t("media.restrict")}</option>
+                <option value="remove">{t("media.remove")}</option>
+                <option value="mark_under_review">{t("reports.markUnderReview")}</option>
               </select></label>
-              <label>Reason<input value={decisionReason} onChange={(event) => setDecisionReason(event.target.value)} /></label>
-              <button>Save decision</button>
+              <label>{t("common.reason")}<input value={decisionReason} onChange={(event) => setDecisionReason(event.target.value)} /></label>
+              <button>{t("media.saveDecision")}</button>
             </form>
           </>
-        ) : <EmptyState label="Select media. Locked media requires a detail reason." />}
+        ) : <EmptyState label={t("media.select")} />}
       </div>
     </section>
   );
 }
 
 function OpsHealthScreen() {
+  const { language, t } = useI18n();
   const { data, error, reload } = useLoad<OpsHealth>("/admin/ops/health");
 
   return (
     <section className="panel">
       <div className="panel-header">
-        <h2>Ops Health</h2>
-        <button className="secondary" onClick={reload}>Refresh</button>
+        <h2>{t("ops.title")}</h2>
+        <button className="secondary" onClick={reload}>{t("common.refresh")}</button>
       </div>
       {error ? <div className="error">{error}</div> : null}
       {data ? (
         <dl className="facts">
-          <Fact label="Service" value={data.service} />
-          <Fact label="Time" value={formatDate(data.time)} />
-          <Fact label="Node Env" value={data.nodeEnv} />
-          <Fact label="Database" value={data.database.ok ? "ok" : "failed"} />
-          <Fact label="Object Storage" value={`${data.objectStorage.status}: ${data.objectStorage.reason}`} />
+          <Fact label={t("common.service")} value={data.service} />
+          <Fact label={t("common.time")} value={formatDate(data.time, language)} />
+          <Fact label={t("ops.nodeEnv")} value={data.nodeEnv} />
+          <Fact label={t("ops.database")} value={data.database.ok ? t("status.ok") : t("status.failed")} />
+          <Fact label={t("ops.objectStorage")} value={`${formatStatus(data.objectStorage.status, t)}: ${data.objectStorage.reason}`} />
+          <Fact label={t("ops.openClientErrors")} value={formatCount(data.counts.openClientErrors)} />
+          <Fact label={t("ops.openReports")} value={formatCount(data.counts.openReports)} />
+          <Fact label={t("ops.pendingMedia")} value={formatCount(data.counts.pendingMediaModerationItems)} />
         </dl>
-      ) : <EmptyState label="No ops health response loaded." />}
+      ) : <EmptyState label={t("ops.empty")} />}
     </section>
   );
 }
 
 function BootstrapScreen() {
+  const { t } = useI18n();
   return (
     <section className="panel prose">
-      <h2>First Owner</h2>
-      <p>Create the owner account through the backend script, then sign in here with that email and password.</p>
+      <h2>{t("bootstrap.title")}</h2>
+      <p>{t("bootstrap.create")}</p>
       <pre>npm run admin:create-owner</pre>
-      <p>The script reads ADMIN_OWNER_EMAIL, ADMIN_OWNER_PASSWORD, and ADMIN_OWNER_DISPLAY_NAME. If no password is provided, it generates one and saves it outside the repository under F:\Dev\AmoriaAdminSecrets.</p>
+      <p>{t("bootstrap.env")}</p>
     </section>
+  );
+}
+
+function LanguageSwitcher() {
+  const { language, setLanguage, t } = useI18n();
+  return (
+    <label className="language-switcher">
+      {t("language.label")}
+      <select value={language} onChange={(event) => setLanguage(event.target.value as Language)}>
+        <option value="en">{t("language.en")}</option>
+        <option value="ru">{t("language.ru")}</option>
+      </select>
+    </label>
   );
 }
 
@@ -727,10 +958,11 @@ function DataTable({ columns, rows }: { columns: string[]; rows: string[][] }) {
 }
 
 function DetailPanel({ title, data }: { title: string; data: unknown }) {
+  const { t } = useI18n();
   return (
     <div className="panel">
       <h2>{title}</h2>
-      {data ? <JsonBlock data={data} /> : <EmptyState label="Select a row." />}
+      {data ? <JsonBlock data={data} /> : <EmptyState label={t("empty.selectRow")} />}
     </div>
   );
 }
@@ -745,6 +977,7 @@ function EmptyState({ label }: { label: string }) {
 }
 
 function useLoad<T>(path: string) {
+  const { t } = useI18n();
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [nonce, setNonce] = useState(0);
@@ -760,14 +993,14 @@ function useLoad<T>(path: string) {
       })
       .catch((error) => {
         if (!cancelled) {
-          setError(errorMessage(error));
+          setError(errorMessage(error, t));
         }
       });
 
     return () => {
       cancelled = true;
     };
-  }, [path, nonce]);
+  }, [path, nonce, t]);
 
   return {
     data,
@@ -776,10 +1009,72 @@ function useLoad<T>(path: string) {
   };
 }
 
-function formatDate(value: string): string {
-  return new Date(value).toLocaleString();
+function useI18n(): I18nContextValue {
+  const value = useContext(I18nContext);
+  if (!value) {
+    throw new Error("i18n context is missing");
+  }
+  return value;
 }
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "Request failed";
+function formatDate(value: string, language: Language): string {
+  return new Date(value).toLocaleString(language === "ru" ? "ru-RU" : "en-US");
+}
+
+function formatCount(value: number | null): string {
+  return value === null ? "" : String(value);
+}
+
+function errorMessage(error: unknown, t: (key: TranslationKey) => string): string {
+  return error instanceof Error ? error.message : t("error.requestFailed");
+}
+
+function formatRoles(roles: string[], t: (key: TranslationKey) => string): string {
+  return roles.map((role) => formatRole(role, t)).join(", ");
+}
+
+function formatRole(role: string, t: (key: TranslationKey) => string): string {
+  switch (role) {
+    case "owner":
+      return t("role.owner");
+    case "support":
+      return t("role.support");
+    case "moderator":
+      return t("role.moderator");
+    case "ops":
+      return t("role.ops");
+    default:
+      return role;
+  }
+}
+
+function formatStatus(status: string, t: (key: TranslationKey) => string): string {
+  switch (status) {
+    case "active":
+      return t("status.active");
+    case "archived":
+      return t("status.archived");
+    case "disabled":
+      return t("status.disabled");
+    case "dismissed":
+      return t("status.dismissed");
+    case "escalated":
+      return t("status.escalated");
+    case "failed":
+      return t("status.failed");
+    case "ignored":
+      return t("status.ignored");
+    case "not_checked":
+      return t("status.notChecked");
+    case "ok":
+      return t("status.ok");
+    case "open":
+      return t("status.open");
+    case "resolved":
+      return t("status.resolved");
+    case "under_review":
+      return t("status.underReview");
+    default:
+      return status;
+  }
 }
