@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { UserRow } from "../src/db/schema";
+import type { MediaFileRow, UserRow } from "../src/db/schema";
 
 process.env.NODE_ENV = "test";
 process.env.DATABASE_URL = "postgresql://amoria:amoria_password@localhost:5432/amoria_test";
 process.env.JWT_SECRET = "test-secret-that-is-long-enough";
 process.env.PUBLIC_API_URL = "http://localhost:4000";
-process.env.PUBLIC_MEDIA_URL = "http://localhost:4000/media";
+process.env.PUBLIC_MEDIA_URL = "https://api.example.test/media";
 process.env.UPLOADS_DIR = "./uploads-test";
 
 const { buildApp } = require("../src/app") as typeof import("../src/app");
@@ -19,8 +19,12 @@ type UsersRepo = typeof import("../src/users/users.repo");
 const userAId = "00000000-0000-4000-8000-000000000001";
 const userBId = "00000000-0000-4000-8000-000000000002";
 const missingUserId = "00000000-0000-4000-8000-000000000099";
+const userBAvatarMediaId = "00000000-0000-4000-8000-000000000101";
 const userBPhotoId = "00000000-0000-4000-8000-000000000102";
-const userBPhotoUrl = "https://cdn.example.test/users/user-b/profile/photo.webp";
+const userBStoredAvatarUrl = "https://stale.trycloudflare.com/users/user-b/avatar.webp";
+const publicMediaBaseUrl = "https://api.example.test/media";
+const userBAvatarUrl = `${publicMediaBaseUrl}/public/${userBAvatarMediaId}`;
+const userBPhotoUrl = `${publicMediaBaseUrl}/public/${userBPhotoId}`;
 
 let restoreDeps: (() => void) | null = null;
 
@@ -98,7 +102,10 @@ test("authenticated user can load peer public profile without internal fields", 
   assert.equal(body.createdAt, undefined);
   assert.equal(body.updatedAt, undefined);
   assert.equal(body.allowAdultMode, undefined);
-  assert.equal(body.avatarUrl, "https://cdn.example.test/users/user-b/avatar.webp");
+  assert.equal(body.avatarUrl, userBAvatarUrl);
+  assert.equal(JSON.stringify(body).includes("trycloudflare"), false);
+  assert.equal(JSON.stringify(body).includes("localhost"), false);
+  assert.equal(JSON.stringify(body).includes("minio:9000"), false);
   assert.deepEqual(body.lockedGallery, { enabled: true, count: 2 });
   assert.deepEqual(body.photos, [{ mediaId: userBPhotoId, url: userBPhotoUrl, position: 0 }]);
 });
@@ -179,7 +186,7 @@ test("missing public profile returns 404", async (t) => {
   assert.equal(response.json().error.code, "not_found");
 });
 
-test("legacy local avatarUrl is returned without profile failure", async (t) => {
+test("legacy local avatarUrl is hidden without profile failure", async (t) => {
   t.after(restoreUsersDeps);
   const app = buildApp();
   t.after(async () => {
@@ -202,7 +209,7 @@ test("legacy local avatarUrl is returned without profile failure", async (t) => 
   });
 
   assert.equal(response.statusCode, 200);
-  assert.equal(response.json().avatarUrl, legacyAvatarUrl);
+  assert.equal(response.json().avatarUrl, null);
 });
 
 function mockUsers(input: {
@@ -230,6 +237,18 @@ function mockUsers(input: {
 
   restoreDeps = usersService.__setUsersServiceDepsForTests({
     repo: repo as UsersRepo,
+    findOwnedMediaFileByUrl: async (userId, avatarUrl) => {
+      if (userId === userBId && avatarUrl === userBStoredAvatarUrl) {
+        return mediaRow({
+          id: userBAvatarMediaId,
+          ownerUserId: userBId,
+          type: "avatar",
+          path: `users/${userBId}/avatar/${userBAvatarMediaId}.webp`,
+          url: avatarUrl,
+        });
+      }
+      return undefined;
+    },
     isBlockedEitherWay: input.isBlockedEitherWay ?? (async () => false),
     gallery: {
       getPublicGalleryForUser: async (userId: string) => ({
@@ -262,7 +281,7 @@ function userRow(overrides: Partial<UserRow>): UserRow {
     displayName: "User B",
     about: "Public about",
     amoriaId: "AM34567",
-    avatarUrl: "https://cdn.example.test/users/user-b/avatar.webp",
+    avatarUrl: userBStoredAvatarUrl,
     photos: [{ mediaId: userBPhotoId, url: userBPhotoUrl }],
     goal: "dating",
     mood: "curious",
@@ -273,5 +292,23 @@ function userRow(overrides: Partial<UserRow>): UserRow {
     createdAt: now,
     updatedAt: now,
     ...overrides,
+  };
+}
+
+function mediaRow(overrides: Partial<MediaFileRow>): MediaFileRow {
+  const now = new Date("2026-01-01T00:00:00.000Z");
+
+  return {
+    id: String(overrides.id ?? userBAvatarMediaId),
+    ownerUserId: String(overrides.ownerUserId ?? userBId),
+    type: String(overrides.type ?? "avatar"),
+    path: String(overrides.path ?? `users/${userBId}/avatar/${userBAvatarMediaId}.webp`),
+    url: String(overrides.url ?? userBStoredAvatarUrl),
+    mimeType: String(overrides.mimeType ?? "image/webp"),
+    sizeBytes: Number(overrides.sizeBytes ?? 1234),
+    width: Number(overrides.width ?? 512),
+    height: Number(overrides.height ?? 512),
+    checksumSha256: overrides.checksumSha256 ?? null,
+    createdAt: now,
   };
 }

@@ -15,6 +15,7 @@ import {
   headObject,
   putObjectBuffer,
 } from "./object-storage";
+import { publicMediaUrlForMediaId } from "./media-url";
 import type { CompleteUploadBody, PrepareUploadBody } from "./uploads.schemas";
 import {
   addCompletedProfilePhotoToGallery,
@@ -270,10 +271,11 @@ async function toCompletedMediaInput(
   }
 
   return {
+    id: upload.id,
     ownerUserId,
     type: upload.purpose,
     path: upload.objectKey,
-    url: publicMediaUrl(upload.objectKey),
+    url: publicMediaUrlForMediaId(upload.id),
     mimeType: upload.mimeType,
     sizeBytes: input.sizeBytes,
     checksumSha256: input.checksumSha256 ?? upload.checksumSha256,
@@ -301,10 +303,11 @@ async function toCompletedProfilePhotoMediaInput(
   });
 
   return {
+    id: upload.id,
     ownerUserId,
     type: upload.purpose,
     path: sanitizedObjectKey,
-    url: publicMediaUrl(sanitizedObjectKey),
+    url: publicMediaUrlForMediaId(upload.id),
     mimeType: processed.mimeType,
     sizeBytes: processed.buffer.length,
     width: processed.width,
@@ -349,10 +352,6 @@ function toMediaUploadResponse(media: MediaFileRow): MediaUploadResponse {
     sizeBytes: media.sizeBytes,
     purpose: media.type,
   };
-}
-
-function publicMediaUrl(objectKey: string): string {
-  return `${env.S3_PUBLIC_BASE_URL}/${objectKey}`;
 }
 
 function normalizeMimeType(value: string): string {

@@ -15,7 +15,7 @@ process.env.NODE_ENV = "test";
 process.env.DATABASE_URL = "postgresql://amoria:amoria_password@localhost:5432/amoria_test";
 process.env.JWT_SECRET = "test-secret-that-is-long-enough";
 process.env.PUBLIC_API_URL = "http://localhost:4000";
-process.env.PUBLIC_MEDIA_URL = "http://localhost:4000/media";
+process.env.PUBLIC_MEDIA_URL = "https://api.example.test/media";
 process.env.UPLOADS_DIR = "./uploads-test";
 
 const galleryService = require(
@@ -33,6 +33,7 @@ const publicPhoto2Id = "00000000-0000-4000-8000-000000000102";
 const publicPhoto3Id = "00000000-0000-4000-8000-000000000103";
 const lockedPhoto1Id = "00000000-0000-4000-8000-000000000201";
 const lockedPhoto2Id = "00000000-0000-4000-8000-000000000202";
+const publicMediaBaseUrl = "https://api.example.test/media";
 
 let restoreDeps: (() => void) | null = null;
 
@@ -53,8 +54,18 @@ test("public gallery summary returns public photos and hides locked photos", asy
     [publicPhoto1Id, publicPhoto2Id, publicPhoto3Id],
   );
   assert.equal(response.photos.some((photo) => photo.mediaId === lockedPhoto1Id), false);
+  assert.deepEqual(
+    response.photos.map((photo) => photo.url),
+    [
+      `${publicMediaBaseUrl}/public/${publicPhoto1Id}`,
+      `${publicMediaBaseUrl}/public/${publicPhoto2Id}`,
+      `${publicMediaBaseUrl}/public/${publicPhoto3Id}`,
+    ],
+  );
   assert.equal(JSON.stringify(response).includes("passwordHash"), false);
   assert.equal(JSON.stringify(response).includes("users/owner/profile"), false);
+  assert.equal(JSON.stringify(response).includes("localhost"), false);
+  assert.equal(JSON.stringify(response).includes("minio"), false);
 });
 
 test("wrong locked gallery password returns 403 without photos", async (t) => {

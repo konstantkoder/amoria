@@ -14,6 +14,7 @@ import {
 } from "../common/validators";
 import type { ProfilePhoto, UserRow } from "../db/schema";
 import { findOwnedMediaFileByUrl, findOwnedMediaFilesByIds } from "../media/media.repo";
+import { publicMediaUrlForMediaId } from "../media/media-url";
 import { isBlockedEitherWay } from "../safety/safety.repo";
 import * as profileGalleryService from "./profile-gallery.service";
 import * as usersRepo from "./users.repo";
@@ -74,6 +75,7 @@ const avatarMediaTypes = new Set(["avatar", "profile_avatar"]);
 
 type UsersServiceDeps = {
   repo: typeof usersRepo;
+  findOwnedMediaFileByUrl: typeof findOwnedMediaFileByUrl;
   isBlockedEitherWay: typeof isBlockedEitherWay;
   gallery: Pick<
     typeof profileGalleryService,
@@ -83,6 +85,7 @@ type UsersServiceDeps = {
 
 const defaultDeps: UsersServiceDeps = {
   repo: usersRepo,
+  findOwnedMediaFileByUrl,
   isBlockedEitherWay,
   gallery: profileGalleryService,
 };
@@ -130,7 +133,7 @@ export async function toPublicUserProfile(user: UserRow): Promise<PublicUserProf
     displayName: user.displayName,
     amoriaId: user.amoriaId,
     about: user.about,
-    avatarUrl: user.avatarUrl,
+    avatarUrl: await toCurrentAvatarUrl(user),
     photos: gallery.photos,
     lockedGallery: gallery.lockedGallery,
   };
@@ -265,12 +268,25 @@ async function normalizeOwnedAvatarUrl(
     return normalized;
   }
 
-  const media = await findOwnedMediaFileByUrl(userId, normalized);
+  const media = await deps.findOwnedMediaFileByUrl(userId, normalized);
   if (!media || !avatarMediaTypes.has(media.type)) {
     throw mediaNotOwned("avatarUrl");
   }
 
   return media.url;
+}
+
+async function toCurrentAvatarUrl(user: Pick<UserRow, "id" | "avatarUrl">): Promise<string | null> {
+  if (!user.avatarUrl) {
+    return null;
+  }
+
+  const media = await deps.findOwnedMediaFileByUrl(user.id, user.avatarUrl).catch(() => undefined);
+  if (!media || !avatarMediaTypes.has(media.type)) {
+    return null;
+  }
+
+  return publicMediaUrlForMediaId(media.id);
 }
 
 async function normalizeOwnedPhotos(
@@ -298,7 +314,7 @@ async function normalizeOwnedPhotos(
 
     return {
       mediaId,
-      url: media.url,
+      url: publicMediaUrlForMediaId(media.id),
     };
   });
 }

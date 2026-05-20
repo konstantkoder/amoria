@@ -6,7 +6,7 @@ process.env.NODE_ENV = "test";
 process.env.DATABASE_URL = "postgresql://amoria:amoria_password@localhost:5432/amoria_test";
 process.env.JWT_SECRET = "test-secret-that-is-long-enough";
 process.env.PUBLIC_API_URL = "http://localhost:4000";
-process.env.PUBLIC_MEDIA_URL = "http://localhost:4000/media";
+process.env.PUBLIC_MEDIA_URL = "https://api.example.test/media";
 process.env.UPLOADS_DIR = "./uploads-test";
 
 const dbClient = require("../src/db/client") as typeof import("../src/db/client");
@@ -26,6 +26,7 @@ const userBId = "00000000-0000-4000-8000-000000000002";
 const userAMediaId = "00000000-0000-4000-8000-000000000101";
 const userBMediaId = "00000000-0000-4000-8000-000000000102";
 const userAMediaUrl = "http://localhost:4000/media/users/user-a/profile/photo.webp";
+const userAPublicMediaUrl = `https://api.example.test/media/public/${userAMediaId}`;
 let restoreUsersDeps: (() => void) | null = null;
 
 test.after(async () => {
@@ -72,7 +73,7 @@ test("PATCH /me/profile rejects photos media owned by another user", async (t) =
   assert.equal(updateCalled, false);
 });
 
-test("PATCH /me/profile stores owned photos with database URLs", async (t) => {
+test("PATCH /me/profile stores owned photos with current public media URLs", async (t) => {
   t.after(() => {
     restoreDb();
     restoreServiceDeps();
@@ -110,11 +111,12 @@ test("PATCH /me/profile stores owned photos with database URLs", async (t) => {
       },
     ],
   } as unknown as import("../src/users/users.service").UpdateProfileBody);
-  const expectedPhotos: ProfilePhoto[] = [{ mediaId: userAMediaId, url: userAMediaUrl }];
+  const expectedPhotos: ProfilePhoto[] = [{ mediaId: userAMediaId, url: userAPublicMediaUrl }];
 
   assert.equal(mediaLookupCalled, true);
   assert.deepEqual(updateInput?.photos, expectedPhotos);
   assert.deepEqual(response.photos, expectedPhotos);
+  assert.equal(JSON.stringify(response).includes("localhost"), false);
 });
 
 function mockDb(input: {

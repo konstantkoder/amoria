@@ -9,6 +9,7 @@ import type { MediaFileRow, ProfilePhoto, UserRow } from "../db/schema";
 import { deleteObject } from "../media/object-storage";
 import { env } from "../config/env";
 import { findMediaFileByOwner, deleteMediaFileByOwner } from "../media/media.repo";
+import { publicMediaUrlForMediaId } from "../media/media-url";
 import { hashPassword, verifyPassword } from "../auth/passwords";
 import { isBlockedEitherWay } from "../safety/safety.repo";
 import * as usersRepo from "./users.repo";
@@ -389,7 +390,7 @@ async function syncPublicPhotosReadModel(userId: string): Promise<void> {
     .filter((entry) => entry.item.visibility === "public")
     .map((entry) => ({
       mediaId: entry.item.mediaId,
-      url: entry.media.url,
+      url: publicMediaUrlForMediaId(entry.media.id),
     }));
 
   await deps.usersRepo.updateUserProfile(userId, { photos });
@@ -437,7 +438,7 @@ function toOwnerGalleryResponse(
 function toPublicPhoto(entry: galleryRepo.ProfileGalleryItemWithMedia): ProfileGalleryPhoto {
   return {
     mediaId: entry.item.mediaId,
-    url: entry.media.url,
+    url: publicMediaUrlForMediaId(entry.media.id),
     position: entry.item.position,
   };
 }

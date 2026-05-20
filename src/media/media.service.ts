@@ -1,28 +1,41 @@
 import type { MultipartFile } from "@fastify/multipart";
 import { randomUUID } from "node:crypto";
 import { AppError, unauthorized, validationError } from "../common/errors";
-import { MAX_AVATAR_INPUT_BYTES } from "../config/constants";
+import { MAX_AVATAR_INPUT_BYTES, MAX_MEDIA_UPLOAD_BYTES } from "../config/constants";
 import { env } from "../config/env";
 import type { MediaFileRow } from "../db/schema";
 import { findUserById, updateUserAvatar } from "../users/users.repo";
 import { toSelfUserProfile, type SelfUserProfile } from "../users/users.service";
 import { assertAvatarInput, checksumSha256, isMultipartFileTooLarge } from "./file-guards";
 import { processAvatarImage } from "./image-processing";
-import { createMediaFile, deleteMediaFileByOwner, findOwnedMediaFileByUrl } from "./media.repo";
-import { deleteObject, putObjectBuffer } from "./object-storage";
+import {
+  createMediaFile,
+  deleteMediaFileByOwner,
+  findMediaFileById,
+  findOwnedMediaFileByUrl,
+} from "./media.repo";
+import { publicMediaUrlForMediaId } from "./media-url";
+import { deleteObject, getObjectBuffer, putObjectBuffer } from "./object-storage";
 
 export type AvatarUploadResponse = {
   avatarUrl: string;
   user: SelfUserProfile;
 };
 
+export type PublicMediaResponse = {
+  body: Buffer;
+  contentType: string;
+};
+
 type MediaServiceDeps = {
   findUserById: typeof findUserById;
   updateUserAvatar: typeof updateUserAvatar;
   createMediaFile: typeof createMediaFile;
+  findMediaFileById: typeof findMediaFileById;
   findOwnedMediaFileByUrl: typeof findOwnedMediaFileByUrl;
   deleteMediaFileByOwner: typeof deleteMediaFileByOwner;
   putObjectBuffer: typeof putObjectBuffer;
+  getObjectBuffer: typeof getObjectBuffer;
   deleteObject: typeof deleteObject;
   processAvatarImage: typeof processAvatarImage;
 };
@@ -31,9 +44,11 @@ const defaultDeps: MediaServiceDeps = {
   findUserById,
   updateUserAvatar,
   createMediaFile,
+  findMediaFileById,
   findOwnedMediaFileByUrl,
   deleteMediaFileByOwner,
   putObjectBuffer,
+  getObjectBuffer,
   deleteObject,
   processAvatarImage,
 };
@@ -90,7 +105,7 @@ export async function uploadAvatar(
   const checksum = checksumSha256(processed.buffer);
   const mediaId = randomUUID();
   const objectKey = avatarObjectKey(userId, mediaId);
-  const avatarUrl = publicMediaUrl(objectKey);
+  const avatarUrl = publicMediaUrlForMediaId(mediaId);
 
   await deps.putObjectBuffer({
     bucket: env.S3_BUCKET,
@@ -133,12 +148,30 @@ export async function uploadAvatar(
   };
 }
 
-function avatarObjectKey(userId: string, mediaId: string): string {
-  return `users/${userId}/avatar/${mediaId}.webp`;
+export async function getPublicMedia(mediaId: string): Promise<PublicMediaResponse> {
+  const media = await deps.findMediaFileById(String(mediaId ?? "").trim());
+  if (!media) {
+    throw new AppError("not_found", "Media file not found", 404);
+  }
+
+  if (media.type !== "avatar" && media.type !== "profile_avatar" && media.type !== "profile_photo") {
+    throw new AppError("not_found", "Media file not found", 404);
+  }
+
+  const body = await deps.getObjectBuffer({
+    bucket: env.S3_BUCKET,
+    key: media.path,
+    maxBytes: MAX_MEDIA_UPLOAD_BYTES,
+  });
+
+  return {
+    body,
+    contentType: media.mimeType,
+  };
 }
 
-function publicMediaUrl(objectKey: string): string {
-  return `${env.S3_PUBLIC_BASE_URL}/${objectKey}`;
+function avatarObjectKey(userId: string, mediaId: string): string {
+  return `users/${userId}/avatar/${mediaId}.webp`;
 }
 
 async function cleanupPreviousObjectAvatarIfSafe(

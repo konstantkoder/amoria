@@ -37,6 +37,16 @@ export async function findMediaFileByOwner(
   return media;
 }
 
+export async function findMediaFileById(mediaId: string): Promise<MediaFileRow | undefined> {
+  const [media] = await db
+    .select()
+    .from(mediaFiles)
+    .where(eq(mediaFiles.id, mediaId))
+    .limit(1);
+
+  return media;
+}
+
 export async function findOwnedMediaFilesByIds(
   ownerUserId: string,
   ids: string[],
