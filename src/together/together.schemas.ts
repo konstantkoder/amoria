@@ -110,6 +110,115 @@ const participantSchema = {
   },
 } as const;
 
+const storyTranslationSchema = {
+  type: "object",
+  required: ["ru", "en", "hr"],
+  additionalProperties: false,
+  properties: {
+    ru: { type: "string" },
+    en: { type: "string" },
+    hr: { type: "string" },
+  },
+} as const;
+
+const storyCardSchema = {
+  type: "object",
+  required: ["id", "round", "title", "emoji"],
+  additionalProperties: false,
+  properties: {
+    id: { type: "string" },
+    round: { type: "string", enum: ["place", "detail", "twist", "ending"] },
+    title: storyTranslationSchema,
+    subtitle: storyTranslationSchema,
+    emoji: { type: "string" },
+    toneTags: {
+      type: "array",
+      items: { type: "string" },
+    },
+  },
+} as const;
+
+const storyRoundSchema = {
+  type: "object",
+  required: ["id", "title", "cards"],
+  additionalProperties: false,
+  properties: {
+    id: { type: "string", enum: ["place", "detail", "twist", "ending"] },
+    title: storyTranslationSchema,
+    cards: {
+      type: "array",
+      items: storyCardSchema,
+    },
+  },
+} as const;
+
+const storyPackSchema = {
+  type: "object",
+  required: ["packId", "version", "rounds"],
+  additionalProperties: false,
+  properties: {
+    packId: { type: "string" },
+    version: { type: "integer" },
+    rounds: {
+      type: "array",
+      items: storyRoundSchema,
+    },
+  },
+} as const;
+
+const storyArtifactChoiceSchema = {
+  type: "object",
+  required: [
+    "roundId",
+    "cardId",
+    "packId",
+    "clientRoundIndex",
+    "fromUserId",
+    "card",
+    "createdAt",
+  ],
+  additionalProperties: false,
+  properties: {
+    roundId: { type: "string", enum: ["place", "detail", "twist", "ending"] },
+    cardId: { type: "string" },
+    packId: { type: "string" },
+    clientRoundIndex: { type: "integer", minimum: 0 },
+    fromUserId: { type: "string", format: "uuid" },
+    card: storyCardSchema,
+    createdAt: { type: "string", format: "date-time" },
+  },
+} as const;
+
+const storyArtifactRoundSchema = {
+  type: "object",
+  required: ["roundId", "title", "choices"],
+  additionalProperties: false,
+  properties: {
+    roundId: { type: "string", enum: ["place", "detail", "twist", "ending"] },
+    title: storyTranslationSchema,
+    choices: {
+      type: "array",
+      items: storyArtifactChoiceSchema,
+    },
+  },
+} as const;
+
+const storyArtifactSchema = {
+  type: "object",
+  required: ["packId", "version", "title", "summary", "rounds"],
+  additionalProperties: false,
+  properties: {
+    packId: { type: "string" },
+    version: { type: "integer" },
+    title: storyTranslationSchema,
+    summary: storyTranslationSchema,
+    rounds: {
+      type: "array",
+      items: storyArtifactRoundSchema,
+    },
+  },
+} as const;
+
 const sessionSchema = {
   type: "object",
   required: [
@@ -132,6 +241,7 @@ const sessionSchema = {
     endedAt: { type: ["string", "null"], format: "date-time" },
     endedReason: { type: ["string", "null"] },
     deadlineAt: { type: ["string", "null"], format: "date-time" },
+    storyPack: storyPackSchema,
   },
 } as const;
 
@@ -213,6 +323,7 @@ const historyItemSchema = {
     createdAt: { type: "string", format: "date-time" },
     endedAt: { type: ["string", "null"], format: "date-time" },
     endedReason: { type: ["string", "null"] },
+    storyArtifact: storyArtifactSchema,
   },
 } as const;
 

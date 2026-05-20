@@ -25,8 +25,8 @@ export const CHAT_CLIENT_MESSAGE_ID_MAX_LENGTH = 200;
 
 export const TOGETHER_QUEUE_TTL_MS = 5 * 60 * 1000;
 export const TOGETHER_HEARTBEAT_TIMEOUT_MS = 60 * 1000;
-export const TOGETHER_ACTIVITIES = ["draw", "color_mood"] as const;
-export const TOGETHER_EVENT_TYPES = ["stroke_batch", "palette", "system"] as const;
+export const TOGETHER_ACTIVITIES = ["draw", "color_mood", "story_sparks"] as const;
+export const TOGETHER_EVENT_TYPES = ["stroke_batch", "palette", "story_choice", "system"] as const;
 export const TOGETHER_REVEAL_DECISIONS = ["open", "skip"] as const;
 export const TOGETHER_SESSION_STATUSES = [
   "active",

@@ -257,6 +257,107 @@ test("color_mood queue does not reuse a draw-only match", async (t) => {
   assert.equal(body.entry.sessionId, undefined);
 });
 
+test("queue accepts story_sparks activity", async (t) => {
+  t.after(restoreRepoMock);
+  const app = buildApp();
+  t.after(async () => {
+    await app.close();
+  });
+
+  let enqueuedActivity: string | undefined;
+  mockRepo({
+    enqueueAndMatch: async (input: { activity: string }) => {
+      enqueuedActivity = input.activity;
+      return queueRow({
+        activity: input.activity,
+        status: "waiting",
+        matchedSessionId: null,
+      });
+    },
+  });
+
+  const response = await app.inject({
+    method: "POST",
+    url: "/together/queue",
+    headers: {
+      Authorization: `Bearer ${signAccessToken(userAId)}`,
+    },
+    payload: {
+      activity: "story_sparks",
+    },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(enqueuedActivity, "story_sparks");
+  assert.equal(response.json().entry.status, "waiting");
+});
+
+test("story_sparks queue does not match draw or color_mood", async (t) => {
+  t.after(restoreRepoMock);
+  const app = buildApp();
+  t.after(async () => {
+    await app.close();
+  });
+
+  mockRepo({
+    enqueueAndMatch: async (input: { activity: string }) =>
+      queueRow({
+        activity: input.activity,
+        status: input.activity === "story_sparks" ? "waiting" : "matched",
+        matchedSessionId: input.activity === "story_sparks" ? null : sessionId,
+      }),
+  });
+
+  const response = await app.inject({
+    method: "POST",
+    url: "/together/queue",
+    headers: {
+      Authorization: `Bearer ${signAccessToken(userAId)}`,
+    },
+    payload: {
+      activity: "story_sparks",
+    },
+  });
+  const body = response.json();
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(body.entry.status, "waiting");
+  assert.equal(body.entry.sessionId, undefined);
+});
+
+test("story_sparks queue creates matched session activity", async (t) => {
+  t.after(restoreRepoMock);
+  const app = buildApp();
+  t.after(async () => {
+    await app.close();
+  });
+
+  mockRepo({
+    enqueueAndMatch: async (input: { activity: string }) =>
+      queueRow({
+        activity: input.activity,
+        status: "matched",
+        matchedSessionId: sessionId,
+      }),
+  });
+
+  const response = await app.inject({
+    method: "POST",
+    url: "/together/queue",
+    headers: {
+      Authorization: `Bearer ${signAccessToken(userAId)}`,
+    },
+    payload: {
+      activity: "story_sparks",
+    },
+  });
+  const body = response.json();
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(body.entry.status, "matched");
+  assert.equal(body.entry.sessionId, sessionId);
+});
+
 test("participant can get Together session events through endpoint", async (t) => {
   t.after(restoreRepoMock);
   const app = buildApp();
@@ -476,6 +577,165 @@ test("color_mood events can be fetched through session events endpoint", async (
   });
 });
 
+test("story_sparks session accepts story_choice events", async (t) => {
+  t.after(restoreRepoMock);
+
+  let insertedType: string | undefined;
+  let insertedPayload: unknown;
+  mockRepo({
+    findSessionForMember: async () => sessionRow({ status: "active", activity: "story_sparks" }),
+    findStoryChoiceEventForRound: async () => undefined,
+    createEventIdempotent: async (input: NewTogetherEventRow) => {
+      insertedType = input.type;
+      insertedPayload = input.payload;
+      return {
+        event: eventRow({
+          clientEventId: input.clientEventId,
+          type: input.type,
+          payload: input.payload,
+        }),
+        created: true,
+      };
+    },
+  });
+
+  const result = await togetherService.createEvent(userAId, sessionId, {
+    clientEventId: "story-place-1",
+    type: "story_choice",
+    payload: {
+      roundId: "place",
+      cardId: "night_train",
+      packId: "first_sparks_v1",
+      clientRoundIndex: 0,
+    },
+  });
+
+  assert.equal(result.response.created, true);
+  assert.equal(result.event.type, "story_choice");
+  assert.equal(insertedType, "story_choice");
+  assert.deepEqual(insertedPayload, {
+    roundId: "place",
+    cardId: "night_train",
+    packId: "first_sparks_v1",
+    clientRoundIndex: 0,
+  });
+});
+
+test("duplicate story_sparks round choice is idempotent for same card", async (t) => {
+  t.after(restoreRepoMock);
+
+  let eventWritten = false;
+  const existing = eventRow({
+    type: "story_choice",
+    clientEventId: "story-place-existing",
+    payload: {
+      roundId: "place",
+      cardId: "night_train",
+      packId: "first_sparks_v1",
+      clientRoundIndex: 0,
+    },
+  });
+  mockRepo({
+    findSessionForMember: async () => sessionRow({ status: "active", activity: "story_sparks" }),
+    findStoryChoiceEventForRound: async () => existing,
+    createEventIdempotent: async () => {
+      eventWritten = true;
+      throw new Error("Duplicate story choice must not create a second event");
+    },
+  });
+
+  const result = await togetherService.createEvent(userAId, sessionId, {
+    clientEventId: "story-place-retry",
+    type: "story_choice",
+    payload: {
+      roundId: "place",
+      cardId: "night_train",
+      packId: "first_sparks_v1",
+      clientRoundIndex: 0,
+    },
+  });
+
+  assert.equal(eventWritten, false);
+  assert.equal(result.response.created, false);
+  assert.equal(result.event.clientEventId, "story-place-existing");
+});
+
+test("duplicate story_sparks round choice rejects different card", async (t) => {
+  t.after(restoreRepoMock);
+
+  let eventWritten = false;
+  mockRepo({
+    findSessionForMember: async () => sessionRow({ status: "active", activity: "story_sparks" }),
+    findStoryChoiceEventForRound: async () =>
+      eventRow({
+        type: "story_choice",
+        payload: {
+          roundId: "place",
+          cardId: "night_train",
+          packId: "first_sparks_v1",
+          clientRoundIndex: 0,
+        },
+      }),
+    createEventIdempotent: async () => {
+      eventWritten = true;
+      throw new Error("Conflicting story choice must not create an event");
+    },
+  });
+
+  await assert.rejects(
+    togetherService.createEvent(userAId, sessionId, {
+      clientEventId: "story-place-conflict",
+      type: "story_choice",
+      payload: {
+        roundId: "place",
+        cardId: "small_cafe",
+        packId: "first_sparks_v1",
+        clientRoundIndex: 0,
+      },
+    }),
+    (error) => {
+      const appError = error as { code?: string; statusCode?: number };
+      assert.equal(appError.code, "validation_error");
+      assert.equal(appError.statusCode, 400);
+      return true;
+    },
+  );
+  assert.equal(eventWritten, false);
+});
+
+test("story_choice is rejected for non-story activity", async (t) => {
+  t.after(restoreRepoMock);
+
+  let eventWritten = false;
+  mockRepo({
+    findSessionForMember: async () => sessionRow({ status: "active", activity: "draw" }),
+    createEventIdempotent: async () => {
+      eventWritten = true;
+      throw new Error("story_choice must not be written to draw sessions");
+    },
+  });
+
+  await assert.rejects(
+    togetherService.createEvent(userAId, sessionId, {
+      clientEventId: "story-invalid",
+      type: "story_choice",
+      payload: {
+        roundId: "place",
+        cardId: "night_train",
+        packId: "first_sparks_v1",
+        clientRoundIndex: 0,
+      },
+    }),
+    (error) => {
+      const appError = error as { code?: string; statusCode?: number };
+      assert.equal(appError.code, "validation_error");
+      assert.equal(appError.statusCode, 400);
+      return true;
+    },
+  );
+  assert.equal(eventWritten, false);
+});
+
 test("finish active Together session marks it finished", async (t) => {
   t.after(restoreRepoMock);
 
@@ -516,6 +776,29 @@ test("finish color_mood Together session keeps activity in response", async (t) 
 
   assert.equal(result.changed, true);
   assert.equal(result.response.session.activity, "color_mood");
+  assert.equal(result.response.session.status, "finished");
+});
+
+test("finish story_sparks Together session keeps activity and story pack in response", async (t) => {
+  t.after(restoreRepoMock);
+
+  mockRepo({
+    findSessionForMember: async () =>
+      sessionRow({ status: "active", activity: "story_sparks" }),
+    finishActiveSession: async () =>
+      sessionRow({
+        status: "finished",
+        activity: "story_sparks",
+        finishedAt: endedAt,
+        endedReason: "completed",
+      }),
+  });
+
+  const result = await togetherService.finishSession(userAId, sessionId);
+
+  assert.equal(result.changed, true);
+  assert.equal(result.response.session.activity, "story_sparks");
+  assert.equal(result.response.session.storyPack?.packId, "first_sparks_v1");
   assert.equal(result.response.session.status, "finished");
 });
 
@@ -782,6 +1065,78 @@ test("color_mood open_open reveal creates direct thread with together context", 
   });
 });
 
+test("story_sparks open_open reveal creates one thread with story context", async (t) => {
+  t.after(restoreRepoMock);
+
+  const reveals: TogetherRevealRow[] = [revealRow(userAId, "open")];
+  const storyEvents = [
+    storyChoiceEvent("story-a-place", userAId, "place", "night_train", 0),
+    storyChoiceEvent("story-b-place", userBId, "place", "small_cafe", 0),
+    storyChoiceEvent("story-a-detail", userAId, "detail", "lost_key", 1),
+    storyChoiceEvent("story-b-detail", userBId, "detail", "old_camera", 1),
+    storyChoiceEvent("story-a-twist", userAId, "twist", "lights_went_out", 2),
+    storyChoiceEvent("story-b-twist", userBId, "twist", "recognized_melody", 2),
+    storyChoiceEvent("story-a-ending", userAId, "ending", "meet_again", 3),
+    storyChoiceEvent("story-b-ending", userBId, "ending", "story_began", 3),
+  ];
+  let sourceThreadId: string | null = null;
+  const openedSources: { metadata?: Record<string, unknown> }[] = [];
+  let openThreadCalls = 0;
+  mockRepo(
+    {
+      findSessionForMember: async () =>
+        sessionRow({
+          status: "finished",
+          activity: "story_sparks",
+          promptText: "Build a tiny story together",
+          finishedAt: endedAt,
+          endedReason: "completed",
+        }),
+      upsertReveal: async (_sessionId: string, userId: string, decision: string) => {
+        upsertRevealRow(reveals, userId, decision);
+      },
+      listSessionMemberUserIds: async () => [userAId, userBId],
+      listSessionReveals: async () => reveals,
+      listSessionEventsForMember: async () => storyEvents,
+    },
+    {
+      openDirectThread: async (_userId, input) => {
+        openThreadCalls += 1;
+        openedSources.push(input.source as { metadata?: Record<string, unknown> });
+        sourceThreadId = threadId;
+        return {
+          thread: {
+            id: threadId,
+            type: "direct",
+            peer: { id: userAId, displayName: "User A", avatarUrl: null },
+            lastMessage: null,
+            unreadCount: 0,
+            source: { type: "together", sourceId: sessionId },
+            contexts: [],
+          },
+        };
+      },
+      findDirectThreadIdBySource: async () => sourceThreadId,
+    },
+  );
+
+  const result = await togetherService.reveal(userBId, sessionId, { decision: "open" });
+
+  assert.equal(result.response.outcome, "open_open");
+  assert.equal(result.response.threadId, threadId);
+  assert.equal(openThreadCalls, 1);
+  const openedMetadata = openedSources[0]?.metadata;
+  assert.equal(openedMetadata?.activity, "story_sparks");
+  assert.equal(openedMetadata?.promptText, "Build a tiny story together");
+  assert.deepEqual(openedMetadata?.storyTitle, {
+    ru: "История: Ночной поезд",
+    en: "Story: Night train",
+    hr: "Priča: Noćni vlak",
+  });
+  assert.ok(openedMetadata?.summary);
+  assert.ok(openedMetadata?.selectedCards);
+});
+
 test("repeated open_open reveal reuses existing together thread context", async (t) => {
   t.after(restoreRepoMock);
 
@@ -1044,6 +1399,44 @@ test("history item exposes color_mood activity", async (t) => {
   assert.equal(response.items[0]?.status, "finished");
 });
 
+test("history exposes story_sparks activity and artifact", async (t) => {
+  t.after(restoreRepoMock);
+
+  mockRepo({
+    listHistorySessions: async () => [
+      {
+        session: sessionRow({
+          status: "finished",
+          activity: "story_sparks",
+          finishedAt: endedAt,
+          endedReason: "completed",
+        }),
+        peer: { id: userBId, displayName: "User B", avatarUrl: null },
+      },
+    ],
+    listRevealsForSessions: async () => [],
+    listSessionEventsForMember: async () => [
+      storyChoiceEvent("story-a-place", userAId, "place", "night_train", 0),
+      storyChoiceEvent("story-b-place", userBId, "place", "small_cafe", 0),
+      storyChoiceEvent("story-a-detail", userAId, "detail", "lost_key", 1),
+      storyChoiceEvent("story-b-detail", userBId, "detail", "old_camera", 1),
+      storyChoiceEvent("story-a-twist", userAId, "twist", "lights_went_out", 2),
+      storyChoiceEvent("story-b-twist", userBId, "twist", "recognized_melody", 2),
+      storyChoiceEvent("story-a-ending", userAId, "ending", "meet_again", 3),
+      storyChoiceEvent("story-b-ending", userBId, "ending", "story_began", 3),
+    ],
+  });
+
+  const response = await togetherService.getHistory(userAId, 30);
+
+  assert.equal(response.items.length, 1);
+  assert.equal(response.items[0]?.activity, "story_sparks");
+  assert.equal(response.items[0]?.storyArtifact?.packId, "first_sparks_v1");
+  assert.equal(response.items[0]?.storyArtifact?.rounds.length, 4);
+  assert.equal(response.items[0]?.storyArtifact?.rounds[0]?.choices.length, 2);
+  assert.equal(response.items[0]?.storyArtifact?.title.en, "Story: Night train");
+});
+
 test("history includes correct activity and threadId for draw and color_mood", async (t) => {
   t.after(restoreRepoMock);
 
@@ -1128,6 +1521,24 @@ test("nonmember cannot access color_mood session, events, or reveal", async (t) 
   }
 
   assert.equal(revealWritten, false);
+});
+
+test("nonmember cannot access story_sparks session events", async (t) => {
+  t.after(restoreRepoMock);
+
+  mockRepo({
+    listSessionEventsForMember: async () => undefined,
+  });
+
+  await assert.rejects(
+    togetherService.listSessionEventsForMember(userAId, sessionId),
+    (error) => {
+      const appError = error as { code?: string; statusCode?: number };
+      assert.equal(appError.code, "not_found");
+      assert.equal(appError.statusCode, 404);
+      return true;
+    },
+  );
 });
 
 test("reveal updated broadcast sends recipient-specific reveal state", async () => {
@@ -1228,6 +1639,7 @@ function mockRepo(
     listSessionReveals: async () => [],
     listRevealsForSessions: async () => [],
     listHistorySessions: async () => [],
+    findStoryChoiceEventForRound: async () => undefined,
   };
 
   const repo = new Proxy(
@@ -1300,6 +1712,30 @@ function eventRow(overrides: Partial<TogetherEventRow> = {}): TogetherEventRow {
     createdAt,
     ...overrides,
   };
+}
+
+function storyChoiceEvent(
+  clientEventId: string,
+  fromUserId: string,
+  roundId: string,
+  cardId: string,
+  clientRoundIndex: number,
+): TogetherEventRow {
+  const suffix = String(
+    Math.abs([...clientEventId].reduce((total, char) => total + char.charCodeAt(0), 0)) % 1000,
+  ).padStart(3, "0");
+  return eventRow({
+    id: `00000000-0000-4000-8000-000000000${suffix}`,
+    fromUserId,
+    clientEventId,
+    type: "story_choice",
+    payload: {
+      roundId,
+      cardId,
+      packId: "first_sparks_v1",
+      clientRoundIndex,
+    },
+  });
 }
 
 function revealRow(

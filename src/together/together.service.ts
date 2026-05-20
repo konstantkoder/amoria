@@ -1,4 +1,4 @@
-import { AppError } from "../common/errors";
+import { AppError, validationError } from "../common/errors";
 import { TOGETHER_HEARTBEAT_TIMEOUT_MS, TOGETHER_QUEUE_TTL_MS } from "../config/constants";
 import type {
   JsonValue,
@@ -32,6 +32,13 @@ import type {
   TogetherSessionStatus,
   TogetherSessionUpdateResult,
 } from "./together.types";
+import {
+  buildStorySparksArtifact,
+  getStorySparksPackDto,
+  isSameStoryChoice,
+  validateStoryChoicePayload,
+  type StoryChoicePayload,
+} from "./story-sparks";
 
 const PROMPTS = {
   draw: [
@@ -43,6 +50,11 @@ const PROMPTS = {
     "Choose the color that best fits your mood right now.",
     "Build a small shared palette for this moment.",
     "Pick a mood color before deciding whether to continue.",
+  ],
+  story_sparks: [
+    "Build a tiny story together, one card at a time.",
+    "Choose four sparks and turn them into a shared mini-story.",
+    "Create a small story from a place, detail, twist, and ending.",
   ],
 } as const satisfies Record<TogetherActivity, readonly string[]>;
 
@@ -151,12 +163,24 @@ export async function createEvent(
     );
   }
 
+  const prepared = await prepareEventForSession(session, userId, input);
+  if (prepared.existingEvent) {
+    return {
+      response: {
+        ok: true,
+        created: false,
+      },
+      event: toEventDto(prepared.existingEvent),
+      created: false,
+    };
+  }
+
   const result = await deps.repo.createEventIdempotent({
     sessionId,
     fromUserId: userId,
     clientEventId: input.clientEventId,
     type: input.type,
-    payload: input.payload,
+    payload: prepared.payload,
   });
 
   return {
@@ -167,6 +191,53 @@ export async function createEvent(
     event: toEventDto(result.event),
     created: result.created,
   };
+}
+
+async function prepareEventForSession(
+  session: TogetherSessionRow,
+  userId: string,
+  input: TogetherEventBody,
+): Promise<{ payload: JsonValue; existingEvent?: TogetherEventRow }> {
+  if (session.activity === "story_sparks") {
+    if (input.type !== "story_choice") {
+      throw validationError("Story Sparks sessions only accept story choices", {
+        type: "unsupported_for_story_sparks",
+      });
+    }
+
+    const { choice, details } = validateStoryChoicePayload(input.payload);
+    if (!choice) {
+      throw validationError("Invalid Story Sparks choice", details);
+    }
+
+    const existing = await deps.repo.findStoryChoiceEventForRound(
+      session.id,
+      userId,
+      choice.roundId,
+    );
+    if (existing) {
+      if (isSameStoryChoice(existing.payload, choice)) {
+        return {
+          payload: existing.payload,
+          existingEvent: existing,
+        };
+      }
+
+      throw validationError("Story Sparks round already has a choice from this user", {
+        roundId: "already_chosen",
+      });
+    }
+
+    return { payload: toStoryChoiceJson(choice) };
+  }
+
+  if (input.type === "story_choice") {
+    throw validationError("Story choices are only accepted in Story Sparks sessions", {
+      type: "unsupported_for_activity",
+    });
+  }
+
+  return { payload: input.payload };
 }
 
 export async function listSessionEventsForMember(
@@ -308,15 +379,13 @@ export async function reveal(
     });
 
     if (!existingThreadId) {
+      const metadata = await buildTogetherSourceMetadata(session, userId);
       await deps.openDirectThread(userId, {
         peerUserId,
         source: {
           type: "together",
           sourceId: sessionId,
-          metadata: {
-            activity: session.activity,
-            promptText: session.promptText,
-          },
+          metadata,
         },
       });
     }
@@ -352,6 +421,12 @@ export async function getHistory(
           [userId, row.peer.id],
           revealsBySessionId.get(row.session.id) ?? [],
         );
+        const storyArtifact =
+          row.session.activity === "story_sparks"
+            ? buildStorySparksArtifact(
+                (await deps.repo.listSessionEventsForMember(userId, row.session.id)) ?? [],
+              )
+            : null;
 
         return {
           sessionId: row.session.id,
@@ -367,6 +442,7 @@ export async function getHistory(
           createdAt: row.session.createdAt.toISOString(),
           endedAt: row.session.finishedAt?.toISOString() ?? null,
           endedReason: row.session.endedReason ?? null,
+          ...(storyArtifact ? { storyArtifact } : {}),
         };
       }),
     ),
@@ -399,7 +475,7 @@ function toQueueEntryDto(entry: TogetherQueueRow): TogetherQueueEntryDto {
 }
 
 function toSessionDto(session: TogetherSessionRow): TogetherSessionDto {
-  return {
+  const dto: TogetherSessionDto = {
     id: session.id,
     activity: session.activity as TogetherActivity,
     status: session.status as TogetherSessionStatus,
@@ -409,6 +485,12 @@ function toSessionDto(session: TogetherSessionRow): TogetherSessionDto {
     endedReason: session.endedReason ?? null,
     deadlineAt: session.deadlineAt?.toISOString() ?? null,
   };
+
+  if (session.activity === "story_sparks") {
+    dto.storyPack = getStorySparksPackDto();
+  }
+
+  return dto;
 }
 
 async function buildSessionResponse(
@@ -496,6 +578,32 @@ function toRevealResponse(revealState: TogetherRevealStateDto): TogetherRevealRe
   };
 }
 
+async function buildTogetherSourceMetadata(
+  session: TogetherSessionRow,
+  userId: string,
+): Promise<JsonValue> {
+  const metadata: Record<string, JsonValue> = {
+    activity: session.activity,
+    promptText: session.promptText,
+  };
+
+  if (session.activity !== "story_sparks") {
+    return metadata;
+  }
+
+  const events = (await deps.repo.listSessionEventsForMember(userId, session.id)) ?? [];
+  const artifact = buildStorySparksArtifact(events);
+  if (!artifact) {
+    return metadata;
+  }
+
+  metadata.storyTitle = artifact.title as unknown as JsonValue;
+  metadata.summary = artifact.summary as unknown as JsonValue;
+  metadata.selectedCards = artifact.rounds as unknown as JsonValue;
+  metadata.storyArtifact = artifact as unknown as JsonValue;
+  return metadata;
+}
+
 function toEventDto(event: TogetherEventRow): TogetherEventDto {
   return {
     id: event.id,
@@ -505,6 +613,15 @@ function toEventDto(event: TogetherEventRow): TogetherEventDto {
     type: event.type as TogetherEventDto["type"],
     payload: event.payload as JsonValue,
     createdAt: event.createdAt.toISOString(),
+  };
+}
+
+function toStoryChoiceJson(choice: StoryChoicePayload): JsonValue {
+  return {
+    roundId: choice.roundId,
+    cardId: choice.cardId,
+    packId: choice.packId,
+    clientRoundIndex: choice.clientRoundIndex,
   };
 }
 

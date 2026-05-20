@@ -300,6 +300,28 @@ export async function createEventIdempotent(
   });
 }
 
+export async function findStoryChoiceEventForRound(
+  sessionId: string,
+  fromUserId: string,
+  roundId: string,
+): Promise<TogetherEventRow | undefined> {
+  const [event] = await db
+    .select()
+    .from(togetherEvents)
+    .where(
+      and(
+        eq(togetherEvents.sessionId, sessionId),
+        eq(togetherEvents.fromUserId, fromUserId),
+        eq(togetherEvents.type, "story_choice"),
+        sql`${togetherEvents.payload}->>'roundId' = ${roundId}`,
+      ),
+    )
+    .orderBy(asc(togetherEvents.createdAt), asc(togetherEvents.id))
+    .limit(1);
+
+  return event;
+}
+
 export async function listSessionEventsForMember(
   userId: string,
   sessionId: string,

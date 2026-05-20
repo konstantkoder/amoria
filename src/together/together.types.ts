@@ -1,9 +1,13 @@
 import type { JsonValue } from "../db/schema";
+import type {
+  StorySparksArtifactDto,
+  StorySparksPackDto,
+} from "./story-sparks";
 
-export type TogetherActivity = "draw" | "color_mood";
+export type TogetherActivity = "draw" | "color_mood" | "story_sparks";
 export type TogetherQueueStatus = "waiting" | "matched" | "cancelled" | "expired";
 export type TogetherSessionStatus = "active" | "finished" | "abandoned" | "cancelled";
-export type TogetherEventType = "stroke_batch" | "palette" | "system";
+export type TogetherEventType = "stroke_batch" | "palette" | "story_choice" | "system";
 export type TogetherRevealDecision = "open" | "skip";
 export type TogetherRevealOutcome = "pending" | "open_open" | "open_skip" | "skip_skip" | "blocked";
 
@@ -37,6 +41,7 @@ export type TogetherSessionDto = {
   endedAt: string | null;
   endedReason: string | null;
   deadlineAt: string | null;
+  storyPack?: StorySparksPackDto;
 };
 
 export type TogetherSessionResponse = {
@@ -130,6 +135,7 @@ export type TogetherHistoryItemDto = {
   createdAt: string;
   endedAt: string | null;
   endedReason: string | null;
+  storyArtifact?: StorySparksArtifactDto;
 };
 
 export type TogetherHistoryResponse = {
