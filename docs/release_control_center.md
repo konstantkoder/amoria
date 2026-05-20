@@ -1,6 +1,6 @@
 # Amoria Release Control Center
 
-Updated: 2026-05-18
+Updated: 2026-05-20
 
 ## Branches
 
@@ -37,6 +37,13 @@ This launcher is local dev tooling only and is not product logic.
 - `TOGETHER-04` smoke checklist only, real 2-device test not done.
 - `GALLERY-01` audit/hardening.
 - `GALLERY-02` smoke checklist + preview failure fix.
+- `BUGFIX-UX-01` mobile release UX/navigation blockers:
+  - Together lobby now shows `color_mood` as an explicit second scenario with a real CTA to `PlayMatch`.
+  - DM chat profile opening self-heals missing route `peerId` through the real inbox thread list before failing visibly.
+  - Profile shows direct edit entrypoints for "About me" and "Mood".
+  - Client Errors now receives user-action failures for invalid Together activity, failed color mood navigation, missing/hydrated peer failures, failed `UserProfile` navigation, and failed edit-profile navigation.
+
+See `docs/bugfix_ux_01_audit.md`.
 
 ## Identity rule verification
 
@@ -83,6 +90,7 @@ No fake admin users, fake admin UI, or mock release data were added.
 - `GET /admin/client-errors` exposes the protected admin error feed to owner/support/ops.
 - Admin reads write audit action `admin.clientErrors.read`.
 - Mobile profile photo and avatar upload failures now report step-level diagnostics without tokens, full local paths, or full signed upload URLs.
+- `BUGFIX-UX-01` adds mobile UX/navigation dead-action reports for Together, DM chat, and profile editing without tokens, passwords, local paths, signed URLs, or fake success.
 
 `ADMIN-OPS-03-FULL` Admin/Ops Control Center foundation has been implemented:
 
@@ -115,8 +123,10 @@ Continue Admin/Ops hardening and final smoke pass.
 
 ## Remaining blockers before admin smoke pass
 
-- Resolve the current profile photo upload failure between prepare and complete, including direct object storage `PUT` accessibility from the mobile device.
-- Complete a real signed-in 2-device smoke pass; `TOGETHER-04` is checklist-only so far.
+- MEDIA-01: resolve the current profile photo upload failure between prepare and complete, including direct object storage `PUT` accessibility from the mobile device.
+- BUGFIX-TOGETHER-PROMPTS-I18N-EXAMPLES.
+- Full RU locale cleanup.
+- Complete a real signed-in Together/Gallery smoke pass; `TOGETHER-04` is checklist-only so far.
 - Run `npm run admin:create-owner` against the real local/dev database and keep credentials out of Git.
 - Start backend + admin web and complete a real owner login smoke pass.
 - Verify Client Errors after reproducing the profile photo upload bug.

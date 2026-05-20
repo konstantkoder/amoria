@@ -53,9 +53,13 @@ export type MainTabParamList = {
   Inbox: undefined;
 };
 
+export type EditProfileRouteParams = {
+  focus?: "about" | "mood";
+};
+
 export type ProfileStackParamList = {
   ProfileMain: undefined;
-  EditProfile: undefined;
+  EditProfile: EditProfileRouteParams | undefined;
   PhotoManager: undefined;
   FlirtSettings: undefined;
 };
@@ -128,6 +132,10 @@ export type AnnouncementDetailRouteProp = RouteProp<
   "AnnouncementDetail"
 >;
 export type DmChatRouteProp = RouteProp<RootStackParamList, "DMChat">;
+export type EditProfileRouteProp = RouteProp<
+  ProfileStackParamList,
+  "EditProfile"
+>;
 export type UserProfileRouteProp = RouteProp<RootStackParamList, "UserProfile">;
 export type PlayMatchRouteProp = RouteProp<RootStackParamList, "PlayMatch">;
 export type PlayCanvasRouteProp = RouteProp<RootStackParamList, "PlayCanvas">;

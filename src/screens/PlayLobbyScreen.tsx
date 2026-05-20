@@ -1,11 +1,22 @@
 import React from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 
 import ScreenShell from "@/components/ScreenShell";
 import { useLocale } from "@/contexts/LocaleContext";
-import { type RootStackNavigationProp } from "@/navigation/appRoutes";
+import {
+  type ReleasePlayActivity,
+  type RootStackNavigationProp,
+} from "@/navigation/appRoutes";
+import {
+  reportClientError,
+  sanitizeErrorForReport,
+} from "@/services/api/clientErrorsApi";
 import { theme } from "@/theme";
+
+function isReleasePlayActivity(value: string): value is ReleasePlayActivity {
+  return value === "draw" || value === "color_mood";
+}
 
 export default function PlayLobbyScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"PlayMatch">>();
@@ -28,6 +39,53 @@ export default function PlayLobbyScreen() {
       "Короткая backend-сессия, общий результат и то же честное решение про чат."
     ),
   };
+
+  const openActivity = React.useCallback(
+    (activity: string, action: "startDraw" | "startColorMood") => {
+      const safeActivity = String(activity ?? "").trim();
+      if (!isReleasePlayActivity(safeActivity)) {
+        Alert.alert(
+          tt("together.lobby.startFailedTitle", "Не удалось открыть сценарий"),
+          tt("together.lobby.startFailedBody", "Формат этой совместной сессии не распознан.")
+        );
+        reportClientError({
+          screen: "PlayLobbyScreen",
+          action,
+          step: "invalidActivity",
+          message: "Together activity is empty or invalid",
+          metadata: {
+            activityPresent: Boolean(safeActivity),
+          },
+        });
+        return;
+      }
+
+      try {
+        navigation.navigate("PlayMatch", { activity: safeActivity });
+      } catch (error) {
+        const safeError = sanitizeErrorForReport(error);
+        Alert.alert(
+          tt("together.lobby.startFailedTitle", "Не удалось открыть сценарий"),
+          tt("together.lobby.startFailedBody", "Формат этой совместной сессии не распознан.")
+        );
+        reportClientError({
+          screen: "PlayLobbyScreen",
+          action,
+          step:
+            safeActivity === "color_mood"
+              ? "failedColorMoodNavigation"
+              : "failedNavigation",
+          code: safeError.code,
+          message: safeError.message,
+          stack: safeError.stack,
+          metadata: {
+            activity: safeActivity,
+          },
+        });
+      }
+    },
+    [navigation, tt]
+  );
 
   return (
     <ScreenShell title={t("tabs.together")} background="togetherMain">
@@ -72,7 +130,7 @@ export default function PlayLobbyScreen() {
 
           <View style={styles.heroBottom}>
             <Pressable
-              onPress={() => navigation.navigate("PlayMatch", { activity: "draw" })}
+              onPress={() => openActivity("draw", "startDraw")}
               style={styles.primaryCta}
             >
               <Text style={styles.primaryCtaTitle}>
@@ -100,21 +158,21 @@ export default function PlayLobbyScreen() {
           </Text>
         </View>
 
-        <Pressable
-          onPress={() => navigation.navigate("PlayMatch", { activity: "color_mood" })}
-          style={styles.secondaryCard}
-        >
+        <View style={styles.secondaryCard}>
           <View style={styles.cardHeader}>
             <Text style={styles.cardTitle}>{colorMoodCopy.title}</Text>
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>
-                {tt("together.lobby.colorMoodBadge", "Backend")}
-              </Text>
-            </View>
           </View>
           <Text style={styles.cardDescription}>{colorMoodCopy.description}</Text>
           <Text style={styles.cardDetails}>{colorMoodCopy.details}</Text>
-        </Pressable>
+          <Pressable
+            onPress={() => openActivity("color_mood", "startColorMood")}
+            style={styles.secondaryCta}
+          >
+            <Text style={styles.secondaryCtaText}>
+              {tt("together.lobby.colorMoodCta", "Открыть палитру настроения")}
+            </Text>
+          </Pressable>
+        </View>
 
         <Pressable
           onPress={() => navigation.navigate("PlayHistory")}
@@ -311,19 +369,6 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     fontWeight: "800",
   },
-  badge: {
-    borderRadius: theme.shapes.pill,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    backgroundColor: "rgba(255, 122, 60, 0.16)",
-    borderWidth: 1,
-    borderColor: "rgba(255, 122, 60, 0.24)",
-  },
-  badgeText: {
-    color: theme.colors.text,
-    fontSize: 11,
-    fontWeight: "700",
-  },
   cardDescription: {
     color: theme.colors.subtext,
     fontSize: 13,
@@ -334,5 +379,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 17,
     fontWeight: "700",
+  },
+  secondaryCta: {
+    minHeight: 48,
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 18,
+    paddingVertical: 13,
+    backgroundColor: theme.colors.accent,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.18)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  secondaryCtaText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "800",
   },
 });

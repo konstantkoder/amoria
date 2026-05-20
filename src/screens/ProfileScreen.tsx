@@ -264,6 +264,36 @@ export default function ProfileScreen() {
     });
   }
 
+  const openEditProfile = React.useCallback(
+    (focus?: "about" | "mood") => {
+      try {
+        if (focus) {
+          navigation.navigate("EditProfile", { focus });
+        } else {
+          navigation.navigate("EditProfile");
+        }
+      } catch (error) {
+        const safeError = sanitizeErrorForReport(error);
+        Alert.alert(
+          t("profile.editProfileOpenFailedTitle"),
+          t("profile.editProfileOpenFailedBody")
+        );
+        reportClientError({
+          screen: "ProfileScreen",
+          action: "openEditProfile",
+          step: "failedNavigation",
+          code: safeError.code,
+          message: safeError.message,
+          stack: safeError.stack,
+          metadata: {
+            focus: focus ?? "default",
+          },
+        });
+      }
+    },
+    [navigation, t]
+  );
+
   if (loading) {
     return (
       <ScreenShell title={t("screen.profile")} background="profile" overlayOpacity={0.16}>
@@ -348,7 +378,42 @@ export default function ProfileScreen() {
               </View>
             ) : null}
           </View>
-          <Text style={styles.about}>{about}</Text>
+          <View style={styles.editEntrypoints}>
+            <TouchableOpacity
+              style={styles.editEntryRow}
+              activeOpacity={0.86}
+              onPress={() => openEditProfile("about")}
+            >
+              <View style={styles.editEntryCopy}>
+                <Text style={styles.editEntryTitle}>
+                  {t("profile.aboutEntrypointTitle")}
+                </Text>
+                <Text style={styles.editEntryValue} numberOfLines={2}>
+                  {about}
+                </Text>
+              </View>
+              <Text style={styles.editEntryAction}>
+                {t("profile.editProfileEntrypointAction")}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.editEntryRow}
+              activeOpacity={0.86}
+              onPress={() => openEditProfile("mood")}
+            >
+              <View style={styles.editEntryCopy}>
+                <Text style={styles.editEntryTitle}>
+                  {t("profile.moodEntrypointTitle")}
+                </Text>
+                <Text style={styles.editEntryValue} numberOfLines={1}>
+                  {moodLabel}
+                </Text>
+              </View>
+              <Text style={styles.editEntryAction}>
+                {t("profile.editProfileEntrypointAction")}
+              </Text>
+            </TouchableOpacity>
+          </View>
           {profile?.interests?.length ? (
             <View style={styles.interests}>
               {profile.interests.map((interest) => (
@@ -400,7 +465,7 @@ export default function ProfileScreen() {
           <TouchableOpacity
             style={styles.actionButton}
             activeOpacity={0.86}
-            onPress={() => navigation.navigate("EditProfile")}
+            onPress={() => openEditProfile()}
           >
             <Text style={styles.actionButtonText}>{t("profile.edit")}</Text>
           </TouchableOpacity>
@@ -609,10 +674,38 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
   },
-  about: {
+  editEntrypoints: {
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.1)",
+  },
+  editEntryRow: {
+    minHeight: 64,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.1)",
+  },
+  editEntryCopy: {
+    flex: 1,
+    gap: 4,
+  },
+  editEntryTitle: {
     color: theme.colors.text,
     fontSize: 15,
-    lineHeight: 22,
+    fontWeight: "800",
+  },
+  editEntryValue: {
+    color: theme.colors.subtext,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  editEntryAction: {
+    color: theme.colors.accent,
+    fontSize: 12,
+    fontWeight: "800",
   },
   interests: {
     flexDirection: "row",

@@ -20,9 +20,14 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useLocale } from "@/contexts/LocaleContext";
 import {
   type DmChatRouteProp,
+  type ReleasePlayActivity,
   type RootStackNavigationProp,
 } from "@/navigation/appRoutes";
 import * as chatApi from "@/services/api/chatApi";
+import {
+  reportClientError,
+  sanitizeErrorForReport,
+} from "@/services/api/clientErrorsApi";
 import * as safetyApi from "@/services/api/safetyApi";
 import type { SafetyReportReason } from "@/services/api/safetyApi";
 import type { MessageDto } from "@/services/api/types";
@@ -32,6 +37,12 @@ import { theme } from "@/theme";
 type RenderMessage = MessageDto & {
   pending?: boolean;
   failed?: boolean;
+};
+
+type HydratedPeer = {
+  id: string;
+  displayName: string;
+  avatarUrl: string | null;
 };
 
 function buildReportReasonButtons(
@@ -98,6 +109,10 @@ function isTogetherSource(source: unknown): boolean {
   return source === "together" || source === "play";
 }
 
+function isReleasePlayActivity(value: unknown): value is ReleasePlayActivity {
+  return value === "draw" || value === "color_mood";
+}
+
 function readThreadMessage(payload: wsClient.RealtimeMessage): MessageDto | null {
   const candidate =
     payload.message && typeof payload.message === "object"
@@ -141,7 +156,7 @@ export default function DMChatScreen() {
 
   const myId = authUser?.id ?? "";
   const threadId = String(route.params?.threadId ?? "").trim();
-  const peerId = String(route.params?.peerId ?? "").trim();
+  const routePeerId = String(route.params?.peerId ?? "").trim();
   const routePeerName = String(route.params?.peerName ?? "").trim();
   const backTarget = route.params?.backTarget;
   const backSessionId = String(route.params?.backSessionId ?? "").trim();
@@ -155,18 +170,26 @@ export default function DMChatScreen() {
   const [reloadKey, setReloadKey] = useState(0);
   const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
   const [safetyBusy, setSafetyBusy] = useState(false);
+  const [hydratedPeer, setHydratedPeer] = useState<HydratedPeer | null>(null);
+  const [peerHydrating, setPeerHydrating] = useState(false);
 
   const textRef = useRef("");
   const inputRef = useRef<TextInput>(null);
   const listRef = useRef<FlatList<RenderMessage>>(null);
   const mountedRef = useRef(true);
+  const peerHydratePromiseRef = useRef<Promise<HydratedPeer | null> | null>(null);
 
   const amoriaUserLabel = tt("profile.amoriaUser", "Пользователь Amoria");
-  const peerDisplayName = routePeerName || amoriaUserLabel;
+  const peerId = routePeerId || hydratedPeer?.id || "";
+  const peerDisplayName =
+    routePeerName || hydratedPeer?.displayName?.trim() || amoriaUserLabel;
+  const peerAvatarUrl = hydratedPeer?.avatarUrl ?? "";
   const peerBlocked = Boolean(peerId && blockedUserIds.includes(peerId));
   const sourceIsTogether = isTogetherSource(sourceContext?.source);
-  const sourceTogetherActivity =
-    sourceContext?.artworkSummary?.activity === "color_mood" ? "color_mood" : "draw";
+  const sourceTogetherActivityInput = sourceContext?.artworkSummary?.activity;
+  const sourceTogetherActivity = isReleasePlayActivity(sourceTogetherActivityInput)
+    ? sourceTogetherActivityInput
+    : "draw";
 
   useEffect(() => {
     mountedRef.current = true;
@@ -174,6 +197,11 @@ export default function DMChatScreen() {
       mountedRef.current = false;
     };
   }, []);
+
+  useEffect(() => {
+    setHydratedPeer(null);
+    peerHydratePromiseRef.current = null;
+  }, [routePeerId, threadId]);
 
   useEffect(() => {
     setMessages([]);
@@ -335,34 +363,206 @@ export default function DMChatScreen() {
     }, [handleBack])
   );
 
-  const openPeerProfile = useCallback(() => {
-    if (!peerId) return;
-    navigation.navigate("UserProfile", {
-      userId: peerId,
-      peerName: peerDisplayName,
-      ...(threadId ? { threadId } : {}),
-      ...(sourceContext ? { sourceContext } : {}),
-    });
-  }, [navigation, peerDisplayName, peerId, sourceContext, threadId]);
+  const reportOpenPeerProfileFailure = useCallback(
+    (step: string, message: string, error?: unknown) => {
+      const safeError = error ? sanitizeErrorForReport(error) : null;
+      reportClientError({
+        screen: "DMChatScreen",
+        action: "openPeerProfile",
+        step,
+        code: safeError?.code,
+        message: safeError?.message ?? message,
+        stack: safeError?.stack,
+        metadata: {
+          threadIdExists: Boolean(threadId),
+          routePeerIdExists: Boolean(routePeerId),
+          hydratedPeerIdExists: Boolean(hydratedPeer?.id),
+          routePeerNameExists: Boolean(routePeerName),
+          source: sourceContext?.source ?? null,
+          sourceActivity: sourceContext?.artworkSummary?.activity ?? null,
+          backTarget: backTarget ?? null,
+        },
+      });
+    },
+    [
+      backTarget,
+      hydratedPeer?.id,
+      routePeerId,
+      routePeerName,
+      sourceContext?.artworkSummary?.activity,
+      sourceContext?.source,
+      threadId,
+    ]
+  );
+
+  const hydratePeerFromInbox = useCallback(async (): Promise<HydratedPeer | null> => {
+    if (!threadId) return null;
+    if (peerHydratePromiseRef.current) {
+      return peerHydratePromiseRef.current;
+    }
+
+    const promise = (async () => {
+      setPeerHydrating(true);
+      try {
+        const thread = await chatApi.findInboxThreadById(threadId);
+        const nextPeerId = String(thread?.peer?.id ?? "").trim();
+        if (!nextPeerId) return null;
+
+        const nextPeer = {
+          id: nextPeerId,
+          displayName:
+            thread?.peer?.displayName?.trim() ||
+            routePeerName ||
+            amoriaUserLabel,
+          avatarUrl: thread?.peer?.avatarUrl ?? null,
+        };
+        if (mountedRef.current) {
+          setHydratedPeer(nextPeer);
+        }
+        return nextPeer;
+      } finally {
+        if (mountedRef.current) {
+          setPeerHydrating(false);
+        }
+        peerHydratePromiseRef.current = null;
+      }
+    })();
+
+    peerHydratePromiseRef.current = promise;
+    return promise;
+  }, [amoriaUserLabel, routePeerName, threadId]);
+
+  const showPeerProfileError = useCallback(() => {
+    Alert.alert(
+      tt("dm.peerProfileUnavailableTitle", "Профиль недоступен"),
+      tt(
+        "dm.peerProfileUnavailableBody",
+        "Не удалось открыть профиль собеседника из этого чата. Попробуй вернуться в «Чаты» и открыть разговор ещё раз."
+      )
+    );
+  }, [tt]);
+
+  const openPeerProfile = useCallback(async () => {
+    let targetPeerId = peerId;
+    let targetPeerName = peerDisplayName;
+
+    if (!targetPeerId) {
+      reportOpenPeerProfileFailure("missingPeerId", "DMChat route is missing peerId");
+
+      let recoveredPeer: HydratedPeer | null = null;
+      try {
+        recoveredPeer = await hydratePeerFromInbox();
+      } catch (error) {
+        reportOpenPeerProfileFailure("hydratePeerFailed", "Failed to hydrate peer from inbox", error);
+        showPeerProfileError();
+        return;
+      }
+
+      targetPeerId = recoveredPeer?.id ?? "";
+      targetPeerName = recoveredPeer?.displayName?.trim() || peerDisplayName;
+      if (!targetPeerId) {
+        reportOpenPeerProfileFailure(
+          "hydratePeerFailed",
+          "Inbox hydrate did not return a peer"
+        );
+        showPeerProfileError();
+        return;
+      }
+    }
+
+    try {
+      navigation.navigate("UserProfile", {
+        userId: targetPeerId,
+        peerName: targetPeerName,
+        ...(threadId ? { threadId } : {}),
+        ...(sourceContext ? { sourceContext } : {}),
+      });
+    } catch (error) {
+      reportOpenPeerProfileFailure("failedOpenUserProfile", "Failed to open UserProfile", error);
+      showPeerProfileError();
+    }
+  }, [
+    hydratePeerFromInbox,
+    navigation,
+    peerDisplayName,
+    peerId,
+    reportOpenPeerProfileFailure,
+    showPeerProfileError,
+    sourceContext,
+    threadId,
+  ]);
 
   const startAnotherTogetherSession = useCallback(() => {
-    navigation.navigate("PlayMatch", { activity: sourceTogetherActivity });
-  }, [navigation, sourceTogetherActivity]);
+    if (
+      sourceTogetherActivityInput != null &&
+      !isReleasePlayActivity(sourceTogetherActivityInput)
+    ) {
+      Alert.alert(
+        tt("together.lobby.startFailedTitle", "Не удалось открыть сценарий"),
+        tt("together.lobby.startFailedBody", "Формат этой совместной сессии не распознан.")
+      );
+      reportClientError({
+        screen: "DMChatScreen",
+        action: "startAnotherTogetherSession",
+        step: "invalidActivity",
+        message: "Together source activity is empty or invalid",
+        metadata: {
+          activityPresent: Boolean(sourceTogetherActivityInput),
+          source: sourceContext?.source ?? null,
+        },
+      });
+      return;
+    }
 
-  const chatHeader = peerId ? (
+    try {
+      navigation.navigate("PlayMatch", { activity: sourceTogetherActivity });
+    } catch (error) {
+      const safeError = sanitizeErrorForReport(error);
+      Alert.alert(
+        tt("together.lobby.startFailedTitle", "Не удалось открыть сценарий"),
+        tt("together.lobby.startFailedBody", "Формат этой совместной сессии не распознан.")
+      );
+      reportClientError({
+        screen: "DMChatScreen",
+        action: "startAnotherTogetherSession",
+        step: "failedNavigation",
+        code: safeError.code,
+        message: safeError.message,
+        stack: safeError.stack,
+        metadata: {
+          activity: sourceTogetherActivity,
+          source: sourceContext?.source ?? null,
+        },
+      });
+    }
+  }, [
+    navigation,
+    sourceContext?.source,
+    sourceTogetherActivity,
+    sourceTogetherActivityInput,
+    tt,
+  ]);
+
+  const canOpenPeerProfileEntry = Boolean(peerId || threadId);
+
+  const chatHeader = canOpenPeerProfileEntry ? (
     <TouchableOpacity
-      onPress={openPeerProfile}
+      onPress={() => void openPeerProfile()}
       style={styles.chatHeader}
       activeOpacity={0.85}
       accessibilityRole="button"
       accessibilityLabel={tt("dm.openPeerProfile", "Профиль собеседника")}
     >
-      <UserAvatar avatarUrl="" label={peerDisplayName} size={34} />
+      <UserAvatar avatarUrl={peerAvatarUrl} label={peerDisplayName} size={34} />
       <View style={styles.chatHeaderCopy}>
         <Text style={styles.chatHeaderName} numberOfLines={1}>
           {peerDisplayName}
         </Text>
-        {headerSourceLabel ? (
+        {peerHydrating ? (
+          <Text style={styles.chatHeaderSource} numberOfLines={1}>
+            {tt("dm.peerProfileHydrating", "Открываем профиль…")}
+          </Text>
+        ) : headerSourceLabel ? (
           <Text style={styles.chatHeaderSource} numberOfLines={1}>
             {headerSourceLabel}
           </Text>
@@ -542,23 +742,32 @@ export default function DMChatScreen() {
 
   const renderPeerCard = useCallback(
     () =>
-      peerId ? (
+      canOpenPeerProfileEntry ? (
         <TouchableOpacity
-          onPress={openPeerProfile}
+          onPress={() => void openPeerProfile()}
           style={styles.peerCard}
           activeOpacity={0.85}
         >
-          <UserAvatar avatarUrl="" label={peerDisplayName} size={42} />
+          <UserAvatar avatarUrl={peerAvatarUrl} label={peerDisplayName} size={42} />
           <View style={styles.peerCopy}>
             <Text style={styles.peerName}>{peerDisplayName}</Text>
             <Text style={styles.peerMeta}>
-              {tt("dm.openPeerProfile", "Профиль собеседника")}
+              {peerHydrating
+                ? tt("dm.peerProfileHydrating", "Открываем профиль…")
+                : tt("dm.openPeerProfile", "Профиль собеседника")}
             </Text>
           </View>
           <Text style={styles.peerActionText}>{tt("menu.profile", "Профиль")}</Text>
         </TouchableOpacity>
       ) : null,
-    [openPeerProfile, peerDisplayName, peerId, tt]
+    [
+      canOpenPeerProfileEntry,
+      openPeerProfile,
+      peerAvatarUrl,
+      peerDisplayName,
+      peerHydrating,
+      tt,
+    ]
   );
 
   const renderSafetyCard = useCallback(

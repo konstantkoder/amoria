@@ -22,19 +22,18 @@ const maxArrayItems = 20;
 const maxStringLength = 500;
 const maxDepth = 4;
 
-export async function reportClientError(input: ClientErrorReportInput): Promise<void> {
-  try {
-    await request<{ ok: boolean; id: string }>(
-      "POST",
-      "/client/error-reports",
-      buildClientErrorPayload(input),
-      { retryOnUnauthorized: false }
-    );
-  } catch (error) {
-    if (__DEV__) {
-      console.warn("Client error report failed", getErrorMessage(error));
-    }
-  }
+export function reportClientError(input: ClientErrorReportInput): void {
+  void request<{ ok: boolean; id: string }>(
+    "POST",
+    "/client/error-reports",
+    buildClientErrorPayload(input),
+    { retryOnUnauthorized: false }
+  )
+    .catch((error) => {
+      if (__DEV__) {
+        console.warn("Client error report failed", getErrorMessage(error));
+      }
+    });
 }
 
 export function sanitizeErrorForReport(error: unknown) {

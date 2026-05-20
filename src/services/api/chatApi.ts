@@ -51,6 +51,27 @@ export function listInbox(
   );
 }
 
+export async function findInboxThreadById(
+  threadId: string,
+  limit = 30,
+  maxPages = 4
+): Promise<ThreadDto | null> {
+  const targetThreadId = String(threadId ?? "").trim();
+  if (!targetThreadId) return null;
+
+  let cursor: string | undefined;
+  for (let page = 0; page < maxPages; page += 1) {
+    const response = await listInbox(limit, cursor);
+    const match = response.items.find((thread) => thread.id === targetThreadId);
+    if (match) return match;
+
+    cursor = response.nextCursor ?? undefined;
+    if (!cursor) break;
+  }
+
+  return null;
+}
+
 export function listMessages(
   threadId: string,
   limit = 50

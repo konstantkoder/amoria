@@ -10,11 +10,12 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect, useRoute } from "@react-navigation/native";
 
 import ScreenShell from "@/components/ScreenShell";
 import { useLocale } from "@/contexts/LocaleContext";
 import type { Goal, Mood, UserProfile } from "@/models/User";
+import type { EditProfileRouteProp } from "@/navigation/appRoutes";
 import { theme } from "@/theme";
 import {
   getDisplayNameValidationErrorKey,
@@ -81,6 +82,7 @@ function translatedOptionLabel(
 }
 
 export default function EditProfileScreen() {
+  const route = useRoute<EditProfileRouteProp>();
   const { t } = useLocale();
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
@@ -91,6 +93,10 @@ export default function EditProfileScreen() {
   const [mood, setMood] = React.useState<Mood>("chill");
   const [allowAdultMode, setAllowAdultMode] = React.useState(false);
   const [mysteryMode, setMysteryMode] = React.useState(false);
+  const scrollRef = React.useRef<ScrollView>(null);
+  const aboutInputRef = React.useRef<TextInput>(null);
+  const moodYRef = React.useRef(0);
+  const focusTarget = route.params?.focus;
 
   const applyProfile = React.useCallback((profile: UserProfile) => {
     setDisplayName(profile.displayName ?? "");
@@ -128,6 +134,27 @@ export default function EditProfileScreen() {
       };
     }, [applyProfile, t])
   );
+
+  React.useEffect(() => {
+    if (loading || !focusTarget) return;
+
+    const timer = setTimeout(() => {
+      if (focusTarget === "about") {
+        scrollRef.current?.scrollTo({ y: 54, animated: true });
+        aboutInputRef.current?.focus();
+        return;
+      }
+
+      if (focusTarget === "mood") {
+        scrollRef.current?.scrollTo({
+          y: Math.max(moodYRef.current - 24, 0),
+          animated: true,
+        });
+      }
+    }, 240);
+
+    return () => clearTimeout(timer);
+  }, [focusTarget, loading]);
 
   const handleSave = async () => {
     try {
@@ -185,6 +212,7 @@ export default function EditProfileScreen() {
       showBack
     >
       <ScrollView
+        ref={scrollRef}
         style={styles.scroll}
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
@@ -203,6 +231,7 @@ export default function EditProfileScreen() {
 
           <Text style={styles.label}>{t("editProfile.aboutLabel")}</Text>
           <TextInput
+            ref={aboutInputRef}
             value={about}
             onChangeText={setAbout}
             multiline
@@ -250,34 +279,40 @@ export default function EditProfileScreen() {
             })}
           </View>
 
-          <Text style={styles.label}>{t("editProfile.moodLabel")}</Text>
-          <View style={styles.optionsWrap}>
-            {MOOD_OPTIONS.map((option) => {
-              const active = mood === option;
-              return (
-                <TouchableOpacity
-                  key={option}
-                  onPress={() => setMood(option)}
-                  style={[
-                    styles.optionButton,
-                    active ? styles.moodOptionButtonActive : null,
-                  ]}
-                >
-                  <Text
+          <View
+            onLayout={(event) => {
+              moodYRef.current = event.nativeEvent.layout.y;
+            }}
+          >
+            <Text style={styles.label}>{t("editProfile.moodLabel")}</Text>
+            <View style={styles.optionsWrap}>
+              {MOOD_OPTIONS.map((option) => {
+                const active = mood === option;
+                return (
+                  <TouchableOpacity
+                    key={option}
+                    onPress={() => setMood(option)}
                     style={[
-                      styles.optionButtonText,
-                      active ? styles.optionButtonTextActive : null,
+                      styles.optionButton,
+                      active ? styles.moodOptionButtonActive : null,
                     ]}
                   >
-                    {translatedOptionLabel(
-                      t,
-                      MOOD_LABEL_KEYS[option],
-                      MOOD_LABEL_FALLBACKS[option]
-                    )}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
+                    <Text
+                      style={[
+                        styles.optionButtonText,
+                        active ? styles.optionButtonTextActive : null,
+                      ]}
+                    >
+                      {translatedOptionLabel(
+                        t,
+                        MOOD_LABEL_KEYS[option],
+                        MOOD_LABEL_FALLBACKS[option]
+                      )}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           </View>
 
           <View style={styles.toggleCard}>

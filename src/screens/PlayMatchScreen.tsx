@@ -20,6 +20,7 @@ import {
   type PlayMatchRouteProp,
   type RootStackNavigationProp,
 } from "@/navigation/appRoutes";
+import { reportClientError } from "@/services/api/clientErrorsApi";
 import * as togetherApi from "@/services/api/togetherApi";
 import type { TogetherActivity, TogetherQueueEntry } from "@/services/api/types";
 import { theme } from "@/theme";
@@ -148,9 +149,10 @@ export default function PlayMatchScreen() {
   );
 
   const uid = authUser?.id ?? "";
+  const rawActivity = (route.params as { activity?: unknown } | undefined)?.activity;
   const activity: TogetherActivity | null =
-    route.params?.activity === "draw" || route.params?.activity === "color_mood"
-      ? route.params.activity
+    rawActivity === "draw" || rawActivity === "color_mood"
+      ? rawActivity
       : null;
   const [statusKey, setStatusKey] = React.useState<MatchStatusKey>("preparing");
   const [entry, setEntry] = React.useState<TogetherQueueEntry | null>(null);
@@ -162,6 +164,7 @@ export default function PlayMatchScreen() {
   const cancelRequestedRef = React.useRef(false);
   const autoStartedRef = React.useRef(false);
   const inFlightRef = React.useRef(false);
+  const invalidActivityReportedRef = React.useRef(false);
 
   const goToTogether = React.useCallback(() => {
     navigation.navigate("Tabs", { screen: "Together" });
@@ -218,6 +221,21 @@ export default function PlayMatchScreen() {
     autoStartedRef.current = true;
     void startQueue();
   }, [activity, startQueue, uid]);
+
+  React.useEffect(() => {
+    if (!uid || activity || invalidActivityReportedRef.current) return;
+    invalidActivityReportedRef.current = true;
+    const rawActivityText = String(rawActivity ?? "").trim();
+    reportClientError({
+      screen: "PlayMatchScreen",
+      action: "startTogetherSession",
+      step: "invalidActivity",
+      message: "PlayMatch opened with empty or invalid activity",
+      metadata: {
+        activityPresent: Boolean(rawActivityText),
+      },
+    });
+  }, [activity, rawActivity, uid]);
 
   React.useEffect(() => {
     if (!entry?.id || matchedRef.current || statusKey !== "searching" && statusKey !== "delayed") {
