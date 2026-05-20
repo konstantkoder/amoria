@@ -306,13 +306,13 @@ export type TogetherQueueEntry = {
   expiresAt: string;
 };
 
-export type TogetherActivity = "draw" | "color_mood";
+export type TogetherActivity = "draw" | "color_mood" | "story_sparks";
 
 export type TogetherQueueResponse = {
   entry: TogetherQueueEntry;
 };
 
-export type TogetherEventType = "stroke_batch" | "palette" | "system";
+export type TogetherEventType = "stroke_batch" | "palette" | "story_choice" | "system";
 
 export type TogetherEventDto = {
   id: string;
@@ -348,6 +348,60 @@ export type TogetherRevealStateDto = {
   peerDecisionKnown: boolean;
 };
 
+export type StorySparksLanguage = "ru" | "en" | "hr";
+
+export type StorySparksTranslation = Record<StorySparksLanguage, string>;
+
+export type StorySparksRoundId = "place" | "detail" | "twist" | "ending";
+
+export type StorySparksCardDto = {
+  id: string;
+  round: StorySparksRoundId;
+  title: StorySparksTranslation;
+  subtitle?: StorySparksTranslation;
+  emoji: string;
+  toneTags?: string[];
+};
+
+export type StorySparksRoundDto = {
+  id: StorySparksRoundId;
+  title: StorySparksTranslation;
+  cards: StorySparksCardDto[];
+};
+
+export type StorySparksPackDto = {
+  packId: string;
+  version: number;
+  rounds: StorySparksRoundDto[];
+};
+
+export type StorySparksChoicePayload = {
+  roundId: StorySparksRoundId;
+  cardId: string;
+  packId: string;
+  clientRoundIndex: number;
+};
+
+export type StorySparksArtifactChoiceDto = StorySparksChoicePayload & {
+  fromUserId: string;
+  card: StorySparksCardDto;
+  createdAt: string;
+};
+
+export type StorySparksArtifactRoundDto = {
+  roundId: StorySparksRoundId;
+  title: StorySparksTranslation;
+  choices: StorySparksArtifactChoiceDto[];
+};
+
+export type StorySparksArtifactDto = {
+  packId: string;
+  version: number;
+  title: StorySparksTranslation;
+  summary: StorySparksTranslation;
+  rounds: StorySparksArtifactRoundDto[];
+};
+
 export type TogetherSessionDto = {
   id: string;
   activity: TogetherActivity;
@@ -357,6 +411,7 @@ export type TogetherSessionDto = {
   endedAt?: string | null;
   endedReason?: string | null;
   deadlineAt?: string | null;
+  storyPack?: StorySparksPackDto;
 };
 
 export type TogetherParticipantDto = {
@@ -396,6 +451,7 @@ export type TogetherHistoryItem = {
   createdAt: string;
   endedAt?: string | null;
   endedReason?: string | null;
+  storyArtifact?: StorySparksArtifactDto;
 };
 
 export type TogetherHistoryResponse = {

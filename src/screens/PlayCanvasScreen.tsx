@@ -205,6 +205,11 @@ export default function PlayCanvasScreen() {
       .getSession(sessionId)
       .then((response) => {
         if (!mountedRef.current) return;
+        if (response.session.activity === "story_sparks") {
+          allowExitRef.current = true;
+          navigation.replace("PlayStorySparks", { sessionId });
+          return;
+        }
         if (response.session.activity === "color_mood") {
           allowExitRef.current = true;
           navigation.replace("PlayColorMood", { sessionId });

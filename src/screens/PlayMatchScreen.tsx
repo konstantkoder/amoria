@@ -115,7 +115,12 @@ function getActivityStatusTitle(
   statusKey: MatchStatusKey,
   tt: TranslateFn
 ) {
-  const suffix = activity === "color_mood" ? "ColorMood" : "Draw";
+  const suffix =
+    activity === "story_sparks"
+      ? "StorySparks"
+      : activity === "color_mood"
+      ? "ColorMood"
+      : "Draw";
   switch (statusKey) {
     case "searching":
       return tt(`play.match.status.searching${suffix}Title`, "Ищем второго человека");
@@ -136,6 +141,7 @@ function getActivityStatusTitle(
 }
 
 function nextRouteForActivity(activity: TogetherActivity) {
+  if (activity === "story_sparks") return "PlayStorySparks";
   return activity === "color_mood" ? "PlayColorMood" : "PlayCanvas";
 }
 
@@ -155,7 +161,7 @@ export default function PlayMatchScreen() {
   const uid = authUser?.id ?? "";
   const rawActivity = (route.params as { activity?: unknown } | undefined)?.activity;
   const activity: TogetherActivity | null =
-    rawActivity === "draw" || rawActivity === "color_mood"
+    rawActivity === "draw" || rawActivity === "color_mood" || rawActivity === "story_sparks"
       ? rawActivity
       : null;
   const [statusKey, setStatusKey] = React.useState<MatchStatusKey>("preparing");

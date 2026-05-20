@@ -110,7 +110,7 @@ function isTogetherSource(source: unknown): boolean {
 }
 
 function isReleasePlayActivity(value: unknown): value is ReleasePlayActivity {
-  return value === "draw" || value === "color_mood";
+  return value === "draw" || value === "story_sparks" || value === "color_mood";
 }
 
 function readThreadMessage(payload: wsClient.RealtimeMessage): MessageDto | null {
@@ -190,6 +190,8 @@ export default function DMChatScreen() {
   const sourceTogetherActivity = isReleasePlayActivity(sourceTogetherActivityInput)
     ? sourceTogetherActivityInput
     : "draw";
+  const nextTogetherActivity =
+    sourceTogetherActivity === "color_mood" ? "story_sparks" : sourceTogetherActivity;
 
   useEffect(() => {
     mountedRef.current = true;
@@ -303,10 +305,13 @@ export default function DMChatScreen() {
       return tt("dm.sourceNearby", "Вы начали разговор из Рядом");
     }
     if (isTogetherSource(sourceContext?.source)) {
+      if (sourceTogetherActivity === "story_sparks") {
+        return tt("dm.sourceTogetherStorySparks", "Вы собрали историю на двоих");
+      }
       return tt("dm.sourceTogether", "Вы начали разговор после Вместе");
     }
     return "";
-  }, [sourceContext?.source, tt]);
+  }, [sourceContext?.source, sourceTogetherActivity, tt]);
 
   const headerSourceLabel = useMemo(() => {
     if (sourceContext?.source === "announcement") {
@@ -515,7 +520,7 @@ export default function DMChatScreen() {
     }
 
     try {
-      navigation.navigate("PlayMatch", { activity: sourceTogetherActivity });
+      navigation.navigate("PlayMatch", { activity: nextTogetherActivity });
     } catch (error) {
       const safeError = sanitizeErrorForReport(error);
       Alert.alert(
@@ -530,15 +535,15 @@ export default function DMChatScreen() {
         message: safeError.message,
         stack: safeError.stack,
         metadata: {
-          activity: sourceTogetherActivity,
+          activity: nextTogetherActivity,
           source: sourceContext?.source ?? null,
         },
       });
     }
   }, [
     navigation,
+    nextTogetherActivity,
     sourceContext?.source,
-    sourceTogetherActivity,
     sourceTogetherActivityInput,
     tt,
   ]);
@@ -716,11 +721,18 @@ export default function DMChatScreen() {
           </Text>
           <Text style={styles.sourceTitle}>{sourceTitle}</Text>
           <Text style={styles.sourceMeta}>
-            {tt(
-              "dm.contextReady",
-              "Общий момент сохранён как контекст, а переписка продолжается здесь."
-            )}
+            {sourceTogetherActivity === "story_sparks" && sourceContext?.artworkSummary?.summary
+              ? sourceContext.artworkSummary.summary
+              : tt(
+                  "dm.contextReady",
+                  "Общий момент сохранён как контекст, а переписка продолжается здесь."
+                )}
           </Text>
+          {sourceTogetherActivity === "story_sparks" && sourceContext?.artworkSummary?.storyTitle ? (
+            <Text style={styles.sourceStoryTitle}>
+              {sourceContext.artworkSummary.storyTitle}
+            </Text>
+          ) : null}
           {sourceIsTogether ? (
             <TouchableOpacity
               onPress={startAnotherTogetherSession}
@@ -737,7 +749,15 @@ export default function DMChatScreen() {
           ) : null}
         </View>
       ) : null,
-    [sourceIsTogether, sourceTitle, startAnotherTogetherSession, tt]
+    [
+      sourceContext?.artworkSummary?.storyTitle,
+      sourceContext?.artworkSummary?.summary,
+      sourceIsTogether,
+      sourceTitle,
+      sourceTogetherActivity,
+      startAnotherTogetherSession,
+      tt,
+    ]
   );
 
   const renderPeerCard = useCallback(
@@ -1088,6 +1108,14 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
     lineHeight: 19,
+    textAlign: "left",
+  },
+  sourceStoryTitle: {
+    color: theme.colors.text,
+    fontSize: 13,
+    fontWeight: "800",
+    lineHeight: 18,
+    marginTop: 8,
     textAlign: "left",
   },
   sourceActionButton: {

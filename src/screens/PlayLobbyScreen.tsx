@@ -15,7 +15,7 @@ import {
 import { theme } from "@/theme";
 
 function isReleasePlayActivity(value: string): value is ReleasePlayActivity {
-  return value === "draw" || value === "color_mood";
+  return value === "draw" || value === "story_sparks" || value === "color_mood";
 }
 
 export default function PlayLobbyScreen() {
@@ -28,20 +28,20 @@ export default function PlayLobbyScreen() {
     },
     [t]
   );
-  const colorMoodCopy = {
-    title: tt("together.lobby.colorMoodTitle", "Палитра настроения"),
+  const storySparksCopy = {
+    title: tt("together.lobby.storySparksTitle", "История на двоих"),
     description: tt(
-      "together.lobby.colorMoodDescription",
-      "Выберите настроение цветом и соберите общую палитру с другим человеком."
+      "together.lobby.storySparksDescription",
+      "Выберите карточки по очереди и соберите общую мини-историю с другим человеком."
     ),
     details: tt(
-      "together.lobby.colorMoodDetails",
-      "Короткая backend-сессия, общий результат и то же честное решение про чат."
+      "together.lobby.storySparksDetails",
+      "4 раунда, 3 карточки в каждом, общий story card и то же честное решение про чат."
     ),
   };
 
   const openActivity = React.useCallback(
-    (activity: string, action: "startDraw" | "startColorMood") => {
+    (activity: string, action: "startDraw" | "startStorySparks") => {
       const safeActivity = String(activity ?? "").trim();
       if (!isReleasePlayActivity(safeActivity)) {
         Alert.alert(
@@ -72,8 +72,8 @@ export default function PlayLobbyScreen() {
           screen: "PlayLobbyScreen",
           action,
           step:
-            safeActivity === "color_mood"
-              ? "failedColorMoodNavigation"
+            safeActivity === "story_sparks"
+              ? "failedStorySparksNavigation"
               : "failedNavigation",
           code: safeError.code,
           message: safeError.message,
@@ -148,28 +148,28 @@ export default function PlayLobbyScreen() {
 
         <View style={styles.secondarySection}>
           <Text style={styles.secondarySectionTitle}>
-            {tt("together.lobby.colorMoodSectionTitle", "Мягкий второй сценарий")}
+            {tt("together.lobby.storySparksSectionTitle", "Второй сценарий")}
           </Text>
           <Text style={styles.secondarySectionText}>
             {tt(
-              "together.lobby.colorMoodSectionBody",
-              "Палитра настроения — короткий сценарий для мягкого общего выбора без рисунка."
+              "together.lobby.storySparksSectionBody",
+              "История на двоих — структурированная совместная игра без необходимости рисовать."
             )}
           </Text>
         </View>
 
         <View style={styles.secondaryCard}>
           <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>{colorMoodCopy.title}</Text>
+            <Text style={styles.cardTitle}>{storySparksCopy.title}</Text>
           </View>
-          <Text style={styles.cardDescription}>{colorMoodCopy.description}</Text>
-          <Text style={styles.cardDetails}>{colorMoodCopy.details}</Text>
+          <Text style={styles.cardDescription}>{storySparksCopy.description}</Text>
+          <Text style={styles.cardDetails}>{storySparksCopy.details}</Text>
           <Pressable
-            onPress={() => openActivity("color_mood", "startColorMood")}
+            onPress={() => openActivity("story_sparks", "startStorySparks")}
             style={styles.secondaryCta}
           >
             <Text style={styles.secondaryCtaText}>
-              {tt("together.lobby.colorMoodCta", "Открыть палитру настроения")}
+              {tt("together.lobby.storySparksCta", "Собрать историю")}
             </Text>
           </Pressable>
         </View>
@@ -185,7 +185,7 @@ export default function PlayLobbyScreen() {
             <Text style={styles.historyText}>
               {tt(
                 "together.lobby.historyBodyCore",
-                "Возвращайся к сохранённым рисункам, творческим вызовам, общим палитрам и разговорам, которые выросли из них."
+                "Возвращайся к сохранённым рисункам, историям на двоих и разговорам, которые выросли из них."
               )}
             </Text>
           </View>

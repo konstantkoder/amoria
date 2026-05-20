@@ -8,11 +8,18 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import type { NearbyAnnouncement } from "@/services/announcementsModel";
 
-export type ReleasePlayActivity = "draw" | "color_mood";
+export type ReleasePlayActivity = "draw" | "story_sparks" | "color_mood";
 export type DmSource = "together" | "announcement" | "nearby";
 export type DmArtworkSummary = {
   activity: ReleasePlayActivity;
   strokeCount?: number;
+  storyTitle?: string;
+  summary?: string;
+  selectedCards?: {
+    roundId: string;
+    title: string;
+    choices: { fromUserId: string; title: string; emoji?: string }[];
+  }[];
 };
 export type DmSourceContext = {
   source: DmSource;
@@ -97,6 +104,7 @@ export type RootStackParamList = {
   PlayMatch: PlayMatchRouteParams;
   PlayCanvas: PlaySessionRouteParams;
   PlayColorMood: PlaySessionRouteParams;
+  PlayStorySparks: PlaySessionRouteParams;
   PlayResult: PlaySessionRouteParams;
   PlayHistory: undefined;
   PlaySessionDetail: PlaySessionDetailRouteParams;
@@ -142,6 +150,10 @@ export type PlayCanvasRouteProp = RouteProp<RootStackParamList, "PlayCanvas">;
 export type PlayColorMoodRouteProp = RouteProp<
   RootStackParamList,
   "PlayColorMood"
+>;
+export type PlayStorySparksRouteProp = RouteProp<
+  RootStackParamList,
+  "PlayStorySparks"
 >;
 export type PlayResultRouteProp = RouteProp<RootStackParamList, "PlayResult">;
 export type PlaySessionDetailRouteProp = RouteProp<

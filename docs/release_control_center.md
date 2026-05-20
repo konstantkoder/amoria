@@ -32,27 +32,32 @@ This launcher is local dev tooling only and is not product logic.
 ## Completed blocks
 
 - `TOGETHER-01` backend replay.
-- `TOGETHER-02` color_mood.
+- `TOGETHER-02` color_mood. This activity remains supported as legacy history/session compatibility only.
 - `TOGETHER-03` lifecycle hardening.
 - `TOGETHER-04` smoke checklist only, real 2-device test not done.
+- `TOGETHER-STORY-01` Story Sparks release scenario:
+  - Active Together lobby scenarios are now `draw` and `story_sparks`.
+  - `story_sparks` uses backend-backed curated story packs, backend events, result/history/detail rendering, and DM source context.
+  - `color_mood` is not an active new-user scenario in the release UI; old sessions/history remain readable.
 - `GALLERY-01` audit/hardening.
 - `GALLERY-02` smoke checklist + preview failure fix.
 - `BUGFIX-UX-01` mobile release UX/navigation blockers:
-  - Together lobby now shows `color_mood` as an explicit second scenario with a real CTA to `PlayMatch`.
+  - Together lobby now shows `story_sparks` as the explicit second scenario with a real CTA to `PlayMatch`.
   - DM chat profile opening self-heals missing route `peerId` through the real inbox thread list before failing visibly.
   - Profile shows direct edit entrypoints for "About me" and "Mood".
-  - Client Errors now receives user-action failures for invalid Together activity, failed color mood navigation, missing/hydrated peer failures, failed `UserProfile` navigation, and failed edit-profile navigation.
+  - Client Errors now receives user-action failures for invalid Together activity, failed Story Sparks navigation, failed legacy color mood navigation, missing/hydrated peer failures, failed `UserProfile` navigation, and failed edit-profile navigation.
 - `BUGFIX-UX-02` media/navigation/profile release blockers:
   - Peer public profile media now uses current backend public media URLs: `PUBLIC_MEDIA_URL/public/:mediaId`.
   - Public profile avatar/photos no longer trust stale stored `S3_PUBLIC_BASE_URL`, local, internal MinIO, or dead tunnel URLs as the mobile-visible contract.
   - Locked gallery photos remain excluded from public profile before unlock.
   - Profile goal/mood badges are clickable and open Edit Profile with focused sections.
-  - Together draw/color_mood/waiting screens have an explicit return to main tabs without fake finish/reveal/chat success.
+  - Together draw/story_sparks/legacy color_mood/waiting screens have an explicit return to main tabs without fake finish/reveal/chat success.
   - Client Errors now receives peer media load failures and Together manual-exit failures.
 
 See `docs/bugfix_ux_01_audit.md`.
 See `docs/bugfix_ux_02_media_nav_profile.md`.
 See `docs/media_upload_architecture.md`.
+See `docs/together_story_sparks.md`.
 
 ## Identity rule verification
 
@@ -136,7 +141,7 @@ Continue Admin/Ops hardening and final smoke pass.
 - MEDIA-01: complete real-device verification for profile photo upload direct `PUT`/complete if object-storage accessibility from the mobile device is still failing. `BUGFIX-UX-02` fixes visibility for media that has reached backend/object storage; it does not fake upload success.
 - BUGFIX-TOGETHER-PROMPTS-I18N-EXAMPLES.
 - Full RU locale cleanup.
-- Complete a real signed-in Together/Gallery smoke pass; `TOGETHER-04` is checklist-only so far.
+- Complete a real signed-in Together/Gallery smoke pass; `TOGETHER-04` is checklist-only so far and Story Sparks requires a real 2-account smoke pass.
 - Run `npm run admin:create-owner` against the real local/dev database and keep credentials out of Git.
 - Start backend + admin web and complete a real owner login smoke pass.
 - Verify Client Errors after reproducing the profile photo upload bug.

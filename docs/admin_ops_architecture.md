@@ -1,6 +1,6 @@
 # Admin/Ops Architecture
 
-Updated: 2026-05-20 after `BUGFIX-UX-02`
+Updated: 2026-05-20 after `TOGETHER-STORY-01`
 
 This is the plan for a full Admin/Ops release module. It is not a temporary mini-admin and must not rely on mock/stub/fake data, Firebase fallback, or local-only success.
 
@@ -44,6 +44,7 @@ The owner admin account is a separate real account, not an existing mobile test 
 - `ADMIN-OPS-04` adds lifecycle statuses `open`, `resolved`, `ignored`, and `archived`, plus audited single-row actions and bulk archive/resolve/ignore for old noisy errors. Production cleanup is archive/resolve, not destructive delete.
 - `BUGFIX-UX-01` extends mobile coverage to user-action UX/navigation failures: invalid Together activity, failed color mood navigation, missing DM peer route params, failed peer hydration, failed `UserProfile` navigation, and failed profile edit navigation. Reports are fire-and-forget and include only safe context such as screen/action/step, source type, focus target, and whether route IDs were present.
 - `BUGFIX-UX-02` extends coverage to peer profile media load failures and Together manual-exit failures. Reports include `UserProfileScreen/loadPeerMedia/avatarLoadFailed`, `UserProfileScreen/loadPeerMedia/publicPhotoLoadFailed`, and `exitTogetherSession` failures from draw/color_mood/match screens. Reports remain fire-and-forget and sanitized.
+- `TOGETHER-STORY-01` extends coverage to the active Story Sparks scenario. Reports include failed `story_sparks` navigation, invalid/missing backend story pack/cards, failed story choice send, peer/event hydrate failure, failed finish/result navigation, and story leave failures. Reports remain sanitized and do not include tokens, secrets, raw payload bodies, or signed URLs.
 
 ## Users search by Amoria ID
 

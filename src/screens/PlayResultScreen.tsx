@@ -13,6 +13,7 @@ import ScreenShell from "@/components/ScreenShell";
 import ReplayCanvasWebView from "@/components/play/ReplayCanvasWebView";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocale } from "@/contexts/LocaleContext";
+import type { Locale } from "@/i18n/translations";
 import {
   type PlayResultRouteProp,
   type RootStackNavigationProp,
@@ -22,6 +23,7 @@ import type {
   TogetherEventDto,
   TogetherParticipantDto,
   TogetherRevealStateDto,
+  StorySparksArtifactDto,
   TogetherSessionResponse,
 } from "@/services/api/types";
 import * as wsClient from "@/services/realtime/wsClient";
@@ -33,6 +35,11 @@ import {
   replaceTogetherStrokesFromEvents,
 } from "@/services/togetherCanvasState";
 import { buildTogetherPaletteFromEvents } from "@/services/togetherPaletteState";
+import {
+  buildStoryArtifactFromEvents,
+  localizeStoryText,
+  storyArtifactToDmSummary,
+} from "@/services/togetherStorySparksState";
 import { theme } from "@/theme";
 
 type RevealDecision = "open" | "skip";
@@ -99,7 +106,7 @@ export default function PlayResultScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"PlayResult">>();
   const route = useRoute<PlayResultRouteProp>();
   const { user: authUser } = useAuth();
-  const { t } = useLocale();
+  const { locale, t } = useLocale();
   const tt = React.useCallback(
     (key: string, fallback: string, params?: Record<string, string>) => {
       const value = t(key, params);
@@ -193,14 +200,31 @@ export default function PlayResultScreen() {
     [sessionResponse, uid]
   );
   const peerName = peer?.displayName?.trim() || tt("profile.amoriaUser", "Пользователь Amoria");
-  const sessionActivity = session?.activity === "color_mood" ? "color_mood" : "draw";
+  const sessionActivity =
+    session?.activity === "story_sparks"
+      ? "story_sparks"
+      : session?.activity === "color_mood"
+      ? "color_mood"
+      : "draw";
   const strokes = replayStrokes;
   const palette = React.useMemo(
     () => buildTogetherPaletteFromEvents(sessionEvents),
     [sessionEvents]
   );
+  const storyArtifact = React.useMemo(
+    () =>
+      session?.activity === "story_sparks" && session.storyPack
+        ? buildStoryArtifactFromEvents(sessionEvents, session.storyPack)
+        : null,
+    [session, sessionEvents]
+  );
+  const storyDmSummary = React.useMemo(
+    () => storyArtifactToDmSummary(storyArtifact, locale),
+    [locale, storyArtifact]
+  );
   const hasReplay = strokes.length > 0;
   const hasPalette = palette.length > 0;
+  const hasStoryArtifact = Boolean(storyArtifact);
   const decision = revealState?.myDecision ?? null;
   const outcome = revealState?.outcome ?? "pending";
   const revealThreadId = revealState?.threadId ?? null;
@@ -227,11 +251,12 @@ export default function PlayResultScreen() {
           artworkSummary: {
             activity: sessionActivity,
             ...(sessionActivity === "draw" ? { strokeCount: strokes.length } : {}),
+            ...(sessionActivity === "story_sparks" && storyDmSummary ? storyDmSummary : {}),
           },
         },
       });
     },
-    [navigation, sessionActivity, sessionId, strokes.length]
+    [navigation, sessionActivity, sessionId, storyDmSummary, strokes.length]
   );
 
   React.useEffect(() => {
@@ -356,7 +381,9 @@ export default function PlayResultScreen() {
   }, [navigation, sessionActivity, sessionId]);
 
   const startNewSession = React.useCallback(() => {
-    navigation.navigate("PlayMatch", { activity: sessionActivity });
+    navigation.navigate("PlayMatch", {
+      activity: sessionActivity === "color_mood" ? "story_sparks" : sessionActivity,
+    });
   }, [navigation, sessionActivity]);
 
   const screenTitle = tt("play.result.title", "Итог сессии");
@@ -453,7 +480,9 @@ export default function PlayResultScreen() {
                 {tt("play.result.finishedKicker", "Сессия завершена")}
               </Text>
               <Text style={styles.heroTitle}>
-                {sessionActivity === "color_mood"
+                {sessionActivity === "story_sparks"
+                  ? tt("play.result.storySparksHeroTitle", "Ваша история на двоих готова")
+                  : sessionActivity === "color_mood"
                   ? tt("play.result.colorMoodHeroTitle", "Ваша общая палитра готова")
                   : tt("play.result.drawHeroTitle", "Ваш общий рисунок готов")}
               </Text>
@@ -462,9 +491,18 @@ export default function PlayResultScreen() {
               <Text style={styles.statusBadgeText}>{revealLabel}</Text>
             </View>
           </View>
-          <Text style={styles.heroText}>{session.promptText}</Text>
+          <Text style={styles.heroText}>
+            {sessionActivity === "story_sparks" && storyArtifact
+              ? localizeStoryText(storyArtifact.title, locale)
+              : session.promptText}
+          </Text>
           <Text style={styles.heroSubtext}>
-            {sessionActivity === "color_mood"
+            {sessionActivity === "story_sparks"
+              ? tt(
+                  "play.result.storySavedNote",
+                  "История уже сохранена как общий момент. Теперь можно решить, открывать ли личный разговор."
+                )
+              : sessionActivity === "color_mood"
               ? tt(
                   "play.result.paletteSavedNote",
                   "Палитра уже сохранена как общий момент. Теперь можно решить, открывать ли личный разговор."
@@ -481,12 +519,18 @@ export default function PlayResultScreen() {
             </View>
             <View style={styles.metaItem}>
               <Text style={styles.metaLabel}>
-                {sessionActivity === "color_mood"
+                {sessionActivity === "story_sparks"
+                  ? tt("play.result.storyRoundCount", "Раунды")
+                  : sessionActivity === "color_mood"
                   ? tt("play.result.paletteCount", "Цвета")
                   : tt("play.result.strokeCount", "Штрихи")}
               </Text>
               <Text style={styles.metaValue}>
-                {sessionActivity === "color_mood" ? String(palette.length) : String(strokes.length)}
+                {sessionActivity === "story_sparks"
+                  ? String(storyArtifact?.rounds.length ?? 0)
+                  : sessionActivity === "color_mood"
+                  ? String(palette.length)
+                  : String(strokes.length)}
               </Text>
             </View>
           </View>
@@ -494,11 +538,21 @@ export default function PlayResultScreen() {
 
         <View style={styles.replayCard}>
           <Text style={styles.sectionTitle}>
-            {sessionActivity === "color_mood"
+            {sessionActivity === "story_sparks"
+              ? tt("play.result.storyArtifactTitle", "Story card")
+              : sessionActivity === "color_mood"
               ? tt("play.result.paletteTitle", "Общая палитра")
               : tt("play.result.replayTitle", "Replay")}
           </Text>
-          {sessionActivity === "color_mood" ? (
+          {sessionActivity === "story_sparks" ? (
+            hasStoryArtifact && storyArtifact ? (
+              <StoryArtifactCard artifact={storyArtifact} locale={locale} />
+            ) : (
+              <Text style={styles.emptyText}>
+                {tt("play.result.storyEmpty", "Данные истории для этой сессии пока недоступны.")}
+              </Text>
+            )
+          ) : sessionActivity === "color_mood" ? (
             hasPalette ? (
               <View style={styles.paletteRow}>
                 {palette.map((selection) => (
@@ -558,10 +612,14 @@ export default function PlayResultScreen() {
                     "Решение сохранено. Общий результат останется в истории."
                   )
               : tt(
-                  sessionActivity === "color_mood"
+                  sessionActivity === "story_sparks"
+                    ? "play.result.bridgeDecisionStoryNextBody"
+                    : sessionActivity === "color_mood"
                     ? "play.result.bridgeDecisionPaletteNextBody"
                     : "play.result.bridgeDecisionDrawingNextBody",
-                  sessionActivity === "color_mood"
+                  sessionActivity === "story_sparks"
+                    ? "Если вы оба выберете открыть, история приведёт в чат. Если нет, она останется общей историей."
+                    : sessionActivity === "color_mood"
                     ? "Если вы оба выберете открыть, палитра приведёт в чат. Если нет, она останется общей историей."
                     : "Если вы оба выберете открыть, этот результат приведёт в чат. Если нет, рисунок останется общей историей."
                 )}
@@ -619,6 +677,47 @@ export default function PlayResultScreen() {
         </View>
       </ScrollView>
     </ScreenShell>
+  );
+}
+
+function StoryArtifactCard({
+  artifact,
+  locale,
+}: {
+  artifact: StorySparksArtifactDto;
+  locale: Locale;
+}) {
+  return (
+    <View style={styles.storyArtifact}>
+      <Text style={styles.storyArtifactTitle}>
+        {localizeStoryText(artifact.title, locale)}
+      </Text>
+      <Text style={styles.storyArtifactSummary}>
+        {localizeStoryText(artifact.summary, locale)}
+      </Text>
+      <View style={styles.storyRoundList}>
+        {artifact.rounds.map((round) => (
+          <View key={round.roundId} style={styles.storyRoundItem}>
+            <Text style={styles.storyRoundTitle}>
+              {localizeStoryText(round.title, locale)}
+            </Text>
+            <View style={styles.storyChoiceList}>
+              {round.choices.map((choice) => (
+                <View
+                  key={`${choice.fromUserId}-${choice.roundId}`}
+                  style={styles.storyChoiceChip}
+                >
+                  <Text style={styles.storyChoiceEmoji}>{choice.card.emoji}</Text>
+                  <Text style={styles.storyChoiceText}>
+                    {localizeStoryText(choice.card.title, locale)}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        ))}
+      </View>
+    </View>
   );
 }
 
@@ -758,6 +857,56 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "800",
     textTransform: "capitalize",
+  },
+  storyArtifact: {
+    gap: 12,
+  },
+  storyArtifactTitle: {
+    color: theme.colors.text,
+    fontSize: 20,
+    lineHeight: 25,
+    fontWeight: "900",
+  },
+  storyArtifactSummary: {
+    color: theme.colors.subtext,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  storyRoundList: {
+    gap: 10,
+  },
+  storyRoundItem: {
+    gap: 8,
+    borderRadius: 14,
+    padding: 12,
+    backgroundColor: "rgba(255,255,255,0.07)",
+  },
+  storyRoundTitle: {
+    color: "#FFE0B8",
+    fontSize: 12,
+    fontWeight: "900",
+    textTransform: "uppercase",
+  },
+  storyChoiceList: {
+    gap: 8,
+  },
+  storyChoiceChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  storyChoiceEmoji: {
+    width: 24,
+    color: theme.colors.text,
+    fontSize: 18,
+    textAlign: "center",
+  },
+  storyChoiceText: {
+    flex: 1,
+    color: theme.colors.text,
+    fontSize: 14,
+    lineHeight: 18,
+    fontWeight: "800",
   },
   emptyText: {
     color: theme.colors.subtext,

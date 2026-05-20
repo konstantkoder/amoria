@@ -13,6 +13,7 @@ import ScreenShell from "@/components/ScreenShell";
 import ReplayCanvasWebView from "@/components/play/ReplayCanvasWebView";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocale } from "@/contexts/LocaleContext";
+import type { Locale } from "@/i18n/translations";
 import {
   type PlaySessionDetailRouteProp,
   type RootStackNavigationProp,
@@ -22,6 +23,7 @@ import type {
   TogetherEventDto,
   TogetherHistoryItem,
   TogetherRevealStateDto,
+  StorySparksArtifactDto,
   TogetherSessionResponse,
 } from "@/services/api/types";
 import { markPlaySessionSeen } from "@/services/activityFreshness";
@@ -33,6 +35,11 @@ import {
   replaceTogetherStrokesFromEvents,
 } from "@/services/togetherCanvasState";
 import { buildTogetherPaletteFromEvents } from "@/services/togetherPaletteState";
+import {
+  buildStoryArtifactFromEvents,
+  localizeStoryText,
+  storyArtifactToDmSummary,
+} from "@/services/togetherStorySparksState";
 import { theme } from "@/theme";
 
 function formatDateTime(value: string) {
@@ -97,7 +104,7 @@ export default function PlaySessionDetailScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"PlaySessionDetail">>();
   const route = useRoute<PlaySessionDetailRouteProp>();
   const { user: authUser } = useAuth();
-  const { t } = useLocale();
+  const { locale, t } = useLocale();
   const tt = React.useCallback(
     (key: string, fallback: string, params?: Record<string, string>) => {
       const value = t(key, params);
@@ -201,10 +208,27 @@ export default function PlaySessionDetailScreen() {
   const revealState = sessionResponse?.revealState ?? revealStateFromHistoryItem(historyItem);
   const outcome = revealState?.outcome ?? "pending";
   const revealThreadId = revealState?.threadId ?? null;
-  const sessionActivity = session?.activity === "color_mood" ? "color_mood" : "draw";
+  const sessionActivity =
+    session?.activity === "story_sparks"
+      ? "story_sparks"
+      : session?.activity === "color_mood"
+      ? "color_mood"
+      : "draw";
   const palette = React.useMemo(
     () => buildTogetherPaletteFromEvents(sessionEvents),
     [sessionEvents]
+  );
+  const eventStoryArtifact = React.useMemo(
+    () =>
+      session?.activity === "story_sparks" && session.storyPack
+        ? buildStoryArtifactFromEvents(sessionEvents, session.storyPack)
+        : null,
+    [session, sessionEvents]
+  );
+  const storyArtifact = eventStoryArtifact ?? historyItem?.storyArtifact ?? null;
+  const storyDmSummary = React.useMemo(
+    () => storyArtifactToDmSummary(storyArtifact, locale),
+    [locale, storyArtifact]
   );
   const canRevealOpen =
     session?.status === "finished" &&
@@ -215,6 +239,7 @@ export default function PlaySessionDetailScreen() {
   const strokes = replayStrokes;
   const hasReplay = strokes.length > 0;
   const hasPalette = palette.length > 0;
+  const hasStoryArtifact = Boolean(storyArtifact);
   const sessionClosed = isTerminalClosedStatus(session?.status ?? historyItem?.status);
 
   React.useEffect(() => {
@@ -264,6 +289,7 @@ export default function PlaySessionDetailScreen() {
           artworkSummary: {
             activity: sessionActivity,
             ...(sessionActivity === "draw" ? { strokeCount: strokes.length } : {}),
+            ...(sessionActivity === "story_sparks" && storyDmSummary ? storyDmSummary : {}),
           },
         },
       });
@@ -310,6 +336,7 @@ export default function PlaySessionDetailScreen() {
           artworkSummary: {
             activity: sessionActivity,
             ...(sessionActivity === "draw" ? { strokeCount: strokes.length } : {}),
+            ...(sessionActivity === "story_sparks" && storyDmSummary ? storyDmSummary : {}),
           },
         },
       });
@@ -333,6 +360,7 @@ export default function PlaySessionDetailScreen() {
     sessionActivity,
     sessionClosed,
     sessionId,
+    storyDmSummary,
     strokes.length,
     tt,
   ]);
@@ -416,7 +444,11 @@ export default function PlaySessionDetailScreen() {
       >
         <View style={styles.heroCard}>
           <Text style={styles.kicker}>{tt("playDetail.kicker", "Together")}</Text>
-          <Text style={styles.title}>{session.promptText}</Text>
+          <Text style={styles.title}>
+            {sessionActivity === "story_sparks" && storyArtifact
+              ? localizeStoryText(storyArtifact.title, locale)
+              : session.promptText}
+          </Text>
           <Text style={styles.body}>
             {sessionClosed
               ? tt("playDetail.interruptedBody", "Сессия была прервана. Чат по этой сессии недоступен.")
@@ -444,11 +476,21 @@ export default function PlaySessionDetailScreen() {
 
         <View style={styles.replayCard}>
           <Text style={styles.sectionTitle}>
-            {sessionActivity === "color_mood"
+            {sessionActivity === "story_sparks"
+              ? tt("playDetail.storyArtifactTitle", "Story card")
+              : sessionActivity === "color_mood"
               ? tt("playDetail.paletteTitle", "Общая палитра")
               : tt("playDetail.replayTitle", "Replay")}
           </Text>
-          {sessionActivity === "color_mood" ? (
+          {sessionActivity === "story_sparks" ? (
+            hasStoryArtifact && storyArtifact ? (
+              <StoryArtifactCard artifact={storyArtifact} locale={locale} />
+            ) : (
+              <Text style={styles.emptyText}>
+                {tt("playDetail.storyEmpty", "Данные истории для этой сессии пока недоступны.")}
+              </Text>
+            )
+          ) : sessionActivity === "color_mood" ? (
             hasPalette ? (
               <View style={styles.paletteRow}>
                 {palette.map((selection) => (
@@ -526,7 +568,14 @@ export default function PlaySessionDetailScreen() {
                 </Text>
               </Pressable>
             ) : null}
-            <Pressable style={styles.secondaryButton} onPress={() => navigation.navigate("PlayMatch", { activity: sessionActivity })}>
+            <Pressable
+              style={styles.secondaryButton}
+              onPress={() =>
+                navigation.navigate("PlayMatch", {
+                  activity: sessionActivity === "color_mood" ? "story_sparks" : sessionActivity,
+                })
+              }
+            >
               <Text style={styles.secondaryButtonText}>
                 {tt("playDetail.startAnotherSession", "Начать ещё одну совместную сессию")}
               </Text>
@@ -535,6 +584,47 @@ export default function PlaySessionDetailScreen() {
         </View>
       </ScrollView>
     </ScreenShell>
+  );
+}
+
+function StoryArtifactCard({
+  artifact,
+  locale,
+}: {
+  artifact: StorySparksArtifactDto;
+  locale: Locale;
+}) {
+  return (
+    <View style={styles.storyArtifact}>
+      <Text style={styles.storyArtifactTitle}>
+        {localizeStoryText(artifact.title, locale)}
+      </Text>
+      <Text style={styles.storyArtifactSummary}>
+        {localizeStoryText(artifact.summary, locale)}
+      </Text>
+      <View style={styles.storyRoundList}>
+        {artifact.rounds.map((round) => (
+          <View key={round.roundId} style={styles.storyRoundItem}>
+            <Text style={styles.storyRoundTitle}>
+              {localizeStoryText(round.title, locale)}
+            </Text>
+            <View style={styles.storyChoiceList}>
+              {round.choices.map((choice) => (
+                <View
+                  key={`${choice.fromUserId}-${choice.roundId}`}
+                  style={styles.storyChoiceChip}
+                >
+                  <Text style={styles.storyChoiceEmoji}>{choice.card.emoji}</Text>
+                  <Text style={styles.storyChoiceText}>
+                    {localizeStoryText(choice.card.title, locale)}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        ))}
+      </View>
+    </View>
   );
 }
 
@@ -643,6 +733,56 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "800",
     textTransform: "capitalize",
+  },
+  storyArtifact: {
+    gap: 12,
+  },
+  storyArtifactTitle: {
+    color: theme.colors.text,
+    fontSize: 20,
+    lineHeight: 25,
+    fontWeight: "900",
+  },
+  storyArtifactSummary: {
+    color: theme.colors.subtext,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  storyRoundList: {
+    gap: 10,
+  },
+  storyRoundItem: {
+    gap: 8,
+    borderRadius: 14,
+    padding: 12,
+    backgroundColor: "rgba(255,255,255,0.07)",
+  },
+  storyRoundTitle: {
+    color: "#FFE0B8",
+    fontSize: 12,
+    fontWeight: "900",
+    textTransform: "uppercase",
+  },
+  storyChoiceList: {
+    gap: 8,
+  },
+  storyChoiceChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  storyChoiceEmoji: {
+    width: 24,
+    color: theme.colors.text,
+    fontSize: 18,
+    textAlign: "center",
+  },
+  storyChoiceText: {
+    flex: 1,
+    color: theme.colors.text,
+    fontSize: 14,
+    lineHeight: 18,
+    fontWeight: "800",
   },
   emptyText: {
     color: theme.colors.subtext,

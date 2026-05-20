@@ -15,6 +15,10 @@ import { useLocale } from "@/contexts/LocaleContext";
 import { type RootStackNavigationProp } from "@/navigation/appRoutes";
 import * as togetherApi from "@/services/api/togetherApi";
 import type { TogetherHistoryItem } from "@/services/api/types";
+import {
+  localizeStoryText,
+  storyArtifactToDmSummary,
+} from "@/services/togetherStorySparksState";
 import { theme } from "@/theme";
 
 function formatDateTime(value: string) {
@@ -107,10 +111,19 @@ function getRelationshipText(
 
 function getHistoryContextText(
   item: TogetherHistoryItem,
-  tt: (key: string, fallback: string, params?: Record<string, string>) => string
+  tt: (key: string, fallback: string, params?: Record<string, string>) => string,
+  locale: Parameters<typeof localizeStoryText>[1]
 ) {
   if (item.activity === "color_mood") {
     return tt("playHistory.contextColorMood", "Палитра, собранная вами вместе");
+  }
+
+  if (item.activity === "story_sparks") {
+    return item.storyArtifact?.title
+      ? tt("playHistory.contextStorySparks", "История на двоих: {title}", {
+          title: localizeStoryText(item.storyArtifact.title, locale),
+        })
+      : tt("playHistory.contextStorySparksPlain", "История на двоих");
   }
 
   return item.promptText?.trim()
@@ -123,7 +136,7 @@ function getHistoryContextText(
 export default function PlayHistoryScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"PlayHistory">>();
   const { user: authUser } = useAuth();
-  const { t } = useLocale();
+  const { locale, t } = useLocale();
   const tt = useCallback(
     (key: string, fallback: string, params?: Record<string, string>) => {
       const value = t(key, params);
@@ -210,6 +223,9 @@ export default function PlayHistoryScreen() {
             sourceSessionId: item.sessionId,
             artworkSummary: {
               activity: item.activity,
+              ...(item.activity === "story_sparks"
+                ? storyArtifactToDmSummary(item.storyArtifact ?? null, locale)
+                : {}),
             },
           },
         });
@@ -250,6 +266,9 @@ export default function PlayHistoryScreen() {
             sourceSessionId: item.sessionId,
             artworkSummary: {
               activity: item.activity,
+              ...(item.activity === "story_sparks"
+                ? storyArtifactToDmSummary(item.storyArtifact ?? null, locale)
+                : {}),
             },
           },
         });
@@ -264,7 +283,7 @@ export default function PlayHistoryScreen() {
         setOpeningChatId((prev) => (prev === item.sessionId ? null : prev));
       }
     },
-    [navigation, openingChatId, tt]
+    [locale, navigation, openingChatId, tt]
   );
 
   const goToStart = useCallback(() => {
@@ -298,8 +317,13 @@ export default function PlayHistoryScreen() {
           </View>
 
           <Text style={styles.contextText}>
-            {getHistoryContextText(item, tt)}
+            {getHistoryContextText(item, tt, locale)}
           </Text>
+          {item.activity === "story_sparks" && item.storyArtifact ? (
+            <Text style={styles.storyPreviewText} numberOfLines={3}>
+              {localizeStoryText(item.storyArtifact.summary, locale)}
+            </Text>
+          ) : null}
           <Text style={styles.relationshipText}>{relationshipText}</Text>
 
           <View style={styles.cardActions}>
@@ -330,7 +354,7 @@ export default function PlayHistoryScreen() {
         </Pressable>
       );
     },
-    [openChat, openDetail, openingChatId, tt]
+    [locale, openChat, openDetail, openingChatId, tt]
   );
 
   if (!uid) {
@@ -402,7 +426,7 @@ export default function PlayHistoryScreen() {
             {tt("playHistory.headerKicker", "Together")}
           </Text>
           <Text style={styles.headerTitle}>
-            {tt("playHistory.headerTitle", "Истории из общих рисунков")}
+            {tt("playHistory.headerTitle", "Истории из Together")}
           </Text>
           <Text style={styles.headerBody}>
             {tt(
@@ -534,6 +558,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     fontWeight: "700",
+  },
+  storyPreviewText: {
+    color: theme.colors.subtext,
+    fontSize: 13,
+    lineHeight: 19,
   },
   relationshipText: {
     color: theme.colors.subtext,

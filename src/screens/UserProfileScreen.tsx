@@ -291,6 +291,9 @@ export default function UserProfileScreen() {
       return tt("profile.sourceNearby", "Вы начали разговор из Рядом");
     }
     if (!isTogetherSource(sourceContext?.source)) return "";
+    if (sourceContext.artworkSummary?.activity === "story_sparks") {
+      return tt("profile.sourceStorySparks", "Вы познакомились через историю на двоих");
+    }
     if (sourceContext.artworkSummary?.activity === "color_mood") {
       return tt("profile.sourceColorMood", "Вы познакомились через палитру настроения");
     }

@@ -165,6 +165,11 @@ export default function PlayColorMoodScreen() {
     void Promise.all([togetherApi.getSession(sessionId), togetherApi.getSessionEvents(sessionId)])
       .then(([session, sessionEvents]) => {
         if (!mountedRef.current) return;
+        if (session.session.activity === "story_sparks") {
+          navigation.replace("PlayStorySparks", { sessionId });
+          return;
+        }
+
         if (session.session.activity !== "color_mood") {
           navigation.replace("PlayCanvas", { sessionId });
           return;
@@ -230,6 +235,11 @@ export default function PlayColorMoodScreen() {
           togetherApi.getSessionEvents(sessionId),
         ]);
         if (cancelled || !mountedRef.current) return;
+        if (session.session.activity === "story_sparks") {
+          navigation.replace("PlayStorySparks", { sessionId });
+          return;
+        }
+
         if (session.session.activity !== "color_mood") {
           navigation.replace("PlayCanvas", { sessionId });
           return;
@@ -494,7 +504,7 @@ export default function PlayColorMoodScreen() {
             }}
             secondaryAction={{
               label: tt("playHistory.startNewSession", "Начать новую совместную сессию"),
-              onPress: () => navigation.navigate("PlayMatch", { activity: "color_mood" }),
+              onPress: () => navigation.navigate("PlayMatch", { activity: "story_sparks" }),
             }}
           />
         </View>
