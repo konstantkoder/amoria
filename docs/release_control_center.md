@@ -42,8 +42,17 @@ This launcher is local dev tooling only and is not product logic.
   - DM chat profile opening self-heals missing route `peerId` through the real inbox thread list before failing visibly.
   - Profile shows direct edit entrypoints for "About me" and "Mood".
   - Client Errors now receives user-action failures for invalid Together activity, failed color mood navigation, missing/hydrated peer failures, failed `UserProfile` navigation, and failed edit-profile navigation.
+- `BUGFIX-UX-02` media/navigation/profile release blockers:
+  - Peer public profile media now uses current backend public media URLs: `PUBLIC_MEDIA_URL/public/:mediaId`.
+  - Public profile avatar/photos no longer trust stale stored `S3_PUBLIC_BASE_URL`, local, internal MinIO, or dead tunnel URLs as the mobile-visible contract.
+  - Locked gallery photos remain excluded from public profile before unlock.
+  - Profile goal/mood badges are clickable and open Edit Profile with focused sections.
+  - Together draw/color_mood/waiting screens have an explicit return to main tabs without fake finish/reveal/chat success.
+  - Client Errors now receives peer media load failures and Together manual-exit failures.
 
 See `docs/bugfix_ux_01_audit.md`.
+See `docs/bugfix_ux_02_media_nav_profile.md`.
+See `docs/media_upload_architecture.md`.
 
 ## Identity rule verification
 
@@ -91,6 +100,7 @@ No fake admin users, fake admin UI, or mock release data were added.
 - Admin reads write audit action `admin.clientErrors.read`.
 - Mobile profile photo and avatar upload failures now report step-level diagnostics without tokens, full local paths, or full signed upload URLs.
 - `BUGFIX-UX-01` adds mobile UX/navigation dead-action reports for Together, DM chat, and profile editing without tokens, passwords, local paths, signed URLs, or fake success.
+- `BUGFIX-UX-02` adds peer profile media load reports and Together manual-exit failure reports without tokens, passwords, local paths, signed URLs, or fake success.
 
 `ADMIN-OPS-03-FULL` Admin/Ops Control Center foundation has been implemented:
 
@@ -123,7 +133,7 @@ Continue Admin/Ops hardening and final smoke pass.
 
 ## Remaining blockers before admin smoke pass
 
-- MEDIA-01: resolve the current profile photo upload failure between prepare and complete, including direct object storage `PUT` accessibility from the mobile device.
+- MEDIA-01: complete real-device verification for profile photo upload direct `PUT`/complete if object-storage accessibility from the mobile device is still failing. `BUGFIX-UX-02` fixes visibility for media that has reached backend/object storage; it does not fake upload success.
 - BUGFIX-TOGETHER-PROMPTS-I18N-EXAMPLES.
 - Full RU locale cleanup.
 - Complete a real signed-in Together/Gallery smoke pass; `TOGETHER-04` is checklist-only so far.

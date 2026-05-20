@@ -9,6 +9,7 @@ type Props = {
   avatarUrl?: string;
   label?: string;
   size?: number;
+  onLoadError?: () => void;
 };
 
 function normalizeAvatarUrl(value?: string) {
@@ -27,7 +28,7 @@ function getInitials(label?: string) {
     .join("");
 }
 
-export default function UserAvatar({ avatarUrl, label, size = 44 }: Props) {
+export default function UserAvatar({ avatarUrl, label, size = 44, onLoadError }: Props) {
   const [failed, setFailed] = React.useState(false);
   const sharedUrl = normalizeAvatarUrl(avatarUrl) ?? "";
   const initials = getInitials(label);
@@ -48,7 +49,10 @@ export default function UserAvatar({ avatarUrl, label, size = 44 }: Props) {
             borderRadius: size / 2,
           },
         ]}
-        onError={() => setFailed(true)}
+        onError={() => {
+          setFailed(true);
+          onLoadError?.();
+        }}
       />
     );
   }

@@ -54,7 +54,7 @@ export type MainTabParamList = {
 };
 
 export type EditProfileRouteParams = {
-  focus?: "about" | "mood";
+  focus?: "about" | "goal" | "mood";
 };
 
 export type ProfileStackParamList = {

@@ -26,6 +26,7 @@ import {
 } from "@/navigation/appRoutes";
 import * as announcementsApi from "@/services/api/announcementsApi";
 import { ApiError } from "@/services/api/apiClient";
+import { reportClientError } from "@/services/api/clientErrorsApi";
 import { unlockUserLockedGallery } from "@/services/api/publicUsersApi";
 import * as safetyApi from "@/services/api/safetyApi";
 import type { SafetyReportReason } from "@/services/api/safetyApi";
@@ -111,6 +112,9 @@ export default function UserProfileScreen() {
   const [unlockBusy, setUnlockBusy] = useState(false);
   const [unlockError, setUnlockError] = useState("");
   const [unlockedPhotos, setUnlockedPhotos] = useState<UserProfilePhoto[]>([]);
+  const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
+  const [failedPublicPhotoIds, setFailedPublicPhotoIds] = useState<string[]>([]);
+  const reportedMediaFailuresRef = React.useRef<Set<string>>(new Set());
 
   useEffect(() => {
     let alive = true;
@@ -119,6 +123,9 @@ export default function UserProfileScreen() {
     setLockedPassword("");
     setUnlockError("");
     setUnlockedPhotos([]);
+    setAvatarLoadFailed(false);
+    setFailedPublicPhotoIds([]);
+    reportedMediaFailuresRef.current.clear();
 
     if (!userId) {
       setProfileLoadState("not_found");
@@ -243,6 +250,38 @@ export default function UserProfileScreen() {
   const isBlocked = Boolean(userId && blockedUserIds.includes(userId));
   const profileUnavailable = isBlocked || profileLoadState === "blocked";
   const hasThread = Boolean(threadId && userId);
+
+  const reportPeerMediaLoadFailed = useCallback(
+    (step: "avatarLoadFailed" | "publicPhotoLoadFailed", mediaId?: string) => {
+      const reportKey = `${step}:${mediaId ?? "avatar"}`;
+      if (reportedMediaFailuresRef.current.has(reportKey)) return;
+      reportedMediaFailuresRef.current.add(reportKey);
+
+      reportClientError({
+        screen: "UserProfileScreen",
+        action: "loadPeerMedia",
+        step,
+        message: "Peer profile media failed to load",
+        metadata: {
+          userIdExists: Boolean(userId),
+          mediaIdExists: Boolean(mediaId),
+          source: sourceContext?.source ?? null,
+          hasThread: Boolean(threadId),
+        },
+      });
+    },
+    [sourceContext?.source, threadId, userId]
+  );
+
+  const markPublicPhotoFailed = useCallback(
+    (mediaId: string) => {
+      setFailedPublicPhotoIds((current) =>
+        current.includes(mediaId) ? current : [...current, mediaId]
+      );
+      reportPeerMediaLoadFailed("publicPhotoLoadFailed", mediaId);
+    },
+    [reportPeerMediaLoadFailed]
+  );
 
   const sourceTitle = useMemo(() => {
     if (sourceContext?.source === "announcement") {
@@ -534,7 +573,15 @@ export default function UserProfileScreen() {
       >
         <View style={styles.heroCard}>
           <View style={styles.avatarRow}>
-            <UserAvatar avatarUrl={avatarUrl} label={displayName} size={112} />
+            <UserAvatar
+              avatarUrl={avatarUrl}
+              label={displayName}
+              size={112}
+              onLoadError={() => {
+                setAvatarLoadFailed(true);
+                reportPeerMediaLoadFailed("avatarLoadFailed");
+              }}
+            />
             <View style={styles.avatarCopy}>
               <Text style={styles.kicker}>
                 {tt("profile.peerTitle", "Профиль собеседника")}
@@ -546,7 +593,9 @@ export default function UserProfileScreen() {
                 </Text>
               ) : null}
               <Text style={styles.avatarHint}>
-                {avatarUrl
+                {avatarLoadFailed
+                  ? tt("profile.peerMediaLoadFailed", "Фото не загрузилось. Мы уже сохранили ошибку для проверки.")
+                  : avatarUrl
                   ? tt("profile.avatarAvailable", "Фото профиля загружено")
                   : tt("photos.avatarPlaceholder", "Пока без фото профиля")}
               </Text>
@@ -593,11 +642,23 @@ export default function UserProfileScreen() {
           {photos.length ? (
             <View style={styles.galleryGrid}>
               {photos.map((photo, index) => (
-                <Image
-                  key={`${photo.mediaId ?? photo.url}-${index}`}
-                  source={{ uri: photo.url }}
-                  style={styles.galleryPhoto}
-                />
+                failedPublicPhotoIds.includes(photo.mediaId) ? (
+                  <View
+                    key={`${photo.mediaId ?? photo.url}-${index}`}
+                    style={[styles.galleryPhoto, styles.galleryPhotoFailed]}
+                  >
+                    <Text style={styles.galleryPhotoFailedText}>
+                      {tt("profile.peerMediaLoadFailedShort", "Фото не загрузилось")}
+                    </Text>
+                  </View>
+                ) : (
+                  <Image
+                    key={`${photo.mediaId ?? photo.url}-${index}`}
+                    source={{ uri: photo.url }}
+                    style={styles.galleryPhoto}
+                    onError={() => markPublicPhotoFailed(photo.mediaId)}
+                  />
+                )
               ))}
             </View>
           ) : (
@@ -860,6 +921,20 @@ const styles = StyleSheet.create({
     aspectRatio: 1,
     borderRadius: theme.shapes.cardInner,
     backgroundColor: "rgba(255,255,255,0.08)",
+  },
+  galleryPhotoFailed: {
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+  },
+  galleryPhotoFailedText: {
+    color: theme.colors.subtext,
+    fontSize: 12,
+    lineHeight: 16,
+    textAlign: "center",
+    fontWeight: "700",
   },
   actions: {
     gap: 10,

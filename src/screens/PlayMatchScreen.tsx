@@ -1,6 +1,7 @@
 import React from "react";
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   StyleSheet,
   Text,
@@ -20,7 +21,10 @@ import {
   type PlayMatchRouteProp,
   type RootStackNavigationProp,
 } from "@/navigation/appRoutes";
-import { reportClientError } from "@/services/api/clientErrorsApi";
+import {
+  reportClientError,
+  sanitizeErrorForReport,
+} from "@/services/api/clientErrorsApi";
 import * as togetherApi from "@/services/api/togetherApi";
 import type { TogetherActivity, TogetherQueueEntry } from "@/services/api/types";
 import { theme } from "@/theme";
@@ -158,6 +162,7 @@ export default function PlayMatchScreen() {
   const [entry, setEntry] = React.useState<TogetherQueueEntry | null>(null);
   const [errorText, setErrorText] = React.useState("");
   const [busy, setBusy] = React.useState(false);
+  const [exiting, setExiting] = React.useState(false);
   const [queueStartedAt, setQueueStartedAt] = React.useState(0);
   const entryIdRef = React.useRef("");
   const matchedRef = React.useRef(false);
@@ -167,17 +172,68 @@ export default function PlayMatchScreen() {
   const invalidActivityReportedRef = React.useRef(false);
 
   const goToTogether = React.useCallback(() => {
-    navigation.navigate("Tabs", { screen: "Together" });
-  }, [navigation]);
+    try {
+      navigation.navigate("Tabs", { screen: "Together" });
+    } catch (error) {
+      const safeError = sanitizeErrorForReport(error);
+      reportClientError({
+        screen: "PlayMatchScreen",
+        action: "exitTogetherSession",
+        step: "navigationFailed",
+        code: safeError.code,
+        message: safeError.message,
+        stack: safeError.stack,
+        metadata: {
+          activity: activity ?? null,
+          entryIdExists: Boolean(entryIdRef.current),
+        },
+      });
+    }
+  }, [activity, navigation]);
 
-  const cancelCurrentQueue = React.useCallback(async () => {
+  const cancelCurrentQueue = React.useCallback(async (reportFailure = false) => {
     const entryId = entryIdRef.current;
     if (!entryId || matchedRef.current || cancelRequestedRef.current) return;
     cancelRequestedRef.current = true;
     try {
       await togetherApi.cancelQueue(entryId);
-    } catch {}
-  }, []);
+    } catch (error) {
+      if (!reportFailure) return;
+
+      const safeError = sanitizeErrorForReport(error);
+      reportClientError({
+        screen: "PlayMatchScreen",
+        action: "exitTogetherSession",
+        step: "cancelQueueFailed",
+        code: safeError.code,
+        message: safeError.message,
+        stack: safeError.stack,
+        metadata: {
+          activity: activity ?? null,
+          entryIdExists: Boolean(entryId),
+          status: statusKey,
+        },
+      });
+      Alert.alert(
+        tt("play.togetherExit.leaveFailedTitle", "Выходим в меню"),
+        tt(
+          "play.togetherExit.leaveFailedBody",
+          "Не удалось подтвердить выход на сервере. Мы вернём вас в основное меню, а сессию можно проверить позже."
+        )
+      );
+    }
+  }, [activity, statusKey, tt]);
+
+  const exitToMainTabs = React.useCallback(async () => {
+    if (exiting) return;
+    setExiting(true);
+    try {
+      await cancelCurrentQueue(true);
+    } finally {
+      goToTogether();
+      setExiting(false);
+    }
+  }, [cancelCurrentQueue, exiting, goToTogether]);
 
   const startQueue = React.useCallback(async () => {
     if (!uid || !activity || inFlightRef.current) return;
@@ -314,13 +370,8 @@ export default function PlayMatchScreen() {
   }, [startQueue]);
 
   const handleBack = React.useCallback(() => {
-    void cancelCurrentQueue();
-    if (navigation.canGoBack()) {
-      navigation.goBack();
-      return;
-    }
-    goToTogether();
-  }, [cancelCurrentQueue, goToTogether, navigation]);
+    void exitToMainTabs();
+  }, [exitToMainTabs]);
 
   const blockedTitle = !uid
     ? tt("play.match.blocked.authTitle", "Нужен вход в аккаунт")
@@ -397,9 +448,16 @@ export default function PlayMatchScreen() {
                 </Text>
               </Pressable>
             ) : null}
-            <Pressable style={styles.secondaryButton} onPress={handleBack}>
+            <Pressable
+              style={[styles.secondaryButton, exiting ? styles.buttonDisabled : null]}
+              onPress={handleBack}
+              disabled={exiting}
+              accessibilityRole="button"
+            >
               <Text style={styles.secondaryButtonText}>
-                {tt("common.cancel", "Отмена")}
+                {exiting
+                  ? tt("common.exiting", "Выходим…")
+                  : tt("common.backToMainTabs", "Вернуться в меню")}
               </Text>
             </Pressable>
           </View>
@@ -502,5 +560,8 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
     fontSize: 14,
     fontWeight: "800",
+  },
+  buttonDisabled: {
+    opacity: 0.6,
   },
 });

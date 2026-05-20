@@ -26,6 +26,10 @@ import {
   type RootStackNavigationProp,
 } from "@/navigation/appRoutes";
 import * as togetherApi from "@/services/api/togetherApi";
+import {
+  reportClientError,
+  sanitizeErrorForReport,
+} from "@/services/api/clientErrorsApi";
 import type {
   TogetherSessionResponse,
   TogetherSessionStatus,
@@ -132,8 +136,23 @@ export default function PlayCanvasScreen() {
   const leavePromiseRef = React.useRef<Promise<void> | null>(null);
 
   const goToTogether = React.useCallback(() => {
-    navigation.navigate("Tabs", { screen: "Together" });
-  }, [navigation]);
+    try {
+      navigation.navigate("Tabs", { screen: "Together" });
+    } catch (error) {
+      const safeError = sanitizeErrorForReport(error);
+      reportClientError({
+        screen: "PlayCanvasScreen",
+        action: "exitTogetherSession",
+        step: "navigationFailed",
+        code: safeError.code,
+        message: safeError.message,
+        stack: safeError.stack,
+        metadata: {
+          sessionIdExists: Boolean(sessionId),
+        },
+      });
+    }
+  }, [navigation, sessionId]);
 
   const handleSafeBack = React.useCallback(() => {
     allowExitRef.current = true;
@@ -359,8 +378,33 @@ export default function PlayCanvasScreen() {
 
     const task = (async () => {
       if (mountedRef.current) setLeaving(true);
-      const response = await togetherApi.leave(sessionId);
-      applySessionResponse(response, uid);
+      try {
+        const response = await togetherApi.leave(sessionId);
+        applySessionResponse(response, uid);
+      } catch (error) {
+        const safeError = sanitizeErrorForReport(error);
+        reportClientError({
+          screen: "PlayCanvasScreen",
+          action: "exitTogetherSession",
+          step: "leaveFailed",
+          code: safeError.code,
+          message: safeError.message,
+          stack: safeError.stack,
+          metadata: {
+            sessionIdExists: Boolean(sessionId),
+            status: session?.status ?? null,
+          },
+        });
+        if (mountedRef.current) {
+          Alert.alert(
+            tt("play.togetherExit.leaveFailedTitle", "Выходим в меню"),
+            tt(
+              "play.togetherExit.leaveFailedBody",
+              "Не удалось подтвердить выход на сервере. Мы вернём вас в основное меню, а сессию можно проверить позже."
+            )
+          );
+        }
+      }
       allowExitRef.current = true;
       goToTogether();
     })().finally(() => {
@@ -369,16 +413,8 @@ export default function PlayCanvasScreen() {
     });
 
     leavePromiseRef.current = task;
-    await task.catch(() => {
-      if (!mountedRef.current) return;
-      setStrokeError(
-        tt(
-          "play.canvas.leaveFailed",
-          "Не удалось выйти из сессии. Сессия не закрыта локально, попробуй ещё раз."
-        )
-      );
-    });
-  }, [applySessionResponse, goToTogether, sessionId, tt, uid]);
+    await task;
+  }, [applySessionResponse, goToTogether, session?.status, sessionId, tt, uid]);
 
   React.useEffect(() => {
     if (!uid || !sessionId || session?.status !== "active" || finishing || leaving) return;
@@ -698,6 +734,18 @@ export default function PlayCanvasScreen() {
               {tt("play.canvas.openCanvas", "Открыть холст")}
             </Text>
           </Pressable>
+          <Pressable
+            style={[styles.exitButton, leaving ? styles.buttonDisabled : null]}
+            onPress={() => void leaveSessionAndExit()}
+            disabled={leaving}
+            accessibilityRole="button"
+          >
+            <Text style={styles.exitButtonText}>
+              {leaving
+                ? tt("common.exiting", "Выходим…")
+                : tt("common.backToMainTabs", "Вернуться в меню")}
+            </Text>
+          </Pressable>
         </ScrollView>
       </ScreenShell>
     );
@@ -765,19 +813,31 @@ export default function PlayCanvasScreen() {
             </Text>
             {strokeError ? <Text style={styles.footerError}>{strokeError}</Text> : null}
           </View>
-          <Pressable
-            style={[styles.finishButton, finishing || leaving ? styles.buttonDisabled : null]}
-            onPress={() => void completeSession()}
-            disabled={finishing || leaving}
-          >
-            <Text style={styles.finishButtonText}>
-              {finishing
-                ? tt("play.canvas.finishing", "Завершаем…")
-                : leaving
-                  ? tt("common.exiting", "Выходим…")
-                : tt("common.finish", "Завершить")}
-            </Text>
-          </Pressable>
+          <View style={styles.footerActions}>
+            <Pressable
+              style={[styles.finishButton, finishing || leaving ? styles.buttonDisabled : null]}
+              onPress={() => void completeSession()}
+              disabled={finishing || leaving}
+            >
+              <Text style={styles.finishButtonText}>
+                {finishing
+                  ? tt("play.canvas.finishing", "Завершаем…")
+                  : leaving
+                    ? tt("common.exiting", "Выходим…")
+                  : tt("common.finish", "Завершить")}
+              </Text>
+            </Pressable>
+            <Pressable
+              style={[styles.footerExitButton, finishing || leaving ? styles.buttonDisabled : null]}
+              onPress={() => void leaveSessionAndExit()}
+              disabled={finishing || leaving}
+              accessibilityRole="button"
+            >
+              <Text style={styles.footerExitButtonText}>
+                {tt("common.backToMainTabs", "Вернуться в меню")}
+              </Text>
+            </Pressable>
+          </View>
         </View>
       </View>
     </ScreenShell>
@@ -865,6 +925,20 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "800",
   },
+  exitButton: {
+    minHeight: 52,
+    borderRadius: theme.shapes.pill,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.16)",
+  },
+  exitButtonText: {
+    color: theme.colors.text,
+    fontSize: 15,
+    fontWeight: "800",
+  },
   fullscreenWrap: {
     flex: 1,
     backgroundColor: "#080A12",
@@ -933,6 +1007,10 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 3,
   },
+  footerActions: {
+    minWidth: 154,
+    gap: 8,
+  },
   footerText: {
     color: theme.colors.subtext,
     fontSize: 13,
@@ -944,15 +1022,30 @@ const styles = StyleSheet.create({
     lineHeight: 15,
   },
   finishButton: {
-    minHeight: 40,
+    minHeight: 36,
     borderRadius: theme.shapes.pill,
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: theme.colors.primary,
   },
   finishButtonText: {
     color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  footerExitButton: {
+    minHeight: 36,
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.14)",
+  },
+  footerExitButtonText: {
+    color: theme.colors.text,
     fontSize: 13,
     fontWeight: "800",
   },

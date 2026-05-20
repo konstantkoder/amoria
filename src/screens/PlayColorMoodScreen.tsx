@@ -18,6 +18,10 @@ import {
   type PlayColorMoodRouteProp,
   type RootStackNavigationProp,
 } from "@/navigation/appRoutes";
+import {
+  reportClientError,
+  sanitizeErrorForReport,
+} from "@/services/api/clientErrorsApi";
 import * as togetherApi from "@/services/api/togetherApi";
 import type {
   TogetherEventDto,
@@ -106,8 +110,23 @@ export default function PlayColorMoodScreen() {
   const navigatedRef = React.useRef(false);
 
   const goToTogether = React.useCallback(() => {
-    navigation.navigate("Tabs", { screen: "Together" });
-  }, [navigation]);
+    try {
+      navigation.navigate("Tabs", { screen: "Together" });
+    } catch (error) {
+      const safeError = sanitizeErrorForReport(error);
+      reportClientError({
+        screen: "PlayColorMoodScreen",
+        action: "exitTogetherSession",
+        step: "navigationFailed",
+        code: safeError.code,
+        message: safeError.message,
+        stack: safeError.stack,
+        metadata: {
+          sessionIdExists: Boolean(sessionId),
+        },
+      });
+    }
+  }, [navigation, sessionId]);
 
   const applySessionResponse = React.useCallback(
     (response: TogetherSessionResponse) => {
@@ -324,24 +343,44 @@ export default function PlayColorMoodScreen() {
   }, [leaving, mySelection, reloadEvents, saving, selectedOption, session, sessionId, tt, uid]);
 
   const leaveSession = React.useCallback(async () => {
-    if (!sessionId || leaving) return;
+    if (leaving) return;
+    if (!sessionId) {
+      goToTogether();
+      return;
+    }
+
     setLeaving(true);
     setActionError("");
     try {
       await togetherApi.leave(sessionId);
-      goToTogether();
-    } catch {
-      if (!mountedRef.current) return;
-      setActionError(
-        tt(
-          "play.canvas.leaveFailed",
-          "Не удалось выйти из сессии. Сессия не закрыта локально, попробуй ещё раз."
-        )
-      );
+    } catch (error) {
+      const safeError = sanitizeErrorForReport(error);
+      reportClientError({
+        screen: "PlayColorMoodScreen",
+        action: "exitTogetherSession",
+        step: "leaveFailed",
+        code: safeError.code,
+        message: safeError.message,
+        stack: safeError.stack,
+        metadata: {
+          sessionIdExists: Boolean(sessionId),
+          status: session?.status ?? null,
+        },
+      });
+      if (mountedRef.current) {
+        Alert.alert(
+          tt("play.togetherExit.leaveFailedTitle", "Выходим в меню"),
+          tt(
+            "play.togetherExit.leaveFailedBody",
+            "Не удалось подтвердить выход на сервере. Мы вернём вас в основное меню, а сессию можно проверить позже."
+          )
+        );
+      }
     } finally {
+      goToTogether();
       if (mountedRef.current) setLeaving(false);
     }
-  }, [goToTogether, leaving, sessionId, tt]);
+  }, [goToTogether, leaving, session?.status, sessionId, tt]);
 
   const handleBack = React.useCallback(() => {
     if (session?.status !== "active") {
@@ -542,6 +581,18 @@ export default function PlayColorMoodScreen() {
                 : saving
                   ? tt("common.saving", "Сохранение...")
                   : tt("play.colorMood.confirmChoice", "Сохранить настроение")}
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[styles.secondaryButton, leaving ? styles.buttonDisabled : null]}
+            onPress={() => void leaveSession()}
+            disabled={leaving}
+            accessibilityRole="button"
+          >
+            <Text style={styles.secondaryButtonText}>
+              {leaving
+                ? tt("common.exiting", "Выходим…")
+                : tt("common.backToMainTabs", "Вернуться в меню")}
             </Text>
           </Pressable>
         </View>
@@ -750,6 +801,20 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     color: "#FFFFFF",
     fontSize: 15,
+    fontWeight: "800",
+  },
+  secondaryButton: {
+    minHeight: 50,
+    borderRadius: theme.shapes.pill,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.16)",
+  },
+  secondaryButtonText: {
+    color: theme.colors.text,
+    fontSize: 14,
     fontWeight: "800",
   },
   buttonDisabled: {

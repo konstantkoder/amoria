@@ -265,7 +265,7 @@ export default function ProfileScreen() {
   }
 
   const openEditProfile = React.useCallback(
-    (focus?: "about" | "mood") => {
+    (focus?: "about" | "goal" | "mood") => {
       try {
         if (focus) {
           navigation.navigate("EditProfile", { focus });
@@ -361,12 +361,28 @@ export default function ProfileScreen() {
             </Text>
           ) : null}
           <View style={styles.badges}>
-            <View style={styles.badge}>
+            <TouchableOpacity
+              style={[styles.badge, styles.editableBadge]}
+              activeOpacity={0.86}
+              onPress={() => openEditProfile("goal")}
+              accessibilityRole="button"
+            >
               <Text style={styles.badgeText}>{goalLabel}</Text>
-            </View>
-            <View style={styles.badge}>
+              <Text style={styles.badgeActionText}>
+                {t("profile.editProfileEntrypointAction")}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.badge, styles.editableBadge]}
+              activeOpacity={0.86}
+              onPress={() => openEditProfile("mood")}
+              accessibilityRole="button"
+            >
               <Text style={styles.badgeText}>{moodLabel}</Text>
-            </View>
+              <Text style={styles.badgeActionText}>
+                {t("profile.editProfileEntrypointAction")}
+              </Text>
+            </TouchableOpacity>
             {profile?.allowAdultMode ? (
               <View style={styles.badge}>
                 <Text style={styles.badgeText}>{t("common.adultShort")}</Text>
@@ -673,6 +689,17 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
     fontSize: 12,
     fontWeight: "700",
+  },
+  editableBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    borderColor: "rgba(255,255,255,0.18)",
+  },
+  badgeActionText: {
+    color: theme.colors.accent,
+    fontSize: 11,
+    fontWeight: "800",
   },
   editEntrypoints: {
     borderTopWidth: 1,

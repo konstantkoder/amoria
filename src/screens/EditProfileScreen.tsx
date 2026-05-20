@@ -95,6 +95,7 @@ export default function EditProfileScreen() {
   const [mysteryMode, setMysteryMode] = React.useState(false);
   const scrollRef = React.useRef<ScrollView>(null);
   const aboutInputRef = React.useRef<TextInput>(null);
+  const goalYRef = React.useRef(0);
   const moodYRef = React.useRef(0);
   const focusTarget = route.params?.focus;
 
@@ -142,6 +143,14 @@ export default function EditProfileScreen() {
       if (focusTarget === "about") {
         scrollRef.current?.scrollTo({ y: 54, animated: true });
         aboutInputRef.current?.focus();
+        return;
+      }
+
+      if (focusTarget === "goal") {
+        scrollRef.current?.scrollTo({
+          y: Math.max(goalYRef.current - 24, 0),
+          animated: true,
+        });
         return;
       }
 
@@ -249,37 +258,45 @@ export default function EditProfileScreen() {
             style={styles.input}
           />
 
-          <Text style={styles.label}>{t("editProfile.goalLabel")}</Text>
-          <View style={styles.optionsWrap}>
-            {GOAL_OPTIONS.map((option) => {
-              const active = goal === option;
-              return (
-                <TouchableOpacity
-                  key={option}
-                  onPress={() => setGoal(option)}
-                  style={[
-                    styles.optionButton,
-                    active ? styles.goalOptionButtonActive : null,
-                  ]}
-                >
-                  <Text
+          <View
+            style={focusTarget === "goal" ? styles.focusedSection : null}
+            onLayout={(event) => {
+              goalYRef.current = event.nativeEvent.layout.y;
+            }}
+          >
+            <Text style={styles.label}>{t("editProfile.goalLabel")}</Text>
+            <View style={styles.optionsWrap}>
+              {GOAL_OPTIONS.map((option) => {
+                const active = goal === option;
+                return (
+                  <TouchableOpacity
+                    key={option}
+                    onPress={() => setGoal(option)}
                     style={[
-                      styles.optionButtonText,
-                      active ? styles.optionButtonTextActive : null,
+                      styles.optionButton,
+                      active ? styles.goalOptionButtonActive : null,
                     ]}
                   >
-                    {translatedOptionLabel(
-                      t,
-                      GOAL_LABEL_KEYS[option],
-                      GOAL_LABEL_FALLBACKS[option]
-                    )}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
+                    <Text
+                      style={[
+                        styles.optionButtonText,
+                        active ? styles.optionButtonTextActive : null,
+                      ]}
+                    >
+                      {translatedOptionLabel(
+                        t,
+                        GOAL_LABEL_KEYS[option],
+                        GOAL_LABEL_FALLBACKS[option]
+                      )}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           </View>
 
           <View
+            style={focusTarget === "mood" ? styles.focusedSection : null}
             onLayout={(event) => {
               moodYRef.current = event.nativeEvent.layout.y;
             }}
@@ -405,6 +422,16 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     marginBottom: 16,
     gap: 8,
+  },
+  focusedSection: {
+    borderRadius: theme.radius,
+    borderWidth: 1,
+    borderColor: theme.colors.accent,
+    paddingHorizontal: 10,
+    paddingTop: 10,
+    marginHorizontal: -10,
+    marginBottom: 12,
+    backgroundColor: "rgba(255,255,255,0.04)",
   },
   optionButton: {
     paddingHorizontal: 12,
