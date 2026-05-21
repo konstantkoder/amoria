@@ -8,8 +8,15 @@ export type TogetherActivity = "draw" | "color_mood" | "story_sparks";
 export type TogetherQueueStatus = "waiting" | "matched" | "cancelled" | "expired";
 export type TogetherSessionStatus = "active" | "finished" | "abandoned" | "cancelled";
 export type TogetherEventType = "stroke_batch" | "palette" | "story_choice" | "system";
-export type TogetherRevealDecision = "open" | "skip";
-export type TogetherRevealOutcome = "pending" | "open_open" | "open_skip" | "skip_skip" | "blocked";
+export type TogetherRevealDecision = "open" | "skip" | "continue_story";
+export type TogetherRevealOutcome =
+  | "pending"
+  | "open_open"
+  | "open_skip"
+  | "skip_skip"
+  | "continue_story"
+  | "mixed_intent"
+  | "blocked";
 
 export type TogetherQueueBody = {
   activity: TogetherActivity;
@@ -41,6 +48,7 @@ export type TogetherSessionDto = {
   endedAt: string | null;
   endedReason: string | null;
   deadlineAt: string | null;
+  sourceSessionId: string | null;
   storyPack?: StorySparksPackDto;
 };
 
@@ -99,11 +107,15 @@ export type TogetherRevealStateDto = {
   threadId: string | null;
   canOpenChat: boolean;
   peerDecisionKnown: boolean;
+  nextSessionId: string | null;
+  nextActivity: TogetherActivity | null;
 };
 
 export type TogetherRevealResponse = {
   outcome: TogetherRevealOutcome;
   threadId?: string;
+  nextSessionId?: string;
+  nextActivity?: TogetherActivity;
   revealState: TogetherRevealStateDto;
 };
 
@@ -132,6 +144,8 @@ export type TogetherHistoryItemDto = {
   threadId: string | null;
   canOpenChat: boolean;
   peerDecisionKnown: boolean;
+  nextSessionId: string | null;
+  nextActivity: TogetherActivity | null;
   createdAt: string;
   endedAt: string | null;
   endedReason: string | null;

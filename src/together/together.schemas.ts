@@ -230,6 +230,7 @@ const sessionSchema = {
     "endedAt",
     "endedReason",
     "deadlineAt",
+    "sourceSessionId",
   ],
   additionalProperties: false,
   properties: {
@@ -241,6 +242,7 @@ const sessionSchema = {
     endedAt: { type: ["string", "null"], format: "date-time" },
     endedReason: { type: ["string", "null"] },
     deadlineAt: { type: ["string", "null"], format: "date-time" },
+    sourceSessionId: { type: ["string", "null"], format: "uuid" },
     storyPack: storyPackSchema,
   },
 } as const;
@@ -262,7 +264,15 @@ const eventSchema = {
 
 const revealOutcomeSchema = {
   type: "string",
-  enum: ["pending", "open_open", "open_skip", "skip_skip", "blocked"],
+  enum: [
+    "pending",
+    "open_open",
+    "open_skip",
+    "skip_skip",
+    "continue_story",
+    "mixed_intent",
+    "blocked",
+  ],
 } as const;
 
 const revealDecisionResponseSchema = {
@@ -280,6 +290,8 @@ const revealStateSchema = {
     "threadId",
     "canOpenChat",
     "peerDecisionKnown",
+    "nextSessionId",
+    "nextActivity",
   ],
   additionalProperties: false,
   properties: {
@@ -288,6 +300,13 @@ const revealStateSchema = {
     threadId: { type: ["string", "null"], format: "uuid" },
     canOpenChat: { type: "boolean" },
     peerDecisionKnown: { type: "boolean" },
+    nextSessionId: { type: ["string", "null"], format: "uuid" },
+    nextActivity: {
+      anyOf: [
+        { type: "string", enum: TOGETHER_ACTIVITIES },
+        { type: "null" },
+      ],
+    },
   },
 } as const;
 
@@ -304,6 +323,8 @@ const historyItemSchema = {
     "threadId",
     "canOpenChat",
     "peerDecisionKnown",
+    "nextSessionId",
+    "nextActivity",
     "createdAt",
     "endedAt",
     "endedReason",
@@ -320,6 +341,13 @@ const historyItemSchema = {
     threadId: { type: ["string", "null"], format: "uuid" },
     canOpenChat: { type: "boolean" },
     peerDecisionKnown: { type: "boolean" },
+    nextSessionId: { type: ["string", "null"], format: "uuid" },
+    nextActivity: {
+      anyOf: [
+        { type: "string", enum: TOGETHER_ACTIVITIES },
+        { type: "null" },
+      ],
+    },
     createdAt: { type: "string", format: "date-time" },
     endedAt: { type: ["string", "null"], format: "date-time" },
     endedReason: { type: ["string", "null"] },
@@ -449,6 +477,8 @@ export const postTogetherRevealRouteSchema = {
       properties: {
         outcome: revealOutcomeSchema,
         threadId: { type: "string", format: "uuid" },
+        nextSessionId: { type: "string", format: "uuid" },
+        nextActivity: { type: "string", enum: TOGETHER_ACTIVITIES },
         revealState: revealStateSchema,
       },
     },

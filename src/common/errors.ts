@@ -15,6 +15,7 @@ export type ErrorCode =
   | "profile_gallery_limit_reached"
   | "locked_gallery_limit_reached"
   | "together_session_closed"
+  | "together_continuation_failed"
   | "not_found"
   | "email_taken"
   | "file_too_large"

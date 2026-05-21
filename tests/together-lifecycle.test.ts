@@ -893,6 +893,8 @@ test("getSession includes empty revealState before any decision", async (t) => {
     threadId: null,
     canOpenChat: true,
     peerDecisionKnown: false,
+    nextSessionId: null,
+    nextActivity: null,
   });
 });
 
@@ -934,6 +936,8 @@ test("first open reveal stores decision and remains pending without a thread", a
     threadId: null,
     canOpenChat: true,
     peerDecisionKnown: false,
+    nextSessionId: null,
+    nextActivity: null,
   });
 });
 
@@ -998,6 +1002,8 @@ test("second open reveal returns open_open with threadId", async (t) => {
     threadId,
     canOpenChat: true,
     peerDecisionKnown: true,
+    nextSessionId: null,
+    nextActivity: null,
   });
   assert.equal(result.broadcasts.length, 2);
   assert.equal(
@@ -1232,6 +1238,206 @@ test("skip and open reveal does not create a thread", async (t) => {
   assert.equal(openedThread, false);
   assert.equal(result.response.outcome, "open_skip");
   assert.equal(result.response.revealState.threadId, null);
+});
+
+test("draw continue_story and continue_story creates one story_sparks continuation session", async (t) => {
+  t.after(restoreRepoMock);
+
+  const storySessionId = "00000000-0000-4000-8000-000000000701";
+  const reveals: TogetherRevealRow[] = [revealRow(userAId, "continue_story")];
+  let continuationSession: TogetherSessionRow | undefined;
+  let openThreadCalls = 0;
+  let createContinuationCalls = 0;
+  mockRepo(
+    {
+      findSessionForMember: async () =>
+        sessionRow({
+          status: "finished",
+          activity: "draw",
+          finishedAt: endedAt,
+          endedReason: "completed",
+        }),
+      upsertReveal: async (_sessionId: string, userId: string, decision: string) => {
+        upsertRevealRow(reveals, userId, decision);
+      },
+      listSessionMemberUserIds: async () => [userAId, userBId],
+      listSessionReveals: async () => reveals,
+      findContinuationSessionBySource: async () => continuationSession,
+      createStoryContinuationSession: async (input: { sourceSessionId: string; memberUserIds: string[] }) => {
+        createContinuationCalls += 1;
+        assert.equal(input.sourceSessionId, sessionId);
+        assert.deepEqual(input.memberUserIds, [userAId, userBId]);
+        continuationSession ??= sessionRow({
+          id: storySessionId,
+          activity: "story_sparks",
+          status: "active",
+          promptText: "Build a tiny story together",
+          sourceSessionId: sessionId,
+        });
+        return continuationSession;
+      },
+    },
+    {
+      openDirectThread: async () => {
+        openThreadCalls += 1;
+        throw new Error("continue_story must not open a thread");
+      },
+    },
+  );
+
+  const result = await togetherService.reveal(userBId, sessionId, {
+    decision: "continue_story",
+  });
+
+  assert.equal(openThreadCalls, 0);
+  assert.equal(createContinuationCalls, 1);
+  assert.equal(result.response.outcome, "continue_story");
+  assert.equal(result.response.nextSessionId, storySessionId);
+  assert.equal(result.response.nextActivity, "story_sparks");
+  assert.deepEqual(result.response.revealState, {
+    myDecision: "continue_story",
+    outcome: "continue_story",
+    threadId: null,
+    canOpenChat: true,
+    peerDecisionKnown: true,
+    nextSessionId: storySessionId,
+    nextActivity: "story_sparks",
+  });
+  assert.equal(
+    result.broadcasts.find((broadcast) => broadcast.userId === userAId)?.revealState.nextSessionId,
+    storySessionId,
+  );
+});
+
+test("repeated continue_story reveal reuses existing story_sparks continuation session", async (t) => {
+  t.after(restoreRepoMock);
+
+  const storySessionId = "00000000-0000-4000-8000-000000000702";
+  const reveals: TogetherRevealRow[] = [
+    revealRow(userAId, "continue_story"),
+    revealRow(userBId, "continue_story"),
+  ];
+  let createContinuationCalls = 0;
+  const continuationSession = sessionRow({
+    id: storySessionId,
+    activity: "story_sparks",
+    status: "active",
+    promptText: "Build a tiny story together",
+    sourceSessionId: sessionId,
+  });
+  mockRepo({
+    findSessionForMember: async () =>
+      sessionRow({
+        status: "finished",
+        activity: "draw",
+        finishedAt: endedAt,
+        endedReason: "completed",
+      }),
+    upsertReveal: async (_sessionId: string, userId: string, decision: string) => {
+      upsertRevealRow(reveals, userId, decision);
+    },
+    listSessionMemberUserIds: async () => [userAId, userBId],
+    listSessionReveals: async () => reveals,
+    findContinuationSessionBySource: async () => continuationSession,
+    createStoryContinuationSession: async () => {
+      createContinuationCalls += 1;
+      return continuationSession;
+    },
+  });
+
+  const result = await togetherService.reveal(userAId, sessionId, {
+    decision: "continue_story",
+  });
+
+  assert.equal(createContinuationCalls, 1);
+  assert.equal(result.response.outcome, "continue_story");
+  assert.equal(result.response.nextSessionId, storySessionId);
+});
+
+test("continue_story and skip reveal creates no chat and no story continuation", async (t) => {
+  t.after(restoreRepoMock);
+
+  const reveals: TogetherRevealRow[] = [revealRow(userAId, "continue_story")];
+  let openedThread = false;
+  let createdContinuation = false;
+  mockRepo(
+    {
+      findSessionForMember: async () =>
+        sessionRow({
+          status: "finished",
+          activity: "draw",
+          finishedAt: endedAt,
+          endedReason: "completed",
+        }),
+      upsertReveal: async (_sessionId: string, userId: string, decision: string) => {
+        upsertRevealRow(reveals, userId, decision);
+      },
+      listSessionMemberUserIds: async () => [userAId, userBId],
+      listSessionReveals: async () => reveals,
+      createStoryContinuationSession: async () => {
+        createdContinuation = true;
+        throw new Error("Mixed continuation must not create story session");
+      },
+    },
+    {
+      openDirectThread: async () => {
+        openedThread = true;
+        throw new Error("Mixed continuation must not open a thread");
+      },
+    },
+  );
+
+  const result = await togetherService.reveal(userBId, sessionId, { decision: "skip" });
+
+  assert.equal(openedThread, false);
+  assert.equal(createdContinuation, false);
+  assert.equal(result.response.outcome, "mixed_intent");
+  assert.equal(result.response.revealState.threadId, null);
+  assert.equal(result.response.revealState.nextSessionId, null);
+});
+
+test("open and continue_story reveal creates no chat and no story continuation", async (t) => {
+  t.after(restoreRepoMock);
+
+  const reveals: TogetherRevealRow[] = [revealRow(userAId, "open")];
+  let openedThread = false;
+  let createdContinuation = false;
+  mockRepo(
+    {
+      findSessionForMember: async () =>
+        sessionRow({
+          status: "finished",
+          activity: "draw",
+          finishedAt: endedAt,
+          endedReason: "completed",
+        }),
+      upsertReveal: async (_sessionId: string, userId: string, decision: string) => {
+        upsertRevealRow(reveals, userId, decision);
+      },
+      listSessionMemberUserIds: async () => [userAId, userBId],
+      listSessionReveals: async () => reveals,
+      createStoryContinuationSession: async () => {
+        createdContinuation = true;
+        throw new Error("Mixed continuation must not create story session");
+      },
+    },
+    {
+      openDirectThread: async () => {
+        openedThread = true;
+        throw new Error("Mixed continuation must not open a thread");
+      },
+    },
+  );
+
+  const result = await togetherService.reveal(userBId, sessionId, {
+    decision: "continue_story",
+  });
+
+  assert.equal(openedThread, false);
+  assert.equal(createdContinuation, false);
+  assert.equal(result.response.outcome, "mixed_intent");
+  assert.equal(result.response.revealState.threadId, null);
+  assert.equal(result.response.revealState.nextSessionId, null);
 });
 
 test("color_mood open and skip reveal does not create a mutual chat", async (t) => {
@@ -1511,6 +1717,7 @@ test("nonmember cannot access color_mood session, events, or reveal", async (t) 
     () => togetherService.getSession(userAId, sessionId),
     () => togetherService.listSessionEventsForMember(userAId, sessionId),
     () => togetherService.reveal(userAId, sessionId, { decision: "open" }),
+    () => togetherService.reveal(userAId, sessionId, { decision: "continue_story" }),
   ]) {
     await assert.rejects(task, (error) => {
       const appError = error as { code?: string; statusCode?: number };
@@ -1521,6 +1728,36 @@ test("nonmember cannot access color_mood session, events, or reveal", async (t) 
   }
 
   assert.equal(revealWritten, false);
+});
+
+test("nonmember cannot continue a draw story", async (t) => {
+  t.after(restoreRepoMock);
+
+  let revealWritten = false;
+  let createdContinuation = false;
+  mockRepo({
+    findSessionForMember: async () => undefined,
+    upsertReveal: async () => {
+      revealWritten = true;
+    },
+    createStoryContinuationSession: async () => {
+      createdContinuation = true;
+      throw new Error("Nonmember must not create continuation");
+    },
+  });
+
+  await assert.rejects(
+    togetherService.reveal(userAId, sessionId, { decision: "continue_story" }),
+    (error) => {
+      const appError = error as { code?: string; statusCode?: number };
+      assert.equal(appError.code, "not_found");
+      assert.equal(appError.statusCode, 404);
+      return true;
+    },
+  );
+
+  assert.equal(revealWritten, false);
+  assert.equal(createdContinuation, false);
 });
 
 test("nonmember cannot access story_sparks session events", async (t) => {
@@ -1571,6 +1808,8 @@ test("reveal updated broadcast sends recipient-specific reveal state", async () 
             threadId: null,
             canOpenChat: true,
             peerDecisionKnown: false,
+            nextSessionId: null,
+            nextActivity: null,
           },
         },
         {
@@ -1581,6 +1820,8 @@ test("reveal updated broadcast sends recipient-specific reveal state", async () 
             threadId: null,
             canOpenChat: true,
             peerDecisionKnown: true,
+            nextSessionId: null,
+            nextActivity: null,
           },
         },
       ],
@@ -1679,6 +1920,7 @@ function sessionRow(overrides: Partial<TogetherSessionRow> = {}): TogetherSessio
     activity: "draw",
     status: "active",
     promptText: "Draw together",
+    sourceSessionId: null,
     createdAt,
     finishedAt: null,
     endedReason: null,

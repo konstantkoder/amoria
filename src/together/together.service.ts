@@ -366,6 +366,12 @@ export async function reveal(
       409,
     );
   }
+  if (input.decision === "continue_story" && session.activity !== "draw") {
+    throw validationError("Story continuation is only available after a drawing session", {
+      decision: "unsupported_for_activity",
+      activity: session.activity,
+    });
+  }
 
   await deps.repo.upsertReveal(sessionId, userId, input.decision);
 
@@ -388,6 +394,20 @@ export async function reveal(
           metadata,
         },
       });
+    }
+  } else if (preliminaryState.outcome === "continue_story") {
+    const continuation = await deps.repo.createStoryContinuationSession({
+      sourceSessionId: sessionId,
+      memberUserIds,
+      promptText: choosePrompt("story_sparks"),
+    });
+
+    if (!continuation) {
+      throw new AppError(
+        "together_continuation_failed",
+        "Story continuation session could not be created",
+        500,
+      );
     }
   }
 
@@ -439,6 +459,8 @@ export async function getHistory(
           threadId: revealState.threadId,
           canOpenChat: revealState.canOpenChat,
           peerDecisionKnown: revealState.peerDecisionKnown,
+          nextSessionId: revealState.nextSessionId,
+          nextActivity: revealState.nextActivity,
           createdAt: row.session.createdAt.toISOString(),
           endedAt: row.session.finishedAt?.toISOString() ?? null,
           endedReason: row.session.endedReason ?? null,
@@ -484,6 +506,7 @@ function toSessionDto(session: TogetherSessionRow): TogetherSessionDto {
     endedAt: session.finishedAt?.toISOString() ?? null,
     endedReason: session.endedReason ?? null,
     deadlineAt: session.deadlineAt?.toISOString() ?? null,
+    sourceSessionId: session.sourceSessionId ?? null,
   };
 
   if (session.activity === "story_sparks") {
@@ -549,6 +572,8 @@ async function buildRevealStateForUser(
   const outcome = blocked ? "blocked" : getOutcome(sessionReveals, memberUserIds);
   const canOpenChat = session.status === "finished" && !blocked;
   let threadId: string | null = null;
+  let nextSessionId: string | null = null;
+  let nextActivity: TogetherActivity | null = null;
 
   if (outcome === "open_open" && peerUserId) {
     threadId = await deps.findDirectThreadIdBySource({
@@ -559,6 +584,12 @@ async function buildRevealStateForUser(
     if (!threadId) {
       threadId = await deps.findDirectThreadIdBetween(userId, peerUserId);
     }
+  } else if (outcome === "continue_story") {
+    const continuation = await deps.repo.findContinuationSessionBySource(session.id);
+    if (continuation) {
+      nextSessionId = continuation.id;
+      nextActivity = continuation.activity as TogetherActivity;
+    }
   }
 
   return {
@@ -567,6 +598,8 @@ async function buildRevealStateForUser(
     threadId,
     canOpenChat,
     peerDecisionKnown,
+    nextSessionId,
+    nextActivity,
   };
 }
 
@@ -574,6 +607,8 @@ function toRevealResponse(revealState: TogetherRevealStateDto): TogetherRevealRe
   return {
     outcome: revealState.outcome,
     ...(revealState.threadId ? { threadId: revealState.threadId } : {}),
+    ...(revealState.nextSessionId ? { nextSessionId: revealState.nextSessionId } : {}),
+    ...(revealState.nextActivity ? { nextActivity: revealState.nextActivity } : {}),
     revealState,
   };
 }
@@ -586,6 +621,22 @@ async function buildTogetherSourceMetadata(
     activity: session.activity,
     promptText: session.promptText,
   };
+
+  if (session.sourceSessionId) {
+    metadata.sourceSessionId = session.sourceSessionId;
+    const sourceSession = await deps.repo.findSessionForMember(session.sourceSessionId, userId);
+    if (sourceSession) {
+      metadata.sourceActivity = sourceSession.activity;
+      metadata.sourcePromptText = sourceSession.promptText;
+      if (sourceSession.activity === "draw") {
+        const sourceEvents =
+          (await deps.repo.listSessionEventsForMember(userId, sourceSession.id)) ?? [];
+        metadata.drawSessionId = sourceSession.id;
+        metadata.drawPromptText = sourceSession.promptText;
+        metadata.drawEventCount = sourceEvents.length;
+      }
+    }
+  }
 
   if (session.activity !== "story_sparks") {
     return metadata;
@@ -652,6 +703,14 @@ function getOutcome(
 
   if (decisions.every((decision) => decision === "skip")) {
     return "skip_skip";
+  }
+
+  if (decisions.every((decision) => decision === "continue_story")) {
+    return "continue_story";
+  }
+
+  if (decisions.some((decision) => decision === "continue_story")) {
+    return "mixed_intent";
   }
 
   return "open_skip";

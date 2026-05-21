@@ -34,6 +34,12 @@ export type HistorySessionRow = {
   peer: TogetherParticipantDto;
 };
 
+export type CreateStoryContinuationInput = {
+  sourceSessionId: string;
+  memberUserIds: string[];
+  promptText: string;
+};
+
 export async function enqueueAndMatch(input: EnqueueInput): Promise<TogetherQueueRow> {
   const now = new Date();
 
@@ -415,6 +421,78 @@ export async function finishActiveSession(sessionId: string, finishedAt: Date): 
     .returning();
 
   return session;
+}
+
+export async function findContinuationSessionBySource(
+  sourceSessionId: string,
+): Promise<TogetherSessionRow | undefined> {
+  const [session] = await db
+    .select()
+    .from(togetherSessions)
+    .where(
+      and(
+        eq(togetherSessions.sourceSessionId, sourceSessionId),
+        eq(togetherSessions.activity, "story_sparks"),
+      ),
+    )
+    .orderBy(asc(togetherSessions.createdAt), asc(togetherSessions.id))
+    .limit(1);
+
+  return session;
+}
+
+export async function createStoryContinuationSession(
+  input: CreateStoryContinuationInput,
+): Promise<TogetherSessionRow | undefined> {
+  const now = new Date();
+
+  return db.transaction(async (tx) => {
+    const [sourceSession] = await tx
+      .select()
+      .from(togetherSessions)
+      .where(eq(togetherSessions.id, input.sourceSessionId))
+      .limit(1)
+      .for("update");
+
+    if (!sourceSession) {
+      return undefined;
+    }
+
+    const [existing] = await tx
+      .select()
+      .from(togetherSessions)
+      .where(
+        and(
+          eq(togetherSessions.sourceSessionId, input.sourceSessionId),
+          eq(togetherSessions.activity, "story_sparks"),
+        ),
+      )
+      .limit(1)
+      .for("update");
+
+    if (existing) {
+      return existing;
+    }
+
+    const [session] = await tx
+      .insert(togetherSessions)
+      .values({
+        activity: "story_sparks",
+        promptText: input.promptText,
+        sourceSessionId: input.sourceSessionId,
+      })
+      .returning();
+
+    await tx.insert(togetherSessionMembers).values(
+      input.memberUserIds.map((userId) => ({
+        sessionId: session.id,
+        userId,
+        lastSeenAt: now,
+      })),
+    );
+
+    return session;
+  });
 }
 
 export async function closeActiveSession(

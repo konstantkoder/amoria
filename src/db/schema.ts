@@ -353,12 +353,17 @@ export const togetherSessions = pgTable("together_sessions", {
   activity: text("activity").notNull(),
   status: text("status").default("active").notNull(),
   promptText: text("prompt_text").notNull(),
+  sourceSessionId: uuid("source_session_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   finishedAt: timestamp("finished_at", { withTimezone: true }),
   endedReason: text("ended_reason"),
   deadlineAt: timestamp("deadline_at", { withTimezone: true }),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
-});
+}, (table) => [
+  uniqueIndex("together_story_sparks_source_unique")
+    .on(table.sourceSessionId)
+    .where(sql`${table.activity} = 'story_sparks' AND ${table.sourceSessionId} IS NOT NULL`),
+]);
 
 export const togetherQueue = pgTable(
   "together_queue",
