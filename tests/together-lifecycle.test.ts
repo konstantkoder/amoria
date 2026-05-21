@@ -18,6 +18,9 @@ process.env.UPLOADS_DIR = "./uploads-test";
 const togetherService = require(
   "../src/together/together.service",
 ) as typeof import("../src/together/together.service");
+const togetherRepo = require(
+  "../src/together/together.repo",
+) as typeof import("../src/together/together.repo");
 const { buildApp } = require("../src/app") as typeof import("../src/app");
 const { signAccessToken } = require("../src/auth/jwt") as typeof import("../src/auth/jwt");
 const { closeDb } = require("../src/db/client") as typeof import("../src/db/client");
@@ -356,6 +359,209 @@ test("story_sparks queue creates matched session activity", async (t) => {
   assert.equal(response.statusCode, 200);
   assert.equal(body.entry.status, "matched");
   assert.equal(body.entry.sessionId, sessionId);
+});
+
+test("queue accepts valid Together location and radius", async (t) => {
+  t.after(restoreRepoMock);
+  const app = buildApp();
+  t.after(async () => {
+    await app.close();
+  });
+
+  let enqueuedLocation:
+    | { latitude?: number | null; longitude?: number | null; radiusKm?: number | null }
+    | undefined;
+  mockRepo({
+    enqueueAndMatch: async (input: {
+      activity: string;
+      latitude?: number | null;
+      longitude?: number | null;
+      radiusKm?: number | null;
+    }) => {
+      enqueuedLocation = {
+        latitude: input.latitude,
+        longitude: input.longitude,
+        radiusKm: input.radiusKm,
+      };
+      return queueRow({
+        activity: input.activity,
+        status: "waiting",
+        matchedSessionId: null,
+        latitude: input.latitude ?? null,
+        longitude: input.longitude ?? null,
+        radiusKm: input.radiusKm ?? null,
+        locationUpdatedAt: new Date(),
+      });
+    },
+  });
+
+  const response = await app.inject({
+    method: "POST",
+    url: "/together/queue",
+    headers: {
+      Authorization: `Bearer ${signAccessToken(userAId)}`,
+    },
+    payload: {
+      activity: "draw",
+      location: {
+        latitude: 52.2297,
+        longitude: 21.0122,
+        radiusKm: 25,
+      },
+    },
+  });
+  const bodyText = response.body;
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(enqueuedLocation, {
+    latitude: 52.2297,
+    longitude: 21.0122,
+    radiusKm: 25,
+  });
+  assert.equal(bodyText.includes("latitude"), false);
+  assert.equal(bodyText.includes("longitude"), false);
+});
+
+test("queue rejects invalid Together latitude and radius", async (t) => {
+  t.after(restoreRepoMock);
+  const app = buildApp();
+  t.after(async () => {
+    await app.close();
+  });
+
+  let enqueueCalled = false;
+  mockRepo({
+    enqueueAndMatch: async () => {
+      enqueueCalled = true;
+      return queueRow();
+    },
+  });
+
+  const invalidLatitude = await app.inject({
+    method: "POST",
+    url: "/together/queue",
+    headers: {
+      Authorization: `Bearer ${signAccessToken(userAId)}`,
+    },
+    payload: {
+      activity: "draw",
+      location: {
+        latitude: 91,
+        longitude: 21.0122,
+        radiusKm: 25,
+      },
+    },
+  });
+
+  const invalidRadius = await app.inject({
+    method: "POST",
+    url: "/together/queue",
+    headers: {
+      Authorization: `Bearer ${signAccessToken(userAId)}`,
+    },
+    payload: {
+      activity: "draw",
+      location: {
+        latitude: 52.2297,
+        longitude: 21.0122,
+        radiusKm: 10,
+      },
+    },
+  });
+
+  assert.equal(invalidLatitude.statusCode, 400);
+  assert.equal(invalidRadius.statusCode, 400);
+  assert.equal(enqueueCalled, false);
+});
+
+test("queue rejects finite radius without coordinates", async (t) => {
+  t.after(restoreRepoMock);
+  const app = buildApp();
+  t.after(async () => {
+    await app.close();
+  });
+
+  const response = await app.inject({
+    method: "POST",
+    url: "/together/queue",
+    headers: {
+      Authorization: `Bearer ${signAccessToken(userAId)}`,
+    },
+    payload: {
+      activity: "draw",
+      location: {
+        radiusKm: 5,
+      },
+    },
+  });
+
+  assert.equal(response.statusCode, 400);
+});
+
+test("Together geo matching accepts nearby users and rejects outside radius", () => {
+  const { areQueueEntriesGeoCompatible } = togetherRepo.__geoForTests;
+  const warsaw = { latitude: 52.2297, longitude: 21.0122, radiusKm: 25 };
+  const nearbyWarsaw = { latitude: 52.25, longitude: 21.02, radiusKm: 25 };
+  const berlin = { latitude: 52.52, longitude: 13.405, radiusKm: 250 };
+
+  assert.equal(areQueueEntriesGeoCompatible(warsaw, nearbyWarsaw), true);
+  assert.equal(areQueueEntriesGeoCompatible(warsaw, berlin), false);
+});
+
+test("Together geo matching uses stricter radius and supports unlimited mode", () => {
+  const { areQueueEntriesGeoCompatible } = togetherRepo.__geoForTests;
+  const warsawWide = { latitude: 52.2297, longitude: 21.0122, radiusKm: 250 };
+  const lodzTight = { latitude: 51.7592, longitude: 19.456, radiusKm: 25 };
+  const lodzUnlimited = { latitude: 51.7592, longitude: 19.456, radiusKm: null };
+  const noLocationUnlimited = { radiusKm: null };
+
+  assert.equal(areQueueEntriesGeoCompatible(warsawWide, lodzTight), false);
+  assert.equal(areQueueEntriesGeoCompatible(warsawWide, lodzUnlimited), true);
+  assert.equal(areQueueEntriesGeoCompatible(noLocationUnlimited, { radiusKm: null }), true);
+  assert.equal(areQueueEntriesGeoCompatible(noLocationUnlimited, lodzTight), false);
+});
+
+test("story_sparks queue passes geo filtering payload", async (t) => {
+  t.after(restoreRepoMock);
+  const app = buildApp();
+  t.after(async () => {
+    await app.close();
+  });
+
+  let enqueuedActivity = "";
+  let enqueuedRadius: number | null | undefined;
+  mockRepo({
+    enqueueAndMatch: async (input: { activity: string; radiusKm?: number | null }) => {
+      enqueuedActivity = input.activity;
+      enqueuedRadius = input.radiusKm;
+      return queueRow({
+        activity: input.activity,
+        status: "waiting",
+        matchedSessionId: null,
+        radiusKm: input.radiusKm ?? null,
+      });
+    },
+  });
+
+  const response = await app.inject({
+    method: "POST",
+    url: "/together/queue",
+    headers: {
+      Authorization: `Bearer ${signAccessToken(userAId)}`,
+    },
+    payload: {
+      activity: "story_sparks",
+      location: {
+        latitude: 45.815,
+        longitude: 15.9819,
+        radiusKm: 100,
+      },
+    },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(enqueuedActivity, "story_sparks");
+  assert.equal(enqueuedRadius, 100);
 });
 
 test("participant can get Together session events through endpoint", async (t) => {
@@ -1939,6 +2145,10 @@ function queueRow(overrides: Partial<TogetherQueueRow> = {}): TogetherQueueRow {
     createdAt,
     expiresAt: new Date("2026-01-01T00:05:00.000Z"),
     matchedSessionId: null,
+    latitude: null,
+    longitude: null,
+    radiusKm: null,
+    locationUpdatedAt: null,
     ...overrides,
   };
 }

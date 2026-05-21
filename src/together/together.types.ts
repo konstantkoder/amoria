@@ -18,8 +18,15 @@ export type TogetherRevealOutcome =
   | "mixed_intent"
   | "blocked";
 
+export type TogetherQueueLocationBody = {
+  latitude?: number | null;
+  longitude?: number | null;
+  radiusKm: 5 | 25 | 100 | 250 | null;
+};
+
 export type TogetherQueueBody = {
   activity: TogetherActivity;
+  location?: TogetherQueueLocationBody;
 };
 
 export type TogetherQueueEntryDto = {

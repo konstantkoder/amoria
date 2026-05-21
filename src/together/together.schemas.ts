@@ -8,6 +8,7 @@ import {
   TOGETHER_EVENT_TYPES,
   TOGETHER_HISTORY_LIMIT_DEFAULT,
   TOGETHER_HISTORY_LIMIT_MAX,
+  TOGETHER_RADIUS_KM_VALUES,
   TOGETHER_REVEAL_DECISIONS,
   TOGETHER_SESSION_STATUSES,
 } from "../config/constants";
@@ -19,9 +20,24 @@ import type {
   TogetherRevealBody,
 } from "./together.types";
 
+const togetherRadiusKmSchema = z.union([
+  z.literal(5),
+  z.literal(25),
+  z.literal(100),
+  z.literal(250),
+]);
+
 export const togetherQueueBodySchema = z
   .object({
     activity: z.enum(TOGETHER_ACTIVITIES),
+    location: z
+      .object({
+        latitude: z.number().min(-90).max(90).nullable().optional(),
+        longitude: z.number().min(-180).max(180).nullable().optional(),
+        radiusKm: z.union([togetherRadiusKmSchema, z.null()]),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 
@@ -362,6 +378,21 @@ export const postTogetherQueueRouteSchema = {
     additionalProperties: false,
     properties: {
       activity: { type: "string", enum: TOGETHER_ACTIVITIES },
+      location: {
+        type: "object",
+        required: ["radiusKm"],
+        additionalProperties: false,
+        properties: {
+          latitude: { type: ["number", "null"], minimum: -90, maximum: 90 },
+          longitude: { type: ["number", "null"], minimum: -180, maximum: 180 },
+          radiusKm: {
+            anyOf: [
+              { type: "integer", enum: TOGETHER_RADIUS_KM_VALUES },
+              { type: "null" },
+            ],
+          },
+        },
+      },
     },
   },
   response: {

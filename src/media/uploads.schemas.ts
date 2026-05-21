@@ -51,6 +51,20 @@ const mediaResponseSchema = {
   },
 } as const;
 
+export const uploadProfilePhotoRouteSchema = {
+  consumes: ["multipart/form-data"],
+  response: {
+    200: {
+      type: "object",
+      required: ["media"],
+      additionalProperties: false,
+      properties: {
+        media: mediaResponseSchema,
+      },
+    },
+  },
+} as const;
+
 export const prepareUploadRouteSchema = {
   body: {
     type: "object",

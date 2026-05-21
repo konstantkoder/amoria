@@ -113,6 +113,13 @@
       "when": 1779377303374,
       "tag": "0015_together_story_continuation",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1779382800000,
+      "tag": "0016_together_queue_geo",
+      "breakpoints": true
     }
   ]
 }

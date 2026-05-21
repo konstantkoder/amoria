@@ -28,6 +28,7 @@ export const TOGETHER_HEARTBEAT_TIMEOUT_MS = 60 * 1000;
 export const TOGETHER_ACTIVITIES = ["draw", "color_mood", "story_sparks"] as const;
 export const TOGETHER_EVENT_TYPES = ["stroke_batch", "palette", "story_choice", "system"] as const;
 export const TOGETHER_REVEAL_DECISIONS = ["open", "skip", "continue_story"] as const;
+export const TOGETHER_RADIUS_KM_VALUES = [5, 25, 100, 250] as const;
 export const TOGETHER_SESSION_STATUSES = [
   "active",
   "finished",

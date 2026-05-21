@@ -1,5 +1,9 @@
 import { AppError, validationError } from "../common/errors";
-import { TOGETHER_HEARTBEAT_TIMEOUT_MS, TOGETHER_QUEUE_TTL_MS } from "../config/constants";
+import {
+  TOGETHER_HEARTBEAT_TIMEOUT_MS,
+  TOGETHER_QUEUE_TTL_MS,
+  TOGETHER_RADIUS_KM_VALUES,
+} from "../config/constants";
 import type {
   JsonValue,
   TogetherEventRow,
@@ -101,16 +105,83 @@ export async function enqueue(
   input: TogetherQueueBody,
 ): Promise<TogetherQueueResponse> {
   const expiresAt = new Date(Date.now() + TOGETHER_QUEUE_TTL_MS);
+  const location = normalizeQueueLocation(input);
   const entry = await deps.repo.enqueueAndMatch({
     userId,
     activity: input.activity,
     expiresAt,
     promptText: choosePrompt(input.activity),
+    ...location,
   });
 
   return {
     entry: toQueueEntryDto(entry),
   };
+}
+
+function normalizeQueueLocation(
+  input: TogetherQueueBody,
+): {
+  latitude: number | null;
+  longitude: number | null;
+  radiusKm: number | null;
+  locationUpdatedAt: Date | null;
+} {
+  const location = input.location;
+  if (!location) {
+    return {
+      latitude: null,
+      longitude: null,
+      radiusKm: null,
+      locationUpdatedAt: null,
+    };
+  }
+
+  const radiusKm = location.radiusKm;
+  if (radiusKm !== null && !TOGETHER_RADIUS_KM_VALUES.includes(radiusKm)) {
+    throw validationError("Together radius is invalid", { "location.radiusKm": "invalid" });
+  }
+
+  const latitude = location.latitude ?? null;
+  const longitude = location.longitude ?? null;
+  if (radiusKm !== null) {
+    if (!isFiniteCoordinate(latitude, -90, 90)) {
+      throw validationError("Latitude is required for finite Together radius", {
+        "location.latitude": "required",
+      });
+    }
+
+    if (!isFiniteCoordinate(longitude, -180, 180)) {
+      throw validationError("Longitude is required for finite Together radius", {
+        "location.longitude": "required",
+      });
+    }
+  }
+
+  if (latitude !== null && !isFiniteCoordinate(latitude, -90, 90)) {
+    throw validationError("Latitude is invalid", { "location.latitude": "invalid" });
+  }
+
+  if (longitude !== null && !isFiniteCoordinate(longitude, -180, 180)) {
+    throw validationError("Longitude is invalid", { "location.longitude": "invalid" });
+  }
+
+  if ((latitude === null) !== (longitude === null)) {
+    throw validationError("Together location coordinates must be sent together", {
+      location: "incomplete_coordinates",
+    });
+  }
+
+  return {
+    latitude,
+    longitude,
+    radiusKm,
+    locationUpdatedAt: latitude !== null && longitude !== null ? new Date() : null,
+  };
+}
+
+function isFiniteCoordinate(value: unknown, min: number, max: number): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= min && value <= max;
 }
 
 export async function getQueueEntry(

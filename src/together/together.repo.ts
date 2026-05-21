@@ -22,6 +22,10 @@ export type EnqueueInput = {
   expiresAt: Date;
   promptText: string;
   deadlineAt?: Date | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  radiusKm?: number | null;
+  locationUpdatedAt?: Date | null;
 };
 
 export type EventInsertResult = {
@@ -69,7 +73,7 @@ export async function enqueueAndMatch(input: EnqueueInput): Promise<TogetherQueu
       return existing;
     }
 
-    const [peer] = await tx
+    const peers = await tx
       .select()
       .from(togetherQueue)
       .where(
@@ -81,8 +85,9 @@ export async function enqueueAndMatch(input: EnqueueInput): Promise<TogetherQueu
         ),
       )
       .orderBy(asc(togetherQueue.createdAt))
-      .limit(1)
+      .limit(50)
       .for("update", { skipLocked: true });
+    const peer = peers.find((candidate) => areQueueEntriesGeoCompatible(input, candidate));
 
     const [entry] = await tx
       .insert(togetherQueue)
@@ -90,6 +95,10 @@ export async function enqueueAndMatch(input: EnqueueInput): Promise<TogetherQueu
         userId: input.userId,
         activity: input.activity,
         expiresAt: input.expiresAt,
+        latitude: input.latitude ?? null,
+        longitude: input.longitude ?? null,
+        radiusKm: input.radiusKm ?? null,
+        locationUpdatedAt: input.locationUpdatedAt ?? null,
       })
       .returning();
 
@@ -592,3 +601,81 @@ async function expireWaitingEntries(now: Date): Promise<void> {
     .set({ status: "expired" })
     .where(and(eq(togetherQueue.status, "waiting"), lte(togetherQueue.expiresAt, now)));
 }
+
+type QueueGeoInput = {
+  latitude?: number | null;
+  longitude?: number | null;
+  radiusKm?: number | null;
+};
+
+function areQueueEntriesGeoCompatible(
+  current: QueueGeoInput,
+  candidate: QueueGeoInput,
+): boolean {
+  const currentRadius = current.radiusKm ?? null;
+  const candidateRadius = candidate.radiusKm ?? null;
+
+  if (currentRadius === null && candidateRadius === null) {
+    return true;
+  }
+
+  if (!hasCoordinates(current) || !hasCoordinates(candidate)) {
+    return false;
+  }
+
+  const distanceKm = distanceKmBetween(
+    current.latitude,
+    current.longitude,
+    candidate.latitude,
+    candidate.longitude,
+  );
+
+  if (currentRadius !== null && distanceKm > currentRadius) {
+    return false;
+  }
+
+  if (candidateRadius !== null && distanceKm > candidateRadius) {
+    return false;
+  }
+
+  return true;
+}
+
+function hasCoordinates(
+  value: QueueGeoInput,
+): value is QueueGeoInput & { latitude: number; longitude: number } {
+  return (
+    typeof value.latitude === "number" &&
+    Number.isFinite(value.latitude) &&
+    typeof value.longitude === "number" &&
+    Number.isFinite(value.longitude)
+  );
+}
+
+function distanceKmBetween(
+  latitudeA: number,
+  longitudeA: number,
+  latitudeB: number,
+  longitudeB: number,
+): number {
+  const earthRadiusKm = 6371;
+  const latDelta = toRadians(latitudeB - latitudeA);
+  const lngDelta = toRadians(longitudeB - longitudeA);
+  const latARadians = toRadians(latitudeA);
+  const latBRadians = toRadians(latitudeB);
+
+  const haversine =
+    Math.sin(latDelta / 2) ** 2 +
+    Math.cos(latARadians) * Math.cos(latBRadians) * Math.sin(lngDelta / 2) ** 2;
+
+  return earthRadiusKm * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+}
+
+function toRadians(value: number): number {
+  return (value * Math.PI) / 180;
+}
+
+export const __geoForTests = {
+  areQueueEntriesGeoCompatible,
+  distanceKmBetween,
+};

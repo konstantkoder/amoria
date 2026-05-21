@@ -1,11 +1,14 @@
 import { randomUUID } from "node:crypto";
-import { AppError } from "../common/errors";
+import type { MultipartFile } from "@fastify/multipart";
+import { AppError, validationError } from "../common/errors";
 import { MAX_MEDIA_UPLOAD_BYTES, MEDIA_UPLOAD_EXPIRES_IN_SEC } from "../config/constants";
 import { env } from "../config/env";
 import type { MediaFileRow, MediaUploadRow, NewMediaFileRow } from "../db/schema";
 import {
   completeMediaUploadWithFile,
+  createMediaFile,
   createMediaUpload,
+  deleteMediaFileByOwner,
   findMediaUploadById,
 } from "./media.repo";
 import {
@@ -22,7 +25,7 @@ import {
   assertCanAddProfilePhotoToGallery,
   deleteOwnedMediaWithGalleryGuards,
 } from "../users/profile-gallery.service";
-import { checksumSha256 } from "./file-guards";
+import { checksumSha256, isMultipartFileTooLarge } from "./file-guards";
 import { processProfilePhotoImage } from "./image-processing";
 
 export type PrepareUploadResponse = {
@@ -53,7 +56,9 @@ export type DeleteMediaResponse = {
 
 type UploadsServiceDeps = {
   completeMediaUploadWithFile: typeof completeMediaUploadWithFile;
+  createMediaFile: typeof createMediaFile;
   createMediaUpload: typeof createMediaUpload;
+  deleteMediaFileByOwner: typeof deleteMediaFileByOwner;
   findMediaUploadById: typeof findMediaUploadById;
   createPutPresignedUrl: typeof createPutPresignedUrl;
   headObject: typeof headObject;
@@ -67,7 +72,9 @@ type UploadsServiceDeps = {
 
 const defaultDeps: UploadsServiceDeps = {
   completeMediaUploadWithFile,
+  createMediaFile,
   createMediaUpload,
+  deleteMediaFileByOwner,
   findMediaUploadById,
   createPutPresignedUrl,
   headObject,
@@ -194,6 +201,84 @@ export async function completeUpload(
 
   return {
     media: toMediaUploadResponse(media.media),
+  };
+}
+
+export async function uploadProfilePhoto(
+  ownerUserId: string,
+  file: MultipartFile | undefined,
+): Promise<CompleteUploadResponse> {
+  if (!file) {
+    throw validationError("Profile photo file is required", { file: "required" });
+  }
+
+  const declaredMimeType = normalizeMimeType(file.mimetype);
+  if (declaredMimeType && !isSupportedProfilePhotoMimeType(declaredMimeType)) {
+    throw new AppError(
+      "unsupported_media_type",
+      "Only JPEG, PNG, or WebP profile photos are supported",
+      415,
+      { file: "unsupported_media_type" },
+    );
+  }
+
+  let inputBuffer: Buffer;
+  try {
+    inputBuffer = await file.toBuffer();
+  } catch (error) {
+    if (isMultipartFileTooLarge(error)) {
+      throw profilePhotoTooLarge();
+    }
+    throw error;
+  }
+
+  if ((file.file as { truncated?: boolean }).truncated || inputBuffer.length > MAX_MEDIA_UPLOAD_BYTES) {
+    throw profilePhotoTooLarge();
+  }
+
+  await deps.assertCanAddProfilePhotoToGallery(ownerUserId);
+
+  const processed = await deps.processProfilePhotoImage(inputBuffer);
+  const mediaId = randomUUID();
+  const objectKey = backendProfilePhotoObjectKey(ownerUserId, mediaId);
+  const mediaUrl = publicMediaUrlForMediaId(mediaId);
+
+  await deps.putObjectBuffer({
+    bucket: env.S3_BUCKET,
+    key: objectKey,
+    body: processed.buffer,
+    contentType: processed.mimeType,
+  });
+
+  let media: MediaFileRow;
+  try {
+    media = await deps.createMediaFile({
+      id: mediaId,
+      ownerUserId,
+      type: "profile_photo",
+      path: objectKey,
+      url: mediaUrl,
+      mimeType: processed.mimeType,
+      sizeBytes: processed.buffer.length,
+      width: processed.width,
+      height: processed.height,
+      checksumSha256: checksumSha256(processed.buffer),
+    });
+  } catch (error) {
+    await deleteObjectIfPossible(objectKey);
+    throw error;
+  }
+
+  try {
+    await deps.addCompletedProfilePhotoToGallery(ownerUserId, media);
+  } catch (error) {
+    await deleteObjectIfPossible(objectKey);
+    await deps.deleteMediaFileByOwner(media.id, ownerUserId).catch(() => undefined);
+    throw error;
+  }
+
+  return {
+    media: toMediaUploadResponse(media),
   };
 }
 
@@ -344,6 +429,10 @@ function sanitizedProfilePhotoObjectKey(objectKey: string): string {
   return `${objectKey}.webp`;
 }
 
+function backendProfilePhotoObjectKey(ownerUserId: string, mediaId: string): string {
+  return `users/${ownerUserId}/profile_photo/${mediaId}.webp`;
+}
+
 function toMediaUploadResponse(media: MediaFileRow): MediaUploadResponse {
   return {
     id: media.id,
@@ -354,8 +443,25 @@ function toMediaUploadResponse(media: MediaFileRow): MediaUploadResponse {
   };
 }
 
-function normalizeMimeType(value: string): string {
-  return value.split(";", 1)[0]?.trim().toLowerCase() ?? "";
+function normalizeMimeType(value: unknown): string {
+  return String(value ?? "").split(";", 1)[0]?.trim().toLowerCase() ?? "";
+}
+
+function isSupportedProfilePhotoMimeType(value: string): boolean {
+  return value === "image/jpeg" || value === "image/png" || value === "image/webp";
+}
+
+function profilePhotoTooLarge(): AppError {
+  return new AppError("file_too_large", "Profile photo file must be 10 MB or smaller", 413, {
+    file: "too_large",
+  });
+}
+
+async function deleteObjectIfPossible(objectKey: string): Promise<void> {
+  await deps.deleteObject({
+    bucket: env.S3_BUCKET,
+    key: objectKey,
+  }).catch(() => undefined);
 }
 
 function sameChecksum(left: string, right: string): boolean {

@@ -7,7 +7,7 @@ import websocket from "@fastify/websocket";
 import Fastify, { type FastifyInstance } from "fastify";
 import { errorHandler } from "./common/errors";
 import { withErrorResponses } from "./common/http";
-import { MAX_AVATAR_INPUT_BYTES, MAX_JSON_BODY_BYTES, SERVICE_NAME } from "./config/constants";
+import { MAX_JSON_BODY_BYTES, MAX_MEDIA_UPLOAD_BYTES, SERVICE_NAME } from "./config/constants";
 import { env } from "./config/env";
 import { loggerOptions } from "./config/logger";
 import { authRoutes } from "./auth/auth.routes";
@@ -60,7 +60,7 @@ export function buildApp(): FastifyInstance {
 
   void app.register(multipart, {
     limits: {
-      fileSize: MAX_AVATAR_INPUT_BYTES,
+      fileSize: MAX_MEDIA_UPLOAD_BYTES,
       files: 1,
     },
     throwFileSizeLimit: true,

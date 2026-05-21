@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import test from "node:test";
+import type { MultipartFile } from "@fastify/multipart";
 import sharp from "sharp";
 import { AppError } from "../src/common/errors";
 import type { MediaFileRow, MediaUploadRow, NewMediaFileRow } from "../src/db/schema";
+import type { CompleteUploadResponse } from "../src/media/uploads.service";
 
 process.env.NODE_ENV = "test";
 process.env.DATABASE_URL = "postgresql://amoria:amoria_password@localhost:5432/amoria_test";
@@ -19,6 +21,8 @@ const imageProcessing = require(
 const uploadsService = require(
   "../src/media/uploads.service",
 ) as typeof import("../src/media/uploads.service");
+const { buildApp } = require("../src/app") as typeof import("../src/app");
+const { signAccessToken } = require("../src/auth/jwt") as typeof import("../src/auth/jwt");
 const { closeDb } = require("../src/db/client") as typeof import("../src/db/client");
 
 const ownerId = "00000000-0000-4000-8000-000000000001";
@@ -74,6 +78,146 @@ for (const format of ["jpeg", "png", "webp"] as const) {
     assert.equal(JSON.stringify(response).includes('"path"'), false);
   });
 }
+
+test("POST /media/profile-photo uploads profile photo through backend", async (t) => {
+  t.after(restoreUploadServiceDeps);
+  const app = buildApp();
+  t.after(async () => {
+    await app.close();
+  });
+  const rawBuffer = await imageBuffer("jpeg", 640, 480);
+  const state = mockBackendProfilePhotoUpload();
+
+  const response = await app.inject({
+    method: "POST",
+    url: "/media/profile-photo",
+    headers: {
+      Authorization: `Bearer ${signAccessToken(ownerId)}`,
+      ...multipartHeaders("photo-boundary"),
+    },
+    payload: multipartPayload({
+      boundary: "photo-boundary",
+      fieldName: "file",
+      filename: "profile.jpg",
+      contentType: "image/jpeg",
+      body: rawBuffer,
+    }),
+  });
+
+  assert.equal(response.statusCode, 200);
+  const body = response.json() as CompleteUploadResponse;
+  assert.equal(state.putObject?.contentType, "image/webp");
+  assert.match(
+    state.putObject?.key ?? "",
+    new RegExp(`^users/${ownerId}/profile_photo/[0-9a-f-]{36}\\.webp$`),
+  );
+  assert.equal(state.mediaInput?.ownerUserId, ownerId);
+  assert.equal(state.mediaInput?.type, "profile_photo");
+  assert.equal(state.galleryMedia?.id, state.mediaInput?.id);
+  assert.equal(body.media.id, state.mediaInput?.id);
+  assert.equal(body.media.url, `${publicMediaBaseUrl}/public/${state.mediaInput?.id}`);
+  assert.equal(body.media.mimeType, "image/webp");
+  assert.equal(body.media.purpose, "profile_photo");
+  assert.equal(JSON.stringify(body).includes("localhost"), false);
+  assert.equal(JSON.stringify(body).includes("minio"), false);
+  assert.equal(JSON.stringify(body).includes("objectKey"), false);
+  assert.equal(JSON.stringify(body).includes('"path"'), false);
+});
+
+test("POST /media/profile-photo requires authentication", async () => {
+  const app = buildApp();
+  await app.ready();
+  try {
+    const response = await app.inject({
+      method: "POST",
+      url: "/media/profile-photo",
+      headers: multipartHeaders("photo-boundary"),
+      payload: multipartPayload({
+        boundary: "photo-boundary",
+        fieldName: "file",
+        filename: "profile.jpg",
+        contentType: "image/jpeg",
+        body: await imageBuffer("jpeg", 640, 480),
+      }),
+    });
+
+    assert.equal(response.statusCode, 401);
+  } finally {
+    await app.close();
+  }
+});
+
+test("uploadProfilePhoto rejects unsupported HEIC before storing media", async (t) => {
+  t.after(restoreUploadServiceDeps);
+  const state = mockBackendProfilePhotoUpload();
+
+  await assertAppError(
+    uploadsService.uploadProfilePhoto(
+      ownerId,
+      multipartFile(Buffer.from("heic payload"), "image/heic"),
+    ),
+    "unsupported_media_type",
+    415,
+  );
+
+  assert.equal(state.putObject, undefined);
+  assert.equal(state.mediaInput, undefined);
+  assert.equal(state.galleryMedia, undefined);
+});
+
+test("uploadProfilePhoto rejects oversized multipart input", async (t) => {
+  t.after(restoreUploadServiceDeps);
+  const state = mockBackendProfilePhotoUpload();
+
+  await assertAppError(
+    uploadsService.uploadProfilePhoto(
+      ownerId,
+      multipartFile(Buffer.alloc(10 * 1024 * 1024 + 1), "image/jpeg"),
+    ),
+    "file_too_large",
+    413,
+  );
+
+  assert.equal(state.putObject, undefined);
+  assert.equal(state.mediaInput, undefined);
+  assert.equal(state.galleryMedia, undefined);
+});
+
+test("uploadProfilePhoto rejects invalid image before object storage write", async (t) => {
+  t.after(restoreUploadServiceDeps);
+  const state = mockBackendProfilePhotoUpload();
+
+  await assertAppError(
+    uploadsService.uploadProfilePhoto(
+      ownerId,
+      multipartFile(Buffer.from("this is not an image"), "image/jpeg"),
+    ),
+    "corrupt_image",
+    400,
+  );
+
+  assert.equal(state.putObject, undefined);
+  assert.equal(state.mediaInput, undefined);
+  assert.equal(state.galleryMedia, undefined);
+});
+
+test("uploadProfilePhoto enforces profile gallery limit", async (t) => {
+  t.after(restoreUploadServiceDeps);
+  const state = mockBackendProfilePhotoUpload({ galleryLimitReached: true });
+
+  await assertAppError(
+    uploadsService.uploadProfilePhoto(
+      ownerId,
+      multipartFile(await imageBuffer("jpeg", 640, 480), "image/jpeg"),
+    ),
+    "profile_gallery_limit_reached",
+    409,
+  );
+
+  assert.equal(state.putObject, undefined);
+  assert.equal(state.mediaInput, undefined);
+  assert.equal(state.galleryMedia, undefined);
+});
 
 test("completeUpload rejects corrupt profile photo before storing media", async (t) => {
   t.after(restoreUploadServiceDeps);
@@ -220,6 +364,59 @@ test("profile photo helper rejects too large dimensions", async () => {
   );
 });
 
+function mockBackendProfilePhotoUpload(
+  options: {
+    galleryLimitReached?: boolean;
+  } = {},
+) {
+  restoreUploadServiceDeps();
+  const state: {
+    putObject?: { key: string; body: Buffer; contentType: string };
+    deletedObjectKeys: string[];
+    deletedMediaIds: string[];
+    mediaInput?: NewMediaFileRow;
+    galleryMedia?: MediaFileRow;
+  } = {
+    deletedObjectKeys: [],
+    deletedMediaIds: [],
+  };
+
+  restoreUploadsDeps = uploadsService.__setUploadsServiceDepsForTests({
+    assertCanAddProfilePhotoToGallery: async () => {
+      if (options.galleryLimitReached) {
+        throw new AppError(
+          "profile_gallery_limit_reached",
+          "Profile gallery photo limit has been reached",
+          409,
+        );
+      }
+    },
+    putObjectBuffer: async (input) => {
+      state.putObject = {
+        key: input.key,
+        body: input.body,
+        contentType: input.contentType,
+      };
+    },
+    createMediaFile: async (mediaInput) => {
+      state.mediaInput = mediaInput;
+      return mediaRow(mediaInput);
+    },
+    addCompletedProfilePhotoToGallery: async (_userId, media) => {
+      state.galleryMedia = media;
+    },
+    deleteObject: async (input) => {
+      state.deletedObjectKeys.push(input.key);
+    },
+    deleteMediaFileByOwner: async (mediaId) => {
+      state.deletedMediaIds.push(mediaId);
+      return undefined;
+    },
+  });
+
+  return state;
+}
+
 function mockCompleteProfilePhotoUpload(
   rawBuffer: Buffer,
   contentType: string,
@@ -331,6 +528,38 @@ function mediaRow(input: NewMediaFileRow): MediaFileRow {
     checksumSha256: input.checksumSha256 ?? null,
     createdAt: now,
   };
+}
+
+function multipartFile(buffer: Buffer, mimetype: string): MultipartFile {
+  return {
+    mimetype,
+    file: { truncated: false },
+    toBuffer: async () => buffer,
+  } as unknown as MultipartFile;
+}
+
+function multipartHeaders(boundary: string): Record<string, string> {
+  return {
+    "content-type": `multipart/form-data; boundary=${boundary}`,
+  };
+}
+
+function multipartPayload(input: {
+  boundary: string;
+  fieldName: string;
+  filename: string;
+  contentType: string;
+  body: Buffer;
+}): Buffer {
+  return Buffer.concat([
+    Buffer.from(
+      `--${input.boundary}\r\n` +
+        `Content-Disposition: form-data; name="${input.fieldName}"; filename="${input.filename}"\r\n` +
+        `Content-Type: ${input.contentType}\r\n\r\n`,
+    ),
+    input.body,
+    Buffer.from(`\r\n--${input.boundary}--\r\n`),
+  ]);
 }
 
 async function imageBuffer(

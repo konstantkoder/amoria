@@ -379,11 +379,27 @@ export const togetherQueue = pgTable(
     matchedSessionId: uuid("matched_session_id").references(() => togetherSessions.id, {
       onDelete: "set null",
     }),
+    latitude: doublePrecision("latitude"),
+    longitude: doublePrecision("longitude"),
+    radiusKm: integer("radius_km"),
+    locationUpdatedAt: timestamp("location_updated_at", { withTimezone: true }),
   },
   (table) => [
     uniqueIndex("together_queue_user_waiting_unique")
       .on(table.userId)
       .where(sql`${table.status} = 'waiting'`),
+    check(
+      "together_queue_radius_km_check",
+      sql`${table.radiusKm} IS NULL OR ${table.radiusKm} IN (5, 25, 100, 250)`,
+    ),
+    check(
+      "together_queue_latitude_check",
+      sql`${table.latitude} IS NULL OR (${table.latitude} >= -90 AND ${table.latitude} <= 90)`,
+    ),
+    check(
+      "together_queue_longitude_check",
+      sql`${table.longitude} IS NULL OR (${table.longitude} >= -180 AND ${table.longitude} <= 180)`,
+    ),
   ],
 );
 
