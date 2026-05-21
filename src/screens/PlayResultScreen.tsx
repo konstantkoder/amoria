@@ -18,6 +18,10 @@ import {
   type PlayResultRouteProp,
   type RootStackNavigationProp,
 } from "@/navigation/appRoutes";
+import {
+  reportClientError,
+  sanitizeErrorForReport,
+} from "@/services/api/clientErrorsApi";
 import * as togetherApi from "@/services/api/togetherApi";
 import type {
   TogetherEventDto,
@@ -42,7 +46,7 @@ import {
 } from "@/services/togetherStorySparksState";
 import { theme } from "@/theme";
 
-type RevealDecision = "open" | "skip";
+type RevealDecision = "open" | "skip" | "continue_story";
 
 function getRevealLabel(
   outcome: string,
@@ -55,6 +59,10 @@ function getRevealLabel(
       return tt("play.reveal.openSkipShort", "Осталось историей");
     case "skip_skip":
       return tt("play.reveal.skipSkipShort", "Без чата");
+    case "continue_story":
+      return tt("play.reveal.continueStoryShort", "История продолжается");
+    case "mixed_intent":
+      return tt("play.reveal.mixedIntentShort", "Без общего пути");
     case "blocked":
       return tt("play.reveal.blockedShort", "Контакт недоступен");
     case "pending":
@@ -85,6 +93,8 @@ function readRevealState(payload: wsClient.RealtimeMessage): TogetherRevealState
     candidate.outcome !== "open_open" &&
     candidate.outcome !== "open_skip" &&
     candidate.outcome !== "skip_skip" &&
+    candidate.outcome !== "continue_story" &&
+    candidate.outcome !== "mixed_intent" &&
     candidate.outcome !== "blocked"
   ) {
     return null;
@@ -92,13 +102,23 @@ function readRevealState(payload: wsClient.RealtimeMessage): TogetherRevealState
 
   return {
     myDecision:
-      candidate.myDecision === "open" || candidate.myDecision === "skip"
+      candidate.myDecision === "open" ||
+      candidate.myDecision === "skip" ||
+      candidate.myDecision === "continue_story"
         ? candidate.myDecision
         : null,
     outcome: candidate.outcome,
     threadId: typeof candidate.threadId === "string" ? candidate.threadId : null,
     canOpenChat: candidate.canOpenChat === true,
     peerDecisionKnown: candidate.peerDecisionKnown === true,
+    nextSessionId:
+      typeof candidate.nextSessionId === "string" ? candidate.nextSessionId : null,
+    nextActivity:
+      candidate.nextActivity === "story_sparks" ||
+      candidate.nextActivity === "draw" ||
+      candidate.nextActivity === "color_mood"
+        ? candidate.nextActivity
+        : null,
   };
 }
 
@@ -132,6 +152,7 @@ export default function PlayResultScreen() {
   const [actionError, setActionError] = React.useState("");
   const mountedRef = React.useRef(true);
   const chatNavigationRef = React.useRef(false);
+  const storyNavigationRef = React.useRef(false);
 
   const goToTogether = React.useCallback(() => {
     navigation.navigate("Tabs", { screen: "Together" });
@@ -161,6 +182,7 @@ export default function PlayResultScreen() {
     setSessionEvents([]);
     setReplayStrokes(getTogetherStrokes(sessionId));
     chatNavigationRef.current = false;
+    storyNavigationRef.current = false;
     void Promise.all([
       togetherApi.getSession(sessionId),
       togetherApi.getSessionEvents(sessionId),
@@ -228,11 +250,14 @@ export default function PlayResultScreen() {
   const decision = revealState?.myDecision ?? null;
   const outcome = revealState?.outcome ?? "pending";
   const revealThreadId = revealState?.threadId ?? null;
+  const nextStorySessionId =
+    revealState?.nextActivity === "story_sparks" ? revealState.nextSessionId : null;
   const canRevealDecision =
     session?.status === "finished" &&
     !decision &&
     (revealState?.canOpenChat ?? true) &&
     outcome !== "blocked";
+  const canContinueStory = sessionActivity === "draw" && canRevealDecision;
   const canOpenExistingChat = outcome === "open_open" && Boolean(revealThreadId);
   const revealLabel = getRevealLabel(outcome, tt);
 
@@ -257,6 +282,39 @@ export default function PlayResultScreen() {
       });
     },
     [navigation, sessionActivity, sessionId, storyDmSummary, strokes.length]
+  );
+
+  const navigateToStorySparks = React.useCallback(
+    (nextSessionId: string, reason: "response" | "realtime" | "refresh") => {
+      if (!nextSessionId || storyNavigationRef.current) return;
+      storyNavigationRef.current = true;
+      try {
+        navigation.replace("PlayStorySparks", { sessionId: nextSessionId });
+      } catch (error) {
+        storyNavigationRef.current = false;
+        const safeError = sanitizeErrorForReport(error);
+        reportClientError({
+          screen: "PlayResultScreen",
+          action: "continueStory",
+          step: "storySparksNavigationFailed",
+          code: safeError.code,
+          message: safeError.message,
+          stack: safeError.stack,
+          metadata: {
+            sourceSessionId: sessionId,
+            nextSessionId,
+            reason,
+          },
+        });
+        setActionError(
+          tt(
+            "play.result.continueStoryNavigationFailed",
+            "История готова, но перейти к ней не получилось. Попробуй открыть итог ещё раз."
+          )
+        );
+      }
+    },
+    [navigation, sessionId, tt]
   );
 
   React.useEffect(() => {
@@ -302,9 +360,44 @@ export default function PlayResultScreen() {
   ]);
 
   React.useEffect(() => {
+    if (revealState?.outcome !== "continue_story") return;
+    if (revealState.nextActivity !== "story_sparks" || !revealState.nextSessionId) {
+      reportClientError({
+        screen: "PlayResultScreen",
+        action: "continueStory",
+        step: "invalidContinuationOutcome",
+        message: "Backend returned continue_story without a story_sparks next session",
+        metadata: {
+          sourceSessionId: sessionId,
+          nextSessionIdPresent: Boolean(revealState.nextSessionId),
+          nextActivity: revealState.nextActivity ?? null,
+        },
+      });
+      setActionError(
+        tt(
+          "play.result.invalidContinuationOutcome",
+          "Продолжение ещё не готово на сервере. Подождём синхронизацию и попробуем обновить."
+        )
+      );
+      return;
+    }
+
+    navigateToStorySparks(revealState.nextSessionId, "realtime");
+  }, [
+    navigateToStorySparks,
+    revealState?.nextActivity,
+    revealState?.nextSessionId,
+    revealState?.outcome,
+    sessionId,
+    tt,
+  ]);
+
+  React.useEffect(() => {
     if (!sessionId || session?.status !== "finished") return;
     const shouldRefresh =
-      outcome === "pending" || (outcome === "open_open" && !revealThreadId);
+      outcome === "pending" ||
+      (outcome === "open_open" && !revealThreadId) ||
+      (outcome === "continue_story" && !nextStorySessionId);
     if (!shouldRefresh) return;
 
     let cancelled = false;
@@ -328,7 +421,7 @@ export default function PlayResultScreen() {
       cancelled = true;
       clearInterval(timer);
     };
-  }, [outcome, revealThreadId, session?.status, sessionId]);
+  }, [nextStorySessionId, outcome, revealThreadId, session?.status, sessionId]);
 
   const submitDecision = React.useCallback(
     async (nextDecision: RevealDecision) => {
@@ -342,14 +435,80 @@ export default function PlayResultScreen() {
         const nextRevealState = response.revealState;
         setRevealState(nextRevealState);
         if (
+          nextDecision === "continue_story" &&
+          nextRevealState.outcome === "continue_story"
+        ) {
+          if (
+            nextRevealState.nextActivity === "story_sparks" &&
+            nextRevealState.nextSessionId
+          ) {
+            navigateToStorySparks(nextRevealState.nextSessionId, "response");
+          } else {
+            reportClientError({
+              screen: "PlayResultScreen",
+              action: "continueStory",
+              step: "invalidContinuationOutcome",
+              message: "continue_story response did not include a story_sparks next session",
+              metadata: {
+                sourceSessionId: sessionId,
+                nextSessionIdPresent: Boolean(nextRevealState.nextSessionId),
+                nextActivity: nextRevealState.nextActivity ?? null,
+              },
+            });
+          }
+        }
+        if (
           nextDecision === "open" &&
           nextRevealState.outcome === "open_open" &&
           nextRevealState.threadId
         ) {
           navigateToThread(nextRevealState.threadId, peer);
         }
-      } catch {
+      } catch (error) {
         if (!mountedRef.current) return;
+        const safeError = sanitizeErrorForReport(error);
+        if (nextDecision === "continue_story") {
+          reportClientError({
+            screen: "PlayResultScreen",
+            action: "continueStory",
+            step: "continueStoryDecisionFailed",
+            code: safeError.code,
+            message: safeError.message,
+            stack: safeError.stack,
+            metadata: {
+              sourceSessionId: sessionId,
+              activity: sessionActivity,
+            },
+          });
+          if (safeError.code === "together_continuation_failed") {
+            reportClientError({
+              screen: "PlayResultScreen",
+              action: "continueStory",
+              step: "nextStorySessionCreationFailed",
+              code: safeError.code,
+              message: safeError.message,
+              stack: safeError.stack,
+              metadata: {
+                sourceSessionId: sessionId,
+                activity: sessionActivity,
+              },
+            });
+          }
+        } else {
+          reportClientError({
+            screen: "PlayResultScreen",
+            action: "revealDecision",
+            step: "saveDecisionFailed",
+            code: safeError.code,
+            message: safeError.message,
+            stack: safeError.stack,
+            metadata: {
+              sessionId,
+              decision: nextDecision,
+              activity: sessionActivity,
+            },
+          });
+        }
         setActionError(
           tt(
             "play.result.saveDecisionFailed",
@@ -360,7 +519,16 @@ export default function PlayResultScreen() {
         if (mountedRef.current) setSubmitting(false);
       }
     },
-    [canRevealDecision, navigateToThread, peer, sessionId, submitting, tt]
+    [
+      canRevealDecision,
+      navigateToStorySparks,
+      navigateToThread,
+      peer,
+      sessionActivity,
+      sessionId,
+      submitting,
+      tt,
+    ]
   );
 
   const handleOpenChatPress = React.useCallback(() => {
@@ -371,6 +539,10 @@ export default function PlayResultScreen() {
 
     void submitDecision("open");
   }, [canOpenExistingChat, navigateToThread, peer, revealThreadId, submitDecision]);
+
+  const handleContinueStoryPress = React.useCallback(() => {
+    void submitDecision("continue_story");
+  }, [submitDecision]);
 
   const goToDetail = React.useCallback(() => {
     if (!sessionId) return;
@@ -591,8 +763,23 @@ export default function PlayResultScreen() {
                     "play.result.bridgeBlockedBody",
                     "Контакт недоступен. Чат не может быть открыт из-за настроек безопасности."
                   )
+              : outcome === "mixed_intent"
+              ? tt(
+                  "play.result.bridgeMixedIntentBody",
+                  "Вы выбрали разные продолжения, поэтому чат не откроется и История на двоих не начнётся. Результат останется в общей истории."
+                )
+              : outcome === "continue_story"
+              ? tt(
+                  "play.result.bridgeContinueStoryReadyBody",
+                  "Вы оба выбрали продолжить историю. Открываем общий Story Sparks этап для этой пары."
+                )
               : decision && outcome === "pending"
-              ? decision === "open"
+              ? decision === "continue_story"
+                ? tt(
+                    "play.result.bridgeWaitingAfterContinueStoryBody",
+                    "Ждём решение второго участника. История на двоих начнётся только если вы оба выберете продолжить."
+                  )
+                : decision === "open"
                 ? tt(
                     "play.result.bridgeWaitingAfterOpenBody",
                     "Твой ответ сохранён. Ждём второе решение; чат откроется только если второй человек тоже выберет открыть."
@@ -621,7 +808,7 @@ export default function PlayResultScreen() {
                     ? "Если вы оба выберете открыть, история приведёт в чат. Если нет, она останется общей историей."
                     : sessionActivity === "color_mood"
                     ? "Если вы оба выберете открыть, палитра приведёт в чат. Если нет, она останется общей историей."
-                    : "Если вы оба выберете открыть, этот результат приведёт в чат. Если нет, рисунок останется общей историей."
+                    : "Можно открыть чат, продолжить через Историю на двоих или оставить рисунок общей историей."
                 )}
           </Text>
           {actionError ? <Text style={styles.errorText}>{actionError}</Text> : null}
@@ -646,18 +833,35 @@ export default function PlayResultScreen() {
                 </Text>
               </Pressable>
               {canRevealDecision ? (
-                <Pressable
-                  style={[
-                    styles.secondaryButton,
-                    submitting ? styles.buttonDisabled : null,
-                  ]}
-                  onPress={() => void submitDecision("skip")}
-                  disabled={submitting}
-                >
-                  <Text style={styles.secondaryButtonText}>
-                    {tt("play.result.skipChat", "Оставить историей")}
-                  </Text>
-                </Pressable>
+                <>
+                  {canContinueStory ? (
+                    <Pressable
+                      style={[
+                        styles.secondaryButton,
+                        styles.continueButton,
+                        submitting ? styles.buttonDisabled : null,
+                      ]}
+                      onPress={handleContinueStoryPress}
+                      disabled={submitting}
+                    >
+                      <Text style={styles.secondaryButtonText}>
+                        {tt("play.result.continueStory", "Продолжить историю")}
+                      </Text>
+                    </Pressable>
+                  ) : null}
+                  <Pressable
+                    style={[
+                      styles.secondaryButton,
+                      submitting ? styles.buttonDisabled : null,
+                    ]}
+                    onPress={() => void submitDecision("skip")}
+                    disabled={submitting}
+                  >
+                    <Text style={styles.secondaryButtonText}>
+                      {tt("play.result.skipChat", "Оставить историей")}
+                    </Text>
+                  </Pressable>
+                </>
               ) : null}
             </View>
           ) : null}
@@ -954,6 +1158,10 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.08)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.14)",
+  },
+  continueButton: {
+    backgroundColor: "rgba(255,224,184,0.14)",
+    borderColor: "rgba(255,224,184,0.34)",
   },
   secondaryButtonText: {
     color: theme.colors.text,

@@ -336,9 +336,11 @@ export type TogetherRevealOutcome =
   | "open_open"
   | "open_skip"
   | "skip_skip"
+  | "continue_story"
+  | "mixed_intent"
   | "blocked";
 
-export type TogetherRevealDecision = "open" | "skip";
+export type TogetherRevealDecision = "open" | "skip" | "continue_story";
 
 export type TogetherRevealStateDto = {
   myDecision: TogetherRevealDecision | null;
@@ -346,6 +348,8 @@ export type TogetherRevealStateDto = {
   threadId: string | null;
   canOpenChat: boolean;
   peerDecisionKnown: boolean;
+  nextSessionId: string | null;
+  nextActivity: TogetherActivity | null;
 };
 
 export type StorySparksLanguage = "ru" | "en" | "hr";
@@ -411,6 +415,7 @@ export type TogetherSessionDto = {
   endedAt?: string | null;
   endedReason?: string | null;
   deadlineAt?: string | null;
+  sourceSessionId?: string | null;
   storyPack?: StorySparksPackDto;
 };
 
@@ -430,6 +435,8 @@ export type TogetherSessionResponse = {
 export type TogetherRevealResponse = {
   outcome: TogetherRevealOutcome;
   threadId?: string;
+  nextSessionId?: string;
+  nextActivity?: TogetherActivity;
   revealState: TogetherRevealStateDto;
 };
 
@@ -448,6 +455,8 @@ export type TogetherHistoryItem = {
   threadId?: string | null;
   canOpenChat?: boolean;
   peerDecisionKnown?: boolean;
+  nextSessionId?: string | null;
+  nextActivity?: TogetherActivity | null;
   createdAt: string;
   endedAt?: string | null;
   endedReason?: string | null;

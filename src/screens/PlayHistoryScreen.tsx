@@ -47,6 +47,10 @@ function getOutcomeLabel(
       return tt("playHistory.storyStatusMixedShort", "Осталось историей");
     case "skip_skip":
       return tt("playHistory.storyStatusClosedShort", "Без чата");
+    case "continue_story":
+      return tt("playHistory.storyStatusContinuedShort", "Продолжили историю");
+    case "mixed_intent":
+      return tt("playHistory.storyStatusMixedIntentShort", "Без общего пути");
     case "blocked":
       return tt("playHistory.storyStatusBlockedShort", "Контакт недоступен");
     case "pending":
@@ -93,6 +97,20 @@ function getRelationshipText(
     return tt(
       "playHistory.storyStatusOpen",
       "Эта история уже стала открытой связью. Отсюда можно вернуться и к самому моменту, и в чат."
+    );
+  }
+
+  if (item.outcome === "continue_story") {
+    return tt(
+      "playHistory.storyStatusContinued",
+      "После рисунка вы оба выбрали Историю на двоих. Продолжение сохранено отдельной общей историей."
+    );
+  }
+
+  if (item.outcome === "mixed_intent") {
+    return tt(
+      "playHistory.storyStatusMixedIntent",
+      "Вы выбрали разные продолжения, поэтому чат не открылся и новый этап не начался."
     );
   }
 
@@ -248,6 +266,8 @@ export default function PlayHistoryScreen() {
                   threadId: nextRevealState.threadId,
                   canOpenChat: nextRevealState.canOpenChat,
                   peerDecisionKnown: nextRevealState.peerDecisionKnown,
+                  nextSessionId: nextRevealState.nextSessionId,
+                  nextActivity: nextRevealState.nextActivity,
                 }
               : entry
           )

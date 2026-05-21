@@ -31,12 +31,12 @@ export default function PlayLobbyScreen() {
   const storySparksCopy = {
     title: tt("together.lobby.storySparksTitle", "История на двоих"),
     description: tt(
-      "together.lobby.storySparksDescription",
-      "Выберите карточки по очереди и соберите общую мини-историю с другим человеком."
+      "together.lobby.storySparksContinuationBody",
+      "После рисунка можно продолжить через Историю на двоих"
     ),
     details: tt(
       "together.lobby.storySparksDetails",
-      "4 раунда, 3 карточки в каждом, общий story card и то же честное решение про чат."
+      "Если вы оба выберете продолжение, откроется общий Story Sparks этап для той же пары."
     ),
   };
 
@@ -119,6 +119,7 @@ export default function PlayLobbyScreen() {
                 tt("together.lobby.drawStepChallenge", "Творческий вызов"),
                 tt("together.lobby.drawStepCanvas", "Общий холст"),
                 tt("together.lobby.drawStepResult", "Совместный результат"),
+                tt("together.lobby.drawStepStory", "История на двоих"),
                 tt("together.lobby.drawStepChat", "Чат по взаимности"),
               ].map((item) => (
                 <View key={item} style={styles.heroLoopChip}>
@@ -134,7 +135,7 @@ export default function PlayLobbyScreen() {
               style={styles.primaryCta}
             >
               <Text style={styles.primaryCtaTitle}>
-                {tt("together.lobby.startDrawChallenge", "Начать общий рисунок")}
+                {tt("together.lobby.startDrawChallenge", "Начать вместе")}
               </Text>
             </Pressable>
             <Text style={styles.primaryCtaHint}>
@@ -148,12 +149,12 @@ export default function PlayLobbyScreen() {
 
         <View style={styles.secondarySection}>
           <Text style={styles.secondarySectionTitle}>
-            {tt("together.lobby.storySparksSectionTitle", "Второй сценарий")}
+            {tt("together.lobby.storySparksSectionTitle", "Второй этап")}
           </Text>
           <Text style={styles.secondarySectionText}>
             {tt(
               "together.lobby.storySparksSectionBody",
-              "История на двоих — структурированная совместная игра без необходимости рисовать."
+              "История на двоих усиливает знакомство после рисунка, а не конкурирует с ним на первом шаге."
             )}
           </Text>
         </View>
@@ -164,14 +165,6 @@ export default function PlayLobbyScreen() {
           </View>
           <Text style={styles.cardDescription}>{storySparksCopy.description}</Text>
           <Text style={styles.cardDetails}>{storySparksCopy.details}</Text>
-          <Pressable
-            onPress={() => openActivity("story_sparks", "startStorySparks")}
-            style={styles.secondaryCta}
-          >
-            <Text style={styles.secondaryCtaText}>
-              {tt("together.lobby.storySparksCta", "Собрать историю")}
-            </Text>
-          </Pressable>
         </View>
 
         <Pressable

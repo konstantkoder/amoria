@@ -1,12 +1,14 @@
 # Together Story Sparks
 
-Updated: 2026-05-20
+Updated: 2026-05-21
 
 ## Release Contract
 
-Story Sparks is the active second Together scenario for this release.
+Story Sparks is the active optional second stage for this release.
 
-- Active Together lobby scenarios: `draw`, `story_sparks`.
+- Active Together lobby entry: `draw`.
+- Story Sparks is not a separate equal lobby choice anymore.
+- After a completed `draw`, users can mutually choose `continue_story` to open a real `story_sparks` continuation session for the same pair.
 - Legacy activity: `color_mood`.
 - Legacy `color_mood` sessions and history stay readable, but the release UI must not create new `color_mood` sessions.
 - No mock/stub/fake data, Firebase fallback, local-only success, AI generation, free text input, adult-first content, or reward/gambling mechanics.
@@ -25,7 +27,7 @@ story_sparks
 - `color_mood` for legacy compatibility
 - `story_sparks`
 
-Matching is activity-isolated. `story_sparks` users only match with other `story_sparks` users and never with `draw` or `color_mood`.
+Lobby matching starts with `draw`. `story_sparks` sessions can still exist as real backend sessions, but the release UI enters them from the post-draw continuation decision instead of presenting Story Sparks as an equal first choice.
 
 ## Backend Content Model
 
@@ -100,15 +102,18 @@ Rules:
 
 ## Mobile Flow
 
-1. Together lobby shows `Общий рисунок` and `История на двоих`.
-2. Tapping Story Sparks opens `PlayMatch` with `activity: "story_sparks"`.
-3. Matching routes to `PlayStorySparks`.
-4. `PlayStorySparks` loads the session and backend story pack, hydrates events, subscribes to Together WebSocket updates, and polls backend events as recovery.
-5. The user picks one of three cards in each of four rounds.
-6. The selected card is locked only after backend event success.
-7. Peer choice reveal is based on backend events.
-8. After all four rounds have both choices, the session is finished and the app routes to `PlayResult`.
-9. Leave/peer leave shows an interrupted state and does not fake result, reveal, or chat success.
+1. Together lobby sells one primary path: `Начать вместе` / `Start Together`.
+2. The primary CTA opens `PlayMatch` with `activity: "draw"`.
+3. Story Sparks is shown as the second stage: after drawing, users can continue with `История на двоих` / `Story Sparks`.
+4. After `draw` result, the user can choose open chat, continue story, or leave the drawing as a story.
+5. Only mutual `continue_story` opens `PlayStorySparks` with the backend-created continuation session id.
+6. `PlayStorySparks` loads the session and backend story pack, hydrates events, subscribes to Together WebSocket updates, and polls backend events as recovery.
+7. The user picks one of three cards in each of four rounds.
+8. The selected card is locked only after backend event success.
+9. Peer choice reveal is based on backend events.
+10. After all four rounds have both choices, the story session is finished and the app routes to `PlayResult`.
+11. The Story Sparks result uses the normal final reveal flow: open chat or leave story.
+12. Leave/peer leave shows an interrupted state and does not fake result, reveal, or chat success.
 
 ## Result, History, Detail, DM
 
@@ -121,10 +126,13 @@ Result shows:
 - four rounds,
 - both users' selected cards for every completed round.
 
-Reveal/open behavior is unchanged:
+Reveal/open behavior is staged:
 
-- `open_open` creates or opens one DM thread,
-- `open_skip` and `skip_skip` do not create fake chat,
+- `draw` supports `open`, `skip`, and `continue_story`.
+- `story_sparks` supports final `open` and `skip`.
+- `open_open` creates or opens one DM thread.
+- `continue_story` + `continue_story` creates or reuses one backend `story_sparks` continuation session.
+- `open_skip`, `skip_skip`, and `mixed_intent` do not create fake chat.
 - reveal state stays backend-backed.
 
 History shows `story_sparks` entries with the label `История на двоих` and a story artifact preview. It does not render Story Sparks as canvas replay.
@@ -134,6 +142,7 @@ Session detail renders a story card/detail for `story_sparks`, existing canvas r
 DM source context for `story_sparks` includes:
 
 - `activity: "story_sparks"`,
+- the previous/source draw session reference when the story came from staged continuation,
 - `storyTitle`,
 - `summary`,
 - selected cards / story artifact preview.
@@ -145,6 +154,9 @@ DM chat shows a context card equivalent to `Вы собрали историю �
 Mobile reports release-relevant Story Sparks failures through existing client error reporting:
 
 - failed `story_sparks` navigation,
+- failed `continue_story` decision,
+- failed next story session creation,
+- invalid continuation outcome,
 - failed story choice send,
 - invalid story pack,
 - missing story cards,
@@ -158,16 +170,11 @@ Reports must remain sanitized: no secrets, auth tokens, signed URLs, passwords, 
 
 | Step | Expected Result | Status |
 | --- | --- | --- |
-| 1. Together lobby shows draw + История на двоих | No active Палитра настроения CTA | NOT TESTED |
-| 2. Tap Story Sparks -> PlayMatch | `activity: story_sparks` queue starts | NOT TESTED |
-| 3. Two accounts match story_sparks | Both users enter the same `story_sparks` session | NOT TESTED |
-| 4. Each round shows 3 cards | Cards come from backend pack translations | NOT TESTED |
-| 5. Both choose cards | Choices are saved as backend `story_choice` events | NOT TESTED |
-| 6. Choices are revealed | Reveal is based on hydrated peer events | NOT TESTED |
-| 7. After 4 rounds result opens | Result shows story artifact | NOT TESTED |
-| 8. Both open -> one DM chat | One backend DM thread is used | NOT TESTED |
-| 9. DM context shows story artifact | Context card shows Story Sparks title/summary | NOT TESTED |
-| 10. History shows story_sparks | Entry uses story label and artifact preview | NOT TESTED |
-| 11. Session detail shows story card | Detail does not try to render canvas | NOT TESTED |
-| 12. User exit works | Backend leave happens; no fake success | NOT TESTED |
-| 13. Peer leave works | Peer sees honest interrupted state | NOT TESTED |
+| 1. Start Together -> draw | Lobby primary CTA opens `PlayMatch` with `activity: draw` | NOT TESTED |
+| 2. Finish draw | Both users reach draw result | NOT TESTED |
+| 3. Both choose continue story | Backend reveal result becomes `continue_story` | NOT TESTED |
+| 4. Same Story Sparks session | Both clients enter the same backend `story_sparks` continuation session | NOT TESTED |
+| 5. Complete story | Choices are backend `story_choice` events and result shows story artifact | NOT TESTED |
+| 6. Both open | One backend DM thread is used | NOT TESTED |
+| 7. DM keyboard | Keyboard closes after successful message send | NOT TESTED |
+| 8. History/detail | `draw`, `story_sparks`, and legacy `color_mood` remain readable | NOT TESTED |

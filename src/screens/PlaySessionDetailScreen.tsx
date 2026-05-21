@@ -68,6 +68,10 @@ function getOutcomeLabel(
       return tt("playDetail.outcomeMixed", "Осталось историей");
     case "skip_skip":
       return tt("playDetail.outcomeClosed", "Без чата");
+    case "continue_story":
+      return tt("playDetail.outcomeContinued", "Продолжили историю");
+    case "mixed_intent":
+      return tt("playDetail.outcomeMixedIntent", "Без общего пути");
     case "blocked":
       return tt("playDetail.outcomeBlocked", "Контакт недоступен");
     case "pending":
@@ -97,6 +101,8 @@ function revealStateFromHistoryItem(
     threadId: item.threadId ?? null,
     canOpenChat: item.canOpenChat === true,
     peerDecisionKnown: item.peerDecisionKnown === true,
+    nextSessionId: item.nextSessionId ?? null,
+    nextActivity: item.nextActivity ?? null,
   };
 }
 
@@ -314,6 +320,8 @@ export default function PlaySessionDetailScreen() {
               threadId: nextRevealState.threadId,
               canOpenChat: nextRevealState.canOpenChat,
               peerDecisionKnown: nextRevealState.peerDecisionKnown,
+              nextSessionId: nextRevealState.nextSessionId,
+              nextActivity: nextRevealState.nextActivity,
             }
           : current
       );
@@ -545,6 +553,16 @@ export default function PlaySessionDetailScreen() {
               ? tt(
                   "playDetail.bridgeChatReadyBody",
                   "Эта история уже стала частью открытого чата. Отсюда можно сразу перейти в разговор."
+                )
+              : outcome === "continue_story"
+              ? tt(
+                  "playDetail.bridgeContinuedBody",
+                  "После рисунка вы оба выбрали Историю на двоих. Продолжение сохранено как следующий этап."
+                )
+              : outcome === "mixed_intent"
+              ? tt(
+                  "playDetail.bridgeMixedIntentBody",
+                  "Вы выбрали разные продолжения, поэтому чат не открылся и новый этап не начался."
                 )
               : tt(
                   "playDetail.bridgeStoryOnlyBody",

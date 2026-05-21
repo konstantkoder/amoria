@@ -1,6 +1,6 @@
 # Together Smoke Pass
 
-Updated: 2026-05-20 for `TOGETHER-STORY-01`
+Updated: 2026-05-21 for `TOGETHER-FLOW-02`
 
 ## Run Metadata
 
@@ -17,10 +17,11 @@ Updated: 2026-05-20 for `TOGETHER-STORY-01`
 
 ## Scope
 
-This smoke pass covers the active Together release lifecycle for:
+This smoke pass covers the active staged Together release lifecycle:
 
-- `draw`
-- `story_sparks`
+- `draw` first from the Together lobby.
+- optional `story_sparks` continuation after draw.
+- final open/skip after Story Sparks when the continuation is used.
 
 Legacy compatibility coverage:
 
@@ -30,7 +31,7 @@ Legacy compatibility coverage:
 The required lifecycle is:
 
 ```text
-queue -> match -> session -> finish/leave/disconnect -> result -> reveal -> DM -> history/detail
+draw queue -> draw session -> draw result -> continue_story/open/skip -> optional story_sparks session -> story result -> open/skip -> DM/history/detail
 ```
 
 No mock, stub, fake data, Firebase fallback, or local-only success path should be accepted as passing evidence.
@@ -42,7 +43,7 @@ These checks passed for the Story Sparks implementation, but they do not replace
 | Area | Command | Result | Notes |
 | --- | --- | --- | --- |
 | Server typecheck | `npm run typecheck` | PASS | `tsc -p tsconfig.json --noEmit` completed with exit code 0 |
-| Server tests | `npm test` | PASS | 150/150 tests passed |
+| Server tests | `npm test` | PASS | 155/155 tests passed |
 | Mobile TypeScript | `npx tsc --noEmit` | PASS | Completed with exit code 0 |
 
 Known automated-check warning: the server test run prints the existing AWS SDK future Node support warning because this shell uses Node `v18.19.1`. It did not fail tests.
@@ -52,7 +53,7 @@ Known automated-check warning: the server test run prints the existing AWS SDK f
 | Scenario | Required Coverage | Result | Evidence / Notes | Bug ID |
 | --- | --- | --- | --- | --- |
 | A - Draw happy path | 2 accounts match into one `draw` session, live strokes sync, finish, mutual open, one DM chat, `activity: draw`, history/detail replay, app restart replay from backend events | NOT TESTED | Prepared for manual 2-device pass. No phone/emulator pair and account credentials are available in this Codex shell. | - |
-| B - Story Sparks happy path | 2 accounts match into one `story_sparks` session, backend pack loads, 4 rounds show 3 cards, choices persist/reveal, finish, mutual open, one DM chat with story context, history/detail story artifact | NOT TESTED | Prepared for manual 2-device pass. No phone/emulator pair and account credentials are available in this Codex shell. | - |
+| B - Staged Story Sparks happy path | Complete `draw`, both choose `continue_story`, both enter the same backend `story_sparks` continuation session, complete 4 rounds, mutual open creates one DM chat with draw + story context | NOT TESTED | Prepared for manual 2-device pass. No phone/emulator pair and account credentials are available in this Codex shell. | - |
 | C - Draw open/skip | Complete `draw`, A opens, B skips, no mutual DM chat, honest result/history state, no chat-promise CTA | NOT TESTED | Prepared for manual 2-device pass. | - |
 | D - Story Sparks open/skip | Complete `story_sparks`, A opens, B skips, no mutual DM chat, honest result/history state, story remains in history/detail | NOT TESTED | Prepared for manual 2-device pass. | - |
 | E - Skip/skip | Complete either active scenario, both skip, no chat, history/detail accessible, no chat CTA appears | NOT TESTED | Prepared for manual 2-device pass. | - |
@@ -60,24 +61,26 @@ Known automated-check warning: the server test run prints the existing AWS SDK f
 | G - Missed WebSocket recovery | Complete session, background/reload one client, result/detail recovers via `getSession` / `getSessionEvents`, no duplicate chat navigation | NOT TESTED | Prepared for manual 2-device pass. | - |
 | H - Duplicate action protection | Double tap story choice/finish/open, buttons disable or backend idempotency holds, no duplicate events/thread/broken UI | NOT TESTED | Prepared for manual 2-device pass. | - |
 | I - Legacy color_mood compatibility | Existing `color_mood` history/session detail remains readable, but lobby/new-user path does not offer it | NOT TESTED | Prepared for manual compatibility check. | - |
+| J - Mixed continuation intent | A chooses `continue_story`, B chooses `skip` or `open`; no chat and no fake story session is created | NOT TESTED | Prepared for manual 2-device pass. | - |
+| K - DM keyboard | After one real DM message sends successfully, the keyboard closes; failed send remains understandable/retryable | NOT TESTED | Prepared for manual 2-device pass. | - |
 
-## Story Sparks Manual Checklist
+## Staged Story Sparks Manual Checklist
 
 | Step | Account / Device | Expected Result | Actual Result | Status |
 | --- | --- | --- | --- | --- |
-| 1. Open Together lobby | A | Lobby shows `Общий рисунок` and `История на двоих`; no active `Палитра настроения` CTA |  | NOT TESTED |
-| 2. Tap Story Sparks | A | App opens `PlayMatch` with `activity: story_sparks` |  | NOT TESTED |
-| 3. Start matching | A+B | Two accounts match only with `story_sparks`; neither matches `draw` nor legacy `color_mood` |  | NOT TESTED |
-| 4. Load session | A+B | Both enter the same `story_sparks` session and receive backend pack `first_sparks_v1` |  | NOT TESTED |
-| 5. Round 1 cards | A+B | `place` round shows exactly 3 backend-backed cards |  | NOT TESTED |
-| 6. Choose round 1 | A+B | Each tap saves one backend `story_choice`; own choice locks after server success |  | NOT TESTED |
-| 7. Reveal round 1 | A+B | Both users' choices reveal after peer event hydration |  | NOT TESTED |
-| 8. Complete rounds 2-4 | A+B | `detail`, `twist`, and `ending` repeat with 3 cards and backend choices |  | NOT TESTED |
-| 9. Result opens | A+B | After 4 completed rounds, both clients reach `PlayResult` with story artifact |  | NOT TESTED |
+| 1. Open Together lobby | A | Lobby sells one primary path: `Начать вместе`; Story Sparks is described as after-drawing continuation; no active `Палитра настроения` CTA |  | NOT TESTED |
+| 2. Start Together | A+B | Both users enter `draw` matching/session; there is no first-step choice between draw and story_sparks |  | NOT TESTED |
+| 3. Finish draw | A+B | Both clients reach `PlayResult` for the same draw session |  | NOT TESTED |
+| 4. Continue story | A+B | Both tap `Продолжить историю`; backend stores `continue_story` decisions |  | NOT TESTED |
+| 5. Same continuation | A+B | Backend returns one `story_sparks` session id and both clients enter that same session |  | NOT TESTED |
+| 6. Round 1 cards | A+B | `place` round shows exactly 3 backend-backed cards |  | NOT TESTED |
+| 7. Choose round 1 | A+B | Each tap saves one backend `story_choice`; own choice locks after server success |  | NOT TESTED |
+| 8. Complete rounds 2-4 | A+B | `detail`, `twist`, and `ending` repeat with backend choices |  | NOT TESTED |
+| 9. Story result opens | A+B | After 4 completed rounds, both clients reach `PlayResult` with story artifact |  | NOT TESTED |
 | 10. Both choose open | A+B | Backend reveal result is `open_open`; one DM thread opens |  | NOT TESTED |
-| 11. DM context | A+B | DM shows Story Sparks context card with title/summary/artifact preview |  | NOT TESTED |
-| 12. History | A+B | `PlayHistory` shows `story_sparks` label and story preview |  | NOT TESTED |
-| 13. Session detail | A+B | Detail shows story card; it does not try to render canvas replay |  | NOT TESTED |
+| 11. DM context | A+B | DM context includes Story Sparks artifact and source draw reference when available |  | NOT TESTED |
+| 12. Send DM message | A | Message sends through backend and keyboard closes after success |  | NOT TESTED |
+| 13. History/detail | A+B | `PlayHistory` and detail show draw/story_sparks correctly; legacy `color_mood` remains readable |  | NOT TESTED |
 | 14. User exit | A or B | Leave calls backend; no fake result/reveal/chat success appears |  | NOT TESTED |
 | 15. Peer leave | Peer | Remaining user sees honest interrupted state |  | NOT TESTED |
 
@@ -94,7 +97,10 @@ Known automated-check warning: the server test run prints the existing AWS SDK f
 | A draws stroke | A -> B | B sees A stroke through real WebSocket or backend recovery |  | NOT TESTED |
 | B draws stroke | B -> A | A sees B stroke through real WebSocket or backend recovery |  | NOT TESTED |
 | Finish | A or B | Both clients reach Result for the same session |  | NOT TESTED |
-| Both choose open | A+B | One DM chat opens for mutual open |  | NOT TESTED |
+| Continue story option | A+B | Draw result shows Open chat, Continue story, and Leave story actions |  | NOT TESTED |
+| Both choose open | A+B | One DM chat opens for mutual open when both choose open |  | NOT TESTED |
+| One open, one continue | A+B | Backend returns honest mixed intent/no mutual path; no chat and no fake story session |  | NOT TESTED |
+| One continue, one skip | A+B | Backend returns honest mixed intent/no mutual path; no chat and no fake story session |  | NOT TESTED |
 | DM context | A+B | DM source context contains Together `activity: draw` |  | NOT TESTED |
 | History/detail | A+B | History shows the `draw` session and detail shows replay from backend events |  | NOT TESTED |
 

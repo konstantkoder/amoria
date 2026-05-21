@@ -1,6 +1,6 @@
 # Amoria Release Control Center
 
-Updated: 2026-05-20
+Updated: 2026-05-21
 
 ## Branches
 
@@ -36,9 +36,15 @@ This launcher is local dev tooling only and is not product logic.
 - `TOGETHER-03` lifecycle hardening.
 - `TOGETHER-04` smoke checklist only, real 2-device test not done.
 - `TOGETHER-STORY-01` Story Sparks release scenario:
-  - Active Together lobby scenarios are now `draw` and `story_sparks`.
-  - `story_sparks` uses backend-backed curated story packs, backend events, result/history/detail rendering, and DM source context.
-  - `color_mood` is not an active new-user scenario in the release UI; old sessions/history remain readable.
+  - Story Sparks uses backend-backed curated story packs, backend events, result/history/detail rendering, and DM source context.
+  - Superseded by `TOGETHER-FLOW-02`: Story Sparks is now a staged continuation after draw, not an equal lobby start option.
+- `TOGETHER-FLOW-02` staged story continuation:
+  - Active Together lobby entry is `Начать вместе` / `Start Together`, which starts `draw`.
+  - After draw result, users can choose open chat, continue story, or leave the drawing as a story.
+  - Mutual `continue_story` creates/reuses one backend `story_sparks` continuation session for the same pair.
+  - Final Story Sparks result keeps the ordinary open/skip reveal flow.
+  - `color_mood` remains legacy-readable and is not active in the lobby.
+  - DM keyboard dismisses only after successful message send.
 - `GALLERY-01` audit/hardening.
 - `GALLERY-02` smoke checklist + preview failure fix.
 - `BUGFIX-UX-01` mobile release UX/navigation blockers:
@@ -58,6 +64,7 @@ See `docs/bugfix_ux_01_audit.md`.
 See `docs/bugfix_ux_02_media_nav_profile.md`.
 See `docs/media_upload_architecture.md`.
 See `docs/together_story_sparks.md`.
+See `docs/together_flow_02_staged_story.md`.
 
 ## Identity rule verification
 
