@@ -1,11 +1,10 @@
 import * as FileSystem from "expo-file-system/legacy";
 
-import { uploadAvatarToBackend } from "@/services/api/mediaApi";
 import {
-  completeUpload,
-  deleteMedia,
-  prepareUpload,
-} from "@/services/api/uploadsApi";
+  uploadAvatarToBackend,
+  uploadProfilePhotoToBackend,
+} from "@/services/api/mediaApi";
+import { deleteMedia } from "@/services/api/uploadsApi";
 import {
   getBackendAccessToken,
   loadBackendSession,
@@ -13,10 +12,6 @@ import {
 } from "@/services/api/sessionStorage";
 import type { MediaDto } from "@/services/api/types";
 import { normalizePublicMediaUrl } from "@/services/media/mediaUrl";
-import {
-  PresignedPutUploadError,
-  uploadFileToPresignedPut,
-} from "@/services/media/uploadPut";
 
 export type UploadedProfilePhoto = {
   mediaId: string;
@@ -25,9 +20,7 @@ export type UploadedProfilePhoto = {
 
 export type UploadFlowStep =
   | "getInfo"
-  | "prepareUpload"
-  | "putUpload"
-  | "completeUpload"
+  | "backendProfilePhotoUpload"
   | "mapMedia"
   | "uploadAvatar"
   | "session";
@@ -191,39 +184,16 @@ export async function uploadProfilePhoto(
     mimeType,
   };
 
-  let upload: Awaited<ReturnType<typeof prepareUpload>>;
+  const extension = inferImageExtension(mimeType);
+  let completed: Awaited<ReturnType<typeof uploadProfilePhotoToBackend>>;
   try {
-    upload = await prepareUpload({
-      purpose: "profile_photo",
-      mimeType,
-      sizeBytes,
-      ...(options.checksumSha256
-        ? { checksumSha256: options.checksumSha256 }
-        : {}),
+    completed = await uploadProfilePhotoToBackend({
+      uri: stableUri,
+      name: `profile-photo.${extension}`,
+      type: mimeType,
     });
   } catch (error) {
-    throw buildUploadFlowError(error, "prepareUpload", baseMetadata);
-  }
-
-  try {
-    await uploadFileToPresignedPut(upload.uploadUrl, stableUri, upload.headers);
-  } catch (error) {
-    throw buildUploadFlowError(error, "putUpload", {
-      ...baseMetadata,
-      uploadUrlHost: getUrlHost(upload.uploadUrl),
-    });
-  }
-
-  let completed: Awaited<ReturnType<typeof completeUpload>>;
-  try {
-    completed = await completeUpload(upload.uploadId, {
-      sizeBytes,
-      ...(options.checksumSha256
-        ? { checksumSha256: options.checksumSha256 }
-        : {}),
-    });
-  } catch (error) {
-    throw buildUploadFlowError(error, "completeUpload", baseMetadata);
+    throw buildUploadFlowError(error, "backendProfilePhotoUpload", baseMetadata);
   }
 
   try {
@@ -288,21 +258,6 @@ function buildUploadFlowError(
     return error;
   }
 
-  if (error instanceof PresignedPutUploadError) {
-    return new UploadFlowError({
-      code: error.code,
-      step,
-      message: error.message,
-      status: error.status,
-      safeMetadata: {
-        ...safeMetadata,
-        ...(error.uploadUrlHost ? { uploadUrlHost: error.uploadUrlHost } : {}),
-        ...(error.status ? { status: error.status } : {}),
-      },
-      cause: error,
-    });
-  }
-
   const maybeError = error as { code?: unknown; status?: unknown; message?: unknown };
   const message = error instanceof Error
     ? error.message
@@ -326,13 +281,4 @@ function buildUploadFlowError(
 export function getUriScheme(uri: string): string | undefined {
   const scheme = String(uri ?? "").split(":", 1)[0]?.trim();
   return scheme || undefined;
-}
-
-function getUrlHost(value: string): string | undefined {
-  try {
-    const url = new URL(value);
-    return url.host;
-  } catch {
-    return undefined;
-  }
 }

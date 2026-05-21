@@ -26,7 +26,11 @@ import {
   sanitizeErrorForReport,
 } from "@/services/api/clientErrorsApi";
 import * as togetherApi from "@/services/api/togetherApi";
-import type { TogetherActivity, TogetherQueueEntry } from "@/services/api/types";
+import type {
+  TogetherActivity,
+  TogetherQueueEntry,
+  TogetherQueueLocationInput,
+} from "@/services/api/types";
 import { theme } from "@/theme";
 
 type MatchStatusKey =
@@ -160,6 +164,9 @@ export default function PlayMatchScreen() {
 
   const uid = authUser?.id ?? "";
   const rawActivity = (route.params as { activity?: unknown } | undefined)?.activity;
+  const queueLocation = (route.params as { location?: TogetherQueueLocationInput } | undefined)
+    ?.location;
+  const radiusLabel = (route.params as { radiusLabel?: string } | undefined)?.radiusLabel ?? "";
   const activity: TogetherActivity | null =
     rawActivity === "draw" || rawActivity === "color_mood" || rawActivity === "story_sparks"
       ? rawActivity
@@ -253,7 +260,7 @@ export default function PlayMatchScreen() {
     setQueueStartedAt(Date.now());
 
     try {
-      const response = await togetherApi.joinQueue(activity);
+      const response = await togetherApi.joinQueue(activity, queueLocation);
       entryIdRef.current = response.entry.id;
       setEntry(response.entry);
       if (response.entry.status === "matched" && response.entry.sessionId) {
@@ -263,7 +270,25 @@ export default function PlayMatchScreen() {
         return;
       }
       setStatusKey("searching");
-    } catch {
+    } catch (error) {
+      const safeError = sanitizeErrorForReport(error);
+      reportClientError({
+        screen: "PlayMatchScreen",
+        action: "startTogetherSession",
+        step: safeError.code === "validation_error"
+          ? "backendGeoValidationFailed"
+          : "queueJoinFailedWithGeoPayload",
+        code: safeError.code,
+        message: safeError.message,
+        stack: safeError.stack,
+        metadata: {
+          activity,
+          radiusKm: queueLocation?.radiusKm ?? null,
+          hasCoordinates:
+            Number.isFinite(queueLocation?.latitude) &&
+            Number.isFinite(queueLocation?.longitude),
+        },
+      });
       setStatusKey("error");
       setErrorText(
         tt(
@@ -275,7 +300,7 @@ export default function PlayMatchScreen() {
       inFlightRef.current = false;
       setBusy(false);
     }
-  }, [activity, navigation, tt, uid]);
+  }, [activity, navigation, queueLocation, tt, uid]);
 
   React.useEffect(() => {
     if (!uid || !activity) return;
@@ -446,6 +471,13 @@ export default function PlayMatchScreen() {
               })}
             </Text>
           ) : null}
+          {radiusLabel ? (
+            <Text style={styles.radiusText}>
+              {tt("play.match.radiusLabel", "Радиус поиска: {radius}", {
+                radius: radiusLabel,
+              })}
+            </Text>
+          ) : null}
           <View style={styles.actions}>
             {canRetry ? (
               <Pressable style={styles.primaryButton} onPress={retry} disabled={busy}>
@@ -535,6 +567,12 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.58)",
     fontSize: 12,
     textAlign: "center",
+  },
+  radiusText: {
+    color: "rgba(255,245,234,0.72)",
+    fontSize: 12,
+    textAlign: "center",
+    fontWeight: "700",
   },
   actions: {
     width: "100%",

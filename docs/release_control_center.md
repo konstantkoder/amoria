@@ -22,12 +22,9 @@ This launcher is local dev tooling only and is not product logic.
 
 ## Current known live bug
 
-- Avatar upload works.
-- Profile photo upload reaches `POST /media/uploads/prepare` with HTTP 200.
-- `POST /media/uploads/:id/complete` is not observed.
-- Likely failure is between prepare and complete.
-- Likely direct `PUT` to object storage `uploadUrl` / MinIO accessibility issue.
-- After `ADMIN-OPS-02`, reproduce the bug again and inspect `GET /admin/client-errors`. The profile upload report should show `screen=PhotoManagerScreen`, `action=uploadProfilePhoto`, and a step such as `putUpload` if the direct object storage upload fails before complete.
+- MEDIA-01 direct profile photo `PUT` blocker is fixed in code by moving mobile profile photo upload to backend-mediated `POST /media/profile-photo`.
+- A real-device gallery smoke pass is still required to verify physical phone upload and peer public profile visibility.
+- Admin Client Errors should no longer receive profile photo reports with `step=putUpload` and `uploadUrlHost=minio:9000`.
 
 ## Completed blocks
 
@@ -45,10 +42,21 @@ This launcher is local dev tooling only and is not product logic.
   - Final Story Sparks result keeps the ordinary open/skip reveal flow.
   - `color_mood` remains legacy-readable and is not active in the lobby.
   - DM keyboard dismisses only after successful message send.
+- `TOGETHER-GEO-01` radius-backed Together matching:
+  - Together lobby offers `5 km`, `25 km`, `100 km`, `250 km`, and no-limit search radius.
+  - Finite radius mode requests foreground location before joining queue.
+  - Backend validates coordinates/radius and matches by stricter mutual radius.
+  - Exact peer coordinates are not returned to mobile.
+  - Story Sparks continuation after draw keeps the same pair and does not re-match by geo.
+- `MEDIA-01` backend-mediated profile photo upload:
+  - Avatar and profile photo uploads are backend-mediated multipart flows.
+  - Mobile profile photo upload no longer depends on direct internal MinIO/S3 `PUT` URLs.
+  - Returned profile media URL is the backend public media route `/media/public/:mediaId`.
+  - Prepared direct upload endpoints remain available but are not used by mobile profile photo upload.
 - `GALLERY-01` audit/hardening.
 - `GALLERY-02` smoke checklist + preview failure fix.
 - `BUGFIX-UX-01` mobile release UX/navigation blockers:
-  - Together lobby now shows `story_sparks` as the explicit second scenario with a real CTA to `PlayMatch`.
+  - Superseded by `TOGETHER-FLOW-02`: Together lobby now shows Story Sparks as an after-draw continuation, not an equal first-step CTA.
   - DM chat profile opening self-heals missing route `peerId` through the real inbox thread list before failing visibly.
   - Profile shows direct edit entrypoints for "About me" and "Mood".
   - Client Errors now receives user-action failures for invalid Together activity, failed Story Sparks navigation, failed legacy color mood navigation, missing/hydrated peer failures, failed `UserProfile` navigation, and failed edit-profile navigation.
@@ -65,6 +73,7 @@ See `docs/bugfix_ux_02_media_nav_profile.md`.
 See `docs/media_upload_architecture.md`.
 See `docs/together_story_sparks.md`.
 See `docs/together_flow_02_staged_story.md`.
+See `docs/together_geo_matching.md`.
 
 ## Identity rule verification
 
@@ -145,7 +154,8 @@ Continue Admin/Ops hardening and final smoke pass.
 
 ## Remaining blockers before admin smoke pass
 
-- MEDIA-01: complete real-device verification for profile photo upload direct `PUT`/complete if object-storage accessibility from the mobile device is still failing. `BUGFIX-UX-02` fixes visibility for media that has reached backend/object storage; it does not fake upload success.
+- Complete real-device MEDIA-01 smoke: profile photo upload through `POST /media/profile-photo`, peer public profile visibility, and no `putUpload/minio` client errors.
+- Complete real-device TOGETHER-GEO-01 smoke: radius matching, denied-location behavior, no-limit queue, and no peer coordinate exposure.
 - BUGFIX-TOGETHER-PROMPTS-I18N-EXAMPLES.
 - Full RU locale cleanup.
 - Complete a real signed-in Together/Gallery smoke pass; `TOGETHER-04` is checklist-only so far and Story Sparks requires a real 2-account smoke pass.

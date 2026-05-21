@@ -7,6 +7,7 @@ import type {
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import type { NearbyAnnouncement } from "@/services/announcementsModel";
+import type { TogetherQueueLocationInput } from "@/services/api/types";
 
 export type ReleasePlayActivity = "draw" | "story_sparks" | "color_mood";
 export type DmSource = "together" | "announcement" | "nearby";
@@ -80,6 +81,8 @@ export type AnnouncementDetailRouteParams = {
 
 export type PlayMatchRouteParams = {
   activity: ReleasePlayActivity;
+  location?: TogetherQueueLocationInput;
+  radiusLabel?: string;
 };
 
 export type PlaySessionRouteParams = {

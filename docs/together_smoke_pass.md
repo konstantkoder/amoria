@@ -1,6 +1,6 @@
 # Together Smoke Pass
 
-Updated: 2026-05-21 for `TOGETHER-FLOW-02`
+Updated: 2026-05-21 for `TOGETHER-FLOW-02` and `TOGETHER-GEO-01`
 
 ## Run Metadata
 
@@ -31,10 +31,18 @@ Legacy compatibility coverage:
 The required lifecycle is:
 
 ```text
-draw queue -> draw session -> draw result -> continue_story/open/skip -> optional story_sparks session -> story result -> open/skip -> DM/history/detail
+radius choice -> draw queue -> draw session -> draw result -> continue_story/open/skip -> optional story_sparks session -> story result -> open/skip -> DM/history/detail
 ```
 
 No mock, stub, fake data, Firebase fallback, or local-only success path should be accepted as passing evidence.
+
+Geo matching rule:
+
+- finite radius requires real foreground location;
+- backend queue uses the selected radius and coordinates as source of truth;
+- no-limit mode can queue without location;
+- exact peer coordinates must not appear in UI, logs, queue/session responses, DM, history, or detail;
+- Story Sparks continuation after draw keeps the same pair and does not re-match by geo.
 
 ## Automated Sanity Checks
 
@@ -43,7 +51,7 @@ These checks passed for the Story Sparks implementation, but they do not replace
 | Area | Command | Result | Notes |
 | --- | --- | --- | --- |
 | Server typecheck | `npm run typecheck` | PASS | `tsc -p tsconfig.json --noEmit` completed with exit code 0 |
-| Server tests | `npm test` | PASS | 155/155 tests passed |
+| Server tests | `npm test` | PASS | 167/167 tests passed |
 | Mobile TypeScript | `npx tsc --noEmit` | PASS | Completed with exit code 0 |
 
 Known automated-check warning: the server test run prints the existing AWS SDK future Node support warning because this shell uses Node `v18.19.1`. It did not fail tests.
@@ -63,26 +71,42 @@ Known automated-check warning: the server test run prints the existing AWS SDK f
 | I - Legacy color_mood compatibility | Existing `color_mood` history/session detail remains readable, but lobby/new-user path does not offer it | NOT TESTED | Prepared for manual compatibility check. | - |
 | J - Mixed continuation intent | A chooses `continue_story`, B chooses `skip` or `open`; no chat and no fake story session is created | NOT TESTED | Prepared for manual 2-device pass. | - |
 | K - DM keyboard | After one real DM message sends successfully, the keyboard closes; failed send remains understandable/retryable | NOT TESTED | Prepared for manual 2-device pass. | - |
+| L - Radius 5 km same place | A+B select 5 km, grant location, start Together, backend matches into `draw` if devices are actually nearby | NOT TESTED | Prepared for manual 2-device pass. | - |
+| M - Radius outside range | Simulate/far-location accounts with strict radius do not match; no fake local match | NOT TESTED | Prepared for manual 2-device pass. | - |
+| N - Location denied | Select finite radius, deny location, no queue join, clear UI asks to enable location or choose no limit | NOT TESTED | Prepared for manual pass. | - |
+| O - No limit | Select no limit, start Together without location, backend accepts queue without coordinates | NOT TESTED | Prepared for manual pass. | - |
 
 ## Staged Story Sparks Manual Checklist
 
 | Step | Account / Device | Expected Result | Actual Result | Status |
 | --- | --- | --- | --- | --- |
 | 1. Open Together lobby | A | Lobby sells one primary path: `Начать вместе`; Story Sparks is described as after-drawing continuation; no active `Палитра настроения` CTA |  | NOT TESTED |
-| 2. Start Together | A+B | Both users enter `draw` matching/session; there is no first-step choice between draw and story_sparks |  | NOT TESTED |
-| 3. Finish draw | A+B | Both clients reach `PlayResult` for the same draw session |  | NOT TESTED |
-| 4. Continue story | A+B | Both tap `Продолжить историю`; backend stores `continue_story` decisions |  | NOT TESTED |
-| 5. Same continuation | A+B | Backend returns one `story_sparks` session id and both clients enter that same session |  | NOT TESTED |
-| 6. Round 1 cards | A+B | `place` round shows exactly 3 backend-backed cards |  | NOT TESTED |
-| 7. Choose round 1 | A+B | Each tap saves one backend `story_choice`; own choice locks after server success |  | NOT TESTED |
-| 8. Complete rounds 2-4 | A+B | `detail`, `twist`, and `ending` repeat with backend choices |  | NOT TESTED |
-| 9. Story result opens | A+B | After 4 completed rounds, both clients reach `PlayResult` with story artifact |  | NOT TESTED |
-| 10. Both choose open | A+B | Backend reveal result is `open_open`; one DM thread opens |  | NOT TESTED |
-| 11. DM context | A+B | DM context includes Story Sparks artifact and source draw reference when available |  | NOT TESTED |
-| 12. Send DM message | A | Message sends through backend and keyboard closes after success |  | NOT TESTED |
-| 13. History/detail | A+B | `PlayHistory` and detail show draw/story_sparks correctly; legacy `color_mood` remains readable |  | NOT TESTED |
-| 14. User exit | A or B | Leave calls backend; no fake result/reveal/chat success appears |  | NOT TESTED |
-| 15. Peer leave | Peer | Remaining user sees honest interrupted state |  | NOT TESTED |
+| 2. Choose radius | A+B | Radius selector offers 5/25/100/250 km and no limit; finite choices request location before queue |  | NOT TESTED |
+| 3. Start Together | A+B | Both users enter backend `draw` matching/session using selected radius; there is no first-step choice between draw and story_sparks |  | NOT TESTED |
+| 4. Finish draw | A+B | Both clients reach `PlayResult` for the same draw session |  | NOT TESTED |
+| 5. Continue story | A+B | Both tap `Продолжить историю`; backend stores `continue_story` decisions |  | NOT TESTED |
+| 6. Same continuation | A+B | Backend returns one `story_sparks` session id and both clients enter that same session |  | NOT TESTED |
+| 7. Round 1 cards | A+B | `place` round shows exactly 3 backend-backed cards |  | NOT TESTED |
+| 8. Choose round 1 | A+B | Each tap saves one backend `story_choice`; own choice locks after server success |  | NOT TESTED |
+| 9. Complete rounds 2-4 | A+B | `detail`, `twist`, and `ending` repeat with backend choices |  | NOT TESTED |
+| 10. Story result opens | A+B | After 4 completed rounds, both clients reach `PlayResult` with story artifact |  | NOT TESTED |
+| 11. Both choose open | A+B | Backend reveal result is `open_open`; one DM thread opens |  | NOT TESTED |
+| 12. DM context | A+B | DM context includes Story Sparks artifact and source draw reference when available |  | NOT TESTED |
+| 13. Send DM message | A | Message sends through backend and keyboard closes after success |  | NOT TESTED |
+| 14. History/detail | A+B | `PlayHistory` and detail show draw/story_sparks correctly; legacy `color_mood` remains readable |  | NOT TESTED |
+| 15. User exit | A or B | Leave calls backend; no fake result/reveal/chat success appears |  | NOT TESTED |
+| 16. Peer leave | Peer | Remaining user sees honest interrupted state |  | NOT TESTED |
+
+## Geo Radius Manual Checklist
+
+| Step | Account / Device | Expected Result | Actual Result | Status |
+| --- | --- | --- | --- | --- |
+| 1. Select 5 km | A+B same place | Both grant foreground location and match into one `draw` session |  | NOT TESTED |
+| 2. Select strict/far radius | A+B far/simulated | Backend keeps both waiting or expires; no fake local match |  | NOT TESTED |
+| 3. Deny location | A | App shows location-required state and does not join finite-radius queue |  | NOT TESTED |
+| 4. Select no limit | A | App starts queue without requesting/using coordinates |  | NOT TESTED |
+| 5. Inspect responses/logs | A+B | Queue/session/history/DM do not expose peer latitude/longitude |  | NOT TESTED |
+| 6. Continue story | A+B | Story Sparks continuation keeps same pair and does not perform a second geo match |  | NOT TESTED |
 
 ## Draw Manual Checklist
 

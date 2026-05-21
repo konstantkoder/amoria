@@ -3,6 +3,7 @@ import type {
   TogetherActivity,
   TogetherEventType,
   TogetherHistoryResponse,
+  TogetherQueueLocationInput,
   TogetherQueueResponse,
   TogetherRevealDecision,
   TogetherRevealResponse,
@@ -29,8 +30,14 @@ function buildQuery(params: Record<string, string | number | undefined>) {
   return value ? `?${value}` : "";
 }
 
-export function joinQueue(activity: TogetherActivity = "draw"): Promise<TogetherQueueResponse> {
-  return request<TogetherQueueResponse>("POST", "/together/queue", { activity });
+export function joinQueue(
+  activity: TogetherActivity = "draw",
+  location?: TogetherQueueLocationInput
+): Promise<TogetherQueueResponse> {
+  return request<TogetherQueueResponse>("POST", "/together/queue", {
+    activity,
+    ...(location ? { location } : {}),
+  });
 }
 
 export function getQueue(id: string): Promise<TogetherQueueResponse> {

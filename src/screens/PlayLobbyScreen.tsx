@@ -1,6 +1,8 @@
 import React from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Location from "expo-location";
 
 import ScreenShell from "@/components/ScreenShell";
 import { useLocale } from "@/contexts/LocaleContext";
@@ -12,10 +14,25 @@ import {
   reportClientError,
   sanitizeErrorForReport,
 } from "@/services/api/clientErrorsApi";
+import type { TogetherQueueLocationInput } from "@/services/api/types";
 import { theme } from "@/theme";
 
 function isReleasePlayActivity(value: string): value is ReleasePlayActivity {
   return value === "draw" || value === "story_sparks" || value === "color_mood";
+}
+
+type TogetherRadiusKm = 5 | 25 | 100 | 250 | null;
+
+const RADIUS_STORAGE_KEY = "amoria:together:radiusKm";
+const RADIUS_OPTIONS: TogetherRadiusKm[] = [5, 25, 100, 250, null];
+
+function parseStoredRadius(value: string | null): TogetherRadiusKm | undefined {
+  if (value === "anywhere") return null;
+  if (value === "5") return 5;
+  if (value === "25") return 25;
+  if (value === "100") return 100;
+  if (value === "250") return 250;
+  return undefined;
 }
 
 export default function PlayLobbyScreen() {
@@ -28,6 +45,27 @@ export default function PlayLobbyScreen() {
     },
     [t]
   );
+  const [selectedRadiusKm, setSelectedRadiusKm] = React.useState<TogetherRadiusKm>(25);
+  const [locationBusy, setLocationBusy] = React.useState(false);
+  const [locationNotice, setLocationNotice] = React.useState("");
+
+  React.useEffect(() => {
+    let alive = true;
+    void AsyncStorage.getItem(RADIUS_STORAGE_KEY)
+      .then((value) => {
+        if (!alive) return;
+        const parsed = parseStoredRadius(value);
+        if (parsed !== undefined) {
+          setSelectedRadiusKm(parsed);
+        }
+      })
+      .catch(() => undefined);
+
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   const storySparksCopy = {
     title: tt("together.lobby.storySparksTitle", "История на двоих"),
     description: tt(
@@ -40,8 +78,120 @@ export default function PlayLobbyScreen() {
     ),
   };
 
+  const radiusLabel = React.useCallback(
+    (radiusKm: TogetherRadiusKm) => {
+      if (radiusKm === null) {
+        return tt("together.geo.anywhere", "Без ограничения");
+      }
+      return tt(`together.geo.${radiusKm}km`, `${radiusKm} км`);
+    },
+    [tt]
+  );
+
+  const selectRadius = React.useCallback((radiusKm: TogetherRadiusKm) => {
+    setSelectedRadiusKm(radiusKm);
+    setLocationNotice("");
+    void AsyncStorage.setItem(RADIUS_STORAGE_KEY, radiusKm === null ? "anywhere" : String(radiusKm))
+      .catch(() => undefined);
+  }, []);
+
+  const resolveQueueLocation = React.useCallback(async (): Promise<TogetherQueueLocationInput | null | undefined> => {
+    if (selectedRadiusKm === null) {
+      return undefined;
+    }
+
+    let permissionStatus = "";
+    try {
+      const currentPermission = await Location.getForegroundPermissionsAsync();
+      permissionStatus = currentPermission.status;
+      const permission = currentPermission.granted
+        ? currentPermission
+        : await Location.requestForegroundPermissionsAsync();
+      permissionStatus = permission.status;
+
+      if (!permission.granted) {
+        const message = tt(
+          "together.geo.permissionDenied",
+          "Для поиска рядом нужна геолокация. Можно выбрать «Без ограничения»."
+        );
+        setLocationNotice(message);
+        reportClientError({
+          screen: "PlayLobbyScreen",
+          action: "startDraw",
+          step: "locationPermissionDenied",
+          message: "Together radius mode location permission denied",
+          metadata: {
+            radiusKm: selectedRadiusKm,
+            locationPermissionStatus: permissionStatus,
+            hasCoordinates: false,
+          },
+        });
+        Alert.alert(tt("together.geo.permissionTitle", "Нужна геолокация"), message);
+        return null;
+      }
+    } catch (error) {
+      const safeError = sanitizeErrorForReport(error);
+      reportClientError({
+        screen: "PlayLobbyScreen",
+        action: "startDraw",
+        step: "locationPermissionFailed",
+        code: safeError.code,
+        message: safeError.message,
+        stack: safeError.stack,
+        metadata: {
+          radiusKm: selectedRadiusKm,
+          locationPermissionStatus: permissionStatus || "unknown",
+          hasCoordinates: false,
+        },
+      });
+      setLocationNotice(tt(
+        "together.geo.locationReadFailed",
+        "Не удалось получить геолокацию. Можно выбрать «Без ограничения»."
+      ));
+      return null;
+    }
+
+    try {
+      const lastKnown = await Location.getLastKnownPositionAsync();
+      const position = lastKnown ?? await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      const latitude = position.coords.latitude;
+      const longitude = position.coords.longitude;
+      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+        throw new Error("Invalid Together location coordinates");
+      }
+
+      return {
+        latitude,
+        longitude,
+        radiusKm: selectedRadiusKm,
+      };
+    } catch (error) {
+      const safeError = sanitizeErrorForReport(error);
+      reportClientError({
+        screen: "PlayLobbyScreen",
+        action: "startDraw",
+        step: "locationReadFailed",
+        code: safeError.code,
+        message: safeError.message,
+        stack: safeError.stack,
+        metadata: {
+          radiusKm: selectedRadiusKm,
+          locationPermissionStatus: "granted",
+          hasCoordinates: false,
+        },
+      });
+      setLocationNotice(tt(
+        "together.geo.locationReadFailed",
+        "Не удалось получить геолокацию. Можно выбрать «Без ограничения»."
+      ));
+      return null;
+    }
+  }, [selectedRadiusKm, tt]);
+
   const openActivity = React.useCallback(
-    (activity: string, action: "startDraw" | "startStorySparks") => {
+    async (activity: string, action: "startDraw" | "startStorySparks") => {
       const safeActivity = String(activity ?? "").trim();
       if (!isReleasePlayActivity(safeActivity)) {
         Alert.alert(
@@ -61,7 +211,17 @@ export default function PlayLobbyScreen() {
       }
 
       try {
-        navigation.navigate("PlayMatch", { activity: safeActivity });
+        setLocationBusy(true);
+        setLocationNotice("");
+        const location = await resolveQueueLocation();
+        if (location === null) {
+          return;
+        }
+        navigation.navigate("PlayMatch", {
+          activity: safeActivity,
+          ...(location ? { location } : {}),
+          radiusLabel: radiusLabel(selectedRadiusKm),
+        });
       } catch (error) {
         const safeError = sanitizeErrorForReport(error);
         Alert.alert(
@@ -80,11 +240,15 @@ export default function PlayLobbyScreen() {
           stack: safeError.stack,
           metadata: {
             activity: safeActivity,
+            radiusKm: selectedRadiusKm,
+            hasCoordinates: false,
           },
         });
+      } finally {
+        setLocationBusy(false);
       }
     },
-    [navigation, tt]
+    [navigation, radiusLabel, resolveQueueLocation, selectedRadiusKm, tt]
   );
 
   return (
@@ -130,12 +294,60 @@ export default function PlayLobbyScreen() {
           </View>
 
           <View style={styles.heroBottom}>
+            <View style={styles.radiusPanel}>
+              <Text style={styles.radiusTitle}>
+                {tt("together.geo.radiusTitle", "Радиус поиска")}
+              </Text>
+              <View style={styles.radiusOptions}>
+                {RADIUS_OPTIONS.map((radiusKm) => {
+                  const selected = selectedRadiusKm === radiusKm;
+                  return (
+                    <Pressable
+                      key={radiusKm === null ? "anywhere" : String(radiusKm)}
+                      onPress={() => selectRadius(radiusKm)}
+                      style={[
+                        styles.radiusOption,
+                        selected ? styles.radiusOptionSelected : null,
+                      ]}
+                      accessibilityRole="button"
+                    >
+                      <Text
+                        style={[
+                          styles.radiusOptionText,
+                          selected ? styles.radiusOptionTextSelected : null,
+                        ]}
+                      >
+                        {radiusLabel(radiusKm)}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              {locationNotice ? (
+                <Text style={styles.radiusNotice}>{locationNotice}</Text>
+              ) : (
+                <Text style={styles.radiusHint}>
+                  {selectedRadiusKm === null
+                    ? tt(
+                        "together.geo.anywhereHint",
+                        "Очередь можно начать без геолокации."
+                      )
+                    : tt(
+                        "together.geo.radiusHint",
+                        "Для радиуса рядом приложение запросит текущую геолокацию перед стартом."
+                      )}
+                </Text>
+              )}
+            </View>
             <Pressable
-              onPress={() => openActivity("draw", "startDraw")}
-              style={styles.primaryCta}
+              onPress={() => void openActivity("draw", "startDraw")}
+              style={[styles.primaryCta, locationBusy ? styles.primaryCtaDisabled : null]}
+              disabled={locationBusy}
             >
               <Text style={styles.primaryCtaTitle}>
-                {tt("together.lobby.startDrawChallenge", "Начать вместе")}
+                {locationBusy
+                  ? tt("together.geo.locationLoading", "Получаем геолокацию...")
+                  : tt("together.lobby.startDrawChallenge", "Начать вместе")}
               </Text>
             </Pressable>
             <Text style={styles.primaryCtaHint}>
@@ -241,6 +453,58 @@ const styles = StyleSheet.create({
   heroBottom: {
     gap: 8,
   },
+  radiusPanel: {
+    gap: 9,
+    padding: 12,
+    borderRadius: theme.shapes.cardInner,
+    backgroundColor: "rgba(255,255,255,0.07)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+  },
+  radiusTitle: {
+    color: theme.colors.text,
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  radiusOptions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  radiusOption: {
+    minHeight: 36,
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+  },
+  radiusOptionSelected: {
+    backgroundColor: theme.colors.primary,
+    borderColor: "rgba(255,255,255,0.24)",
+  },
+  radiusOptionText: {
+    color: theme.colors.text,
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  radiusOptionTextSelected: {
+    color: "#FFFFFF",
+  },
+  radiusHint: {
+    color: "rgba(255,245,234,0.74)",
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  radiusNotice: {
+    color: "#FFE0B8",
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: "700",
+  },
   heroLoop: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -277,6 +541,9 @@ const styles = StyleSheet.create({
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 10 },
     elevation: 12,
+  },
+  primaryCtaDisabled: {
+    opacity: 0.68,
   },
   primaryCtaTitle: {
     color: "#FFFFFF",
