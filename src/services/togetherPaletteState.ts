@@ -1,5 +1,8 @@
 import type { TogetherEventDto } from "@/services/api/types";
 
+// LEGACY COLOR_MOOD COMPATIBILITY ONLY.
+// Palette events remain readable for old Together history/detail records.
+
 export type TogetherPaletteSelection = {
   id: string;
   fromUserId: string;

@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Keyboard,
   ScrollView,
   StyleSheet,
   Text,
@@ -40,6 +41,11 @@ import {
 import { theme } from "@/theme";
 
 type PasswordMode = "set" | "reset" | "";
+type PendingPickedPhoto = {
+  uri: string;
+  mimeType?: string;
+  fileSize?: number;
+};
 const FALLBACK_MAX_PROFILE_GALLERY_PHOTOS = 15;
 const FALLBACK_MAX_LOCKED_PROFILE_PHOTOS = 10;
 
@@ -56,10 +62,12 @@ export default function PhotoManagerScreen() {
   const [busy, setBusy] = React.useState(false);
   const [passwordBusy, setPasswordBusy] = React.useState(false);
   const [gallery, setGallery] = React.useState<OwnerProfileGalleryResponse | null>(null);
-  const [pendingPhotoUri, setPendingPhotoUri] = React.useState("");
+  const [pendingPhoto, setPendingPhoto] = React.useState<PendingPickedPhoto | null>(null);
   const [passwordMode, setPasswordMode] = React.useState<PasswordMode>("");
   const [currentAccountPassword, setCurrentAccountPassword] = React.useState("");
   const [newFolderPassword, setNewFolderPassword] = React.useState("");
+  const currentPasswordInputRef = React.useRef<TextInput>(null);
+  const newFolderPasswordInputRef = React.useRef<TextInput>(null);
 
   const refreshGallery = React.useCallback(async () => {
     const nextGallery = await getMyProfileGallery();
@@ -100,6 +108,7 @@ export default function PhotoManagerScreen() {
   const minVisibleImagesRequired = gallery?.minVisibleImagesRequired ?? 3;
   const galleryLimitReached = totalPhotos >= maxProfileGalleryPhotos;
   const lockedLimitReached = lockedPhotos.length >= maxLockedProfilePhotos;
+  const pendingPhotoUri = pendingPhoto?.uri ?? "";
 
   function minVisibleMessage() {
     return tt(
@@ -181,7 +190,19 @@ export default function PhotoManagerScreen() {
     try {
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
       status = permission.status;
-    } catch {
+    } catch (error) {
+      const safeError = sanitizeErrorForReport(error);
+      reportClientError({
+        screen: "PhotoManagerScreen",
+        action: "pickPhoto",
+        step: "pickerFailed",
+        code: safeError.code,
+        message: safeError.message,
+        stack: safeError.stack,
+        metadata: {
+          permissionStatus: status || "unknown",
+        },
+      });
       Alert.alert(t("photos.pickFailed"), t("photos.permissionBody"));
       return;
     }
@@ -195,16 +216,40 @@ export default function PhotoManagerScreen() {
     try {
       result = await ImagePicker.launchImageLibraryAsync({
         quality: 0.8,
-        allowsEditing: false,
+        allowsEditing: true,
+        aspect: [1, 1],
         mediaTypes: ["images"],
         selectionLimit: 1,
       });
-    } catch {
+    } catch (error) {
+      const safeError = sanitizeErrorForReport(error);
+      reportClientError({
+        screen: "PhotoManagerScreen",
+        action: "pickPhoto",
+        step: "pickerFailed",
+        code: safeError.code,
+        message: safeError.message,
+        stack: safeError.stack,
+        metadata: {
+          permissionStatus: status || "unknown",
+        },
+      });
       Alert.alert(t("photos.pickFailed"), t("photos.noAssetReturned"));
       return;
     }
 
-    if (result.canceled) return;
+    if (result.canceled) {
+      reportClientError({
+        screen: "PhotoManagerScreen",
+        action: "pickPhoto",
+        step: "cropCancelled",
+        message: "Profile photo crop or picker was cancelled before upload",
+        metadata: {
+          permissionStatus: status || "granted",
+        },
+      });
+      return;
+    }
 
     const asset = result.assets?.[0];
     const uri = asset?.uri?.trim() ?? "";
@@ -213,26 +258,34 @@ export default function PhotoManagerScreen() {
       return;
     }
 
-    setPendingPhotoUri(uri);
+    setPendingPhoto({
+      uri,
+      ...(asset.mimeType ? { mimeType: asset.mimeType } : {}),
+      ...(typeof asset.fileSize === "number" ? { fileSize: asset.fileSize } : {}),
+    });
+  }
+
+  async function confirmPendingPhotoUpload() {
+    if (!pendingPhoto || busy) return;
+
     let uploadCompleted = false;
     try {
       setBusy(true);
-      await uploadProfilePhoto(uri, {
-        ...(asset.mimeType ? { mimeType: asset.mimeType } : {}),
+      await uploadProfilePhoto(pendingPhoto.uri, {
+        ...(pendingPhoto.mimeType ? { mimeType: pendingPhoto.mimeType } : {}),
       });
       uploadCompleted = true;
       await refreshGallery();
-      setPendingPhotoUri("");
+      setPendingPhoto(null);
       Alert.alert(t("common.done"), t("photos.saved"));
     } catch (error) {
       reportPhotoUploadError(error, {
-        uri,
-        mimeType: asset.mimeType,
-        fileSize: asset.fileSize,
-        hasPendingPhotoUri: Boolean(pendingPhotoUri || uri),
-        stepOverride: uploadCompleted ? "refreshGallery" : undefined,
+        uri: pendingPhoto.uri,
+        mimeType: pendingPhoto.mimeType,
+        fileSize: pendingPhoto.fileSize,
+        hasPendingPhotoUri: true,
+        stepOverride: uploadCompleted ? "refreshGallery" : "backendUploadFailed",
       });
-      setPendingPhotoUri("");
       handleApiError(error, t("photos.uploadFailed"), t("photos.uploadErrorBody"));
     } finally {
       setBusy(false);
@@ -254,13 +307,14 @@ export default function PhotoManagerScreen() {
 
     void reportClientError({
       screen: "PhotoManagerScreen",
-      action: "uploadProfilePhoto",
+      action: "confirmUpload",
       step: input.stepOverride ?? uploadError?.step,
       code: uploadError?.code ?? safeError.code,
       message: safeError.message,
       stack: safeError.stack,
       metadata: {
         hasPendingPhotoUri: input.hasPendingPhotoUri,
+        ...(uploadError?.step ? { uploadStep: uploadError.step } : {}),
         ...(input.mimeType ? { mimeType: input.mimeType } : {}),
         ...(typeof input.fileSize === "number" ? { fileSize: input.fileSize } : {}),
         ...(getUriScheme(input.uri) ? { uriScheme: getUriScheme(input.uri) } : {}),
@@ -342,6 +396,9 @@ export default function PhotoManagerScreen() {
       setCurrentAccountPassword("");
       setNewFolderPassword("");
       setPasswordMode("");
+      currentPasswordInputRef.current?.blur();
+      newFolderPasswordInputRef.current?.blur();
+      Keyboard.dismiss();
       await refreshGallery();
       Alert.alert(t("common.done"), tt("photos.lockedGalleryPasswordSaved", "Настройки закрытой папки сохранены."));
     } catch (error) {
@@ -484,6 +541,7 @@ export default function PhotoManagerScreen() {
                 : tt("photos.resetLockedPassword", "Сбросить пароль")}
             </Text>
             <TextInput
+              ref={currentPasswordInputRef}
               value={currentAccountPassword}
               onChangeText={setCurrentAccountPassword}
               secureTextEntry
@@ -492,9 +550,18 @@ export default function PhotoManagerScreen() {
               style={styles.input}
               autoCapitalize="none"
               autoCorrect={false}
+              returnKeyType={passwordMode === "set" ? "next" : "done"}
+              onSubmitEditing={() => {
+                if (passwordMode === "set") {
+                  newFolderPasswordInputRef.current?.focus();
+                } else {
+                  void submitPasswordAction();
+                }
+              }}
             />
             {passwordMode === "set" ? (
               <TextInput
+                ref={newFolderPasswordInputRef}
                 value={newFolderPassword}
                 onChangeText={setNewFolderPassword}
                 secureTextEntry
@@ -503,6 +570,8 @@ export default function PhotoManagerScreen() {
                 style={styles.input}
                 autoCapitalize="none"
                 autoCorrect={false}
+                returnKeyType="done"
+                onSubmitEditing={() => void submitPasswordAction()}
               />
             ) : (
               <Text style={styles.helpText}>
@@ -572,7 +641,7 @@ export default function PhotoManagerScreen() {
                 source={{ uri: pendingPhotoUri }}
                 style={styles.pendingImage}
                 onError={() => {
-                  setPendingPhotoUri("");
+                  setPendingPhoto(null);
                   Alert.alert(t("photos.previewFailed"), t("photos.noAssetReturned"));
                 }}
               />
@@ -583,8 +652,38 @@ export default function PhotoManagerScreen() {
               ) : null}
             </View>
             <Text style={styles.pendingText}>
-              {busy ? t("photos.uploading") : t("photos.choosePhoto")}
+              {busy
+                ? t("photos.uploading")
+                : tt("photos.previewReady", "Проверьте кадрирование перед загрузкой.")}
             </Text>
+            <View style={styles.pendingActions}>
+              <TouchableOpacity
+                activeOpacity={0.86}
+                onPress={() => void confirmPendingPhotoUpload()}
+                disabled={busy}
+                style={[styles.smallButton, styles.primarySmallButton]}
+              >
+                <Text style={styles.primarySmallButtonText}>
+                  {busy ? t("photos.uploading") : t("photos.uploadPhoto")}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                activeOpacity={0.86}
+                onPress={() => void addPhoto()}
+                disabled={busy}
+                style={styles.smallButton}
+              >
+                <Text style={styles.smallButtonText}>{t("photos.chooseAnother")}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                activeOpacity={0.86}
+                onPress={() => setPendingPhoto(null)}
+                disabled={busy}
+                style={styles.smallButton}
+              >
+                <Text style={styles.smallButtonText}>{t("common.cancel")}</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         ) : null}
 
@@ -750,6 +849,11 @@ const styles = StyleSheet.create({
     color: theme.colors.subtext,
     fontSize: 12,
     fontWeight: "700",
+  },
+  pendingActions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
   },
   section: {
     gap: 10,

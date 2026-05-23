@@ -2,6 +2,7 @@ import React from "react";
 import {
   ActivityIndicator,
   Alert,
+  Keyboard,
   ScrollView,
   StyleSheet,
   Switch,
@@ -94,7 +95,9 @@ export default function EditProfileScreen() {
   const [allowAdultMode, setAllowAdultMode] = React.useState(false);
   const [mysteryMode, setMysteryMode] = React.useState(false);
   const scrollRef = React.useRef<ScrollView>(null);
+  const displayNameInputRef = React.useRef<TextInput>(null);
   const aboutInputRef = React.useRef<TextInput>(null);
+  const interestsInputRef = React.useRef<TextInput>(null);
   const goalYRef = React.useRef(0);
   const moodYRef = React.useRef(0);
   const focusTarget = route.params?.focus;
@@ -189,6 +192,10 @@ export default function EditProfileScreen() {
         mysteryMode,
       });
       applyProfile(savedProfile);
+      displayNameInputRef.current?.blur();
+      aboutInputRef.current?.blur();
+      interestsInputRef.current?.blur();
+      Keyboard.dismiss();
       Alert.alert(t("common.done"), t("editProfile.saveSuccessBody"));
     } catch {
       Alert.alert(t("common.error"), t("editProfile.saveErrorBody"));
@@ -230,12 +237,16 @@ export default function EditProfileScreen() {
         <View style={styles.card}>
           <Text style={styles.label}>{t("editProfile.nameLabel")}</Text>
           <TextInput
+            ref={displayNameInputRef}
             value={displayName}
             onChangeText={setDisplayName}
             placeholder={t("editProfile.namePlaceholder")}
             placeholderTextColor={theme.colors.muted}
             style={styles.input}
             maxLength={30}
+            returnKeyType="next"
+            blurOnSubmit={false}
+            onSubmitEditing={() => aboutInputRef.current?.focus()}
           />
 
           <Text style={styles.label}>{t("editProfile.aboutLabel")}</Text>
@@ -244,6 +255,9 @@ export default function EditProfileScreen() {
             value={about}
             onChangeText={setAbout}
             multiline
+            blurOnSubmit
+            returnKeyType="next"
+            onSubmitEditing={() => interestsInputRef.current?.focus()}
             placeholder={t("editProfile.aboutPlaceholder")}
             placeholderTextColor={theme.colors.muted}
             style={[styles.input, styles.multilineInput]}
@@ -251,11 +265,14 @@ export default function EditProfileScreen() {
 
           <Text style={styles.label}>{t("editProfile.interestsLabel")}</Text>
           <TextInput
+            ref={interestsInputRef}
             value={interestsText}
             onChangeText={setInterestsText}
             placeholder={t("editProfile.interestsPlaceholder")}
             placeholderTextColor={theme.colors.muted}
             style={styles.input}
+            returnKeyType="done"
+            onSubmitEditing={() => void handleSave()}
           />
 
           <View

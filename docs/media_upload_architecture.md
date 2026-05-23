@@ -1,6 +1,6 @@
 # Media Upload Architecture
 
-Updated: 2026-05-21 after `MEDIA-01`
+Updated: 2026-05-23 after `BUGFIX-GEO-KEYBOARD-CROP-CLEANUP-01`
 
 ## Release Rule
 
@@ -50,6 +50,22 @@ Backend responsibilities:
   - `media.purpose`
 
 The response must not include object keys, storage paths, signed upload URLs, tokens, `minio`, `localhost`, or `127.0.0.1`.
+
+## Mobile Crop / Preview / Confirm
+
+Mobile crop is a UX step, not a security boundary:
+
+- Avatar uses the native image editor with `allowsEditing=true` and `aspect=[1,1]`.
+- Profile gallery photos also use `aspect=[1,1]` for this release because the current gallery/profile UI renders fixed square tiles.
+- The selected crop is shown locally before upload with explicit actions:
+  - `Загрузить фото` / `Upload photo`
+  - `Выбрать другое` / `Choose another`
+  - `Отмена` / `Cancel`
+- Upload starts only after confirm.
+- Cancel clears the preview and does not upload.
+- Backend upload failure does not show local-only success; the preview stays retryable or can be replaced/cancelled.
+
+The backend still decodes, validates, re-encodes to WebP, strips metadata, and enforces media/gallery limits. The client crop must not be treated as trusted sanitization.
 
 ## Public Profile Rules
 

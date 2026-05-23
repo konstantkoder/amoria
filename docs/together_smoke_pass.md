@@ -1,6 +1,6 @@
 # Together Smoke Pass
 
-Updated: 2026-05-21 for `TOGETHER-FLOW-02` and `TOGETHER-GEO-01`
+Updated: 2026-05-23 for `BUGFIX-GEO-KEYBOARD-CROP-CLEANUP-01`
 
 ## Run Metadata
 
@@ -39,8 +39,9 @@ No mock, stub, fake data, Firebase fallback, or local-only success path should b
 Geo matching rule:
 
 - finite radius requires real foreground location;
+- no-limit is the default and can match without coordinates;
 - backend queue uses the selected radius and coordinates as source of truth;
-- no-limit mode can queue without location;
+- repeated retry cancels the current/old queue entry before joining again;
 - exact peer coordinates must not appear in UI, logs, queue/session responses, DM, history, or detail;
 - Story Sparks continuation after draw keeps the same pair and does not re-match by geo.
 
@@ -75,13 +76,14 @@ Known automated-check warning: the server test run prints the existing AWS SDK f
 | M - Radius outside range | Simulate/far-location accounts with strict radius do not match; no fake local match | NOT TESTED | Prepared for manual 2-device pass. | - |
 | N - Location denied | Select finite radius, deny location, no queue join, clear UI asks to enable location or choose no limit | NOT TESTED | Prepared for manual pass. | - |
 | O - No limit | Select no limit, start Together without location, backend accepts queue without coordinates | NOT TESTED | Prepared for manual pass. | - |
+| P - Retry no-limit fallback | Start finite-radius search, wait for delayed state, tap `Попробовать без ограничения`, backend cancels old queue entry and starts no-limit queue | NOT TESTED | Prepared for manual pass. | - |
 
 ## Staged Story Sparks Manual Checklist
 
 | Step | Account / Device | Expected Result | Actual Result | Status |
 | --- | --- | --- | --- | --- |
 | 1. Open Together lobby | A | Lobby sells one primary path: `Начать вместе`; Story Sparks is described as after-drawing continuation; no active `Палитра настроения` CTA |  | NOT TESTED |
-| 2. Choose radius | A+B | Radius selector offers 5/25/100/250 km and no limit; finite choices request location before queue |  | NOT TESTED |
+| 2. Choose radius | A+B | Radius selector defaults to no limit; 5/25/100/250 km choices request location before queue |  | NOT TESTED |
 | 3. Start Together | A+B | Both users enter backend `draw` matching/session using selected radius; there is no first-step choice between draw and story_sparks |  | NOT TESTED |
 | 4. Finish draw | A+B | Both clients reach `PlayResult` for the same draw session |  | NOT TESTED |
 | 5. Continue story | A+B | Both tap `Продолжить историю`; backend stores `continue_story` decisions |  | NOT TESTED |
@@ -105,8 +107,10 @@ Known automated-check warning: the server test run prints the existing AWS SDK f
 | 2. Select strict/far radius | A+B far/simulated | Backend keeps both waiting or expires; no fake local match |  | NOT TESTED |
 | 3. Deny location | A | App shows location-required state and does not join finite-radius queue |  | NOT TESTED |
 | 4. Select no limit | A | App starts queue without requesting/using coordinates |  | NOT TESTED |
-| 5. Inspect responses/logs | A+B | Queue/session/history/DM do not expose peer latitude/longitude |  | NOT TESTED |
-| 6. Continue story | A+B | Story Sparks continuation keeps same pair and does not perform a second geo match |  | NOT TESTED |
+| 5. Retry stale queue | A | Tap Retry repeatedly after error/expired/cancelled state; backend has one current waiting attempt for the user and no invisible stuck queue |  | NOT TESTED |
+| 6. Try no limit fallback | A | After delayed finite search, tap no-limit fallback; old entry is cancelled and new no-limit queue starts |  | NOT TESTED |
+| 7. Inspect responses/logs | A+B | Queue/session/history/DM do not expose peer latitude/longitude; `/admin/together/queue` shows only `hasCoordinates` |  | NOT TESTED |
+| 8. Continue story | A+B | Story Sparks continuation keeps same pair and does not perform a second geo match |  | NOT TESTED |
 
 ## Draw Manual Checklist
 

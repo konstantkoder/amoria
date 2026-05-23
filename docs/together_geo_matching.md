@@ -1,6 +1,6 @@
 # Together Geo Matching
 
-Updated: 2026-05-21 for `TOGETHER-GEO-01`
+Updated: 2026-05-23 for `BUGFIX-GEO-KEYBOARD-CROP-CLEANUP-01`
 
 ## Product Model
 
@@ -10,7 +10,7 @@ Together now has a backend-backed search radius before matching:
 - `25 km`
 - `100 km`
 - `250 km`
-- no limit / anywhere
+- no limit / anywhere, which is the release-safe default
 
 The selected radius is sent to `POST /together/queue`. AsyncStorage may remember the UI preference, but it is not the source of truth for matching.
 
@@ -29,7 +29,7 @@ Finite radius modes require foreground location:
 }
 ```
 
-No-limit mode may omit `location`.
+No-limit mode may omit `location`. The mobile app defaults to this mode so two smoke-test clients can match without device coordinates.
 
 Validation:
 
@@ -46,6 +46,23 @@ Validation:
 - Activity must still match, so `draw` does not match `story_sparks` or legacy `color_mood`.
 
 Story continuation after draw keeps the same pair and does not re-run geo matching.
+
+## Retry Lifecycle
+
+- The backend cancels any existing `waiting` queue row for the same user before creating a new attempt.
+- Mobile retry and "Try no limit" both cancel the current queue entry before joining again.
+- A delayed finite-radius search tells the user: `Пока никого не нашли. Попробуйте без ограничения.`
+- The no-limit retry action sends `radiusKm: null`/omits location and reports only safe metadata.
+
+## Admin/Ops Observability
+
+`GET /admin/together/queue` is available to `owner` and `ops` roles. It writes an admin audit log and returns only safe queue fields:
+
+```text
+entryId, userId, activity, status, radiusKm, hasCoordinates, createdAt, expiresAt, matchedSessionId
+```
+
+It does not return latitude/longitude.
 
 ## Privacy Rule
 

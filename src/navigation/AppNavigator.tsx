@@ -2,7 +2,7 @@ import React from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
-import { ActivityIndicator, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Keyboard, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Drawer } from "react-native-drawer-layout";
 
@@ -63,6 +63,7 @@ function IdentitySetupGate({ children }: { children: React.ReactNode }) {
   const [requiresName, setRequiresName] = React.useState(false);
   const [nameDraft, setNameDraft] = React.useState("");
   const [errorText, setErrorText] = React.useState("");
+  const nameInputRef = React.useRef<TextInput>(null);
 
   React.useEffect(() => {
     let alive = true;
@@ -113,6 +114,8 @@ function IdentitySetupGate({ children }: { children: React.ReactNode }) {
       await updateUserDisplayName(nextName);
       setNameDraft(nextName);
       setRequiresName(false);
+      nameInputRef.current?.blur();
+      Keyboard.dismiss();
     } catch {
       setErrorText(t("profile.nameUpdateFailed"));
     } finally {
@@ -168,6 +171,7 @@ function IdentitySetupGate({ children }: { children: React.ReactNode }) {
           {t("profile.completeProfileBody")}
         </Text>
         <TextInput
+          ref={nameInputRef}
           value={nameDraft}
           onChangeText={setNameDraft}
           placeholder={t("profile.enterName")}
@@ -175,6 +179,8 @@ function IdentitySetupGate({ children }: { children: React.ReactNode }) {
           autoCapitalize="words"
           editable={!saving}
           maxLength={30}
+          returnKeyType="done"
+          onSubmitEditing={() => void saveName()}
           style={{
             borderRadius: theme.radius,
             borderWidth: 1,

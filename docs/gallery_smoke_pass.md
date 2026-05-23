@@ -1,5 +1,7 @@
 # Gallery Smoke Pass
 
+Updated: 2026-05-23 for crop / preview / confirm.
+
 ## Run Metadata
 
 | Field | Value |
@@ -17,8 +19,9 @@
 
 | ID | Scenario | Result | Manual checks |
 | --- | --- | --- | --- |
-| A | Avatar upload | NOT TESTED | Login account A, open Profile, choose JPEG/PNG/WebP avatar, upload, verify new avatar appears, restart app, verify avatar persists from backend, open public profile, verify URL is backend/public HTTPS and not `file://`. |
-| B | Profile photo upload | NOT TESTED | Open PhotoManager, upload JPEG/PNG/WebP profile photo through backend-mediated `POST /media/profile-photo`, verify it appears in public gallery, restart app, verify it persists, login peer account, verify peer can see public photo, verify URL is backend `/media/public/:mediaId`. |
+| A | Avatar upload | NOT TESTED | Login account A, open Profile, choose JPEG/PNG/WebP avatar, verify native square crop opens, verify preview appears, tap Upload photo, verify new avatar appears, restart app, verify avatar persists from backend, open public profile, verify URL is backend/public HTTPS and not `file://`. |
+| B | Profile photo upload | NOT TESTED | Open PhotoManager, choose JPEG/PNG/WebP profile photo, verify native square crop opens, verify preview appears, tap Upload photo, verify backend-mediated `POST /media/profile-photo` result appears in public gallery, restart app, verify it persists, login peer account, verify peer can see public photo, verify URL is backend `/media/public/:mediaId`. |
+| B2 | Profile photo cancel/change | NOT TESTED | Select a photo, reach preview, tap Cancel and verify no upload/gallery change. Repeat and tap Choose another; verify only the confirmed photo uploads. |
 | C | Unsupported format | NOT TESTED | Try HEIC/HEIF or unsupported image if device provides it, verify app rejects before upload, no backend media is created, clear error is shown. |
 | D | Move public to locked | NOT TESTED | Account A has enough visible public images, set locked gallery password if needed, move one photo to locked, verify public profile no longer exposes that photo URL, owner sees it in locked section, peer sees only locked count/state. |
 | E | Min visible rule | NOT TESTED | Try moving too many photos to locked, verify backend rejects minimum-visible violation, UI shows clear error, and no fake local move remains after failed mutation. |
@@ -36,9 +39,9 @@
 | Locked photo URL before unlock | PASS | Public user mapping uses backend public profile photos only; locked gallery summary contains count/state only. |
 | Unlock local-only success | PASS | Peer unlock calls `unlockUserLockedGallery`; locked photos render only from backend response. |
 | Password local storage/logging | PASS | Locked gallery passwords are kept in component state only; no AsyncStorage/SecureStore persistence or console logging was found in gallery/profile flows. |
-| Upload success without backend refresh | PASS | Profile photo upload calls backend-mediated `/media/profile-photo` and refreshes owner gallery before success UI. |
+| Upload success without backend refresh | PASS | Profile photo upload calls backend-mediated `/media/profile-photo` only after explicit preview confirmation and refreshes owner gallery before success UI. |
 | Delete/move success without backend state | PASS | Delete refreshes owner gallery after backend delete; move uses backend response as next gallery state. |
-| Stale local photo state after failed mutation | FIXED | Avatar/profile upload previews are cleared after failed backend mutation so local preview cannot linger as apparent success. |
+| Stale local photo state after failed mutation | FIXED | Avatar/profile previews are explicit pending states. Failed backend upload does not show success; the preview can be retried, replaced, or cancelled. |
 
 ## Found Bugs
 

@@ -1,6 +1,6 @@
 # Amoria Release Control Center
 
-Updated: 2026-05-21
+Updated: 2026-05-23
 
 ## Branches
 
@@ -22,9 +22,12 @@ This launcher is local dev tooling only and is not product logic.
 
 ## Current known live bug
 
-- MEDIA-01 direct profile photo `PUT` blocker is fixed in code by moving mobile profile photo upload to backend-mediated `POST /media/profile-photo`.
-- A real-device gallery smoke pass is still required to verify physical phone upload and peer public profile visibility.
-- Admin Client Errors should no longer receive profile photo reports with `step=putUpload` and `uploadUrlHost=minio:9000`.
+- BUGFIX-GEO-KEYBOARD-CROP-CLEANUP-01 is fixed in code and awaiting real-device smoke:
+  - Together default is no-limit and retry cancels old queue entries before requeue.
+  - Finite radius requests real foreground location before queue.
+  - Successful form/message/password saves dismiss keyboards.
+  - Avatar/profile photo upload now has crop, preview, and explicit confirm.
+  - `color_mood` is legacy-readable only, not an active new-session path.
 
 ## Completed blocks
 
@@ -44,12 +47,16 @@ This launcher is local dev tooling only and is not product logic.
   - DM keyboard dismisses only after successful message send.
 - `TOGETHER-GEO-01` radius-backed Together matching:
   - Together lobby offers `5 km`, `25 km`, `100 km`, `250 km`, and no-limit search radius.
+  - No-limit is the release-safe default and can match without coordinates.
   - Finite radius mode requests foreground location before joining queue.
   - Backend validates coordinates/radius and matches by stricter mutual radius.
+  - Repeated retry cancels stale waiting queue rows before creating a new attempt.
+  - Admin/Ops can inspect safe queue status through `/admin/together/queue` without exact coordinates.
   - Exact peer coordinates are not returned to mobile.
   - Story Sparks continuation after draw keeps the same pair and does not re-match by geo.
 - `MEDIA-01` backend-mediated profile photo upload:
   - Avatar and profile photo uploads are backend-mediated multipart flows.
+  - Mobile now crops/previews first and uploads only after explicit user confirmation.
   - Mobile profile photo upload no longer depends on direct internal MinIO/S3 `PUT` URLs.
   - Returned profile media URL is the backend public media route `/media/public/:mediaId`.
   - Prepared direct upload endpoints remain available but are not used by mobile profile photo upload.

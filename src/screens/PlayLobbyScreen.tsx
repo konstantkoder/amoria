@@ -17,14 +17,16 @@ import {
 import type { TogetherQueueLocationInput } from "@/services/api/types";
 import { theme } from "@/theme";
 
-function isReleasePlayActivity(value: string): value is ReleasePlayActivity {
-  return value === "draw" || value === "story_sparks" || value === "color_mood";
+function isReleasePlayActivity(
+  value: string
+): value is Exclude<ReleasePlayActivity, "color_mood"> {
+  return value === "draw" || value === "story_sparks";
 }
 
 type TogetherRadiusKm = 5 | 25 | 100 | 250 | null;
 
-const RADIUS_STORAGE_KEY = "amoria:together:radiusKm";
-const RADIUS_OPTIONS: TogetherRadiusKm[] = [5, 25, 100, 250, null];
+const RADIUS_STORAGE_KEY = "amoria:together:radiusKm:v2";
+const RADIUS_OPTIONS: TogetherRadiusKm[] = [null, 5, 25, 100, 250];
 
 function parseStoredRadius(value: string | null): TogetherRadiusKm | undefined {
   if (value === "anywhere") return null;
@@ -45,7 +47,7 @@ export default function PlayLobbyScreen() {
     },
     [t]
   );
-  const [selectedRadiusKm, setSelectedRadiusKm] = React.useState<TogetherRadiusKm>(25);
+  const [selectedRadiusKm, setSelectedRadiusKm] = React.useState<TogetherRadiusKm>(null);
   const [locationBusy, setLocationBusy] = React.useState(false);
   const [locationNotice, setLocationNotice] = React.useState("");
 
@@ -117,12 +119,12 @@ export default function PlayLobbyScreen() {
         setLocationNotice(message);
         reportClientError({
           screen: "PlayLobbyScreen",
-          action: "startDraw",
+          action: "startTogetherQueue",
           step: "locationPermissionDenied",
           message: "Together radius mode location permission denied",
           metadata: {
             radiusKm: selectedRadiusKm,
-            locationPermissionStatus: permissionStatus,
+            permissionStatus,
             hasCoordinates: false,
           },
         });
@@ -133,14 +135,14 @@ export default function PlayLobbyScreen() {
       const safeError = sanitizeErrorForReport(error);
       reportClientError({
         screen: "PlayLobbyScreen",
-        action: "startDraw",
-        step: "locationPermissionFailed",
+        action: "startTogetherQueue",
+        step: "locationReadFailed",
         code: safeError.code,
         message: safeError.message,
         stack: safeError.stack,
         metadata: {
           radiusKm: selectedRadiusKm,
-          locationPermissionStatus: permissionStatus || "unknown",
+          permissionStatus: permissionStatus || "unknown",
           hasCoordinates: false,
         },
       });
@@ -171,14 +173,14 @@ export default function PlayLobbyScreen() {
       const safeError = sanitizeErrorForReport(error);
       reportClientError({
         screen: "PlayLobbyScreen",
-        action: "startDraw",
+        action: "startTogetherQueue",
         step: "locationReadFailed",
         code: safeError.code,
         message: safeError.message,
         stack: safeError.stack,
         metadata: {
           radiusKm: selectedRadiusKm,
-          locationPermissionStatus: "granted",
+          permissionStatus: "granted",
           hasCoordinates: false,
         },
       });

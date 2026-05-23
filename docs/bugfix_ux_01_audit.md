@@ -4,8 +4,8 @@ Date: 2026-05-20
 
 ## What Was Fixed
 
-- Together lobby now presents "Mood palette" / `color_mood` as an explicit second scenario with a visible CTA.
-- The `color_mood` CTA navigates to `PlayMatch` with `activity: "color_mood"` and does not rely on a "Backend" badge as the action signal.
+- Superseded: Together lobby no longer presents "Mood palette" / `color_mood` as an active release CTA.
+- `color_mood` remains backend-readable for legacy history/detail only; active new-session UI now starts `draw` and can continue to `story_sparks` after mutual choice.
 - DM chat no longer silently does nothing when `peerId` is missing. It attempts to recover the peer through the real inbox thread list by `threadId`.
 - If DM peer recovery fails, the user sees a clear error and Admin Client Errors receives a safe report.
 - Profile now has clear tappable entrypoints for "About me" and "Mood" that open `EditProfile`.
@@ -31,11 +31,10 @@ Date: 2026-05-20
 
 ## Manual Verification
 
-1. Together -> Mood palette
+1. Together -> legacy color_mood absence
    - Open the Together tab in Russian.
-   - Confirm "Палитра настроения" is visible as the second scenario.
-   - Tap "Открыть палитру настроения".
-   - Confirm the app opens `PlayMatch` with `activity=color_mood`.
+   - Confirm "Палитра настроения" is not visible as an active start CTA.
+   - Confirm old `color_mood` history/detail still renders if an existing session is available.
 
 2. DMChat -> peer profile
    - Open a DM from Together result/history/inbox and tap the header/avatar/name or peer card.
@@ -52,11 +51,11 @@ Date: 2026-05-20
 4. Admin Client Errors for failed UI actions
    - Trigger invalid Together activity or failed navigation in a controlled dev build.
    - Trigger DM profile open with missing peer data that cannot be hydrated.
-   - Confirm Admin Client Errors shows reports with `screen`, `action`, and `step` such as `invalidActivity`, `failedColorMoodNavigation`, `missingPeerId`, `hydratePeerFailed`, or `failedOpenUserProfile`.
+   - Confirm Admin Client Errors shows reports with `screen`, `action`, and `step` such as `invalidActivity`, `missingPeerId`, `hydratePeerFailed`, or `failedOpenUserProfile`.
 
 ## Remaining Blockers
 
-- MEDIA-01 profile photo upload.
+- MEDIA-01 profile photo upload is fixed in code and now includes crop/preview/confirm; real-device gallery smoke remains required.
 - BUGFIX-TOGETHER-PROMPTS-I18N-EXAMPLES.
 - Full RU locale cleanup.
 - Together/Gallery real smoke pass.

@@ -1,6 +1,6 @@
 # Together Story Sparks
 
-Updated: 2026-05-21
+Updated: 2026-05-23
 
 ## Release Contract
 
@@ -10,7 +10,7 @@ Story Sparks is the active optional second stage for this release.
 - Story Sparks is not a separate equal lobby choice anymore.
 - After a completed `draw`, users can mutually choose `continue_story` to open a real `story_sparks` continuation session for the same pair.
 - Legacy activity: `color_mood`.
-- Legacy `color_mood` sessions and history stay readable, but the release UI must not create new `color_mood` sessions.
+- Legacy `color_mood` sessions and history stay readable, but the release UI must not create new `color_mood` sessions. `PlayColorMoodScreen` remains routeable only for old active session recovery.
 - No mock/stub/fake data, Firebase fallback, local-only success, AI generation, free text input, adult-first content, or reward/gambling mechanics.
 
 ## Activity

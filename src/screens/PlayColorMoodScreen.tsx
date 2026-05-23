@@ -35,6 +35,9 @@ import {
 } from "@/services/togetherPaletteState";
 import { theme } from "@/theme";
 
+// LEGACY COLOR_MOOD COMPATIBILITY ONLY.
+// Kept so old active sessions/history can recover; release lobby no longer starts this activity.
+
 type MoodOption = {
   label: string;
   color: string;

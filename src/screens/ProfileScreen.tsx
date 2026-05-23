@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Keyboard,
   ScrollView,
   StyleSheet,
   Text,
@@ -38,6 +39,11 @@ import {
 import { theme } from "@/theme";
 
 type ProfileNav = NativeStackNavigationProp<ProfileStackParamList, "ProfileMain">;
+type PendingAvatar = {
+  uri: string;
+  mimeType?: string;
+  fileSize?: number;
+};
 
 const GOAL_LABEL_KEYS: Record<Goal, string> = {
   relationship: "profile.goal.relationship",
@@ -86,10 +92,11 @@ export default function ProfileScreen() {
   const [profile, setProfile] = React.useState<UserProfile | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [avatarUploading, setAvatarUploading] = React.useState(false);
-  const [avatarPreviewUri, setAvatarPreviewUri] = React.useState("");
+  const [pendingAvatar, setPendingAvatar] = React.useState<PendingAvatar | null>(null);
   const [nameDraft, setNameDraft] = React.useState("");
   const [nameSaving, setNameSaving] = React.useState(false);
   const [nameError, setNameError] = React.useState("");
+  const nameInputRef = React.useRef<TextInput>(null);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -122,6 +129,7 @@ export default function ProfileScreen() {
 
   const photos = profile?.photos ?? [];
   const avatarUrl = profile?.avatarUrl ?? "";
+  const avatarPreviewUri = pendingAvatar?.uri ?? "";
   const goalLabel = profile?.goal
     ? translatedOptionLabel(t, GOAL_LABEL_KEYS[profile.goal], GOAL_LABEL_FALLBACKS[profile.goal])
     : t("profile.goal.unknown");
@@ -147,6 +155,8 @@ export default function ProfileScreen() {
       const nextProfile = await updateUserDisplayName(nextName);
       setProfile(nextProfile);
       setNameDraft(nextProfile.displayName ?? "");
+      nameInputRef.current?.blur();
+      Keyboard.dismiss();
       Alert.alert(t("common.done"), t("profile.nameUpdated"));
     } catch {
       setNameError(t("profile.nameUpdateFailed"));
@@ -160,7 +170,17 @@ export default function ProfileScreen() {
     try {
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
       status = permission.status;
-    } catch {
+    } catch (error) {
+      const safeError = sanitizeErrorForReport(error);
+      reportClientError({
+        screen: "ProfileScreen",
+        action: "pickPhoto",
+        step: "pickerFailed",
+        message: safeError.message,
+        code: safeError.code,
+        stack: safeError.stack,
+        metadata: { permissionStatus: status || "unknown" },
+      });
       Alert.alert(t("photos.pickFailed"), t("photos.permissionBody"));
       return;
     }
@@ -179,12 +199,31 @@ export default function ProfileScreen() {
         mediaTypes: ["images"],
         selectionLimit: 1,
       });
-    } catch {
+    } catch (error) {
+      const safeError = sanitizeErrorForReport(error);
+      reportClientError({
+        screen: "ProfileScreen",
+        action: "pickPhoto",
+        step: "pickerFailed",
+        code: safeError.code,
+        message: safeError.message,
+        stack: safeError.stack,
+        metadata: { permissionStatus: status || "unknown" },
+      });
       Alert.alert(t("photos.pickFailed"), t("photos.noAssetReturned"));
       return;
     }
 
-    if (result.canceled) return;
+    if (result.canceled) {
+      reportClientError({
+        screen: "ProfileScreen",
+        action: "pickPhoto",
+        step: "cropCancelled",
+        message: "Avatar crop or picker was cancelled before upload",
+        metadata: { permissionStatus: status || "granted" },
+      });
+      return;
+    }
 
     const asset = result.assets?.[0];
     const uri = asset?.uri?.trim() ?? "";
@@ -193,7 +232,16 @@ export default function ProfileScreen() {
       return;
     }
 
-    setAvatarPreviewUri(uri);
+    setPendingAvatar({
+      uri,
+      ...(asset.mimeType ? { mimeType: asset.mimeType } : {}),
+      ...(typeof asset.fileSize === "number" ? { fileSize: asset.fileSize } : {}),
+    });
+  }, [t]);
+
+  const confirmAvatarUpload = React.useCallback(async () => {
+    if (!pendingAvatar || avatarUploading) return;
+
     setAvatarUploading(true);
     try {
       let currentProfile = profile;
@@ -208,12 +256,12 @@ export default function ProfileScreen() {
 
       let avatarDownloadUrl = "";
       try {
-        avatarDownloadUrl = await uploadUserAvatar(currentProfile.id, uri);
+        avatarDownloadUrl = await uploadUserAvatar(currentProfile.id, pendingAvatar.uri);
       } catch (error) {
         reportAvatarUploadError(error, {
-          uri,
-          mimeType: asset.mimeType,
-          fileSize: asset.fileSize,
+          uri: pendingAvatar.uri,
+          mimeType: pendingAvatar.mimeType,
+          fileSize: pendingAvatar.fileSize,
         });
         if (error instanceof Error && error.message === "photos.unsupportedImageType") {
           Alert.alert(t("photos.unsupportedImageTypeTitle"), t("photos.unsupportedImageTypeBody"));
@@ -225,15 +273,14 @@ export default function ProfileScreen() {
 
       const nextProfile = await updateUserAvatarUrl(avatarDownloadUrl);
       setProfile(nextProfile);
-      setAvatarPreviewUri("");
+      setPendingAvatar(null);
       Alert.alert(t("common.done"), t("photos.photoUpdated"));
     } catch {
       Alert.alert(t("photos.saveFailed"), t("photos.uploadErrorBody"));
     } finally {
-      setAvatarPreviewUri("");
       setAvatarUploading(false);
     }
-  }, [profile, t]);
+  }, [avatarUploading, pendingAvatar, profile, t]);
 
   function reportAvatarUploadError(
     error: unknown,
@@ -248,13 +295,14 @@ export default function ProfileScreen() {
 
     void reportClientError({
       screen: "ProfileScreen",
-      action: "uploadAvatar",
-      step: uploadError?.step,
+      action: "confirmUpload",
+      step: "backendUploadFailed",
       code: uploadError?.code ?? safeError.code,
       message: safeError.message,
       stack: safeError.stack,
       metadata: {
         hasPendingPhotoUri: Boolean(input.uri),
+        ...(uploadError?.step ? { uploadStep: uploadError.step } : {}),
         ...(input.mimeType ? { mimeType: input.mimeType } : {}),
         ...(typeof input.fileSize === "number" ? { fileSize: input.fileSize } : {}),
         ...(getUriScheme(input.uri) ? { uriScheme: getUriScheme(input.uri) } : {}),
@@ -320,7 +368,7 @@ export default function ProfileScreen() {
                   source={{ uri: avatarPreviewUri }}
                   style={styles.avatarPreviewImage}
                   onError={() => {
-                    setAvatarPreviewUri("");
+                    setPendingAvatar(null);
                     Alert.alert(t("photos.previewFailed"), t("photos.noAssetReturned"));
                   }}
                 />
@@ -338,20 +386,56 @@ export default function ProfileScreen() {
                 {avatarUrl ? t("photos.avatarCurrent") : t("photos.avatarPlaceholder")}
               </Text>
               <Text style={styles.avatarBody}>{t("photos.avatarSharedBody")}</Text>
-              <TouchableOpacity
-                style={[styles.avatarButton, avatarUploading ? styles.avatarButtonDisabled : null]}
-                activeOpacity={0.86}
-                onPress={() => void pickAvatar()}
-                disabled={avatarUploading}
-              >
-                <Text style={styles.avatarButtonText}>
-                  {avatarUploading
-                    ? t("photos.uploading")
-                    : avatarUrl
-                      ? t("photos.replacePhoto")
-                      : t("photos.choosePhoto")}
-                </Text>
-              </TouchableOpacity>
+              {pendingAvatar ? (
+                <View style={styles.avatarConfirmActions}>
+                  <TouchableOpacity
+                    style={[
+                      styles.avatarButton,
+                      avatarUploading ? styles.avatarButtonDisabled : null,
+                    ]}
+                    activeOpacity={0.86}
+                    onPress={() => void confirmAvatarUpload()}
+                    disabled={avatarUploading}
+                  >
+                    <Text style={styles.avatarButtonText}>
+                      {avatarUploading ? t("photos.uploading") : t("photos.uploadPhoto")}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.avatarSecondaryButton}
+                    activeOpacity={0.86}
+                    onPress={() => void pickAvatar()}
+                    disabled={avatarUploading}
+                  >
+                    <Text style={styles.avatarSecondaryButtonText}>
+                      {t("photos.chooseAnother")}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.avatarSecondaryButton}
+                    activeOpacity={0.86}
+                    onPress={() => setPendingAvatar(null)}
+                    disabled={avatarUploading}
+                  >
+                    <Text style={styles.avatarSecondaryButtonText}>{t("common.cancel")}</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  style={[styles.avatarButton, avatarUploading ? styles.avatarButtonDisabled : null]}
+                  activeOpacity={0.86}
+                  onPress={() => void pickAvatar()}
+                  disabled={avatarUploading}
+                >
+                  <Text style={styles.avatarButtonText}>
+                    {avatarUploading
+                      ? t("photos.uploading")
+                      : avatarUrl
+                        ? t("photos.replacePhoto")
+                        : t("photos.choosePhoto")}
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
           </View>
           <Text style={styles.displayName}>{displayName}</Text>
@@ -450,6 +534,7 @@ export default function ProfileScreen() {
             <Text style={styles.identityBody}>{t("profile.completeProfileBody")}</Text>
           ) : null}
           <TextInput
+            ref={nameInputRef}
             value={nameDraft}
             onChangeText={setNameDraft}
             placeholder={t("profile.enterName")}
@@ -458,6 +543,8 @@ export default function ProfileScreen() {
             editable={!nameSaving}
             style={styles.nameInput}
             maxLength={30}
+            returnKeyType="done"
+            onSubmitEditing={() => void saveDisplayName()}
           />
           {nameError ? <Text style={styles.nameError}>{nameError}</Text> : null}
           <TouchableOpacity
@@ -599,6 +686,25 @@ const styles = StyleSheet.create({
   },
   avatarButtonText: {
     color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  avatarConfirmActions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  avatarSecondaryButton: {
+    alignSelf: "flex-start",
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 13,
+    paddingVertical: 9,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+  },
+  avatarSecondaryButtonText: {
+    color: theme.colors.text,
     fontSize: 12,
     fontWeight: "800",
   },
