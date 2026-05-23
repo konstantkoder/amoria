@@ -20,6 +20,7 @@ import {
   ReportItem,
   Tokens,
   TogetherQueueEntry,
+  TogetherSessionItem,
   UserSearchItem,
   apiBlob,
   apiGet,
@@ -28,6 +29,7 @@ import {
   loadTokens,
   login,
   logout,
+  resolveApiUrl,
   saveTokens,
   toQuery,
 } from "./api";
@@ -49,6 +51,7 @@ type Screen =
   | "reports"
   | "media"
   | "togetherQueue"
+  | "togetherSessions"
   | "opsHealth"
   | "bootstrap";
 
@@ -67,6 +70,7 @@ const screens: ScreenItem[] = [
   { key: "reports", labelKey: "nav.reports" },
   { key: "media", labelKey: "nav.media" },
   { key: "togetherQueue", labelKey: "nav.togetherQueue", roles: ["owner", "ops"] },
+  { key: "togetherSessions", labelKey: "nav.togetherSessions", roles: ["owner", "ops"] },
   { key: "auditLog", labelKey: "nav.auditLog" },
   { key: "opsHealth", labelKey: "nav.opsHealth" },
   { key: "bootstrap", labelKey: "nav.bootstrap" },
@@ -88,6 +92,7 @@ export function App() {
   const [screen, setScreen] = useState<Screen>("dashboard");
   const [authState, setAuthState] = useState<"checking" | "login" | "ready" | "forbidden">("checking");
   const [message, setMessage] = useState<string | null>(null);
+  const [togetherSessionFilter, setTogetherSessionFilter] = useState("");
 
   const i18n = useMemo<I18nContextValue>(() => {
     const setLanguage = (nextLanguage: Language) => {
@@ -209,7 +214,17 @@ export function App() {
           {activeScreen === "auditLog" ? <AuditLogScreen /> : null}
           {activeScreen === "reports" ? <ReportsScreen setMessage={setMessage} /> : null}
           {activeScreen === "media" ? <MediaScreen setMessage={setMessage} /> : null}
-          {activeScreen === "togetherQueue" ? <TogetherQueueScreen /> : null}
+          {activeScreen === "togetherQueue" ? (
+            <TogetherQueueScreen
+              onOpenSession={(sessionId) => {
+                setTogetherSessionFilter(sessionId);
+                setScreen("togetherSessions");
+              }}
+            />
+          ) : null}
+          {activeScreen === "togetherSessions" ? (
+            <TogetherSessionsScreen initialSessionId={togetherSessionFilter} />
+          ) : null}
           {activeScreen === "opsHealth" ? <OpsHealthScreen /> : null}
           {activeScreen === "bootstrap" ? <BootstrapScreen /> : null}
         </main>
@@ -772,7 +787,7 @@ function ReportsScreen({ setMessage }: { setMessage: (message: string | null) =>
   );
 }
 
-function TogetherQueueScreen() {
+function TogetherQueueScreen({ onOpenSession }: { onOpenSession: (sessionId: string) => void }) {
   const { language, t } = useI18n();
   const { data, error, reload } = useLoad<{ items: TogetherQueueEntry[]; nextCursor: null }>(
     "/admin/together/queue",
@@ -899,7 +914,20 @@ function TogetherQueueScreen() {
                 <td>{item.radiusKm === null ? t("queue.noLimit") : item.radiusKm}</td>
                 <td>{item.hasCoordinates ? t("common.yes") : t("common.no")}</td>
                 <td>{stale ? <span className="badge badge-warning">{t("common.yes")}</span> : t("common.no")}</td>
-                <td>{item.matchedSessionId ?? ""}</td>
+                <td>
+                  {item.matchedSessionId ? (
+                    <button
+                      className="link-button"
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onOpenSession(item.matchedSessionId ?? "");
+                      }}
+                    >
+                      {item.matchedSessionId}
+                    </button>
+                  ) : ""}
+                </td>
                 <td>
                   <button
                     className="secondary"
@@ -915,6 +943,132 @@ function TogetherQueueScreen() {
           </tbody>
         </table>
       ) : <EmptyState label={t("queue.empty")} />}
+    </section>
+  );
+}
+
+function TogetherSessionsScreen({ initialSessionId }: { initialSessionId: string }) {
+  const { language, t } = useI18n();
+  const [filters, setFilters] = useState({
+    status: "",
+    activity: "",
+    sessionId: initialSessionId,
+  });
+  const [items, setItems] = useState<TogetherSessionItem[]>([]);
+  const [selected, setSelected] = useState<TogetherSessionItem | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setFilters((current) => ({
+      ...current,
+      sessionId: initialSessionId,
+    }));
+  }, [initialSessionId]);
+
+  async function load(nextFilters = filters) {
+    setError(null);
+    try {
+      const response = await apiGet<{ items: TogetherSessionItem[]; nextCursor: null }>(
+        `/admin/together/sessions${toQuery(nextFilters)}`,
+      );
+      setItems(response.items);
+      setSelected(response.items[0] ?? null);
+    } catch (error) {
+      setError(errorMessage(error, t));
+    }
+  }
+
+  useEffect(() => {
+    void load({
+      status: "",
+      activity: "",
+      sessionId: initialSessionId,
+    });
+  }, [initialSessionId]);
+
+  return (
+    <section className="grid-two">
+      <div className="panel">
+        <div className="panel-header">
+          <h2>{t("sessions.title")}</h2>
+          <button className="secondary" onClick={() => void load()}>{t("common.refresh")}</button>
+        </div>
+        <form className="filters" onSubmit={(event) => { event.preventDefault(); void load(); }}>
+          <label>{t("common.status")}<select value={filters.status} onChange={(event) => setFilters({ ...filters, status: event.target.value })}>
+            <option value="">{t("status.any")}</option>
+            <option value="active">{t("status.active")}</option>
+            <option value="finished">{t("sessions.statusFinished")}</option>
+            <option value="abandoned">{t("sessions.statusAbandoned")}</option>
+            <option value="cancelled">{t("queue.statusCancelled")}</option>
+          </select></label>
+          <label>{t("queue.activity")}<input value={filters.activity} onChange={(event) => setFilters({ ...filters, activity: event.target.value })} /></label>
+          <label>{t("sessions.sessionId")}<input value={filters.sessionId} onChange={(event) => setFilters({ ...filters, sessionId: event.target.value })} /></label>
+          <button>{t("common.load")}</button>
+        </form>
+        {error ? <div className="error">{error}</div> : null}
+        {items.length ? (
+          <table>
+            <thead>
+              <tr>
+                <th>{t("common.created")}</th>
+                <th>{t("sessions.sessionId")}</th>
+                <th>{t("queue.activity")}</th>
+                <th>{t("common.status")}</th>
+                <th>{t("sessions.participants")}</th>
+                <th>{t("sessions.heartbeat")}</th>
+                <th>{t("sessions.events")}</th>
+                <th>{t("sessions.reveals")}</th>
+                <th>{t("sessions.endedReason")}</th>
+                <th>{t("sessions.sourceSessionId")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item) => (
+                <tr
+                  key={item.sessionId}
+                  onClick={() => setSelected(item)}
+                  className={item.hasStaleParticipant ? "warning-row" : selected?.sessionId === item.sessionId ? "selected" : ""}
+                >
+                  <td>{formatDate(item.createdAt, language)}</td>
+                  <td>{item.sessionId}</td>
+                  <td>{item.activity}</td>
+                  <td>{formatTogetherSessionStatus(item.status, t)}</td>
+                  <td>{item.participantUserIds.join(", ")}</td>
+                  <td>
+                    {item.hasStaleParticipant ? (
+                      <span className="badge badge-warning">{t("sessions.staleHeartbeat")}</span>
+                    ) : t("sessions.heartbeatOk")}
+                  </td>
+                  <td>
+                    {t("sessions.eventCounts")
+                      .replace("{total}", String(item.eventCount))
+                      .replace("{strokes}", String(item.strokeEventCount))
+                      .replace("{stories}", String(item.storyChoiceCount))}
+                  </td>
+                  <td>{formatRevealSummary(item, t)}</td>
+                  <td>{item.endedReason ?? ""}</td>
+                  <td>{item.sourceSessionId ?? ""}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : <EmptyState label={t("sessions.empty")} />}
+      </div>
+      <div className="panel">
+        <h2>{t("sessions.detailTitle")}</h2>
+        {selected ? (
+          <>
+            <dl className="facts compact">
+              <Fact label={t("sessions.sessionId")} value={selected.sessionId} />
+              <Fact label={t("common.status")} value={formatTogetherSessionStatus(selected.status, t)} />
+              <Fact label={t("sessions.deadlineAt")} value={selected.deadlineAt ? formatDate(selected.deadlineAt, language) : ""} />
+              <Fact label={t("sessions.endedAt")} value={selected.endedAt ? formatDate(selected.endedAt, language) : ""} />
+              <Fact label={t("sessions.heartbeat")} value={selected.hasStaleParticipant ? t("sessions.staleHeartbeat") : t("sessions.heartbeatOk")} />
+            </dl>
+            <JsonBlock data={selected} />
+          </>
+        ) : <EmptyState label={t("empty.selectRow")} />}
+      </div>
     </section>
   );
 }
@@ -1047,33 +1201,37 @@ function MediaScreen({ setMessage }: { setMessage: (message: string | null) => v
               </tr>
             </thead>
             <tbody>
-              {items.map((item) => (
-                <tr key={item.id} onClick={() => void openDetail(item)} className={selected?.id === item.id ? "selected" : ""}>
-                  <td>
-                    {item.previewUrl ? (
-                      <img className="media-thumb" src={item.previewUrl} alt="" />
-                    ) : (
-                      <span className="muted">{item.visibility === "locked" ? t("media.lockedPreview") : ""}</span>
-                    )}
-                  </td>
-                  <td>{formatDate(item.createdAt, language)}</td>
-                  <td>{item.id}</td>
-                  <td>{item.owner.amoriaId}</td>
-                  <td>{item.ownerUserId}</td>
-                  <td>{item.type}</td>
-                  <td>{item.visibility ?? ""}</td>
-                  <td>{item.mimeType}</td>
-                  <td>{item.sizeBytes}</td>
-                  <td>{formatStatus(item.moderationStatus, t)}</td>
-                  <td>
-                    {item.publicUrl ? (
-                      <a href={item.publicUrl} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>
-                        {t("media.openImage")}
-                      </a>
-                    ) : ""}
-                  </td>
-                </tr>
-              ))}
+              {items.map((item) => {
+                const previewUrl = resolveApiUrl(item.previewUrl);
+                const publicUrl = resolveApiUrl(item.publicUrl);
+                return (
+                  <tr key={item.id} onClick={() => void openDetail(item)} className={selected?.id === item.id ? "selected" : ""}>
+                    <td>
+                      {previewUrl ? (
+                        <img className="media-thumb" src={previewUrl} alt="" />
+                      ) : (
+                        <span className="muted">{item.visibility === "locked" ? t("media.lockedPreview") : ""}</span>
+                      )}
+                    </td>
+                    <td>{formatDate(item.createdAt, language)}</td>
+                    <td>{item.id}</td>
+                    <td>{item.owner.amoriaId}</td>
+                    <td>{item.ownerUserId}</td>
+                    <td>{item.type}</td>
+                    <td>{item.visibility ?? ""}</td>
+                    <td>{item.mimeType}</td>
+                    <td>{item.sizeBytes}</td>
+                    <td>{formatStatus(item.moderationStatus, t)}</td>
+                    <td>
+                      {publicUrl ? (
+                        <a href={publicUrl} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>
+                          {t("media.openImage")}
+                        </a>
+                      ) : ""}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         ) : <EmptyState label={t("media.empty")} />}
@@ -1098,7 +1256,7 @@ function MediaScreen({ setMessage }: { setMessage: (message: string | null) => v
               <Fact label={t("common.status")} value={formatStatus(selected.moderationStatus, t)} />
               <Fact label={t("media.mime")} value={selected.mimeType} />
               <Fact label={t("media.size")} value={String(selected.sizeBytes)} />
-              <Fact label={t("media.publicUrl")} value={selected.publicUrl ?? ""} />
+              <Fact label={t("media.publicUrl")} value={resolveApiUrl(selected.publicUrl) ?? ""} />
             </dl>
             <form className="stack-form" onSubmit={submitDecision}>
               <label>{t("common.decision")}<select value={decisionAction} onChange={(event) => setDecisionAction(event.target.value)}>
@@ -1353,4 +1511,30 @@ function formatQueueStatus(status: string, t: (key: TranslationKey) => string): 
     default:
       return status;
   }
+}
+
+function formatTogetherSessionStatus(status: string, t: (key: TranslationKey) => string): string {
+  switch (status) {
+    case "active":
+      return t("status.active");
+    case "finished":
+      return t("sessions.statusFinished");
+    case "abandoned":
+      return t("sessions.statusAbandoned");
+    case "cancelled":
+      return t("queue.statusCancelled");
+    default:
+      return status;
+  }
+}
+
+function formatRevealSummary(
+  item: TogetherSessionItem,
+  t: (key: TranslationKey) => string,
+): string {
+  return t("sessions.revealCounts")
+    .replace("{open}", String(item.revealDecisions.open))
+    .replace("{skip}", String(item.revealDecisions.skip))
+    .replace("{continueStory}", String(item.revealDecisions.continueStory))
+    .replace("{pending}", String(item.revealDecisions.pending));
 }

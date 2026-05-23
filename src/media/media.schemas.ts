@@ -5,7 +5,7 @@ export const avatarUploadResponseSchema = {
   required: ["avatarUrl", "user"],
   additionalProperties: false,
   properties: {
-    avatarUrl: { type: "string", format: "uri" },
+    avatarUrl: { type: "string" },
     user: selfUserProfileSchema,
   },
 } as const;

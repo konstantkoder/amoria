@@ -28,7 +28,7 @@ const { closeDb } = require("../src/db/client") as typeof import("../src/db/clie
 const ownerId = "00000000-0000-4000-8000-000000000001";
 const uploadId = "00000000-0000-4000-8000-000000000101";
 const mediaId = "00000000-0000-4000-8000-000000000201";
-const publicMediaBaseUrl = "https://api.example.test/media";
+const publicMediaPath = (mediaId: string) => `/media/public/${mediaId}`;
 
 const mimeByFormat = {
   jpeg: "image/jpeg",
@@ -57,7 +57,7 @@ for (const format of ["jpeg", "png", "webp"] as const) {
     assert.equal(state.putObject?.contentType, "image/webp");
     assert.equal(state.deletedObjectKey, state.upload.objectKey);
     assert.equal(state.mediaInput?.path, `${state.upload.objectKey}.webp`);
-    assert.equal(state.mediaInput?.url, `${publicMediaBaseUrl}/public/${uploadId}`);
+    assert.equal(state.mediaInput?.url, publicMediaPath(uploadId));
     assert.equal(state.mediaInput?.mimeType, "image/webp");
     assert.equal(state.mediaInput?.sizeBytes, state.putObject?.body.length);
     assert.equal(state.mediaInput?.width, 640);
@@ -68,7 +68,7 @@ for (const format of ["jpeg", "png", "webp"] as const) {
     assert.equal(state.galleryMedia?.path, `${state.upload.objectKey}.webp`);
     assert.deepEqual(response.media, {
       id: uploadId,
-      url: `${publicMediaBaseUrl}/public/${uploadId}`,
+      url: publicMediaPath(uploadId),
       mimeType: "image/webp",
       sizeBytes: state.putObject?.body.length,
       purpose: "profile_photo",
@@ -117,7 +117,7 @@ test("POST /media/profile-photo uploads profile photo through backend", async (t
   assert.deepEqual(state.moderationMediaIds, [state.mediaInput?.id]);
   assert.equal(state.galleryMedia?.id, state.mediaInput?.id);
   assert.equal(body.media.id, state.mediaInput?.id);
-  assert.equal(body.media.url, `${publicMediaBaseUrl}/public/${state.mediaInput?.id}`);
+  assert.equal(body.media.url, publicMediaPath(state.mediaInput?.id ?? ""));
   assert.equal(body.media.mimeType, "image/webp");
   assert.equal(body.media.purpose, "profile_photo");
   assert.equal(JSON.stringify(body).includes("localhost"), false);

@@ -13,8 +13,14 @@ import {
   normalizeOptionalUrl,
 } from "../common/validators";
 import type { ProfilePhoto, UserRow } from "../db/schema";
-import { findOwnedMediaFileByUrl, findOwnedMediaFilesByIds } from "../media/media.repo";
-import { publicMediaUrlForMediaId } from "../media/media-url";
+import {
+  findOwnedMediaFileByUrl,
+  findOwnedMediaFilesByIds,
+} from "../media/media.repo";
+import {
+  mediaIdFromPublicMediaReference,
+  publicMediaUrlForMediaId,
+} from "../media/media-url";
 import { isBlockedEitherWay } from "../safety/safety.repo";
 import * as profileGalleryService from "./profile-gallery.service";
 import * as usersRepo from "./users.repo";
@@ -76,6 +82,7 @@ const avatarMediaTypes = new Set(["avatar", "profile_avatar"]);
 type UsersServiceDeps = {
   repo: typeof usersRepo;
   findOwnedMediaFileByUrl: typeof findOwnedMediaFileByUrl;
+  findOwnedMediaFilesByIds: typeof findOwnedMediaFilesByIds;
   isBlockedEitherWay: typeof isBlockedEitherWay;
   gallery: Pick<
     typeof profileGalleryService,
@@ -86,6 +93,7 @@ type UsersServiceDeps = {
 const defaultDeps: UsersServiceDeps = {
   repo: usersRepo,
   findOwnedMediaFileByUrl,
+  findOwnedMediaFilesByIds,
   isBlockedEitherWay,
   gallery: profileGalleryService,
 };
@@ -263,17 +271,21 @@ async function normalizeOwnedAvatarUrl(
   userId: string,
   avatarUrl: unknown,
 ): Promise<string | null | undefined> {
-  const normalized = normalizeOptionalUrl(avatarUrl, "avatarUrl");
+  const normalized = normalizeOptionalMediaReference(avatarUrl, "avatarUrl");
   if (!normalized) {
     return normalized;
   }
 
-  const media = await deps.findOwnedMediaFileByUrl(userId, normalized);
+  const mediaId = mediaIdFromPublicMediaReference(normalized);
+  const [mediaFromId] = mediaId
+    ? await deps.findOwnedMediaFilesByIds(userId, [mediaId]).catch(() => [])
+    : [];
+  const media = mediaFromId ?? (await deps.findOwnedMediaFileByUrl(userId, normalized));
   if (!media || !avatarMediaTypes.has(media.type)) {
     throw mediaNotOwned("avatarUrl");
   }
 
-  return media.url;
+  return publicMediaUrlForMediaId(media.id);
 }
 
 async function toCurrentAvatarUrl(user: Pick<UserRow, "id" | "avatarUrl">): Promise<string | null> {
@@ -281,7 +293,12 @@ async function toCurrentAvatarUrl(user: Pick<UserRow, "id" | "avatarUrl">): Prom
     return null;
   }
 
-  const media = await deps.findOwnedMediaFileByUrl(user.id, user.avatarUrl).catch(() => undefined);
+  const mediaId = mediaIdFromPublicMediaReference(user.avatarUrl);
+  const [mediaFromId] = mediaId
+    ? await deps.findOwnedMediaFilesByIds(user.id, [mediaId]).catch(() => [])
+    : [];
+  const media = mediaFromId ??
+    (await deps.findOwnedMediaFileByUrl(user.id, user.avatarUrl).catch(() => undefined));
   if (!media || !avatarMediaTypes.has(media.type)) {
     return null;
   }
@@ -299,7 +316,7 @@ async function normalizeOwnedPhotos(
   }
 
   const mediaIds = normalized.map((photo) => photo.mediaId);
-  const ownedMedia = await findOwnedMediaFilesByIds(userId, [...new Set(mediaIds)]);
+  const ownedMedia = await deps.findOwnedMediaFilesByIds(userId, [...new Set(mediaIds)]);
   const ownedMediaById = new Map(ownedMedia.map((media) => [media.id, media]));
 
   if (mediaIds.some((mediaId) => !ownedMediaById.has(mediaId))) {
@@ -323,6 +340,17 @@ function mediaNotOwned(field: "avatarUrl" | "photos"): AppError {
   return new AppError("media_not_owned", "Media file is not owned by current user", 403, {
     [field]: "media_not_owned",
   });
+}
+
+function normalizeOptionalMediaReference(
+  value: unknown,
+  field: string,
+): string | null | undefined {
+  if (typeof value === "string" && value.trim().startsWith("/media/public/")) {
+    return value.trim();
+  }
+
+  return normalizeOptionalUrl(value, field);
 }
 
 function toProfileGoal(value: string | null): ProfileGoal | null {

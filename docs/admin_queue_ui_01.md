@@ -1,6 +1,6 @@
 # Admin Queue UI 01
 
-Updated: 2026-05-23 after `RELEASE-SMOKE-BLOCKERS-02`
+Updated: 2026-05-23 after `RELEASE-SMOKE-BLOCKERS-03`
 
 `GET /admin/together/queue` remains owner/ops-only and writes `admin.togetherQueue.read`.
 
@@ -16,7 +16,31 @@ Admin Web now has a Together Queue page that displays:
 
 The response and UI intentionally omit latitude, longitude, exact location, tokens, and secrets.
 
-The page filters client-side by status, activity, radius, and `hasCoordinates`, and has a Refresh action.
+The page filters client-side by status, activity, radius, and `hasCoordinates`, and has a Refresh action. `matchedSessionId` links to the Together Sessions page filtered to that session.
+
+## Together Sessions Page
+
+`GET /admin/together/sessions` is owner/ops-only and writes `admin.togetherSessions.read`.
+
+Admin Web now has a read-only `Сессии Together` / `Together Sessions` page that displays:
+
+- session id;
+- activity;
+- status;
+- created/deadline/end timestamps;
+- ended reason;
+- participant user ids and count;
+- participant heartbeat/left timestamps;
+- event count;
+- stroke event count;
+- story choice count;
+- reveal decision summary;
+- source session id for Story Sparks continuation;
+- stale heartbeat indicator.
+
+The page filters by status, activity, and session id, and has a Refresh action.
+
+The response and UI intentionally omit latitude, longitude, private chat messages, locked gallery data, raw event payloads, tokens, and secrets.
 
 ## Stale Waiting Action
 

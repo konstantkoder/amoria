@@ -44,7 +44,7 @@ const mediaResponseSchema = {
   additionalProperties: false,
   properties: {
     id: { type: "string", format: "uuid" },
-    url: { type: "string", format: "uri" },
+    url: { type: "string" },
     mimeType: { type: "string", enum: MEDIA_UPLOAD_MIME_TYPES },
     sizeBytes: { type: "integer", minimum: 1, maximum: MAX_MEDIA_UPLOAD_BYTES },
     purpose: { type: "string", enum: MEDIA_UPLOAD_PURPOSES },

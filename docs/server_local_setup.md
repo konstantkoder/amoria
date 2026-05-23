@@ -103,13 +103,13 @@ curl -s http://localhost:4000/media/avatar \
 ```
 
 The processed avatar is decoded, resized to a 512x512 WebP, and stored in MinIO.
-The returned `avatarUrl` uses `S3_PUBLIC_BASE_URL`, for example:
+The returned `avatarUrl` uses the backend public media route, for example:
 
-`http://localhost:9000/amoria/users/{userId}/avatar/{mediaId}.webp`
+`/media/public/{mediaId}`
 
-The API may still serve old local avatar URLs under
-`http://localhost:4000/media/...` until the legacy local avatar migration is
-completed. New avatar uploads must not use local filesystem storage.
+Stored object-storage or old local URLs are legacy/debug metadata only. Public
+profile, mobile, and Admin Web responses should derive current media URLs from
+the media id.
 
 ## Backups
 

@@ -33,6 +33,7 @@ const adminUserId = "00000000-0000-4000-8000-0000000000a1";
 const reportId = "00000000-0000-4000-8000-0000000000d1";
 const mediaId = "00000000-0000-4000-8000-0000000000e1";
 const reviewId = "00000000-0000-4000-8000-0000000000f1";
+const adminTogetherSessionId = "00000000-0000-4000-8000-000000000501";
 
 let restoreAdminDeps: (() => void) | null = null;
 let restoreOwnerDeps: (() => void) | null = null;
@@ -193,6 +194,56 @@ test("GET /admin/together/queue returns safe queue observability and writes audi
   assert.deepEqual(state.auditInputs[0]?.metadata, { resultCount: 1 });
 });
 
+test("GET /admin/together/sessions returns safe session diagnostics and writes audit log", async (t) => {
+  t.after(restoreDeps);
+  mockAdmin({ roles: ["ops"] });
+  const state = mockOpsHealth();
+  const app = buildApp();
+  t.after(async () => {
+    await app.close();
+  });
+
+  const response = await app.inject({
+    method: "GET",
+    url: `/admin/together/sessions?status=active&sessionId=${sessionIdForAdmin()}`,
+    headers: authHeaders(userId),
+  });
+  const bodyText = response.body;
+  const body = response.json();
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(body.items.length, 1);
+  assert.equal(body.items[0].sessionId, sessionIdForAdmin());
+  assert.equal(body.items[0].participantCount, 2);
+  assert.deepEqual(body.items[0].participantUserIds, [
+    userId,
+    "00000000-0000-4000-8000-000000000002",
+  ]);
+  assert.equal(body.items[0].hasStaleParticipant, true);
+  assert.equal(body.items[0].eventCount, 3);
+  assert.equal(body.items[0].strokeEventCount, 2);
+  assert.equal(body.items[0].storyChoiceCount, 1);
+  assert.deepEqual(body.items[0].revealDecisions, {
+    open: 1,
+    skip: 0,
+    continueStory: 0,
+    pending: 1,
+    total: 1,
+  });
+  assert.equal(bodyText.includes("latitude"), false);
+  assert.equal(bodyText.includes("longitude"), false);
+  assert.equal(bodyText.includes("payload"), false);
+  assert.equal(state.auditInputs[0]?.action, "admin.togetherSessions.read");
+  assert.deepEqual(state.auditInputs[0]?.metadata, {
+    filters: {
+      status: "active",
+      activity: null,
+      sessionId: sessionIdForAdmin(),
+    },
+    resultCount: 1,
+  });
+});
+
 test("POST /admin/together/queue/:entryId/actions cancels waiting entry and audits safe metadata", async (t) => {
   t.after(restoreDeps);
   mockAdmin({ roles: ["ops"] });
@@ -329,8 +380,8 @@ test("GET /admin/media enforces media role policy", async (t) => {
   assert.equal(allowed.statusCode, 200);
   const item = allowed.json().items[0];
   assert.equal(item.id, mediaId);
-  assert.equal(item.previewUrl, `http://localhost:4000/media/public/${mediaId}`);
-  assert.equal(item.publicUrl, `http://localhost:4000/media/public/${mediaId}`);
+  assert.equal(item.previewUrl, `/media/public/${mediaId}`);
+  assert.equal(item.publicUrl, `/media/public/${mediaId}`);
   assert.equal(item.moderationStatus, "pending_review");
 });
 
@@ -672,6 +723,45 @@ function mockOpsHealth() {
         expiresAt: new Date("2026-01-01T00:05:00.000Z"),
         matchedSessionId: null,
       }),
+      listSessionsForAdmin: async () => [
+        {
+          sessionId: adminTogetherSessionId,
+          activity: "draw",
+          status: "active",
+          createdAt: new Date("2026-01-01T00:00:00.000Z"),
+          deadlineAt: new Date("2026-01-01T00:07:00.000Z"),
+          endedAt: null,
+          endedReason: null,
+          sourceSessionId: null,
+          participantUserIds: [
+            userId,
+            "00000000-0000-4000-8000-000000000002",
+          ],
+          participantCount: 2,
+          participants: [
+            {
+              userId,
+              lastHeartbeatAt: new Date(),
+              leftAt: null,
+            },
+            {
+              userId: "00000000-0000-4000-8000-000000000002",
+              lastHeartbeatAt: null,
+              leftAt: null,
+            },
+          ],
+          eventCount: 3,
+          strokeEventCount: 2,
+          storyChoiceCount: 1,
+          revealDecisions: {
+            open: 1,
+            skip: 0,
+            continueStory: 0,
+            pending: 1,
+            total: 1,
+          },
+        },
+      ],
     },
     audit: {
       writeAuditLog: async (input) => {
@@ -737,6 +827,10 @@ function authHeaders(id: string) {
   return {
     Authorization: `Bearer ${signAccessToken(id)}`,
   };
+}
+
+function sessionIdForAdmin(): string {
+  return adminTogetherSessionId;
 }
 
 function adminContextRow(roles: AdminRoleKey[], user = userRow({})): AdminContextRow {

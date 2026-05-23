@@ -18,7 +18,7 @@ const profilePhotoSchema = {
   additionalProperties: false,
   properties: {
     mediaId: { type: "string", format: "uuid" },
-    url: { type: "string", format: "uri", maxLength: PROFILE_URL_MAX_LENGTH },
+    url: { type: "string", maxLength: PROFILE_URL_MAX_LENGTH },
   },
 } as const;
 
@@ -34,7 +34,7 @@ const galleryPhotoSchema = {
   additionalProperties: false,
   properties: {
     mediaId: { type: "string", format: "uuid" },
-    url: { type: "string", format: "uri", maxLength: PROFILE_URL_MAX_LENGTH },
+    url: { type: "string", maxLength: PROFILE_URL_MAX_LENGTH },
     position: { type: "integer", minimum: 0 },
   },
 } as const;
@@ -51,7 +51,7 @@ const ownerGalleryPhotoSchema = {
   additionalProperties: false,
   properties: {
     mediaId: { type: "string", format: "uuid" },
-    url: { type: "string", format: "uri", maxLength: PROFILE_URL_MAX_LENGTH },
+    url: { type: "string", maxLength: PROFILE_URL_MAX_LENGTH },
     position: { type: "integer", minimum: 0 },
     visibility: { type: "string", enum: ["public", "locked"] },
   },
@@ -232,7 +232,7 @@ export const updateProfileRouteSchema = {
       },
       avatarUrl: {
         anyOf: [
-          { type: "string", format: "uri", maxLength: PROFILE_URL_MAX_LENGTH },
+          { type: "string", maxLength: PROFILE_URL_MAX_LENGTH },
           { type: "null" },
         ],
       },

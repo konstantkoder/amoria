@@ -213,6 +213,38 @@ export type TogetherQueueEntry = {
   matchedSessionId: string | null;
 };
 
+export type TogetherSessionParticipant = {
+  userId: string;
+  lastHeartbeatAt: string | null;
+  leftAt: string | null;
+  isStale: boolean;
+};
+
+export type TogetherSessionItem = {
+  sessionId: string;
+  activity: string;
+  status: string;
+  createdAt: string;
+  deadlineAt: string | null;
+  endedAt: string | null;
+  endedReason: string | null;
+  sourceSessionId: string | null;
+  participantUserIds: string[];
+  participantCount: number;
+  participants: TogetherSessionParticipant[];
+  hasStaleParticipant: boolean;
+  eventCount: number;
+  strokeEventCount: number;
+  storyChoiceCount: number;
+  revealDecisions: {
+    open: number;
+    skip: number;
+    continueStory: number;
+    pending: number;
+    total: number;
+  };
+};
+
 type AdminUserSnapshot = {
   id: string;
   amoriaId: string;
@@ -310,6 +342,28 @@ export function toQuery(params: Record<string, string | number | undefined>): st
 
   const query = search.toString();
   return query ? `?${query}` : "";
+}
+
+export function resolveApiUrl(value: string | null | undefined): string | null {
+  const normalized = String(value ?? "").trim();
+  if (!normalized) {
+    return null;
+  }
+
+  const apiOrigin = API_BASE_URL || window.location.origin;
+  if (normalized.startsWith("/")) {
+    return `${apiOrigin}${normalized}`;
+  }
+
+  try {
+    const url = new URL(normalized);
+    if (url.pathname.startsWith("/media/public/")) {
+      return `${apiOrigin}${url.pathname}${url.search}`;
+    }
+    return normalized;
+  } catch {
+    return null;
+  }
 }
 
 async function apiFetch<T = unknown>(

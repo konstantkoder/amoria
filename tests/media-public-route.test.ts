@@ -140,7 +140,7 @@ function mediaRow(overrides: Partial<MediaFileRow>): MediaFileRow {
     ownerUserId: String(overrides.ownerUserId ?? ownerId),
     type: String(overrides.type ?? "avatar"),
     path: String(overrides.path ?? objectKey),
-    url: String(overrides.url ?? `https://api.example.test/media/public/${mediaId}`),
+    url: String(overrides.url ?? `/media/public/${mediaId}`),
     mimeType: String(overrides.mimeType ?? "image/webp"),
     sizeBytes: Number(overrides.sizeBytes ?? objectBody.length),
     width: Number(overrides.width ?? 512),

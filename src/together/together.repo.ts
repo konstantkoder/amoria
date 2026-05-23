@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, gt, inArray, lt, lte, ne, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, inArray, lt, lte, ne, sql, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "../db/client";
 import {
@@ -15,6 +15,8 @@ import {
   users,
 } from "../db/schema";
 import type { TogetherParticipantDto } from "./together.types";
+
+type DbTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 export type EnqueueInput = {
   userId: string;
@@ -50,6 +52,45 @@ export type AdminTogetherQueueEntryRow = {
   matchedSessionId: string | null;
 };
 
+export type AdminTogetherSessionParticipantRow = {
+  userId: string;
+  lastHeartbeatAt: Date | null;
+  leftAt: Date | null;
+};
+
+export type AdminTogetherSessionRevealSummary = {
+  open: number;
+  skip: number;
+  continueStory: number;
+  pending: number;
+  total: number;
+};
+
+export type AdminTogetherSessionRow = {
+  sessionId: string;
+  activity: string;
+  status: string;
+  createdAt: Date;
+  deadlineAt: Date | null;
+  endedAt: Date | null;
+  endedReason: string | null;
+  sourceSessionId: string | null;
+  participantUserIds: string[];
+  participantCount: number;
+  participants: AdminTogetherSessionParticipantRow[];
+  eventCount: number;
+  strokeEventCount: number;
+  storyChoiceCount: number;
+  revealDecisions: AdminTogetherSessionRevealSummary;
+};
+
+export type AdminTogetherSessionsQuery = {
+  status?: string;
+  activity?: string;
+  sessionId?: string;
+  limit?: number;
+};
+
 export type CreateStoryContinuationInput = {
   sourceSessionId: string;
   memberUserIds: string[];
@@ -60,6 +101,7 @@ export async function enqueueAndMatch(input: EnqueueInput): Promise<TogetherQueu
   const now = new Date();
 
   return db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${"together_queue:" + input.activity}))`);
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${input.userId}))`);
 
     await tx
@@ -67,10 +109,43 @@ export async function enqueueAndMatch(input: EnqueueInput): Promise<TogetherQueu
       .set({ status: "expired" })
       .where(and(eq(togetherQueue.status, "waiting"), lte(togetherQueue.expiresAt, now)));
 
-    await tx
-      .update(togetherQueue)
-      .set({ status: "cancelled" })
-      .where(and(eq(togetherQueue.userId, input.userId), eq(togetherQueue.status, "waiting")));
+    const [existing] = await tx
+      .select()
+      .from(togetherQueue)
+      .where(and(eq(togetherQueue.userId, input.userId), eq(togetherQueue.status, "waiting")))
+      .limit(1)
+      .for("update");
+
+    if (existing && isSameQueueSearch(input, existing)) {
+      const peers = await tx
+        .select()
+        .from(togetherQueue)
+        .where(
+          and(
+            eq(togetherQueue.activity, input.activity),
+            eq(togetherQueue.status, "waiting"),
+            ne(togetherQueue.userId, input.userId),
+            gt(togetherQueue.expiresAt, now),
+          ),
+        )
+        .orderBy(asc(togetherQueue.createdAt))
+        .limit(50)
+        .for("update", { skipLocked: true });
+      const peer = peers.find((candidate) => areQueueEntriesGeoCompatible(existing, candidate));
+
+      if (!peer) {
+        return existing;
+      }
+
+      return createMatchedSessionForEntries(tx, input, existing, peer, now);
+    }
+
+    if (existing) {
+      await tx
+        .update(togetherQueue)
+        .set({ status: "cancelled" })
+        .where(eq(togetherQueue.id, existing.id));
+    }
 
     const peers = await tx
       .select()
@@ -105,47 +180,57 @@ export async function enqueueAndMatch(input: EnqueueInput): Promise<TogetherQueu
       return entry;
     }
 
-    const [session] = await tx
-      .insert(togetherSessions)
-      .values({
-        activity: input.activity,
-        promptText: input.promptText,
-        deadlineAt: input.deadlineAt ?? null,
-      })
-      .returning();
-
-    await tx.insert(togetherSessionMembers).values([
-      {
-        sessionId: session.id,
-        userId: peer.userId,
-        lastSeenAt: now,
-      },
-      {
-        sessionId: session.id,
-        userId: input.userId,
-        lastSeenAt: now,
-      },
-    ]);
-
-    await tx
-      .update(togetherQueue)
-      .set({
-        status: "matched",
-        matchedSessionId: session.id,
-      })
-      .where(eq(togetherQueue.id, peer.id));
-
-    const [matchedEntry] = await tx
-      .update(togetherQueue)
-      .set({
-        status: "matched",
-        matchedSessionId: session.id,
-      })
-      .where(eq(togetherQueue.id, entry.id))
-      .returning();
-
-    return matchedEntry;
+    return createMatchedSessionForEntries(tx, input, entry, peer, now);
   });
+}
+
+async function createMatchedSessionForEntries(
+  tx: DbTransaction,
+  input: EnqueueInput,
+  currentEntry: TogetherQueueRow,
+  peer: TogetherQueueRow,
+  now: Date,
+): Promise<TogetherQueueRow> {
+  const [session] = await tx
+    .insert(togetherSessions)
+    .values({
+      activity: input.activity,
+      promptText: input.promptText,
+      deadlineAt: input.deadlineAt ?? null,
+    })
+    .returning();
+
+  await tx.insert(togetherSessionMembers).values([
+    {
+      sessionId: session.id,
+      userId: peer.userId,
+      lastSeenAt: now,
+    },
+    {
+      sessionId: session.id,
+      userId: currentEntry.userId,
+      lastSeenAt: now,
+    },
+  ]);
+
+  await tx
+    .update(togetherQueue)
+    .set({
+      status: "matched",
+      matchedSessionId: session.id,
+    })
+    .where(eq(togetherQueue.id, peer.id));
+
+  const [matchedEntry] = await tx
+    .update(togetherQueue)
+    .set({
+      status: "matched",
+      matchedSessionId: session.id,
+    })
+    .where(eq(togetherQueue.id, currentEntry.id))
+    .returning();
+
+  return matchedEntry;
 }
 
 export async function findQueueEntryForOwner(
@@ -683,6 +768,152 @@ export async function cancelQueueEntryForAdmin(
   });
 }
 
+export async function listSessionsForAdmin(
+  query: AdminTogetherSessionsQuery = {},
+): Promise<AdminTogetherSessionRow[]> {
+  const limit = Math.min(Math.max(query.limit ?? 100, 1), 200);
+  const conditions: SQL[] = [];
+
+  if (query.status) {
+    conditions.push(eq(togetherSessions.status, query.status));
+  }
+  if (query.activity) {
+    conditions.push(eq(togetherSessions.activity, query.activity));
+  }
+  if (query.sessionId) {
+    conditions.push(eq(togetherSessions.id, query.sessionId));
+  }
+
+  let selectQuery = db.select().from(togetherSessions).$dynamic();
+  if (conditions.length > 0) {
+    selectQuery = selectQuery.where(and(...conditions));
+  }
+
+  const sessions = await selectQuery
+    .orderBy(desc(togetherSessions.createdAt))
+    .limit(limit);
+  const sessionIds = sessions.map((session) => session.id);
+  if (sessionIds.length === 0) {
+    return [];
+  }
+
+  const [members, eventCounts, reveals] = await Promise.all([
+    listAdminSessionMembers(sessionIds),
+    listAdminSessionEventCounts(sessionIds),
+    listRevealsForSessions(sessionIds),
+  ]);
+  const membersBySessionId = groupBySessionId(members, (row) => row.sessionId);
+  const eventCountsBySessionId = new Map(eventCounts.map((row) => [row.sessionId, row]));
+  const revealsBySessionId = groupBySessionId(reveals, (row) => row.sessionId);
+
+  return sessions.map((session) => {
+    const sessionMembers = (membersBySessionId.get(session.id) ?? [])
+      .sort((left, right) => left.userId.localeCompare(right.userId))
+      .map((member) => ({
+        userId: member.userId,
+        lastHeartbeatAt: member.lastHeartbeatAt,
+        leftAt: member.leftAt,
+      }));
+    const counts = eventCountsBySessionId.get(session.id);
+
+    return {
+      sessionId: session.id,
+      activity: session.activity,
+      status: session.status,
+      createdAt: session.createdAt,
+      deadlineAt: session.deadlineAt,
+      endedAt: session.finishedAt,
+      endedReason: session.endedReason,
+      sourceSessionId: session.sourceSessionId,
+      participantUserIds: sessionMembers.map((member) => member.userId),
+      participantCount: sessionMembers.length,
+      participants: sessionMembers,
+      eventCount: Number(counts?.eventCount ?? 0),
+      strokeEventCount: Number(counts?.strokeEventCount ?? 0),
+      storyChoiceCount: Number(counts?.storyChoiceCount ?? 0),
+      revealDecisions: summarizeRevealDecisions(
+        sessionMembers.length,
+        revealsBySessionId.get(session.id) ?? [],
+      ),
+    };
+  });
+}
+
+async function listAdminSessionMembers(sessionIds: string[]): Promise<Array<{
+  sessionId: string;
+  userId: string;
+  lastHeartbeatAt: Date | null;
+  leftAt: Date | null;
+}>> {
+  return db
+    .select({
+      sessionId: togetherSessionMembers.sessionId,
+      userId: togetherSessionMembers.userId,
+      lastHeartbeatAt: togetherSessionMembers.lastSeenAt,
+      leftAt: togetherSessionMembers.leftAt,
+    })
+    .from(togetherSessionMembers)
+    .where(inArray(togetherSessionMembers.sessionId, sessionIds));
+}
+
+async function listAdminSessionEventCounts(sessionIds: string[]): Promise<Array<{
+  sessionId: string;
+  eventCount: number;
+  strokeEventCount: number;
+  storyChoiceCount: number;
+}>> {
+  return db
+    .select({
+      sessionId: togetherEvents.sessionId,
+      eventCount: count(togetherEvents.id),
+      strokeEventCount: sql<number>`count(*) filter (where ${togetherEvents.type} = 'stroke_batch')`,
+      storyChoiceCount: sql<number>`count(*) filter (where ${togetherEvents.type} = 'story_choice')`,
+    })
+    .from(togetherEvents)
+    .where(inArray(togetherEvents.sessionId, sessionIds))
+    .groupBy(togetherEvents.sessionId);
+}
+
+function summarizeRevealDecisions(
+  participantCount: number,
+  reveals: TogetherRevealRow[],
+): AdminTogetherSessionRevealSummary {
+  const summary: AdminTogetherSessionRevealSummary = {
+    open: 0,
+    skip: 0,
+    continueStory: 0,
+    pending: 0,
+    total: reveals.length,
+  };
+
+  for (const reveal of reveals) {
+    if (reveal.decision === "open") {
+      summary.open += 1;
+    } else if (reveal.decision === "skip") {
+      summary.skip += 1;
+    } else if (reveal.decision === "continue_story") {
+      summary.continueStory += 1;
+    }
+  }
+
+  summary.pending = Math.max(participantCount - reveals.length, 0);
+  return summary;
+}
+
+function groupBySessionId<T>(
+  rows: T[],
+  getSessionId: (row: T) => string,
+): Map<string, T[]> {
+  const grouped = new Map<string, T[]>();
+  for (const row of rows) {
+    const sessionId = getSessionId(row);
+    const group = grouped.get(sessionId) ?? [];
+    group.push(row);
+    grouped.set(sessionId, group);
+  }
+  return grouped;
+}
+
 function toAdminTogetherQueueEntry(row: {
   entryId: string;
   userId: string;
@@ -754,6 +985,23 @@ function areQueueEntriesGeoCompatible(
   return true;
 }
 
+function isSameQueueSearch(current: EnqueueInput, existing: TogetherQueueRow): boolean {
+  return (
+    existing.activity === current.activity &&
+    sameNullableNumber(existing.radiusKm, current.radiusKm ?? null) &&
+    sameNullableNumber(existing.latitude, current.latitude ?? null) &&
+    sameNullableNumber(existing.longitude, current.longitude ?? null)
+  );
+}
+
+function sameNullableNumber(left: number | null, right: number | null): boolean {
+  if (left === null || right === null) {
+    return left === right;
+  }
+
+  return Math.abs(left - right) < 0.000001;
+}
+
 function hasCoordinates(
   value: QueueGeoInput,
 ): value is QueueGeoInput & { latitude: number; longitude: number } {
@@ -791,4 +1039,8 @@ function toRadians(value: number): number {
 export const __geoForTests = {
   areQueueEntriesGeoCompatible,
   distanceKmBetween,
+};
+
+export const __queueForTests = {
+  isSameQueueSearch,
 };

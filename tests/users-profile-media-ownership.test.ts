@@ -26,7 +26,7 @@ const userBId = "00000000-0000-4000-8000-000000000002";
 const userAMediaId = "00000000-0000-4000-8000-000000000101";
 const userBMediaId = "00000000-0000-4000-8000-000000000102";
 const userAMediaUrl = "http://localhost:4000/media/users/user-a/profile/photo.webp";
-const userAPublicMediaUrl = `https://api.example.test/media/public/${userAMediaId}`;
+const userAPublicMediaUrl = `/media/public/${userAMediaId}`;
 let restoreUsersDeps: (() => void) | null = null;
 
 test.after(async () => {

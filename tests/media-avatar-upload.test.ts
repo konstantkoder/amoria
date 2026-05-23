@@ -23,7 +23,7 @@ const oldObjectAvatarId = "00000000-0000-4000-8000-000000000101";
 const oldObjectAvatarUrl =
   `https://media.example.test/amoria/users/${ownerId}/avatar/${oldObjectAvatarId}.webp`;
 const legacyLocalAvatarUrl = `http://localhost:4000/media/users/${ownerId}/avatar.webp`;
-const publicMediaBaseUrl = "https://api.example.test/media";
+const publicMediaPath = (mediaId: string) => `/media/public/${mediaId}`;
 
 let restoreDeps: (() => void) | null = null;
 
@@ -59,7 +59,7 @@ test("avatar upload stores sanitized WebP in object storage and updates user ava
   assert.equal(state.mediaInput?.ownerUserId, ownerId);
   assert.equal(state.mediaInput?.type, "avatar");
   assert.equal(state.mediaInput?.path, state.putObject?.key);
-  assert.equal(state.mediaInput?.url, `${publicMediaBaseUrl}/public/${state.mediaInput?.id}`);
+  assert.equal(state.mediaInput?.url, publicMediaPath(state.mediaInput?.id ?? ""));
   assert.equal(state.mediaInput?.mimeType, "image/webp");
   assert.equal(state.mediaInput?.sizeBytes, state.putObject?.body.length);
   assert.equal(state.mediaInput?.width, 512);
@@ -91,7 +91,7 @@ test("avatar upload keeps legacy local avatar URL intact during replacement", as
 
   const response = await mediaService.uploadAvatar(ownerId, multipartFile(inputBuffer));
 
-  assert.equal(response.avatarUrl.startsWith(`${publicMediaBaseUrl}/public/`), true);
+  assert.equal(response.avatarUrl.startsWith("/media/public/"), true);
   assert.deepEqual(state.deletedObjectKeys, []);
   assert.deepEqual(state.deletedMediaIds, []);
 });

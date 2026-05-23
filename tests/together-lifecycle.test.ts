@@ -523,6 +523,52 @@ test("Together geo matching uses stricter radius and supports unlimited mode", (
   assert.equal(areQueueEntriesGeoCompatible(noLocationUnlimited, lodzTight), false);
 });
 
+test("no-limit queue rejoin keeps equivalent active waiting attempt", () => {
+  const { isSameQueueSearch } = togetherRepo.__queueForTests;
+  const existing = queueRow({
+    userId: userAId,
+    activity: "draw",
+    status: "waiting",
+    createdAt: new Date("2026-01-01T00:00:00.000Z"),
+    expiresAt: new Date("2026-01-01T00:05:00.000Z"),
+    radiusKm: null,
+    latitude: null,
+    longitude: null,
+  });
+
+  assert.equal(
+    isSameQueueSearch(
+      {
+        userId: userAId,
+        activity: "draw",
+        promptText: "Draw together",
+        expiresAt: new Date("2026-01-01T00:05:10.000Z"),
+        radiusKm: null,
+        latitude: null,
+        longitude: null,
+      },
+      existing,
+    ),
+    true,
+  );
+
+  assert.equal(
+    isSameQueueSearch(
+      {
+        userId: userAId,
+        activity: "draw",
+        promptText: "Draw together",
+        expiresAt: new Date("2026-01-01T00:05:10.000Z"),
+        radiusKm: 25,
+        latitude: 52.2297,
+        longitude: 21.0122,
+      },
+      existing,
+    ),
+    false,
+  );
+});
+
 test("draw queue retry delegates each attempt to the repository", async (t) => {
   t.after(restoreRepoMock);
   const app = buildApp();

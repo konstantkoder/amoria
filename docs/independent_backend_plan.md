@@ -31,7 +31,7 @@ The server location can change; the API DNS name should not.
 
 ## Data And Backups
 
-PostgreSQL is the source of truth for users, auth metadata, media records, and later app data. User-uploaded images such as avatars and profile photos are stored in S3-compatible object storage and exposed through `S3_PUBLIC_BASE_URL`. Backups must include:
+PostgreSQL is the source of truth for users, auth metadata, media records, and later app data. User-uploaded images such as avatars and profile photos are stored in S3-compatible object storage and exposed through the backend `/media/public/:mediaId` route when public-safe. Backups must include:
 
 - PostgreSQL dumps with `pg_dump`, stored off-machine.
 - S3-compatible bucket or MinIO volume backups, stored off-machine.

@@ -22,7 +22,7 @@ const missingUserId = "00000000-0000-4000-8000-000000000099";
 const userBAvatarMediaId = "00000000-0000-4000-8000-000000000101";
 const userBPhotoId = "00000000-0000-4000-8000-000000000102";
 const userBStoredAvatarUrl = "https://stale.trycloudflare.com/users/user-b/avatar.webp";
-const publicMediaBaseUrl = "https://api.example.test/media";
+const publicMediaBaseUrl = "/media";
 const userBAvatarUrl = `${publicMediaBaseUrl}/public/${userBAvatarMediaId}`;
 const userBPhotoUrl = `${publicMediaBaseUrl}/public/${userBPhotoId}`;
 

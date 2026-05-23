@@ -4,6 +4,7 @@ import type { AdminContext, AdminRequestContext } from "./admin.types";
 import { AppError } from "../common/errors";
 import { db } from "../db/client";
 import { env } from "../config/env";
+import { TOGETHER_HEARTBEAT_TIMEOUT_MS } from "../config/constants";
 import {
   clientErrorReports,
   mediaFiles,
@@ -11,7 +12,10 @@ import {
   safetyReports,
 } from "../db/schema";
 import * as togetherRepo from "../together/together.repo";
-import type { AdminTogetherQueueActionBody } from "./admin-ops.schemas";
+import type {
+  AdminTogetherQueueActionBody,
+  AdminTogetherSessionsQuery,
+} from "./admin-ops.schemas";
 
 export type AdminOpsHealthResponse = {
   ok: true;
@@ -59,11 +63,51 @@ export type AdminTogetherQueueActionResponse = {
   entry: AdminTogetherQueueEntryDto;
 };
 
+export type AdminTogetherSessionParticipantDto = {
+  userId: string;
+  lastHeartbeatAt: string | null;
+  leftAt: string | null;
+  isStale: boolean;
+};
+
+export type AdminTogetherSessionDto = {
+  sessionId: string;
+  activity: string;
+  status: string;
+  createdAt: string;
+  deadlineAt: string | null;
+  endedAt: string | null;
+  endedReason: string | null;
+  sourceSessionId: string | null;
+  participantUserIds: string[];
+  participantCount: number;
+  participants: AdminTogetherSessionParticipantDto[];
+  hasStaleParticipant: boolean;
+  eventCount: number;
+  strokeEventCount: number;
+  storyChoiceCount: number;
+  revealDecisions: {
+    open: number;
+    skip: number;
+    continueStory: number;
+    pending: number;
+    total: number;
+  };
+};
+
+export type AdminTogetherSessionsResponse = {
+  items: AdminTogetherSessionDto[];
+  nextCursor: null;
+};
+
 type AdminOpsDeps = {
   dbCheck: () => Promise<boolean>;
   counts: () => Promise<AdminOpsHealthResponse["counts"]>;
   objectStorageCheck: () => Promise<AdminOpsHealthResponse["objectStorage"]>;
-  togetherQueue: Pick<typeof togetherRepo, "listQueueEntriesForAdmin" | "cancelQueueEntryForAdmin">;
+  togetherQueue: Pick<
+    typeof togetherRepo,
+    "listQueueEntriesForAdmin" | "cancelQueueEntryForAdmin" | "listSessionsForAdmin"
+  >;
   audit: Pick<typeof auditService, "writeAuditLog">;
 };
 
@@ -229,6 +273,34 @@ export async function actionTogetherQueueEntryForAdmin(
   };
 }
 
+export async function listTogetherSessionsForAdmin(
+  admin: AdminContext,
+  query: AdminTogetherSessionsQuery,
+  requestContext: AdminRequestContext,
+): Promise<AdminTogetherSessionsResponse> {
+  const sessions = await deps.togetherQueue.listSessionsForAdmin(query);
+
+  await deps.audit.writeAuditLog({
+    adminUserId: admin.adminUser.id,
+    action: "admin.togetherSessions.read",
+    targetType: "together_sessions",
+    metadata: {
+      filters: {
+        status: query.status ?? null,
+        activity: query.activity ?? null,
+        sessionId: query.sessionId ?? null,
+      },
+      resultCount: sessions.length,
+    },
+    ...requestContext,
+  });
+
+  return {
+    items: sessions.map(toAdminTogetherSessionDto),
+    nextCursor: null,
+  };
+}
+
 function toAdminTogetherQueueEntryDto(
   entry: togetherRepo.AdminTogetherQueueEntryRow,
 ): AdminTogetherQueueEntryDto {
@@ -242,6 +314,45 @@ function toAdminTogetherQueueEntryDto(
     createdAt: entry.createdAt.toISOString(),
     expiresAt: entry.expiresAt.toISOString(),
     matchedSessionId: entry.matchedSessionId,
+  };
+}
+
+function toAdminTogetherSessionDto(
+  session: togetherRepo.AdminTogetherSessionRow,
+): AdminTogetherSessionDto {
+  const now = Date.now();
+  const participants = session.participants.map((participant) => {
+    const lastHeartbeatAt = participant.lastHeartbeatAt?.toISOString() ?? null;
+    const isStale =
+      session.status === "active" &&
+      (!participant.lastHeartbeatAt ||
+        now - participant.lastHeartbeatAt.getTime() > TOGETHER_HEARTBEAT_TIMEOUT_MS);
+
+    return {
+      userId: participant.userId,
+      lastHeartbeatAt,
+      leftAt: participant.leftAt?.toISOString() ?? null,
+      isStale,
+    };
+  });
+
+  return {
+    sessionId: session.sessionId,
+    activity: session.activity,
+    status: session.status,
+    createdAt: session.createdAt.toISOString(),
+    deadlineAt: session.deadlineAt?.toISOString() ?? null,
+    endedAt: session.endedAt?.toISOString() ?? null,
+    endedReason: session.endedReason,
+    sourceSessionId: session.sourceSessionId,
+    participantUserIds: session.participantUserIds,
+    participantCount: session.participantCount,
+    participants,
+    hasStaleParticipant: participants.some((participant) => participant.isStale),
+    eventCount: session.eventCount,
+    strokeEventCount: session.strokeEventCount,
+    storyChoiceCount: session.storyChoiceCount,
+    revealDecisions: session.revealDecisions,
   };
 }
 

@@ -33,7 +33,7 @@ const publicPhoto2Id = "00000000-0000-4000-8000-000000000102";
 const publicPhoto3Id = "00000000-0000-4000-8000-000000000103";
 const lockedPhoto1Id = "00000000-0000-4000-8000-000000000201";
 const lockedPhoto2Id = "00000000-0000-4000-8000-000000000202";
-const publicMediaBaseUrl = "https://api.example.test/media";
+const publicMediaPath = (mediaId: string) => `/media/public/${mediaId}`;
 
 let restoreDeps: (() => void) | null = null;
 
@@ -57,9 +57,9 @@ test("public gallery summary returns public photos and hides locked photos", asy
   assert.deepEqual(
     response.photos.map((photo) => photo.url),
     [
-      `${publicMediaBaseUrl}/public/${publicPhoto1Id}`,
-      `${publicMediaBaseUrl}/public/${publicPhoto2Id}`,
-      `${publicMediaBaseUrl}/public/${publicPhoto3Id}`,
+      publicMediaPath(publicPhoto1Id),
+      publicMediaPath(publicPhoto2Id),
+      publicMediaPath(publicPhoto3Id),
     ],
   );
   assert.equal(JSON.stringify(response).includes("passwordHash"), false);

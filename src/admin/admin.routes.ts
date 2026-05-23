@@ -23,8 +23,10 @@ import {
 import * as adminMediaService from "./admin-media.service";
 import {
   adminOpsHealthRouteSchema,
+  adminTogetherSessionsRouteSchema,
   adminTogetherQueueActionRouteSchema,
   adminTogetherQueueRouteSchema,
+  parseAdminTogetherSessionsQuery,
   parseAdminTogetherQueueActionBody,
 } from "./admin-ops.schemas";
 import * as adminOpsService from "./admin-ops.service";
@@ -186,6 +188,20 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
     async (request) =>
       adminOpsService.listTogetherQueueForAdmin(
         currentAdmin(request),
+        adminRequestContext(request),
+      ),
+  );
+
+  fastify.get(
+    "/together/sessions",
+    {
+      preHandler: [authMiddleware, requireAdmin(["owner", "ops"])],
+      schema: withErrorResponses(adminTogetherSessionsRouteSchema),
+    },
+    async (request) =>
+      adminOpsService.listTogetherSessionsForAdmin(
+        currentAdmin(request),
+        parseAdminTogetherSessionsQuery(request.query),
         adminRequestContext(request),
       ),
   );
