@@ -9,7 +9,11 @@ import {
   profileGalleryItems,
   users,
 } from "../db/schema";
-import type { AdminMediaQuery, AdminMediaRow } from "./admin-media.types";
+import {
+  moderationStatusForReview,
+  type AdminMediaQuery,
+  type AdminMediaRow,
+} from "./admin-media.types";
 
 type MediaSelectRow = {
   media: MediaFileRow;
@@ -43,7 +47,12 @@ export async function listMedia(query: AdminMediaQuery): Promise<AdminMediaRow[]
     .orderBy(desc(mediaFiles.createdAt))
     .limit(query.limit);
 
-  return attachLatestReviews(rows.map(toAdminMediaRow));
+  const withReviews = await attachLatestReviews(rows.map(toAdminMediaRow));
+  if (!query.moderationStatus) {
+    return withReviews;
+  }
+
+  return withReviews.filter((row) => moderationStatusForReview(row.latestReview) === query.moderationStatus);
 }
 
 export async function findMediaById(mediaId: string): Promise<AdminMediaRow | undefined> {

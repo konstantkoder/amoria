@@ -25,3 +25,14 @@ entryId, userId, activity, status, radiusKm, hasCoordinates, createdAt, expiresA
 ```
 
 Exact latitude/longitude are not returned.
+
+`ADMIN-OPS-05` exposes this endpoint in Admin Web as a read-only Together Queue page with filters for status, activity, radius, and `hasCoordinates`.
+
+## Media Moderation Follow-up
+
+`ADMIN-OPS-05` adds the release moderation foundation:
+
+- new avatar/profile photo uploads create an initial manual-review moderation record;
+- `NOT_CONFIGURED` automated moderation never fake-approves media;
+- Admin Web media moderation shows image preview for safe public media and authenticated audited preview for locked media;
+- locked gallery media is not exposed through `/media/public/:mediaId`.

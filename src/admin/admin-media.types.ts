@@ -1,4 +1,5 @@
 import type { JsonValue, MediaModerationReviewRow } from "../db/schema";
+import { publicMediaUrlForMediaId } from "../media/media-url";
 
 export const MEDIA_MODERATION_ACTIONS = [
   "approve",
@@ -8,9 +9,19 @@ export const MEDIA_MODERATION_ACTIONS = [
 ] as const;
 export type MediaModerationAction = (typeof MEDIA_MODERATION_ACTIONS)[number];
 
+export const MEDIA_MODERATION_STATUSES = [
+  "pending_review",
+  "approved",
+  "rejected",
+  "restricted",
+  "needs_manual_review",
+] as const;
+export type MediaModerationStatus = (typeof MEDIA_MODERATION_STATUSES)[number];
+
 export type AdminMediaQuery = {
   ownerAmoriaId?: string;
   type?: string;
+  moderationStatus?: MediaModerationStatus;
   limit: number;
 };
 
@@ -40,7 +51,9 @@ export type AdminMediaRow = {
 
 export type AdminMediaItem = Omit<AdminMediaRow, "createdAt" | "latestReview" | "path" | "url"> & {
   url: string | null;
-  moderationStatus: MediaModerationAction | null;
+  previewUrl: string | null;
+  publicUrl: string | null;
+  moderationStatus: MediaModerationStatus;
   reviewedAt: string | null;
   createdAt: string;
 };
@@ -83,19 +96,24 @@ export type AdminMediaDecisionResponse = {
 };
 
 export function toAdminMediaItem(row: AdminMediaRow, includeSensitiveUrl: boolean): AdminMediaItem {
+  const publicUrl = publicUrlForAdminMedia(row);
+  const exposedUrl = includeSensitiveUrl && row.visibility !== "locked" ? publicUrl : null;
+
   return {
     id: row.id,
     ownerUserId: row.ownerUserId,
     owner: row.owner,
     type: row.type,
-    url: includeSensitiveUrl ? row.url : null,
+    url: exposedUrl,
+    previewUrl: exposedUrl,
+    publicUrl: exposedUrl,
     mimeType: row.mimeType,
     sizeBytes: row.sizeBytes,
     width: row.width,
     height: row.height,
     checksumSha256: row.checksumSha256,
     visibility: row.visibility,
-    moderationStatus: row.latestReview ? row.latestReview.action as MediaModerationAction : null,
+    moderationStatus: moderationStatusForReview(row.latestReview),
     reviewedAt: row.latestReview?.createdAt.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(),
   };
@@ -112,4 +130,33 @@ export function toAdminMediaReviewItem(row: MediaModerationReviewRow): AdminMedi
     metadata: row.metadata ?? null,
     createdAt: row.createdAt.toISOString(),
   };
+}
+
+export function moderationStatusForReview(
+  review: MediaModerationReviewRow | null,
+): MediaModerationStatus {
+  if (!review) {
+    return "pending_review";
+  }
+
+  switch (review.action as MediaModerationAction) {
+    case "approve":
+      return "approved";
+    case "restrict":
+      return "restricted";
+    case "remove":
+      return "rejected";
+    case "mark_under_review":
+      return "needs_manual_review";
+    default:
+      return "pending_review";
+  }
+}
+
+function publicUrlForAdminMedia(row: AdminMediaRow): string | null {
+  if (row.visibility === "avatar" || row.visibility === "public") {
+    return publicMediaUrlForMediaId(row.id);
+  }
+
+  return null;
 }

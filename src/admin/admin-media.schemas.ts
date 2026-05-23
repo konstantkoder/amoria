@@ -3,6 +3,7 @@ import { z } from "zod";
 import { validationError } from "../common/errors";
 import {
   MEDIA_MODERATION_ACTIONS,
+  MEDIA_MODERATION_STATUSES,
   type AdminMediaDecisionBody,
   type AdminMediaQuery,
 } from "./admin-media.types";
@@ -13,6 +14,7 @@ export const adminMediaQuerySchema = z
   .object({
     ownerAmoriaId: optionalString(32),
     type: optionalString(80),
+    moderationStatus: z.enum(MEDIA_MODERATION_STATUSES).optional(),
     limit: z.coerce.number().int().positive().max(100).default(50),
   })
   .strict();
@@ -90,6 +92,8 @@ const mediaItemSchema = {
     "owner",
     "type",
     "url",
+    "previewUrl",
+    "publicUrl",
     "mimeType",
     "sizeBytes",
     "width",
@@ -107,13 +111,15 @@ const mediaItemSchema = {
     owner: mediaOwnerSchema,
     type: { type: "string" },
     url: { type: ["string", "null"] },
+    previewUrl: { type: ["string", "null"] },
+    publicUrl: { type: ["string", "null"] },
     mimeType: { type: "string" },
     sizeBytes: { type: "integer" },
     width: { type: ["integer", "null"] },
     height: { type: ["integer", "null"] },
     checksumSha256: { type: ["string", "null"] },
     visibility: { type: ["string", "null"], enum: ["avatar", "public", "locked", null] },
-    moderationStatus: { type: ["string", "null"], enum: [...MEDIA_MODERATION_ACTIONS, null] },
+    moderationStatus: { type: "string", enum: MEDIA_MODERATION_STATUSES },
     reviewedAt: { type: ["string", "null"], format: "date-time" },
     createdAt: { type: "string", format: "date-time" },
   },
@@ -139,6 +145,7 @@ export const adminMediaListRouteSchema = {
     properties: {
       ownerAmoriaId: { type: "string", minLength: 1, maxLength: 32 },
       type: { type: "string", minLength: 1, maxLength: 80 },
+      moderationStatus: { type: "string", enum: MEDIA_MODERATION_STATUSES },
       limit: { type: "integer", minimum: 1, maximum: 100, default: 50 },
     },
   },

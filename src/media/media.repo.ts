@@ -2,15 +2,29 @@ import { and, eq, inArray } from "drizzle-orm";
 import { db } from "../db/client";
 import {
   type MediaFileRow,
+  type MediaModerationReviewRow,
   type MediaUploadRow,
   type NewMediaFileRow,
+  type NewMediaModerationReviewRow,
   type NewMediaUploadRow,
   mediaFiles,
+  mediaModerationReviews,
   mediaUploads,
 } from "../db/schema";
 
 export async function createMediaFile(input: NewMediaFileRow): Promise<MediaFileRow> {
   const [created] = await db.insert(mediaFiles).values(input).returning();
+  return created;
+}
+
+export async function createMediaModerationReview(
+  input: NewMediaModerationReviewRow,
+): Promise<MediaModerationReviewRow> {
+  const [created] = await db.insert(mediaModerationReviews).values(input).returning();
+  if (!created) {
+    throw new Error("Failed to create media moderation review");
+  }
+
   return created;
 }
 

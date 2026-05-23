@@ -63,6 +63,7 @@ for (const format of ["jpeg", "png", "webp"] as const) {
     assert.equal(state.mediaInput?.width, 640);
     assert.equal(state.mediaInput?.height, 480);
     assert.equal(state.mediaInput?.checksumSha256, sha256(state.putObject?.body ?? Buffer.alloc(0)));
+    assert.deepEqual(state.moderationMediaIds, [state.mediaInput?.id]);
     assert.equal(state.galleryMedia?.type, "profile_photo");
     assert.equal(state.galleryMedia?.path, `${state.upload.objectKey}.webp`);
     assert.deepEqual(response.media, {
@@ -113,6 +114,7 @@ test("POST /media/profile-photo uploads profile photo through backend", async (t
   );
   assert.equal(state.mediaInput?.ownerUserId, ownerId);
   assert.equal(state.mediaInput?.type, "profile_photo");
+  assert.deepEqual(state.moderationMediaIds, [state.mediaInput?.id]);
   assert.equal(state.galleryMedia?.id, state.mediaInput?.id);
   assert.equal(body.media.id, state.mediaInput?.id);
   assert.equal(body.media.url, `${publicMediaBaseUrl}/public/${state.mediaInput?.id}`);
@@ -374,11 +376,13 @@ function mockBackendProfilePhotoUpload(
     putObject?: { key: string; body: Buffer; contentType: string };
     deletedObjectKeys: string[];
     deletedMediaIds: string[];
+    moderationMediaIds: string[];
     mediaInput?: NewMediaFileRow;
     galleryMedia?: MediaFileRow;
   } = {
     deletedObjectKeys: [],
     deletedMediaIds: [],
+    moderationMediaIds: [],
   };
 
   restoreUploadsDeps = uploadsService.__setUploadsServiceDepsForTests({
@@ -401,6 +405,10 @@ function mockBackendProfilePhotoUpload(
     createMediaFile: async (mediaInput) => {
       state.mediaInput = mediaInput;
       return mediaRow(mediaInput);
+    },
+    queueInitialMediaModeration: async (media) => {
+      state.moderationMediaIds.push(media.id);
+      return undefined as never;
     },
     addCompletedProfilePhotoToGallery: async (_userId, media) => {
       state.galleryMedia = media;
@@ -439,7 +447,8 @@ function mockCompleteProfilePhotoUpload(
     deletedObjectKey?: string;
     mediaInput?: NewMediaFileRow;
     galleryMedia?: MediaFileRow;
-  } = { upload };
+    moderationMediaIds: string[];
+  } = { upload, moderationMediaIds: [] };
 
   restoreUploadsDeps = uploadsService.__setUploadsServiceDepsForTests({
     findMediaUploadById: async () => upload,
@@ -477,6 +486,10 @@ function mockCompleteProfilePhotoUpload(
         },
         media: mediaRow(mediaInput),
       };
+    },
+    queueInitialMediaModeration: async (media) => {
+      state.moderationMediaIds.push(media.id);
+      return undefined as never;
     },
     addCompletedProfilePhotoToGallery: async (_userId, media) => {
       state.galleryMedia = media;

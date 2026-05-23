@@ -65,6 +65,7 @@ test("avatar upload stores sanitized WebP in object storage and updates user ava
   assert.equal(state.mediaInput?.width, 512);
   assert.equal(state.mediaInput?.height, 512);
   assert.equal(state.mediaInput?.checksumSha256, sha256(state.putObject?.body ?? Buffer.alloc(0)));
+  assert.deepEqual(state.moderationMediaIds, [state.mediaInput?.id]);
   assert.equal(state.updatedAvatarUrl, state.mediaInput?.url);
   assert.equal(response.avatarUrl, state.mediaInput?.url);
   assert.equal(response.user.avatarUrl, state.mediaInput?.url);
@@ -154,9 +155,11 @@ function mockAvatarUpload(input: {
     putObject?: { key: string; body: Buffer; contentType: string };
     mediaInput?: NewMediaFileRow;
     updatedAvatarUrl?: string;
+    moderationMediaIds: string[];
     deletedObjectKeys: string[];
     deletedMediaIds: string[];
   } = {
+    moderationMediaIds: [],
     deletedObjectKeys: [],
     deletedMediaIds: [],
   };
@@ -173,6 +176,10 @@ function mockAvatarUpload(input: {
     createMediaFile: async (mediaInput) => {
       state.mediaInput = mediaInput;
       return mediaRow(mediaInput);
+    },
+    queueInitialMediaModeration: async (media) => {
+      state.moderationMediaIds.push(media.id);
+      return undefined as never;
     },
     updateUserAvatar: async (_userId, avatarUrl) => {
       state.updatedAvatarUrl = avatarUrl;

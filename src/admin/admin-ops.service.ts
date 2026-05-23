@@ -216,10 +216,17 @@ async function countPendingMediaModerationItems(): Promise<number> {
     .from(mediaFiles)
     .where(
       sql`not exists (
-        select 1
-        from ${mediaModerationReviews}
-        where ${mediaModerationReviews.mediaId} = ${mediaFiles.id}
-      )`,
+          select 1
+          from ${mediaModerationReviews}
+          where ${mediaModerationReviews.mediaId} = ${mediaFiles.id}
+        )
+        or (
+          select ${mediaModerationReviews.action}
+          from ${mediaModerationReviews}
+          where ${mediaModerationReviews.mediaId} = ${mediaFiles.id}
+          order by ${mediaModerationReviews.createdAt} desc
+          limit 1
+        ) = 'mark_under_review'`,
     );
 
   return row?.value ?? 0;

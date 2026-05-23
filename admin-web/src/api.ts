@@ -172,13 +172,15 @@ export type MediaItem = {
   owner: AdminUserSnapshot;
   type: string;
   url: string | null;
+  previewUrl: string | null;
+  publicUrl: string | null;
   mimeType: string;
   sizeBytes: number;
   width: number | null;
   height: number | null;
   checksumSha256: string | null;
   visibility: "avatar" | "public" | "locked" | null;
-  moderationStatus: string | null;
+  moderationStatus: string;
   reviewedAt: string | null;
   createdAt: string;
 };
@@ -197,6 +199,18 @@ export type MediaReview = {
 export type MediaDetail = MediaItem & {
   path: string | null;
   reviews: MediaReview[];
+};
+
+export type TogetherQueueEntry = {
+  entryId: string;
+  userId: string;
+  activity: string;
+  status: string;
+  radiusKm: number | null;
+  hasCoordinates: boolean;
+  createdAt: string;
+  expiresAt: string;
+  matchedSessionId: string | null;
 };
 
 type AdminUserSnapshot = {
@@ -273,6 +287,17 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
     method: "POST",
     body: JSON.stringify(body),
   });
+}
+
+export async function apiBlob(path: string): Promise<Blob> {
+  const response = await fetchWithAuth(path);
+
+  if (response.status === 401 && await refreshTokens()) {
+    const retry = await fetchWithAuth(path);
+    return parseBlobResponse(retry);
+  }
+
+  return parseBlobResponse(response);
 }
 
 export function toQuery(params: Record<string, string | number | undefined>): string {
@@ -354,4 +379,12 @@ async function parseResponse<T>(response: Response): Promise<T> {
   }
 
   return payload as T;
+}
+
+async function parseBlobResponse(response: Response): Promise<Blob> {
+  if (!response.ok) {
+    await parseResponse(response);
+  }
+
+  return response.blob();
 }

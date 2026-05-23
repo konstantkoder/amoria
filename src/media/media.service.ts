@@ -14,8 +14,10 @@ import {
   findMediaFileById,
   findOwnedMediaFileByUrl,
 } from "./media.repo";
+import { queueInitialMediaModeration } from "./media-moderation.service";
 import { publicMediaUrlForMediaId } from "./media-url";
 import { deleteObject, getObjectBuffer, putObjectBuffer } from "./object-storage";
+import { findGalleryItemForMedia } from "../users/profile-gallery.repo";
 
 export type AvatarUploadResponse = {
   avatarUrl: string;
@@ -34,6 +36,8 @@ type MediaServiceDeps = {
   findMediaFileById: typeof findMediaFileById;
   findOwnedMediaFileByUrl: typeof findOwnedMediaFileByUrl;
   deleteMediaFileByOwner: typeof deleteMediaFileByOwner;
+  findGalleryItemForMedia: typeof findGalleryItemForMedia;
+  queueInitialMediaModeration: typeof queueInitialMediaModeration;
   putObjectBuffer: typeof putObjectBuffer;
   getObjectBuffer: typeof getObjectBuffer;
   deleteObject: typeof deleteObject;
@@ -47,6 +51,8 @@ const defaultDeps: MediaServiceDeps = {
   findMediaFileById,
   findOwnedMediaFileByUrl,
   deleteMediaFileByOwner,
+  findGalleryItemForMedia,
+  queueInitialMediaModeration,
   putObjectBuffer,
   getObjectBuffer,
   deleteObject,
@@ -114,7 +120,7 @@ export async function uploadAvatar(
     contentType: processed.mimeType,
   });
 
-  let createdMedia: MediaFileRow;
+  let createdMedia: MediaFileRow | undefined;
   try {
     createdMedia = await deps.createMediaFile({
       id: mediaId,
@@ -128,9 +134,17 @@ export async function uploadAvatar(
       height: processed.height,
       checksumSha256: checksum,
     });
+    await deps.queueInitialMediaModeration(createdMedia);
   } catch (error) {
     await deleteObjectIfPossible(objectKey);
+    if (createdMedia) {
+      await deps.deleteMediaFileByOwner(createdMedia.id, userId).catch(() => undefined);
+    }
     throw error;
+  }
+
+  if (!createdMedia) {
+    throw new Error("Failed to create avatar media");
   }
 
   const user = await deps.updateUserAvatar(userId, createdMedia.url);
@@ -156,6 +170,13 @@ export async function getPublicMedia(mediaId: string): Promise<PublicMediaRespon
 
   if (media.type !== "avatar" && media.type !== "profile_avatar" && media.type !== "profile_photo") {
     throw new AppError("not_found", "Media file not found", 404);
+  }
+
+  if (media.type === "profile_photo") {
+    const galleryItem = await deps.findGalleryItemForMedia(media.ownerUserId, media.id);
+    if (!galleryItem || galleryItem.item.visibility !== "public") {
+      throw new AppError("not_found", "Media file not found", 404);
+    }
   }
 
   const body = await deps.getObjectBuffer({

@@ -257,6 +257,23 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
       ),
   );
 
+  fastify.get<{ Params: { mediaId: string } }>(
+    "/media/:mediaId/content",
+    {
+      preHandler: [authMiddleware, requireAdmin(["owner", "moderator", "support"])],
+    },
+    async (request, reply) => {
+      const media = await adminMediaService.getMediaContentForAdmin(
+        currentAdmin(request),
+        request.params.mediaId,
+        parseAdminMediaDetailReason(request.query),
+        adminRequestContext(request),
+      );
+
+      return reply.header("content-type", media.contentType).send(media.body);
+    },
+  );
+
   fastify.post<{ Params: { mediaId: string } }>(
     "/media/:mediaId/decision",
     {

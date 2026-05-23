@@ -19,6 +19,7 @@ import {
   putObjectBuffer,
 } from "./object-storage";
 import { publicMediaUrlForMediaId } from "./media-url";
+import { queueInitialMediaModeration } from "./media-moderation.service";
 import type { CompleteUploadBody, PrepareUploadBody } from "./uploads.schemas";
 import {
   addCompletedProfilePhotoToGallery,
@@ -67,6 +68,7 @@ type UploadsServiceDeps = {
   deleteObject: typeof deleteObject;
   addCompletedProfilePhotoToGallery: typeof addCompletedProfilePhotoToGallery;
   assertCanAddProfilePhotoToGallery: typeof assertCanAddProfilePhotoToGallery;
+  queueInitialMediaModeration: typeof queueInitialMediaModeration;
   processProfilePhotoImage: typeof processProfilePhotoImage;
 };
 
@@ -83,6 +85,7 @@ const defaultDeps: UploadsServiceDeps = {
   deleteObject,
   addCompletedProfilePhotoToGallery,
   assertCanAddProfilePhotoToGallery,
+  queueInitialMediaModeration,
   processProfilePhotoImage,
 };
 
@@ -197,7 +200,14 @@ export async function completeUpload(
     });
   }
 
-  await deps.addCompletedProfilePhotoToGallery(ownerUserId, media.media);
+  try {
+    await deps.queueInitialMediaModeration(media.media);
+    await deps.addCompletedProfilePhotoToGallery(ownerUserId, media.media);
+  } catch (error) {
+    await deleteObjectIfPossible(media.media.path);
+    await deps.deleteMediaFileByOwner(media.media.id, ownerUserId).catch(() => undefined);
+    throw error;
+  }
 
   return {
     media: toMediaUploadResponse(media.media),
@@ -270,6 +280,7 @@ export async function uploadProfilePhoto(
   }
 
   try {
+    await deps.queueInitialMediaModeration(media);
     await deps.addCompletedProfilePhotoToGallery(ownerUserId, media);
   } catch (error) {
     await deleteObjectIfPossible(objectKey);

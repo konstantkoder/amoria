@@ -61,6 +61,70 @@ test("GET /media/public/:mediaId streams media object by current media id", asyn
   assert.deepEqual(response.rawPayload, objectBody);
 });
 
+test("GET /media/public/:mediaId streams only public profile gallery media", async (t) => {
+  t.after(restoreMediaDeps);
+  const app = buildApp();
+  t.after(async () => {
+    await app.close();
+  });
+
+  restoreDeps = mediaService.__setMediaServiceDepsForTests({
+    findMediaFileById: async () => mediaRow({
+      id: mediaId,
+      ownerUserId: ownerId,
+      type: "profile_photo",
+      path: `users/${ownerId}/profile_photo/${mediaId}.webp`,
+    }),
+    findGalleryItemForMedia: async () => ({
+      item: { visibility: "public" },
+      media: mediaRow({ type: "profile_photo" }),
+    }) as never,
+    getObjectBuffer: async () => objectBody,
+  });
+
+  const response = await app.inject({
+    method: "GET",
+    url: `/media/public/${mediaId}`,
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.rawPayload, objectBody);
+});
+
+test("GET /media/public/:mediaId does not expose locked gallery media", async (t) => {
+  t.after(restoreMediaDeps);
+  const app = buildApp();
+  t.after(async () => {
+    await app.close();
+  });
+
+  let objectRead = false;
+  restoreDeps = mediaService.__setMediaServiceDepsForTests({
+    findMediaFileById: async () => mediaRow({
+      id: mediaId,
+      ownerUserId: ownerId,
+      type: "profile_photo",
+      path: `users/${ownerId}/profile_photo/${mediaId}.webp`,
+    }),
+    findGalleryItemForMedia: async () => ({
+      item: { visibility: "locked" },
+      media: mediaRow({ type: "profile_photo" }),
+    }) as never,
+    getObjectBuffer: async () => {
+      objectRead = true;
+      return objectBody;
+    },
+  });
+
+  const response = await app.inject({
+    method: "GET",
+    url: `/media/public/${mediaId}`,
+  });
+
+  assert.equal(response.statusCode, 404);
+  assert.equal(objectRead, false);
+});
+
 function restoreMediaDeps(): void {
   if (restoreDeps) {
     restoreDeps();

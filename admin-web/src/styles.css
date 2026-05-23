@@ -198,6 +198,11 @@ nav button:hover {
   font-size: 18px;
 }
 
+.panel h3 {
+  margin: 16px 0 10px;
+  font-size: 14px;
+}
+
 .panel-header {
   display: flex;
   justify-content: space-between;
@@ -309,9 +314,26 @@ nav button:hover {
   max-height: 280px;
   display: block;
   border-radius: 6px;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
   object-fit: contain;
   background: #eef3f4;
+}
+
+.media-preview-frame {
+  margin-bottom: 14px;
+}
+
+.media-thumb {
+  width: 58px;
+  height: 58px;
+  display: block;
+  border-radius: 6px;
+  object-fit: cover;
+  background: #eef3f4;
+}
+
+.muted {
+  color: #60717a;
 }
 
 .login-shell,

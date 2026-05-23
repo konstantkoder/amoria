@@ -289,7 +289,11 @@ test("GET /admin/media enforces media role policy", async (t) => {
   });
 
   assert.equal(allowed.statusCode, 200);
-  assert.equal(allowed.json().items[0].id, mediaId);
+  const item = allowed.json().items[0];
+  assert.equal(item.id, mediaId);
+  assert.equal(item.previewUrl, `http://localhost:4000/media/public/${mediaId}`);
+  assert.equal(item.publicUrl, `http://localhost:4000/media/public/${mediaId}`);
+  assert.equal(item.moderationStatus, "pending_review");
 });
 
 test("POST /admin/media/:mediaId/decision writes moderation review and audit log", async (t) => {
@@ -317,6 +321,28 @@ test("POST /admin/media/:mediaId/decision writes moderation review and audit log
   assert.equal(state.decisions[0]?.metadata?.password, "[redacted]");
   assert.equal(state.auditInputs[0]?.action, "admin.media.decision");
   assert.equal(state.auditInputs[0]?.targetId, mediaId);
+});
+
+test("reject or restrict media decisions require a reason", async (t) => {
+  t.after(restoreDeps);
+  mockAdmin({ roles: ["moderator"] });
+  const state = mockMedia();
+  const app = buildApp();
+  t.after(async () => {
+    await app.close();
+  });
+
+  const response = await app.inject({
+    method: "POST",
+    url: `/admin/media/${mediaId}/decision`,
+    headers: authHeaders(userId),
+    payload: {
+      action: "remove",
+    },
+  });
+
+  assert.equal(response.statusCode, 400);
+  assert.equal(state.decisions.length, 0);
 });
 
 test("locked media access requires elevated role and reason", async (t) => {
@@ -365,7 +391,32 @@ test("locked media access requires elevated role and reason", async (t) => {
   });
 
   assert.equal(allowed.statusCode, 200);
-  assert.equal(allowed.json().media.url, "https://cdn.example.test/media.webp");
+  assert.equal(allowed.json().media.url, null);
+  assert.equal(allowed.json().media.publicUrl, null);
+  assert.equal(allowed.json().media.path, "users/owner/profile/media.webp");
+  assert.equal(state.auditInputs[0]?.action, "admin.media.locked.view");
+  assert.equal(state.auditInputs[0]?.reason, "Moderation review");
+});
+
+test("locked media content is served only through audited admin content route", async (t) => {
+  t.after(restoreDeps);
+  mockAdmin({ roles: ["moderator"] });
+  const state = mockMedia({ visibility: "locked" });
+  const app = buildApp();
+  t.after(async () => {
+    await app.close();
+  });
+
+  const response = await app.inject({
+    method: "GET",
+    url: `/admin/media/${mediaId}/content?reason=Moderation%20review`,
+    headers: authHeaders(userId),
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.headers["content-type"], "image/webp");
+  assert.deepEqual(response.rawPayload, Buffer.from("media-bytes"));
+  assert.deepEqual(state.contentReads, ["users/owner/profile/media.webp"]);
   assert.equal(state.auditInputs[0]?.action, "admin.media.locked.view");
   assert.equal(state.auditInputs[0]?.reason, "Moderation review");
 });
@@ -499,9 +550,11 @@ function mockMedia(input: { visibility?: AdminMediaRow["visibility"] } = {}) {
   const state: {
     auditInputs: AdminAuditInput[];
     decisions: Array<{ action: string; metadata?: Record<string, unknown> | null }>;
+    contentReads: string[];
   } = {
     auditInputs: [],
     decisions: [],
+    contentReads: [],
   };
 
   restoreMediaDeps = adminMediaService.__setAdminMediaServiceDepsForTests({
@@ -525,6 +578,10 @@ function mockMedia(input: { visibility?: AdminMediaRow["visibility"] } = {}) {
       writeAuditLog: async (input) => {
         state.auditInputs.push(input);
       },
+    },
+    getObjectBuffer: async (objectInput) => {
+      state.contentReads.push(objectInput.key);
+      return Buffer.from("media-bytes");
     },
   });
 

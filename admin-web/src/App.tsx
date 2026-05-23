@@ -19,7 +19,9 @@ import {
   ReportDetail,
   ReportItem,
   Tokens,
+  TogetherQueueEntry,
   UserSearchItem,
+  apiBlob,
   apiGet,
   apiPost,
   clearTokens,
@@ -46,6 +48,7 @@ type Screen =
   | "auditLog"
   | "reports"
   | "media"
+  | "togetherQueue"
   | "opsHealth"
   | "bootstrap";
 
@@ -53,6 +56,7 @@ type ScreenItem = {
   key: Screen;
   labelKey: TranslationKey;
   ownerOnly?: boolean;
+  roles?: string[];
 };
 
 const screens: ScreenItem[] = [
@@ -62,6 +66,7 @@ const screens: ScreenItem[] = [
   { key: "clientErrors", labelKey: "nav.clientErrors" },
   { key: "reports", labelKey: "nav.reports" },
   { key: "media", labelKey: "nav.media" },
+  { key: "togetherQueue", labelKey: "nav.togetherQueue", roles: ["owner", "ops"] },
   { key: "auditLog", labelKey: "nav.auditLog" },
   { key: "opsHealth", labelKey: "nav.opsHealth" },
   { key: "bootstrap", labelKey: "nav.bootstrap" },
@@ -131,7 +136,9 @@ export function App() {
   }
 
   const visibleScreens = screens.filter(
-    (item) => !item.ownerOnly || adminMe?.adminUser.roles.includes("owner"),
+    (item) =>
+      (!item.ownerOnly || adminMe?.adminUser.roles.includes("owner")) &&
+      (!item.roles || item.roles.some((role) => adminMe?.adminUser.roles.includes(role))),
   );
   const activeScreen = visibleScreens.some((item) => item.key === screen) ? screen : "dashboard";
   const activeLabel = screens.find((item) => item.key === activeScreen)?.labelKey ?? "nav.dashboard";
@@ -202,6 +209,7 @@ export function App() {
           {activeScreen === "auditLog" ? <AuditLogScreen /> : null}
           {activeScreen === "reports" ? <ReportsScreen setMessage={setMessage} /> : null}
           {activeScreen === "media" ? <MediaScreen setMessage={setMessage} /> : null}
+          {activeScreen === "togetherQueue" ? <TogetherQueueScreen /> : null}
           {activeScreen === "opsHealth" ? <OpsHealthScreen /> : null}
           {activeScreen === "bootstrap" ? <BootstrapScreen /> : null}
         </main>
@@ -764,15 +772,150 @@ function ReportsScreen({ setMessage }: { setMessage: (message: string | null) =>
   );
 }
 
+function TogetherQueueScreen() {
+  const { language, t } = useI18n();
+  const { data, error, reload } = useLoad<{ items: TogetherQueueEntry[]; nextCursor: null }>(
+    "/admin/together/queue",
+  );
+  const [filters, setFilters] = useState({
+    status: "",
+    activity: "",
+    radiusKm: "",
+    hasCoordinates: "",
+  });
+  const items = data?.items ?? [];
+  const filteredItems = useMemo(() => items.filter((item) => {
+    if (filters.status && item.status !== filters.status) {
+      return false;
+    }
+    if (filters.activity && item.activity !== filters.activity) {
+      return false;
+    }
+    if (filters.radiusKm) {
+      if (filters.radiusKm === "none" && item.radiusKm !== null) {
+        return false;
+      }
+      if (filters.radiusKm !== "none" && String(item.radiusKm ?? "") !== filters.radiusKm) {
+        return false;
+      }
+    }
+    if (filters.hasCoordinates) {
+      return String(item.hasCoordinates) === filters.hasCoordinates;
+    }
+
+    return true;
+  }), [filters, items]);
+
+  return (
+    <section className="panel">
+      <div className="panel-header">
+        <h2>{t("queue.title")}</h2>
+        <button className="secondary" onClick={reload}>{t("common.refresh")}</button>
+      </div>
+      <form className="filters" onSubmit={(event) => event.preventDefault()}>
+        <label>{t("common.status")}<select value={filters.status} onChange={(event) => setFilters({ ...filters, status: event.target.value })}>
+          <option value="">{t("status.any")}</option>
+          <option value="waiting">{t("queue.statusWaiting")}</option>
+          <option value="matched">{t("queue.statusMatched")}</option>
+          <option value="expired">{t("queue.statusExpired")}</option>
+          <option value="cancelled">{t("queue.statusCancelled")}</option>
+        </select></label>
+        <label>{t("queue.activity")}<input value={filters.activity} onChange={(event) => setFilters({ ...filters, activity: event.target.value })} /></label>
+        <label>{t("queue.radiusKm")}<select value={filters.radiusKm} onChange={(event) => setFilters({ ...filters, radiusKm: event.target.value })}>
+          <option value="">{t("status.any")}</option>
+          <option value="none">{t("queue.noLimit")}</option>
+          <option value="5">5</option>
+          <option value="25">25</option>
+          <option value="100">100</option>
+          <option value="250">250</option>
+        </select></label>
+        <label>{t("queue.hasCoordinates")}<select value={filters.hasCoordinates} onChange={(event) => setFilters({ ...filters, hasCoordinates: event.target.value })}>
+          <option value="">{t("status.any")}</option>
+          <option value="true">{t("common.yes")}</option>
+          <option value="false">{t("common.no")}</option>
+        </select></label>
+      </form>
+      {error ? <div className="error">{error}</div> : null}
+      {filteredItems.length ? (
+        <table>
+          <thead>
+            <tr>
+              <th>{t("common.created")}</th>
+              <th>{t("queue.expiresAt")}</th>
+              <th>{t("queue.userId")}</th>
+              <th>{t("queue.activity")}</th>
+              <th>{t("common.status")}</th>
+              <th>{t("queue.radiusKm")}</th>
+              <th>{t("queue.hasCoordinates")}</th>
+              <th>{t("queue.matchedSessionId")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredItems.map((item) => (
+              <tr key={item.entryId}>
+                <td>{formatDate(item.createdAt, language)}</td>
+                <td>{formatDate(item.expiresAt, language)}</td>
+                <td>{item.userId}</td>
+                <td>{item.activity}</td>
+                <td>{formatQueueStatus(item.status, t)}</td>
+                <td>{item.radiusKm === null ? t("queue.noLimit") : item.radiusKm}</td>
+                <td>{item.hasCoordinates ? t("common.yes") : t("common.no")}</td>
+                <td>{item.matchedSessionId ?? ""}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : <EmptyState label={t("queue.empty")} />}
+    </section>
+  );
+}
+
 function MediaScreen({ setMessage }: { setMessage: (message: string | null) => void }) {
   const { language, t, tx } = useI18n();
-  const [filters, setFilters] = useState({ ownerAmoriaId: "", type: "", limit: "50" });
+  const [filters, setFilters] = useState({ ownerAmoriaId: "", type: "", moderationStatus: "", limit: "50" });
   const [items, setItems] = useState<MediaItem[]>([]);
   const [selected, setSelected] = useState<MediaDetail | null>(null);
   const [detailReason, setDetailReason] = useState("");
+  const [selectedReason, setSelectedReason] = useState("");
   const [decisionAction, setDecisionAction] = useState("mark_under_review");
   const [decisionReason, setDecisionReason] = useState("");
+  const [previewBlobUrl, setPreviewBlobUrl] = useState<string | null>(null);
+  const [previewError, setPreviewError] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const decisionRequiresReason = decisionAction === "restrict" || decisionAction === "remove" || selected?.visibility === "locked";
+
+  useEffect(() => {
+    if (!selected) {
+      setPreviewBlobUrl(null);
+      setPreviewError(false);
+      return;
+    }
+
+    let cancelled = false;
+    let objectUrl: string | null = null;
+    setPreviewBlobUrl(null);
+    setPreviewError(false);
+
+    apiBlob(`/admin/media/${selected.id}/content${toQuery({ reason: selectedReason })}`)
+      .then((blob) => {
+        objectUrl = URL.createObjectURL(blob);
+        if (!cancelled) {
+          setPreviewBlobUrl(objectUrl);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setPreviewError(true);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [selected?.id, selectedReason]);
 
   async function load() {
     setError(null);
@@ -780,6 +923,7 @@ function MediaScreen({ setMessage }: { setMessage: (message: string | null) => v
       const response = await apiGet<{ items: MediaItem[] }>(`/admin/media${toQuery(filters)}`);
       setItems(response.items);
       setSelected(null);
+      setSelectedReason("");
     } catch (error) {
       setError(errorMessage(error, t));
     }
@@ -792,6 +936,7 @@ function MediaScreen({ setMessage }: { setMessage: (message: string | null) => v
         `/admin/media/${item.id}${toQuery({ reason: detailReason })}`,
       );
       setSelected(response.media);
+      setSelectedReason(detailReason);
     } catch (error) {
       setError(errorMessage(error, t));
     }
@@ -822,6 +967,14 @@ function MediaScreen({ setMessage }: { setMessage: (message: string | null) => v
         <form className="filters" onSubmit={(event) => { event.preventDefault(); void load(); }}>
           <label>{t("media.ownerAmoriaId")}<input value={filters.ownerAmoriaId} onChange={(event) => setFilters({ ...filters, ownerAmoriaId: event.target.value })} /></label>
           <label>{t("common.type")}<input value={filters.type} onChange={(event) => setFilters({ ...filters, type: event.target.value })} /></label>
+          <label>{t("media.moderationStatus")}<select value={filters.moderationStatus} onChange={(event) => setFilters({ ...filters, moderationStatus: event.target.value })}>
+            <option value="">{t("status.any")}</option>
+            <option value="pending_review">{t("status.pendingReview")}</option>
+            <option value="needs_manual_review">{t("status.needsManualReview")}</option>
+            <option value="approved">{t("status.approved")}</option>
+            <option value="restricted">{t("status.restricted")}</option>
+            <option value="rejected">{t("status.rejected")}</option>
+          </select></label>
           <label>{t("common.limit")}<input value={filters.limit} onChange={(event) => setFilters({ ...filters, limit: event.target.value })} inputMode="numeric" /></label>
           <label>{t("media.detailReason")}<input value={detailReason} onChange={(event) => setDetailReason(event.target.value)} /></label>
           <button>{t("common.load")}</button>
@@ -831,25 +984,45 @@ function MediaScreen({ setMessage }: { setMessage: (message: string | null) => v
           <table>
             <thead>
               <tr>
+                <th>{t("media.preview")}</th>
                 <th>{t("common.created")}</th>
+                <th>{t("media.mediaId")}</th>
                 <th>{t("common.owner")}</th>
+                <th>{t("media.ownerUserId")}</th>
                 <th>{t("common.type")}</th>
                 <th>{t("media.visibility")}</th>
                 <th>{t("media.mime")}</th>
                 <th>{t("media.size")}</th>
                 <th>{t("common.status")}</th>
+                <th>{t("media.publicUrl")}</th>
               </tr>
             </thead>
             <tbody>
               {items.map((item) => (
                 <tr key={item.id} onClick={() => void openDetail(item)} className={selected?.id === item.id ? "selected" : ""}>
+                  <td>
+                    {item.previewUrl ? (
+                      <img className="media-thumb" src={item.previewUrl} alt="" />
+                    ) : (
+                      <span className="muted">{item.visibility === "locked" ? t("media.lockedPreview") : ""}</span>
+                    )}
+                  </td>
                   <td>{formatDate(item.createdAt, language)}</td>
+                  <td>{item.id}</td>
                   <td>{item.owner.amoriaId}</td>
+                  <td>{item.ownerUserId}</td>
                   <td>{item.type}</td>
                   <td>{item.visibility ?? ""}</td>
                   <td>{item.mimeType}</td>
                   <td>{item.sizeBytes}</td>
-                  <td>{item.moderationStatus ?? ""}</td>
+                  <td>{formatStatus(item.moderationStatus, t)}</td>
+                  <td>
+                    {item.publicUrl ? (
+                      <a href={item.publicUrl} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>
+                        {t("media.openImage")}
+                      </a>
+                    ) : ""}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -860,8 +1033,24 @@ function MediaScreen({ setMessage }: { setMessage: (message: string | null) => v
         <h2>{t("media.mediaDetail")}</h2>
         {selected ? (
           <>
-            {selected.url ? <img className="media-preview" src={selected.url} alt="" /> : null}
-            <JsonBlock data={selected} />
+            <div className="media-preview-frame">
+              {previewBlobUrl ? <img className="media-preview" src={previewBlobUrl} alt="" /> : null}
+              {previewError ? <div className="error">{t("media.previewFailed")}</div> : null}
+              {!previewBlobUrl && !previewError ? <div className="empty">{t("media.previewLoading")}</div> : null}
+              {previewBlobUrl ? (
+                <button className="secondary" type="button" onClick={() => window.open(previewBlobUrl, "_blank", "noopener,noreferrer")}>
+                  {t("media.openImage")}
+                </button>
+              ) : null}
+            </div>
+            <dl className="facts compact">
+              <Fact label={t("media.mediaId")} value={selected.id} />
+              <Fact label={t("media.ownerUserId")} value={selected.ownerUserId} />
+              <Fact label={t("common.status")} value={formatStatus(selected.moderationStatus, t)} />
+              <Fact label={t("media.mime")} value={selected.mimeType} />
+              <Fact label={t("media.size")} value={String(selected.sizeBytes)} />
+              <Fact label={t("media.publicUrl")} value={selected.publicUrl ?? ""} />
+            </dl>
             <form className="stack-form" onSubmit={submitDecision}>
               <label>{t("common.decision")}<select value={decisionAction} onChange={(event) => setDecisionAction(event.target.value)}>
                 <option value="approve">{t("media.approve")}</option>
@@ -869,9 +1058,11 @@ function MediaScreen({ setMessage }: { setMessage: (message: string | null) => v
                 <option value="remove">{t("media.remove")}</option>
                 <option value="mark_under_review">{t("reports.markUnderReview")}</option>
               </select></label>
-              <label>{t("common.reason")}<input value={decisionReason} onChange={(event) => setDecisionReason(event.target.value)} /></label>
+              <label>{t("common.reason")}<input value={decisionReason} onChange={(event) => setDecisionReason(event.target.value)} required={decisionRequiresReason} /></label>
               <button>{t("media.saveDecision")}</button>
             </form>
+            <h3>{t("media.debugMetadata")}</h3>
+            <JsonBlock data={selected} />
           </>
         ) : <EmptyState label={t("media.select")} />}
       </div>
@@ -1052,6 +1243,8 @@ function formatStatus(status: string, t: (key: TranslationKey) => string): strin
   switch (status) {
     case "active":
       return t("status.active");
+    case "approved":
+      return t("status.approved");
     case "archived":
       return t("status.archived");
     case "disabled":
@@ -1066,14 +1259,37 @@ function formatStatus(status: string, t: (key: TranslationKey) => string): strin
       return t("status.ignored");
     case "not_checked":
       return t("status.notChecked");
+    case "needs_manual_review":
+      return t("status.needsManualReview");
     case "ok":
       return t("status.ok");
     case "open":
       return t("status.open");
+    case "pending_review":
+      return t("status.pendingReview");
+    case "rejected":
+      return t("status.rejected");
     case "resolved":
       return t("status.resolved");
+    case "restricted":
+      return t("status.restricted");
     case "under_review":
       return t("status.underReview");
+    default:
+      return status;
+  }
+}
+
+function formatQueueStatus(status: string, t: (key: TranslationKey) => string): string {
+  switch (status) {
+    case "waiting":
+      return t("queue.statusWaiting");
+    case "matched":
+      return t("queue.statusMatched");
+    case "expired":
+      return t("queue.statusExpired");
+    case "cancelled":
+      return t("queue.statusCancelled");
     default:
       return status;
   }

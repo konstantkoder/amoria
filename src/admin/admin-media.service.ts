@@ -1,4 +1,7 @@
 import { AppError, validationError } from "../common/errors";
+import { MAX_MEDIA_UPLOAD_BYTES } from "../config/constants";
+import { env } from "../config/env";
+import { getObjectBuffer } from "../media/object-storage";
 import * as auditService from "./admin-audit.service";
 import { sanitizeAuditMetadata } from "./admin-audit.service";
 import * as mediaRepo from "./admin-media.repo";
@@ -21,11 +24,13 @@ type AdminMediaDeps = {
     "createMediaModerationReview" | "findMediaById" | "listMedia" | "listMediaReviews"
   >;
   audit: Pick<typeof auditService, "writeAuditLog">;
+  getObjectBuffer: typeof getObjectBuffer;
 };
 
 const defaultDeps: AdminMediaDeps = {
   repo: mediaRepo,
   audit: auditService,
+  getObjectBuffer,
 };
 
 let deps: AdminMediaDeps = defaultDeps;
@@ -59,6 +64,7 @@ export async function listMediaForAdmin(
       filters: {
         ownerAmoriaId: query.ownerAmoriaId ?? null,
         type: query.type ?? null,
+        moderationStatus: query.moderationStatus ?? null,
       },
       limit: query.limit,
       resultCount: rows.length,
@@ -128,6 +134,9 @@ export async function createMediaDecisionForAdmin(
   if (media.visibility === "locked") {
     cleanReason(input.reason, "reason is required for locked gallery media decisions");
   }
+  if (input.action === "restrict" || input.action === "remove") {
+    cleanReason(input.reason, "reason is required for reject or restrict media decisions");
+  }
 
   const review = await deps.repo.createMediaModerationReview({
     mediaId,
@@ -157,6 +166,43 @@ export async function createMediaDecisionForAdmin(
     ok: true,
     media: toAdminMediaItem({ ...media, latestReview: review }, media.visibility !== "locked"),
     review: toAdminMediaReviewItem(review),
+  };
+}
+
+export async function getMediaContentForAdmin(
+  admin: AdminContext,
+  mediaId: string,
+  reason: string | undefined,
+  requestContext: AdminRequestContext,
+): Promise<{ body: Buffer; contentType: string }> {
+  const media = await deps.repo.findMediaById(mediaId);
+  if (!media) {
+    throw new AppError("not_found", "Media not found", 404);
+  }
+
+  assertCanViewMediaDetail(admin, media.visibility, reason);
+
+  await deps.audit.writeAuditLog({
+    adminUserId: admin.adminUser.id,
+    action: media.visibility === "locked" ? "admin.media.locked.view" : "admin.media.content.read",
+    targetType: "media_file",
+    targetId: mediaId,
+    reason: media.visibility === "locked" ? cleanReason(reason) : null,
+    metadata: {
+      ownerAmoriaId: media.owner.amoriaId,
+      type: media.type,
+      visibility: media.visibility,
+    },
+    ...requestContext,
+  });
+
+  return {
+    body: await deps.getObjectBuffer({
+      bucket: env.S3_BUCKET,
+      key: media.path,
+      maxBytes: MAX_MEDIA_UPLOAD_BYTES,
+    }),
+    contentType: media.mimeType,
   };
 }
 

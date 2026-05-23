@@ -34,3 +34,7 @@ Every new queue attempt from the same user cancels that user's existing `waiting
 ## Privacy
 
 Queue, session, reveal, history, and admin queue responses do not expose exact latitude/longitude. Admin queue observability returns `hasCoordinates` only.
+
+## Admin Web
+
+`ADMIN-OPS-05` adds the Admin Web Together Queue page for owner/ops. It reads `GET /admin/together/queue`, shows safe queue fields, filters by status/activity/radius/`hasCoordinates`, and remains read-only.
