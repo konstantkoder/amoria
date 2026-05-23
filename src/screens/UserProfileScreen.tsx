@@ -263,14 +263,15 @@ export default function UserProfileScreen() {
         step,
         message: "Peer profile media failed to load",
         metadata: {
-          userIdExists: Boolean(userId),
-          mediaIdExists: Boolean(mediaId),
+          hasAvatarUrl: Boolean(avatarUrl),
+          photoCount: photos.length,
+          ...(mediaId ? { mediaId } : {}),
           source: sourceContext?.source ?? null,
-          hasThread: Boolean(threadId),
+          hasThread,
         },
       });
     },
-    [sourceContext?.source, threadId, userId]
+    [avatarUrl, hasThread, photos.length, sourceContext?.source]
   );
 
   const markPublicPhotoFailed = useCallback(
@@ -293,9 +294,6 @@ export default function UserProfileScreen() {
     if (!isTogetherSource(sourceContext?.source)) return "";
     if (sourceContext.artworkSummary?.activity === "story_sparks") {
       return tt("profile.sourceStorySparks", "Вы познакомились через историю на двоих");
-    }
-    if (sourceContext.artworkSummary?.activity === "color_mood") {
-      return tt("profile.sourceColorMood", "Вы познакомились через палитру настроения");
     }
     return tt("profile.sourceSharedDrawing", "Вы познакомились через общий рисунок");
   }, [sourceContext?.artworkSummary?.activity, sourceContext?.source, tt]);
@@ -625,7 +623,7 @@ export default function UserProfileScreen() {
             <Text style={styles.cardText}>
               {tt(
                 "profile.sharedStoryBody",
-                "Можно открыть сохранённый общий рисунок или палитру, если хочется вернуться к контексту знакомства."
+                "Можно открыть сохранённую общую историю, если хочется вернуться к контексту знакомства."
               )}
             </Text>
             <TouchableOpacity

@@ -9,8 +9,8 @@ Story Sparks is the active optional second stage for this release.
 - Active Together lobby entry: `draw`.
 - Story Sparks is not a separate equal lobby choice anymore.
 - After a completed `draw`, users can mutually choose `continue_story` to open a real `story_sparks` continuation session for the same pair.
-- Legacy activity: `color_mood`.
-- Legacy `color_mood` sessions and history stay readable, but the release UI must not create new `color_mood` sessions. `PlayColorMoodScreen` remains routeable only for old active session recovery.
+- Removed pre-release activity: `color_mood`.
+- `color_mood` is not part of the release compatibility contract. New queue requests are rejected and old local/dev rows show an unsupported-old-session fallback.
 - No mock/stub/fake data, Firebase fallback, local-only success, AI generation, free text input, adult-first content, or reward/gambling mechanics.
 
 ## Activity
@@ -24,7 +24,6 @@ story_sparks
 `TogetherActivity` includes:
 
 - `draw`
-- `color_mood` for legacy compatibility
 - `story_sparks`
 
 Lobby matching starts with `draw`. `story_sparks` sessions can still exist as real backend sessions, but the release UI enters them from the post-draw continuation decision instead of presenting Story Sparks as an equal first choice.
@@ -143,7 +142,7 @@ Reveal/open behavior is staged:
 
 History shows `story_sparks` entries with the label `История на двоих` and a story artifact preview. It does not render Story Sparks as canvas replay.
 
-Session detail renders a story card/detail for `story_sparks`, existing canvas replay for `draw`, and legacy palette display for `color_mood`.
+Session detail renders a story card/detail for `story_sparks` and existing canvas replay for `draw`. Removed/unknown activities render an unsupported-old-session fallback.
 
 DM source context for `story_sparks` includes:
 
@@ -183,4 +182,4 @@ Reports must remain sanitized: no secrets, auth tokens, signed URLs, passwords, 
 | 5. Complete story | Choices are backend `story_choice` events and result shows story artifact | NOT TESTED |
 | 6. Both open | One backend DM thread is used | NOT TESTED |
 | 7. DM keyboard | Keyboard closes after successful message send | NOT TESTED |
-| 8. History/detail | `draw`, `story_sparks`, and legacy `color_mood` remain readable | NOT TESTED |
+| 8. History/detail | `draw` and `story_sparks` remain readable; removed/unknown activities show the unsupported-old-session fallback | NOT TESTED |

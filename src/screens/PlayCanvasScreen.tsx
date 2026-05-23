@@ -44,6 +44,10 @@ import {
   replaceTogetherStrokesFromEvents,
   type TogetherEventDto,
 } from "@/services/togetherCanvasState";
+import {
+  getTogetherPromptKey,
+  localizeTogetherPrompt,
+} from "@/services/togetherPromptLocalization";
 import { theme } from "@/theme";
 
 const DRAW_SESSION_DURATION_SEC = 420;
@@ -210,9 +214,14 @@ export default function PlayCanvasScreen() {
           navigation.replace("PlayStorySparks", { sessionId });
           return;
         }
-        if (response.session.activity === "color_mood") {
-          allowExitRef.current = true;
-          navigation.replace("PlayColorMood", { sessionId });
+        if (response.session.activity !== "draw") {
+          setLoadError(
+            tt(
+              "play.unsupportedOldSession",
+              "Эта старая сессия больше недоступна в текущей версии."
+            )
+          );
+          setLoading(false);
           return;
         }
         rememberTogetherSession(response);
@@ -243,6 +252,21 @@ export default function PlayCanvasScreen() {
   );
   const peerName = peer?.displayName?.trim() || tt("profile.amoriaUser", "Пользователь Amoria");
   const totalStrokeCount = strokes.length;
+  const localizedPrompt = localizeTogetherPrompt(session, tt);
+  const promptKey = getTogetherPromptKey(session);
+  const promptHints = React.useMemo(() => {
+    if (!promptKey) {
+      return [
+        tt("play.canvas.hint.shape", "форма"),
+        tt("play.canvas.hint.place", "место"),
+        tt("play.canvas.hint.mood", "настроение"),
+      ];
+    }
+
+    return [0, 1, 2].map((index) =>
+      tt(`play.promptHint.${promptKey}.${index}`, tt("play.canvas.hint.free", "идея"))
+    );
+  }, [promptKey, tt]);
   const createdAtMs = session?.createdAt ? Date.parse(session.createdAt) : Date.now();
   const drawRemaining = React.useMemo(() => {
     const elapsed = Math.floor((tick - createdAtMs) / 1000);
@@ -708,13 +732,20 @@ export default function PlayCanvasScreen() {
             <Text style={styles.previewEyebrow}>
               {tt("play.canvas.previewEyebrow", "Вызов")}
             </Text>
-            <Text style={styles.previewTitle}>{session.promptText}</Text>
+            <Text style={styles.previewTitle}>{localizedPrompt}</Text>
             <Text style={styles.previewBody}>
               {tt(
                 "play.canvas.previewBody",
                 "Посмотрите на задание. Холст откроется чистым, а рисунок останется вашим общим ответом."
               )}
             </Text>
+            <View style={styles.hintRow}>
+              {promptHints.map((hint) => (
+                <View key={hint} style={styles.hintChip}>
+                  <Text style={styles.hintChipText}>{hint}</Text>
+                </View>
+              ))}
+            </View>
           </View>
 
           <View style={styles.sessionCard}>
@@ -773,7 +804,7 @@ export default function PlayCanvasScreen() {
               {tt("play.canvas.challengeStripLabel", "Вызов")}
             </Text>
             <Text style={styles.headerTitle} numberOfLines={2}>
-              {session.promptText}
+              {localizedPrompt}
             </Text>
             <Text style={styles.headerPeer} numberOfLines={1}>
               {participants.length > 1
@@ -889,6 +920,25 @@ const styles = StyleSheet.create({
     color: theme.colors.subtext,
     fontSize: 15,
     lineHeight: 21,
+  },
+  hintRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 2,
+  },
+  hintChip: {
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: "rgba(255, 224, 184, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 224, 184, 0.22)",
+  },
+  hintChipText: {
+    color: "#FFE0B8",
+    fontSize: 12,
+    fontWeight: "800",
   },
   sessionCard: {
     flexDirection: "row",

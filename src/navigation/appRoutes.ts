@@ -9,7 +9,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { NearbyAnnouncement } from "@/services/announcementsModel";
 import type { TogetherQueueLocationInput } from "@/services/api/types";
 
-export type ReleasePlayActivity = "draw" | "story_sparks" | "color_mood";
+export type ReleasePlayActivity = "draw" | "story_sparks";
 export type DmSource = "together" | "announcement" | "nearby";
 export type DmArtworkSummary = {
   activity: ReleasePlayActivity;
@@ -106,7 +106,6 @@ export type RootStackParamList = {
   AnnouncementDetail: AnnouncementDetailRouteParams;
   PlayMatch: PlayMatchRouteParams;
   PlayCanvas: PlaySessionRouteParams;
-  PlayColorMood: PlaySessionRouteParams;
   PlayStorySparks: PlaySessionRouteParams;
   PlayResult: PlaySessionRouteParams;
   PlayHistory: undefined;
@@ -150,10 +149,6 @@ export type EditProfileRouteProp = RouteProp<
 export type UserProfileRouteProp = RouteProp<RootStackParamList, "UserProfile">;
 export type PlayMatchRouteProp = RouteProp<RootStackParamList, "PlayMatch">;
 export type PlayCanvasRouteProp = RouteProp<RootStackParamList, "PlayCanvas">;
-export type PlayColorMoodRouteProp = RouteProp<
-  RootStackParamList,
-  "PlayColorMood"
->;
 export type PlayStorySparksRouteProp = RouteProp<
   RootStackParamList,
   "PlayStorySparks"

@@ -150,8 +150,6 @@ function getActivityStatusTitle(
   const suffix =
     activity === "story_sparks"
       ? "StorySparks"
-      : activity === "color_mood"
-      ? "ColorMood"
       : "Draw";
   switch (statusKey) {
     case "searching":
@@ -174,7 +172,7 @@ function getActivityStatusTitle(
 
 function nextRouteForActivity(activity: TogetherActivity) {
   if (activity === "story_sparks") return "PlayStorySparks";
-  return activity === "color_mood" ? "PlayColorMood" : "PlayCanvas";
+  return "PlayCanvas";
 }
 
 export default function PlayMatchScreen() {
@@ -195,7 +193,7 @@ export default function PlayMatchScreen() {
   const routeQueueLocation = (route.params as { location?: TogetherQueueLocationInput } | undefined)
     ?.location;
   const activity: TogetherActivity | null =
-    rawActivity === "draw" || rawActivity === "color_mood" || rawActivity === "story_sparks"
+    rawActivity === "draw" || rawActivity === "story_sparks"
       ? rawActivity
       : null;
   const [statusKey, setStatusKey] = React.useState<MatchStatusKey>("preparing");
@@ -357,6 +355,7 @@ export default function PlayMatchScreen() {
       message: "PlayMatch opened with empty or invalid activity",
       metadata: {
         activityPresent: Boolean(rawActivityText),
+        unsupportedKnownRemovedActivity: rawActivityText.length > 0,
       },
     });
   }, [activity, rawActivity, uid]);
@@ -488,7 +487,7 @@ export default function PlayMatchScreen() {
     ? tt("play.match.authRequired", "Нужно войти, чтобы начать общий рисунок.")
     : tt(
         "play.match.invalidActivity",
-        "Формат этой Together-сессии не распознан."
+        "Эта старая сессия больше недоступна в текущей версии."
       );
 
   if (!uid || !activity) {

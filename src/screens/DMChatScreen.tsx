@@ -111,7 +111,7 @@ function isTogetherSource(source: unknown): boolean {
 }
 
 function isReleasePlayActivity(value: unknown): value is ReleasePlayActivity {
-  return value === "draw" || value === "story_sparks" || value === "color_mood";
+  return value === "draw" || value === "story_sparks";
 }
 
 function readThreadMessage(payload: wsClient.RealtimeMessage): MessageDto | null {
@@ -191,8 +191,7 @@ export default function DMChatScreen() {
   const sourceTogetherActivity = isReleasePlayActivity(sourceTogetherActivityInput)
     ? sourceTogetherActivityInput
     : "draw";
-  const nextTogetherActivity =
-    sourceTogetherActivity === "color_mood" ? "story_sparks" : sourceTogetherActivity;
+  const nextTogetherActivity = sourceTogetherActivity;
 
   useEffect(() => {
     mountedRef.current = true;

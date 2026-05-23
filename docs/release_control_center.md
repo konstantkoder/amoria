@@ -32,7 +32,7 @@ This launcher is local dev tooling only and is not product logic.
 ## Completed blocks
 
 - `TOGETHER-01` backend replay.
-- `TOGETHER-02` color_mood. This activity remains supported as legacy history/session compatibility only.
+- `TOGETHER-02` color_mood was removed before public release in `RELEASE-SMOKE-BLOCKERS-02`.
 - `TOGETHER-03` lifecycle hardening.
 - `TOGETHER-04` smoke checklist only, real 2-device test not done.
 - `TOGETHER-STORY-01` Story Sparks release scenario:
@@ -43,7 +43,7 @@ This launcher is local dev tooling only and is not product logic.
   - After draw result, users can choose open chat, continue story, or leave the drawing as a story.
   - Mutual `continue_story` creates/reuses one backend `story_sparks` continuation session for the same pair.
   - Final Story Sparks result keeps the ordinary open/skip reveal flow.
-  - `color_mood` remains legacy-readable and is not active in the lobby.
+  - `color_mood` is removed; old local/dev rows use unsupported-old-session fallback.
   - DM keyboard dismisses only after successful message send.
 - `TOGETHER-GEO-01` radius-backed Together matching:
   - Together lobby offers `5 km`, `25 km`, `100 km`, `250 km`, and no-limit search radius.
@@ -78,7 +78,7 @@ This launcher is local dev tooling only and is not product logic.
   - Public profile avatar/photos no longer trust stale stored `S3_PUBLIC_BASE_URL`, local, internal MinIO, or dead tunnel URLs as the mobile-visible contract.
   - Locked gallery photos remain excluded from public profile before unlock.
   - Profile goal/mood badges are clickable and open Edit Profile with focused sections.
-  - Together draw/story_sparks/legacy color_mood/waiting screens have an explicit return to main tabs without fake finish/reveal/chat success.
+  - Together draw/story_sparks/waiting screens have an explicit return to main tabs without fake finish/reveal/chat success.
   - Client Errors now receives peer media load failures and Together manual-exit failures.
 
 See `docs/bugfix_ux_01_audit.md`.
@@ -90,6 +90,9 @@ See `docs/together_geo_matching.md`.
 See `docs/admin_queue_ui_01.md`.
 See `docs/media_moderation_policy.md`.
 See `docs/production_ops.md`.
+See `docs/legacy_cleanup_01_color_mood_removed.md`.
+See `docs/bugfix_draw_prompts_peer_media_queue.md`.
+See `docs/release_dead_code_inventory.md`.
 
 ## Identity rule verification
 

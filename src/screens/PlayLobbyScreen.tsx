@@ -19,7 +19,7 @@ import { theme } from "@/theme";
 
 function isReleasePlayActivity(
   value: string
-): value is Exclude<ReleasePlayActivity, "color_mood"> {
+): value is ReleasePlayActivity {
   return value === "draw" || value === "story_sparks";
 }
 

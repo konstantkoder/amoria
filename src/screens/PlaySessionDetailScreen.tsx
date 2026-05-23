@@ -34,7 +34,7 @@ import {
   rememberTogetherSession,
   replaceTogetherStrokesFromEvents,
 } from "@/services/togetherCanvasState";
-import { buildTogetherPaletteFromEvents } from "@/services/togetherPaletteState";
+import { localizeTogetherPrompt } from "@/services/togetherPromptLocalization";
 import {
   buildStoryArtifactFromEvents,
   localizeStoryText,
@@ -82,13 +82,6 @@ function getOutcomeLabel(
 
 function isTerminalClosedStatus(status?: string | null) {
   return status === "abandoned" || status === "cancelled";
-}
-
-function getPaletteLabel(
-  label: string,
-  tt: (key: string, fallback: string, params?: Record<string, string>) => string
-) {
-  return tt(`play.colorMood.option.${label}`, label);
 }
 
 function revealStateFromHistoryItem(
@@ -214,16 +207,13 @@ export default function PlaySessionDetailScreen() {
   const revealState = sessionResponse?.revealState ?? revealStateFromHistoryItem(historyItem);
   const outcome = revealState?.outcome ?? "pending";
   const revealThreadId = revealState?.threadId ?? null;
+  const rawSessionActivity = session?.activity as string | undefined;
   const sessionActivity =
-    session?.activity === "story_sparks"
+    rawSessionActivity === "story_sparks"
       ? "story_sparks"
-      : session?.activity === "color_mood"
-      ? "color_mood"
-      : "draw";
-  const palette = React.useMemo(
-    () => buildTogetherPaletteFromEvents(sessionEvents),
-    [sessionEvents]
-  );
+      : rawSessionActivity === "draw"
+      ? "draw"
+      : null;
   const eventStoryArtifact = React.useMemo(
     () =>
       session?.activity === "story_sparks" && session.storyPack
@@ -238,13 +228,13 @@ export default function PlaySessionDetailScreen() {
   );
   const canRevealOpen =
     session?.status === "finished" &&
+    sessionActivity !== null &&
     revealState?.canOpenChat === true &&
     revealState.myDecision == null &&
     outcome !== "blocked";
   const canOpenExistingThread = outcome === "open_open" && Boolean(revealThreadId);
   const strokes = replayStrokes;
   const hasReplay = strokes.length > 0;
-  const hasPalette = palette.length > 0;
   const hasStoryArtifact = Boolean(storyArtifact);
   const sessionClosed = isTerminalClosedStatus(session?.status ?? historyItem?.status);
 
@@ -277,7 +267,7 @@ export default function PlaySessionDetailScreen() {
   }, [outcome, revealThreadId, session?.status, sessionId]);
 
   const openChat = React.useCallback(async () => {
-    if (sessionClosed || !peer?.id || chatNavigationRef.current) return;
+    if (sessionClosed || !peer?.id || !sessionActivity || chatNavigationRef.current) return;
     if (canOpenExistingThread && revealThreadId) {
       chatNavigationRef.current = true;
       setTimeout(() => {
@@ -438,6 +428,30 @@ export default function PlaySessionDetailScreen() {
     );
   }
 
+  if (!sessionActivity) {
+    return (
+      <ScreenShell
+        title={tt("playDetail.title", "Совместная история")}
+        background="togetherStory"
+        showBack
+        onBack={handleBack}
+      >
+        <View style={styles.centerState}>
+          <CoreStateCard
+            icon="alert-circle-outline"
+            title={tt("play.unsupportedOldSessionTitle", "Сессия недоступна")}
+            body={tt(
+              "play.unsupportedOldSession",
+              "Эта старая сессия больше недоступна в текущей версии."
+            )}
+            primaryAction={{ label: tt("common.backToTogether", "Вернуться во Вместе"), onPress: goToTogether }}
+            secondaryAction={{ label: tt("playDetail.backToHistory", "Вернуться к историям"), onPress: goToHistory }}
+          />
+        </View>
+      </ScreenShell>
+    );
+  }
+
   return (
     <ScreenShell
       title={tt("playDetail.title", "Совместная история")}
@@ -455,7 +469,7 @@ export default function PlaySessionDetailScreen() {
           <Text style={styles.title}>
             {sessionActivity === "story_sparks" && storyArtifact
               ? localizeStoryText(storyArtifact.title, locale)
-              : session.promptText}
+              : localizeTogetherPrompt(session, tt)}
           </Text>
           <Text style={styles.body}>
             {sessionClosed
@@ -486,8 +500,6 @@ export default function PlaySessionDetailScreen() {
           <Text style={styles.sectionTitle}>
             {sessionActivity === "story_sparks"
               ? tt("playDetail.storyArtifactTitle", "Story card")
-              : sessionActivity === "color_mood"
-              ? tt("playDetail.paletteTitle", "Общая палитра")
               : tt("playDetail.replayTitle", "Replay")}
           </Text>
           {sessionActivity === "story_sparks" ? (
@@ -496,24 +508,6 @@ export default function PlaySessionDetailScreen() {
             ) : (
               <Text style={styles.emptyText}>
                 {tt("playDetail.storyEmpty", "Данные истории для этой сессии пока недоступны.")}
-              </Text>
-            )
-          ) : sessionActivity === "color_mood" ? (
-            hasPalette ? (
-              <View style={styles.paletteRow}>
-                {palette.map((selection) => (
-                  <View key={`${selection.fromUserId}-${selection.id}`} style={styles.paletteItem}>
-                    <View style={[styles.paletteSwatch, { backgroundColor: selection.color }]} />
-                    <Text style={styles.paletteLabel}>{getPaletteLabel(selection.label, tt)}</Text>
-                  </View>
-                ))}
-              </View>
-            ) : (
-              <Text style={styles.emptyText}>
-                {tt(
-                  "playDetail.paletteEmpty",
-                  "Данные палитры для этой истории пока недоступны."
-                )}
               </Text>
             )
           ) : hasReplay ? (
@@ -590,7 +584,7 @@ export default function PlaySessionDetailScreen() {
               style={styles.secondaryButton}
               onPress={() =>
                 navigation.navigate("PlayMatch", {
-                  activity: sessionActivity === "color_mood" ? "story_sparks" : sessionActivity,
+                  activity: sessionActivity,
                 })
               }
             >
@@ -722,35 +716,6 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     borderRadius: 18,
     backgroundColor: "#FFFFFF",
-  },
-  paletteRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-  },
-  paletteItem: {
-    minWidth: 112,
-    flex: 1,
-    borderRadius: 14,
-    padding: 12,
-    alignItems: "center",
-    gap: 8,
-    backgroundColor: "rgba(255,255,255,0.08)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
-  },
-  paletteSwatch: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.55)",
-  },
-  paletteLabel: {
-    color: theme.colors.text,
-    fontSize: 13,
-    fontWeight: "800",
-    textTransform: "capitalize",
   },
   storyArtifact: {
     gap: 12,

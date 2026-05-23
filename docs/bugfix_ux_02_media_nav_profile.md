@@ -11,7 +11,7 @@ Updated: 2026-05-20
 - Profile goal and mood badges are clickable and open `EditProfileScreen` with `focus="goal"` or `focus="mood"`. Existing "About me" entrypoint remains backend-backed.
 - Together active/waiting screens now have an explicit return to the main tab UI:
   - `PlayCanvasScreen`
-  - `PlayColorMoodScreen`
+  - `PlayColorMoodScreen` (removed later before public release)
   - `PlayMatchScreen`
 - Manual Together exit calls the real leave/cancel API when there is an active session/queue, then returns to the Together tab. It does not create fake finish, reveal, or chat success.
 
@@ -23,7 +23,7 @@ Mobile:
 - `src/navigation/appRoutes.ts`
 - `src/screens/EditProfileScreen.tsx`
 - `src/screens/PlayCanvasScreen.tsx`
-- `src/screens/PlayColorMoodScreen.tsx`
+- `src/screens/PlayColorMoodScreen.tsx` (removed later before public release)
 - `src/screens/PlayMatchScreen.tsx`
 - `src/screens/ProfileScreen.tsx`
 - `src/screens/UserProfileScreen.tsx`
@@ -62,9 +62,9 @@ Fix: mobile-visible media now goes through the backend public media route:
 
 ## Manual Smoke Checklist
 
-1. Together -> Mood palette
+1. Together -> removed color_mood guard
    - Open Together.
-   - Start `color_mood`.
+   - Confirm `color_mood` cannot be started.
    - Verify the session runs normally.
 
 2. Peer avatar/public photos
@@ -87,7 +87,7 @@ Fix: mobile-visible media now goes through the backend public media route:
    - Start a draw session.
    - Tap "Back to main tabs" / localized equivalent.
    - Verify the app returns to the main tab UI/Together tab and does not open result/chat.
-   - Repeat in color_mood.
+   - Repeat in Story Sparks after draw.
    - Repeat while PlayMatch is still waiting in queue.
 
 5. Admin Client Errors

@@ -1,6 +1,6 @@
 # Together Smoke Pass
 
-Updated: 2026-05-23 for `ADMIN-OPS-05`
+Updated: 2026-05-23 for `RELEASE-SMOKE-BLOCKERS-02`
 
 ## Run Metadata
 
@@ -23,10 +23,11 @@ This smoke pass covers the active staged Together release lifecycle:
 - optional `story_sparks` continuation after draw.
 - final open/skip after Story Sparks when the continuation is used.
 
-Legacy compatibility coverage:
+Removed pre-release coverage:
 
-- `color_mood` remains readable in history/session detail and supported by backend activity validation.
-- `color_mood` must not appear as the active second scenario in the Together lobby and must not be the new-user CTA.
+- `color_mood` must not appear in the active release UI.
+- New `color_mood` queue requests are rejected by backend validation.
+- Old local/dev `color_mood` rows show a generic unsupported-old-session fallback instead of keeping a runtime feature path.
 
 The required lifecycle is:
 
@@ -44,7 +45,7 @@ Geo matching rule:
 - repeated retry cancels the current/old queue entry before joining again;
 - exact peer coordinates must not appear in UI, logs, queue/session responses, DM, history, or detail;
 - Story Sparks continuation after draw keeps the same pair and does not re-match by geo.
-- Admin Web has a read-only Together Queue page for owner/ops. Use it during smoke to see activity/status/radius/hasCoordinates without exact coordinates.
+- Admin Web has a Together Queue page for owner/ops. Use it during smoke to see activity/status/radius/hasCoordinates without exact coordinates and to cancel stale `waiting` entries with a reason.
 
 ## Automated Sanity Checks
 
@@ -70,7 +71,7 @@ Known automated-check warning: the server test run prints the existing AWS SDK f
 | F - Leave / abandon | Match, A leaves before finish, B sees interrupted state, reveal/chat unavailable, no success history, no infinite spinner | NOT TESTED | Prepared for manual 2-device pass. | - |
 | G - Missed WebSocket recovery | Complete session, background/reload one client, result/detail recovers via `getSession` / `getSessionEvents`, no duplicate chat navigation | NOT TESTED | Prepared for manual 2-device pass. | - |
 | H - Duplicate action protection | Double tap story choice/finish/open, buttons disable or backend idempotency holds, no duplicate events/thread/broken UI | NOT TESTED | Prepared for manual 2-device pass. | - |
-| I - Legacy color_mood compatibility | Existing `color_mood` history/session detail remains readable, but lobby/new-user path does not offer it | NOT TESTED | Prepared for manual compatibility check. | - |
+| I - Removed color_mood guard | Lobby/history/detail/result do not expose an active `color_mood` path; a forced old route shows the unsupported-old-session fallback; backend rejects new queue requests | NOT TESTED | Prepared for manual guard check. | - |
 | J - Mixed continuation intent | A chooses `continue_story`, B chooses `skip` or `open`; no chat and no fake story session is created | NOT TESTED | Prepared for manual 2-device pass. | - |
 | K - DM keyboard | After one real DM message sends successfully, the keyboard closes; failed send remains understandable/retryable | NOT TESTED | Prepared for manual 2-device pass. | - |
 | L - Radius 5 km same place | A+B select 5 km, grant location, start Together, backend matches into `draw` if devices are actually nearby | NOT TESTED | Prepared for manual 2-device pass. | - |
@@ -96,7 +97,7 @@ Known automated-check warning: the server test run prints the existing AWS SDK f
 | 11. Both choose open | A+B | Backend reveal result is `open_open`; one DM thread opens |  | NOT TESTED |
 | 12. DM context | A+B | DM context includes Story Sparks artifact and source draw reference when available |  | NOT TESTED |
 | 13. Send DM message | A | Message sends through backend and keyboard closes after success |  | NOT TESTED |
-| 14. History/detail | A+B | `PlayHistory` and detail show draw/story_sparks correctly; legacy `color_mood` remains readable |  | NOT TESTED |
+| 14. History/detail | A+B | `PlayHistory` and detail show draw/story_sparks correctly; removed/unknown activities show unsupported fallback |  | NOT TESTED |
 | 15. User exit | A or B | Leave calls backend; no fake result/reveal/chat success appears |  | NOT TESTED |
 | 16. Peer leave | Peer | Remaining user sees honest interrupted state |  | NOT TESTED |
 
@@ -111,7 +112,7 @@ Known automated-check warning: the server test run prints the existing AWS SDK f
 | 5. Retry stale queue | A | Tap Retry repeatedly after error/expired/cancelled state; backend has one current waiting attempt for the user and no invisible stuck queue |  | NOT TESTED |
 | 6. Try no limit fallback | A | After delayed finite search, tap no-limit fallback; old entry is cancelled and new no-limit queue starts |  | NOT TESTED |
 | 7. Inspect responses/logs | A+B | Queue/session/history/DM do not expose peer latitude/longitude; `/admin/together/queue` shows only `hasCoordinates` |  | NOT TESTED |
-| 9. Inspect Admin Web queue | Owner/Ops | Admin Web `Очередь Together` shows current queue rows with status/activity/radius/hasCoordinates/matchedSessionId, and no latitude/longitude columns |  | NOT TESTED |
+| 9. Inspect Admin Web queue | Owner/Ops | Admin Web `Очередь Together` shows current queue rows with status/activity/radius/hasCoordinates/matchedSessionId, stale indicator, cancel action for waiting rows, and no latitude/longitude columns |  | NOT TESTED |
 | 8. Continue story | A+B | Story Sparks continuation keeps same pair and does not perform a second geo match |  | NOT TESTED |
 
 ## Draw Manual Checklist
@@ -134,14 +135,14 @@ Known automated-check warning: the server test run prints the existing AWS SDK f
 | DM context | A+B | DM source context contains Together `activity: draw` |  | NOT TESTED |
 | History/detail | A+B | History shows the `draw` session and detail shows replay from backend events |  | NOT TESTED |
 
-## Legacy Color Mood Compatibility Checklist
+## Removed Color Mood Guard Checklist
 
 | Step | Expected Result | Actual Result | Status |
 | --- | --- | --- | --- |
 | Open Together lobby | Active scenario list does not show `Палитра настроения` |  | NOT TESTED |
-| Open an existing `color_mood` history item | Existing palette summary remains readable |  | NOT TESTED |
-| Open existing `color_mood` detail | Detail uses legacy palette display, not canvas replay |  | NOT TESTED |
-| Start another from legacy color mood surfaces | New activity path routes to `story_sparks`, not new `color_mood` |  | NOT TESTED |
+| Force an old `color_mood` route/history row in dev | App shows “Эта старая сессия больше недоступна в текущей версии.” |  | NOT TESTED |
+| Try backend queue with `activity=color_mood` | Backend returns validation error / 400 |  | NOT TESTED |
+| Search release UI | No “Mood palette” / “Палитра настроения” active text appears |  | NOT TESTED |
 
 ## Found Bugs
 

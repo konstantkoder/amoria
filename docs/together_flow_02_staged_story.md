@@ -13,7 +13,7 @@ draw -> optional Story Sparks -> final open/skip
 - The Together lobby has one primary start: `Начать вместе` / `Start Together`.
 - The primary start always enters `draw`.
 - Story Sparks is presented as the second stage after drawing, not as a separate equal lobby choice.
-- `color_mood` remains legacy-readable in history/detail and is not an active lobby scenario.
+- `color_mood` was removed before public release and is not an active lobby/history/detail scenario.
 
 ## Backend Model
 
@@ -68,4 +68,4 @@ Client Errors report:
 5. Complete story.
 6. Both open -> one DM.
 7. Keyboard closes after sending a DM message.
-8. History/detail still works for draw, Story Sparks, and legacy color_mood.
+8. History/detail still works for draw and Story Sparks. Removed/unknown activities show the unsupported-old-session fallback.

@@ -306,7 +306,7 @@ export type TogetherQueueEntry = {
   expiresAt: string;
 };
 
-export type TogetherActivity = "draw" | "color_mood" | "story_sparks";
+export type TogetherActivity = "draw" | "story_sparks";
 
 export type TogetherQueueLocationInput = {
   latitude?: number | null;
@@ -318,7 +318,7 @@ export type TogetherQueueResponse = {
   entry: TogetherQueueEntry;
 };
 
-export type TogetherEventType = "stroke_batch" | "palette" | "story_choice" | "system";
+export type TogetherEventType = "stroke_batch" | "story_choice" | "system";
 
 export type TogetherEventDto = {
   id: string;
@@ -417,6 +417,7 @@ export type TogetherSessionDto = {
   activity: TogetherActivity;
   status: TogetherSessionStatus;
   promptText: string;
+  promptKey?: string | null;
   createdAt: string;
   endedAt?: string | null;
   endedReason?: string | null;
@@ -451,6 +452,7 @@ export type TogetherHistoryItem = {
   activity: TogetherActivity;
   status?: TogetherSessionStatus;
   promptText: string;
+  promptKey?: string | null;
   peer: {
     id: string;
     displayName: string;

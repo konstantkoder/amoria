@@ -21,6 +21,7 @@ Updated: 2026-05-23 for `ADMIN-OPS-05`.
 | --- | --- | --- | --- |
 | A | Avatar upload | NOT TESTED | Login account A, open Profile, choose JPEG/PNG/WebP avatar, verify native square crop opens, verify preview appears, tap Upload photo, verify new avatar appears, restart app, verify avatar persists from backend, open public profile, verify URL is backend/public HTTPS and not `file://`. |
 | B | Profile photo upload | NOT TESTED | Open PhotoManager, choose JPEG/PNG/WebP profile photo, verify native square crop opens, verify preview appears, tap Upload photo, verify backend-mediated `POST /media/profile-photo` result appears in public gallery, restart app, verify it persists, login peer account, verify peer can see public photo, verify URL is backend `/media/public/:mediaId`. |
+| B1 | Peer avatar/profile media | NOT TESTED | Account A uploads avatar and public profile photo; account B opens A from Together DM/profile context and sees current backend public media URLs or a clear moderation-waiting explanation if policy changes to approved-only. |
 | B2 | Profile photo cancel/change | NOT TESTED | Select a photo, reach preview, tap Cancel and verify no upload/gallery change. Repeat and tap Choose another; verify only the confirmed photo uploads. |
 | C | Unsupported format | NOT TESTED | Try HEIC/HEIF or unsupported image if device provides it, verify app rejects before upload, no backend media is created, clear error is shown. |
 | D | Move public to locked | NOT TESTED | Account A has enough visible public images, set locked gallery password if needed, move one photo to locked, verify public profile no longer exposes that photo URL, owner sees it in locked section, peer sees only locked count/state. |
@@ -47,6 +48,7 @@ Updated: 2026-05-23 for `ADMIN-OPS-05`.
 | Stale local photo state after failed mutation | FIXED | Avatar/profile previews are explicit pending states. Failed backend upload does not show success; the preview can be retried, replaced, or cancelled. |
 | Locked public route exposure | FIXED | `/media/public/:mediaId` now requires profile photos to be in a public gallery item; locked gallery media is blocked even when `mediaId` is known. |
 | Initial moderation status | PASS | New avatar/profile photo uploads create a manual-review moderation record. `NOT_CONFIGURED` automated provider does not fake approval. |
+| Closed-test visibility policy | PASS | Pending review public profile media is visible for closed testing; public beta should move to approved-only visibility after real moderation is staffed/configured. |
 
 ## Found Bugs
 

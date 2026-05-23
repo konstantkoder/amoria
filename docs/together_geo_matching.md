@@ -43,7 +43,7 @@ Validation:
 - If both users provide coordinates and finite radius, match only when distance is within both users' limits.
 - If one user chooses no limit but provides coordinates, respect the other user's finite radius.
 - If coordinates are missing, match only when both users are in no-limit mode.
-- Activity must still match, so `draw` does not match `story_sparks` or legacy `color_mood`.
+- Activity must still match, so `draw` does not match `story_sparks`. Removed activities such as `color_mood` are rejected by validation.
 
 Story continuation after draw keeps the same pair and does not re-run geo matching.
 

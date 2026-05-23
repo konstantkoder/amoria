@@ -15,6 +15,7 @@ import { useLocale } from "@/contexts/LocaleContext";
 import { type RootStackNavigationProp } from "@/navigation/appRoutes";
 import * as togetherApi from "@/services/api/togetherApi";
 import type { TogetherHistoryItem } from "@/services/api/types";
+import { localizeTogetherPrompt } from "@/services/togetherPromptLocalization";
 import {
   localizeStoryText,
   storyArtifactToDmSummary,
@@ -132,10 +133,6 @@ function getHistoryContextText(
   tt: (key: string, fallback: string, params?: Record<string, string>) => string,
   locale: Parameters<typeof localizeStoryText>[1]
 ) {
-  if (item.activity === "color_mood") {
-    return tt("playHistory.contextColorMood", "Палитра, собранная вами вместе");
-  }
-
   if (item.activity === "story_sparks") {
     return item.storyArtifact?.title
       ? tt("playHistory.contextStorySparks", "История на двоих: {title}", {
@@ -144,11 +141,11 @@ function getHistoryContextText(
       : tt("playHistory.contextStorySparksPlain", "История на двоих");
   }
 
-  return item.promptText?.trim()
+  return item.activity === "draw" && item.promptText?.trim()
     ? tt("playHistory.contextDrawChallenge", "Creative challenge: {challenge}", {
-        challenge: item.promptText.trim(),
+        challenge: localizeTogetherPrompt(item, tt),
       })
-    : tt("playHistory.contextDraw", "Shared drawing on one canvas");
+    : tt("play.unsupportedOldSession", "Эта старая сессия больше недоступна в текущей версии.");
 }
 
 export default function PlayHistoryScreen() {

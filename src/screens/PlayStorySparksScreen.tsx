@@ -71,9 +71,6 @@ function nextRouteForUnexpectedActivity(activity: string | undefined, sessionId:
   if (activity === "draw") {
     return { name: "PlayCanvas" as const, params: { sessionId } };
   }
-  if (activity === "color_mood") {
-    return { name: "PlayColorMood" as const, params: { sessionId } };
-  }
   return null;
 }
 

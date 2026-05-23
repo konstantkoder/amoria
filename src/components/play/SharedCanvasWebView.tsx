@@ -553,7 +553,7 @@ export default function SharedCanvasWebView({
           {toolLabels?.colors && !fullscreen ? (
             <Text style={styles.toolLabel}>{toolLabels.colors}</Text>
           ) : null}
-          <View style={[styles.paletteRow, fullscreen ? styles.paletteRowFullscreen : null]}>
+          <View style={[styles.colorRow, fullscreen ? styles.colorRowFullscreen : null]}>
             {PALETTE.map((color, colorIndex) => {
               const active = color === selectedColor;
               return (
@@ -740,12 +740,12 @@ const styles = StyleSheet.create({
     letterSpacing: 0.7,
     textTransform: "uppercase",
   },
-  paletteRow: {
+  colorRow: {
     flexDirection: "row",
     gap: 10,
     flexWrap: "wrap",
   },
-  paletteRowFullscreen: {
+  colorRowFullscreen: {
     gap: 7,
   },
   colorButton: {

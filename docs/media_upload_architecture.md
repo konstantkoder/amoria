@@ -101,6 +101,14 @@ The backend still decodes, validates, re-encodes to WebP, strips metadata, and e
 - Locked gallery photos are not included in public profile photos before unlock.
 - Stale avatar URLs without a matching media row are hidden instead of being returned to mobile.
 
+## Moderation Visibility Policy
+
+Closed-test policy: pending review avatar/public profile media can remain visible so the team can verify upload, peer profile, and moderation workflows without fake approval.
+
+Public beta policy: switch peer-visible public media to approved-only once a real automated provider or staffed manual moderation process is active.
+
+Locked gallery media remains hidden from public profile responses regardless of moderation status.
+
 ## Environment Rules
 
 - `PUBLIC_API_URL` should point to the reachable backend API origin.

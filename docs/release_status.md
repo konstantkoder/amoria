@@ -5,7 +5,7 @@
 - Tabs: `Together`, `Nearby`, `Announcements`, `Inbox` user-facing as `Chats`
 - Nearby: quick shared nearby statuses only
 - Product screens: `CreateAnnouncement`, `AnnouncementDetail`, `PlayMatch`, `PlayCanvas`, `PlayResult`, `PlayHistory`, `PlaySessionDetail`, `DMChat`, `Profile`, `Settings`, `PrivacyPolicy`, `LocationInfo`
-- Legacy compatibility screen: `PlayColorMood` remains routeable only for old active/history `color_mood` sessions.
+- Removed pre-release screen: `PlayColorMood` is no longer routeable.
 - Profile subflow still includes editing screens that support the live profile path: `EditProfile`, `PhotoManager`, `FlirtSettings`
 
 ## Removed or isolated from the release path
@@ -24,8 +24,8 @@
 
 - Backend-backed live flows still depend on real auth, API availability, and production-safe server behavior
 - Together replay for completed draw sessions is now backend-persistent through the server `GET /together/sessions/:id/events` API; `PlaySessionDetail` restores replay from backend events after app restart
-- Together `color_mood` is legacy compatibility only: old sessions/history/detail remain readable, but the active lobby and new-session UI do not start a new `color_mood` queue.
-- Together lifecycle is hardened for `draw`, `story_sparks`, and legacy-readable `color_mood`: backend guards membership/status for session, events, finish/leave/heartbeat/reveal/history; mutual `open/open` reuses one direct chat context; skip, blocked, abandoned, and cancelled states do not open chat; mobile result/detail screens recover pending reveal state through backend refresh if WebSocket updates are missed
+- Together `color_mood` was removed before public release: backend rejects new queue requests and mobile shows unsupported fallback for forced old local/dev rows.
+- Together lifecycle is hardened for `draw` and `story_sparks`: backend guards membership/status for session, events, finish/leave/heartbeat/reveal/history; mutual `open/open` reuses one direct chat context; skip, blocked, abandoned, and cancelled states do not open chat; mobile result/detail screens recover pending reveal state through backend refresh if WebSocket updates are missed
 - Profile media and locked gallery are backend-first for the release path: avatar/profile uploads go through backend media APIs, public profile responses expose public photos only, locked gallery unlock requires backend password verification, and owner gallery management uses backend state.
 - Final native identifiers are still not settled in Expo config: Android package is placeholder-like, and iOS bundle identifier is not declared here
 - Secondary locales still need a final product-language review, but dead keys from removed features no longer stay in the locale set
@@ -48,7 +48,7 @@
 ## Remaining Together blockers
 
 - No remaining blocker is known for backend-persistent draw replay in this block.
-- No remaining blocker is known for legacy `color_mood` history/session readability in this block.
+- No remaining blocker is known for the removed `color_mood` guard in this block.
 - No remaining blocker is known for Together lifecycle hardening in this block.
 - A full two-device signed-in smoke pass against the real backend is still required before release sign-off.
 

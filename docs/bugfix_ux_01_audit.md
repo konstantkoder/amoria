@@ -4,8 +4,8 @@ Date: 2026-05-20
 
 ## What Was Fixed
 
-- Superseded: Together lobby no longer presents "Mood palette" / `color_mood` as an active release CTA.
-- `color_mood` remains backend-readable for legacy history/detail only; active new-session UI now starts `draw` and can continue to `story_sparks` after mutual choice.
+- Superseded: Together no longer includes `color_mood`; it was removed before public release.
+- Active new-session UI starts `draw` and can continue to `story_sparks` after mutual choice.
 - DM chat no longer silently does nothing when `peerId` is missing. It attempts to recover the peer through the real inbox thread list by `threadId`.
 - If DM peer recovery fails, the user sees a clear error and Admin Client Errors receives a safe report.
 - Profile now has clear tappable entrypoints for "About me" and "Mood" that open `EditProfile`.
@@ -31,10 +31,10 @@ Date: 2026-05-20
 
 ## Manual Verification
 
-1. Together -> legacy color_mood absence
+1. Together -> removed color_mood guard
    - Open the Together tab in Russian.
-   - Confirm "Палитра настроения" is not visible as an active start CTA.
-   - Confirm old `color_mood` history/detail still renders if an existing session is available.
+   - Confirm the removed color_mood feature is not visible as an active start CTA.
+   - Confirm a forced old local/dev row shows the unsupported-old-session fallback.
 
 2. DMChat -> peer profile
    - Open a DM from Together result/history/inbox and tap the header/avatar/name or peer card.

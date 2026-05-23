@@ -31,5 +31,5 @@ Updated: 2026-05-23
 ## color_mood
 
 - `color_mood` is no longer an active lobby/new-session path.
-- `PlayColorMoodScreen` and palette parsing remain marked as legacy compatibility so old active/history sessions can still render.
+- `PlayColorMoodScreen` and palette parsing were removed in `RELEASE-SMOKE-BLOCKERS-02`; old local/dev rows show an unsupported-old-session fallback.
 - Story Sparks and draw remain active.

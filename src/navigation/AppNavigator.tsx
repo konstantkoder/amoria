@@ -12,7 +12,6 @@ import AnnouncementsScreen from "@/screens/AnnouncementsScreen";
 import InboxScreen from "@/screens/InboxScreen";
 import PlayMatchScreen from "@/screens/PlayMatchScreen";
 import PlayCanvasScreen from "@/screens/PlayCanvasScreen";
-import PlayColorMoodScreen from "@/screens/PlayColorMoodScreen";
 import PlayStorySparksScreen from "@/screens/PlayStorySparksScreen";
 import PlayResultScreen from "@/screens/PlayResultScreen";
 import PlayHistoryScreen from "@/screens/PlayHistoryScreen";
@@ -454,7 +453,6 @@ export default function AppNavigator() {
         <RootStack.Screen name="AnnouncementDetail" component={AnnouncementDetailScreen} />
         <RootStack.Screen name="PlayMatch" component={PlayMatchScreen} />
         <RootStack.Screen name="PlayCanvas" component={PlayCanvasScreen} />
-        <RootStack.Screen name="PlayColorMood" component={PlayColorMoodScreen} />
         <RootStack.Screen name="PlayStorySparks" component={PlayStorySparksScreen} />
         <RootStack.Screen name="PlayResult" component={PlayResultScreen} />
         <RootStack.Screen name="PlayHistory" component={PlayHistoryScreen} />
