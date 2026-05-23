@@ -38,6 +38,18 @@ export type HistorySessionRow = {
   peer: TogetherParticipantDto;
 };
 
+export type AdminTogetherQueueEntryRow = {
+  entryId: string;
+  userId: string;
+  activity: string;
+  status: string;
+  radiusKm: number | null;
+  hasCoordinates: boolean;
+  createdAt: Date;
+  expiresAt: Date;
+  matchedSessionId: string | null;
+};
+
 export type CreateStoryContinuationInput = {
   sourceSessionId: string;
   memberUserIds: string[];
@@ -55,23 +67,10 @@ export async function enqueueAndMatch(input: EnqueueInput): Promise<TogetherQueu
       .set({ status: "expired" })
       .where(and(eq(togetherQueue.status, "waiting"), lte(togetherQueue.expiresAt, now)));
 
-    const [existing] = await tx
-      .select()
-      .from(togetherQueue)
-      .where(
-        and(
-          eq(togetherQueue.userId, input.userId),
-          eq(togetherQueue.status, "waiting"),
-          gt(togetherQueue.expiresAt, now),
-        ),
-      )
-      .orderBy(desc(togetherQueue.createdAt))
-      .limit(1)
-      .for("update");
-
-    if (existing) {
-      return existing;
-    }
+    await tx
+      .update(togetherQueue)
+      .set({ status: "cancelled" })
+      .where(and(eq(togetherQueue.userId, input.userId), eq(togetherQueue.status, "waiting")));
 
     const peers = await tx
       .select()
@@ -593,6 +592,37 @@ export async function listHistorySessions(
     .where(eq(togetherSessions.status, "finished"))
     .orderBy(desc(togetherSessions.createdAt))
     .limit(limit);
+}
+
+export async function listQueueEntriesForAdmin(limit = 100): Promise<AdminTogetherQueueEntryRow[]> {
+  const rows = await db
+    .select({
+      entryId: togetherQueue.id,
+      userId: togetherQueue.userId,
+      activity: togetherQueue.activity,
+      status: togetherQueue.status,
+      radiusKm: togetherQueue.radiusKm,
+      latitude: togetherQueue.latitude,
+      longitude: togetherQueue.longitude,
+      createdAt: togetherQueue.createdAt,
+      expiresAt: togetherQueue.expiresAt,
+      matchedSessionId: togetherQueue.matchedSessionId,
+    })
+    .from(togetherQueue)
+    .orderBy(desc(togetherQueue.createdAt))
+    .limit(limit);
+
+  return rows.map((row) => ({
+    entryId: row.entryId,
+    userId: row.userId,
+    activity: row.activity,
+    status: row.status,
+    radiusKm: row.radiusKm,
+    hasCoordinates: hasCoordinates(row),
+    createdAt: row.createdAt,
+    expiresAt: row.expiresAt,
+    matchedSessionId: row.matchedSessionId,
+  }));
 }
 
 async function expireWaitingEntries(now: Date): Promise<void> {

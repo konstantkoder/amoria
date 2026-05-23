@@ -61,3 +61,47 @@ export const adminOpsHealthRouteSchema = {
     },
   },
 } as const satisfies FastifySchema;
+
+const adminTogetherQueueEntrySchema = {
+  type: "object",
+  required: [
+    "entryId",
+    "userId",
+    "activity",
+    "status",
+    "radiusKm",
+    "hasCoordinates",
+    "createdAt",
+    "expiresAt",
+    "matchedSessionId",
+  ],
+  additionalProperties: false,
+  properties: {
+    entryId: { type: "string", format: "uuid" },
+    userId: { type: "string", format: "uuid" },
+    activity: { type: "string" },
+    status: { type: "string" },
+    radiusKm: { type: ["integer", "null"], enum: [5, 25, 100, 250, null] },
+    hasCoordinates: { type: "boolean" },
+    createdAt: { type: "string", format: "date-time" },
+    expiresAt: { type: "string", format: "date-time" },
+    matchedSessionId: { type: ["string", "null"], format: "uuid" },
+  },
+} as const;
+
+export const adminTogetherQueueRouteSchema = {
+  response: {
+    200: {
+      type: "object",
+      required: ["items", "nextCursor"],
+      additionalProperties: false,
+      properties: {
+        items: {
+          type: "array",
+          items: adminTogetherQueueEntrySchema,
+        },
+        nextCursor: { type: "null" },
+      },
+    },
+  },
+} as const satisfies FastifySchema;

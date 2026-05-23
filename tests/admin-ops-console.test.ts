@@ -156,6 +156,43 @@ test("/admin/ops/health returns database status and real counts", async (t) => {
   assert.equal(auditMetadata?.databaseOk, true);
 });
 
+test("GET /admin/together/queue returns safe queue observability and writes audit log", async (t) => {
+  t.after(restoreDeps);
+  mockAdmin({ roles: ["ops"] });
+  const state = mockOpsHealth();
+  const app = buildApp();
+  t.after(async () => {
+    await app.close();
+  });
+
+  const response = await app.inject({
+    method: "GET",
+    url: "/admin/together/queue",
+    headers: authHeaders(userId),
+  });
+  const bodyText = response.body;
+  const body = response.json();
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(body.items.length, 1);
+  assert.deepEqual(body.items[0], {
+    entryId: "00000000-0000-4000-8000-000000000401",
+    userId,
+    activity: "story_sparks",
+    status: "waiting",
+    radiusKm: null,
+    hasCoordinates: false,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    expiresAt: "2026-01-01T00:05:00.000Z",
+    matchedSessionId: null,
+  });
+  assert.equal(body.nextCursor, null);
+  assert.equal(bodyText.includes("latitude"), false);
+  assert.equal(bodyText.includes("longitude"), false);
+  assert.equal(state.auditInputs[0]?.action, "admin.togetherQueue.read");
+  assert.deepEqual(state.auditInputs[0]?.metadata, { resultCount: 1 });
+});
+
 test("GET /admin/reports enforces report role policy", async (t) => {
   t.after(restoreDeps);
   mockAdmin({ roles: ["ops"] });
@@ -515,6 +552,21 @@ function mockOpsHealth() {
       status: "not_checked",
       reason: "Not checked in tests.",
     }),
+    togetherQueue: {
+      listQueueEntriesForAdmin: async () => [
+        {
+          entryId: "00000000-0000-4000-8000-000000000401",
+          userId,
+          activity: "story_sparks",
+          status: "waiting",
+          radiusKm: null,
+          hasCoordinates: false,
+          createdAt: new Date("2026-01-01T00:00:00.000Z"),
+          expiresAt: new Date("2026-01-01T00:05:00.000Z"),
+          matchedSessionId: null,
+        },
+      ],
+    },
     audit: {
       writeAuditLog: async (input) => {
         state.auditInputs.push(input);

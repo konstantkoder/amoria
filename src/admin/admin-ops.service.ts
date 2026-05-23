@@ -9,6 +9,7 @@ import {
   mediaModerationReviews,
   safetyReports,
 } from "../db/schema";
+import * as togetherRepo from "../together/together.repo";
 
 export type AdminOpsHealthResponse = {
   ok: true;
@@ -34,10 +35,28 @@ export type AdminOpsHealthResponse = {
   };
 };
 
+export type AdminTogetherQueueEntryDto = {
+  entryId: string;
+  userId: string;
+  activity: string;
+  status: string;
+  radiusKm: number | null;
+  hasCoordinates: boolean;
+  createdAt: string;
+  expiresAt: string;
+  matchedSessionId: string | null;
+};
+
+export type AdminTogetherQueueResponse = {
+  items: AdminTogetherQueueEntryDto[];
+  nextCursor: null;
+};
+
 type AdminOpsDeps = {
   dbCheck: () => Promise<boolean>;
   counts: () => Promise<AdminOpsHealthResponse["counts"]>;
   objectStorageCheck: () => Promise<AdminOpsHealthResponse["objectStorage"]>;
+  togetherQueue: Pick<typeof togetherRepo, "listQueueEntriesForAdmin">;
   audit: Pick<typeof auditService, "writeAuditLog">;
 };
 
@@ -55,6 +74,7 @@ const defaultDeps: AdminOpsDeps = {
     status: "not_checked",
     reason: "No safe non-mutating object storage health check is configured for this release block.",
   }),
+  togetherQueue: togetherRepo,
   audit: auditService,
 };
 
@@ -137,6 +157,38 @@ export async function getOpsHealth(
     },
     objectStorage,
     counts,
+  };
+}
+
+export async function listTogetherQueueForAdmin(
+  admin: AdminContext,
+  requestContext: AdminRequestContext,
+): Promise<AdminTogetherQueueResponse> {
+  const entries = await deps.togetherQueue.listQueueEntriesForAdmin();
+
+  await deps.audit.writeAuditLog({
+    adminUserId: admin.adminUser.id,
+    action: "admin.togetherQueue.read",
+    targetType: "together_queue",
+    metadata: {
+      resultCount: entries.length,
+    },
+    ...requestContext,
+  });
+
+  return {
+    items: entries.map((entry) => ({
+      entryId: entry.entryId,
+      userId: entry.userId,
+      activity: entry.activity,
+      status: entry.status,
+      radiusKm: entry.radiusKm,
+      hasCoordinates: entry.hasCoordinates,
+      createdAt: entry.createdAt.toISOString(),
+      expiresAt: entry.expiresAt.toISOString(),
+      matchedSessionId: entry.matchedSessionId,
+    })),
+    nextCursor: null,
   };
 }
 

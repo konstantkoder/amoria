@@ -422,6 +422,64 @@ test("queue accepts valid Together location and radius", async (t) => {
   assert.equal(bodyText.includes("longitude"), false);
 });
 
+test("queue defaults to no-limit matching without coordinates", async (t) => {
+  t.after(restoreRepoMock);
+  const app = buildApp();
+  t.after(async () => {
+    await app.close();
+  });
+
+  let enqueuedLocation:
+    | { latitude?: number | null; longitude?: number | null; radiusKm?: number | null }
+    | undefined;
+  mockRepo({
+    enqueueAndMatch: async (input: {
+      activity: string;
+      latitude?: number | null;
+      longitude?: number | null;
+      radiusKm?: number | null;
+    }) => {
+      enqueuedLocation = {
+        latitude: input.latitude,
+        longitude: input.longitude,
+        radiusKm: input.radiusKm,
+      };
+      return queueRow({
+        activity: input.activity,
+        status: "matched",
+        matchedSessionId: sessionId,
+        latitude: null,
+        longitude: null,
+        radiusKm: null,
+      });
+    },
+  });
+
+  const response = await app.inject({
+    method: "POST",
+    url: "/together/queue",
+    headers: {
+      Authorization: `Bearer ${signAccessToken(userAId)}`,
+    },
+    payload: {
+      activity: "story_sparks",
+    },
+  });
+  const bodyText = response.body;
+  const body = response.json();
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(enqueuedLocation, {
+    latitude: null,
+    longitude: null,
+    radiusKm: null,
+  });
+  assert.equal(body.entry.status, "matched");
+  assert.equal(body.entry.sessionId, sessionId);
+  assert.equal(bodyText.includes("latitude"), false);
+  assert.equal(bodyText.includes("longitude"), false);
+});
+
 test("queue rejects invalid Together latitude and radius", async (t) => {
   t.after(restoreRepoMock);
   const app = buildApp();
@@ -511,14 +569,65 @@ test("Together geo matching accepts nearby users and rejects outside radius", ()
 test("Together geo matching uses stricter radius and supports unlimited mode", () => {
   const { areQueueEntriesGeoCompatible } = togetherRepo.__geoForTests;
   const warsawWide = { latitude: 52.2297, longitude: 21.0122, radiusKm: 250 };
+  const warsawTight = { latitude: 52.2297, longitude: 21.0122, radiusKm: 5 };
+  const nearbyWarsaw = { latitude: 52.25, longitude: 21.02, radiusKm: 5 };
   const lodzTight = { latitude: 51.7592, longitude: 19.456, radiusKm: 25 };
   const lodzUnlimited = { latitude: 51.7592, longitude: 19.456, radiusKm: null };
   const noLocationUnlimited = { radiusKm: null };
 
+  assert.equal(areQueueEntriesGeoCompatible(warsawTight, nearbyWarsaw), true);
   assert.equal(areQueueEntriesGeoCompatible(warsawWide, lodzTight), false);
   assert.equal(areQueueEntriesGeoCompatible(warsawWide, lodzUnlimited), true);
   assert.equal(areQueueEntriesGeoCompatible(noLocationUnlimited, { radiusKm: null }), true);
   assert.equal(areQueueEntriesGeoCompatible(noLocationUnlimited, lodzTight), false);
+});
+
+test("draw queue retry delegates each attempt to the repository", async (t) => {
+  t.after(restoreRepoMock);
+  const app = buildApp();
+  t.after(async () => {
+    await app.close();
+  });
+
+  let callCount = 0;
+  mockRepo({
+    enqueueAndMatch: async (input: { activity: string }) => {
+      callCount += 1;
+      return queueRow({
+        id: `00000000-0000-4000-8000-00000000050${callCount}`,
+        activity: input.activity,
+        status: "waiting",
+        matchedSessionId: null,
+      });
+    },
+  });
+
+  const first = await app.inject({
+    method: "POST",
+    url: "/together/queue",
+    headers: {
+      Authorization: `Bearer ${signAccessToken(userAId)}`,
+    },
+    payload: {
+      activity: "draw",
+    },
+  });
+
+  const second = await app.inject({
+    method: "POST",
+    url: "/together/queue",
+    headers: {
+      Authorization: `Bearer ${signAccessToken(userAId)}`,
+    },
+    payload: {
+      activity: "draw",
+    },
+  });
+
+  assert.equal(first.statusCode, 200);
+  assert.equal(second.statusCode, 200);
+  assert.equal(callCount, 2);
+  assert.notEqual(first.json().entry.id, second.json().entry.id);
 });
 
 test("story_sparks queue passes geo filtering payload", async (t) => {
