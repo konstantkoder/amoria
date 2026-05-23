@@ -24,7 +24,7 @@ The server location can change; the API DNS name should not.
 2. Mobile profile/media integration: point selected profile and avatar flows at `API_URL`.
 3. Custom auth cutover: switch client auth only after backend auth and token storage are ready.
 4. Chats: maintain backend persistence, block policy, and realtime delivery.
-5. Together queue/draw/color_mood: continue moving Together matching and shared state to the backend.
+5. Together queue/draw/story_sparks: continue moving Together matching and shared state to the backend. `color_mood` was removed before public release and new backend queue requests for it are rejected.
 6. History: migrate historical play/session records.
 7. Nearby/announcements: migrate location-aware and announcement data carefully.
 8. Remove old client-side dependencies only after every flow is fully migrated and verified.

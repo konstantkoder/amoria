@@ -4,10 +4,10 @@ import type {
   StorySparksPackDto,
 } from "./story-sparks";
 
-export type TogetherActivity = "draw" | "color_mood" | "story_sparks";
+export type TogetherActivity = "draw" | "story_sparks";
 export type TogetherQueueStatus = "waiting" | "matched" | "cancelled" | "expired";
 export type TogetherSessionStatus = "active" | "finished" | "abandoned" | "cancelled";
-export type TogetherEventType = "stroke_batch" | "palette" | "story_choice" | "system";
+export type TogetherEventType = "stroke_batch" | "story_choice" | "system";
 export type TogetherRevealDecision = "open" | "skip" | "continue_story";
 export type TogetherRevealOutcome =
   | "pending"
@@ -51,6 +51,7 @@ export type TogetherSessionDto = {
   activity: TogetherActivity;
   status: TogetherSessionStatus;
   promptText: string;
+  promptKey: string | null;
   createdAt: string;
   endedAt: string | null;
   endedReason: string | null;
@@ -145,6 +146,7 @@ export type TogetherHistoryItemDto = {
   activity: TogetherActivity;
   status: TogetherSessionStatus;
   promptText: string;
+  promptKey: string | null;
   peer: TogetherParticipantDto;
   outcome: TogetherRevealOutcome;
   myDecision: TogetherRevealDecision | null;

@@ -1,6 +1,7 @@
 import { count, eq, sql } from "drizzle-orm";
 import * as auditService from "./admin-audit.service";
 import type { AdminContext, AdminRequestContext } from "./admin.types";
+import { AppError } from "../common/errors";
 import { db } from "../db/client";
 import { env } from "../config/env";
 import {
@@ -10,6 +11,7 @@ import {
   safetyReports,
 } from "../db/schema";
 import * as togetherRepo from "../together/together.repo";
+import type { AdminTogetherQueueActionBody } from "./admin-ops.schemas";
 
 export type AdminOpsHealthResponse = {
   ok: true;
@@ -52,11 +54,16 @@ export type AdminTogetherQueueResponse = {
   nextCursor: null;
 };
 
+export type AdminTogetherQueueActionResponse = {
+  ok: true;
+  entry: AdminTogetherQueueEntryDto;
+};
+
 type AdminOpsDeps = {
   dbCheck: () => Promise<boolean>;
   counts: () => Promise<AdminOpsHealthResponse["counts"]>;
   objectStorageCheck: () => Promise<AdminOpsHealthResponse["objectStorage"]>;
-  togetherQueue: Pick<typeof togetherRepo, "listQueueEntriesForAdmin">;
+  togetherQueue: Pick<typeof togetherRepo, "listQueueEntriesForAdmin" | "cancelQueueEntryForAdmin">;
   audit: Pick<typeof auditService, "writeAuditLog">;
 };
 
@@ -177,18 +184,64 @@ export async function listTogetherQueueForAdmin(
   });
 
   return {
-    items: entries.map((entry) => ({
-      entryId: entry.entryId,
-      userId: entry.userId,
+    items: entries.map(toAdminTogetherQueueEntryDto),
+    nextCursor: null,
+  };
+}
+
+export async function actionTogetherQueueEntryForAdmin(
+  admin: AdminContext,
+  entryId: string,
+  input: AdminTogetherQueueActionBody,
+  requestContext: AdminRequestContext,
+): Promise<AdminTogetherQueueActionResponse> {
+  const entry = await deps.togetherQueue.cancelQueueEntryForAdmin(entryId);
+  if (!entry) {
+    throw new AppError("not_found", "Together queue entry not found", 404);
+  }
+
+  if (entry.status !== "cancelled") {
+    throw new AppError(
+      "together_queue_not_waiting",
+      "Only waiting Together queue entries can be cancelled",
+      409,
+    );
+  }
+
+  await deps.audit.writeAuditLog({
+    adminUserId: admin.adminUser.id,
+    action: "admin.togetherQueue.cancel",
+    targetType: "together_queue",
+    targetId: entry.entryId,
+    metadata: {
+      action: input.action,
       activity: entry.activity,
-      status: entry.status,
       radiusKm: entry.radiusKm,
       hasCoordinates: entry.hasCoordinates,
-      createdAt: entry.createdAt.toISOString(),
-      expiresAt: entry.expiresAt.toISOString(),
-      matchedSessionId: entry.matchedSessionId,
-    })),
-    nextCursor: null,
+      reason: input.reason,
+    },
+    ...requestContext,
+  });
+
+  return {
+    ok: true,
+    entry: toAdminTogetherQueueEntryDto(entry),
+  };
+}
+
+function toAdminTogetherQueueEntryDto(
+  entry: togetherRepo.AdminTogetherQueueEntryRow,
+): AdminTogetherQueueEntryDto {
+  return {
+    entryId: entry.entryId,
+    userId: entry.userId,
+    activity: entry.activity,
+    status: entry.status,
+    radiusKm: entry.radiusKm,
+    hasCoordinates: entry.hasCoordinates,
+    createdAt: entry.createdAt.toISOString(),
+    expiresAt: entry.expiresAt.toISOString(),
+    matchedSessionId: entry.matchedSessionId,
   };
 }
 

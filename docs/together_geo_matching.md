@@ -29,7 +29,7 @@ Every new queue attempt from the same user cancels that user's existing `waiting
 - finite + finite matches only when distance satisfies both users' radiuses.
 - no-limit with coordinates + finite can match if the finite user's radius is satisfied.
 - no-limit without coordinates + finite does not match.
-- Activity still has to match; legacy `color_mood` remains activity-compatible only for old sessions and backend compatibility.
+- Activity still has to match; removed activities such as `color_mood` are rejected at queue validation and cannot create new sessions.
 
 ## Privacy
 
@@ -37,4 +37,12 @@ Queue, session, reveal, history, and admin queue responses do not expose exact l
 
 ## Admin Web
 
-`ADMIN-OPS-05` adds the Admin Web Together Queue page for owner/ops. It reads `GET /admin/together/queue`, shows safe queue fields, filters by status/activity/radius/`hasCoordinates`, and remains read-only.
+`ADMIN-OPS-05` adds the Admin Web Together Queue page for owner/ops. It reads `GET /admin/together/queue`, shows safe queue fields, and filters by status/activity/radius/`hasCoordinates`.
+
+`RELEASE-SMOKE-BLOCKERS-02` adds a safe stale-entry action:
+
+```text
+POST /admin/together/queue/:entryId/actions
+```
+
+The only action is `cancel` for `waiting` rows. It requires a non-empty reason, writes `admin.togetherQueue.cancel`, and stores only safe metadata: activity, radius, `hasCoordinates`, and reason. Exact coordinates are never returned or audited.

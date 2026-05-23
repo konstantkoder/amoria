@@ -16,6 +16,7 @@ export type ErrorCode =
   | "locked_gallery_limit_reached"
   | "together_session_closed"
   | "together_continuation_failed"
+  | "together_queue_not_waiting"
   | "not_found"
   | "email_taken"
   | "file_too_large"

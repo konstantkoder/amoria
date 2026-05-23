@@ -193,6 +193,44 @@ test("GET /admin/together/queue returns safe queue observability and writes audi
   assert.deepEqual(state.auditInputs[0]?.metadata, { resultCount: 1 });
 });
 
+test("POST /admin/together/queue/:entryId/actions cancels waiting entry and audits safe metadata", async (t) => {
+  t.after(restoreDeps);
+  mockAdmin({ roles: ["ops"] });
+  const state = mockOpsHealth();
+  const app = buildApp();
+  t.after(async () => {
+    await app.close();
+  });
+
+  const response = await app.inject({
+    method: "POST",
+    url: "/admin/together/queue/00000000-0000-4000-8000-000000000401/actions",
+    headers: authHeaders(userId),
+    payload: {
+      action: "cancel",
+      reason: "Smoke test stale waiting entry",
+    },
+  });
+  const bodyText = response.body;
+  const body = response.json();
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(body.ok, true);
+  assert.equal(body.entry.status, "cancelled");
+  assert.equal(bodyText.includes("latitude"), false);
+  assert.equal(bodyText.includes("longitude"), false);
+  assert.equal(state.auditInputs[0]?.action, "admin.togetherQueue.cancel");
+  assert.equal(state.auditInputs[0]?.targetType, "together_queue");
+  assert.equal(state.auditInputs[0]?.targetId, "00000000-0000-4000-8000-000000000401");
+  assert.deepEqual(state.auditInputs[0]?.metadata, {
+    action: "cancel",
+    activity: "story_sparks",
+    radiusKm: null,
+    hasCoordinates: false,
+    reason: "Smoke test stale waiting entry",
+  });
+});
+
 test("GET /admin/reports enforces report role policy", async (t) => {
   t.after(restoreDeps);
   mockAdmin({ roles: ["ops"] });
@@ -623,6 +661,17 @@ function mockOpsHealth() {
           matchedSessionId: null,
         },
       ],
+      cancelQueueEntryForAdmin: async () => ({
+        entryId: "00000000-0000-4000-8000-000000000401",
+        userId,
+        activity: "story_sparks",
+        status: "cancelled",
+        radiusKm: null,
+        hasCoordinates: false,
+        createdAt: new Date("2026-01-01T00:00:00.000Z"),
+        expiresAt: new Date("2026-01-01T00:05:00.000Z"),
+        matchedSessionId: null,
+      }),
     },
     audit: {
       writeAuditLog: async (input) => {

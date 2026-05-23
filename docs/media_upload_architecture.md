@@ -36,7 +36,8 @@ The automated moderation provider is currently `NOT_CONFIGURED`. That is not a s
 - automated labels/signals when a real provider exists;
 - `needsHumanReview`.
 
+Closed-test policy: pending review avatar/public profile media can remain visible so the team can verify upload, peer profile, and moderation workflows without fake approval. Public beta should move peer-visible public media to approved-only once a real provider or staffed manual review process is active.
+
 ## Admin Preview
 
 Admin Web uses safe public URLs for avatar/public media. Locked media preview uses authenticated Admin/Ops content access with owner/moderator role, reason capture, and audit logging.
-

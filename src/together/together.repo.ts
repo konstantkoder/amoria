@@ -625,6 +625,89 @@ export async function listQueueEntriesForAdmin(limit = 100): Promise<AdminTogeth
   }));
 }
 
+export async function cancelQueueEntryForAdmin(
+  entryId: string,
+): Promise<AdminTogetherQueueEntryRow | undefined> {
+  return db.transaction(async (tx) => {
+    const now = new Date();
+
+    await tx
+      .update(togetherQueue)
+      .set({ status: "expired" })
+      .where(and(eq(togetherQueue.status, "waiting"), lte(togetherQueue.expiresAt, now)));
+
+    const [entry] = await tx
+      .select({
+        entryId: togetherQueue.id,
+        userId: togetherQueue.userId,
+        activity: togetherQueue.activity,
+        status: togetherQueue.status,
+        radiusKm: togetherQueue.radiusKm,
+        latitude: togetherQueue.latitude,
+        longitude: togetherQueue.longitude,
+        createdAt: togetherQueue.createdAt,
+        expiresAt: togetherQueue.expiresAt,
+        matchedSessionId: togetherQueue.matchedSessionId,
+      })
+      .from(togetherQueue)
+      .where(eq(togetherQueue.id, entryId))
+      .limit(1)
+      .for("update");
+
+    if (!entry) {
+      return undefined;
+    }
+
+    if (entry.status !== "waiting") {
+      return toAdminTogetherQueueEntry(entry);
+    }
+
+    const [cancelled] = await tx
+      .update(togetherQueue)
+      .set({ status: "cancelled" })
+      .where(eq(togetherQueue.id, entryId))
+      .returning({
+        entryId: togetherQueue.id,
+        userId: togetherQueue.userId,
+        activity: togetherQueue.activity,
+        status: togetherQueue.status,
+        radiusKm: togetherQueue.radiusKm,
+        latitude: togetherQueue.latitude,
+        longitude: togetherQueue.longitude,
+        createdAt: togetherQueue.createdAt,
+        expiresAt: togetherQueue.expiresAt,
+        matchedSessionId: togetherQueue.matchedSessionId,
+      });
+
+    return cancelled ? toAdminTogetherQueueEntry(cancelled) : toAdminTogetherQueueEntry(entry);
+  });
+}
+
+function toAdminTogetherQueueEntry(row: {
+  entryId: string;
+  userId: string;
+  activity: string;
+  status: string;
+  radiusKm: number | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  createdAt: Date;
+  expiresAt: Date;
+  matchedSessionId: string | null;
+}): AdminTogetherQueueEntryRow {
+  return {
+    entryId: row.entryId,
+    userId: row.userId,
+    activity: row.activity,
+    status: row.status,
+    radiusKm: row.radiusKm,
+    hasCoordinates: hasCoordinates(row),
+    createdAt: row.createdAt,
+    expiresAt: row.expiresAt,
+    matchedSessionId: row.matchedSessionId,
+  };
+}
+
 async function expireWaitingEntries(now: Date): Promise<void> {
   await db
     .update(togetherQueue)

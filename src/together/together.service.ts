@@ -46,21 +46,34 @@ import {
 
 const PROMPTS = {
   draw: [
-    "Draw a tiny place you would both want to visit.",
-    "Draw two characters meeting for the first time.",
-    "Draw a shared dream room.",
-  ],
-  color_mood: [
-    "Choose the color that best fits your mood right now.",
-    "Build a small shared palette for this moment.",
-    "Pick a mood color before deciding whether to continue.",
+    {
+      key: "draw.tinyPlace",
+      text: "Draw a tiny place you would both want to visit.",
+    },
+    {
+      key: "draw.firstMeeting",
+      text: "Draw two characters meeting for the first time.",
+    },
+    {
+      key: "draw.dreamRoom",
+      text: "Draw a shared dream room.",
+    },
   ],
   story_sparks: [
-    "Build a tiny story together, one card at a time.",
-    "Choose four sparks and turn them into a shared mini-story.",
-    "Create a small story from a place, detail, twist, and ending.",
+    {
+      key: "storySparks.tinyStory",
+      text: "Build a tiny story together, one card at a time.",
+    },
+    {
+      key: "storySparks.fourSparks",
+      text: "Choose four sparks and turn them into a shared mini-story.",
+    },
+    {
+      key: "storySparks.placeDetailTwistEnding",
+      text: "Create a small story from a place, detail, twist, and ending.",
+    },
   ],
-} as const satisfies Record<TogetherActivity, readonly string[]>;
+} as const satisfies Record<TogetherActivity, readonly { key: string; text: string }[]>;
 
 export type CreateEventResult = {
   response: TogetherEventResponse;
@@ -110,7 +123,7 @@ export async function enqueue(
     userId,
     activity: input.activity,
     expiresAt,
-    promptText: choosePrompt(input.activity),
+    promptText: choosePrompt(input.activity).text,
     ...location,
   });
 
@@ -308,6 +321,12 @@ async function prepareEventForSession(
     });
   }
 
+  if (input.type !== "stroke_batch" && input.type !== "system") {
+    throw validationError("Drawing sessions only accept stroke or system events", {
+      type: "unsupported_for_draw",
+    });
+  }
+
   return { payload: input.payload };
 }
 
@@ -470,7 +489,7 @@ export async function reveal(
     const continuation = await deps.repo.createStoryContinuationSession({
       sourceSessionId: sessionId,
       memberUserIds,
-      promptText: choosePrompt("story_sparks"),
+      promptText: choosePrompt("story_sparks").text,
     });
 
     if (!continuation) {
@@ -524,6 +543,7 @@ export async function getHistory(
           activity: row.session.activity as TogetherActivity,
           status: row.session.status as TogetherSessionStatus,
           promptText: row.session.promptText,
+          promptKey: promptKeyFor(row.session.activity, row.session.promptText),
           peer: row.peer,
           outcome: revealState.outcome,
           myDecision: revealState.myDecision,
@@ -573,6 +593,7 @@ function toSessionDto(session: TogetherSessionRow): TogetherSessionDto {
     activity: session.activity as TogetherActivity,
     status: session.status as TogetherSessionStatus,
     promptText: session.promptText,
+    promptKey: promptKeyFor(session.activity, session.promptText),
     createdAt: session.createdAt.toISOString(),
     endedAt: session.finishedAt?.toISOString() ?? null,
     endedReason: session.endedReason ?? null,
@@ -691,6 +712,7 @@ async function buildTogetherSourceMetadata(
   const metadata: Record<string, JsonValue> = {
     activity: session.activity,
     promptText: session.promptText,
+    promptKey: promptKeyFor(session.activity, session.promptText),
   };
 
   if (session.sourceSessionId) {
@@ -699,11 +721,13 @@ async function buildTogetherSourceMetadata(
     if (sourceSession) {
       metadata.sourceActivity = sourceSession.activity;
       metadata.sourcePromptText = sourceSession.promptText;
+      metadata.sourcePromptKey = promptKeyFor(sourceSession.activity, sourceSession.promptText);
       if (sourceSession.activity === "draw") {
         const sourceEvents =
           (await deps.repo.listSessionEventsForMember(userId, sourceSession.id)) ?? [];
         metadata.drawSessionId = sourceSession.id;
         metadata.drawPromptText = sourceSession.promptText;
+        metadata.drawPromptKey = promptKeyFor(sourceSession.activity, sourceSession.promptText);
         metadata.drawEventCount = sourceEvents.length;
       }
     }
@@ -800,7 +824,16 @@ function groupRevealsBySessionId(
   return bySessionId;
 }
 
-function choosePrompt(activity: TogetherActivity): string {
+function choosePrompt(activity: TogetherActivity): { key: string; text: string } {
   const prompts = PROMPTS[activity];
-  return prompts[Math.floor(Math.random() * prompts.length)];
+  return prompts[Math.floor(Math.random() * prompts.length)] ?? prompts[0];
+}
+
+function promptKeyFor(activity: string, promptText: string): string | null {
+  if (activity !== "draw" && activity !== "story_sparks") {
+    return null;
+  }
+
+  const prompt = PROMPTS[activity].find((candidate) => candidate.text === promptText);
+  return prompt?.key ?? null;
 }

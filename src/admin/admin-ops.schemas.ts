@@ -1,4 +1,28 @@
 import type { FastifySchema } from "fastify";
+import { z } from "zod";
+import { validationError } from "../common/errors";
+
+const adminTogetherQueueActionBodySchema = z
+  .object({
+    action: z.literal("cancel"),
+    reason: z.string().trim().min(1).max(500),
+  })
+  .strict();
+
+export type AdminTogetherQueueActionBody = z.infer<typeof adminTogetherQueueActionBodySchema>;
+
+export function parseAdminTogetherQueueActionBody(
+  input: unknown,
+): AdminTogetherQueueActionBody {
+  const result = adminTogetherQueueActionBodySchema.safeParse(input);
+  if (result.success) {
+    return result.data;
+  }
+
+  throw validationError("Admin Together queue action payload is invalid", {
+    body: result.error.issues.map((issue) => issue.message).join("; "),
+  });
+}
 
 export const adminOpsHealthRouteSchema = {
   response: {
@@ -101,6 +125,29 @@ export const adminTogetherQueueRouteSchema = {
           items: adminTogetherQueueEntrySchema,
         },
         nextCursor: { type: "null" },
+      },
+    },
+  },
+} as const satisfies FastifySchema;
+
+export const adminTogetherQueueActionRouteSchema = {
+  body: {
+    type: "object",
+    required: ["action", "reason"],
+    additionalProperties: false,
+    properties: {
+      action: { type: "string", enum: ["cancel"] },
+      reason: { type: "string", minLength: 1, maxLength: 500 },
+    },
+  },
+  response: {
+    200: {
+      type: "object",
+      required: ["ok", "entry"],
+      additionalProperties: false,
+      properties: {
+        ok: { type: "boolean", const: true },
+        entry: adminTogetherQueueEntrySchema,
       },
     },
   },

@@ -783,6 +783,7 @@ function TogetherQueueScreen() {
     radiusKm: "",
     hasCoordinates: "",
   });
+  const [busyEntryId, setBusyEntryId] = useState<string | null>(null);
   const items = data?.items ?? [];
   const filteredItems = useMemo(() => items.filter((item) => {
     if (filters.status && item.status !== filters.status) {
@@ -806,11 +807,44 @@ function TogetherQueueScreen() {
     return true;
   }), [filters, items]);
 
+  async function handleCancel(item: TogetherQueueEntry) {
+    if (item.status !== "waiting") {
+      return;
+    }
+
+    const reason = window.prompt(t("queue.cancelReasonPrompt"))?.trim();
+    if (!reason) {
+      window.alert(t("queue.cancelReasonRequired"));
+      return;
+    }
+
+    if (!window.confirm(t("queue.cancelConfirm"))) {
+      return;
+    }
+
+    setBusyEntryId(item.entryId);
+    try {
+      await apiPost<{ ok: true; entry: TogetherQueueEntry }>(
+        `/admin/together/queue/${item.entryId}/actions`,
+        { action: "cancel", reason },
+      );
+      await reload();
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : t("error.requestFailed"));
+    } finally {
+      setBusyEntryId(null);
+    }
+  }
+
   return (
     <section className="panel">
       <div className="panel-header">
         <h2>{t("queue.title")}</h2>
         <button className="secondary" onClick={reload}>{t("common.refresh")}</button>
+      </div>
+      <div className="hint-list">
+        <strong>{t("queue.whyNotMatchingTitle")}</strong>
+        <span>{t("queue.whyNotMatchingBody")}</span>
       </div>
       <form className="filters" onSubmit={(event) => event.preventDefault()}>
         <label>{t("common.status")}<select value={filters.status} onChange={(event) => setFilters({ ...filters, status: event.target.value })}>
@@ -847,12 +881,16 @@ function TogetherQueueScreen() {
               <th>{t("common.status")}</th>
               <th>{t("queue.radiusKm")}</th>
               <th>{t("queue.hasCoordinates")}</th>
+              <th>{t("queue.stale")}</th>
               <th>{t("queue.matchedSessionId")}</th>
+              <th>{t("common.action")}</th>
             </tr>
           </thead>
           <tbody>
-            {filteredItems.map((item) => (
-              <tr key={item.entryId}>
+            {filteredItems.map((item) => {
+              const stale = isStaleQueueEntry(item);
+              return (
+              <tr key={item.entryId} className={stale ? "warning-row" : ""}>
                 <td>{formatDate(item.createdAt, language)}</td>
                 <td>{formatDate(item.expiresAt, language)}</td>
                 <td>{item.userId}</td>
@@ -860,9 +898,20 @@ function TogetherQueueScreen() {
                 <td>{formatQueueStatus(item.status, t)}</td>
                 <td>{item.radiusKm === null ? t("queue.noLimit") : item.radiusKm}</td>
                 <td>{item.hasCoordinates ? t("common.yes") : t("common.no")}</td>
+                <td>{stale ? <span className="badge badge-warning">{t("common.yes")}</span> : t("common.no")}</td>
                 <td>{item.matchedSessionId ?? ""}</td>
+                <td>
+                  <button
+                    className="secondary"
+                    disabled={item.status !== "waiting" || busyEntryId === item.entryId}
+                    onClick={() => void handleCancel(item)}
+                  >
+                    {busyEntryId === item.entryId ? t("queue.cancelling") : t("queue.cancelWaiting")}
+                  </button>
+                </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       ) : <EmptyState label={t("queue.empty")} />}
@@ -1210,6 +1259,17 @@ function useI18n(): I18nContextValue {
 
 function formatDate(value: string, language: Language): string {
   return new Date(value).toLocaleString(language === "ru" ? "ru-RU" : "en-US");
+}
+
+function isStaleQueueEntry(item: TogetherQueueEntry): boolean {
+  if (item.status !== "waiting") {
+    return false;
+  }
+
+  const now = Date.now();
+  const createdAt = new Date(item.createdAt).getTime();
+  const expiresAt = new Date(item.expiresAt).getTime();
+  return expiresAt <= now || now - createdAt > 5 * 60 * 1000;
 }
 
 function formatCount(value: number | null): string {

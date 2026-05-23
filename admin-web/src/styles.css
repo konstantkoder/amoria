@@ -93,6 +93,10 @@ tr.selected td {
   background: #eaf3f4;
 }
 
+tr.warning-row td {
+  background: #fff7e6;
+}
+
 .app-shell {
   min-height: 100vh;
   display: grid;
@@ -228,6 +232,38 @@ nav button:hover {
   gap: 10px;
   align-items: end;
   margin-bottom: 14px;
+}
+
+.hint-list {
+  display: grid;
+  gap: 4px;
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border: 1px solid #d7e2e6;
+  border-radius: 6px;
+  background: #f8fafb;
+  color: #53646d;
+}
+
+.hint-list strong {
+  color: #23343b;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  border-radius: 999px;
+  padding: 2px 8px;
+  background: #e1e8eb;
+  color: #23343b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.badge-warning {
+  background: #ffe8b5;
+  color: #7a4d00;
 }
 
 .action-bar {
