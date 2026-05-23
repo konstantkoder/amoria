@@ -1,3 +1,5 @@
+import { getApiBaseUrl } from "@/config/apiConfig";
+
 function normalizeString(value: unknown) {
   return String(value ?? "").trim();
 }
@@ -11,6 +13,20 @@ function parseUrl(value: string): URL | null {
     return new URL(value);
   } catch {
     return null;
+  }
+}
+
+function isPublicMediaPath(pathname: string): boolean {
+  return /^\/media\/public\/[^/?#]+$/.test(pathname);
+}
+
+function resolveAgainstApiBase(pathname: string): string | undefined {
+  if (!isPublicMediaPath(pathname)) return undefined;
+
+  try {
+    return `${getApiBaseUrl()}${pathname}`;
+  } catch {
+    return undefined;
   }
 }
 
@@ -68,17 +84,33 @@ export function normalizePublicMediaUrl(
   const normalized = normalizeString(value);
   if (!normalized) return undefined;
 
+  if (normalized.startsWith("/")) {
+    const resolved = resolveAgainstApiBase(normalized.split(/[?#]/, 1)[0] ?? "");
+    if (resolved) return resolved;
+    warnInvalidMediaUrl(context, normalized);
+    return undefined;
+  }
+
   const url = parseUrl(normalized);
   if (!url) {
     warnInvalidMediaUrl(context, normalized);
     return undefined;
   }
 
+  const canonicalCurrentUrl = resolveAgainstApiBase(url.pathname);
+  if (canonicalCurrentUrl) {
+    return canonicalCurrentUrl;
+  }
+
   if (isReleaseSafePublicMediaUrl(normalized)) {
     return normalized;
   }
 
-  if (isDevRuntime() && (url.protocol === "http:" || url.protocol === "https:")) {
+  if (
+    isDevRuntime() &&
+    (url.protocol === "http:" || url.protocol === "https:") &&
+    !isPrivateOrLocalHostname(url.hostname)
+  ) {
     return normalized;
   }
 

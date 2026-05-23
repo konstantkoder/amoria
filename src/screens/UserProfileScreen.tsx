@@ -31,6 +31,7 @@ import { unlockUserLockedGallery } from "@/services/api/publicUsersApi";
 import * as safetyApi from "@/services/api/safetyApi";
 import type { SafetyReportReason } from "@/services/api/safetyApi";
 import { getUserProfileById } from "@/services/user";
+import { normalizePublicMediaUrl } from "@/services/media/mediaUrl";
 import type { UserProfile, UserProfilePhoto } from "@/models/User";
 import { theme } from "@/theme";
 
@@ -345,11 +346,17 @@ export default function UserProfileScreen() {
     try {
       const response = await unlockUserLockedGallery(userId, password);
       setUnlockedPhotos(
-        response.photos.map((photo) => ({
-          mediaId: photo.mediaId,
-          url: photo.url,
-          position: photo.position,
-        }))
+        response.photos
+          .map((photo): UserProfilePhoto | null => {
+            const url = normalizePublicMediaUrl(photo.url, "locked gallery media URL");
+            if (!url) return null;
+            return {
+              mediaId: photo.mediaId,
+              url,
+              position: photo.position,
+            };
+          })
+          .filter((photo): photo is UserProfilePhoto => Boolean(photo))
       );
       setUnlockModalVisible(false);
       setLockedPassword("");

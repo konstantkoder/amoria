@@ -1,6 +1,6 @@
 # Together Smoke Pass
 
-Updated: 2026-05-23 for `RELEASE-SMOKE-BLOCKERS-02`
+Updated: 2026-05-23 for `RELEASE-SMOKE-BLOCKERS-03`
 
 ## Run Metadata
 
@@ -42,10 +42,11 @@ Geo matching rule:
 - finite radius requires real foreground location;
 - no-limit is the default and can match without coordinates;
 - backend queue uses the selected radius and coordinates as source of truth;
-- repeated retry cancels the current/old queue entry before joining again;
+- no-limit waiting keeps polling until match or expiry and should not encourage repeated retry;
+- finite-radius no-limit fallback cancels the finite queue row and joins no-limit;
 - exact peer coordinates must not appear in UI, logs, queue/session responses, DM, history, or detail;
 - Story Sparks continuation after draw keeps the same pair and does not re-match by geo.
-- Admin Web has a Together Queue page for owner/ops. Use it during smoke to see activity/status/radius/hasCoordinates without exact coordinates and to cancel stale `waiting` entries with a reason.
+- Admin Web has Together Queue and Together Sessions pages for owner/ops. Use Queue before match to see activity/status/radius/hasCoordinates without exact coordinates; use Sessions after match to see status, participant heartbeat, event counts, reveal summaries, and stale active sessions.
 
 ## Automated Sanity Checks
 
@@ -77,8 +78,10 @@ Known automated-check warning: the server test run prints the existing AWS SDK f
 | L - Radius 5 km same place | A+B select 5 km, grant location, start Together, backend matches into `draw` if devices are actually nearby | NOT TESTED | Prepared for manual 2-device pass. | - |
 | M - Radius outside range | Simulate/far-location accounts with strict radius do not match; no fake local match | NOT TESTED | Prepared for manual 2-device pass. | - |
 | N - Location denied | Select finite radius, deny location, no queue join, clear UI asks to enable location or choose no limit | NOT TESTED | Prepared for manual pass. | - |
-| O - No limit | Select no limit, start Together without location, backend accepts queue without coordinates | NOT TESTED | Prepared for manual pass. | - |
-| P - Retry no-limit fallback | Start finite-radius search, wait for delayed state, tap `Попробовать без ограничения`, backend cancels old queue entry and starts no-limit queue | NOT TESTED | Prepared for manual pass. | - |
+| O - No limit | Select no limit, start Together without location, backend accepts queue without coordinates, UI keeps showing active waiting/countdown without premature "no people nearby" | NOT TESTED | Prepared for manual pass. | - |
+| P - Retry no-limit fallback | Start finite-radius search, wait for delayed state, tap `Попробовать без ограничения`, backend cancels finite queue entry and starts no-limit queue | NOT TESTED | Prepared for manual pass. | - |
+| Q - No-limit staggered join | A starts no-limit, B starts no-limit seconds later, both match without coordinates and without repeated retry taps | NOT TESTED | Prepared for manual pass. | - |
+| R - Stuck/frozen client diagnostics | Match into draw, freeze/kill one client if safe, inspect Together Sessions for stale heartbeat/no events/left state | NOT TESTED | Prepared for manual pass. | - |
 
 ## Staged Story Sparks Manual Checklist
 
@@ -109,10 +112,11 @@ Known automated-check warning: the server test run prints the existing AWS SDK f
 | 2. Select strict/far radius | A+B far/simulated | Backend keeps both waiting or expires; no fake local match |  | NOT TESTED |
 | 3. Deny location | A | App shows location-required state and does not join finite-radius queue |  | NOT TESTED |
 | 4. Select no limit | A | App starts queue without requesting/using coordinates |  | NOT TESTED |
-| 5. Retry stale queue | A | Tap Retry repeatedly after error/expired/cancelled state; backend has one current waiting attempt for the user and no invisible stuck queue |  | NOT TESTED |
+| 5. Active no-limit waiting | A | While the no-limit queue row is still active, UI shows searching/countdown and does not encourage retry taps |  | NOT TESTED |
 | 6. Try no limit fallback | A | After delayed finite search, tap no-limit fallback; old entry is cancelled and new no-limit queue starts |  | NOT TESTED |
 | 7. Inspect responses/logs | A+B | Queue/session/history/DM do not expose peer latitude/longitude; `/admin/together/queue` shows only `hasCoordinates` |  | NOT TESTED |
 | 9. Inspect Admin Web queue | Owner/Ops | Admin Web `Очередь Together` shows current queue rows with status/activity/radius/hasCoordinates/matchedSessionId, stale indicator, cancel action for waiting rows, and no latitude/longitude columns |  | NOT TESTED |
+| 10. Inspect Admin Web sessions | Owner/Ops | Admin Web `Сессии Together` shows matched/active sessions, participants, heartbeat, event counts, reveal summary, stale warnings, and no latitude/longitude/raw payload columns |  | NOT TESTED |
 | 8. Continue story | A+B | Story Sparks continuation keeps same pair and does not perform a second geo match |  | NOT TESTED |
 
 ## Draw Manual Checklist

@@ -48,6 +48,27 @@ type TogetherRadiusKm = 5 | 25 | 100 | 250 | null;
 const POLL_INTERVAL_MS = 2000;
 const DELAYED_MS = 9000;
 
+function interpolateFallback(fallback: string, params?: Record<string, string>) {
+  let value = fallback;
+  if (!params) return value;
+  for (const [key, replacement] of Object.entries(params)) {
+    value = value.replaceAll(`{${key}}`, replacement);
+  }
+  return value;
+}
+
+function formatQueueExpiresAt(value: string) {
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) {
+    return "";
+  }
+
+  return new Date(timestamp).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 function getLocationMetadata(location?: TogetherQueueLocationInput) {
   return {
     radiusKm: location?.radiusKm ?? null,
@@ -81,7 +102,7 @@ function getMatchStateMeta(statusKey: MatchStatusKey, tt: TranslateFn) {
       label: tt("play.match.state.searchingLabel", "Ищем"),
       hint:
         statusKey === "delayed"
-          ? tt("play.match.stillSearching", "Пока никого нет, но поиск продолжается.")
+          ? tt("play.match.stillSearching", "Поиск продолжается. Оставьте экран открытым.")
           : tt("play.match.searchCanStayOpen", "Ты в очереди. Можно не нажимать заново."),
       tone: "live" as const,
     };
@@ -183,7 +204,7 @@ export default function PlayMatchScreen() {
   const tt = React.useCallback<TranslateFn>(
     (key, fallback, params) => {
       const value = t(key, params);
-      return value === key ? fallback : value;
+      return value === key ? interpolateFallback(fallback, params) : value;
     },
     [t]
   );
@@ -210,7 +231,9 @@ export default function PlayMatchScreen() {
   const autoStartedRef = React.useRef(false);
   const inFlightRef = React.useRef(false);
   const invalidActivityReportedRef = React.useRef(false);
-  const delayedReportedRef = React.useRef(false);
+  const pollFailureReportedRef = React.useRef(false);
+  const expiredReportedRef = React.useRef(false);
+  const retryActionCountRef = React.useRef(0);
 
   const goToTogether = React.useCallback(() => {
     try {
@@ -285,7 +308,8 @@ export default function PlayMatchScreen() {
     entryIdRef.current = "";
     matchedRef.current = false;
     cancelRequestedRef.current = false;
-    delayedReportedRef.current = false;
+    pollFailureReportedRef.current = false;
+    expiredReportedRef.current = false;
     inFlightRef.current = true;
     setBusy(true);
     setErrorText("");
@@ -380,6 +404,20 @@ export default function PlayMatchScreen() {
         }
 
         if (response.entry.status === "expired") {
+          if (!expiredReportedRef.current) {
+            expiredReportedRef.current = true;
+            reportClientError({
+              screen: "PlayMatchScreen",
+              action: "startTogetherQueue",
+              step: "queueExpiredWithoutMatch",
+              message: "Together queue expired without a match",
+              metadata: {
+                activity,
+                entryIdExists: Boolean(entryIdRef.current),
+                ...getLocationMetadata(activeQueueLocation),
+              },
+            });
+          }
           setStatusKey("expired");
           return;
         }
@@ -390,13 +428,19 @@ export default function PlayMatchScreen() {
         }
 
         const nextStatus = Date.now() - queueStartedAt > DELAYED_MS ? "delayed" : "searching";
-        if (nextStatus === "delayed" && !delayedReportedRef.current) {
-          delayedReportedRef.current = true;
+        setStatusKey(nextStatus);
+      } catch (error) {
+        if (!alive) return;
+        if (!pollFailureReportedRef.current) {
+          pollFailureReportedRef.current = true;
+          const safeError = sanitizeErrorForReport(error);
           reportClientError({
             screen: "PlayMatchScreen",
             action: "startTogetherQueue",
-            step: "queueNoMatchDelayedThreshold",
-            message: "Together queue did not match before delayed threshold",
+            step: "queuePollFailed",
+            code: safeError.code,
+            message: safeError.message,
+            stack: safeError.stack,
             metadata: {
               activity,
               entryIdExists: Boolean(entryIdRef.current),
@@ -404,9 +448,6 @@ export default function PlayMatchScreen() {
             },
           });
         }
-        setStatusKey(nextStatus);
-      } catch {
-        if (!alive) return;
         setStatusKey("error");
         setErrorText(
           tt(
@@ -448,13 +489,29 @@ export default function PlayMatchScreen() {
     reason: "retry" | "noLimitRetry" = "retry"
   ) => {
     if (busy || inFlightRef.current) return;
+    retryActionCountRef.current += 1;
+    if (retryActionCountRef.current >= 2) {
+      reportClientError({
+        screen: "PlayMatchScreen",
+        action: "startTogetherQueue",
+        step: "repeatedRetryAction",
+        message: "User repeated Together queue retry or cancel action",
+        metadata: {
+          activity,
+          retryActionCount: retryActionCountRef.current,
+          reason,
+          status: statusKey,
+          ...getLocationMetadata(locationForRequest),
+        },
+      });
+    }
     await cancelCurrentQueue(true);
     entryIdRef.current = "";
     cancelRequestedRef.current = false;
     matchedRef.current = false;
     setEntry(null);
     await startQueue(locationForRequest, reason);
-  }, [busy, cancelCurrentQueue, startQueue]);
+  }, [activity, busy, cancelCurrentQueue, startQueue, statusKey]);
 
   const retry = React.useCallback(() => {
     void restartQueue(activeQueueLocation, "retry");
@@ -551,7 +608,7 @@ export default function PlayMatchScreen() {
           {entry?.expiresAt ? (
             <Text style={styles.expiresText}>
               {tt("play.match.queueExpiresAt", "Очередь активна до {time}", {
-                time: new Date(entry.expiresAt).toLocaleTimeString(),
+                time: formatQueueExpiresAt(entry.expiresAt) || "—",
               })}
             </Text>
           ) : null}

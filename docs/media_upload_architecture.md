@@ -1,6 +1,6 @@
 # Media Upload Architecture
 
-Updated: 2026-05-23 after `ADMIN-OPS-05`
+Updated: 2026-05-23 after `RELEASE-SMOKE-BLOCKERS-03`
 
 ## Release Rule
 
@@ -14,14 +14,15 @@ Avatar and profile photo uploads wrote absolute URLs into `media_files.url` and 
 
 - Object bytes remain in S3/MinIO-compatible storage.
 - The canonical object key is `media_files.path`.
-- The mobile-visible URL is generated from the current backend media base:
-  - `PUBLIC_MEDIA_URL/public/:mediaId`
+- The mobile-visible URL is generated from the media id at response time:
+  - `/media/public/:mediaId`
 - The backend route `GET /media/public/:mediaId` loads the object by `media_files.path` and streams the bytes with the stored MIME type.
 - `GET /media/public/:mediaId` streams only public-safe media. Locked gallery profile photos are blocked even if someone guesses a `mediaId`.
 - Avatar upload is backend-mediated through `POST /media/avatar`.
 - Profile photo upload is backend-mediated through `POST /media/profile-photo`.
-- Avatar upload and completed profile photo upload store the current public media route in `media_files.url`.
-- Public profile responses re-materialize avatar and public photo URLs from media IDs, so stale absolute DB URLs are not trusted as the public contract.
+- `media_files.url` is legacy/debug metadata only and may contain an old tunnel/local/object-storage address.
+- Public profile, admin list/detail, and mobile-facing responses re-materialize avatar and public photo URLs from media IDs, so stale absolute DB URLs are not trusted as the public contract.
+- Mobile and Admin Web resolve relative `/media/public/:mediaId` paths against the current API origin.
 
 ## Backend-Mediated Profile Photo Upload
 
@@ -96,7 +97,7 @@ The backend still decodes, validates, re-encodes to WebP, strips metadata, and e
 
 - `GET /users/:id/public` returns:
   - `avatarUrl` only when the stored avatar points to an owned avatar media row.
-  - public profile photos with current `PUBLIC_MEDIA_URL/public/:mediaId` URLs.
+  - public profile photos with current `/media/public/:mediaId` URLs.
   - locked gallery summary/count only.
 - Locked gallery photos are not included in public profile photos before unlock.
 - Stale avatar URLs without a matching media row are hidden instead of being returned to mobile.
@@ -112,7 +113,8 @@ Locked gallery media remains hidden from public profile responses regardless of 
 ## Environment Rules
 
 - `PUBLIC_API_URL` should point to the reachable backend API origin.
-- `PUBLIC_MEDIA_URL` should point to the reachable public media origin. In the current backend route setup this is normally `${PUBLIC_API_URL}/media`.
+- Public profile/mobile/admin media responses should be relative `/media/public/:mediaId` paths or current-origin equivalents.
+- `PUBLIC_MEDIA_URL` is not the durable mobile-visible media contract.
 - `S3_ENDPOINT` may remain an internal object-storage endpoint.
 - `S3_PUBLIC_BASE_URL` must not be used as the mobile-visible profile media contract.
 - Production public URL validation still rejects localhost/private/minio-style public URLs.

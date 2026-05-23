@@ -133,11 +133,13 @@ export default function PlayCanvasScreen() {
   const [tick, setTick] = React.useState(Date.now());
   const [canvasRevision, setCanvasRevision] = React.useState(0);
   const [closedActorUserId, setClosedActorUserId] = React.useState<string | null>(null);
+  const [canvasLoadFailed, setCanvasLoadFailed] = React.useState(false);
   const mountedRef = React.useRef(true);
   const navigationHandledRef = React.useRef(false);
   const allowExitRef = React.useRef(false);
   const finishPromiseRef = React.useRef<Promise<void> | null>(null);
   const leavePromiseRef = React.useRef<Promise<void> | null>(null);
+  const reportedCanvasFailuresRef = React.useRef<Set<string>>(new Set());
 
   const goToTogether = React.useCallback(() => {
     try {
@@ -166,6 +168,35 @@ export default function PlayCanvasScreen() {
     }
     goToTogether();
   }, [goToTogether, navigation]);
+
+  const reportCanvasFailure = React.useCallback((
+    step: string,
+    message: string,
+    error?: unknown,
+    extraMetadata: Record<string, unknown> = {}
+  ) => {
+    const reportKey = `${step}:${message}`;
+    if (reportedCanvasFailuresRef.current.has(reportKey)) return;
+    reportedCanvasFailuresRef.current.add(reportKey);
+
+    const safeError = error ? sanitizeErrorForReport(error) : null;
+    reportClientError({
+      screen: "PlayCanvasScreen",
+      action: "drawTogether",
+      step,
+      code: safeError?.code,
+      message: safeError?.message ?? message,
+      stack: safeError?.stack,
+      metadata: {
+        sessionId,
+        activity: sessionResponse?.session.activity ?? "draw",
+        status: sessionResponse?.session.status ?? null,
+        strokeCount: strokes.length,
+        participantCount: sessionResponse?.participants.length ?? 0,
+        ...extraMetadata,
+      },
+    });
+  }, [sessionId, sessionResponse?.participants.length, sessionResponse?.session.activity, sessionResponse?.session.status, strokes.length]);
 
   const retryCanvasEntry = React.useCallback(() => {
     if (!sessionId) {
@@ -196,6 +227,8 @@ export default function PlayCanvasScreen() {
     setTick(Date.now());
     setCanvasRevision((value) => value + 1);
     setClosedActorUserId(null);
+    setCanvasLoadFailed(false);
+    reportedCanvasFailuresRef.current.clear();
     setStrokes(getTogetherStrokes(sessionId));
 
     if (!uid || !sessionId) {
@@ -228,8 +261,9 @@ export default function PlayCanvasScreen() {
         setSessionResponse(response);
         setLoading(false);
       })
-      .catch(() => {
+      .catch((error) => {
         if (!mountedRef.current) return;
+        reportCanvasFailure("sessionLoadFailed", "Failed to load Together draw session", error);
         setLoadError(
           tt(
             "play.canvas.connectError",
@@ -242,7 +276,7 @@ export default function PlayCanvasScreen() {
     return () => {
       mountedRef.current = false;
     };
-  }, [sessionId, tt, uid]);
+  }, [navigation, sessionId, tt, uid]);
 
   const session = sessionResponse?.session ?? null;
   const participants = sessionResponse?.participants ?? [];
@@ -345,7 +379,8 @@ export default function PlayCanvasScreen() {
         const response = await togetherApi.getSessionEvents(sessionId);
         if (cancelled || !mountedRef.current) return;
         setStrokes(replaceTogetherStrokesFromEvents(sessionId, response.items));
-      } catch {
+      } catch (error) {
+        reportCanvasFailure("peerEventHydrateFailed", "Failed to hydrate Together draw events", error);
         // Stroke submission errors already surface through the active drawing path.
       }
     };
@@ -358,7 +393,7 @@ export default function PlayCanvasScreen() {
       cancelled = true;
       clearInterval(timer);
     };
-  }, [drawingStarted, session?.status, sessionId, uid]);
+  }, [drawingStarted, reportCanvasFailure, session?.status, sessionId, uid]);
 
   const completeSession = React.useCallback(async () => {
     if (!sessionId) {
@@ -384,8 +419,9 @@ export default function PlayCanvasScreen() {
     });
 
     finishPromiseRef.current = task;
-    await task.catch(() => {
+    await task.catch((error) => {
       if (!mountedRef.current) return;
+      reportCanvasFailure("finishSessionFailed", "Failed to finish Together draw session", error);
       setStrokeError(
         tt(
           "play.canvas.finishFailed",
@@ -393,7 +429,7 @@ export default function PlayCanvasScreen() {
         )
       );
     });
-  }, [applySessionResponse, openResultScreen, session?.status, sessionId, tt, uid]);
+  }, [applySessionResponse, openResultScreen, reportCanvasFailure, session?.status, sessionId, tt, uid]);
 
   const leaveSessionAndExit = React.useCallback(async () => {
     if (!sessionId) {
@@ -455,7 +491,8 @@ export default function PlayCanvasScreen() {
         if (!cancelled) {
           applySessionResponse(response);
         }
-      } catch {
+      } catch (error) {
+        reportCanvasFailure("heartbeatFailed", "Together draw heartbeat failed", error);
         if (!cancelled && mountedRef.current) {
           setStrokeError(
             tt(
@@ -475,7 +512,7 @@ export default function PlayCanvasScreen() {
       cancelled = true;
       clearInterval(timer);
     };
-  }, [applySessionResponse, finishing, leaving, session?.status, sessionId, tt, uid]);
+  }, [applySessionResponse, finishing, leaving, reportCanvasFailure, session?.status, sessionId, tt, uid]);
 
   React.useEffect(() => {
     if (!session) return;
@@ -577,8 +614,11 @@ export default function PlayCanvasScreen() {
         if (response.created) {
           setStrokes(rememberLocalTogetherStrokes(sessionId, uid, clientEventId, localStrokes));
         }
-      } catch {
+      } catch (error) {
         if (!mountedRef.current) return;
+        reportCanvasFailure("sendStrokeFailed", "Failed to send Together draw stroke batch", error, {
+          batchStrokeCount: localStrokes.length,
+        });
         setStrokes(getTogetherStrokes(sessionId));
         setCanvasRevision((value) => value + 1);
         setStrokeError(
@@ -589,7 +629,7 @@ export default function PlayCanvasScreen() {
         );
       }
     },
-    [finishing, leaving, session?.status, sessionId, tt, uid]
+    [finishing, leaving, reportCanvasFailure, session?.status, sessionId, tt, uid]
   );
 
   const canvasToolLabels = React.useMemo(
@@ -715,6 +755,36 @@ export default function PlayCanvasScreen() {
     );
   }
 
+  if (canvasLoadFailed) {
+    return (
+      <ScreenShell
+        title={tt("play.canvas.title", "Совместная сессия")}
+        background="nightCity"
+        showBack
+        onBack={() => void leaveSessionAndExit()}
+      >
+        <View style={styles.centerState}>
+          <CoreStateCard
+            icon="warning-outline"
+            title={tt("play.canvas.webviewFailedTitle", "Холст не загрузился")}
+            body={tt(
+              "play.canvas.webviewFailedBody",
+              "Вернуться в меню / Повторить позже"
+            )}
+            primaryAction={{
+              label: tt("common.backToMainTabs", "Вернуться в меню"),
+              onPress: () => void leaveSessionAndExit(),
+            }}
+            secondaryAction={{
+              label: tt("play.canvas.retryLater", "Повторить позже"),
+              onPress: () => void leaveSessionAndExit(),
+            }}
+          />
+        </View>
+      </ScreenShell>
+    );
+  }
+
   if (!drawingStarted && session.status === "active") {
     return (
       <ScreenShell
@@ -825,6 +895,13 @@ export default function PlayCanvasScreen() {
           localUid={uid}
           strokes={strokes}
           onLocalStrokeBatch={handleLocalBatch}
+          onLoadError={(message) => {
+            setCanvasLoadFailed(true);
+            reportCanvasFailure("canvasWebViewLoadFailed", message);
+          }}
+          onMessageParseError={(message) => {
+            reportCanvasFailure("canvasWebViewMessageParseFailed", message);
+          }}
           disabled={canvasDisabled}
           disabledTitle={
             finishing || leaving

@@ -1,11 +1,11 @@
 # BUGFIX-UX-02 Media/Nav/Profile Audit
 
-Updated: 2026-05-20
+Updated: 2026-05-23
 
 ## What Was Fixed
 
 - Peer profile media now uses backend-owned public media URLs instead of stale stored S3/tunnel URLs.
-- Public profile avatar URLs are materialized from the current `media_files` row and returned as `PUBLIC_MEDIA_URL/public/:mediaId`.
+- Public profile avatar URLs are materialized from the current `media_files` row and returned as `/media/public/:mediaId` or a current-origin equivalent.
 - Public profile photos use the same stable media route and still exclude locked gallery photos before unlock.
 - `UserProfileScreen` shows a visible failed-photo state and reports image load failures to Admin Client Errors.
 - Profile goal and mood badges are clickable and open `EditProfileScreen` with `focus="goal"` or `focus="mood"`. Existing "About me" entrypoint remains backend-backed.
@@ -55,7 +55,7 @@ Root cause: mobile-visible profile media URLs were persisted as absolute URLs de
 
 Fix: mobile-visible media now goes through the backend public media route:
 
-- URL shape: `PUBLIC_MEDIA_URL/public/:mediaId`
+- URL shape: `/media/public/:mediaId`
 - bytes source: `media_files.path` in object storage
 - avatar/public photos in public profile are returned from current media IDs, not stale absolute DB URLs
 - public profile does not expose locked gallery photos before unlock

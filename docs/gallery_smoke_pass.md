@@ -1,14 +1,14 @@
 # Gallery Smoke Pass
 
-Updated: 2026-05-23 for `ADMIN-OPS-05`.
+Updated: 2026-05-23 for `RELEASE-SMOKE-BLOCKERS-03`.
 
 ## Run Metadata
 
 | Field | Value |
 | --- | --- |
 | Test date/time | 2026-05-13 20:37:42 CEST |
-| Backend URL | `https://revelation-claire-filter-losing.trycloudflare.com` detected in local mobile/server env; confirm before manual run |
-| Media public URL/base | `https://revelation-claire-filter-losing.trycloudflare.com/media` detected in local server env; confirm before manual run |
+| Backend URL | Tester must fill current reachable backend API URL before manual run |
+| Media public URL/base | Public media should resolve from current backend origin plus `/media/public/:mediaId`; do not reuse old tunnel URLs |
 | Mobile build/dev client | NOT TESTED |
 | Device A | NOT TESTED |
 | Device B | NOT TESTED |
@@ -20,8 +20,8 @@ Updated: 2026-05-23 for `ADMIN-OPS-05`.
 | ID | Scenario | Result | Manual checks |
 | --- | --- | --- | --- |
 | A | Avatar upload | NOT TESTED | Login account A, open Profile, choose JPEG/PNG/WebP avatar, verify native square crop opens, verify preview appears, tap Upload photo, verify new avatar appears, restart app, verify avatar persists from backend, open public profile, verify URL is backend/public HTTPS and not `file://`. |
-| B | Profile photo upload | NOT TESTED | Open PhotoManager, choose JPEG/PNG/WebP profile photo, verify native square crop opens, verify preview appears, tap Upload photo, verify backend-mediated `POST /media/profile-photo` result appears in public gallery, restart app, verify it persists, login peer account, verify peer can see public photo, verify URL is backend `/media/public/:mediaId`. |
-| B1 | Peer avatar/profile media | NOT TESTED | Account A uploads avatar and public profile photo; account B opens A from Together DM/profile context and sees current backend public media URLs or a clear moderation-waiting explanation if policy changes to approved-only. |
+| B | Profile photo upload | NOT TESTED | Open PhotoManager, choose JPEG/PNG/WebP profile photo, verify native square crop opens, verify preview appears, tap Upload photo, verify backend-mediated `POST /media/profile-photo` result appears in public gallery, restart app, verify it persists, login peer account, verify peer can see public photo, verify URL is relative `/media/public/:mediaId` or current backend origin plus that path. |
+| B1 | Peer avatar/profile media | NOT TESTED | Account A uploads avatar and public profile photo; account B opens A from Together DM/profile context and sees current backend public media URLs derived from media ids or a clear moderation-waiting explanation if policy changes to approved-only. |
 | B2 | Profile photo cancel/change | NOT TESTED | Select a photo, reach preview, tap Cancel and verify no upload/gallery change. Repeat and tap Choose another; verify only the confirmed photo uploads. |
 | C | Unsupported format | NOT TESTED | Try HEIC/HEIF or unsupported image if device provides it, verify app rejects before upload, no backend media is created, clear error is shown. |
 | D | Move public to locked | NOT TESTED | Account A has enough visible public images, set locked gallery password if needed, move one photo to locked, verify public profile no longer exposes that photo URL, owner sees it in locked section, peer sees only locked count/state. |
@@ -31,7 +31,7 @@ Updated: 2026-05-23 for `ADMIN-OPS-05`.
 | H | Password set/reset | NOT TESTED | Owner sets locked gallery password with current account password, wrong account password fails, reset requires current account password, old folder password no longer unlocks after reset. |
 | I | Blocked peer | NOT TESTED | Account A blocks account B, account B tries public profile and locked unlock, backend denies according to product rule, UI does not show locked photos or broken state. |
 | J | Delete photo | NOT TESTED | Owner deletes public photo, backend deletes/updates gallery, photo disappears after refresh/restart, peer no longer sees deleted photo, delete cannot break min visible rule silently. |
-| K | Object storage / CDN | NOT TESTED | Uploaded avatar/profile photo URLs open from mobile, use expected public media URL, no localhost/private/internal MinIO URL in production-like config, no object key/private path leakage, no `putUpload`/`minio:9000` Admin Client Error for profile photo upload. |
+| K | Object storage / CDN | NOT TESTED | Uploaded avatar/profile photo URLs open from mobile, use `/media/public/:mediaId` resolved against the current backend origin, no localhost/private/internal MinIO URL in production-like responses, no object key/private path leakage, no `putUpload`/internal object-storage Admin Client Error for profile photo upload. |
 | L | Admin Media Moderation preview | NOT TESTED | Owner/moderator opens Admin Web Media Moderation, sees uploaded avatar/profile photo as an image preview, opens safe public image link for public media, and sees metadata only as debug context. |
 | M | Locked media admin review | NOT TESTED | Move a photo to locked, open Admin Web Media Moderation, verify list does not expose a public locked URL, detail requires owner/moderator reason, image preview loads through audited admin access, and `/media/public/:mediaId` does not expose the locked photo. |
 | N | Manual moderation actions | NOT TESTED | Approve media, mark under review, then reject/restrict with required reason; verify status changes and audit entries exist. |

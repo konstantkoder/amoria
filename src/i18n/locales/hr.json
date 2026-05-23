@@ -638,6 +638,7 @@
   "together.geo.locationReadFailed": "Nismo mogli dobiti lokaciju. Možete odabrati „Bez ograničenja”.",
   "together.geo.locationLoading": "Dohvaćamo lokaciju...",
   "play.match.radiusLabel": "Radijus pretrage: {radius}",
+  "play.match.queueExpiresAt": "Red čekanja aktivan do {time}",
   "play.match.searchingNoLimit": "Tražimo bez ograničenja",
   "play.match.searchingRadius": "Tražimo u radijusu {radius}",
   "play.match.noMatchTryNoLimit": "Još nikoga nismo pronašli. Pokušajte bez ograničenja.",
@@ -736,6 +737,9 @@
   "play.canvas.hint.free": "ideja",
   "play.canvas.partnerBody": "Partner: {name}",
   "play.canvas.strokeCount": "Poteza: {count}",
+  "play.canvas.retryLater": "Pokušaj kasnije",
+  "play.canvas.webviewFailedTitle": "Platno se nije učitalo",
+  "play.canvas.webviewFailedBody": "Vrati se u izbornik / Pokušaj kasnije",
   "playDetail.storyBody": "Zajednička priča s {name}",
   "dm.sourceDrawingStrokeContext": "Zajednički crtež: {count} poteza",
   "profile.lockedGalleryCount": "Fotografije: {count}"

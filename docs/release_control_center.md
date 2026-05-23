@@ -22,9 +22,10 @@ This launcher is local dev tooling only and is not product logic.
 
 ## Current known live bug
 
-- ADMIN-OPS-05 is fixed in code and awaiting admin smoke:
-  - Admin Web has read-only Together Queue observability for owner/ops.
-  - Media Moderation shows image previews, safe public links, detail metadata, and audited manual decisions.
+- RELEASE-SMOKE-BLOCKERS-03 is fixed in code and awaiting release smoke:
+  - Peer/public/admin media responses derive `/media/public/:mediaId` at response time and no longer trust stale stored tunnel/local/object-storage URLs.
+  - Admin Web has Together Queue and read-only Together Sessions observability for owner/ops.
+  - Media Moderation shows image previews and safe public links from the current backend origin, plus detail metadata and audited manual decisions.
   - Locked media is not exposed through public media; elevated admin content review requires reason and audit.
   - Uploaded media enters manual review when the automated provider is `NOT_CONFIGURED`; there is no fake approval.
   - Production ops flow is documented in `docs/production_ops.md`.
@@ -50,8 +51,10 @@ This launcher is local dev tooling only and is not product logic.
   - No-limit is the release-safe default and can match without coordinates.
   - Finite radius mode requests foreground location before joining queue.
   - Backend validates coordinates/radius and matches by stricter mutual radius.
-  - Repeated retry cancels stale waiting queue rows before creating a new attempt.
+  - No-limit waiting keeps polling until match or expiry; repeated retry is no longer the normal no-limit path.
+  - Finite-radius no-limit fallback cancels the finite queue row before creating a no-limit attempt.
   - Admin/Ops can inspect safe queue status through `/admin/together/queue` without exact coordinates.
+  - Admin/Ops can inspect safe active/matched session diagnostics through `/admin/together/sessions` without exact coordinates or raw event payloads.
   - Exact peer coordinates are not returned to mobile.
   - Story Sparks continuation after draw keeps the same pair and does not re-match by geo.
 - `MEDIA-01` backend-mediated profile photo upload:
@@ -74,15 +77,23 @@ This launcher is local dev tooling only and is not product logic.
   - Profile shows direct edit entrypoints for "About me" and "Mood".
   - Client Errors now receives user-action failures for invalid Together activity, failed Story Sparks navigation, failed legacy color mood navigation, missing/hydrated peer failures, failed `UserProfile` navigation, and failed edit-profile navigation.
 - `BUGFIX-UX-02` media/navigation/profile release blockers:
-  - Peer public profile media now uses current backend public media URLs: `PUBLIC_MEDIA_URL/public/:mediaId`.
+  - Peer public profile media now uses current backend public media paths: `/media/public/:mediaId`.
   - Public profile avatar/photos no longer trust stale stored `S3_PUBLIC_BASE_URL`, local, internal MinIO, or dead tunnel URLs as the mobile-visible contract.
   - Locked gallery photos remain excluded from public profile before unlock.
   - Profile goal/mood badges are clickable and open Edit Profile with focused sections.
   - Together draw/story_sparks/waiting screens have an explicit return to main tabs without fake finish/reveal/chat success.
   - Client Errors now receives peer media load failures and Together manual-exit failures.
+- `RELEASE-SMOKE-BLOCKERS-03` media URLs and Together reliability:
+  - Public profile, admin media list/detail, and mobile image rendering derive current media URLs from media ids.
+  - Admin Web rewrites old absolute `/media/public/:mediaId` URLs to the current API origin.
+  - No-limit Together queue joins are idempotent while an equivalent waiting row is active.
+  - PlayMatch interpolates queue active-until time and does not show raw `{time}` in active UI.
+  - Canvas/draw failures report safe Client Errors for WebView load/parse, stroke send, finish, heartbeat, and event hydration failures.
+  - `Сессии Together` / `Together Sessions` gives owner/ops read-only diagnostics after match.
 
 See `docs/bugfix_ux_01_audit.md`.
 See `docs/bugfix_ux_02_media_nav_profile.md`.
+See `docs/bugfix_media_urls_together_reliability.md`.
 See `docs/media_upload_architecture.md`.
 See `docs/together_story_sparks.md`.
 See `docs/together_flow_02_staged_story.md`.
@@ -174,11 +185,12 @@ Continue Admin/Ops hardening and final smoke pass.
 ## Remaining blockers before admin smoke pass
 
 - Smoke Admin Web Together Queue with two real test accounts while one/both are waiting.
+- Smoke Admin Web Together Sessions after a real match, including stale heartbeat behavior if one client freezes/exits.
 - Smoke Admin Web Media Moderation against real uploaded avatar/profile/locked media.
 - Decide whether an audited queue cancel action is needed after release; current queue page is read-only.
 - Connect a real automated media moderation provider or staff manual moderation before public beta.
 - Complete real-device MEDIA-01 smoke: profile photo upload through `POST /media/profile-photo`, peer public profile visibility, and no `putUpload/minio` client errors.
-- Complete real-device TOGETHER-GEO-01 smoke: radius matching, denied-location behavior, no-limit queue, and no peer coordinate exposure.
+- Complete real-device TOGETHER-GEO-01 smoke: radius matching, denied-location behavior, no-limit queue, staggered no-limit matching, and no peer coordinate exposure.
 - BUGFIX-TOGETHER-PROMPTS-I18N-EXAMPLES.
 - Full RU locale cleanup.
 - Complete a real signed-in Together/Gallery smoke pass; `TOGETHER-04` is checklist-only so far and Story Sparks requires a real 2-account smoke pass.

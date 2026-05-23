@@ -27,6 +27,8 @@ type Props = {
   localUid: string;
   strokes: SharedCanvasStroke[];
   onLocalStrokeBatch?: (strokes: SharedCanvasStroke[]) => void;
+  onLoadError?: (message: string) => void;
+  onMessageParseError?: (message: string) => void;
   disabled?: boolean;
   disabledTitle?: string;
   disabledBody?: string;
@@ -480,6 +482,8 @@ export default function SharedCanvasWebView({
   localUid,
   strokes,
   onLocalStrokeBatch,
+  onLoadError,
+  onMessageParseError,
   disabled = false,
   disabledTitle,
   disabledBody,
@@ -638,6 +642,12 @@ export default function SharedCanvasWebView({
             scrollEnabled={false}
             bounces={false}
             overScrollMode="never"
+            onError={(event) => {
+              onLoadError?.(event.nativeEvent.description || "canvas_webview_load_failed");
+            }}
+            onHttpError={(event) => {
+              onLoadError?.(`HTTP ${event.nativeEvent.statusCode}`);
+            }}
             onMessage={(event) => {
               try {
                 const payload = JSON.parse(event.nativeEvent.data);
@@ -657,7 +667,9 @@ export default function SharedCanvasWebView({
                 if (payload?.type === "stroke_batch" && Array.isArray(payload.strokes)) {
                   onLocalStrokeBatch?.(payload.strokes as SharedCanvasStroke[]);
                 }
-              } catch {}
+              } catch {
+                onMessageParseError?.("canvas_webview_message_parse_failed");
+              }
             }}
             source={{ html: HTML }}
           />
