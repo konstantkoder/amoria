@@ -29,6 +29,12 @@ story_sparks
 
 Lobby matching starts with `draw`. `story_sparks` sessions can still exist as real backend sessions, but the release UI enters them from the post-draw continuation decision instead of presenting Story Sparks as an equal first choice.
 
+## Admin/Ops Queue Visibility
+
+`ADMIN-OPS-05` surfaces `GET /admin/together/queue` in Admin Web as `Очередь Together` / `Together Queue`.
+
+Use it only for matching diagnostics. It shows status, activity, radius, whether coordinates are present, timestamps, and matched session id. It must not show exact latitude/longitude or peer coordinates.
+
 ## Backend Content Model
 
 Story content is curated server-side static data, attached to Story Sparks sessions through the session DTO. The MVP pack is:

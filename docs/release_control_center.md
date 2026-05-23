@@ -22,12 +22,12 @@ This launcher is local dev tooling only and is not product logic.
 
 ## Current known live bug
 
-- BUGFIX-GEO-KEYBOARD-CROP-CLEANUP-01 is fixed in code and awaiting real-device smoke:
-  - Together default is no-limit and retry cancels old queue entries before requeue.
-  - Finite radius requests real foreground location before queue.
-  - Successful form/message/password saves dismiss keyboards.
-  - Avatar/profile photo upload now has crop, preview, and explicit confirm.
-  - `color_mood` is legacy-readable only, not an active new-session path.
+- ADMIN-OPS-05 is fixed in code and awaiting admin smoke:
+  - Admin Web has read-only Together Queue observability for owner/ops.
+  - Media Moderation shows image previews, safe public links, detail metadata, and audited manual decisions.
+  - Locked media is not exposed through public media; elevated admin content review requires reason and audit.
+  - Uploaded media enters manual review when the automated provider is `NOT_CONFIGURED`; there is no fake approval.
+  - Production ops flow is documented in `docs/production_ops.md`.
 
 ## Completed blocks
 
@@ -60,6 +60,12 @@ This launcher is local dev tooling only and is not product logic.
   - Mobile profile photo upload no longer depends on direct internal MinIO/S3 `PUT` URLs.
   - Returned profile media URL is the backend public media route `/media/public/:mediaId`.
   - Prepared direct upload endpoints remain available but are not used by mobile profile photo upload.
+- `ADMIN-OPS-05` Admin/Ops release support:
+  - Admin Web left nav includes `Очередь Together` / `Together Queue`.
+  - Queue table shows created/expires/user/activity/status/radius/hasCoordinates/matched session, never exact coordinates.
+  - Media Moderation shows thumbnails for safe public media and authenticated detail preview for locked/private review.
+  - Manual media actions remain audited; reject/restrict require reason.
+  - Automated moderation foundation is present but disabled as `NOT_CONFIGURED`, leaving uploads in manual review rather than fake-approved.
 - `GALLERY-01` audit/hardening.
 - `GALLERY-02` smoke checklist + preview failure fix.
 - `BUGFIX-UX-01` mobile release UX/navigation blockers:
@@ -81,6 +87,9 @@ See `docs/media_upload_architecture.md`.
 See `docs/together_story_sparks.md`.
 See `docs/together_flow_02_staged_story.md`.
 See `docs/together_geo_matching.md`.
+See `docs/admin_queue_ui_01.md`.
+See `docs/media_moderation_policy.md`.
+See `docs/production_ops.md`.
 
 ## Identity rule verification
 
@@ -161,6 +170,10 @@ Continue Admin/Ops hardening and final smoke pass.
 
 ## Remaining blockers before admin smoke pass
 
+- Smoke Admin Web Together Queue with two real test accounts while one/both are waiting.
+- Smoke Admin Web Media Moderation against real uploaded avatar/profile/locked media.
+- Decide whether an audited queue cancel action is needed after release; current queue page is read-only.
+- Connect a real automated media moderation provider or staff manual moderation before public beta.
 - Complete real-device MEDIA-01 smoke: profile photo upload through `POST /media/profile-photo`, peer public profile visibility, and no `putUpload/minio` client errors.
 - Complete real-device TOGETHER-GEO-01 smoke: radius matching, denied-location behavior, no-limit queue, and no peer coordinate exposure.
 - BUGFIX-TOGETHER-PROMPTS-I18N-EXAMPLES.

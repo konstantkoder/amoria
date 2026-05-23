@@ -1,6 +1,6 @@
 # Media Upload Architecture
 
-Updated: 2026-05-23 after `BUGFIX-GEO-KEYBOARD-CROP-CLEANUP-01`
+Updated: 2026-05-23 after `ADMIN-OPS-05`
 
 ## Release Rule
 
@@ -17,6 +17,7 @@ Avatar and profile photo uploads wrote absolute URLs into `media_files.url` and 
 - The mobile-visible URL is generated from the current backend media base:
   - `PUBLIC_MEDIA_URL/public/:mediaId`
 - The backend route `GET /media/public/:mediaId` loads the object by `media_files.path` and streams the bytes with the stored MIME type.
+- `GET /media/public/:mediaId` streams only public-safe media. Locked gallery profile photos are blocked even if someone guesses a `mediaId`.
 - Avatar upload is backend-mediated through `POST /media/avatar`.
 - Profile photo upload is backend-mediated through `POST /media/profile-photo`.
 - Avatar upload and completed profile photo upload store the current public media route in `media_files.url`.
@@ -50,6 +51,30 @@ Backend responsibilities:
   - `media.purpose`
 
 The response must not include object keys, storage paths, signed upload URLs, tokens, `minio`, `localhost`, or `127.0.0.1`.
+
+## Moderation Status
+
+Every new avatar/profile photo upload creates an initial media moderation review. In this release the automated provider is `NOT_CONFIGURED`, so the row is marked for manual review instead of being fake-approved.
+
+The moderation metadata records:
+
+- `automatedStatus`;
+- `automatedProvider`;
+- `automatedCheckedAt`;
+- labels/signals when a real provider exists;
+- `needsHumanReview`.
+
+No automated success is claimed until a real provider is configured and tested.
+
+## Admin Preview
+
+Admin Web media moderation uses:
+
+- safe public preview URLs for avatar/public profile media;
+- authenticated Admin/Ops content fetch for locked media review;
+- owner/moderator role plus reason and audit for locked media detail/content access.
+
+Locked gallery contents are not made public for moderation convenience.
 
 ## Mobile Crop / Preview / Confirm
 

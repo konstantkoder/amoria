@@ -1,6 +1,6 @@
 # Admin/Ops Architecture
 
-Updated: 2026-05-20 after `TOGETHER-STORY-01`
+Updated: 2026-05-23 after `ADMIN-OPS-05`
 
 This is the plan for a full Admin/Ops release module. It is not a temporary mini-admin and must not rely on mock/stub/fake data, Firebase fallback, or local-only success.
 
@@ -73,6 +73,7 @@ The owner admin account is a separate real account, not an existing mobile test 
 - Media review tracks source, owner, visibility, upload status, moderation status, reviewer, and decision reason.
 - Destructive actions require explicit reason and audit log entry.
 - `ADMIN-OPS-03-FULL` added admin media list/detail/decision endpoints and `media_moderation_reviews`.
+- `ADMIN-OPS-05` adds real image preview in Admin Web, an authenticated admin content route for locked media review, and a release-safe moderation foundation where uploaded media is marked for manual review if no real automated provider is configured. Reject/restrict decisions require a reason and all decisions are audited.
 
 ## Locked gallery safety visibility
 
@@ -81,6 +82,7 @@ The owner admin account is a separate real account, not an existing mobile test 
 - Viewing locked media requires an allowed moderation reason, elevated role, and audit log entry.
 - No locked-gallery password or secret is ever exposed.
 - Locked media detail URLs are not returned from list responses. Detail access requires owner/moderator plus reason.
+- Locked media is not exposed through the public media route. Admin preview for locked media is fetched through authenticated Admin/Ops access and audited.
 
 ## Blocks / abuse view
 
@@ -147,7 +149,9 @@ The owner admin account is a separate real account, not an existing mobile test 
 - `POST /admin/moderation/queue/:itemId/decision`
 - `GET /admin/media` (added in `ADMIN-OPS-03-FULL`)
 - `GET /admin/media/:mediaId` (added in `ADMIN-OPS-03-FULL`)
+- `GET /admin/media/:mediaId/content` (owner/moderator/support by role policy; locked media requires owner/moderator plus reason, added in `ADMIN-OPS-05`)
 - `POST /admin/media/:mediaId/decision` (added in `ADMIN-OPS-03-FULL`)
+- `GET /admin/together/queue` (owner/ops read-only safe queue observability, added before and surfaced in Admin Web in `ADMIN-OPS-05`)
 - `GET /admin/audit-log` (added in `ADMIN-OPS-01`)
 - `GET /admin/client-errors?limit=...&screen=...&action=...&code=...&amoriaId=...&userId=...&status=...&createdFrom=...&createdTo=...` (added in `ADMIN-OPS-02`, lifecycle filters added in `ADMIN-OPS-04`)
 - `POST /admin/client-errors/:id/actions` (added in `ADMIN-OPS-04`)
@@ -166,6 +170,7 @@ The owner admin account is a separate real account, not an existing mobile test 
 - Report detail/action panel. Added in `ADMIN-OPS-03-FULL`.
 - Moderation queue.
 - Media moderation. Added in `ADMIN-OPS-03-FULL`.
+- Together Queue. Added in `ADMIN-OPS-05`; read-only owner/ops view with status/activity/radius/hasCoordinates filters and no exact coordinates.
 - Locked gallery safety view with elevated access. Foundation added in `ADMIN-OPS-03-FULL`.
 - Blocks/abuse view.
 - Client error reports. Added in `ADMIN-OPS-03-FULL`.
@@ -194,6 +199,6 @@ The owner admin account is a separate real account, not an existing mobile test 
 - `ADMIN-OPS-02` client error reporting backend + mobile integration. Completed foundation.
 - `ADMIN-OPS-03-FULL` real admin web console + user search + reports/media moderation foundation + ops health. Completed foundation.
 - `ADMIN-OPS-04` client error lifecycle, safe archive cleanup, ops health counts, admin users read view, and Russian admin-web localization. Completed foundation.
-- `ADMIN-OPS-05` media moderation enforcement policy hardening.
+- `ADMIN-OPS-05` Together Queue UI, media preview, manual moderation actions, and media moderation provider foundation. Completed foundation.
 - `ADMIN-OPS-06` object storage health + rate limits.
 - `ADMIN-OPS-07` admin smoke pass.

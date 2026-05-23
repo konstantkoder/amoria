@@ -1,6 +1,6 @@
 # Together Smoke Pass
 
-Updated: 2026-05-23 for `BUGFIX-GEO-KEYBOARD-CROP-CLEANUP-01`
+Updated: 2026-05-23 for `ADMIN-OPS-05`
 
 ## Run Metadata
 
@@ -44,6 +44,7 @@ Geo matching rule:
 - repeated retry cancels the current/old queue entry before joining again;
 - exact peer coordinates must not appear in UI, logs, queue/session responses, DM, history, or detail;
 - Story Sparks continuation after draw keeps the same pair and does not re-match by geo.
+- Admin Web has a read-only Together Queue page for owner/ops. Use it during smoke to see activity/status/radius/hasCoordinates without exact coordinates.
 
 ## Automated Sanity Checks
 
@@ -110,6 +111,7 @@ Known automated-check warning: the server test run prints the existing AWS SDK f
 | 5. Retry stale queue | A | Tap Retry repeatedly after error/expired/cancelled state; backend has one current waiting attempt for the user and no invisible stuck queue |  | NOT TESTED |
 | 6. Try no limit fallback | A | After delayed finite search, tap no-limit fallback; old entry is cancelled and new no-limit queue starts |  | NOT TESTED |
 | 7. Inspect responses/logs | A+B | Queue/session/history/DM do not expose peer latitude/longitude; `/admin/together/queue` shows only `hasCoordinates` |  | NOT TESTED |
+| 9. Inspect Admin Web queue | Owner/Ops | Admin Web `Очередь Together` shows current queue rows with status/activity/radius/hasCoordinates/matchedSessionId, and no latitude/longitude columns |  | NOT TESTED |
 | 8. Continue story | A+B | Story Sparks continuation keeps same pair and does not perform a second geo match |  | NOT TESTED |
 
 ## Draw Manual Checklist
