@@ -59,11 +59,15 @@ export type HistorySessionRow = {
 export type AdminTogetherQueueEntryRow = {
   entryId: string;
   userId: string;
+  amoriaId: string | null;
+  displayName: string | null;
   activity: string;
   status: string;
   radiusKm: number | null;
   hasCoordinates: boolean;
   geoMode: AdminTogetherQueueGeoMode;
+  waitingReason: AdminTogetherQueueWaitingReason;
+  ageSeconds: number;
   createdAt: Date;
   expiresAt: Date;
   matchedSessionId: string | null;
@@ -73,6 +77,17 @@ export type AdminTogetherQueueGeoMode =
   | "no_limit_with_location"
   | "finite_with_location"
   | "missing_location_invalid_old_entry";
+
+export type AdminTogetherQueueWaitingReason =
+  | "no_candidate"
+  | "activity_mismatch"
+  | "radius_distance_too_far"
+  | "missing_coordinates_old_entry"
+  | "same_user_excluded"
+  | "candidate_expired"
+  | "candidate_cancelled"
+  | "location_required"
+  | "unknown";
 
 export type AdminTogetherQueueQuery = {
   status?: string;
@@ -709,6 +724,7 @@ export async function listHistorySessions(
 export async function listQueueEntriesForAdmin(
   query: AdminTogetherQueueQuery = {},
 ): Promise<AdminTogetherQueueEntryRow[]> {
+  const now = new Date();
   const limit = Math.min(Math.max(query.limit ?? 100, 1), 200);
   const conditions: SQL[] = [];
 
@@ -740,6 +756,8 @@ export async function listQueueEntriesForAdmin(
     .select({
       entryId: togetherQueue.id,
       userId: togetherQueue.userId,
+      amoriaId: users.amoriaId,
+      displayName: users.displayName,
       activity: togetherQueue.activity,
       status: togetherQueue.status,
       radiusKm: togetherQueue.radiusKm,
@@ -750,6 +768,7 @@ export async function listQueueEntriesForAdmin(
       matchedSessionId: togetherQueue.matchedSessionId,
     })
     .from(togetherQueue)
+    .innerJoin(users, eq(users.id, togetherQueue.userId))
     .$dynamic();
   if (conditions.length > 0) {
     selectQuery = selectQuery.where(and(...conditions));
@@ -757,18 +776,9 @@ export async function listQueueEntriesForAdmin(
 
   const rows = await selectQuery.orderBy(desc(togetherQueue.createdAt)).limit(limit);
 
-  return rows.map((row) => ({
-    entryId: row.entryId,
-    userId: row.userId,
-    activity: row.activity,
-    status: row.status,
-    radiusKm: row.radiusKm,
-    hasCoordinates: hasCoordinates(row),
-    geoMode: getAdminQueueGeoMode(row),
-    createdAt: row.createdAt,
-    expiresAt: row.expiresAt,
-    matchedSessionId: row.matchedSessionId,
-  }));
+  const diagnostics = await listQueueDiagnosticsForAdmin(now);
+
+  return rows.map((row) => toAdminTogetherQueueEntry(row, now, diagnostics));
 }
 
 export async function cancelQueueEntryForAdmin(
@@ -783,6 +793,8 @@ export async function cancelQueueEntryForAdmin(
       .select({
         entryId: togetherQueue.id,
         userId: togetherQueue.userId,
+        amoriaId: users.amoriaId,
+        displayName: users.displayName,
         activity: togetherQueue.activity,
         status: togetherQueue.status,
         radiusKm: togetherQueue.radiusKm,
@@ -793,6 +805,7 @@ export async function cancelQueueEntryForAdmin(
         matchedSessionId: togetherQueue.matchedSessionId,
       })
       .from(togetherQueue)
+      .innerJoin(users, eq(users.id, togetherQueue.userId))
       .where(eq(togetherQueue.id, entryId))
       .limit(1)
       .for("update");
@@ -802,7 +815,7 @@ export async function cancelQueueEntryForAdmin(
     }
 
     if (entry.status !== "waiting") {
-      return toAdminTogetherQueueEntry(entry);
+      return toAdminTogetherQueueEntry(entry, now, [entry]);
     }
 
     const [cancelled] = await tx
@@ -822,7 +835,17 @@ export async function cancelQueueEntryForAdmin(
         matchedSessionId: togetherQueue.matchedSessionId,
       });
 
-    return cancelled ? toAdminTogetherQueueEntry(cancelled) : toAdminTogetherQueueEntry(entry);
+    return cancelled
+      ? toAdminTogetherQueueEntry(
+          {
+            ...cancelled,
+            amoriaId: entry.amoriaId,
+            displayName: entry.displayName,
+          },
+          now,
+          [entry],
+        )
+      : toAdminTogetherQueueEntry(entry, now, [entry]);
   });
 }
 
@@ -995,6 +1018,8 @@ function groupBySessionId<T>(
 function toAdminTogetherQueueEntry(row: {
   entryId: string;
   userId: string;
+  amoriaId?: string | null;
+  displayName?: string | null;
   activity: string;
   status: string;
   radiusKm: number | null;
@@ -1003,19 +1028,57 @@ function toAdminTogetherQueueEntry(row: {
   createdAt: Date;
   expiresAt: Date;
   matchedSessionId: string | null;
-}): AdminTogetherQueueEntryRow {
+}, now: Date, diagnostics: QueueDiagnosticRow[]): AdminTogetherQueueEntryRow {
   return {
     entryId: row.entryId,
     userId: row.userId,
+    amoriaId: row.amoriaId ?? null,
+    displayName: row.displayName ?? null,
     activity: row.activity,
     status: row.status,
     radiusKm: row.radiusKm,
     hasCoordinates: hasCoordinates(row),
     geoMode: getAdminQueueGeoMode(row),
+    waitingReason: getAdminQueueWaitingReason(row, diagnostics, now),
+    ageSeconds: Math.max(0, Math.floor((now.getTime() - row.createdAt.getTime()) / 1000)),
     createdAt: row.createdAt,
     expiresAt: row.expiresAt,
     matchedSessionId: row.matchedSessionId,
   };
+}
+
+type QueueDiagnosticRow = {
+  entryId: string;
+  userId: string;
+  activity: string;
+  status: string;
+  radiusKm: number | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  createdAt: Date;
+  expiresAt: Date;
+  matchedSessionId: string | null;
+};
+
+async function listQueueDiagnosticsForAdmin(now: Date): Promise<QueueDiagnosticRow[]> {
+  const lowerBound = new Date(now.getTime() - 30 * 60 * 1000);
+  return db
+    .select({
+      entryId: togetherQueue.id,
+      userId: togetherQueue.userId,
+      activity: togetherQueue.activity,
+      status: togetherQueue.status,
+      radiusKm: togetherQueue.radiusKm,
+      latitude: togetherQueue.latitude,
+      longitude: togetherQueue.longitude,
+      createdAt: togetherQueue.createdAt,
+      expiresAt: togetherQueue.expiresAt,
+      matchedSessionId: togetherQueue.matchedSessionId,
+    })
+    .from(togetherQueue)
+    .where(gt(togetherQueue.createdAt, lowerBound))
+    .orderBy(desc(togetherQueue.createdAt))
+    .limit(500);
 }
 
 async function expireWaitingEntries(now: Date): Promise<void> {
@@ -1123,6 +1186,76 @@ function getAdminQueueGeoMode(row: QueueGeoInput): AdminTogetherQueueGeoMode {
   return row.radiusKm === null ? "no_limit_with_location" : "finite_with_location";
 }
 
+function getAdminQueueWaitingReason(
+  row: QueueDiagnosticRow,
+  diagnostics: QueueDiagnosticRow[],
+  now: Date,
+): AdminTogetherQueueWaitingReason {
+  if (row.status === "matched") {
+    return "unknown";
+  }
+  if (row.status === "cancelled") {
+    return "candidate_cancelled";
+  }
+  if (row.status === "expired" || row.expiresAt.getTime() <= now.getTime()) {
+    return "candidate_expired";
+  }
+  if (row.status !== "waiting") {
+    return "unknown";
+  }
+  if (!hasCoordinates(row)) {
+    return "missing_coordinates_old_entry";
+  }
+
+  const candidates = diagnostics.filter((candidate) => candidate.entryId !== row.entryId);
+  if (candidates.length === 0) {
+    return "no_candidate";
+  }
+
+  const waitingCandidates = candidates.filter((candidate) => candidate.status === "waiting");
+  const activeWaitingCandidates = waitingCandidates.filter(
+    (candidate) => candidate.expiresAt.getTime() > now.getTime(),
+  );
+  if (activeWaitingCandidates.some((candidate) => candidate.userId === row.userId)) {
+    return "same_user_excluded";
+  }
+
+  const sameActivityCandidates = activeWaitingCandidates.filter(
+    (candidate) => candidate.activity === row.activity,
+  );
+
+  if (sameActivityCandidates.some((candidate) => !hasCoordinates(candidate))) {
+    return "missing_coordinates_old_entry";
+  }
+
+  if (sameActivityCandidates.some((candidate) => areQueueEntriesGeoCompatible(row, candidate))) {
+    return "unknown";
+  }
+
+  if (sameActivityCandidates.length > 0) {
+    return "radius_distance_too_far";
+  }
+
+  if (activeWaitingCandidates.length > 0) {
+    return "activity_mismatch";
+  }
+
+  if (candidates.some((candidate) => candidate.status === "cancelled")) {
+    return "candidate_cancelled";
+  }
+
+  if (
+    candidates.some(
+      (candidate) =>
+        candidate.status === "expired" || candidate.expiresAt.getTime() <= now.getTime(),
+    )
+  ) {
+    return "candidate_expired";
+  }
+
+  return "no_candidate";
+}
+
 function geoModeCondition(geoMode: AdminTogetherQueueGeoMode): SQL {
   if (geoMode === "missing_location_invalid_old_entry") {
     return or(isNull(togetherQueue.latitude), isNull(togetherQueue.longitude))!;
@@ -1172,5 +1305,6 @@ export const __geoForTests = {
 };
 
 export const __queueForTests = {
+  getAdminQueueWaitingReason,
   isSameQueueSearch,
 };

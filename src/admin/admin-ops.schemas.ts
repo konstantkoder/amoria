@@ -15,6 +15,18 @@ const adminTogetherQueueGeoModeSchema = z.enum([
   "missing_location_invalid_old_entry",
 ]);
 
+const adminTogetherQueueWaitingReasonValues = [
+  "no_candidate",
+  "activity_mismatch",
+  "radius_distance_too_far",
+  "missing_coordinates_old_entry",
+  "same_user_excluded",
+  "candidate_expired",
+  "candidate_cancelled",
+  "location_required",
+  "unknown",
+] as const;
+
 const adminTogetherQueueQuerySchema = z
   .object({
     status: z.string().trim().max(40).optional(),
@@ -175,11 +187,15 @@ const adminTogetherQueueEntrySchema = {
   required: [
     "entryId",
     "userId",
+    "amoriaId",
+    "displayName",
     "activity",
     "status",
     "radiusKm",
     "hasCoordinates",
     "geoMode",
+    "waitingReason",
+    "ageSeconds",
     "createdAt",
     "expiresAt",
     "matchedSessionId",
@@ -188,6 +204,8 @@ const adminTogetherQueueEntrySchema = {
   properties: {
     entryId: { type: "string", format: "uuid" },
     userId: { type: "string", format: "uuid" },
+    amoriaId: { type: ["string", "null"] },
+    displayName: { type: ["string", "null"] },
     activity: { type: "string" },
     status: { type: "string" },
     radiusKm: { type: ["integer", "null"], enum: [5, 25, 100, 250, null] },
@@ -200,6 +218,11 @@ const adminTogetherQueueEntrySchema = {
         "missing_location_invalid_old_entry",
       ],
     },
+    waitingReason: {
+      type: "string",
+      enum: adminTogetherQueueWaitingReasonValues,
+    },
+    ageSeconds: { type: "integer", minimum: 0 },
     createdAt: { type: "string", format: "date-time" },
     expiresAt: { type: "string", format: "date-time" },
     matchedSessionId: { type: ["string", "null"], format: "uuid" },

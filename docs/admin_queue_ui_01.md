@@ -7,12 +7,14 @@ Updated: 2026-05-24 for required Together location matching.
 Admin Web now has a Together Queue page that displays:
 
 - created/expires timestamps;
-- userId;
+- safe user identity: userId, Amoria ID, display name;
+- waiting age;
 - activity;
 - status;
 - radiusKm;
 - hasCoordinates;
 - geoMode;
+- waitingReason;
 - matchedSessionId.
 
 The response and UI intentionally omit latitude, longitude, exact location, tokens, and secrets.
@@ -21,7 +23,7 @@ Helper text now states the release rule directly:
 
 > New Together requests must have coordinates. Exact coordinates are not shown. No limit means no distance cap, not no geolocation.
 
-The page filters by status, activity, radius, `geoMode`, and `hasCoordinates`, and has Load/Refresh actions. `matchedSessionId` links to the Together Sessions page filtered to that session.
+The page filters by status, activity, radius, `geoMode`, and `hasCoordinates`, and has Load/Refresh actions. `matchedSessionId` links to the Together Sessions page filtered to that session. If the session endpoint does not return that id, Admin Web shows a clear diagnostic error instead of a silent empty page.
 
 `geoMode` values:
 
@@ -30,6 +32,18 @@ The page filters by status, activity, radius, `geoMode`, and `hasCoordinates`, a
 - `missing_location_invalid_old_entry`
 
 The invalid old-row label is `Старая запись без геолокации`. Waiting old rows can be cancelled with the existing audited cancel action.
+
+`waitingReason` values are safe derived diagnostics:
+
+- `no_candidate`
+- `activity_mismatch`
+- `radius_distance_too_far`
+- `missing_coordinates_old_entry`
+- `same_user_excluded`
+- `candidate_expired`
+- `candidate_cancelled`
+- `location_required`
+- `unknown`
 
 ## Together Sessions Page
 

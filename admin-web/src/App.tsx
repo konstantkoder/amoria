@@ -898,13 +898,15 @@ function TogetherQueueScreen({ onOpenSession }: { onOpenSession: (sessionId: str
           <thead>
             <tr>
               <th>{t("common.created")}</th>
+              <th>{t("queue.age")}</th>
               <th>{t("queue.expiresAt")}</th>
-              <th>{t("queue.userId")}</th>
+              <th>{t("queue.user")}</th>
               <th>{t("queue.activity")}</th>
               <th>{t("common.status")}</th>
               <th>{t("queue.radiusKm")}</th>
               <th>{t("queue.hasCoordinates")}</th>
               <th>{t("queue.geoMode")}</th>
+              <th>{t("queue.waitingReason")}</th>
               <th>{t("queue.stale")}</th>
               <th>{t("queue.matchedSessionId")}</th>
               <th>{t("common.action")}</th>
@@ -917,8 +919,12 @@ function TogetherQueueScreen({ onOpenSession }: { onOpenSession: (sessionId: str
               return (
               <tr key={item.entryId} className={stale || invalidOldEntry ? "warning-row" : ""}>
                 <td>{formatDate(item.createdAt, language)}</td>
+                <td>{formatAgeSeconds(item.ageSeconds, t)}</td>
                 <td>{formatDate(item.expiresAt, language)}</td>
-                <td>{item.userId}</td>
+                <td>
+                  <div>{item.displayName || item.amoriaId || item.userId}</div>
+                  <div className="muted">{item.amoriaId || item.userId}</div>
+                </td>
                 <td>{item.activity}</td>
                 <td>{formatQueueStatus(item.status, t)}</td>
                 <td>{item.radiusKm === null ? t("queue.noLimit") : item.radiusKm}</td>
@@ -928,6 +934,7 @@ function TogetherQueueScreen({ onOpenSession }: { onOpenSession: (sessionId: str
                     <span className="badge badge-warning">{t("queue.oldMissingLocation")}</span>
                   ) : formatQueueGeoMode(item.geoMode, t)}
                 </td>
+                <td>{formatQueueWaitingReason(item.waitingReason, t)}</td>
                 <td>{stale ? <span className="badge badge-warning">{t("common.yes")}</span> : t("common.no")}</td>
                 <td>
                   {item.matchedSessionId ? (
@@ -1077,6 +1084,9 @@ function TogetherSessionsScreen({ initialSessionId }: { initialSessionId: string
               ))}
             </tbody>
           </table>
+        ) : null}
+        {!loading && !items.length && initialSessionId ? (
+          <div className="error">{t("sessions.matchedSessionMissing")}</div>
         ) : null}
         {!loading && !items.length ? <EmptyState label={t("sessions.empty")} /> : null}
       </div>
@@ -1552,6 +1562,40 @@ function formatQueueGeoMode(geoMode: string, t: (key: TranslationKey) => string)
     default:
       return geoMode;
   }
+}
+
+function formatQueueWaitingReason(reason: string, t: (key: TranslationKey) => string): string {
+  switch (reason) {
+    case "no_candidate":
+      return t("queue.reasonNoCandidate");
+    case "activity_mismatch":
+      return t("queue.reasonActivityMismatch");
+    case "radius_distance_too_far":
+      return t("queue.reasonRadiusTooFar");
+    case "missing_coordinates_old_entry":
+      return t("queue.reasonMissingCoordinates");
+    case "same_user_excluded":
+      return t("queue.reasonSameUser");
+    case "candidate_expired":
+      return t("queue.reasonCandidateExpired");
+    case "candidate_cancelled":
+      return t("queue.reasonCandidateCancelled");
+    case "location_required":
+      return t("queue.reasonLocationRequired");
+    case "unknown":
+      return t("queue.reasonUnknown");
+    default:
+      return reason;
+  }
+}
+
+function formatAgeSeconds(seconds: number, t: (key: TranslationKey) => string): string {
+  const safeSeconds = Math.max(0, Math.floor(Number(seconds) || 0));
+  if (safeSeconds < 60) {
+    return t("queue.ageSeconds").replace("{count}", String(safeSeconds));
+  }
+
+  return t("queue.ageMinutes").replace("{count}", String(Math.floor(safeSeconds / 60)));
 }
 
 function formatTogetherSessionStatus(status: string, t: (key: TranslationKey) => string): string {

@@ -22,6 +22,8 @@ Updated: 2026-05-24
 - No-limit sends real coordinates with `radiusKm:null`; it means no distance cap, not no geolocation.
 - Exact coordinates are never returned to peers, admin queue/session responses, DM, public profile, or client error reports.
 - Old waiting rows without coordinates are release-invalid and should expire or be cancelled through Admin Queue.
+- Search should remain waiting for late peer joins; users do not need to press start simultaneously.
+- Device/emulator GPS failures must explain that coordinates are unavailable and must not start queue.
 
 ## Admin Web Release Surface
 
@@ -39,7 +41,7 @@ Owner/ops/moderator/support roles should use Admin Web for release diagnostics:
 - Ops Health
 - Bootstrap
 
-Together Queue is the smoke-test control surface for waiting/matched/expired/cancelled queue rows, `radiusKm`, `hasCoordinates`, `geoMode`, stale state, and audited waiting-row cancellation.
+Together Queue is the smoke-test control surface for waiting/matched/expired/cancelled queue rows, `radiusKm`, `hasCoordinates`, `geoMode`, `waitingReason`, waiting age, stale state, and audited waiting-row cancellation.
 
 Together Sessions is the smoke-test control surface for created, active, finished, abandoned, cancelled, and recently ended sessions, including zero-event sessions, stale heartbeat, participant counts, event counts, story choice counts, reveal summaries, and exit state.
 
@@ -49,10 +51,12 @@ Automated checks cannot replace the real two-client pass:
 
 1. Both test users grant location.
 2. Both start with `25 km`.
-3. Repeat with `5`, `100`, `250`, and no-limit.
-4. Inspect Admin Queue before match.
-5. Inspect Admin Sessions after match, exit, freeze, or abandon.
-6. Confirm no exact coordinates appear in mobile UI, Admin Web, client errors, DM, history, or public profile.
+3. Start one user first, wait 10-30 seconds, then start the second user.
+4. Repeat with `5`, `100`, `250`, and no-limit.
+5. Inspect Admin Queue before match.
+6. Inspect Admin Sessions after match, exit, freeze, or abandon.
+7. Confirm peer avatar/photos render or emit safe media diagnostics.
+8. Confirm no exact coordinates appear in mobile UI, Admin Web, client errors, DM, history, or public profile.
 
 ## Public Beta Blockers
 

@@ -20,6 +20,8 @@ Mobile/admin-visible URLs are derived from the media id at response time. Prefer
 
 Stored absolute `media_files.url` values are legacy/debug metadata only. They may contain an old tunnel, localhost, MinIO, or stale public-base URL and must not be trusted by public profile, mobile, or Admin Web responses.
 
+Mobile resolves `/media/public/:mediaId` against the current API origin. If an old absolute URL still points at `/media/public/:mediaId`, mobile rewrites it to the current API origin and records only safe diagnostics (`urlKind`, media id) if Android image loading fails.
+
 ## Upload Hardening
 
 Avatar and profile photo uploads remain backend-mediated:

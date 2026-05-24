@@ -635,6 +635,80 @@ test("no-limit queue rejoin keeps equivalent active waiting attempt", () => {
   );
 });
 
+test("admin queue waiting diagnostics explain why a waiting row has not matched", () => {
+  const { getAdminQueueWaitingReason } = togetherRepo.__queueForTests;
+  const now = new Date("2026-01-01T00:00:30.000Z");
+  const waitingUntil = new Date("2026-01-01T00:05:00.000Z");
+  const base = {
+    entryId: "00000000-0000-4000-8000-000000000601",
+    userId: userAId,
+    activity: "draw",
+    status: "waiting",
+    radiusKm: null,
+    latitude: 45.4929,
+    longitude: 15.5553,
+    createdAt,
+    expiresAt: waitingUntil,
+    matchedSessionId: null,
+  };
+
+  assert.equal(getAdminQueueWaitingReason(base, [base], now), "no_candidate");
+  assert.equal(
+    getAdminQueueWaitingReason(
+      base,
+      [
+        base,
+        {
+          ...base,
+          entryId: "00000000-0000-4000-8000-000000000602",
+          userId: userBId,
+          activity: "story_sparks",
+        },
+      ],
+      now,
+    ),
+    "activity_mismatch",
+  );
+  assert.equal(
+    getAdminQueueWaitingReason(
+      { ...base, radiusKm: 5 },
+      [
+        { ...base, radiusKm: 5 },
+        {
+          ...base,
+          entryId: "00000000-0000-4000-8000-000000000603",
+          userId: userBId,
+          radiusKm: 5,
+          latitude: 45.815,
+          longitude: 15.9819,
+        },
+      ],
+      now,
+    ),
+    "radius_distance_too_far",
+  );
+  assert.equal(
+    getAdminQueueWaitingReason({ ...base, latitude: null }, [{ ...base, latitude: null }], now),
+    "missing_coordinates_old_entry",
+  );
+  assert.equal(
+    getAdminQueueWaitingReason(
+      base,
+      [
+        base,
+        {
+          ...base,
+          entryId: "00000000-0000-4000-8000-000000000604",
+          userId: userBId,
+          status: "cancelled",
+        },
+      ],
+      now,
+    ),
+    "candidate_cancelled",
+  );
+});
+
 test("draw queue retry delegates each attempt to the repository", async (t) => {
   t.after(restoreRepoMock);
   const app = buildApp();

@@ -45,6 +45,8 @@ export type AdminOpsHealthResponse = {
 export type AdminTogetherQueueEntryDto = {
   entryId: string;
   userId: string;
+  amoriaId: string | null;
+  displayName: string | null;
   activity: string;
   status: string;
   radiusKm: number | null;
@@ -53,6 +55,8 @@ export type AdminTogetherQueueEntryDto = {
     | "no_limit_with_location"
     | "finite_with_location"
     | "missing_location_invalid_old_entry";
+  waitingReason: togetherRepo.AdminTogetherQueueWaitingReason;
+  ageSeconds: number;
   createdAt: string;
   expiresAt: string;
   matchedSessionId: string | null;
@@ -278,6 +282,7 @@ export async function actionTogetherQueueEntryForAdmin(
       radiusKm: entry.radiusKm,
       hasCoordinates: entry.hasCoordinates,
       geoMode: entry.geoMode,
+      waitingReason: entry.waitingReason,
       reason: input.reason,
     },
     ...requestContext,
@@ -323,11 +328,15 @@ function toAdminTogetherQueueEntryDto(
   return {
     entryId: entry.entryId,
     userId: entry.userId,
+    amoriaId: entry.amoriaId,
+    displayName: entry.displayName,
     activity: entry.activity,
     status: entry.status,
     radiusKm: entry.radiusKm,
     hasCoordinates: entry.hasCoordinates,
     geoMode: entry.geoMode,
+    waitingReason: entry.waitingReason,
+    ageSeconds: entry.ageSeconds,
     createdAt: entry.createdAt.toISOString(),
     expiresAt: entry.expiresAt.toISOString(),
     matchedSessionId: entry.matchedSessionId,

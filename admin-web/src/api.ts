@@ -204,6 +204,8 @@ export type MediaDetail = MediaItem & {
 export type TogetherQueueEntry = {
   entryId: string;
   userId: string;
+  amoriaId: string | null;
+  displayName: string | null;
   activity: string;
   status: string;
   radiusKm: number | null;
@@ -212,6 +214,17 @@ export type TogetherQueueEntry = {
     | "no_limit_with_location"
     | "finite_with_location"
     | "missing_location_invalid_old_entry";
+  waitingReason:
+    | "no_candidate"
+    | "activity_mismatch"
+    | "radius_distance_too_far"
+    | "missing_coordinates_old_entry"
+    | "same_user_excluded"
+    | "candidate_expired"
+    | "candidate_cancelled"
+    | "location_required"
+    | "unknown";
+  ageSeconds: number;
   createdAt: string;
   expiresAt: string;
   matchedSessionId: string | null;
