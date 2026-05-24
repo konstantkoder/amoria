@@ -1,6 +1,6 @@
 # Together Geo Matching
 
-Updated: 2026-05-23 for `BUGFIX-GEO-KEYBOARD-CROP-CLEANUP-01`
+Updated: 2026-05-24 for `BUGFIX-TOGETHER-GEO-REQUIRED-01`
 
 ## Product Model
 
@@ -10,13 +10,15 @@ Together now has a backend-backed search radius before matching:
 - `25 km`
 - `100 km`
 - `250 km`
-- no limit / anywhere, which is the release-safe default
+- no limit / anywhere
+
+The normal user-flow default is `25 km`. A stored invalid radius preference must be reset to `25 km`.
 
 The selected radius is sent to `POST /together/queue`. AsyncStorage may remember the UI preference, but it is not the source of truth for matching.
 
 ## Queue Contract
 
-Finite radius modes require foreground location:
+All radius modes require foreground location before joining the queue. No-limit still sends coordinates with `radiusKm: null`.
 
 ```json
 {
@@ -29,20 +31,21 @@ Finite radius modes require foreground location:
 }
 ```
 
-No-limit mode may omit `location`. The mobile app defaults to this mode so two smoke-test clients can match without device coordinates.
+No-limit mode must not omit `location`. It means "no distance cap", not "no geolocation".
 
 Validation:
 
 - `latitude`: `-90..90`
 - `longitude`: `-180..180`
 - `radiusKm`: `5`, `25`, `100`, `250`, or `null`
-- finite `radiusKm` requires both coordinates
+- every Together queue request requires both coordinates
 
 ## Matching Rule
 
 - If both users provide coordinates and finite radius, match only when distance is within both users' limits.
-- If one user chooses no limit but provides coordinates, respect the other user's finite radius.
-- If coordinates are missing, match only when both users are in no-limit mode.
+- If one user chooses no limit, respect the other user's finite radius using both users' coordinates.
+- If both users choose no limit, match only after both have coordinates; there is no distance cap.
+- Coordinate-less old waiting rows are release-invalid and should expire/cancel instead of blocking new matching.
 - Activity must still match, so `draw` does not match `story_sparks`. Removed activities such as `color_mood` are rejected by validation.
 
 Story continuation after draw keeps the same pair and does not re-run geo matching.
@@ -50,16 +53,16 @@ Story continuation after draw keeps the same pair and does not re-run geo matchi
 ## Retry Lifecycle
 
 - The backend cancels any existing `waiting` queue row for the same user before creating a new attempt.
-- Mobile retry and "Try no limit" both cancel the current queue entry before joining again.
-- A delayed finite-radius search tells the user: `Пока никого не нашли. Попробуйте без ограничения.`
-- The no-limit retry action sends `radiusKm: null`/omits location and reports only safe metadata.
+- Mobile radius expansion cancels the current queue entry before joining again.
+- A delayed search offers `Расширить радиус` / `Остановить поиск`, instead of pushing repeated retry first.
+- The no-limit expansion sends coordinates plus `radiusKm: null` and reports only safe metadata.
 
 ## Admin/Ops Observability
 
 `GET /admin/together/queue` is available to `owner` and `ops` roles. It writes an admin audit log and returns only safe queue fields:
 
 ```text
-entryId, userId, activity, status, radiusKm, hasCoordinates, createdAt, expiresAt, matchedSessionId
+entryId, userId, activity, status, radiusKm, hasCoordinates, geoMode, createdAt, expiresAt, matchedSessionId
 ```
 
 It does not return latitude/longitude.
@@ -70,7 +73,7 @@ Exact peer coordinates are never returned in queue, session, reveal, history, DM
 
 ## No-Location Behavior
 
-If the user selects a finite radius and denies location permission, the app does not join the queue. It shows a clear message and asks the user to choose no limit or enable location. No fake location or local-only match is created.
+If the user denies location permission, the app does not join the queue in any radius mode. It shows: `Для совместного поиска нужна геолокация. Мы не показываем точную позицию другим людям.` No fake location or local-only match is created.
 
 ## Smoke Checklist
 
@@ -78,8 +81,8 @@ If the user selects a finite radius and denies location permission, the app does
 | --- | --- |
 | Set 5 km on two clients in the same place | Both can match into `draw`. |
 | Set strict radius with far/simulated locations | Users do not match. |
-| Deny location permission in finite radius mode | Clear UI state, no queue join, no fake match. |
-| Select no limit | Queue can start without location. |
+| Deny location permission in any radius mode | Clear UI state, no queue join, no fake match. |
+| Select no limit | App still requests location, sends coordinates with `radiusKm:null`, and does not show exact coordinates. |
 | Start `story_sparks` through any legacy queue path | Same radius contract is sent/respected. |
 | Continue Story Sparks after draw | Same pair continues; no new geo search. |
 | Inspect queue/session responses | No exact peer coordinates are exposed. |

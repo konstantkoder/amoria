@@ -31,6 +31,12 @@ import type {
   TogetherQueueEntry,
   TogetherQueueLocationInput,
 } from "@/services/api/types";
+import {
+  DEFAULT_TOGETHER_RADIUS_KM,
+  hasTogetherQueueCoordinates,
+  requestTogetherQueueLocation,
+  type TogetherRadiusKm,
+} from "@/services/togetherLocation";
 import { theme } from "@/theme";
 
 type MatchStatusKey =
@@ -43,7 +49,7 @@ type MatchStatusKey =
   | "error";
 
 type TranslateFn = (key: string, fallback: string, params?: Record<string, string>) => string;
-type TogetherRadiusKm = 5 | 25 | 100 | 250 | null;
+type QueueStartReason = "initial" | "retry" | "expandRadius";
 
 const POLL_INTERVAL_MS = 2000;
 const DELAYED_MS = 9000;
@@ -72,9 +78,7 @@ function formatQueueExpiresAt(value: string) {
 function getLocationMetadata(location?: TogetherQueueLocationInput) {
   return {
     radiusKm: location?.radiusKm ?? null,
-    hasCoordinates:
-      Number.isFinite(location?.latitude) &&
-      Number.isFinite(location?.longitude),
+    hasCoordinates: hasTogetherQueueCoordinates(location),
   };
 }
 
@@ -94,6 +98,14 @@ function radiusSearchTextFor(radiusKm: TogetherRadiusKm, tt: TranslateFn) {
   return tt("play.match.searchingRadius", "Ищем в радиусе {radius}", {
     radius: radiusLabelFor(radiusKm, tt),
   });
+}
+
+function nextExpandedRadius(radiusKm: TogetherRadiusKm): TogetherRadiusKm {
+  if (radiusKm === 5) return 25;
+  if (radiusKm === 25) return 100;
+  if (radiusKm === 100) return 250;
+  if (radiusKm === 250) return null;
+  return null;
 }
 
 function getMatchStateMeta(statusKey: MatchStatusKey, tt: TranslateFn) {
@@ -232,8 +244,6 @@ export default function PlayMatchScreen() {
   const inFlightRef = React.useRef(false);
   const invalidActivityReportedRef = React.useRef(false);
   const pollFailureReportedRef = React.useRef(false);
-  const expiredReportedRef = React.useRef(false);
-  const retryActionCountRef = React.useRef(0);
 
   const goToTogether = React.useCallback(() => {
     try {
@@ -288,6 +298,59 @@ export default function PlayMatchScreen() {
     }
   }, [activity, statusKey, tt]);
 
+  const resolveLocationForQueue = React.useCallback(async (
+    locationForRequest: TogetherQueueLocationInput | undefined,
+    reason: QueueStartReason
+  ): Promise<TogetherQueueLocationInput | null> => {
+    if (hasTogetherQueueCoordinates(locationForRequest)) {
+      return locationForRequest;
+    }
+
+    const requestedRadiusKm = activeQueueLocation
+      ? activeQueueLocation.radiusKm
+      : DEFAULT_TOGETHER_RADIUS_KM;
+    const result = await requestTogetherQueueLocation(requestedRadiusKm);
+    if ("location" in result) {
+      return result.location;
+    }
+
+    if (result.reason === "permissionDenied") {
+      setStatusKey("error");
+      setErrorText(
+        tt(
+          "together.geo.permissionDenied",
+          "Для совместного поиска нужна геолокация. Мы не показываем точную позицию другим людям."
+        )
+      );
+      return null;
+    }
+
+    const safeError = sanitizeErrorForReport(result.error);
+    reportClientError({
+      screen: "PlayMatchScreen",
+      action: "startTogetherQueue",
+      step: "locationReadFailed",
+      code: safeError.code,
+      message: safeError.message,
+      stack: safeError.stack,
+      metadata: {
+        activity,
+        radiusKm: requestedRadiusKm,
+        reason,
+        permissionStatus: result.permissionStatus,
+        hasCoordinates: false,
+      },
+    });
+    setStatusKey("error");
+    setErrorText(
+      tt(
+        "together.geo.locationReadFailed",
+        "Не удалось получить геолокацию. Проверьте доступ и попробуйте ещё раз."
+      )
+    );
+    return null;
+  }, [activeQueueLocation?.radiusKm, activity, tt]);
+
   const exitToMainTabs = React.useCallback(async () => {
     if (exiting) return;
     setExiting(true);
@@ -301,7 +364,7 @@ export default function PlayMatchScreen() {
 
   const startQueue = React.useCallback(async (
     locationForRequest?: TogetherQueueLocationInput,
-    reason: "initial" | "retry" | "noLimitRetry" = "initial"
+    reason: QueueStartReason = "initial"
   ) => {
     if (!uid || !activity || inFlightRef.current) return;
 
@@ -309,16 +372,21 @@ export default function PlayMatchScreen() {
     matchedRef.current = false;
     cancelRequestedRef.current = false;
     pollFailureReportedRef.current = false;
-    expiredReportedRef.current = false;
     inFlightRef.current = true;
     setBusy(true);
     setErrorText("");
     setStatusKey("preparing");
     setQueueStartedAt(Date.now());
-    setActiveQueueLocation(locationForRequest);
 
+    let preparedLocation: TogetherQueueLocationInput | undefined;
     try {
-      const response = await togetherApi.joinQueue(activity, locationForRequest);
+      preparedLocation = await resolveLocationForQueue(locationForRequest, reason) ?? undefined;
+      if (!preparedLocation) {
+        return;
+      }
+
+      setActiveQueueLocation(preparedLocation);
+      const response = await togetherApi.joinQueue(activity, preparedLocation);
       entryIdRef.current = response.entry.id;
       setEntry(response.entry);
       if (response.entry.status === "matched" && response.entry.sessionId) {
@@ -333,8 +401,8 @@ export default function PlayMatchScreen() {
       reportClientError({
         screen: "PlayMatchScreen",
         action: "startTogetherQueue",
-        step: reason === "noLimitRetry"
-          ? "noLimitRetryJoinFailed"
+        step: reason === "expandRadius"
+          ? "expandRadiusJoinFailed"
           : reason === "retry"
           ? "retryQueueJoinFailed"
           : safeError.code === "validation_error"
@@ -345,7 +413,7 @@ export default function PlayMatchScreen() {
         stack: safeError.stack,
         metadata: {
           activity,
-          ...getLocationMetadata(locationForRequest),
+          ...getLocationMetadata(preparedLocation),
         },
       });
       setStatusKey("error");
@@ -359,7 +427,7 @@ export default function PlayMatchScreen() {
       inFlightRef.current = false;
       setBusy(false);
     }
-  }, [activity, navigation, tt, uid]);
+  }, [activity, navigation, resolveLocationForQueue, tt, uid]);
 
   React.useEffect(() => {
     if (!uid || !activity) return;
@@ -404,20 +472,6 @@ export default function PlayMatchScreen() {
         }
 
         if (response.entry.status === "expired") {
-          if (!expiredReportedRef.current) {
-            expiredReportedRef.current = true;
-            reportClientError({
-              screen: "PlayMatchScreen",
-              action: "startTogetherQueue",
-              step: "queueExpiredWithoutMatch",
-              message: "Together queue expired without a match",
-              metadata: {
-                activity,
-                entryIdExists: Boolean(entryIdRef.current),
-                ...getLocationMetadata(activeQueueLocation),
-              },
-            });
-          }
           setStatusKey("expired");
           return;
         }
@@ -486,52 +540,36 @@ export default function PlayMatchScreen() {
 
   const restartQueue = React.useCallback(async (
     locationForRequest?: TogetherQueueLocationInput,
-    reason: "retry" | "noLimitRetry" = "retry"
+    reason: "retry" | "expandRadius" = "retry"
   ) => {
     if (busy || inFlightRef.current) return;
-    retryActionCountRef.current += 1;
-    if (retryActionCountRef.current >= 2) {
-      reportClientError({
-        screen: "PlayMatchScreen",
-        action: "startTogetherQueue",
-        step: "repeatedRetryAction",
-        message: "User repeated Together queue retry or cancel action",
-        metadata: {
-          activity,
-          retryActionCount: retryActionCountRef.current,
-          reason,
-          status: statusKey,
-          ...getLocationMetadata(locationForRequest),
-        },
-      });
-    }
     await cancelCurrentQueue(true);
     entryIdRef.current = "";
     cancelRequestedRef.current = false;
     matchedRef.current = false;
     setEntry(null);
     await startQueue(locationForRequest, reason);
-  }, [activity, busy, cancelCurrentQueue, startQueue, statusKey]);
+  }, [busy, cancelCurrentQueue, startQueue]);
 
   const retry = React.useCallback(() => {
     void restartQueue(activeQueueLocation, "retry");
   }, [activeQueueLocation, restartQueue]);
 
-  const tryNoLimit = React.useCallback(() => {
-    reportClientError({
-      screen: "PlayMatchScreen",
-      action: "startTogetherQueue",
-      step: "noLimitRetryAction",
-      message: "User retried Together queue with no-limit radius",
-      metadata: {
-        activity,
-        previousRadiusKm: activeQueueLocation?.radiusKm ?? null,
-        radiusKm: null,
-        hasCoordinates: false,
+  const expandRadius = React.useCallback(() => {
+    if (!hasTogetherQueueCoordinates(activeQueueLocation)) {
+      void restartQueue(undefined, "expandRadius");
+      return;
+    }
+    const nextRadiusKm = nextExpandedRadius(activeQueueLocation.radiusKm);
+    void restartQueue(
+      {
+        latitude: activeQueueLocation.latitude,
+        longitude: activeQueueLocation.longitude,
+        radiusKm: nextRadiusKm,
       },
-    });
-    void restartQueue(undefined, "noLimitRetry");
-  }, [activity, activeQueueLocation, restartQueue]);
+      "expandRadius"
+    );
+  }, [activeQueueLocation, restartQueue]);
 
   const handleBack = React.useCallback(() => {
     void exitToMainTabs();
@@ -573,12 +611,19 @@ export default function PlayMatchScreen() {
 
   const meta = getMatchStateMeta(statusKey, tt);
   const canRetry = statusKey === "error" || statusKey === "expired" || statusKey === "cancelled";
-  const activeRadiusKm = activeQueueLocation?.radiusKm ?? null;
+  const activeRadiusKm = activeQueueLocation
+    ? activeQueueLocation.radiusKm
+    : DEFAULT_TOGETHER_RADIUS_KM;
   const activeRadiusLabel = radiusLabelFor(activeRadiusKm, tt);
-  const canTryNoLimit = activeRadiusKm !== null && (statusKey === "delayed" || canRetry);
+  const locationReady = hasTogetherQueueCoordinates(activeQueueLocation);
+  const expandedRadiusKm = nextExpandedRadius(activeRadiusKm);
+  const canExpandRadius =
+    statusKey === "delayed" &&
+    locationReady &&
+    expandedRadiusKm !== activeRadiusKm;
   const bodyText = errorText || (
-    canTryNoLimit && statusKey === "delayed"
-      ? tt("play.match.noMatchTryNoLimit", "Пока никого не нашли. Попробуйте без ограничения.")
+    canExpandRadius
+      ? tt("play.match.noMatchExpandRadius", "Пока никого не нашли. Расширьте радиус или остановите поиск.")
       : meta.hint
   );
 
@@ -620,11 +665,16 @@ export default function PlayMatchScreen() {
           <Text style={styles.radiusModeText}>
             {radiusSearchTextFor(activeRadiusKm, tt)}
           </Text>
+          <Text style={styles.locationReadyText}>
+            {locationReady
+              ? tt("play.match.locationReady", "Геолокация готова")
+              : tt("play.match.locationNotReady", "Геолокация не готова")}
+          </Text>
           <View style={styles.actions}>
-            {canTryNoLimit ? (
-              <Pressable style={styles.primaryButton} onPress={tryNoLimit} disabled={busy}>
+            {canExpandRadius ? (
+              <Pressable style={styles.primaryButton} onPress={expandRadius} disabled={busy}>
                 <Text style={styles.primaryButtonText}>
-                  {tt("play.match.tryNoLimit", "Попробовать без ограничения")}
+                  {tt("play.match.expandRadius", "Расширить радиус")}
                 </Text>
               </Pressable>
             ) : null}
@@ -644,7 +694,9 @@ export default function PlayMatchScreen() {
               <Text style={styles.secondaryButtonText}>
                 {exiting
                   ? tt("common.exiting", "Выходим…")
-                  : tt("common.backToMainTabs", "Вернуться в меню")}
+                  : statusKey === "delayed"
+                    ? tt("play.match.stopSearch", "Остановить поиск")
+                    : tt("common.backToMainTabs", "Вернуться в меню")}
               </Text>
             </Pressable>
           </View>
@@ -728,6 +780,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: "center",
     fontWeight: "800",
+  },
+  locationReadyText: {
+    color: "rgba(255,245,234,0.72)",
+    fontSize: 12,
+    textAlign: "center",
+    fontWeight: "700",
   },
   actions: {
     width: "100%",

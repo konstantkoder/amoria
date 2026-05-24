@@ -1,6 +1,6 @@
 # Admin Queue UI 01
 
-Updated: 2026-05-23 after `RELEASE-SMOKE-BLOCKERS-03`
+Updated: 2026-05-24 after `BUGFIX-TOGETHER-GEO-REQUIRED-01`
 
 ## Together Queue Page
 
@@ -21,6 +21,7 @@ It shows:
 - `status`
 - `radiusKm`
 - `hasCoordinates`
+- `geoMode`
 - `matchedSessionId`
 
 It does not show latitude, longitude, exact user location, tokens, secrets, or credentials.
@@ -32,6 +33,7 @@ The page filters the loaded queue rows by:
 - status
 - activity
 - radius
+- geo mode
 - whether coordinates are present
 
 Refresh re-reads the backend endpoint.
@@ -102,8 +104,10 @@ This is not a hard delete. It updates the row to `cancelled`, reloads the table,
 
 ## Smoke Use
 
-During a Together smoke pass, use the queue page to confirm whether a test account is waiting, matched, expired, or cancelled, and whether a finite-radius request actually has coordinates. For a no-limit attempt, `radiusKm` should be empty/no-limit and `hasCoordinates` can be false.
+During a Together smoke pass, use the queue page to confirm whether a test account is waiting, matched, expired, or cancelled, and whether every new request has coordinates. For a no-limit attempt, `radiusKm` should be empty/no-limit, `hasCoordinates` should be true, and `geoMode` should be `no_limit_with_location`.
+
+Old waiting rows without coordinates are labeled as `missing_location_invalid_old_entry` / `Старая запись без геолокации`. They are invalid for the release geo contract and can be cancelled with the audited cancel action when still waiting.
 
 After a match, use the sessions page to confirm whether both participants are still active, whether heartbeats/events are arriving, whether a peer left, and whether a stale active session explains a stuck client.
 
-The helper text explains common non-match causes: activity mismatch, finite radius without coordinates, radius too small, expired/cancelled rows, and different activities.
+The helper text explains common non-match causes: activity mismatch, old missing-location rows, radius too small, expired/cancelled rows, and different activities. It also states that exact coordinates are not shown and that no-limit means no distance cap, not no geolocation.

@@ -1,6 +1,6 @@
 # Amoria Release Control Center
 
-Updated: 2026-05-23
+Updated: 2026-05-24
 
 ## Branches
 
@@ -48,13 +48,13 @@ This launcher is local dev tooling only and is not product logic.
   - DM keyboard dismisses only after successful message send.
 - `TOGETHER-GEO-01` radius-backed Together matching:
   - Together lobby offers `5 km`, `25 km`, `100 km`, `250 km`, and no-limit search radius.
-  - No-limit is the release-safe default and can match without coordinates.
-  - Finite radius mode requests foreground location before joining queue.
-  - Backend validates coordinates/radius and matches by stricter mutual radius.
-  - No-limit waiting keeps polling until match or expiry; repeated retry is no longer the normal no-limit path.
-  - Finite-radius no-limit fallback cancels the finite queue row before creating a no-limit attempt.
-  - Admin/Ops can inspect safe queue status through `/admin/together/queue` without exact coordinates.
-  - Admin/Ops can inspect safe active/matched session diagnostics through `/admin/together/sessions` without exact coordinates or raw event payloads.
+  - The normal default is `25 km`; invalid stored radius preferences reset to `25 km`.
+  - Every radius mode, including no-limit, requests foreground location before joining queue.
+  - No-limit sends coordinates with `radiusKm:null` and means no distance cap, not no geolocation.
+  - Backend validates coordinates/radius and matches by the stricter applicable radius.
+  - Delayed no-match state offers radius expansion or stop search; repeated retry is not the first action.
+  - Admin/Ops can inspect safe queue status and `geoMode` through `/admin/together/queue` without exact coordinates.
+  - Admin/Ops can inspect safe latest/ended session diagnostics through `/admin/together/sessions` without exact coordinates or raw event payloads.
   - Exact peer coordinates are not returned to mobile.
   - Story Sparks continuation after draw keeps the same pair and does not re-match by geo.
 - `MEDIA-01` backend-mediated profile photo upload:
@@ -90,6 +90,13 @@ This launcher is local dev tooling only and is not product logic.
   - PlayMatch interpolates queue active-until time and does not show raw `{time}` in active UI.
   - Canvas/draw failures report safe Client Errors for WebView load/parse, stroke send, finish, heartbeat, and event hydration failures.
   - `Сессии Together` / `Together Sessions` gives owner/ops read-only diagnostics after match.
+- `BUGFIX-TOGETHER-GEO-REQUIRED-01` release geo hardening:
+  - Mobile never starts Together queue without real foreground coordinates.
+  - Permission denial blocks the queue honestly with privacy copy.
+  - Location-read failures report safe Client Errors without latitude/longitude.
+  - No-limit sends coordinates with `radiusKm:null`.
+  - Admin Queue shows `geoMode` and marks old coordinate-less rows as invalid.
+  - Admin Sessions default to latest sessions and surface ended/stale/zero-event diagnostics.
 
 See `docs/bugfix_ux_01_audit.md`.
 See `docs/bugfix_ux_02_media_nav_profile.md`.
@@ -104,6 +111,8 @@ See `docs/production_ops.md`.
 See `docs/legacy_cleanup_01_color_mood_removed.md`.
 See `docs/bugfix_draw_prompts_peer_media_queue.md`.
 See `docs/release_dead_code_inventory.md`.
+See `docs/bugfix_together_geo_required_matching.md`.
+See `docs/admin_web_regression_pass.md`.
 
 ## Identity rule verification
 
@@ -190,7 +199,7 @@ Continue Admin/Ops hardening and final smoke pass.
 - Decide whether an audited queue cancel action is needed after release; current queue page is read-only.
 - Connect a real automated media moderation provider or staff manual moderation before public beta.
 - Complete real-device MEDIA-01 smoke: profile photo upload through `POST /media/profile-photo`, peer public profile visibility, and no `putUpload/minio` client errors.
-- Complete real-device TOGETHER-GEO-01 smoke: radius matching, denied-location behavior, no-limit queue, staggered no-limit matching, and no peer coordinate exposure.
+- Complete real-device TOGETHER-GEO-01 smoke: 25 km default, 5/25/100/250/no-limit matching with granted location, denied-location blocking, staggered no-limit matching with coordinates, and no peer coordinate exposure.
 - BUGFIX-TOGETHER-PROMPTS-I18N-EXAMPLES.
 - Full RU locale cleanup.
 - Complete a real signed-in Together/Gallery smoke pass; `TOGETHER-04` is checklist-only so far and Story Sparks requires a real 2-account smoke pass.

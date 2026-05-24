@@ -1,6 +1,6 @@
 # Admin/Ops Architecture
 
-Updated: 2026-05-23 after `ADMIN-OPS-05`
+Updated: 2026-05-24 after `BUGFIX-TOGETHER-GEO-REQUIRED-01`
 
 This is the plan for a full Admin/Ops release module. It is not a temporary mini-admin and must not rely on mock/stub/fake data, Firebase fallback, or local-only success.
 
@@ -152,6 +152,7 @@ The owner admin account is a separate real account, not an existing mobile test 
 - `GET /admin/media/:mediaId/content` (owner/moderator/support by role policy; locked media requires owner/moderator plus reason, added in `ADMIN-OPS-05`)
 - `POST /admin/media/:mediaId/decision` (added in `ADMIN-OPS-03-FULL`)
 - `GET /admin/together/queue` (owner/ops read-only safe queue observability, added before and surfaced in Admin Web in `ADMIN-OPS-05`)
+- `GET /admin/together/sessions` (owner/ops read-only safe session diagnostics with latest/ended/abandoned/cancelled sessions, zero-event sessions, heartbeat/left/event counts, and no raw event payloads or exact coordinates)
 - `GET /admin/audit-log` (added in `ADMIN-OPS-01`)
 - `GET /admin/client-errors?limit=...&screen=...&action=...&code=...&amoriaId=...&userId=...&status=...&createdFrom=...&createdTo=...` (added in `ADMIN-OPS-02`, lifecycle filters added in `ADMIN-OPS-04`)
 - `POST /admin/client-errors/:id/actions` (added in `ADMIN-OPS-04`)
@@ -170,7 +171,8 @@ The owner admin account is a separate real account, not an existing mobile test 
 - Report detail/action panel. Added in `ADMIN-OPS-03-FULL`.
 - Moderation queue.
 - Media moderation. Added in `ADMIN-OPS-03-FULL`.
-- Together Queue. Added in `ADMIN-OPS-05`; read-only owner/ops view with status/activity/radius/hasCoordinates filters and no exact coordinates.
+- Together Queue. Added in `ADMIN-OPS-05` and hardened in `BUGFIX-TOGETHER-GEO-REQUIRED-01`; owner/ops view with status/activity/radius/hasCoordinates/geoMode filters, audited cancel for waiting rows, old missing-location labels, and no exact coordinates.
+- Together Sessions. Added in `ADMIN-OPS-05` and hardened in `BUGFIX-TOGETHER-GEO-REQUIRED-01`; owner/ops view for latest active/finished/abandoned/cancelled/recent sessions, stale heartbeat, participant/event/reveal summaries, and no private chat/raw event payloads/exact coordinates.
 - Locked gallery safety view with elevated access. Foundation added in `ADMIN-OPS-03-FULL`.
 - Blocks/abuse view.
 - Client error reports. Added in `ADMIN-OPS-03-FULL`.
@@ -200,5 +202,6 @@ The owner admin account is a separate real account, not an existing mobile test 
 - `ADMIN-OPS-03-FULL` real admin web console + user search + reports/media moderation foundation + ops health. Completed foundation.
 - `ADMIN-OPS-04` client error lifecycle, safe archive cleanup, ops health counts, admin users read view, and Russian admin-web localization. Completed foundation.
 - `ADMIN-OPS-05` Together Queue UI, media preview, manual moderation actions, and media moderation provider foundation. Completed foundation.
+- `BUGFIX-TOGETHER-GEO-REQUIRED-01` required Together location, queue geoMode filters, sessions visibility, and Admin Web regression pass. Completed release hardening; real 2-device smoke still required.
 - `ADMIN-OPS-06` object storage health + rate limits.
 - `ADMIN-OPS-07` admin smoke pass.

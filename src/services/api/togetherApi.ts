@@ -32,11 +32,11 @@ function buildQuery(params: Record<string, string | number | undefined>) {
 
 export function joinQueue(
   activity: TogetherActivity = "draw",
-  location?: TogetherQueueLocationInput
+  location: TogetherQueueLocationInput
 ): Promise<TogetherQueueResponse> {
   return request<TogetherQueueResponse>("POST", "/together/queue", {
     activity,
-    ...(location ? { location } : {}),
+    location,
   });
 }
 

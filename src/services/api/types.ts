@@ -309,8 +309,8 @@ export type TogetherQueueEntry = {
 export type TogetherActivity = "draw" | "story_sparks";
 
 export type TogetherQueueLocationInput = {
-  latitude?: number | null;
-  longitude?: number | null;
+  latitude: number;
+  longitude: number;
   radiusKm: 5 | 25 | 100 | 250 | null;
 };
 

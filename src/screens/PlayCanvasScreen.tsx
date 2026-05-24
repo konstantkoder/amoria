@@ -1,6 +1,7 @@
 import React from "react";
 import {
   Alert,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -140,6 +141,7 @@ export default function PlayCanvasScreen() {
   const finishPromiseRef = React.useRef<Promise<void> | null>(null);
   const leavePromiseRef = React.useRef<Promise<void> | null>(null);
   const reportedCanvasFailuresRef = React.useRef<Set<string>>(new Set());
+  const heartbeatFailureCountRef = React.useRef(0);
 
   const goToTogether = React.useCallback(() => {
     try {
@@ -191,7 +193,8 @@ export default function PlayCanvasScreen() {
         sessionId,
         activity: sessionResponse?.session.activity ?? "draw",
         status: sessionResponse?.session.status ?? null,
-        strokeCount: strokes.length,
+        eventCount: strokes.length,
+        platform: Platform.OS,
         participantCount: sessionResponse?.participants.length ?? 0,
         ...extraMetadata,
       },
@@ -218,6 +221,7 @@ export default function PlayCanvasScreen() {
     allowExitRef.current = false;
     finishPromiseRef.current = null;
     leavePromiseRef.current = null;
+    heartbeatFailureCountRef.current = 0;
     setLoading(true);
     setLoadError("");
     setFinishing(false);
@@ -488,11 +492,17 @@ export default function PlayCanvasScreen() {
     const sendHeartbeat = async () => {
       try {
         const response = await togetherApi.heartbeat(sessionId);
+        heartbeatFailureCountRef.current = 0;
         if (!cancelled) {
           applySessionResponse(response);
         }
       } catch (error) {
-        reportCanvasFailure("heartbeatFailed", "Together draw heartbeat failed", error);
+        heartbeatFailureCountRef.current += 1;
+        if (heartbeatFailureCountRef.current >= 2) {
+          reportCanvasFailure("heartbeatFailed", "Together draw heartbeat failed repeatedly", error, {
+            heartbeatFailureCount: heartbeatFailureCountRef.current,
+          });
+        }
         if (!cancelled && mountedRef.current) {
           setStrokeError(
             tt(

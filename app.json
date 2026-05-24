@@ -35,7 +35,7 @@
       "usesAppleSignIn": false,
       "supportsTablet": false,
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "Мы используем вашу геолокацию, чтобы показывать статусы, людей и комнаты рядом.",
+        "NSLocationWhenInUseUsageDescription": "Мы используем геолокацию для Nearby и Together matching. Точная позиция не показывается другим людям.",
         "NSPhotoLibraryUsageDescription": "Нужен доступ к фотобиблиотеке для выбора фотографий."
       }
     },

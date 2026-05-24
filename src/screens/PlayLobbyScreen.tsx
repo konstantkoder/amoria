@@ -2,7 +2,6 @@ import React from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as Location from "expo-location";
 
 import ScreenShell from "@/components/ScreenShell";
 import { useLocale } from "@/contexts/LocaleContext";
@@ -14,7 +13,14 @@ import {
   reportClientError,
   sanitizeErrorForReport,
 } from "@/services/api/clientErrorsApi";
-import type { TogetherQueueLocationInput } from "@/services/api/types";
+import {
+  DEFAULT_TOGETHER_RADIUS_KM,
+  TOGETHER_RADIUS_OPTIONS,
+  parseTogetherRadiusPreference,
+  requestTogetherQueueLocation,
+  serializeTogetherRadiusPreference,
+  type TogetherRadiusKm,
+} from "@/services/togetherLocation";
 import { theme } from "@/theme";
 
 function isReleasePlayActivity(
@@ -23,19 +29,7 @@ function isReleasePlayActivity(
   return value === "draw" || value === "story_sparks";
 }
 
-type TogetherRadiusKm = 5 | 25 | 100 | 250 | null;
-
 const RADIUS_STORAGE_KEY = "amoria:together:radiusKm:v2";
-const RADIUS_OPTIONS: TogetherRadiusKm[] = [null, 5, 25, 100, 250];
-
-function parseStoredRadius(value: string | null): TogetherRadiusKm | undefined {
-  if (value === "anywhere") return null;
-  if (value === "5") return 5;
-  if (value === "25") return 25;
-  if (value === "100") return 100;
-  if (value === "250") return 250;
-  return undefined;
-}
 
 export default function PlayLobbyScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"PlayMatch">>();
@@ -47,7 +41,9 @@ export default function PlayLobbyScreen() {
     },
     [t]
   );
-  const [selectedRadiusKm, setSelectedRadiusKm] = React.useState<TogetherRadiusKm>(null);
+  const [selectedRadiusKm, setSelectedRadiusKm] = React.useState<TogetherRadiusKm>(
+    DEFAULT_TOGETHER_RADIUS_KM
+  );
   const [locationBusy, setLocationBusy] = React.useState(false);
   const [locationNotice, setLocationNotice] = React.useState("");
 
@@ -56,10 +52,15 @@ export default function PlayLobbyScreen() {
     void AsyncStorage.getItem(RADIUS_STORAGE_KEY)
       .then((value) => {
         if (!alive) return;
-        const parsed = parseStoredRadius(value);
+        const parsed = parseTogetherRadiusPreference(value);
         if (parsed !== undefined) {
           setSelectedRadiusKm(parsed);
+          return;
         }
+        void AsyncStorage.setItem(
+          RADIUS_STORAGE_KEY,
+          serializeTogetherRadiusPreference(DEFAULT_TOGETHER_RADIUS_KM)
+        ).catch(() => undefined);
       })
       .catch(() => undefined);
 
@@ -93,103 +94,52 @@ export default function PlayLobbyScreen() {
   const selectRadius = React.useCallback((radiusKm: TogetherRadiusKm) => {
     setSelectedRadiusKm(radiusKm);
     setLocationNotice("");
-    void AsyncStorage.setItem(RADIUS_STORAGE_KEY, radiusKm === null ? "anywhere" : String(radiusKm))
+    void AsyncStorage.setItem(RADIUS_STORAGE_KEY, serializeTogetherRadiusPreference(radiusKm))
       .catch(() => undefined);
   }, []);
 
-  const resolveQueueLocation = React.useCallback(async (): Promise<TogetherQueueLocationInput | null | undefined> => {
-    if (selectedRadiusKm === null) {
-      return undefined;
+  const resolveQueueLocation = React.useCallback(async () => {
+    const result = await requestTogetherQueueLocation(selectedRadiusKm);
+    if ("location" in result) {
+      return result.location;
     }
 
-    let permissionStatus = "";
-    try {
-      const currentPermission = await Location.getForegroundPermissionsAsync();
-      permissionStatus = currentPermission.status;
-      const permission = currentPermission.granted
-        ? currentPermission
-        : await Location.requestForegroundPermissionsAsync();
-      permissionStatus = permission.status;
-
-      if (!permission.granted) {
-        const message = tt(
-          "together.geo.permissionDenied",
-          "Для поиска рядом нужна геолокация. Можно выбрать «Без ограничения»."
-        );
-        setLocationNotice(message);
-        reportClientError({
-          screen: "PlayLobbyScreen",
-          action: "startTogetherQueue",
-          step: "locationPermissionDenied",
-          message: "Together radius mode location permission denied",
-          metadata: {
-            radiusKm: selectedRadiusKm,
-            permissionStatus,
-            hasCoordinates: false,
-          },
-        });
-        Alert.alert(tt("together.geo.permissionTitle", "Нужна геолокация"), message);
-        return null;
-      }
-    } catch (error) {
-      const safeError = sanitizeErrorForReport(error);
-      reportClientError({
-        screen: "PlayLobbyScreen",
-        action: "startTogetherQueue",
-        step: "locationReadFailed",
-        code: safeError.code,
-        message: safeError.message,
-        stack: safeError.stack,
-        metadata: {
-          radiusKm: selectedRadiusKm,
-          permissionStatus: permissionStatus || "unknown",
-          hasCoordinates: false,
-        },
-      });
-      setLocationNotice(tt(
-        "together.geo.locationReadFailed",
-        "Не удалось получить геолокацию. Можно выбрать «Без ограничения»."
-      ));
+    if (result.reason === "permissionDenied") {
+      const message = tt(
+        "together.geo.permissionDenied",
+        "Для совместного поиска нужна геолокация. Мы не показываем точную позицию другим людям."
+      );
+      setLocationNotice(message);
+      Alert.alert(tt("together.geo.permissionTitle", "Нужна геолокация"), message);
       return null;
     }
 
-    try {
-      const lastKnown = await Location.getLastKnownPositionAsync();
-      const position = lastKnown ?? await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
-      const latitude = position.coords.latitude;
-      const longitude = position.coords.longitude;
-      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-        throw new Error("Invalid Together location coordinates");
-      }
-
-      return {
-        latitude,
-        longitude,
+    const safeError = sanitizeErrorForReport(result.error);
+    reportClientError({
+      screen: "PlayLobbyScreen",
+      action: "startTogetherQueue",
+      step: "locationReadFailed",
+      code: safeError.code,
+      message: safeError.message,
+      stack: safeError.stack,
+      metadata: {
         radiusKm: selectedRadiusKm,
-      };
-    } catch (error) {
-      const safeError = sanitizeErrorForReport(error);
-      reportClientError({
-        screen: "PlayLobbyScreen",
-        action: "startTogetherQueue",
-        step: "locationReadFailed",
-        code: safeError.code,
-        message: safeError.message,
-        stack: safeError.stack,
-        metadata: {
-          radiusKm: selectedRadiusKm,
-          permissionStatus: "granted",
-          hasCoordinates: false,
-        },
-      });
-      setLocationNotice(tt(
+        permissionStatus: result.permissionStatus,
+        hasCoordinates: false,
+      },
+    });
+    setLocationNotice(tt(
+      "together.geo.locationReadFailed",
+      "Не удалось получить геолокацию. Проверьте доступ и попробуйте ещё раз."
+    ));
+    Alert.alert(
+      tt("together.geo.permissionTitle", "Нужна геолокация"),
+      tt(
         "together.geo.locationReadFailed",
-        "Не удалось получить геолокацию. Можно выбрать «Без ограничения»."
-      ));
-      return null;
-    }
+        "Не удалось получить геолокацию. Проверьте доступ и попробуйте ещё раз."
+      )
+    );
+    return null;
   }, [selectedRadiusKm, tt]);
 
   const openActivity = React.useCallback(
@@ -221,7 +171,7 @@ export default function PlayLobbyScreen() {
         }
         navigation.navigate("PlayMatch", {
           activity: safeActivity,
-          ...(location ? { location } : {}),
+          location,
           radiusLabel: radiusLabel(selectedRadiusKm),
         });
       } catch (error) {
@@ -301,7 +251,7 @@ export default function PlayLobbyScreen() {
                 {tt("together.geo.radiusTitle", "Радиус поиска")}
               </Text>
               <View style={styles.radiusOptions}>
-                {RADIUS_OPTIONS.map((radiusKm) => {
+                {TOGETHER_RADIUS_OPTIONS.map((radiusKm) => {
                   const selected = selectedRadiusKm === radiusKm;
                   return (
                     <Pressable
@@ -329,15 +279,15 @@ export default function PlayLobbyScreen() {
                 <Text style={styles.radiusNotice}>{locationNotice}</Text>
               ) : (
                 <Text style={styles.radiusHint}>
-                  {selectedRadiusKm === null
-                    ? tt(
-                        "together.geo.anywhereHint",
-                        "Очередь можно начать без геолокации."
-                      )
-                    : tt(
-                        "together.geo.radiusHint",
-                        "Для радиуса рядом приложение запросит текущую геолокацию перед стартом."
-                      )}
+                  {tt(
+                    "together.geo.radiusHint",
+                    "Сначала ищите рядом. Если никого нет — расширьте радиус."
+                  )}
+                  {" "}
+                  {tt(
+                    "together.geo.privacyHint",
+                    "Точная геолокация не показывается другим людям."
+                  )}
                 </Text>
               )}
             </View>

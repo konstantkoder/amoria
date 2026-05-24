@@ -1,15 +1,16 @@
 # BUGFIX-GEO-KEYBOARD-CROP-CLEANUP-01
 
-Updated: 2026-05-23
+Updated: 2026-05-24
 
 ## Together Geo / Retry
 
-- Default Together radius is `Без ограничения` / `No limit` / `Bez ograničenja`.
-- No-limit queue starts without foreground location.
-- Finite radius (`5/25/100/250 km`) requests foreground location before queue join.
-- If location permission/read fails, the app does not start a fake queue and reports a sanitized client error with radius, permission status, and `hasCoordinates: false`.
+- Default Together radius is `25 km`.
+- Every radius mode, including no-limit, requests foreground location before queue join.
+- No-limit sends real coordinates with `radiusKm:null`; it means no distance cap, not no geolocation.
+- If location permission is denied, the app does not join queue and shows the required-location privacy message.
+- If location read fails after permission, the app reports a sanitized client error with radius, permission status, and `hasCoordinates: false`.
 - Repeated retry cancels the current queue entry before joining again.
-- Delayed finite-radius search shows `Пока никого не нашли. Попробуйте без ограничения.` and offers `Попробовать без ограничения`, which cancels the current entry and re-queues with no limit.
+- Delayed search offers `Расширить радиус` or `Остановить поиск`; expanding cancels the current entry and re-queues with the next radius.
 - Client error metadata never includes exact coordinates.
 
 ## Keyboard

@@ -63,7 +63,7 @@ No-limit matching should keep waiting until the queue entry expires or a match i
 
 Retry is not the normal no-limit waiting path. Destructive restart/cancel actions are explicit and reported only when repeated or failing.
 
-Finite-radius delayed search still offers `Попробовать без ограничения`. That action cancels the finite queue row and creates a new no-limit row.
+After this pass, delayed search offers radius expansion. Expanding to no-limit cancels the current queue row and creates a new no-limit row with real coordinates and `radiusKm:null`.
 
 ## Admin Diagnostics
 
@@ -92,8 +92,9 @@ The diagnostics are read-only. They do not expose exact coordinates, private cha
 
 - Both clients are on the same activity (`draw` for the active release path).
 - Both clients are genuinely waiting, not expired/cancelled.
-- For finite radius, both have coordinates and are inside the mutual radius.
-- For no-limit, `hasCoordinates=false` is allowed.
+- Every new queue row has coordinates, including no-limit.
+- Finite-radius clients are inside the applicable mutual radius.
+- For no-limit, `radiusKm` is empty/null and `hasCoordinates=true`.
 - The queue row is not being cancelled by repeated retry taps.
 - After a match, inspect Together Sessions for stale heartbeat, no events, or one participant leaving.
 
