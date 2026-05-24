@@ -2,18 +2,21 @@ import React from "react";
 import { Image, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
-import { normalizePublicMediaUrl } from "@/services/media/mediaUrl";
+import {
+  getPublicMediaUrlInfo,
+  type PublicMediaUrlInfo,
+} from "@/services/media/mediaUrl";
 import { theme } from "@/theme";
 
 type Props = {
   avatarUrl?: string;
   label?: string;
   size?: number;
-  onLoadError?: () => void;
+  onLoadError?: (info: PublicMediaUrlInfo) => void;
 };
 
 function normalizeAvatarUrl(value?: string) {
-  return normalizePublicMediaUrl(value, "avatar URL");
+  return getPublicMediaUrlInfo(value, "avatar URL");
 }
 
 function getInitials(label?: string) {
@@ -30,7 +33,8 @@ function getInitials(label?: string) {
 
 export default function UserAvatar({ avatarUrl, label, size = 44, onLoadError }: Props) {
   const [failed, setFailed] = React.useState(false);
-  const sharedUrl = normalizeAvatarUrl(avatarUrl) ?? "";
+  const urlInfo = normalizeAvatarUrl(avatarUrl);
+  const sharedUrl = urlInfo.url ?? "";
   const initials = getInitials(label);
 
   React.useEffect(() => {
@@ -51,7 +55,7 @@ export default function UserAvatar({ avatarUrl, label, size = 44, onLoadError }:
         ]}
         onError={() => {
           setFailed(true);
-          onLoadError?.();
+          onLoadError?.(urlInfo);
         }}
       />
     );

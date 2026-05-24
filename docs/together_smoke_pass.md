@@ -44,7 +44,9 @@ Geo matching rule:
 - no-limit sends coordinates with `radiusKm:null` and means no distance cap, not no location;
 - backend queue uses the selected radius and coordinates as source of truth;
 - waiting keeps polling until match or expiry and should not encourage repeated retry;
-- delayed no-match state offers radius expansion or stop search;
+- no-match/retry does not appear after one poll or 2-3 seconds;
+- delayed guidance appears after about 90 seconds and offers radius expansion or stop search;
+- temporary poll failures show a retrying connection message and do not cancel queue;
 - exact peer coordinates must not appear in UI, logs, queue/session responses, DM, history, or detail;
 - Story Sparks continuation after draw keeps the same pair and does not re-match by geo.
 - Admin Web has Together Queue and Together Sessions pages for owner/ops. Use Queue before match to see activity/status/radius/hasCoordinates without exact coordinates; use Sessions after match to see status, participant heartbeat, event counts, reveal summaries, and stale active sessions.
@@ -83,6 +85,8 @@ Known automated-check warning: the server test run prints the existing AWS SDK f
 | P - Expand to no-limit | Start finite-radius search, wait for delayed state, tap `Расширить радиус` until no-limit; backend cancels old queue row and starts no-limit with coordinates | NOT TESTED | Prepared for manual pass. | - |
 | Q - No-limit staggered join | A starts no-limit with coordinates, B starts no-limit with coordinates seconds later, both match without repeated retry taps | NOT TESTED | Prepared for manual pass. | - |
 | R - Stuck/frozen client diagnostics | Match into draw, freeze/kill one client if safe, inspect Together Sessions for stale heartbeat/no events/left state | NOT TESTED | Prepared for manual pass. | - |
+| S - BlueStacks GPS unavailable | Grant permission but leave emulator location broken; app says the device is not returning coordinates and does not join queue | NOT TESTED | Prepared for manual pass. | - |
+| T - Peer media | Open peer profile after Together/DM; avatar/photos load or Client Errors show safe `urlKind`/`mediaId` diagnostics | NOT TESTED | Prepared for manual pass. | - |
 
 ## Staged Story Sparks Manual Checklist
 
@@ -114,9 +118,10 @@ Known automated-check warning: the server test run prints the existing AWS SDK f
 | 3. Deny location | A | App shows location-required state and does not join queue in any radius mode |  | NOT TESTED |
 | 4. Select no limit | A | App requests location, sends coordinates with `radiusKm:null`, and shows no exact coordinates |  | NOT TESTED |
 | 5. Active no-limit waiting | A | While the no-limit queue row is still active, UI shows searching/countdown and does not encourage retry taps |  | NOT TESTED |
-| 6. Expand radius | A | After delayed search, tap `Расширить радиус`; old entry is cancelled and new queue starts with the next radius using the same safe coordinate contract |  | NOT TESTED |
-| 7. Inspect responses/logs | A+B | Queue/session/history/DM do not expose peer latitude/longitude; `/admin/together/queue` shows only `hasCoordinates` and `geoMode` |  | NOT TESTED |
-| 9. Inspect Admin Web queue | Owner/Ops | Admin Web `Очередь Together` shows current queue rows with status/activity/radius/hasCoordinates/geoMode/matchedSessionId, stale indicator, cancel action for waiting rows, and no latitude/longitude columns |  | NOT TESTED |
+| 6. Staggered start | B starts 10-30 seconds later | A remains waiting and B can still match without simultaneous tapping |  | NOT TESTED |
+| 7. Expand radius | A | After delayed search, tap `Расширить радиус`; old entry is cancelled and new queue starts with the next radius using the same safe coordinate contract |  | NOT TESTED |
+| 8. Inspect responses/logs | A+B | Queue/session/history/DM do not expose peer latitude/longitude; `/admin/together/queue` shows `hasCoordinates`, `geoMode`, `waitingReason`, and age |  | NOT TESTED |
+| 9. Inspect Admin Web queue | Owner/Ops | Admin Web `Очередь Together` shows current queue rows with status/activity/radius/hasCoordinates/geoMode/waitingReason/matchedSessionId, stale indicator, cancel action for waiting rows, and no latitude/longitude columns |  | NOT TESTED |
 | 10. Inspect Admin Web sessions | Owner/Ops | Admin Web `Сессии Together` shows matched/active sessions, participants, heartbeat, event counts, reveal summary, stale warnings, and no latitude/longitude/raw payload columns |  | NOT TESTED |
 | 8. Continue story | A+B | Story Sparks continuation keeps same pair and does not perform a second geo match |  | NOT TESTED |
 

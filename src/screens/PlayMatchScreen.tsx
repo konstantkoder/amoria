@@ -2,12 +2,14 @@ import React from "react";
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import * as Device from "expo-device";
 import {
   type EventArg,
   useNavigation,
@@ -52,7 +54,8 @@ type TranslateFn = (key: string, fallback: string, params?: Record<string, strin
 type QueueStartReason = "initial" | "retry" | "expandRadius";
 
 const POLL_INTERVAL_MS = 2000;
-const DELAYED_MS = 9000;
+const DELAYED_MS = 90 * 1000;
+const POLL_FAILURE_REPORT_THRESHOLD = 3;
 
 function interpolateFallback(fallback: string, params?: Record<string, string>) {
   let value = fallback;
@@ -80,6 +83,14 @@ function getLocationMetadata(location?: TogetherQueueLocationInput) {
     radiusKm: location?.radiusKm ?? null,
     hasCoordinates: hasTogetherQueueCoordinates(location),
   };
+}
+
+function geoModeForLocation(location?: TogetherQueueLocationInput) {
+  if (!hasTogetherQueueCoordinates(location)) {
+    return "missing_location";
+  }
+
+  return location.radiusKm === null ? "no_limit_with_location" : "finite_with_location";
 }
 
 function radiusLabelFor(radiusKm: TogetherRadiusKm, tt: TranslateFn) {
@@ -114,8 +125,8 @@ function getMatchStateMeta(statusKey: MatchStatusKey, tt: TranslateFn) {
       label: tt("play.match.state.searchingLabel", "Ищем"),
       hint:
         statusKey === "delayed"
-          ? tt("play.match.stillSearching", "Поиск продолжается. Оставьте экран открытым.")
-          : tt("play.match.searchCanStayOpen", "Ты в очереди. Можно не нажимать заново."),
+          ? tt("play.match.stillSearching", "Поиск продолжается. Можно подождать или остановить поиск.")
+          : tt("play.match.searchCanStayOpen", "Ищем человека... Можно подождать или остановить поиск."),
       tone: "live" as const,
     };
   }
@@ -134,7 +145,7 @@ function getMatchStateMeta(statusKey: MatchStatusKey, tt: TranslateFn) {
   if (statusKey === "expired") {
     return {
       label: tt("play.match.state.retryLabel", "Повтор"),
-      hint: tt("play.match.notFoundTryAgain", "Пока никого не нашли. Попробуйте снова."),
+      hint: tt("play.match.notFoundTryAgain", "Время очереди истекло. Можно начать поиск заново."),
       tone: "paused" as const,
     };
   }
@@ -155,7 +166,7 @@ function getMatchStateMeta(statusKey: MatchStatusKey, tt: TranslateFn) {
       label: tt("play.match.state.retryLabel", "Повтор"),
       hint: tt(
         "play.match.state.retryHint",
-        "Проверь интернет и попробуй ещё раз или вернись в Together."
+        "Проверьте подключение/GPS и попробуйте снова или вернитесь в меню."
       ),
       tone: "error" as const,
     };
@@ -186,9 +197,9 @@ function getActivityStatusTitle(
       : "Draw";
   switch (statusKey) {
     case "searching":
-      return tt(`play.match.status.searching${suffix}Title`, "Ищем второго человека");
+      return tt(`play.match.status.searching${suffix}Title`, "Ищем человека...");
     case "delayed":
-      return tt(`play.match.status.delayed${suffix}Title`, "Ищем ещё немного");
+      return tt(`play.match.status.delayed${suffix}Title`, "Ищем человека...");
     case "found":
       return tt(`play.match.status.found${suffix}Title`, "Человек найден");
     case "cancelled":
@@ -234,6 +245,7 @@ export default function PlayMatchScreen() {
   const [errorText, setErrorText] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [exiting, setExiting] = React.useState(false);
+  const [connectionNotice, setConnectionNotice] = React.useState("");
   const [queueStartedAt, setQueueStartedAt] = React.useState(0);
   const [activeQueueLocation, setActiveQueueLocation] =
     React.useState<TogetherQueueLocationInput | undefined>(routeQueueLocation);
@@ -244,6 +256,8 @@ export default function PlayMatchScreen() {
   const inFlightRef = React.useRef(false);
   const invalidActivityReportedRef = React.useRef(false);
   const pollFailureReportedRef = React.useRef(false);
+  const pollFailureCountRef = React.useRef(0);
+  const delayedThresholdReportedRef = React.useRef(false);
 
   const goToTogether = React.useCallback(() => {
     try {
@@ -326,6 +340,7 @@ export default function PlayMatchScreen() {
     }
 
     const safeError = sanitizeErrorForReport(result.error);
+    const isDeviceLocationUnavailable = result.permissionStatus === "granted";
     reportClientError({
       screen: "PlayMatchScreen",
       action: "startTogetherQueue",
@@ -339,14 +354,21 @@ export default function PlayMatchScreen() {
         reason,
         permissionStatus: result.permissionStatus,
         hasCoordinates: false,
+        platform: Platform.OS,
+        deviceModel: Device.modelName ?? null,
       },
     });
     setStatusKey("error");
     setErrorText(
-      tt(
-        "together.geo.locationReadFailed",
-        "Не удалось получить геолокацию. Проверьте доступ и попробуйте ещё раз."
-      )
+      isDeviceLocationUnavailable
+        ? tt(
+            "together.geo.deviceLocationUnavailable",
+            "Устройство не отдаёт координаты. Проверьте GPS/геолокацию. В эмуляторе BlueStacks установите местоположение и откройте Google Maps для проверки."
+          )
+        : tt(
+            "together.geo.locationReadFailed",
+            "Не удалось получить геолокацию. Проверьте доступ и попробуйте ещё раз."
+          )
     );
     return null;
   }, [activeQueueLocation?.radiusKm, activity, tt]);
@@ -372,9 +394,12 @@ export default function PlayMatchScreen() {
     matchedRef.current = false;
     cancelRequestedRef.current = false;
     pollFailureReportedRef.current = false;
+    pollFailureCountRef.current = 0;
+    delayedThresholdReportedRef.current = false;
     inFlightRef.current = true;
     setBusy(true);
     setErrorText("");
+    setConnectionNotice("");
     setStatusKey("preparing");
     setQueueStartedAt(Date.now());
 
@@ -462,6 +487,8 @@ export default function PlayMatchScreen() {
       try {
         const response = await togetherApi.getQueue(entry.id);
         if (!alive || matchedRef.current) return;
+        pollFailureCountRef.current = 0;
+        setConnectionNotice("");
         setEntry(response.entry);
 
         if (response.entry.status === "matched" && response.entry.sessionId) {
@@ -481,11 +508,37 @@ export default function PlayMatchScreen() {
           return;
         }
 
-        const nextStatus = Date.now() - queueStartedAt > DELAYED_MS ? "delayed" : "searching";
+        const isDelayed = Date.now() - queueStartedAt > DELAYED_MS;
+        const nextStatus = isDelayed ? "delayed" : "searching";
+        if (isDelayed && !delayedThresholdReportedRef.current) {
+          delayedThresholdReportedRef.current = true;
+          reportClientError({
+            screen: "PlayMatchScreen",
+            action: "startTogetherQueue",
+            step: "queueDelayedThreshold",
+            message: "Together queue is still waiting after delayed threshold",
+            metadata: {
+              activity,
+              queueEntryId: response.entry.id,
+              geoMode: geoModeForLocation(activeQueueLocation),
+              ...getLocationMetadata(activeQueueLocation),
+            },
+          });
+        }
         setStatusKey(nextStatus);
       } catch (error) {
         if (!alive) return;
-        if (!pollFailureReportedRef.current) {
+        pollFailureCountRef.current += 1;
+        setConnectionNotice(
+          tt(
+            "play.match.pollRetrying",
+            "Проблема соединения, пробуем снова."
+          )
+        );
+        if (
+          pollFailureCountRef.current >= POLL_FAILURE_REPORT_THRESHOLD &&
+          !pollFailureReportedRef.current
+        ) {
           pollFailureReportedRef.current = true;
           const safeError = sanitizeErrorForReport(error);
           reportClientError({
@@ -498,17 +551,13 @@ export default function PlayMatchScreen() {
             metadata: {
               activity,
               entryIdExists: Boolean(entryIdRef.current),
+              queueEntryId: entryIdRef.current || null,
+              pollFailureCount: pollFailureCountRef.current,
+              geoMode: geoModeForLocation(activeQueueLocation),
               ...getLocationMetadata(activeQueueLocation),
             },
           });
         }
-        setStatusKey("error");
-        setErrorText(
-          tt(
-            "play.match.queueNetworkError",
-            "Проверь подключение к интернету и попробуй ещё раз."
-          )
-        );
       }
     };
 
@@ -621,11 +670,15 @@ export default function PlayMatchScreen() {
     statusKey === "delayed" &&
     locationReady &&
     expandedRadiusKm !== activeRadiusKm;
-  const bodyText = errorText || (
+  const bodyText = errorText || connectionNotice || (
     canExpandRadius
-      ? tt("play.match.noMatchExpandRadius", "Пока никого не нашли. Расширьте радиус или остановите поиск.")
+      ? tt("play.match.noMatchExpandRadius", "Поиск продолжается. Можно расширить радиус или остановить поиск.")
       : meta.hint
   );
+  const retryLabel =
+    statusKey === "error" && !entryIdRef.current
+      ? tt("together.geo.retryLocation", "Попробовать снова")
+      : tt("play.match.restartSearch", "Остановить и начать заново");
 
   return (
     <ScreenShell
@@ -681,7 +734,7 @@ export default function PlayMatchScreen() {
             {canRetry ? (
               <Pressable style={styles.primaryButton} onPress={retry} disabled={busy}>
                 <Text style={styles.primaryButtonText}>
-                  {tt("common.retry", "Повторить")}
+                  {retryLabel}
                 </Text>
               </Pressable>
             ) : null}
@@ -696,7 +749,9 @@ export default function PlayMatchScreen() {
                   ? tt("common.exiting", "Выходим…")
                   : statusKey === "delayed"
                     ? tt("play.match.stopSearch", "Остановить поиск")
-                    : tt("common.backToMainTabs", "Вернуться в меню")}
+                    : statusKey === "searching"
+                      ? tt("play.match.stopSearch", "Остановить поиск")
+                      : tt("common.backToMainTabs", "Вернуться в меню")}
               </Text>
             </Pressable>
           </View>

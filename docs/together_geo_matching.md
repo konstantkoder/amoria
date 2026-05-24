@@ -54,15 +54,19 @@ Story continuation after draw keeps the same pair and does not re-run geo matchi
 
 - The backend cancels any existing `waiting` queue row for the same user before creating a new attempt.
 - Mobile radius expansion cancels the current queue entry before joining again.
-- A delayed search offers `Расширить радиус` / `Остановить поиск`, instead of pushing repeated retry first.
+- Mobile keeps polling while backend returns `waiting`; no-match/retry must not appear after one poll or 2-3 seconds.
+- Delayed guidance appears after about 90 seconds and offers `Расширить радиус` / `Остановить поиск`, instead of pushing repeated retry first.
 - The no-limit expansion sends coordinates plus `radiusKm: null` and reports only safe metadata.
+- Temporary poll failures show `Проблема соединения, пробуем снова` and do not cancel the queue row.
 
 ## Admin/Ops Observability
 
 `GET /admin/together/queue` is available to `owner` and `ops` roles. It writes an admin audit log and returns only safe queue fields:
 
 ```text
-entryId, userId, activity, status, radiusKm, hasCoordinates, geoMode, createdAt, expiresAt, matchedSessionId
+entryId, userId, amoriaId, displayName, activity, status, radiusKm,
+hasCoordinates, geoMode, waitingReason, ageSeconds, createdAt, expiresAt,
+matchedSessionId
 ```
 
 It does not return latitude/longitude.
@@ -74,6 +78,8 @@ Exact peer coordinates are never returned in queue, session, reveal, history, DM
 ## No-Location Behavior
 
 If the user denies location permission, the app does not join the queue in any radius mode. It shows: `Для совместного поиска нужна геолокация. Мы не показываем точную позицию другим людям.` No fake location or local-only match is created.
+
+If permission is granted but the device/emulator does not return coordinates, the app does not join the queue and explains that GPS/location is unavailable. For BlueStacks, set location in the emulator and open Google Maps to verify it before retrying Together.
 
 ## Smoke Checklist
 

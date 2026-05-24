@@ -15,13 +15,17 @@ GET /admin/together/queue
 It shows:
 
 - `createdAt`
+- waiting age
 - `expiresAt`
 - `userId`
+- `amoriaId`
+- `displayName`
 - `activity`
 - `status`
 - `radiusKm`
 - `hasCoordinates`
 - `geoMode`
+- `waitingReason`
 - `matchedSessionId`
 
 It does not show latitude, longitude, exact user location, tokens, secrets, or credentials.
@@ -38,7 +42,9 @@ The page filters the loaded queue rows by:
 
 Refresh re-reads the backend endpoint.
 
-`matchedSessionId` opens the Together Sessions page filtered to that session when the session id is present.
+`matchedSessionId` opens the Together Sessions page filtered to that session when the session id is present. If the session endpoint does not return that id, Admin Web shows a clear diagnostic error.
+
+`waitingReason` values are safe derived diagnostics: `no_candidate`, `activity_mismatch`, `radius_distance_too_far`, `missing_coordinates_old_entry`, `same_user_excluded`, `candidate_expired`, `candidate_cancelled`, `location_required`, and `unknown`.
 
 ## Together Sessions Page
 
@@ -104,7 +110,7 @@ This is not a hard delete. It updates the row to `cancelled`, reloads the table,
 
 ## Smoke Use
 
-During a Together smoke pass, use the queue page to confirm whether a test account is waiting, matched, expired, or cancelled, and whether every new request has coordinates. For a no-limit attempt, `radiusKm` should be empty/no-limit, `hasCoordinates` should be true, and `geoMode` should be `no_limit_with_location`.
+During a Together smoke pass, use the queue page to confirm whether a test account is waiting, matched, expired, or cancelled, how long it has waited, and whether every new request has coordinates. For a no-limit attempt, `radiusKm` should be empty/no-limit, `hasCoordinates` should be true, and `geoMode` should be `no_limit_with_location`.
 
 Old waiting rows without coordinates are labeled as `missing_location_invalid_old_entry` / `Старая запись без геолокации`. They are invalid for the release geo contract and can be cancelled with the audited cancel action when still waiting.
 

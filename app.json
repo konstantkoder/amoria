@@ -47,6 +47,7 @@
         "NOTIFICATIONS"
       ],
       "package": "com.anonymous.amoria",
+      "usesCleartextTraffic": true,
       "softwareKeyboardLayoutMode": "resize"
     },
     "extra": {

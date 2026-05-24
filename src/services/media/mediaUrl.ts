@@ -20,6 +20,17 @@ function isPublicMediaPath(pathname: string): boolean {
   return /^\/media\/public\/[^/?#]+$/.test(pathname);
 }
 
+function mediaIdFromPublicMediaPath(pathname: string): string | undefined {
+  if (!isPublicMediaPath(pathname)) return undefined;
+  const mediaId = pathname.split("/").pop();
+  if (!mediaId) return undefined;
+  try {
+    return decodeURIComponent(mediaId);
+  } catch {
+    return mediaId;
+  }
+}
+
 function resolveAgainstApiBase(pathname: string): string | undefined {
   if (!isPublicMediaPath(pathname)) return undefined;
 
@@ -81,29 +92,60 @@ export function normalizePublicMediaUrl(
   value: unknown,
   context = "media URL"
 ): string | undefined {
+  return getPublicMediaUrlInfo(value, context).url;
+}
+
+export type PublicMediaUrlKind =
+  | "relative"
+  | "currentOrigin"
+  | "rewritten"
+  | "external"
+  | "devExternal"
+  | "invalid";
+
+export type PublicMediaUrlInfo = {
+  url?: string;
+  urlKind: PublicMediaUrlKind;
+  mediaId?: string;
+};
+
+export function getPublicMediaUrlInfo(
+  value: unknown,
+  context = "media URL"
+): PublicMediaUrlInfo {
   const normalized = normalizeString(value);
-  if (!normalized) return undefined;
+  if (!normalized) return { urlKind: "invalid" };
 
   if (normalized.startsWith("/")) {
     const resolved = resolveAgainstApiBase(normalized.split(/[?#]/, 1)[0] ?? "");
-    if (resolved) return resolved;
+    if (resolved) {
+      return {
+        url: resolved,
+        urlKind: "relative",
+        mediaId: mediaIdFromPublicMediaPath(normalized.split(/[?#]/, 1)[0] ?? ""),
+      };
+    }
     warnInvalidMediaUrl(context, normalized);
-    return undefined;
+    return { urlKind: "invalid" };
   }
 
   const url = parseUrl(normalized);
   if (!url) {
     warnInvalidMediaUrl(context, normalized);
-    return undefined;
+    return { urlKind: "invalid" };
   }
 
   const canonicalCurrentUrl = resolveAgainstApiBase(url.pathname);
   if (canonicalCurrentUrl) {
-    return canonicalCurrentUrl;
+    return {
+      url: canonicalCurrentUrl,
+      urlKind: isCurrentApiOrigin(url) ? "currentOrigin" : "rewritten",
+      mediaId: mediaIdFromPublicMediaPath(url.pathname),
+    };
   }
 
   if (isReleaseSafePublicMediaUrl(normalized)) {
-    return normalized;
+    return { url: normalized, urlKind: "external" };
   }
 
   if (
@@ -111,11 +153,19 @@ export function normalizePublicMediaUrl(
     (url.protocol === "http:" || url.protocol === "https:") &&
     !isPrivateOrLocalHostname(url.hostname)
   ) {
-    return normalized;
+    return { url: normalized, urlKind: "devExternal" };
   }
 
   warnInvalidMediaUrl(context, normalized);
-  return undefined;
+  return { urlKind: "invalid" };
+}
+
+function isCurrentApiOrigin(url: URL): boolean {
+  try {
+    return url.origin === new URL(getApiBaseUrl()).origin;
+  } catch {
+    return false;
+  }
 }
 
 function warnInvalidMediaUrl(context: string, value: string): void {

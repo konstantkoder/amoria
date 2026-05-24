@@ -1,6 +1,6 @@
 # Media Upload Architecture
 
-Updated: 2026-05-23 after `RELEASE-SMOKE-BLOCKERS-03`
+Updated: 2026-05-24 after `BUGFIX-TOGETHER-START-PEER-MEDIA-05`
 
 ## Release Rule
 
@@ -23,6 +23,7 @@ Avatar and profile photo uploads wrote absolute URLs into `media_files.url` and 
 - `media_files.url` is legacy/debug metadata only and may contain an old tunnel/local/object-storage address.
 - Public profile, admin list/detail, and mobile-facing responses re-materialize avatar and public photo URLs from media IDs, so stale absolute DB URLs are not trusted as the public contract.
 - Mobile and Admin Web resolve relative `/media/public/:mediaId` paths against the current API origin.
+- Mobile image rendering keeps safe diagnostics for peer profile media: `mediaId` when available, `urlKind`, `hasAvatarUrl`, and `photoCount`. Full raw URLs are not sent to Client Errors.
 
 ## Backend-Mediated Profile Photo Upload
 
@@ -101,6 +102,8 @@ The backend still decodes, validates, re-encodes to WebP, strips metadata, and e
   - locked gallery summary/count only.
 - Locked gallery photos are not included in public profile photos before unlock.
 - Stale avatar URLs without a matching media row are hidden instead of being returned to mobile.
+- If an old absolute `/media/public/:mediaId` URL reaches mobile, the client rewrites that path to the current API origin instead of loading a stale tunnel/localhost/object-storage host.
+- If a peer avatar/photo still fails to load, Client Errors should show whether the URL was `relative`, `currentOrigin`, `rewritten`, `external`, `devExternal`, or `invalid`.
 
 ## Moderation Visibility Policy
 
@@ -118,6 +121,7 @@ Locked gallery media remains hidden from public profile responses regardless of 
 - `S3_ENDPOINT` may remain an internal object-storage endpoint.
 - `S3_PUBLIC_BASE_URL` must not be used as the mobile-visible profile media contract.
 - Production public URL validation still rejects localhost/private/minio-style public URLs.
+- Android/BlueStacks local-dev builds may need cleartext traffic for HTTP backend origins. This is a transport setting only; it must not be used to justify stale media hosts or fake media success.
 
 ## Prepared Upload Boundary
 

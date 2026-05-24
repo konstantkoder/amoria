@@ -29,6 +29,12 @@ This launcher is local dev tooling only and is not product logic.
   - Locked media is not exposed through public media; elevated admin content review requires reason and audit.
   - Uploaded media enters manual review when the automated provider is `NOT_CONFIGURED`; there is no fake approval.
   - Production ops flow is documented in `docs/production_ops.md`.
+- BUGFIX-TOGETHER-START-PEER-MEDIA-05 is fixed in code and awaiting release smoke:
+  - Together search does not fall into no-match after the first poll or a short transient network issue.
+  - The first user can remain in queue while a second user joins later.
+  - Granted-but-unavailable GPS failures show a device/emulator explanation, including the BlueStacks Google Maps check.
+  - Admin Queue shows safe age/user/waiting-reason diagnostics for the location -> queue -> match chain.
+  - Peer avatar/photo load failures now report safe `urlKind` and `mediaId` diagnostics instead of only `hasAvatarUrl` and `photoCount`.
 
 ## Completed blocks
 
@@ -97,6 +103,16 @@ This launcher is local dev tooling only and is not product logic.
   - No-limit sends coordinates with `radiusKm:null`.
   - Admin Queue shows `geoMode` and marks old coordinate-less rows as invalid.
   - Admin Sessions default to latest sessions and surface ended/stale/zero-event diagnostics.
+- `BUGFIX-TOGETHER-START-PEER-MEDIA-05` release reliability hardening:
+  - PlayMatch keeps a waiting queue active until match, manual stop, backend terminal status, or `expiresAt`.
+  - The delayed state starts after a release-appropriate wait window, not after a 2-3 second poll cycle.
+  - Poll/network failures keep polling and only report Client Errors after repeated failures.
+  - Delayed queue diagnostics are reported once with safe activity/radius/geo/queue metadata.
+  - Device/emulator GPS failures never join queue and explain the BlueStacks verification path.
+  - Peer avatar/photos resolve `/media/public/:mediaId` against the current API origin and rewrite stale public-media paths safely.
+  - Android local-dev media loading allows cleartext backend origins for BlueStacks/dev API smoke tests.
+  - Admin Queue exposes safe `waitingReason`, waiting age, and amoria/display name for release diagnosis.
+  - Admin Sessions shows a clear error when a queue row links to a missing session.
 
 See `docs/bugfix_ux_01_audit.md`.
 See `docs/bugfix_ux_02_media_nav_profile.md`.
@@ -113,6 +129,8 @@ See `docs/bugfix_draw_prompts_peer_media_queue.md`.
 See `docs/release_dead_code_inventory.md`.
 See `docs/bugfix_together_geo_required_matching.md`.
 See `docs/admin_web_regression_pass.md`.
+See `docs/bugfix_together_match_peer_media.md`.
+See `docs/gallery_smoke_pass.md`.
 
 ## Identity rule verification
 
@@ -200,6 +218,7 @@ Continue Admin/Ops hardening and final smoke pass.
 - Connect a real automated media moderation provider or staff manual moderation before public beta.
 - Complete real-device MEDIA-01 smoke: profile photo upload through `POST /media/profile-photo`, peer public profile visibility, and no `putUpload/minio` client errors.
 - Complete real-device TOGETHER-GEO-01 smoke: 25 km default, 5/25/100/250/no-limit matching with granted location, denied-location blocking, staggered no-limit matching with coordinates, and no peer coordinate exposure.
+- Complete real-device BUGFIX-TOGETHER-START-PEER-MEDIA-05 smoke: staggered starts, no-limit/no-limit with coordinates, BlueStacks GPS unavailable copy, Admin Queue waitingReason/age, Admin Sessions matched row, and peer avatar/photo rendering.
 - BUGFIX-TOGETHER-PROMPTS-I18N-EXAMPLES.
 - Full RU locale cleanup.
 - Complete a real signed-in Together/Gallery smoke pass; `TOGETHER-04` is checklist-only so far and Story Sparks requires a real 2-account smoke pass.

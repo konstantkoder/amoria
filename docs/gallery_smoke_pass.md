@@ -1,6 +1,6 @@
 # Gallery Smoke Pass
 
-Updated: 2026-05-23 for `RELEASE-SMOKE-BLOCKERS-03`.
+Updated: 2026-05-24 for `BUGFIX-TOGETHER-START-PEER-MEDIA-05`.
 
 ## Run Metadata
 
@@ -21,7 +21,7 @@ Updated: 2026-05-23 for `RELEASE-SMOKE-BLOCKERS-03`.
 | --- | --- | --- | --- |
 | A | Avatar upload | NOT TESTED | Login account A, open Profile, choose JPEG/PNG/WebP avatar, verify native square crop opens, verify preview appears, tap Upload photo, verify new avatar appears, restart app, verify avatar persists from backend, open public profile, verify URL is backend/public HTTPS and not `file://`. |
 | B | Profile photo upload | NOT TESTED | Open PhotoManager, choose JPEG/PNG/WebP profile photo, verify native square crop opens, verify preview appears, tap Upload photo, verify backend-mediated `POST /media/profile-photo` result appears in public gallery, restart app, verify it persists, login peer account, verify peer can see public photo, verify URL is relative `/media/public/:mediaId` or current backend origin plus that path. |
-| B1 | Peer avatar/profile media | NOT TESTED | Account A uploads avatar and public profile photo; account B opens A from Together DM/profile context and sees current backend public media URLs derived from media ids or a clear moderation-waiting explanation if policy changes to approved-only. |
+| B1 | Peer avatar/profile media | NOT TESTED | Account A uploads avatar and public profile photo; account B opens A from Together DM/profile context and sees current backend public media URLs derived from media ids or a clear moderation-waiting explanation if policy changes to approved-only. If an image fails, Admin Client Errors should show `screen=UserProfileScreen`, `action=loadPeerMedia`, safe `mediaId` when known, `urlKind`, `hasAvatarUrl`, and `photoCount`, never a raw URL. |
 | B2 | Profile photo cancel/change | NOT TESTED | Select a photo, reach preview, tap Cancel and verify no upload/gallery change. Repeat and tap Choose another; verify only the confirmed photo uploads. |
 | C | Unsupported format | NOT TESTED | Try HEIC/HEIF or unsupported image if device provides it, verify app rejects before upload, no backend media is created, clear error is shown. |
 | D | Move public to locked | NOT TESTED | Account A has enough visible public images, set locked gallery password if needed, move one photo to locked, verify public profile no longer exposes that photo URL, owner sees it in locked section, peer sees only locked count/state. |
@@ -49,6 +49,7 @@ Updated: 2026-05-23 for `RELEASE-SMOKE-BLOCKERS-03`.
 | Locked public route exposure | FIXED | `/media/public/:mediaId` now requires profile photos to be in a public gallery item; locked gallery media is blocked even when `mediaId` is known. |
 | Initial moderation status | PASS | New avatar/profile photo uploads create a manual-review moderation record. `NOT_CONFIGURED` automated provider does not fake approval. |
 | Closed-test visibility policy | PASS | Pending review public profile media is visible for closed testing; public beta should move to approved-only visibility after real moderation is staffed/configured. |
+| Peer media URL diagnostics | PASS | Mobile resolves relative `/media/public/:mediaId` against the current API origin, rewrites old absolute public-media paths to the current origin, rejects invalid URLs safely, and reports `urlKind`/`mediaId` diagnostics without full raw URLs. |
 
 ## Found Bugs
 
@@ -56,6 +57,7 @@ Updated: 2026-05-23 for `RELEASE-SMOKE-BLOCKERS-03`.
 | --- | --- | --- | --- | --- | --- |
 | G02-1 | `PhotoManagerScreen` | Select a valid-looking image, then force backend upload/complete failure. | Local preview clears and gallery remains backend-sourced. | Pending local photo preview could remain after failure. | FIXED |
 | G02-2 | `ProfileScreen` | Select avatar, then force avatar backend upload/profile update failure. | Avatar preview clears and existing backend avatar remains authoritative. | Local avatar preview could remain after failure. | FIXED |
+| G03-1 | `UserProfileScreen` | Peer profile returns `hasAvatarUrl=true` and public photos, but Android image load fails. | Client error identifies URL resolution class and media id safely; public media still uses the current backend route. | Client error only showed `hasAvatarUrl=true` and `photoCount`, which did not distinguish stale URL, invalid URL, or Android transport failure. | FIXED |
 
 ## Final Status
 

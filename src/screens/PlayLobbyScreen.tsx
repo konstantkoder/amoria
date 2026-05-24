@@ -1,7 +1,8 @@
 import React from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Device from "expo-device";
 
 import ScreenShell from "@/components/ScreenShell";
 import { useLocale } from "@/contexts/LocaleContext";
@@ -110,11 +111,24 @@ export default function PlayLobbyScreen() {
         "Для совместного поиска нужна геолокация. Мы не показываем точную позицию другим людям."
       );
       setLocationNotice(message);
-      Alert.alert(tt("together.geo.permissionTitle", "Нужна геолокация"), message);
+      Alert.alert(tt("together.geo.permissionTitle", "Нужна геолокация"), message, [
+        { text: tt("together.geo.retryLocation", "Попробовать снова") },
+        { text: tt("common.backToMainTabs", "Вернуться в меню"), style: "cancel" },
+      ]);
       return null;
     }
 
     const safeError = sanitizeErrorForReport(result.error);
+    const isDeviceLocationUnavailable = result.permissionStatus === "granted";
+    const message = isDeviceLocationUnavailable
+      ? tt(
+          "together.geo.deviceLocationUnavailable",
+          "Устройство не отдаёт координаты. Проверьте GPS/геолокацию. В эмуляторе BlueStacks установите местоположение и откройте Google Maps для проверки."
+        )
+      : tt(
+          "together.geo.locationReadFailed",
+          "Не удалось получить геолокацию. Проверьте доступ и попробуйте ещё раз."
+        );
     reportClientError({
       screen: "PlayLobbyScreen",
       action: "startTogetherQueue",
@@ -126,18 +140,18 @@ export default function PlayLobbyScreen() {
         radiusKm: selectedRadiusKm,
         permissionStatus: result.permissionStatus,
         hasCoordinates: false,
+        platform: Platform.OS,
+        deviceModel: Device.modelName ?? null,
       },
     });
-    setLocationNotice(tt(
-      "together.geo.locationReadFailed",
-      "Не удалось получить геолокацию. Проверьте доступ и попробуйте ещё раз."
-    ));
+    setLocationNotice(message);
     Alert.alert(
       tt("together.geo.permissionTitle", "Нужна геолокация"),
-      tt(
-        "together.geo.locationReadFailed",
-        "Не удалось получить геолокацию. Проверьте доступ и попробуйте ещё раз."
-      )
+      message,
+      [
+        { text: tt("together.geo.retryLocation", "Попробовать снова") },
+        { text: tt("common.backToMainTabs", "Вернуться в меню"), style: "cancel" },
+      ]
     );
     return null;
   }, [selectedRadiusKm, tt]);

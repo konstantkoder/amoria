@@ -31,7 +31,11 @@ import { unlockUserLockedGallery } from "@/services/api/publicUsersApi";
 import * as safetyApi from "@/services/api/safetyApi";
 import type { SafetyReportReason } from "@/services/api/safetyApi";
 import { getUserProfileById } from "@/services/user";
-import { normalizePublicMediaUrl } from "@/services/media/mediaUrl";
+import {
+  getPublicMediaUrlInfo,
+  normalizePublicMediaUrl,
+  type PublicMediaUrlInfo,
+} from "@/services/media/mediaUrl";
 import type { UserProfile, UserProfilePhoto } from "@/models/User";
 import { theme } from "@/theme";
 
@@ -253,8 +257,12 @@ export default function UserProfileScreen() {
   const hasThread = Boolean(threadId && userId);
 
   const reportPeerMediaLoadFailed = useCallback(
-    (step: "avatarLoadFailed" | "publicPhotoLoadFailed", mediaId?: string) => {
-      const reportKey = `${step}:${mediaId ?? "avatar"}`;
+    (
+      step: "avatarLoadFailed" | "publicPhotoLoadFailed",
+      input: { mediaId?: string; urlInfo?: PublicMediaUrlInfo } = {}
+    ) => {
+      const mediaId = input.mediaId ?? input.urlInfo?.mediaId;
+      const reportKey = `${step}:${mediaId ?? input.urlInfo?.urlKind ?? "avatar"}`;
       if (reportedMediaFailuresRef.current.has(reportKey)) return;
       reportedMediaFailuresRef.current.add(reportKey);
 
@@ -267,6 +275,7 @@ export default function UserProfileScreen() {
           hasAvatarUrl: Boolean(avatarUrl),
           photoCount: photos.length,
           ...(mediaId ? { mediaId } : {}),
+          urlKind: input.urlInfo?.urlKind ?? "unknown",
           source: sourceContext?.source ?? null,
           hasThread,
         },
@@ -276,11 +285,14 @@ export default function UserProfileScreen() {
   );
 
   const markPublicPhotoFailed = useCallback(
-    (mediaId: string) => {
+    (mediaId: string, url: string) => {
       setFailedPublicPhotoIds((current) =>
         current.includes(mediaId) ? current : [...current, mediaId]
       );
-      reportPeerMediaLoadFailed("publicPhotoLoadFailed", mediaId);
+      reportPeerMediaLoadFailed("publicPhotoLoadFailed", {
+        mediaId,
+        urlInfo: getPublicMediaUrlInfo(url, "peer public photo URL"),
+      });
     },
     [reportPeerMediaLoadFailed]
   );
@@ -585,9 +597,9 @@ export default function UserProfileScreen() {
               avatarUrl={avatarUrl}
               label={displayName}
               size={112}
-              onLoadError={() => {
+              onLoadError={(urlInfo) => {
                 setAvatarLoadFailed(true);
-                reportPeerMediaLoadFailed("avatarLoadFailed");
+                reportPeerMediaLoadFailed("avatarLoadFailed", { urlInfo });
               }}
             />
             <View style={styles.avatarCopy}>
@@ -664,7 +676,7 @@ export default function UserProfileScreen() {
                     key={`${photo.mediaId ?? photo.url}-${index}`}
                     source={{ uri: photo.url }}
                     style={styles.galleryPhoto}
-                    onError={() => markPublicPhotoFailed(photo.mediaId)}
+                    onError={() => markPublicPhotoFailed(photo.mediaId, photo.url)}
                   />
                 )
               ))}
