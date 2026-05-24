@@ -183,6 +183,7 @@ test("GET /admin/together/queue returns safe queue observability and writes audi
     status: "waiting",
     radiusKm: null,
     hasCoordinates: false,
+    geoMode: "missing_location_invalid_old_entry",
     createdAt: "2026-01-01T00:00:00.000Z",
     expiresAt: "2026-01-01T00:05:00.000Z",
     matchedSessionId: null,
@@ -191,7 +192,16 @@ test("GET /admin/together/queue returns safe queue observability and writes audi
   assert.equal(bodyText.includes("latitude"), false);
   assert.equal(bodyText.includes("longitude"), false);
   assert.equal(state.auditInputs[0]?.action, "admin.togetherQueue.read");
-  assert.deepEqual(state.auditInputs[0]?.metadata, { resultCount: 1 });
+  assert.deepEqual(state.auditInputs[0]?.metadata, {
+    filters: {
+      status: null,
+      activity: null,
+      radiusKm: null,
+      geoMode: null,
+      hasCoordinates: null,
+    },
+    resultCount: 1,
+  });
 });
 
 test("GET /admin/together/sessions returns safe session diagnostics and writes audit log", async (t) => {
@@ -220,6 +230,8 @@ test("GET /admin/together/sessions returns safe session diagnostics and writes a
     "00000000-0000-4000-8000-000000000002",
   ]);
   assert.equal(body.items[0].hasStaleParticipant, true);
+  assert.equal(typeof body.items[0].lastHeartbeatAt, "string");
+  assert.equal(body.items[0].leftAt, null);
   assert.equal(body.items[0].eventCount, 3);
   assert.equal(body.items[0].strokeEventCount, 2);
   assert.equal(body.items[0].storyChoiceCount, 1);
@@ -278,6 +290,7 @@ test("POST /admin/together/queue/:entryId/actions cancels waiting entry and audi
     activity: "story_sparks",
     radiusKm: null,
     hasCoordinates: false,
+    geoMode: "missing_location_invalid_old_entry",
     reason: "Smoke test stale waiting entry",
   });
 });
@@ -707,6 +720,7 @@ function mockOpsHealth() {
           status: "waiting",
           radiusKm: null,
           hasCoordinates: false,
+          geoMode: "missing_location_invalid_old_entry",
           createdAt: new Date("2026-01-01T00:00:00.000Z"),
           expiresAt: new Date("2026-01-01T00:05:00.000Z"),
           matchedSessionId: null,
@@ -719,6 +733,7 @@ function mockOpsHealth() {
         status: "cancelled",
         radiusKm: null,
         hasCoordinates: false,
+        geoMode: "missing_location_invalid_old_entry",
         createdAt: new Date("2026-01-01T00:00:00.000Z"),
         expiresAt: new Date("2026-01-01T00:05:00.000Z"),
         matchedSessionId: null,
@@ -750,6 +765,8 @@ function mockOpsHealth() {
               leftAt: null,
             },
           ],
+          lastHeartbeatAt: new Date("2026-01-01T00:00:30.000Z"),
+          leftAt: null,
           eventCount: 3,
           strokeEventCount: 2,
           storyChoiceCount: 1,

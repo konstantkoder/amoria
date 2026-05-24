@@ -789,38 +789,37 @@ function ReportsScreen({ setMessage }: { setMessage: (message: string | null) =>
 
 function TogetherQueueScreen({ onOpenSession }: { onOpenSession: (sessionId: string) => void }) {
   const { language, t } = useI18n();
-  const { data, error, reload } = useLoad<{ items: TogetherQueueEntry[]; nextCursor: null }>(
-    "/admin/together/queue",
-  );
   const [filters, setFilters] = useState({
     status: "",
     activity: "",
     radiusKm: "",
+    geoMode: "",
     hasCoordinates: "",
+    limit: "100",
   });
+  const [items, setItems] = useState<TogetherQueueEntry[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
   const [busyEntryId, setBusyEntryId] = useState<string | null>(null);
-  const items = data?.items ?? [];
-  const filteredItems = useMemo(() => items.filter((item) => {
-    if (filters.status && item.status !== filters.status) {
-      return false;
-    }
-    if (filters.activity && item.activity !== filters.activity) {
-      return false;
-    }
-    if (filters.radiusKm) {
-      if (filters.radiusKm === "none" && item.radiusKm !== null) {
-        return false;
-      }
-      if (filters.radiusKm !== "none" && String(item.radiusKm ?? "") !== filters.radiusKm) {
-        return false;
-      }
-    }
-    if (filters.hasCoordinates) {
-      return String(item.hasCoordinates) === filters.hasCoordinates;
-    }
 
-    return true;
-  }), [filters, items]);
+  async function load(nextFilters = filters) {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await apiGet<{ items: TogetherQueueEntry[]; nextCursor: null }>(
+        `/admin/together/queue${toQuery(nextFilters)}`,
+      );
+      setItems(response.items);
+    } catch (error) {
+      setError(errorMessage(error, t));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void load();
+  }, []);
 
   async function handleCancel(item: TogetherQueueEntry) {
     if (item.status !== "waiting") {
@@ -837,13 +836,13 @@ function TogetherQueueScreen({ onOpenSession }: { onOpenSession: (sessionId: str
       return;
     }
 
-    setBusyEntryId(item.entryId);
+      setBusyEntryId(item.entryId);
     try {
       await apiPost<{ ok: true; entry: TogetherQueueEntry }>(
         `/admin/together/queue/${item.entryId}/actions`,
         { action: "cancel", reason },
       );
-      await reload();
+      await load();
     } catch (error) {
       window.alert(error instanceof Error ? error.message : t("error.requestFailed"));
     } finally {
@@ -855,13 +854,13 @@ function TogetherQueueScreen({ onOpenSession }: { onOpenSession: (sessionId: str
     <section className="panel">
       <div className="panel-header">
         <h2>{t("queue.title")}</h2>
-        <button className="secondary" onClick={reload}>{t("common.refresh")}</button>
+        <button className="secondary" onClick={() => void load()}>{t("common.refresh")}</button>
       </div>
       <div className="hint-list">
         <strong>{t("queue.whyNotMatchingTitle")}</strong>
         <span>{t("queue.whyNotMatchingBody")}</span>
       </div>
-      <form className="filters" onSubmit={(event) => event.preventDefault()}>
+      <form className="filters" onSubmit={(event) => { event.preventDefault(); void load(); }}>
         <label>{t("common.status")}<select value={filters.status} onChange={(event) => setFilters({ ...filters, status: event.target.value })}>
           <option value="">{t("status.any")}</option>
           <option value="waiting">{t("queue.statusWaiting")}</option>
@@ -878,14 +877,23 @@ function TogetherQueueScreen({ onOpenSession }: { onOpenSession: (sessionId: str
           <option value="100">100</option>
           <option value="250">250</option>
         </select></label>
+        <label>{t("queue.geoMode")}<select value={filters.geoMode} onChange={(event) => setFilters({ ...filters, geoMode: event.target.value })}>
+          <option value="">{t("status.any")}</option>
+          <option value="finite_with_location">{t("queue.geoModeFinite")}</option>
+          <option value="no_limit_with_location">{t("queue.geoModeNoLimit")}</option>
+          <option value="missing_location_invalid_old_entry">{t("queue.geoModeMissing")}</option>
+        </select></label>
         <label>{t("queue.hasCoordinates")}<select value={filters.hasCoordinates} onChange={(event) => setFilters({ ...filters, hasCoordinates: event.target.value })}>
           <option value="">{t("status.any")}</option>
           <option value="true">{t("common.yes")}</option>
           <option value="false">{t("common.no")}</option>
         </select></label>
+        <label>{t("common.limit")}<input value={filters.limit} onChange={(event) => setFilters({ ...filters, limit: event.target.value })} inputMode="numeric" /></label>
+        <button>{t("common.load")}</button>
       </form>
       {error ? <div className="error">{error}</div> : null}
-      {filteredItems.length ? (
+      {loading ? <div className="empty">{t("common.loading")}</div> : null}
+      {!loading && items.length ? (
         <table>
           <thead>
             <tr>
@@ -896,16 +904,18 @@ function TogetherQueueScreen({ onOpenSession }: { onOpenSession: (sessionId: str
               <th>{t("common.status")}</th>
               <th>{t("queue.radiusKm")}</th>
               <th>{t("queue.hasCoordinates")}</th>
+              <th>{t("queue.geoMode")}</th>
               <th>{t("queue.stale")}</th>
               <th>{t("queue.matchedSessionId")}</th>
               <th>{t("common.action")}</th>
             </tr>
           </thead>
           <tbody>
-            {filteredItems.map((item) => {
+            {items.map((item) => {
               const stale = isStaleQueueEntry(item);
+              const invalidOldEntry = item.geoMode === "missing_location_invalid_old_entry";
               return (
-              <tr key={item.entryId} className={stale ? "warning-row" : ""}>
+              <tr key={item.entryId} className={stale || invalidOldEntry ? "warning-row" : ""}>
                 <td>{formatDate(item.createdAt, language)}</td>
                 <td>{formatDate(item.expiresAt, language)}</td>
                 <td>{item.userId}</td>
@@ -913,6 +923,11 @@ function TogetherQueueScreen({ onOpenSession }: { onOpenSession: (sessionId: str
                 <td>{formatQueueStatus(item.status, t)}</td>
                 <td>{item.radiusKm === null ? t("queue.noLimit") : item.radiusKm}</td>
                 <td>{item.hasCoordinates ? t("common.yes") : t("common.no")}</td>
+                <td>
+                  {invalidOldEntry ? (
+                    <span className="badge badge-warning">{t("queue.oldMissingLocation")}</span>
+                  ) : formatQueueGeoMode(item.geoMode, t)}
+                </td>
                 <td>{stale ? <span className="badge badge-warning">{t("common.yes")}</span> : t("common.no")}</td>
                 <td>
                   {item.matchedSessionId ? (
@@ -942,7 +957,8 @@ function TogetherQueueScreen({ onOpenSession }: { onOpenSession: (sessionId: str
             })}
           </tbody>
         </table>
-      ) : <EmptyState label={t("queue.empty")} />}
+      ) : null}
+      {!loading && !items.length ? <EmptyState label={t("queue.empty")} /> : null}
     </section>
   );
 }
@@ -957,6 +973,7 @@ function TogetherSessionsScreen({ initialSessionId }: { initialSessionId: string
   const [items, setItems] = useState<TogetherSessionItem[]>([]);
   const [selected, setSelected] = useState<TogetherSessionItem | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     setFilters((current) => ({
@@ -966,6 +983,7 @@ function TogetherSessionsScreen({ initialSessionId }: { initialSessionId: string
   }, [initialSessionId]);
 
   async function load(nextFilters = filters) {
+    setLoading(true);
     setError(null);
     try {
       const response = await apiGet<{ items: TogetherSessionItem[]; nextCursor: null }>(
@@ -975,6 +993,8 @@ function TogetherSessionsScreen({ initialSessionId }: { initialSessionId: string
       setSelected(response.items[0] ?? null);
     } catch (error) {
       setError(errorMessage(error, t));
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -1006,7 +1026,8 @@ function TogetherSessionsScreen({ initialSessionId }: { initialSessionId: string
           <button>{t("common.load")}</button>
         </form>
         {error ? <div className="error">{error}</div> : null}
-        {items.length ? (
+        {loading ? <div className="empty">{t("common.loading")}</div> : null}
+        {!loading && items.length ? (
           <table>
             <thead>
               <tr>
@@ -1016,6 +1037,8 @@ function TogetherSessionsScreen({ initialSessionId }: { initialSessionId: string
                 <th>{t("common.status")}</th>
                 <th>{t("sessions.participants")}</th>
                 <th>{t("sessions.heartbeat")}</th>
+                <th>{t("sessions.lastHeartbeatAt")}</th>
+                <th>{t("sessions.leftAt")}</th>
                 <th>{t("sessions.events")}</th>
                 <th>{t("sessions.reveals")}</th>
                 <th>{t("sessions.endedReason")}</th>
@@ -1039,6 +1062,8 @@ function TogetherSessionsScreen({ initialSessionId }: { initialSessionId: string
                       <span className="badge badge-warning">{t("sessions.staleHeartbeat")}</span>
                     ) : t("sessions.heartbeatOk")}
                   </td>
+                  <td>{item.lastHeartbeatAt ? formatDate(item.lastHeartbeatAt, language) : ""}</td>
+                  <td>{item.leftAt ? formatDate(item.leftAt, language) : ""}</td>
                   <td>
                     {t("sessions.eventCounts")
                       .replace("{total}", String(item.eventCount))
@@ -1052,7 +1077,8 @@ function TogetherSessionsScreen({ initialSessionId }: { initialSessionId: string
               ))}
             </tbody>
           </table>
-        ) : <EmptyState label={t("sessions.empty")} />}
+        ) : null}
+        {!loading && !items.length ? <EmptyState label={t("sessions.empty")} /> : null}
       </div>
       <div className="panel">
         <h2>{t("sessions.detailTitle")}</h2>
@@ -1064,6 +1090,8 @@ function TogetherSessionsScreen({ initialSessionId }: { initialSessionId: string
               <Fact label={t("sessions.deadlineAt")} value={selected.deadlineAt ? formatDate(selected.deadlineAt, language) : ""} />
               <Fact label={t("sessions.endedAt")} value={selected.endedAt ? formatDate(selected.endedAt, language) : ""} />
               <Fact label={t("sessions.heartbeat")} value={selected.hasStaleParticipant ? t("sessions.staleHeartbeat") : t("sessions.heartbeatOk")} />
+              <Fact label={t("sessions.lastHeartbeatAt")} value={selected.lastHeartbeatAt ? formatDate(selected.lastHeartbeatAt, language) : ""} />
+              <Fact label={t("sessions.leftAt")} value={selected.leftAt ? formatDate(selected.leftAt, language) : ""} />
             </dl>
             <JsonBlock data={selected} />
           </>
@@ -1510,6 +1538,19 @@ function formatQueueStatus(status: string, t: (key: TranslationKey) => string): 
       return t("queue.statusCancelled");
     default:
       return status;
+  }
+}
+
+function formatQueueGeoMode(geoMode: string, t: (key: TranslationKey) => string): string {
+  switch (geoMode) {
+    case "finite_with_location":
+      return t("queue.geoModeFinite");
+    case "no_limit_with_location":
+      return t("queue.geoModeNoLimit");
+    case "missing_location_invalid_old_entry":
+      return t("queue.geoModeMissing");
+    default:
+      return geoMode;
   }
 }
 

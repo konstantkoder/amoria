@@ -1,48 +1,89 @@
 # Together Geo Matching
 
-Updated: 2026-05-23
+Updated: 2026-05-24 for required Together location matching.
+
+## Product Rule
+
+Together matching requires real foreground coordinates for every new queue request.
+
+Supported radius modes:
+
+- `5 km`
+- `25 km`
+- `100 km`
+- `250 km`
+- no limit / `radiusKm: null`
+
+No limit means there is no distance cap for that user. It does not mean no geolocation.
 
 ## Queue Contract
 
-Finite radius queue requests must include valid coordinates:
+`POST /together/queue` requires:
 
 ```json
 {
   "activity": "draw",
   "location": {
-    "latitude": 52.2297,
-    "longitude": 21.0122,
+    "latitude": 45.815,
+    "longitude": 15.9819,
     "radiusKm": 25
   }
 }
 ```
 
-No-limit mode is the safe release default. It may omit `location` entirely or send `radiusKm: null`; it never requires coordinates.
+For no-limit:
 
-## Retry Lifecycle
+```json
+{
+  "activity": "story_sparks",
+  "location": {
+    "latitude": 45.815,
+    "longitude": 15.9819,
+    "radiusKm": null
+  }
+}
+```
 
-Every new queue attempt from the same user cancels that user's existing `waiting` row first, then creates a new attempt and tries to match. This keeps repeated retry from reusing a stale row or being blocked by the unique `waiting` constraint.
+Validation:
+
+- `latitude`: required number, `-90..90`
+- `longitude`: required number, `-180..180`
+- `radiusKm`: `5`, `25`, `100`, `250`, or `null`
 
 ## Matching Rule
 
-- no-limit + no-limit matches without coordinates.
-- finite + finite matches only when distance satisfies both users' radiuses.
-- no-limit with coordinates + finite can match if the finite user's radius is satisfied.
-- no-limit without coordinates + finite does not match.
-- Activity still has to match; removed activities such as `color_mood` are rejected at queue validation and cannot create new sessions.
+- finite + finite: match only when distance is within both users' radiuses.
+- no-limit + no-limit: match; coordinates are still required, no distance cap is applied.
+- no-limit + finite: match only when distance is within the finite user's radius.
+- Missing-coordinate waiting rows are invalid old entries and are not eligible for new matching.
+- Activity still has to match. `draw` does not match `story_sparks`; removed activities such as `color_mood` are rejected.
+
+Story Sparks continuation after draw keeps the same pair and does not re-run geo matching.
 
 ## Privacy
 
-Queue, session, reveal, history, and admin queue responses do not expose exact latitude/longitude. Admin queue observability returns `hasCoordinates` only.
+Exact latitude/longitude are stored only for queue matching. They are not returned in queue, session, history, DM, public profile, client error, or admin responses.
 
-## Admin Web
+Admin queue diagnostics expose only:
 
-`ADMIN-OPS-05` adds the Admin Web Together Queue page for owner/ops. It reads `GET /admin/together/queue`, shows safe queue fields, and filters by status/activity/radius/`hasCoordinates`.
+- `hasCoordinates`
+- `radiusKm`
+- `geoMode`
 
-`RELEASE-SMOKE-BLOCKERS-02` adds a safe stale-entry action:
+`geoMode` values:
 
-```text
-POST /admin/together/queue/:entryId/actions
-```
+- `finite_with_location`
+- `no_limit_with_location`
+- `missing_location_invalid_old_entry`
 
-The only action is `cancel` for `waiting` rows. It requires a non-empty reason, writes `admin.togetherQueue.cancel`, and stores only safe metadata: activity, radius, `hasCoordinates`, and reason. Exact coordinates are never returned or audited.
+## Croatia / Small Town Smoke
+
+The intended manual pass is:
+
+1. Both clients grant foreground location.
+2. Both select `25 km`.
+3. If no match, expand to `100 km`, then `250 km`, then no limit.
+4. Inspect Admin Web `Очередь Together` for `radiusKm`, `hasCoordinates`, `geoMode`, status, stale state, and `matchedSessionId`.
+5. Inspect Admin Web `Сессии Together` after match for created/ended status, participants, heartbeat, event counts, reveal summary, and abandoned/cancelled state.
+
+No test should pass with fake coordinates, hardcoded coordinates, Firebase fallback, mock users, or local-only matching.

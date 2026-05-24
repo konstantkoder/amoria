@@ -142,12 +142,7 @@ function normalizeQueueLocation(
 } {
   const location = input.location;
   if (!location) {
-    return {
-      latitude: null,
-      longitude: null,
-      radiusKm: null,
-      locationUpdatedAt: null,
-    };
+    throw validationError("Together location is required", { location: "required" });
   }
 
   const radiusKm = location.radiusKm;
@@ -157,31 +152,15 @@ function normalizeQueueLocation(
 
   const latitude = location.latitude ?? null;
   const longitude = location.longitude ?? null;
-  if (radiusKm !== null) {
-    if (!isFiniteCoordinate(latitude, -90, 90)) {
-      throw validationError("Latitude is required for finite Together radius", {
-        "location.latitude": "required",
-      });
-    }
-
-    if (!isFiniteCoordinate(longitude, -180, 180)) {
-      throw validationError("Longitude is required for finite Together radius", {
-        "location.longitude": "required",
-      });
-    }
+  if (!isFiniteCoordinate(latitude, -90, 90)) {
+    throw validationError("Latitude is required for Together matching", {
+      "location.latitude": "required",
+    });
   }
 
-  if (latitude !== null && !isFiniteCoordinate(latitude, -90, 90)) {
-    throw validationError("Latitude is invalid", { "location.latitude": "invalid" });
-  }
-
-  if (longitude !== null && !isFiniteCoordinate(longitude, -180, 180)) {
-    throw validationError("Longitude is invalid", { "location.longitude": "invalid" });
-  }
-
-  if ((latitude === null) !== (longitude === null)) {
-    throw validationError("Together location coordinates must be sent together", {
-      location: "incomplete_coordinates",
+  if (!isFiniteCoordinate(longitude, -180, 180)) {
+    throw validationError("Longitude is required for Together matching", {
+      "location.longitude": "required",
     });
   }
 
@@ -189,7 +168,7 @@ function normalizeQueueLocation(
     latitude,
     longitude,
     radiusKm,
-    locationUpdatedAt: latitude !== null && longitude !== null ? new Date() : null,
+    locationUpdatedAt: new Date(),
   };
 }
 

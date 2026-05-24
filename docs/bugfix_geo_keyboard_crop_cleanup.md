@@ -1,20 +1,20 @@
 # BUGFIX-GEO-KEYBOARD-CROP-CLEANUP-01 Server Notes
 
-Updated: 2026-05-23
+Updated: 2026-05-24
 
 ## Together Queue
 
 - `POST /together/queue` now cancels any existing `waiting` row for the same user before inserting a new attempt.
 - Expired waiting rows are still expired before matching.
 - The partial unique waiting constraint can no longer trap a retry behind an invisible old row.
-- No-limit mode is represented by `radiusKm: null` or omitted `location`; it does not require coordinates.
+- No-limit mode is represented by coordinates plus `radiusKm: null`; omitting `location` is no longer valid for Together queue.
 
 ## Geo Rule
 
-- no-limit + no-limit can match without coordinates.
+- no-limit + no-limit can match only when both rows have coordinates.
 - finite + finite must be within both users' radiuses.
 - no-limit with coordinates + finite respects the finite user's radius.
-- no-limit without coordinates + finite does not match and does not expose coordinates.
+- old no-limit rows without coordinates are invalid for release matching and should expire/cancel without exposing coordinates.
 
 ## Observability
 

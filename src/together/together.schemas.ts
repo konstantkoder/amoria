@@ -32,12 +32,11 @@ export const togetherQueueBodySchema = z
     activity: z.enum(TOGETHER_ACTIVITIES),
     location: z
       .object({
-        latitude: z.number().min(-90).max(90).nullable().optional(),
-        longitude: z.number().min(-180).max(180).nullable().optional(),
+        latitude: z.number().min(-90).max(90),
+        longitude: z.number().min(-180).max(180),
         radiusKm: z.union([togetherRadiusKmSchema, z.null()]),
       })
-      .strict()
-      .optional(),
+      .strict(),
   })
   .strict();
 
@@ -378,17 +377,17 @@ const historyItemSchema = {
 export const postTogetherQueueRouteSchema = {
   body: {
     type: "object",
-    required: ["activity"],
+    required: ["activity", "location"],
     additionalProperties: false,
     properties: {
       activity: { type: "string", enum: TOGETHER_ACTIVITIES },
       location: {
         type: "object",
-        required: ["radiusKm"],
+        required: ["latitude", "longitude", "radiusKm"],
         additionalProperties: false,
         properties: {
-          latitude: { type: ["number", "null"], minimum: -90, maximum: 90 },
-          longitude: { type: ["number", "null"], minimum: -180, maximum: 180 },
+          latitude: { type: "number", minimum: -90, maximum: 90 },
+          longitude: { type: "number", minimum: -180, maximum: 180 },
           radiusKm: {
             anyOf: [
               { type: "integer", enum: TOGETHER_RADIUS_KM_VALUES },

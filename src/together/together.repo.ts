@@ -1,4 +1,20 @@
-import { and, asc, count, desc, eq, gt, inArray, lt, lte, ne, sql, type SQL } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gt,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  lte,
+  ne,
+  or,
+  sql,
+  type SQL,
+} from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "../db/client";
 import {
@@ -47,9 +63,24 @@ export type AdminTogetherQueueEntryRow = {
   status: string;
   radiusKm: number | null;
   hasCoordinates: boolean;
+  geoMode: AdminTogetherQueueGeoMode;
   createdAt: Date;
   expiresAt: Date;
   matchedSessionId: string | null;
+};
+
+export type AdminTogetherQueueGeoMode =
+  | "no_limit_with_location"
+  | "finite_with_location"
+  | "missing_location_invalid_old_entry";
+
+export type AdminTogetherQueueQuery = {
+  status?: string;
+  activity?: string;
+  radiusKm?: number | null;
+  geoMode?: AdminTogetherQueueGeoMode;
+  hasCoordinates?: boolean;
+  limit?: number;
 };
 
 export type AdminTogetherSessionParticipantRow = {
@@ -78,6 +109,8 @@ export type AdminTogetherSessionRow = {
   participantUserIds: string[];
   participantCount: number;
   participants: AdminTogetherSessionParticipantRow[];
+  lastHeartbeatAt: Date | null;
+  leftAt: Date | null;
   eventCount: number;
   strokeEventCount: number;
   storyChoiceCount: number;
@@ -104,10 +137,7 @@ export async function enqueueAndMatch(input: EnqueueInput): Promise<TogetherQueu
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${"together_queue:" + input.activity}))`);
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${input.userId}))`);
 
-    await tx
-      .update(togetherQueue)
-      .set({ status: "expired" })
-      .where(and(eq(togetherQueue.status, "waiting"), lte(togetherQueue.expiresAt, now)));
+    await expireWaitingEntriesForMatching(tx, now);
 
     const [existing] = await tx
       .select()
@@ -255,10 +285,7 @@ export async function cancelQueueEntryForOwner(
   return db.transaction(async (tx) => {
     const now = new Date();
 
-    await tx
-      .update(togetherQueue)
-      .set({ status: "expired" })
-      .where(and(eq(togetherQueue.status, "waiting"), lte(togetherQueue.expiresAt, now)));
+    await expireWaitingEntriesTx(tx, now);
 
     const [entry] = await tx
       .select()
@@ -679,8 +706,37 @@ export async function listHistorySessions(
     .limit(limit);
 }
 
-export async function listQueueEntriesForAdmin(limit = 100): Promise<AdminTogetherQueueEntryRow[]> {
-  const rows = await db
+export async function listQueueEntriesForAdmin(
+  query: AdminTogetherQueueQuery = {},
+): Promise<AdminTogetherQueueEntryRow[]> {
+  const limit = Math.min(Math.max(query.limit ?? 100, 1), 200);
+  const conditions: SQL[] = [];
+
+  if (query.status) {
+    conditions.push(eq(togetherQueue.status, query.status));
+  }
+  if (query.activity) {
+    conditions.push(eq(togetherQueue.activity, query.activity));
+  }
+  if (query.radiusKm !== undefined) {
+    conditions.push(
+      query.radiusKm === null
+        ? isNull(togetherQueue.radiusKm)
+        : eq(togetherQueue.radiusKm, query.radiusKm),
+    );
+  }
+  if (query.hasCoordinates !== undefined) {
+    conditions.push(
+      query.hasCoordinates
+        ? and(isNotNull(togetherQueue.latitude), isNotNull(togetherQueue.longitude))!
+        : or(isNull(togetherQueue.latitude), isNull(togetherQueue.longitude))!,
+    );
+  }
+  if (query.geoMode) {
+    conditions.push(geoModeCondition(query.geoMode));
+  }
+
+  let selectQuery = db
     .select({
       entryId: togetherQueue.id,
       userId: togetherQueue.userId,
@@ -694,8 +750,12 @@ export async function listQueueEntriesForAdmin(limit = 100): Promise<AdminTogeth
       matchedSessionId: togetherQueue.matchedSessionId,
     })
     .from(togetherQueue)
-    .orderBy(desc(togetherQueue.createdAt))
-    .limit(limit);
+    .$dynamic();
+  if (conditions.length > 0) {
+    selectQuery = selectQuery.where(and(...conditions));
+  }
+
+  const rows = await selectQuery.orderBy(desc(togetherQueue.createdAt)).limit(limit);
 
   return rows.map((row) => ({
     entryId: row.entryId,
@@ -704,6 +764,7 @@ export async function listQueueEntriesForAdmin(limit = 100): Promise<AdminTogeth
     status: row.status,
     radiusKm: row.radiusKm,
     hasCoordinates: hasCoordinates(row),
+    geoMode: getAdminQueueGeoMode(row),
     createdAt: row.createdAt,
     expiresAt: row.expiresAt,
     matchedSessionId: row.matchedSessionId,
@@ -716,10 +777,7 @@ export async function cancelQueueEntryForAdmin(
   return db.transaction(async (tx) => {
     const now = new Date();
 
-    await tx
-      .update(togetherQueue)
-      .set({ status: "expired" })
-      .where(and(eq(togetherQueue.status, "waiting"), lte(togetherQueue.expiresAt, now)));
+    await expireWaitingEntriesTx(tx, now);
 
     const [entry] = await tx
       .select({
@@ -815,6 +873,24 @@ export async function listSessionsForAdmin(
         leftAt: member.leftAt,
       }));
     const counts = eventCountsBySessionId.get(session.id);
+    const lastHeartbeatAt = sessionMembers.reduce<Date | null>((latest, member) => {
+      if (!member.lastHeartbeatAt) {
+        return latest;
+      }
+      if (!latest || member.lastHeartbeatAt.getTime() > latest.getTime()) {
+        return member.lastHeartbeatAt;
+      }
+      return latest;
+    }, null);
+    const leftAt = sessionMembers.reduce<Date | null>((latest, member) => {
+      if (!member.leftAt) {
+        return latest;
+      }
+      if (!latest || member.leftAt.getTime() > latest.getTime()) {
+        return member.leftAt;
+      }
+      return latest;
+    }, null);
 
     return {
       sessionId: session.id,
@@ -828,6 +904,8 @@ export async function listSessionsForAdmin(
       participantUserIds: sessionMembers.map((member) => member.userId),
       participantCount: sessionMembers.length,
       participants: sessionMembers,
+      lastHeartbeatAt,
+      leftAt,
       eventCount: Number(counts?.eventCount ?? 0),
       strokeEventCount: Number(counts?.strokeEventCount ?? 0),
       storyChoiceCount: Number(counts?.storyChoiceCount ?? 0),
@@ -933,6 +1011,7 @@ function toAdminTogetherQueueEntry(row: {
     status: row.status,
     radiusKm: row.radiusKm,
     hasCoordinates: hasCoordinates(row),
+    geoMode: getAdminQueueGeoMode(row),
     createdAt: row.createdAt,
     expiresAt: row.expiresAt,
     matchedSessionId: row.matchedSessionId,
@@ -944,6 +1023,29 @@ async function expireWaitingEntries(now: Date): Promise<void> {
     .update(togetherQueue)
     .set({ status: "expired" })
     .where(and(eq(togetherQueue.status, "waiting"), lte(togetherQueue.expiresAt, now)));
+}
+
+async function expireWaitingEntriesTx(tx: DbTransaction, now: Date): Promise<void> {
+  await tx
+    .update(togetherQueue)
+    .set({ status: "expired" })
+    .where(and(eq(togetherQueue.status, "waiting"), lte(togetherQueue.expiresAt, now)));
+}
+
+async function expireWaitingEntriesForMatching(tx: DbTransaction, now: Date): Promise<void> {
+  await tx
+    .update(togetherQueue)
+    .set({ status: "expired" })
+    .where(
+      and(
+        eq(togetherQueue.status, "waiting"),
+        or(
+          lte(togetherQueue.expiresAt, now),
+          isNull(togetherQueue.latitude),
+          isNull(togetherQueue.longitude),
+        ),
+      ),
+    );
 }
 
 type QueueGeoInput = {
@@ -959,12 +1061,12 @@ function areQueueEntriesGeoCompatible(
   const currentRadius = current.radiusKm ?? null;
   const candidateRadius = candidate.radiusKm ?? null;
 
-  if (currentRadius === null && candidateRadius === null) {
-    return true;
-  }
-
   if (!hasCoordinates(current) || !hasCoordinates(candidate)) {
     return false;
+  }
+
+  if (currentRadius === null && candidateRadius === null) {
+    return true;
   }
 
   const distanceKm = distanceKmBetween(
@@ -1011,6 +1113,34 @@ function hasCoordinates(
     typeof value.longitude === "number" &&
     Number.isFinite(value.longitude)
   );
+}
+
+function getAdminQueueGeoMode(row: QueueGeoInput): AdminTogetherQueueGeoMode {
+  if (!hasCoordinates(row)) {
+    return "missing_location_invalid_old_entry";
+  }
+
+  return row.radiusKm === null ? "no_limit_with_location" : "finite_with_location";
+}
+
+function geoModeCondition(geoMode: AdminTogetherQueueGeoMode): SQL {
+  if (geoMode === "missing_location_invalid_old_entry") {
+    return or(isNull(togetherQueue.latitude), isNull(togetherQueue.longitude))!;
+  }
+
+  if (geoMode === "no_limit_with_location") {
+    return and(
+      isNotNull(togetherQueue.latitude),
+      isNotNull(togetherQueue.longitude),
+      isNull(togetherQueue.radiusKm),
+    )!;
+  }
+
+  return and(
+    isNotNull(togetherQueue.latitude),
+    isNotNull(togetherQueue.longitude),
+    isNotNull(togetherQueue.radiusKm),
+  )!;
 }
 
 function distanceKmBetween(

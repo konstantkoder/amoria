@@ -9,6 +9,32 @@ const adminTogetherQueueActionBodySchema = z
   })
   .strict();
 
+const adminTogetherQueueGeoModeSchema = z.enum([
+  "no_limit_with_location",
+  "finite_with_location",
+  "missing_location_invalid_old_entry",
+]);
+
+const adminTogetherQueueQuerySchema = z
+  .object({
+    status: z.string().trim().max(40).optional(),
+    activity: z.string().trim().max(80).optional(),
+    radiusKm: z
+      .union([
+        z.literal("none"),
+        z.literal("null"),
+        z.coerce.number().int().refine((value) => [5, 25, 100, 250].includes(value)),
+      ])
+      .optional(),
+    geoMode: adminTogetherQueueGeoModeSchema.optional(),
+    hasCoordinates: z
+      .enum(["true", "false"])
+      .transform((value) => value === "true")
+      .optional(),
+    limit: z.coerce.number().int().positive().max(200).default(100),
+  })
+  .strict();
+
 const adminTogetherSessionsQuerySchema = z
   .object({
     status: z.string().trim().max(40).optional(),
@@ -19,6 +45,14 @@ const adminTogetherSessionsQuerySchema = z
   .strict();
 
 export type AdminTogetherQueueActionBody = z.infer<typeof adminTogetherQueueActionBodySchema>;
+export type AdminTogetherQueueQuery = {
+  status?: string;
+  activity?: string;
+  radiusKm?: number | null;
+  geoMode?: z.infer<typeof adminTogetherQueueGeoModeSchema>;
+  hasCoordinates?: boolean;
+  limit: number;
+};
 export type AdminTogetherSessionsQuery = z.infer<typeof adminTogetherSessionsQuerySchema>;
 
 export function parseAdminTogetherQueueActionBody(
@@ -31,6 +65,30 @@ export function parseAdminTogetherQueueActionBody(
 
   throw validationError("Admin Together queue action payload is invalid", {
     body: result.error.issues.map((issue) => issue.message).join("; "),
+  });
+}
+
+export function parseAdminTogetherQueueQuery(input: unknown): AdminTogetherQueueQuery {
+  const result = adminTogetherQueueQuerySchema.safeParse(input);
+  if (result.success) {
+    const radiusValue = result.data.radiusKm;
+    return {
+      status: result.data.status || undefined,
+      activity: result.data.activity || undefined,
+      radiusKm:
+        radiusValue === "none" || radiusValue === "null"
+          ? null
+          : typeof radiusValue === "number"
+            ? radiusValue
+            : undefined,
+      geoMode: result.data.geoMode,
+      hasCoordinates: result.data.hasCoordinates,
+      limit: result.data.limit,
+    };
+  }
+
+  throw validationError("Admin Together queue query is invalid", {
+    query: result.error.issues.map((issue) => issue.message).join("; "),
   });
 }
 
@@ -121,6 +179,7 @@ const adminTogetherQueueEntrySchema = {
     "status",
     "radiusKm",
     "hasCoordinates",
+    "geoMode",
     "createdAt",
     "expiresAt",
     "matchedSessionId",
@@ -133,6 +192,14 @@ const adminTogetherQueueEntrySchema = {
     status: { type: "string" },
     radiusKm: { type: ["integer", "null"], enum: [5, 25, 100, 250, null] },
     hasCoordinates: { type: "boolean" },
+    geoMode: {
+      type: "string",
+      enum: [
+        "no_limit_with_location",
+        "finite_with_location",
+        "missing_location_invalid_old_entry",
+      ],
+    },
     createdAt: { type: "string", format: "date-time" },
     expiresAt: { type: "string", format: "date-time" },
     matchedSessionId: { type: ["string", "null"], format: "uuid" },
@@ -140,6 +207,30 @@ const adminTogetherQueueEntrySchema = {
 } as const;
 
 export const adminTogetherQueueRouteSchema = {
+  querystring: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      status: { type: "string", maxLength: 40 },
+      activity: { type: "string", maxLength: 80 },
+      radiusKm: {
+        anyOf: [
+          { type: "integer", enum: [5, 25, 100, 250] },
+          { type: "string", enum: ["none", "null"] },
+        ],
+      },
+      geoMode: {
+        type: "string",
+        enum: [
+          "no_limit_with_location",
+          "finite_with_location",
+          "missing_location_invalid_old_entry",
+        ],
+      },
+      hasCoordinates: { type: "string", enum: ["true", "false"] },
+      limit: { type: "integer", minimum: 1, maximum: 200, default: 100 },
+    },
+  },
   response: {
     200: {
       type: "object",
@@ -219,6 +310,8 @@ const adminTogetherSessionSchema = {
     "participantCount",
     "participants",
     "hasStaleParticipant",
+    "lastHeartbeatAt",
+    "leftAt",
     "eventCount",
     "strokeEventCount",
     "storyChoiceCount",
@@ -244,6 +337,8 @@ const adminTogetherSessionSchema = {
       items: adminTogetherSessionParticipantSchema,
     },
     hasStaleParticipant: { type: "boolean" },
+    lastHeartbeatAt: { type: ["string", "null"], format: "date-time" },
+    leftAt: { type: ["string", "null"], format: "date-time" },
     eventCount: { type: "integer", minimum: 0 },
     strokeEventCount: { type: "integer", minimum: 0 },
     storyChoiceCount: { type: "integer", minimum: 0 },

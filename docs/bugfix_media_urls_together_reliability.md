@@ -43,6 +43,6 @@ admin.togetherSessions.read
 
 ## Together Reliability
 
-No-limit queue joins are idempotent while an equivalent waiting row is active. Rejoining with the same no-limit search no longer cancels the active row first, so two users who arrive seconds apart can match reliably without coordinates.
+No-limit queue joins are idempotent while an equivalent waiting row is active. After the required-geo pass, no-limit still requires coordinates and sends `radiusKm:null`; two users who arrive seconds apart can match reliably without removing the distance cap from finite-radius users.
 
-Finite-radius fallback to no-limit remains a real queue change: the finite row is cancelled and a no-limit row is created.
+Expanding from finite radius to no-limit remains a real queue change: the finite row is cancelled and a no-limit row with coordinates is created.

@@ -34,6 +34,11 @@ const userBId = "00000000-0000-4000-8000-000000000002";
 const threadId = "00000000-0000-4000-8000-000000000301";
 const createdAt = new Date("2026-01-01T00:00:00.000Z");
 const endedAt = new Date("2026-01-01T00:01:00.000Z");
+const warsawLocation = {
+  latitude: 52.2297,
+  longitude: 21.0122,
+  radiusKm: 25,
+} as const;
 
 let restoreDeps: (() => void) | null = null;
 
@@ -228,6 +233,7 @@ test("queue accepts story_sparks activity", async (t) => {
     },
     payload: {
       activity: "story_sparks",
+      location: warsawLocation,
     },
   });
 
@@ -260,6 +266,7 @@ test("story_sparks queue does not match draw", async (t) => {
     },
     payload: {
       activity: "story_sparks",
+      location: warsawLocation,
     },
   });
   const body = response.json();
@@ -293,6 +300,7 @@ test("story_sparks queue creates matched session activity", async (t) => {
     },
     payload: {
       activity: "story_sparks",
+      location: warsawLocation,
     },
   });
   const body = response.json();
@@ -363,7 +371,7 @@ test("queue accepts valid Together location and radius", async (t) => {
   assert.equal(bodyText.includes("longitude"), false);
 });
 
-test("queue defaults to no-limit matching without coordinates", async (t) => {
+test("queue accepts no-limit matching with required coordinates", async (t) => {
   t.after(restoreRepoMock);
   const app = buildApp();
   t.after(async () => {
@@ -389,8 +397,8 @@ test("queue defaults to no-limit matching without coordinates", async (t) => {
         activity: input.activity,
         status: "matched",
         matchedSessionId: sessionId,
-        latitude: null,
-        longitude: null,
+        latitude: input.latitude ?? null,
+        longitude: input.longitude ?? null,
         radiusKm: null,
       });
     },
@@ -404,6 +412,11 @@ test("queue defaults to no-limit matching without coordinates", async (t) => {
     },
     payload: {
       activity: "story_sparks",
+      location: {
+        latitude: 45.815,
+        longitude: 15.9819,
+        radiusKm: null,
+      },
     },
   });
   const bodyText = response.body;
@@ -411,14 +424,44 @@ test("queue defaults to no-limit matching without coordinates", async (t) => {
 
   assert.equal(response.statusCode, 200);
   assert.deepEqual(enqueuedLocation, {
-    latitude: null,
-    longitude: null,
+    latitude: 45.815,
+    longitude: 15.9819,
     radiusKm: null,
   });
   assert.equal(body.entry.status, "matched");
   assert.equal(body.entry.sessionId, sessionId);
   assert.equal(bodyText.includes("latitude"), false);
   assert.equal(bodyText.includes("longitude"), false);
+});
+
+test("queue rejects missing Together location", async (t) => {
+  t.after(restoreRepoMock);
+  const app = buildApp();
+  t.after(async () => {
+    await app.close();
+  });
+
+  let enqueueCalled = false;
+  mockRepo({
+    enqueueAndMatch: async () => {
+      enqueueCalled = true;
+      return queueRow();
+    },
+  });
+
+  const response = await app.inject({
+    method: "POST",
+    url: "/together/queue",
+    headers: {
+      Authorization: `Bearer ${signAccessToken(userAId)}`,
+    },
+    payload: {
+      activity: "draw",
+    },
+  });
+
+  assert.equal(response.statusCode, 400);
+  assert.equal(enqueueCalled, false);
 });
 
 test("queue rejects invalid Together latitude and radius", async (t) => {
@@ -473,14 +516,14 @@ test("queue rejects invalid Together latitude and radius", async (t) => {
   assert.equal(enqueueCalled, false);
 });
 
-test("queue rejects finite radius without coordinates", async (t) => {
+test("queue rejects missing latitude or longitude for all Together radius modes", async (t) => {
   t.after(restoreRepoMock);
   const app = buildApp();
   t.after(async () => {
     await app.close();
   });
 
-  const response = await app.inject({
+  const missingLatitude = await app.inject({
     method: "POST",
     url: "/together/queue",
     headers: {
@@ -489,12 +532,29 @@ test("queue rejects finite radius without coordinates", async (t) => {
     payload: {
       activity: "draw",
       location: {
+        longitude: 21.0122,
         radiusKm: 5,
       },
     },
   });
 
-  assert.equal(response.statusCode, 400);
+  const missingLongitude = await app.inject({
+    method: "POST",
+    url: "/together/queue",
+    headers: {
+      Authorization: `Bearer ${signAccessToken(userAId)}`,
+    },
+    payload: {
+      activity: "draw",
+      location: {
+        latitude: 52.2297,
+        radiusKm: null,
+      },
+    },
+  });
+
+  assert.equal(missingLatitude.statusCode, 400);
+  assert.equal(missingLongitude.statusCode, 400);
 });
 
 test("Together geo matching accepts nearby users and rejects outside radius", () => {
@@ -507,19 +567,25 @@ test("Together geo matching accepts nearby users and rejects outside radius", ()
   assert.equal(areQueueEntriesGeoCompatible(warsaw, berlin), false);
 });
 
-test("Together geo matching uses stricter radius and supports unlimited mode", () => {
+test("Together geo matching uses stricter radius and supports no-limit mode with coordinates", () => {
   const { areQueueEntriesGeoCompatible } = togetherRepo.__geoForTests;
   const warsawWide = { latitude: 52.2297, longitude: 21.0122, radiusKm: 250 };
   const warsawTight = { latitude: 52.2297, longitude: 21.0122, radiusKm: 5 };
   const nearbyWarsaw = { latitude: 52.25, longitude: 21.02, radiusKm: 5 };
   const lodzTight = { latitude: 51.7592, longitude: 19.456, radiusKm: 25 };
   const lodzUnlimited = { latitude: 51.7592, longitude: 19.456, radiusKm: null };
+  const nearbyUnlimited = { latitude: 52.25, longitude: 21.02, radiusKm: null };
   const noLocationUnlimited = { radiusKm: null };
 
   assert.equal(areQueueEntriesGeoCompatible(warsawTight, nearbyWarsaw), true);
   assert.equal(areQueueEntriesGeoCompatible(warsawWide, lodzTight), false);
   assert.equal(areQueueEntriesGeoCompatible(warsawWide, lodzUnlimited), true);
-  assert.equal(areQueueEntriesGeoCompatible(noLocationUnlimited, { radiusKm: null }), true);
+  assert.equal(areQueueEntriesGeoCompatible(warsawWide, nearbyUnlimited), true);
+  assert.equal(areQueueEntriesGeoCompatible(warsawTight, nearbyUnlimited), true);
+  assert.equal(areQueueEntriesGeoCompatible(warsawTight, lodzUnlimited), false);
+  assert.equal(areQueueEntriesGeoCompatible(nearbyUnlimited, { ...warsawWide, radiusKm: null }), true);
+  assert.equal(areQueueEntriesGeoCompatible(lodzUnlimited, { ...warsawWide, radiusKm: null }), true);
+  assert.equal(areQueueEntriesGeoCompatible(noLocationUnlimited, { radiusKm: null }), false);
   assert.equal(areQueueEntriesGeoCompatible(noLocationUnlimited, lodzTight), false);
 });
 
@@ -532,8 +598,8 @@ test("no-limit queue rejoin keeps equivalent active waiting attempt", () => {
     createdAt: new Date("2026-01-01T00:00:00.000Z"),
     expiresAt: new Date("2026-01-01T00:05:00.000Z"),
     radiusKm: null,
-    latitude: null,
-    longitude: null,
+    latitude: 52.2297,
+    longitude: 21.0122,
   });
 
   assert.equal(
@@ -544,8 +610,8 @@ test("no-limit queue rejoin keeps equivalent active waiting attempt", () => {
         promptText: "Draw together",
         expiresAt: new Date("2026-01-01T00:05:10.000Z"),
         radiusKm: null,
-        latitude: null,
-        longitude: null,
+        latitude: 52.2297,
+        longitude: 21.0122,
       },
       existing,
     ),
@@ -597,6 +663,7 @@ test("draw queue retry delegates each attempt to the repository", async (t) => {
     },
     payload: {
       activity: "draw",
+      location: warsawLocation,
     },
   });
 
@@ -608,6 +675,10 @@ test("draw queue retry delegates each attempt to the repository", async (t) => {
     },
     payload: {
       activity: "draw",
+      location: {
+        ...warsawLocation,
+        radiusKm: 100,
+      },
     },
   });
 

@@ -14,6 +14,7 @@ import {
 import * as togetherRepo from "../together/together.repo";
 import type {
   AdminTogetherQueueActionBody,
+  AdminTogetherQueueQuery,
   AdminTogetherSessionsQuery,
 } from "./admin-ops.schemas";
 
@@ -48,6 +49,10 @@ export type AdminTogetherQueueEntryDto = {
   status: string;
   radiusKm: number | null;
   hasCoordinates: boolean;
+  geoMode:
+    | "no_limit_with_location"
+    | "finite_with_location"
+    | "missing_location_invalid_old_entry";
   createdAt: string;
   expiresAt: string;
   matchedSessionId: string | null;
@@ -83,6 +88,8 @@ export type AdminTogetherSessionDto = {
   participantCount: number;
   participants: AdminTogetherSessionParticipantDto[];
   hasStaleParticipant: boolean;
+  lastHeartbeatAt: string | null;
+  leftAt: string | null;
   eventCount: number;
   strokeEventCount: number;
   storyChoiceCount: number;
@@ -213,15 +220,23 @@ export async function getOpsHealth(
 
 export async function listTogetherQueueForAdmin(
   admin: AdminContext,
+  query: AdminTogetherQueueQuery,
   requestContext: AdminRequestContext,
 ): Promise<AdminTogetherQueueResponse> {
-  const entries = await deps.togetherQueue.listQueueEntriesForAdmin();
+  const entries = await deps.togetherQueue.listQueueEntriesForAdmin(query);
 
   await deps.audit.writeAuditLog({
     adminUserId: admin.adminUser.id,
     action: "admin.togetherQueue.read",
     targetType: "together_queue",
     metadata: {
+      filters: {
+        status: query.status ?? null,
+        activity: query.activity ?? null,
+        radiusKm: query.radiusKm ?? null,
+        geoMode: query.geoMode ?? null,
+        hasCoordinates: query.hasCoordinates ?? null,
+      },
       resultCount: entries.length,
     },
     ...requestContext,
@@ -262,6 +277,7 @@ export async function actionTogetherQueueEntryForAdmin(
       activity: entry.activity,
       radiusKm: entry.radiusKm,
       hasCoordinates: entry.hasCoordinates,
+      geoMode: entry.geoMode,
       reason: input.reason,
     },
     ...requestContext,
@@ -311,6 +327,7 @@ function toAdminTogetherQueueEntryDto(
     status: entry.status,
     radiusKm: entry.radiusKm,
     hasCoordinates: entry.hasCoordinates,
+    geoMode: entry.geoMode,
     createdAt: entry.createdAt.toISOString(),
     expiresAt: entry.expiresAt.toISOString(),
     matchedSessionId: entry.matchedSessionId,
@@ -349,6 +366,8 @@ function toAdminTogetherSessionDto(
     participantCount: session.participantCount,
     participants,
     hasStaleParticipant: participants.some((participant) => participant.isStale),
+    lastHeartbeatAt: session.lastHeartbeatAt?.toISOString() ?? null,
+    leftAt: session.leftAt?.toISOString() ?? null,
     eventCount: session.eventCount,
     strokeEventCount: session.strokeEventCount,
     storyChoiceCount: session.storyChoiceCount,

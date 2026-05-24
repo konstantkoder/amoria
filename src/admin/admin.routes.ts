@@ -26,6 +26,7 @@ import {
   adminTogetherSessionsRouteSchema,
   adminTogetherQueueActionRouteSchema,
   adminTogetherQueueRouteSchema,
+  parseAdminTogetherQueueQuery,
   parseAdminTogetherSessionsQuery,
   parseAdminTogetherQueueActionBody,
 } from "./admin-ops.schemas";
@@ -188,6 +189,7 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
     async (request) =>
       adminOpsService.listTogetherQueueForAdmin(
         currentAdmin(request),
+        parseAdminTogetherQueueQuery(request.query),
         adminRequestContext(request),
       ),
   );

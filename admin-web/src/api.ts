@@ -208,6 +208,10 @@ export type TogetherQueueEntry = {
   status: string;
   radiusKm: number | null;
   hasCoordinates: boolean;
+  geoMode:
+    | "no_limit_with_location"
+    | "finite_with_location"
+    | "missing_location_invalid_old_entry";
   createdAt: string;
   expiresAt: string;
   matchedSessionId: string | null;
@@ -233,6 +237,8 @@ export type TogetherSessionItem = {
   participantCount: number;
   participants: TogetherSessionParticipant[];
   hasStaleParticipant: boolean;
+  lastHeartbeatAt: string | null;
+  leftAt: string | null;
   eventCount: number;
   strokeEventCount: number;
   storyChoiceCount: number;

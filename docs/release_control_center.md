@@ -1,0 +1,62 @@
+# Amoria Release Control Center
+
+Updated: 2026-05-24
+
+## Release Rules
+
+- No mock, stub, fake, Firebase fallback, or local-only success path counts as release evidence.
+- Together, Admin Web, media moderation, reports, audit, and ops health must use real backend endpoints.
+- Do not touch local launch/archive files from release commits.
+- Nearby and Announcements are out of scope for this Together/Admin pass.
+
+## Branches
+
+- Server branch: `backend/standalone-foundation`
+- Mobile branch: `migration/remove-firebase-foundation`
+
+## Together Geo Contract
+
+- Together requires foreground location for every queue request.
+- Default user flow radius is `25 km`.
+- Valid finite radiuses are `5`, `25`, `100`, and `250` km.
+- No-limit sends real coordinates with `radiusKm:null`; it means no distance cap, not no geolocation.
+- Exact coordinates are never returned to peers, admin queue/session responses, DM, public profile, or client error reports.
+- Old waiting rows without coordinates are release-invalid and should expire or be cancelled through Admin Queue.
+
+## Admin Web Release Surface
+
+Owner/ops/moderator/support roles should use Admin Web for release diagnostics:
+
+- Dashboard
+- Users
+- Admin Users
+- Client Errors
+- Reports
+- Media Moderation
+- Together Queue
+- Together Sessions
+- Audit Log
+- Ops Health
+- Bootstrap
+
+Together Queue is the smoke-test control surface for waiting/matched/expired/cancelled queue rows, `radiusKm`, `hasCoordinates`, `geoMode`, stale state, and audited waiting-row cancellation.
+
+Together Sessions is the smoke-test control surface for created, active, finished, abandoned, cancelled, and recently ended sessions, including zero-event sessions, stale heartbeat, participant counts, event counts, story choice counts, reveal summaries, and exit state.
+
+## Manual Smoke Required
+
+Automated checks cannot replace the real two-client pass:
+
+1. Both test users grant location.
+2. Both start with `25 km`.
+3. Repeat with `5`, `100`, `250`, and no-limit.
+4. Inspect Admin Queue before match.
+5. Inspect Admin Sessions after match, exit, freeze, or abandon.
+6. Confirm no exact coordinates appear in mobile UI, Admin Web, client errors, DM, history, or public profile.
+
+## Public Beta Blockers
+
+- Complete real phone/emulator Together smoke against the release backend.
+- Verify Admin Web role access in browser for owner, ops, moderator, and support.
+- Connect a real media moderation provider or staff manual moderation before public beta.
+- Add a real non-mutating object storage health check; current status must remain honest if not checked.

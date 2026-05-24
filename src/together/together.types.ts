@@ -19,14 +19,14 @@ export type TogetherRevealOutcome =
   | "blocked";
 
 export type TogetherQueueLocationBody = {
-  latitude?: number | null;
-  longitude?: number | null;
+  latitude: number;
+  longitude: number;
   radiusKm: 5 | 25 | 100 | 250 | null;
 };
 
 export type TogetherQueueBody = {
   activity: TogetherActivity;
-  location?: TogetherQueueLocationBody;
+  location: TogetherQueueLocationBody;
 };
 
 export type TogetherQueueEntryDto = {
