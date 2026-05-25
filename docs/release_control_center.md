@@ -27,6 +27,15 @@ Updated: 2026-05-25
 - Queue cancellation must carry `cancelSource`; Admin Queue distinguishes `waitingReason` from true cancellation source.
 - Device/emulator GPS failures must explain that coordinates are unavailable and must not start queue.
 
+## Together Draw Tools
+
+- Draw eraser is backend-backed through `stroke_batch` events with `tool:"erase"`.
+- Brush strokes use `tool:"draw"`; legacy strokes without `tool` remain valid as draw strokes.
+- Story Sparks sessions reject draw stroke events.
+- Replay/history/detail must rebuild brush and eraser effects from backend events.
+- Mobile zoom/pan/reset is viewport-only and must not alter saved stroke coordinates.
+- Fullscreen/focus mode must keep exit fullscreen and leave-session controls available.
+
 ## Admin Web Release Surface
 
 Owner/ops/moderator/support roles should use Admin Web for release diagnostics:
@@ -60,6 +69,7 @@ Automated checks cannot replace the real two-client pass:
 7. Confirm peer avatar/photos render or emit safe media diagnostics.
 8. Confirm no exact coordinates appear in mobile UI, Admin Web, client errors, DM, history, or public profile.
 9. Confirm Client Errors include enough app/build/release metadata to identify the running build.
+10. In draw, smoke brush, eraser, zoom in/out/reset, Move pan mode, fullscreen on/off, finish, and history/detail replay.
 
 ## Build Verification
 

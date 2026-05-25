@@ -25,6 +25,16 @@ Updated: 2026-05-25
 - A backend expiry should become `status=expired`, not `status=cancelled`.
 - If a row cancels before match, Admin Queue must show `cancelSource`, `cancelReason`, `cancelledAt`, and `lastAction`.
 
+## Draw Tools Pass
+
+- In one real backend `draw` session, draw with brush and confirm peer sees the stroke.
+- Switch to eraser, erase part of the drawing, and confirm peer sees the erased result.
+- Reload/background one client and confirm `getSessionEvents` hydration restores brush and erase strokes.
+- Zoom in/out/reset and draw while zoomed; saved strokes must not be distorted.
+- Use Move mode to pan the zoomed canvas without creating a stroke.
+- Enter and exit fullscreen/focus mode; leave-session control must remain available.
+- Finish the session and confirm history/detail replay preserves eraser effects.
+
 ## Admin Checks
 
 - Queue: status, activity, radius, `hasCoordinates`, `geoMode`, `waitingReason`, `cancelSource`, `cancelReason`, `cancelledAt`, `lastAction`, waiting age, safe identity, stale state, matched session link, cancel waiting action.

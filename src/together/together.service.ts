@@ -312,7 +312,116 @@ async function prepareEventForSession(
     });
   }
 
+  if (input.type === "stroke_batch") {
+    return { payload: validateDrawStrokeBatchPayload(input.payload) };
+  }
+
   return { payload: input.payload };
+}
+
+type DrawStrokeTool = "draw" | "erase";
+
+function validateDrawStrokeBatchPayload(payload: JsonValue): JsonValue {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    throw validationError("Invalid drawing stroke batch", {
+      payload: "expected_object",
+    });
+  }
+
+  const value = payload as Record<string, JsonValue>;
+  const rawStrokes = Array.isArray(value.strokes) ? value.strokes : null;
+  if (!rawStrokes) {
+    throw validationError("Invalid drawing stroke batch", {
+      strokes: "expected_array",
+    });
+  }
+
+  const strokes = rawStrokes.map(normalizeDrawStroke).filter(Boolean);
+  const result: Record<string, JsonValue> = { strokes };
+  const uid = String(value.uid ?? "").trim();
+  const id = String(value.id ?? "").trim();
+  if (uid) result.uid = uid;
+  if (id) result.id = id;
+  return result;
+}
+
+function normalizeDrawStroke(value: JsonValue): JsonValue | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw validationError("Invalid drawing stroke", {
+      stroke: "expected_object",
+    });
+  }
+
+  const stroke = value as Record<string, JsonValue>;
+  const id = String(stroke.id ?? "").trim();
+  const tool = normalizeDrawStrokeTool(stroke.tool);
+  const color = String(stroke.color ?? "#F97393").trim() || "#F97393";
+  const width = Number(stroke.width ?? 6);
+  const rawPoints = Array.isArray(stroke.points) ? stroke.points : null;
+
+  if (!id) {
+    throw validationError("Invalid drawing stroke", {
+      id: "required",
+    });
+  }
+  if (!rawPoints) {
+    throw validationError("Invalid drawing stroke", {
+      points: "expected_array",
+    });
+  }
+  if (!Number.isFinite(width) || width <= 0 || width > 80) {
+    throw validationError("Invalid drawing stroke", {
+      width: "invalid",
+    });
+  }
+
+  const points = rawPoints.map(normalizeDrawPoint);
+  if (!points.length) {
+    throw validationError("Invalid drawing stroke", {
+      points: "required",
+    });
+  }
+
+  return {
+    id,
+    tool,
+    color,
+    width,
+    points,
+  };
+}
+
+function normalizeDrawStrokeTool(value: JsonValue | undefined): DrawStrokeTool {
+  if (value == null || value === "draw") return "draw";
+  if (value === "erase") return "erase";
+
+  throw validationError("Invalid drawing stroke tool", {
+    tool: "unsupported",
+  });
+}
+
+function normalizeDrawPoint(value: JsonValue): JsonValue {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw validationError("Invalid drawing stroke point", {
+      point: "expected_object",
+    });
+  }
+
+  const point = value as Record<string, JsonValue>;
+  const x = Number(point.x);
+  const y = Number(point.y);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    throw validationError("Invalid drawing stroke point", {
+      point: "invalid_coordinate",
+    });
+  }
+
+  const result: Record<string, JsonValue> = { x, y };
+  const t = Number(point.t);
+  const p = Number(point.p);
+  if (Number.isFinite(t)) result.t = t;
+  if (Number.isFinite(p)) result.p = p;
+  return result;
 }
 
 export async function listSessionEventsForMember(

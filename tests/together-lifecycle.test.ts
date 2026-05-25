@@ -995,6 +995,17 @@ test("Together session events endpoint returns stable event order", async (t) =>
         id: "00000000-0000-4000-8000-000000000202",
         clientEventId: "same-created-b",
         createdAt: sameCreatedAt,
+        payload: {
+          strokes: [
+            {
+              id: "erase-stable-b",
+              tool: "erase",
+              color: "#FFFFFF",
+              width: 18,
+              points: [{ x: 0.3, y: 0.3 }],
+            },
+          ],
+        },
       }),
       eventRow({
         id: "00000000-0000-4000-8000-000000000101",
@@ -1015,6 +1026,17 @@ test("Together session events endpoint returns stable event order", async (t) =>
     response.items.map((event) => event.clientEventId),
     ["earlier", "same-created-a", "same-created-b"],
   );
+  assert.deepEqual(response.items[2]?.payload, {
+    strokes: [
+      {
+        id: "erase-stable-b",
+        tool: "erase",
+        color: "#FFFFFF",
+        width: 18,
+        points: [{ x: 0.3, y: 0.3 }],
+      },
+    ],
+  });
   assert.equal(response.nextCursor, null);
 });
 
@@ -1068,6 +1090,138 @@ test("Together sendEvent endpoint still creates events", async (t) => {
   assert.equal(response.statusCode, 200);
   assert.deepEqual(response.json(), { ok: true, created: true });
   assert.equal(insertedClientEventId, "stroke-post-1");
+});
+
+test("draw session accepts backend-backed erase stroke events", async (t) => {
+  t.after(restoreRepoMock);
+
+  let insertedPayload: unknown;
+  mockRepo({
+    findSessionForMember: async () => sessionRow({ status: "active", activity: "draw" }),
+    createEventIdempotent: async (input: NewTogetherEventRow) => {
+      insertedPayload = input.payload;
+      return {
+        event: eventRow({
+          clientEventId: input.clientEventId,
+          payload: input.payload,
+        }),
+        created: true,
+      };
+    },
+  });
+
+  const result = await togetherService.createEvent(userAId, sessionId, {
+    clientEventId: "erase-1",
+    type: "stroke_batch",
+    payload: {
+      uid: userAId,
+      strokes: [
+        {
+          id: "erase-stroke-1",
+          tool: "erase",
+          color: "#FFFFFF",
+          width: 18,
+          points: [
+            { x: 0.24, y: 0.3, t: 0 },
+            { x: 0.28, y: 0.35, t: 1 },
+          ],
+        },
+      ],
+    },
+  });
+
+  assert.equal(result.created, true);
+  assert.deepEqual(insertedPayload, {
+    uid: userAId,
+    strokes: [
+      {
+        id: "erase-stroke-1",
+        tool: "erase",
+        color: "#FFFFFF",
+        width: 18,
+        points: [
+          { x: 0.24, y: 0.3, t: 0 },
+          { x: 0.28, y: 0.35, t: 1 },
+        ],
+      },
+    ],
+  });
+});
+
+test("draw session rejects unsupported stroke tools", async (t) => {
+  t.after(restoreRepoMock);
+
+  let eventWritten = false;
+  mockRepo({
+    findSessionForMember: async () => sessionRow({ status: "active", activity: "draw" }),
+    createEventIdempotent: async () => {
+      eventWritten = true;
+      throw new Error("Invalid stroke tool must not be written");
+    },
+  });
+
+  await assert.rejects(
+    togetherService.createEvent(userAId, sessionId, {
+      clientEventId: "erase-invalid",
+      type: "stroke_batch",
+      payload: {
+        strokes: [
+          {
+            id: "stroke-invalid-tool",
+            tool: "smudge",
+            color: "#FFFFFF",
+            width: 16,
+            points: [{ x: 0.5, y: 0.5 }],
+          },
+        ],
+      },
+    }),
+    (error) => {
+      const appError = error as { code?: string; statusCode?: number };
+      assert.equal(appError.code, "validation_error");
+      assert.equal(appError.statusCode, 400);
+      return true;
+    },
+  );
+  assert.equal(eventWritten, false);
+});
+
+test("story_sparks session rejects erase stroke events", async (t) => {
+  t.after(restoreRepoMock);
+
+  let eventWritten = false;
+  mockRepo({
+    findSessionForMember: async () => sessionRow({ status: "active", activity: "story_sparks" }),
+    createEventIdempotent: async () => {
+      eventWritten = true;
+      throw new Error("Erase stroke must not be written to Story Sparks");
+    },
+  });
+
+  await assert.rejects(
+    togetherService.createEvent(userAId, sessionId, {
+      clientEventId: "story-erase-1",
+      type: "stroke_batch",
+      payload: {
+        strokes: [
+          {
+            id: "erase-story-1",
+            tool: "erase",
+            color: "#FFFFFF",
+            width: 18,
+            points: [{ x: 0.25, y: 0.25 }],
+          },
+        ],
+      },
+    }),
+    (error) => {
+      const appError = error as { code?: string; statusCode?: number };
+      assert.equal(appError.code, "validation_error");
+      assert.equal(appError.statusCode, 400);
+      return true;
+    },
+  );
+  assert.equal(eventWritten, false);
 });
 
 test("draw session rejects removed palette events", async (t) => {
