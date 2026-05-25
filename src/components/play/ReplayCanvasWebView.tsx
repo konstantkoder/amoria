@@ -109,6 +109,10 @@ const HTML = `<!doctype html>
       };
     }
 
+    function normalizeTool(value) {
+      return value === "erase" ? "erase" : "draw";
+    }
+
     function normalizeStroke(stroke, legacyBounds) {
       const rawPoints = Array.isArray(stroke && stroke.points)
         ? stroke.points.map(cloneRawPoint)
@@ -116,6 +120,7 @@ const HTML = `<!doctype html>
       return {
         id: String(stroke && stroke.id ? stroke.id : ""),
         uid: String(stroke && stroke.uid ? stroke.uid : ""),
+        tool: normalizeTool(stroke && stroke.tool),
         color: String(stroke && stroke.color ? stroke.color : "#F97393"),
         width: Number(stroke && stroke.width ? stroke.width : 6),
         coordinateSpace: getStrokeCoordinateSpace(rawPoints),
@@ -176,17 +181,20 @@ const HTML = `<!doctype html>
       if (!stroke || !stroke.points || !stroke.points.length) return;
 
       const points = stroke.points.map(toCanvasPoint);
-      ctx.strokeStyle = stroke.color;
+      const erase = normalizeTool(stroke.tool) === "erase";
+      ctx.globalCompositeOperation = erase ? "destination-out" : "source-over";
+      ctx.strokeStyle = erase ? "rgba(0,0,0,1)" : stroke.color;
+      ctx.fillStyle = erase ? "rgba(0,0,0,1)" : stroke.color;
       ctx.lineWidth = stroke.width;
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
 
       if (points.length === 1) {
         const point = points[0];
-        ctx.fillStyle = stroke.color;
         ctx.beginPath();
         ctx.arc(point.x, point.y, Math.max(stroke.width / 2, 1), 0, Math.PI * 2);
         ctx.fill();
+        ctx.globalCompositeOperation = "source-over";
         return;
       }
 
@@ -196,6 +204,7 @@ const HTML = `<!doctype html>
         ctx.lineTo(points[i].x, points[i].y);
       }
       ctx.stroke();
+      ctx.globalCompositeOperation = "source-over";
     }
 
     function redraw() {
@@ -270,6 +279,7 @@ export default function ReplayCanvasWebView({
       strokes.map((stroke) => ({
         id: stroke.id,
         uid: stroke.uid,
+        tool: stroke.tool ?? "draw",
         color: stroke.color,
         width: stroke.width,
         points: stroke.points.map((point) => ({

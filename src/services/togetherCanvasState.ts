@@ -1,4 +1,5 @@
 import type { SharedCanvasStroke } from "@/components/play/SharedCanvasWebView";
+import type { SharedCanvasTool } from "@/components/play/SharedCanvasWebView";
 import type {
   TogetherEventDto as ApiTogetherEventDto,
   TogetherParticipantDto,
@@ -15,6 +16,7 @@ export type TogetherStrokePoint = {
 
 export type TogetherStroke = {
   id: string;
+  tool?: SharedCanvasTool;
   color: string;
   width: number;
   points: TogetherStrokePoint[];
@@ -139,6 +141,7 @@ export function rememberLocalTogetherStrokes(
       uid,
       strokes: strokes.map((stroke) => ({
         id: stroke.id,
+        tool: stroke.tool ?? "draw",
         color: stroke.color,
         width: stroke.width,
         points: stroke.points.map((point, index) => ({
@@ -190,6 +193,7 @@ function strokesFromTogetherEvent(event: TogetherEventDto): SharedCanvasStroke[]
   return payload.strokes.map((stroke) => ({
     id: stroke.id,
     uid: fromUserId,
+    tool: stroke.tool ?? "draw",
     color: stroke.color,
     width: stroke.width,
     points: stroke.points.map((point) => ({
@@ -205,6 +209,7 @@ function normalizeStroke(value: unknown): TogetherStroke | null {
   const id = String(stroke.id ?? "").trim();
   const color = String(stroke.color ?? "#F97393").trim() || "#F97393";
   const width = Number(stroke.width ?? 6);
+  const tool = normalizeTool(stroke.tool);
   const points = Array.isArray(stroke.points)
     ? stroke.points.map(normalizePoint).filter((point): point is TogetherStrokePoint => Boolean(point))
     : [];
@@ -212,10 +217,15 @@ function normalizeStroke(value: unknown): TogetherStroke | null {
   if (!id || !points.length) return null;
   return {
     id,
+    tool,
     color,
     width: Number.isFinite(width) && width > 0 ? width : 6,
     points,
   };
+}
+
+function normalizeTool(value: unknown): SharedCanvasTool {
+  return value === "erase" ? "erase" : "draw";
 }
 
 function normalizePoint(value: unknown): TogetherStrokePoint | null {

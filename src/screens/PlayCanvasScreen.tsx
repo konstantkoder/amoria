@@ -131,6 +131,7 @@ export default function PlayCanvasScreen() {
   const [leaving, setLeaving] = React.useState(false);
   const [strokeError, setStrokeError] = React.useState("");
   const [drawingStarted, setDrawingStarted] = React.useState(false);
+  const [focusMode, setFocusMode] = React.useState(false);
   const [tick, setTick] = React.useState(Date.now());
   const [canvasRevision, setCanvasRevision] = React.useState(0);
   const [closedActorUserId, setClosedActorUserId] = React.useState<string | null>(null);
@@ -228,6 +229,7 @@ export default function PlayCanvasScreen() {
     setLeaving(false);
     setStrokeError("");
     setDrawingStarted(false);
+    setFocusMode(false);
     setTick(Date.now());
     setCanvasRevision((value) => value + 1);
     setClosedActorUserId(null);
@@ -545,6 +547,11 @@ export default function PlayCanvasScreen() {
       (event: EventArg<"beforeRemove", true, undefined>) => {
         if (allowExitRef.current || navigationHandledRef.current) return;
         if (session?.status !== "active") return;
+        if (focusMode) {
+          event.preventDefault();
+          setFocusMode(false);
+          return;
+        }
 
         event.preventDefault();
         Alert.alert(
@@ -568,9 +575,13 @@ export default function PlayCanvasScreen() {
     );
 
     return unsubscribe;
-  }, [leaveSessionAndExit, navigation, session?.status, tt]);
+  }, [focusMode, leaveSessionAndExit, navigation, session?.status, tt]);
 
   const handleCanvasBack = React.useCallback(() => {
+    if (focusMode) {
+      setFocusMode(false);
+      return;
+    }
     if (session?.status !== "active") {
       handleSafeBack();
       return;
@@ -592,7 +603,7 @@ export default function PlayCanvasScreen() {
         },
       ]
     );
-  }, [handleSafeBack, leaveSessionAndExit, session?.status, tt]);
+  }, [focusMode, handleSafeBack, leaveSessionAndExit, session?.status, tt]);
 
   const handleLocalBatch = React.useCallback(
     async (localStrokes: SharedCanvasStroke[]) => {
@@ -603,6 +614,7 @@ export default function PlayCanvasScreen() {
         uid,
         strokes: localStrokes.map((stroke) => ({
           id: stroke.id,
+          tool: stroke.tool ?? "draw",
           color: stroke.color,
           width: stroke.width,
           points: stroke.points.map((point, index) => ({
@@ -626,9 +638,18 @@ export default function PlayCanvasScreen() {
         }
       } catch (error) {
         if (!mountedRef.current) return;
-        reportCanvasFailure("sendStrokeFailed", "Failed to send Together draw stroke batch", error, {
-          batchStrokeCount: localStrokes.length,
-        });
+        const includesEraser = localStrokes.some((stroke) => stroke.tool === "erase");
+        reportCanvasFailure(
+          includesEraser ? "sendEraserStrokeFailed" : "sendStrokeFailed",
+          includesEraser
+            ? "Failed to send Together draw eraser stroke"
+            : "Failed to send Together draw stroke batch",
+          error,
+          {
+            batchStrokeCount: localStrokes.length,
+            tool: includesEraser ? "erase" : "draw",
+          }
+        );
         setStrokes(getTogetherStrokes(sessionId));
         setCanvasRevision((value) => value + 1);
         setStrokeError(
@@ -644,8 +665,17 @@ export default function PlayCanvasScreen() {
 
   const canvasToolLabels = React.useMemo(
     () => ({
+      tools: tt("play.canvas.toolTools", "Инструменты"),
+      brushTool: tt("play.canvas.toolBrushTool", "Кисть"),
+      eraserTool: tt("play.canvas.toolEraserTool", "Ластик"),
+      moveTool: tt("play.canvas.toolMoveTool", "Двигать"),
       colors: tt("play.canvas.toolColors", "Цвета"),
       brush: tt("play.canvas.toolBrush", "Толщина линии"),
+      eraser: tt("play.canvas.toolEraser", "Ластик"),
+      zoom: tt("play.canvas.toolZoom", "Масштаб"),
+      zoomIn: tt("play.canvas.zoomIn", "Увеличить"),
+      zoomOut: tt("play.canvas.zoomOut", "Уменьшить"),
+      resetZoom: tt("play.canvas.resetZoom", "Сброс"),
       colorNames: [
         tt("play.canvas.toolColorRose", "Розовый"),
         tt("play.canvas.toolColorOrange", "Оранжевый"),
@@ -660,6 +690,11 @@ export default function PlayCanvasScreen() {
         tt("play.canvas.toolBrushSmall", "Тонко"),
         tt("play.canvas.toolBrushMedium", "Средне"),
         tt("play.canvas.toolBrushLarge", "Широко"),
+      ],
+      eraserSizes: [
+        tt("play.canvas.toolEraserSmall", "Малый"),
+        tt("play.canvas.toolEraserMedium", "Средний"),
+        tt("play.canvas.toolEraserLarge", "Большой"),
       ],
     }),
     [tt]
@@ -874,31 +909,77 @@ export default function PlayCanvasScreen() {
     <ScreenShell
       title={tt("play.canvas.title", "Совместная сессия")}
       background="nightCity"
+      showHeader={!focusMode}
       showBack
       onBack={handleCanvasBack}
     >
       <View style={styles.fullscreenWrap}>
-        <View style={styles.fullscreenHeader}>
-          <View style={styles.headerTextWrap}>
-            <Text style={styles.headerKicker}>
-              {tt("play.canvas.challengeStripLabel", "Вызов")}
-            </Text>
-            <Text style={styles.headerTitle} numberOfLines={2}>
-              {localizedPrompt}
-            </Text>
-            <Text style={styles.headerPeer} numberOfLines={1}>
-              {participants.length > 1
-                ? tt("play.canvas.partnerBody", "Партнёр: {name}", { name: peerName })
-                : tt("play.canvas.waitingPeer", "Партнёр подключается")}
-            </Text>
+        {focusMode ? (
+          <View style={styles.focusTopBar}>
+            <View style={styles.focusTimerPill}>
+              <Text style={styles.timerLabel}>
+                {tt("play.canvas.timerRemaining", "Осталось")}
+              </Text>
+              <Text style={styles.timerValue}>{timerValue}</Text>
+            </View>
+            <View style={styles.focusActions}>
+              <Pressable
+                style={styles.focusActionButton}
+                onPress={() => setFocusMode(false)}
+                accessibilityRole="button"
+              >
+                <Text style={styles.focusActionText}>
+                  {tt("play.canvas.exitFullscreen", "Выйти из полного экрана")}
+                </Text>
+              </Pressable>
+              <Pressable
+                style={[styles.focusLeaveButton, finishing || leaving ? styles.buttonDisabled : null]}
+                onPress={() => void leaveSessionAndExit()}
+                disabled={finishing || leaving}
+                accessibilityRole="button"
+              >
+                <Text style={styles.focusLeaveText}>
+                  {leaving
+                    ? tt("common.exiting", "Выходим…")
+                    : tt("common.backToMainTabs", "Вернуться в меню")}
+                </Text>
+              </Pressable>
+            </View>
           </View>
-          <View style={styles.timerPill}>
-            <Text style={styles.timerLabel}>
-              {tt("play.canvas.timerRemaining", "Осталось")}
-            </Text>
-            <Text style={styles.timerValue}>{timerValue}</Text>
+        ) : (
+          <View style={styles.fullscreenHeader}>
+            <View style={styles.headerTextWrap}>
+              <Text style={styles.headerKicker}>
+                {tt("play.canvas.challengeStripLabel", "Вызов")}
+              </Text>
+              <Text style={styles.headerTitle} numberOfLines={2}>
+                {localizedPrompt}
+              </Text>
+              <Text style={styles.headerPeer} numberOfLines={1}>
+                {participants.length > 1
+                  ? tt("play.canvas.partnerBody", "Партнёр: {name}", { name: peerName })
+                  : tt("play.canvas.waitingPeer", "Партнёр подключается")}
+              </Text>
+            </View>
+            <View style={styles.headerActions}>
+              <View style={styles.timerPill}>
+                <Text style={styles.timerLabel}>
+                  {tt("play.canvas.timerRemaining", "Осталось")}
+                </Text>
+                <Text style={styles.timerValue}>{timerValue}</Text>
+              </View>
+              <Pressable
+                style={styles.fullscreenButton}
+                onPress={() => setFocusMode(true)}
+                accessibilityRole="button"
+              >
+                <Text style={styles.fullscreenButtonText}>
+                  {tt("play.canvas.fullscreen", "На весь экран")}
+                </Text>
+              </Pressable>
+            </View>
           </View>
-        </View>
+        )}
 
         <SharedCanvasWebView
           key={`${sessionId}-${canvasRevision}`}
@@ -909,8 +990,11 @@ export default function PlayCanvasScreen() {
             setCanvasLoadFailed(true);
             reportCanvasFailure("canvasWebViewLoadFailed", message);
           }}
-          onMessageParseError={(message) => {
-            reportCanvasFailure("canvasWebViewMessageParseFailed", message);
+          onMessageParseError={(message, metadata) => {
+            reportCanvasFailure("canvasWebViewMessageParseFailed", message, undefined, metadata);
+          }}
+          onCanvasControlError={(step, message, error, metadata) => {
+            reportCanvasFailure(step, message, error, metadata);
           }}
           disabled={canvasDisabled}
           disabledTitle={
@@ -927,12 +1011,16 @@ export default function PlayCanvasScreen() {
           toolLabels={canvasToolLabels}
         />
 
+        {!focusMode ? (
         <View style={styles.footerBar}>
           <View style={styles.footerTextWrap}>
             <Text style={styles.footerText}>
               {tt("play.canvas.strokeCount", "Штрихов: {count}", {
                 count: String(totalStrokeCount),
               })}
+            </Text>
+            <Text style={styles.footerHint}>
+              {tt("play.canvas.toolsHint", "Ластик и масштаб помогут рисовать точнее.")}
             </Text>
             {strokeError ? <Text style={styles.footerError}>{strokeError}</Text> : null}
           </View>
@@ -962,6 +1050,7 @@ export default function PlayCanvasScreen() {
             </Pressable>
           </View>
         </View>
+        ) : null}
       </View>
     </ScreenShell>
   );
@@ -1115,6 +1204,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 2,
   },
+  headerActions: {
+    alignItems: "stretch",
+    gap: 7,
+  },
   timerPill: {
     minWidth: 82,
     borderRadius: 16,
@@ -1132,6 +1225,74 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
     fontSize: 16,
     fontWeight: "900",
+  },
+  fullscreenButton: {
+    minHeight: 34,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.1)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.16)",
+  },
+  fullscreenButtonText: {
+    color: theme.colors.text,
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  focusTopBar: {
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "rgba(8,10,18,0.98)",
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.1)",
+  },
+  focusTimerPill: {
+    minWidth: 78,
+    borderRadius: 14,
+    paddingHorizontal: 9,
+    paddingVertical: 7,
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.1)",
+  },
+  focusActions: {
+    flex: 1,
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  focusActionButton: {
+    minHeight: 38,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.colors.primary,
+  },
+  focusActionText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  focusLeaveButton: {
+    minHeight: 38,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.14)",
+  },
+  focusLeaveText: {
+    color: theme.colors.text,
+    fontSize: 12,
+    fontWeight: "800",
   },
   footerBar: {
     minHeight: 58,
@@ -1156,6 +1317,12 @@ const styles = StyleSheet.create({
   footerText: {
     color: theme.colors.subtext,
     fontSize: 13,
+    fontWeight: "700",
+  },
+  footerHint: {
+    color: "#FFE0B8",
+    fontSize: 11,
+    lineHeight: 15,
     fontWeight: "700",
   },
   footerError: {

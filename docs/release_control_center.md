@@ -119,6 +119,12 @@ This launcher is local dev tooling only and is not product logic.
   - Active waiting keeps polling through transient poll failures and does not switch to retry/no-match after 2-3 seconds.
   - Client Errors include safe app/build/release metadata and redact exact coordinate keys.
   - Admin Queue distinguishes `waitingReason` from `cancelSource`.
+- `TOGETHER-DRAW-TOOLS-01` draw UX tools:
+  - Draw canvas has backend-backed brush and eraser strokes via `stroke_batch` with `tool: draw|erase`.
+  - Legacy draw strokes without `tool` remain valid as brush strokes.
+  - Zoom in/out/reset and Move mode are viewport-only and do not change backend stroke data.
+  - Fullscreen/focus mode gives more phone space while keeping exit fullscreen and leave-session controls available.
+  - History/detail replay restores eraser effects from backend events.
 
 See `docs/bugfix_ux_01_audit.md`.
 See `docs/bugfix_ux_02_media_nav_profile.md`.
@@ -138,6 +144,7 @@ See `docs/admin_web_regression_pass.md`.
 See `docs/bugfix_together_match_peer_media.md`.
 See `docs/gallery_smoke_pass.md`.
 See `docs/bugfix_together_queue_cancel_lifecycle.md`.
+See `docs/together_draw_tools_01.md`.
 
 ## Build Verification Before Smoke
 

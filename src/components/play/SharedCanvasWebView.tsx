@@ -6,6 +6,7 @@ import {
   View,
   type LayoutChangeEvent,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { WebView } from "react-native-webview";
 
 import { theme } from "@/theme/theme";
@@ -15,9 +16,13 @@ export type SharedCanvasPoint = {
   y: number;
 };
 
+export type SharedCanvasTool = "draw" | "erase";
+export type SharedCanvasMode = SharedCanvasTool | "move";
+
 export type SharedCanvasStroke = {
   id: string;
   uid: string;
+  tool?: SharedCanvasTool;
   color: string;
   width: number;
   points: SharedCanvasPoint[];
@@ -28,7 +33,13 @@ type Props = {
   strokes: SharedCanvasStroke[];
   onLocalStrokeBatch?: (strokes: SharedCanvasStroke[]) => void;
   onLoadError?: (message: string) => void;
-  onMessageParseError?: (message: string) => void;
+  onMessageParseError?: (message: string, metadata?: Record<string, unknown>) => void;
+  onCanvasControlError?: (
+    step: string,
+    message: string,
+    error?: unknown,
+    metadata?: Record<string, unknown>
+  ) => void;
   disabled?: boolean;
   disabledTitle?: string;
   disabledBody?: string;
@@ -37,8 +48,18 @@ type Props = {
   toolLabels?: {
     colors: string;
     brush: string;
+    tools: string;
+    brushTool: string;
+    eraserTool: string;
+    moveTool: string;
+    eraser: string;
+    zoom: string;
+    zoomIn: string;
+    zoomOut: string;
+    resetZoom: string;
     colorNames?: string[];
     brushSizes?: string[];
+    eraserSizes?: string[];
   };
 };
 
@@ -53,6 +74,7 @@ const PALETTE = [
   "#1F2937",
 ];
 const BRUSHES = [3, 6, 10];
+const ERASERS = [12, 20, 32];
 
 const HTML = `<!doctype html>
 <html>
@@ -109,15 +131,22 @@ const HTML = `<!doctype html>
     const state = {
       localUid: "",
       disabled: false,
+      tool: "draw",
       color: "#F97393",
       width: 6,
+      eraserWidth: 20,
+      zoom: 1,
+      panX: 0,
+      panY: 0,
       canvasWidth: 1,
       canvasHeight: 1,
       strokesMap: {},
       strokeOrder: [],
       drawing: false,
+      panning: false,
       currentStroke: null,
       activePointerId: null,
+      lastPanPoint: null,
     };
 
     const LEGACY_CANVAS_WIDTH = 390;
@@ -163,6 +192,10 @@ const HTML = `<!doctype html>
       };
     }
 
+    function normalizeTool(value) {
+      return value === "erase" ? "erase" : "draw";
+    }
+
     function normalizeStroke(stroke, legacyBounds) {
       const rawPoints = Array.isArray(stroke && stroke.points)
         ? stroke.points.map(cloneRawPoint)
@@ -170,6 +203,7 @@ const HTML = `<!doctype html>
       return {
         id: String(stroke && stroke.id ? stroke.id : ""),
         uid: String(stroke && stroke.uid ? stroke.uid : ""),
+        tool: normalizeTool(stroke && stroke.tool),
         color: String(stroke && stroke.color ? stroke.color : "#F97393"),
         width: Number(stroke && stroke.width ? stroke.width : 6),
         coordinateSpace: getStrokeCoordinateSpace(rawPoints),
@@ -194,34 +228,54 @@ const HTML = `<!doctype html>
       canvas.style.height = height + "px";
       state.canvasWidth = width;
       state.canvasHeight = height;
+      const nextPan = clampPanValues(state.panX, state.panY, state.zoom);
+      state.panX = nextPan.x;
+      state.panY = nextPan.y;
       ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
       redraw();
+    }
+
+    function withViewportTransform(callback) {
+      ctx.save();
+      ctx.translate(state.panX, state.panY);
+      ctx.scale(state.zoom, state.zoom);
+      callback();
+      ctx.restore();
+      ctx.globalCompositeOperation = "source-over";
+    }
+
+    function setStrokePaint(stroke) {
+      const erase = normalizeTool(stroke && stroke.tool) === "erase";
+      ctx.globalCompositeOperation = erase ? "destination-out" : "source-over";
+      ctx.strokeStyle = erase ? "rgba(0,0,0,1)" : stroke.color;
+      ctx.fillStyle = erase ? "rgba(0,0,0,1)" : stroke.color;
+      ctx.lineWidth = stroke.width;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
     }
 
     function drawStroke(stroke) {
       if (!stroke || !stroke.points || !stroke.points.length) return;
 
-      const points = stroke.points.map(toCanvasPoint);
-      ctx.strokeStyle = stroke.color;
-      ctx.lineWidth = stroke.width;
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
+      withViewportTransform(function() {
+        const points = stroke.points.map(toCanvasPoint);
+        setStrokePaint(stroke);
 
-      if (points.length === 1) {
-        const point = points[0];
-        ctx.fillStyle = stroke.color;
+        if (points.length === 1) {
+          const point = points[0];
+          ctx.beginPath();
+          ctx.arc(point.x, point.y, Math.max(stroke.width / 2, 1), 0, Math.PI * 2);
+          ctx.fill();
+          return;
+        }
+
         ctx.beginPath();
-        ctx.arc(point.x, point.y, Math.max(stroke.width / 2, 1), 0, Math.PI * 2);
-        ctx.fill();
-        return;
-      }
-
-      ctx.beginPath();
-      ctx.moveTo(points[0].x, points[0].y);
-      for (let i = 1; i < points.length; i += 1) {
-        ctx.lineTo(points[i].x, points[i].y);
-      }
-      ctx.stroke();
+        ctx.moveTo(points[0].x, points[0].y);
+        for (let i = 1; i < points.length; i += 1) {
+          ctx.lineTo(points[i].x, points[i].y);
+        }
+        ctx.stroke();
+      });
     }
 
     function redraw() {
@@ -273,7 +327,7 @@ const HTML = `<!doctype html>
       redraw();
     }
 
-    function getNormalizedCanvasPoint(event) {
+    function getEventClientPoint(event) {
       const rect = canvas.getBoundingClientRect();
       const touch = event.touches && event.touches[0]
         ? event.touches[0]
@@ -282,8 +336,23 @@ const HTML = `<!doctype html>
           : event;
 
       return {
-        x: rect.width > 0 ? clamp((touch.clientX - rect.left) / rect.width, 0, 1) : 0,
-        y: rect.height > 0 ? clamp((touch.clientY - rect.top) / rect.height, 0, 1) : 0,
+        x: Number(touch.clientX || 0),
+        y: Number(touch.clientY || 0),
+        rect,
+      };
+    }
+
+    function getNormalizedCanvasPoint(event) {
+      const point = getEventClientPoint(event);
+      const rect = point.rect;
+      const localX = point.x - rect.left;
+      const localY = point.y - rect.top;
+      const logicalX = (localX - state.panX) / Math.max(state.zoom, 0.1);
+      const logicalY = (localY - state.panY) / Math.max(state.zoom, 0.1);
+
+      return {
+        x: rect.width > 0 ? clamp(logicalX / rect.width, 0, 1) : 0,
+        y: rect.height > 0 ? clamp(logicalY / rect.height, 0, 1) : 0,
       };
     }
 
@@ -299,25 +368,27 @@ const HTML = `<!doctype html>
     }
 
     function drawPoint(point, color, width) {
-      const canvasPoint = toCanvasPoint(point);
-      ctx.fillStyle = color;
-      ctx.beginPath();
-      ctx.arc(canvasPoint.x, canvasPoint.y, Math.max(width / 2, 1), 0, Math.PI * 2);
-      ctx.fill();
+      const stroke = state.currentStroke || { tool: "draw", color: color, width: width };
+      withViewportTransform(function() {
+        const canvasPoint = toCanvasPoint(point);
+        setStrokePaint(stroke);
+        ctx.beginPath();
+        ctx.arc(canvasPoint.x, canvasPoint.y, Math.max(width / 2, 1), 0, Math.PI * 2);
+        ctx.fill();
+      });
     }
 
     function drawStrokeSegment(stroke, fromPoint, toPoint) {
       if (!stroke || !fromPoint || !toPoint) return;
-      const fromCanvasPoint = toCanvasPoint(fromPoint);
-      const toCanvasPointValue = toCanvasPoint(toPoint);
-      ctx.strokeStyle = stroke.color;
-      ctx.lineWidth = stroke.width;
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
-      ctx.beginPath();
-      ctx.moveTo(fromCanvasPoint.x, fromCanvasPoint.y);
-      ctx.lineTo(toCanvasPointValue.x, toCanvasPointValue.y);
-      ctx.stroke();
+      withViewportTransform(function() {
+        const fromCanvasPoint = toCanvasPoint(fromPoint);
+        const toCanvasPointValue = toCanvasPoint(toPoint);
+        setStrokePaint(stroke);
+        ctx.beginPath();
+        ctx.moveTo(fromCanvasPoint.x, fromCanvasPoint.y);
+        ctx.lineTo(toCanvasPointValue.x, toCanvasPointValue.y);
+        ctx.stroke();
+      });
     }
 
     function appendCurrentPoint(point) {
@@ -339,7 +410,47 @@ const HTML = `<!doctype html>
       drawStrokeSegment(state.currentStroke, prev, point);
     }
 
-    function startStroke(event) {
+    function clampPanValues(panX, panY, zoom) {
+      const safeZoom = Math.max(zoom, 1);
+      if (safeZoom <= 1.01) {
+        return { x: 0, y: 0 };
+      }
+
+      const minX = Math.min(0, state.canvasWidth - state.canvasWidth * safeZoom);
+      const minY = Math.min(0, state.canvasHeight - state.canvasHeight * safeZoom);
+      return {
+        x: clamp(panX, minX, 0),
+        y: clamp(panY, minY, 0),
+      };
+    }
+
+    function setViewport(nextZoom, nextPanX, nextPanY) {
+      state.zoom = clamp(Number(nextZoom) || 1, 1, 4);
+      const nextPan = clampPanValues(Number(nextPanX) || 0, Number(nextPanY) || 0, state.zoom);
+      state.panX = nextPan.x;
+      state.panY = nextPan.y;
+      redraw();
+    }
+
+    function zoomBy(factor) {
+      const oldZoom = state.zoom;
+      const nextZoom = clamp(oldZoom * factor, 1, 4);
+      const centerX = state.canvasWidth / 2;
+      const centerY = state.canvasHeight / 2;
+      const logicalCenterX = (centerX - state.panX) / oldZoom;
+      const logicalCenterY = (centerY - state.panY) / oldZoom;
+      setViewport(
+        nextZoom,
+        centerX - logicalCenterX * nextZoom,
+        centerY - logicalCenterY * nextZoom
+      );
+    }
+
+    function resetViewport() {
+      setViewport(1, 0, 0);
+    }
+
+    function startPan(event) {
       preventCanvasDefault(event);
       if (state.disabled) return;
       if (event.pointerId != null) {
@@ -348,21 +459,76 @@ const HTML = `<!doctype html>
           canvas.setPointerCapture(event.pointerId);
         } catch (e) {}
       }
+      const point = getEventClientPoint(event);
+      state.panning = true;
+      state.lastPanPoint = { x: point.x, y: point.y };
+    }
+
+    function movePan(event) {
+      preventCanvasDefault(event);
+      if (!state.panning || !state.lastPanPoint) return;
+      if (event.pointerId != null && state.activePointerId != null && event.pointerId !== state.activePointerId) {
+        return;
+      }
+
+      const point = getEventClientPoint(event);
+      const dx = point.x - state.lastPanPoint.x;
+      const dy = point.y - state.lastPanPoint.y;
+      state.lastPanPoint = { x: point.x, y: point.y };
+      setViewport(state.zoom, state.panX + dx, state.panY + dy);
+    }
+
+    function finishPan(event) {
+      preventCanvasDefault(event);
+      if (!state.panning) return;
+      if (event && event.pointerId != null && state.activePointerId != null && event.pointerId !== state.activePointerId) {
+        return;
+      }
+      if (state.activePointerId != null) {
+        try {
+          canvas.releasePointerCapture(state.activePointerId);
+        } catch (e) {}
+      }
+      state.panning = false;
+      state.activePointerId = null;
+      state.lastPanPoint = null;
+    }
+
+    function startStroke(event) {
+      preventCanvasDefault(event);
+      if (state.disabled) return;
+      if (state.tool === "move") {
+        startPan(event);
+        return;
+      }
+      if (event.pointerId != null) {
+        state.activePointerId = event.pointerId;
+        try {
+          canvas.setPointerCapture(event.pointerId);
+        } catch (e) {}
+      }
       const point = getNormalizedCanvasPoint(event);
+      const tool = normalizeTool(state.tool);
+      const width = tool === "erase" ? state.eraserWidth : state.width;
       state.drawing = true;
       state.currentStroke = {
         id: makeStrokeId(),
         uid: state.localUid,
-        color: state.color,
-        width: state.width,
+        tool: tool,
+        color: tool === "erase" ? "#FFFFFF" : state.color,
+        width: width,
         coordinateSpace: "normalized",
         points: [point],
       };
-      drawPoint(point, state.color, state.width);
+      drawPoint(point, state.currentStroke.color, state.currentStroke.width);
     }
 
     function moveStroke(event) {
       preventCanvasDefault(event);
+      if (state.panning) {
+        movePan(event);
+        return;
+      }
       if (!state.drawing || !state.currentStroke) return;
       if (event.pointerId != null && state.activePointerId != null && event.pointerId !== state.activePointerId) {
         return;
@@ -379,6 +545,10 @@ const HTML = `<!doctype html>
 
     function finishStroke(event) {
       preventCanvasDefault(event);
+      if (state.panning) {
+        finishPan(event);
+        return;
+      }
       if (!state.drawing || !state.currentStroke) return;
       if (event && event.pointerId != null && state.activePointerId != null && event.pointerId !== state.activePointerId) {
         return;
@@ -413,17 +583,28 @@ const HTML = `<!doctype html>
       if (data.type === "init" || data.type === "sync") {
         state.localUid = String(data.localUid || state.localUid || "");
         state.disabled = Boolean(data.disabled);
+        if (data.tool) state.tool = data.tool === "move" ? "move" : normalizeTool(data.tool);
         if (data.color) state.color = String(data.color);
         if (data.width) state.width = Number(data.width);
+        if (data.eraserWidth) state.eraserWidth = Number(data.eraserWidth);
         if (data.size) resizeCanvas(data.size.width, data.size.height);
         if (Array.isArray(data.strokes)) upsertStrokes(data.strokes);
         return;
       }
 
       if (data.type === "tool") {
+        if (data.tool) state.tool = data.tool === "move" ? "move" : normalizeTool(data.tool);
         if (data.color) state.color = String(data.color);
         if (data.width) state.width = Number(data.width);
+        if (data.eraserWidth) state.eraserWidth = Number(data.eraserWidth);
         if (typeof data.disabled === "boolean") state.disabled = data.disabled;
+        return;
+      }
+
+      if (data.type === "viewport") {
+        if (data.action === "zoomIn") zoomBy(1.25);
+        if (data.action === "zoomOut") zoomBy(0.8);
+        if (data.action === "reset") resetViewport();
         return;
       }
 
@@ -456,7 +637,7 @@ const HTML = `<!doctype html>
     }
 
     document.addEventListener("touchmove", function(event) {
-      if (state.drawing || event.target === canvas) preventCanvasDefault(event);
+      if (state.drawing || state.panning || event.target === canvas) preventCanvasDefault(event);
     }, { passive: false });
     document.addEventListener("contextmenu", preventCanvasDefault);
     document.addEventListener("selectstart", preventCanvasDefault);
@@ -484,6 +665,7 @@ export default function SharedCanvasWebView({
   onLocalStrokeBatch,
   onLoadError,
   onMessageParseError,
+  onCanvasControlError,
   disabled = false,
   disabledTitle,
   disabledBody,
@@ -494,8 +676,10 @@ export default function SharedCanvasWebView({
   const ref = useRef<WebView>(null);
   const [ready, setReady] = useState(false);
   const [canvasSize, setCanvasSize] = useState({ width: 1, height: 1 });
+  const [selectedTool, setSelectedTool] = useState<SharedCanvasMode>("draw");
   const [selectedColor, setSelectedColor] = useState(PALETTE[0]);
   const [selectedWidth, setSelectedWidth] = useState(BRUSHES[1]);
+  const [selectedEraserWidth, setSelectedEraserWidth] = useState(ERASERS[1]);
   const lastInjectedPayloadRef = useRef("");
 
   const normalizedStrokes = useMemo(
@@ -503,6 +687,7 @@ export default function SharedCanvasWebView({
       strokes.map((stroke) => ({
         id: stroke.id,
         uid: stroke.uid,
+        tool: stroke.tool ?? "draw",
         color: stroke.color,
         width: stroke.width,
         points: stroke.points.map((point) => ({
@@ -526,8 +711,10 @@ export default function SharedCanvasWebView({
       type: "sync",
       localUid,
       disabled,
+      tool: selectedTool,
       color: selectedColor,
       width: selectedWidth,
+      eraserWidth: selectedEraserWidth,
       size: canvasSize,
       strokes: normalizedStrokes,
     });
@@ -535,8 +722,10 @@ export default function SharedCanvasWebView({
     ready,
     localUid,
     disabled,
+    selectedTool,
     selectedColor,
     selectedWidth,
+    selectedEraserWidth,
     canvasSize.height,
     canvasSize.width,
     normalizedStrokes,
@@ -551,48 +740,188 @@ export default function SharedCanvasWebView({
     });
   };
 
+  const reportControlError = (
+    step: string,
+    message: string,
+    error?: unknown,
+    metadata: Record<string, unknown> = {}
+  ) => {
+    onCanvasControlError?.(step, message, error, {
+      tool: selectedTool,
+      ...metadata,
+    });
+  };
+
+  const applyTool = (tool: SharedCanvasMode) => {
+    try {
+      setSelectedTool(tool);
+      injectPayload({
+        type: "tool",
+        tool,
+        color: selectedColor,
+        width: selectedWidth,
+        eraserWidth: selectedEraserWidth,
+        disabled,
+      }, true);
+    } catch (error) {
+      reportControlError("canvasToolSwitchFailed", "Failed to switch Together canvas tool", error, {
+        nextTool: tool,
+      });
+    }
+  };
+
+  const applyColor = (color: string) => {
+    try {
+      setSelectedColor(color);
+      setSelectedTool("draw");
+      injectPayload({
+        type: "tool",
+        tool: "draw",
+        color,
+        width: selectedWidth,
+        eraserWidth: selectedEraserWidth,
+        disabled,
+      }, true);
+    } catch (error) {
+      reportControlError("canvasToolSwitchFailed", "Failed to switch Together canvas color", error, {
+        nextTool: "draw",
+      });
+    }
+  };
+
+  const applyBrushWidth = (width: number) => {
+    try {
+      setSelectedWidth(width);
+      setSelectedTool("draw");
+      injectPayload({
+        type: "tool",
+        tool: "draw",
+        color: selectedColor,
+        width,
+        eraserWidth: selectedEraserWidth,
+        disabled,
+      }, true);
+    } catch (error) {
+      reportControlError("canvasToolSwitchFailed", "Failed to switch Together canvas brush size", error, {
+        nextTool: "draw",
+      });
+    }
+  };
+
+  const applyEraserWidth = (width: number) => {
+    try {
+      setSelectedEraserWidth(width);
+      setSelectedTool("erase");
+      injectPayload({
+        type: "tool",
+        tool: "erase",
+        color: selectedColor,
+        width: selectedWidth,
+        eraserWidth: width,
+        disabled,
+      }, true);
+    } catch (error) {
+      reportControlError("canvasToolSwitchFailed", "Failed to switch Together canvas eraser size", error, {
+        nextTool: "erase",
+      });
+    }
+  };
+
+  const applyViewportAction = (action: "zoomIn" | "zoomOut" | "reset") => {
+    try {
+      injectPayload({ type: "viewport", action }, true);
+    } catch (error) {
+      reportControlError("canvasTransformFailed", "Failed to transform Together canvas viewport", error, {
+        viewportAction: action,
+      });
+    }
+  };
+
+  const toolOptions = [
+    { mode: "draw", label: toolLabels?.brushTool ?? "Brush", icon: "brush-outline" },
+    { mode: "erase", label: toolLabels?.eraserTool ?? "Eraser", icon: "remove-circle-outline" },
+    { mode: "move", label: toolLabels?.moveTool ?? "Move", icon: "move-outline" },
+  ] as const;
+
   const toolbar = (
     <View style={[styles.toolbar, fullscreen ? styles.toolbarFullscreen : null]}>
-        <View style={[styles.toolGroup, fullscreen ? styles.toolGroupFullscreen : null]}>
-          {toolLabels?.colors && !fullscreen ? (
-            <Text style={styles.toolLabel}>{toolLabels.colors}</Text>
-          ) : null}
-          <View style={[styles.colorRow, fullscreen ? styles.colorRowFullscreen : null]}>
-            {PALETTE.map((color, colorIndex) => {
-              const active = color === selectedColor;
-              return (
-                <Pressable
-                  key={color}
-                  accessibilityRole="button"
-                  accessibilityLabel={toolLabels?.colorNames?.[colorIndex] ?? color}
-                  disabled={disabled}
-                  onPress={() => setSelectedColor(color)}
-                  style={[
-                    styles.colorButton,
-                    fullscreen ? styles.colorButtonFullscreen : null,
-                    { backgroundColor: color },
-                    active && styles.colorButtonActive,
-                    disabled && styles.toolButtonDisabled,
-                  ]}
+      <View style={[styles.toolGroup, fullscreen ? styles.toolGroupFullscreen : null]}>
+        {toolLabels?.tools && !fullscreen ? (
+          <Text style={styles.toolLabel}>{toolLabels.tools}</Text>
+        ) : null}
+        <View style={styles.modeRow}>
+          {toolOptions.map((option) => {
+            const active = selectedTool === option.mode;
+            return (
+              <Pressable
+                key={option.mode}
+                accessibilityRole="button"
+                accessibilityLabel={option.label}
+                disabled={disabled}
+                onPress={() => applyTool(option.mode)}
+                style={[
+                  styles.modeButton,
+                  fullscreen ? styles.modeButtonFullscreen : null,
+                  active && styles.modeButtonActive,
+                  disabled && styles.toolButtonDisabled,
+                ]}
+              >
+                <Ionicons
+                  name={option.icon}
+                  size={fullscreen ? 17 : 18}
+                  color={active ? theme.colors.text : theme.colors.subtext}
                 />
-              );
-            })}
-          </View>
+                <Text style={[styles.modeButtonText, active && styles.modeButtonTextActive]}>
+                  {option.label}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
+      </View>
+
+      <View style={[styles.toolGroup, fullscreen ? styles.toolGroupFullscreen : null]}>
+        {toolLabels?.colors && !fullscreen ? (
+          <Text style={styles.toolLabel}>{toolLabels.colors}</Text>
+        ) : null}
+        <View style={[styles.colorRow, fullscreen ? styles.colorRowFullscreen : null]}>
+          {PALETTE.map((color, colorIndex) => {
+            const active = selectedTool === "draw" && color === selectedColor;
+            return (
+              <Pressable
+                key={color}
+                accessibilityRole="button"
+                accessibilityLabel={toolLabels?.colorNames?.[colorIndex] ?? color}
+                disabled={disabled}
+                onPress={() => applyColor(color)}
+                style={[
+                  styles.colorButton,
+                  fullscreen ? styles.colorButtonFullscreen : null,
+                  { backgroundColor: color },
+                  active && styles.colorButtonActive,
+                  disabled && styles.toolButtonDisabled,
+                ]}
+              />
+            );
+          })}
+        </View>
+      </View>
+
+      <View style={styles.sizeGrid}>
         <View style={[styles.toolGroup, fullscreen ? styles.toolGroupFullscreen : null]}>
           {toolLabels?.brush && !fullscreen ? (
             <Text style={styles.toolLabel}>{toolLabels.brush}</Text>
           ) : null}
           <View style={[styles.brushRow, fullscreen ? styles.brushRowFullscreen : null]}>
             {BRUSHES.map((width, brushIndex) => {
-              const active = width === selectedWidth;
+              const active = selectedTool === "draw" && width === selectedWidth;
               return (
                 <Pressable
                   key={width}
                   accessibilityRole="button"
                   accessibilityLabel={toolLabels?.brushSizes?.[brushIndex] ?? `${width}px`}
                   disabled={disabled}
-                  onPress={() => setSelectedWidth(width)}
+                  onPress={() => applyBrushWidth(width)}
                   style={[
                     styles.brushButton,
                     fullscreen ? styles.brushButtonFullscreen : null,
@@ -621,10 +950,89 @@ export default function SharedCanvasWebView({
             })}
           </View>
         </View>
-        {toolbarAccessory ? (
-          <View style={styles.toolbarAccessory}>{toolbarAccessory}</View>
-        ) : null}
+
+        <View style={[styles.toolGroup, fullscreen ? styles.toolGroupFullscreen : null]}>
+          {toolLabels?.eraser && !fullscreen ? (
+            <Text style={styles.toolLabel}>{toolLabels.eraser}</Text>
+          ) : null}
+          <View style={[styles.brushRow, fullscreen ? styles.brushRowFullscreen : null]}>
+            {ERASERS.map((width, eraserIndex) => {
+              const active = selectedTool === "erase" && width === selectedEraserWidth;
+              return (
+                <Pressable
+                  key={width}
+                  accessibilityRole="button"
+                  accessibilityLabel={toolLabels?.eraserSizes?.[eraserIndex] ?? `${width}px`}
+                  disabled={disabled}
+                  onPress={() => applyEraserWidth(width)}
+                  style={[
+                    styles.brushButton,
+                    fullscreen ? styles.brushButtonFullscreen : null,
+                    active && styles.brushButtonActive,
+                    disabled && styles.toolButtonDisabled,
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.eraserDot,
+                      {
+                        width: Math.max(8, width / 2),
+                        height: Math.max(8, width / 2),
+                        borderRadius: Math.max(4, width / 4),
+                      },
+                    ]}
+                  />
+                  {!fullscreen ? (
+                    <Text style={styles.brushSizeText}>
+                      {toolLabels?.eraserSizes?.[eraserIndex] ?? `${width}px`}
+                    </Text>
+                  ) : null}
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
       </View>
+
+      <View style={[styles.toolGroup, fullscreen ? styles.toolGroupFullscreen : null]}>
+        {toolLabels?.zoom && !fullscreen ? (
+          <Text style={styles.toolLabel}>{toolLabels.zoom}</Text>
+        ) : null}
+        <View style={styles.zoomRow}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={toolLabels?.zoomOut ?? "Zoom out"}
+            disabled={disabled}
+            onPress={() => applyViewportAction("zoomOut")}
+            style={[styles.zoomButton, disabled && styles.toolButtonDisabled]}
+          >
+            <Text style={styles.zoomButtonText}>−</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={toolLabels?.zoomIn ?? "Zoom in"}
+            disabled={disabled}
+            onPress={() => applyViewportAction("zoomIn")}
+            style={[styles.zoomButton, disabled && styles.toolButtonDisabled]}
+          >
+            <Text style={styles.zoomButtonText}>+</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={toolLabels?.resetZoom ?? "Reset zoom"}
+            disabled={disabled}
+            onPress={() => applyViewportAction("reset")}
+            style={[styles.resetZoomButton, disabled && styles.toolButtonDisabled]}
+          >
+            <Text style={styles.resetZoomText}>{toolLabels?.resetZoom ?? "Reset"}</Text>
+          </Pressable>
+        </View>
+      </View>
+
+      {toolbarAccessory ? (
+        <View style={styles.toolbarAccessory}>{toolbarAccessory}</View>
+      ) : null}
+    </View>
   );
 
   const canvas = (
@@ -657,8 +1065,10 @@ export default function SharedCanvasWebView({
                     type: "init",
                     localUid,
                     disabled,
+                    tool: selectedTool,
                     color: selectedColor,
                     width: selectedWidth,
+                    eraserWidth: selectedEraserWidth,
                     size: canvasSize,
                     strokes: normalizedStrokes,
                   }, true);
@@ -668,7 +1078,9 @@ export default function SharedCanvasWebView({
                   onLocalStrokeBatch?.(payload.strokes as SharedCanvasStroke[]);
                 }
               } catch {
-                onMessageParseError?.("canvas_webview_message_parse_failed");
+                onMessageParseError?.("canvas_webview_message_parse_failed", {
+                  tool: selectedTool,
+                });
               }
             }}
             source={{ html: HTML }}
@@ -752,6 +1164,42 @@ const styles = StyleSheet.create({
     letterSpacing: 0.7,
     textTransform: "uppercase",
   },
+  modeRow: {
+    flexDirection: "row",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  modeButton: {
+    minHeight: 42,
+    minWidth: 86,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    borderRadius: theme.shapes.cardInner,
+    paddingHorizontal: 10,
+    backgroundColor: theme.colors.pillBg,
+    borderWidth: 1,
+    borderColor: "transparent",
+  },
+  modeButtonFullscreen: {
+    minHeight: 34,
+    minWidth: 72,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+  },
+  modeButtonActive: {
+    borderColor: theme.colors.accent,
+    backgroundColor: theme.colors.accentSoft,
+  },
+  modeButtonText: {
+    color: theme.colors.subtext,
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  modeButtonTextActive: {
+    color: theme.colors.text,
+  },
   colorRow: {
     flexDirection: "row",
     gap: 10,
@@ -778,9 +1226,15 @@ const styles = StyleSheet.create({
   toolButtonDisabled: {
     opacity: 0.45,
   },
+  sizeGrid: {
+    flexDirection: "row",
+    gap: 12,
+    flexWrap: "wrap",
+  },
   brushRow: {
     flexDirection: "row",
     gap: 10,
+    flexWrap: "wrap",
   },
   brushRowFullscreen: {
     gap: 7,
@@ -811,9 +1265,51 @@ const styles = StyleSheet.create({
   brushDotDisabled: {
     backgroundColor: "rgba(255,255,255,0.7)",
   },
+  eraserDot: {
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "rgba(31,41,55,0.45)",
+  },
   brushSizeText: {
     color: theme.colors.subtext,
     fontSize: 10,
+    fontWeight: "800",
+  },
+  zoomRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  zoomButton: {
+    minWidth: 42,
+    minHeight: 38,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.colors.pillBg,
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+  },
+  zoomButtonText: {
+    color: theme.colors.text,
+    fontSize: 22,
+    lineHeight: 24,
+    fontWeight: "900",
+  },
+  resetZoomButton: {
+    minHeight: 38,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.colors.pillBg,
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+  },
+  resetZoomText: {
+    color: theme.colors.text,
+    fontSize: 12,
     fontWeight: "800",
   },
   canvasShell: {
