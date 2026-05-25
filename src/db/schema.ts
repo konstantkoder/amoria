@@ -376,6 +376,12 @@ export const togetherQueue = pgTable(
     status: text("status").default("waiting").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    cancelSource: text("cancel_source"),
+    cancelReason: text("cancel_reason"),
+    lastAction: text("last_action"),
+    lastActionAt: timestamp("last_action_at", { withTimezone: true }),
+    lastClientPollAt: timestamp("last_client_poll_at", { withTimezone: true }),
     matchedSessionId: uuid("matched_session_id").references(() => togetherSessions.id, {
       onDelete: "set null",
     }),
@@ -399,6 +405,10 @@ export const togetherQueue = pgTable(
     check(
       "together_queue_longitude_check",
       sql`${table.longitude} IS NULL OR (${table.longitude} >= -180 AND ${table.longitude} <= 180)`,
+    ),
+    check(
+      "together_queue_cancel_source_check",
+      sql`${table.cancelSource} IS NULL OR ${table.cancelSource} IN ('user_stop', 'user_back', 'retry_restart', 'radius_expansion', 'screen_cleanup', 'navigation_blur', 'admin_cancel', 'server_expired', 'matched', 'unknown')`,
     ),
   ],
 );

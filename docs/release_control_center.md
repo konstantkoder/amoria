@@ -1,6 +1,6 @@
 # Amoria Release Control Center
 
-Updated: 2026-05-24
+Updated: 2026-05-25
 
 ## Release Rules
 
@@ -23,6 +23,8 @@ Updated: 2026-05-24
 - Exact coordinates are never returned to peers, admin queue/session responses, DM, public profile, or client error reports.
 - Old waiting rows without coordinates are release-invalid and should expire or be cancelled through Admin Queue.
 - Search should remain waiting for late peer joins; users do not need to press start simultaneously.
+- PlayMatch must not cancel queue from cleanup, remount, focus/blur, route changes, or temporary backgrounding.
+- Queue cancellation must carry `cancelSource`; Admin Queue distinguishes `waitingReason` from true cancellation source.
 - Device/emulator GPS failures must explain that coordinates are unavailable and must not start queue.
 
 ## Admin Web Release Surface
@@ -41,7 +43,7 @@ Owner/ops/moderator/support roles should use Admin Web for release diagnostics:
 - Ops Health
 - Bootstrap
 
-Together Queue is the smoke-test control surface for waiting/matched/expired/cancelled queue rows, `radiusKm`, `hasCoordinates`, `geoMode`, `waitingReason`, waiting age, stale state, and audited waiting-row cancellation.
+Together Queue is the smoke-test control surface for waiting/matched/expired/cancelled queue rows, `radiusKm`, `hasCoordinates`, `geoMode`, `waitingReason`, `cancelSource`, `cancelReason`, `cancelledAt`, `lastAction`, waiting age, stale state, and audited waiting-row cancellation.
 
 Together Sessions is the smoke-test control surface for created, active, finished, abandoned, cancelled, and recently ended sessions, including zero-event sessions, stale heartbeat, participant counts, event counts, story choice counts, reveal summaries, and exit state.
 
@@ -57,6 +59,17 @@ Automated checks cannot replace the real two-client pass:
 6. Inspect Admin Sessions after match, exit, freeze, or abandon.
 7. Confirm peer avatar/photos render or emit safe media diagnostics.
 8. Confirm no exact coordinates appear in mobile UI, Admin Web, client errors, DM, history, or public profile.
+9. Confirm Client Errors include enough app/build/release metadata to identify the running build.
+
+## Build Verification
+
+- Clear Metro cache before smoke: `npx expo start -c`.
+- Set `EXPO_PUBLIC_RELEASE_VERSION` for the smoke build when an exact Git SHA is not injected automatically.
+- Native `app.json` changes, including Android `usesCleartextTraffic`, require a rebuilt/reinstalled dev/native build, not only JS reload.
+
+## Future Age Filter
+
+Together age filter is planned after Together start reliability is stable. `FlirtSettingsScreen` is not the Together age filter. Future block: `TOGETHER-AGE-FILTER-01`.
 
 ## Public Beta Blockers
 

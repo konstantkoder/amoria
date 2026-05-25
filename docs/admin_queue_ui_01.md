@@ -1,6 +1,6 @@
 # Admin Queue UI 01
 
-Updated: 2026-05-24 for required Together location matching.
+Updated: 2026-05-25 for Together cancel diagnostics.
 
 `GET /admin/together/queue` remains owner/ops-only and writes `admin.togetherQueue.read`.
 
@@ -15,13 +15,20 @@ Admin Web now has a Together Queue page that displays:
 - hasCoordinates;
 - geoMode;
 - waitingReason;
+- cancelSource;
+- cancelReason;
+- cancelledAt;
+- lastAction;
+- lastClientPollAt;
 - matchedSessionId.
 
 The response and UI intentionally omit latitude, longitude, exact location, tokens, and secrets.
 
-Helper text now states the release rule directly:
+Helper text now states the release and diagnostic rule directly:
 
 > New Together requests must have coordinates. Exact coordinates are not shown. No limit means no distance cap, not no geolocation.
+
+> Причина ожидания показывает, почему не найден кандидат. Источник отмены показывает, кто остановил запись очереди.
 
 The page filters by status, activity, radius, `geoMode`, and `hasCoordinates`, and has Load/Refresh actions. `matchedSessionId` links to the Together Sessions page filtered to that session. If the session endpoint does not return that id, Admin Web shows a clear diagnostic error instead of a silent empty page.
 
@@ -32,6 +39,16 @@ The page filters by status, activity, radius, `geoMode`, and `hasCoordinates`, a
 - `missing_location_invalid_old_entry`
 
 The invalid old-row label is `Старая запись без геолокации`. Waiting old rows can be cancelled with the existing audited cancel action.
+
+`waitingReason` is not the true cancellation source. It remains a matching diagnostic such as `candidate_cancelled`. The cancellation lifecycle is read from `cancelSource`, `cancelReason`, and `cancelledAt`.
+
+Suspicious cancel sources are highlighted:
+
+- `screen_cleanup`
+- `navigation_blur`
+- `unknown`
+
+Expected explicit sources include `user_stop`, `user_back`, `retry_restart`, `radius_expansion`, and `admin_cancel`.
 
 `waitingReason` values are safe derived diagnostics:
 
@@ -95,6 +112,6 @@ Body:
 }
 ```
 
-This is not a hard delete. It sets the queue row to `cancelled`, reloads the table, and writes audit action `admin.togetherQueue.cancel` with safe metadata only. Latitude and longitude are not exposed.
+This is not a hard delete. It sets the queue row to `cancelled`, sets `cancelSource=admin_cancel`, stores the required reason, reloads the table, and writes audit action `admin.togetherQueue.cancel` with safe metadata only. Latitude and longitude are not exposed.
 
 The helper text calls out common reasons two clients do not match: activity mismatch, old missing-location rows, finite radius too small, expired/cancelled rows, or different active activities.

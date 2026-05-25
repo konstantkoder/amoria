@@ -859,6 +859,7 @@ function TogetherQueueScreen({ onOpenSession }: { onOpenSession: (sessionId: str
       <div className="hint-list">
         <strong>{t("queue.whyNotMatchingTitle")}</strong>
         <span>{t("queue.whyNotMatchingBody")}</span>
+        <span>{t("queue.cancelDiagnosticsBody")}</span>
       </div>
       <form className="filters" onSubmit={(event) => { event.preventDefault(); void load(); }}>
         <label>{t("common.status")}<select value={filters.status} onChange={(event) => setFilters({ ...filters, status: event.target.value })}>
@@ -907,6 +908,10 @@ function TogetherQueueScreen({ onOpenSession }: { onOpenSession: (sessionId: str
               <th>{t("queue.hasCoordinates")}</th>
               <th>{t("queue.geoMode")}</th>
               <th>{t("queue.waitingReason")}</th>
+              <th>{t("queue.cancelSource")}</th>
+              <th>{t("queue.cancelReason")}</th>
+              <th>{t("queue.cancelledAt")}</th>
+              <th>{t("queue.lastAction")}</th>
               <th>{t("queue.stale")}</th>
               <th>{t("queue.matchedSessionId")}</th>
               <th>{t("common.action")}</th>
@@ -916,8 +921,9 @@ function TogetherQueueScreen({ onOpenSession }: { onOpenSession: (sessionId: str
             {items.map((item) => {
               const stale = isStaleQueueEntry(item);
               const invalidOldEntry = item.geoMode === "missing_location_invalid_old_entry";
+              const suspiciousCancel = isSuspiciousQueueCancel(item);
               return (
-              <tr key={item.entryId} className={stale || invalidOldEntry ? "warning-row" : ""}>
+              <tr key={item.entryId} className={stale || invalidOldEntry || suspiciousCancel ? "warning-row" : ""}>
                 <td>{formatDate(item.createdAt, language)}</td>
                 <td>{formatAgeSeconds(item.ageSeconds, t)}</td>
                 <td>{formatDate(item.expiresAt, language)}</td>
@@ -935,6 +941,14 @@ function TogetherQueueScreen({ onOpenSession }: { onOpenSession: (sessionId: str
                   ) : formatQueueGeoMode(item.geoMode, t)}
                 </td>
                 <td>{formatQueueWaitingReason(item.waitingReason, t)}</td>
+                <td>
+                  {suspiciousCancel ? (
+                    <span className="badge badge-warning">{formatQueueCancelSource(item.cancelSource, t)}</span>
+                  ) : formatQueueCancelSource(item.cancelSource, t)}
+                </td>
+                <td>{item.cancelReason ?? ""}</td>
+                <td>{item.cancelledAt ? formatDate(item.cancelledAt, language) : ""}</td>
+                <td>{formatQueueLastAction(item.lastAction, t)}</td>
                 <td>{stale ? <span className="badge badge-warning">{t("common.yes")}</span> : t("common.no")}</td>
                 <td>
                   {item.matchedSessionId ? (
@@ -1468,6 +1482,15 @@ function isStaleQueueEntry(item: TogetherQueueEntry): boolean {
   return expiresAt <= now || now - createdAt > 5 * 60 * 1000;
 }
 
+function isSuspiciousQueueCancel(item: TogetherQueueEntry): boolean {
+  return (
+    item.status === "cancelled" &&
+    (item.cancelSource === "screen_cleanup" ||
+      item.cancelSource === "navigation_blur" ||
+      item.cancelSource === "unknown")
+  );
+}
+
 function formatCount(value: number | null): string {
   return value === null ? "" : String(value);
 }
@@ -1586,6 +1609,61 @@ function formatQueueWaitingReason(reason: string, t: (key: TranslationKey) => st
       return t("queue.reasonUnknown");
     default:
       return reason;
+  }
+}
+
+function formatQueueCancelSource(
+  source: TogetherQueueEntry["cancelSource"],
+  t: (key: TranslationKey) => string,
+): string {
+  switch (source) {
+    case "user_stop":
+      return t("queue.cancelSourceUserStop");
+    case "user_back":
+      return t("queue.cancelSourceUserBack");
+    case "retry_restart":
+      return t("queue.cancelSourceRetryRestart");
+    case "radius_expansion":
+      return t("queue.cancelSourceRadiusExpansion");
+    case "screen_cleanup":
+      return t("queue.cancelSourceScreenCleanup");
+    case "navigation_blur":
+      return t("queue.cancelSourceNavigationBlur");
+    case "admin_cancel":
+      return t("queue.cancelSourceAdminCancel");
+    case "server_expired":
+      return t("queue.cancelSourceServerExpired");
+    case "matched":
+      return t("queue.cancelSourceMatched");
+    case "unknown":
+      return t("queue.cancelSourceUnknown");
+    case null:
+    default:
+      return "";
+  }
+}
+
+function formatQueueLastAction(
+  action: string | null,
+  t: (key: TranslationKey) => string,
+): string {
+  switch (action) {
+    case "queued":
+      return t("queue.lastActionQueued");
+    case "same_search_rejoin":
+      return t("queue.lastActionSameSearchRejoin");
+    case "client_poll":
+      return t("queue.lastActionClientPoll");
+    case "matched":
+      return t("queue.lastActionMatched");
+    case "cancelled":
+      return t("queue.lastActionCancelled");
+    case "expired":
+      return t("queue.lastActionExpired");
+    case null:
+      return "";
+    default:
+      return action;
   }
 }
 

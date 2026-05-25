@@ -9,6 +9,19 @@ export type TogetherQueueStatus = "waiting" | "matched" | "cancelled" | "expired
 export type TogetherSessionStatus = "active" | "finished" | "abandoned" | "cancelled";
 export type TogetherEventType = "stroke_batch" | "story_choice" | "system";
 export type TogetherRevealDecision = "open" | "skip" | "continue_story";
+export const TOGETHER_QUEUE_CANCEL_SOURCES = [
+  "user_stop",
+  "user_back",
+  "retry_restart",
+  "radius_expansion",
+  "screen_cleanup",
+  "navigation_blur",
+  "admin_cancel",
+  "server_expired",
+  "matched",
+  "unknown",
+] as const;
+export type TogetherQueueCancelSource = (typeof TOGETHER_QUEUE_CANCEL_SOURCES)[number];
 export type TogetherRevealOutcome =
   | "pending"
   | "open_open"
@@ -29,11 +42,19 @@ export type TogetherQueueBody = {
   location: TogetherQueueLocationBody;
 };
 
+export type TogetherQueueCancelBody = {
+  cancelSource?: TogetherQueueCancelSource;
+  cancelReason?: string;
+};
+
 export type TogetherQueueEntryDto = {
   id: string;
   status: TogetherQueueStatus;
   sessionId?: string;
+  createdAt: string;
   expiresAt: string;
+  cancelledAt?: string | null;
+  cancelSource?: TogetherQueueCancelSource | null;
 };
 
 export type TogetherQueueResponse = {

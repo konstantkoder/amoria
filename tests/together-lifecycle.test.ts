@@ -635,6 +635,35 @@ test("no-limit queue rejoin keeps equivalent active waiting attempt", () => {
   );
 });
 
+test("different same-user queue search classifies replacement cancel source", () => {
+  const { replacementCancelSource } = togetherRepo.__queueForTests;
+  const existing = queueRow({
+    userId: userAId,
+    activity: "draw",
+    status: "waiting",
+    radiusKm: 25,
+    latitude: 52.2297,
+    longitude: 21.0122,
+  });
+  const baseInput = {
+    userId: userAId,
+    activity: "draw",
+    promptText: "Draw together",
+    expiresAt: new Date("2026-01-01T00:05:10.000Z"),
+    latitude: 52.2297,
+    longitude: 21.0122,
+  };
+
+  assert.equal(
+    replacementCancelSource({ ...baseInput, radiusKm: 100 }, existing),
+    "radius_expansion",
+  );
+  assert.equal(
+    replacementCancelSource({ ...baseInput, radiusKm: 25, latitude: 52.23 }, existing),
+    "retry_restart",
+  );
+});
+
 test("admin queue waiting diagnostics explain why a waiting row has not matched", () => {
   const { getAdminQueueWaitingReason } = togetherRepo.__queueForTests;
   const now = new Date("2026-01-01T00:00:30.000Z");
@@ -760,6 +789,88 @@ test("draw queue retry delegates each attempt to the repository", async (t) => {
   assert.equal(second.statusCode, 200);
   assert.equal(callCount, 2);
   assert.notEqual(first.json().entry.id, second.json().entry.id);
+});
+
+test("queue cancel endpoint accepts trusted cancel source and returns safe diagnostics", async (t) => {
+  t.after(restoreRepoMock);
+  const app = buildApp();
+  t.after(async () => {
+    await app.close();
+  });
+
+  let cancelInput: { cancelSource?: string; cancelReason?: string | null } | undefined;
+  mockRepo({
+    cancelQueueEntryForOwner: async (
+      _entryId: string,
+      _userId: string,
+      input: { cancelSource: "user_stop"; cancelReason?: string | null },
+    ) => {
+      cancelInput = input;
+      return queueRow({
+        status: "cancelled",
+        cancelledAt: new Date("2026-01-01T00:00:20.000Z"),
+        cancelSource: input.cancelSource,
+        cancelReason: input.cancelReason ?? null,
+      });
+    },
+  });
+
+  const response = await app.inject({
+    method: "DELETE",
+    url: "/together/queue/00000000-0000-4000-8000-000000000210",
+    headers: {
+      Authorization: `Bearer ${signAccessToken(userAId)}`,
+    },
+    payload: {
+      cancelSource: "user_stop",
+      cancelReason: "User tapped stop search",
+    },
+  });
+  const bodyText = response.body;
+  const body = response.json();
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(cancelInput, {
+    cancelSource: "user_stop",
+    cancelReason: "User tapped stop search",
+  });
+  assert.equal(body.entry.status, "cancelled");
+  assert.equal(body.entry.cancelSource, "user_stop");
+  assert.equal(body.entry.createdAt, "2026-01-01T00:00:00.000Z");
+  assert.equal(body.entry.cancelledAt, "2026-01-01T00:00:20.000Z");
+  assert.equal(bodyText.includes("latitude"), false);
+  assert.equal(bodyText.includes("longitude"), false);
+});
+
+test("queue cancel endpoint rejects untrusted cancel source", async (t) => {
+  t.after(restoreRepoMock);
+  const app = buildApp();
+  t.after(async () => {
+    await app.close();
+  });
+
+  let cancelCalled = false;
+  mockRepo({
+    cancelQueueEntryForOwner: async () => {
+      cancelCalled = true;
+      return queueRow();
+    },
+  });
+
+  const response = await app.inject({
+    method: "DELETE",
+    url: "/together/queue/00000000-0000-4000-8000-000000000210",
+    headers: {
+      Authorization: `Bearer ${signAccessToken(userAId)}`,
+    },
+    payload: {
+      cancelSource: "not_allowed",
+      cancelReason: "bad",
+    },
+  });
+
+  assert.equal(response.statusCode, 400);
+  assert.equal(cancelCalled, false);
 });
 
 test("story_sparks queue passes geo filtering payload", async (t) => {
@@ -2166,6 +2277,12 @@ function queueRow(overrides: Partial<TogetherQueueRow> = {}): TogetherQueueRow {
     status: "waiting",
     createdAt,
     expiresAt: new Date("2026-01-01T00:05:00.000Z"),
+    cancelledAt: null,
+    cancelSource: null,
+    cancelReason: null,
+    lastAction: null,
+    lastActionAt: null,
+    lastClientPollAt: null,
     matchedSessionId: null,
     latitude: null,
     longitude: null,

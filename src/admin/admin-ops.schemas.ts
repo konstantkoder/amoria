@@ -27,6 +27,19 @@ const adminTogetherQueueWaitingReasonValues = [
   "unknown",
 ] as const;
 
+const adminTogetherQueueCancelSourceValues = [
+  "user_stop",
+  "user_back",
+  "retry_restart",
+  "radius_expansion",
+  "screen_cleanup",
+  "navigation_blur",
+  "admin_cancel",
+  "server_expired",
+  "matched",
+  "unknown",
+] as const;
+
 const adminTogetherQueueQuerySchema = z
   .object({
     status: z.string().trim().max(40).optional(),
@@ -195,6 +208,12 @@ const adminTogetherQueueEntrySchema = {
     "hasCoordinates",
     "geoMode",
     "waitingReason",
+    "cancelledAt",
+    "cancelSource",
+    "cancelReason",
+    "lastAction",
+    "lastActionAt",
+    "lastClientPollAt",
     "ageSeconds",
     "createdAt",
     "expiresAt",
@@ -222,6 +241,15 @@ const adminTogetherQueueEntrySchema = {
       type: "string",
       enum: adminTogetherQueueWaitingReasonValues,
     },
+    cancelledAt: { type: ["string", "null"], format: "date-time" },
+    cancelSource: {
+      type: ["string", "null"],
+      enum: [...adminTogetherQueueCancelSourceValues, null],
+    },
+    cancelReason: { type: ["string", "null"] },
+    lastAction: { type: ["string", "null"] },
+    lastActionAt: { type: ["string", "null"], format: "date-time" },
+    lastClientPollAt: { type: ["string", "null"], format: "date-time" },
     ageSeconds: { type: "integer", minimum: 0 },
     createdAt: { type: "string", format: "date-time" },
     expiresAt: { type: "string", format: "date-time" },

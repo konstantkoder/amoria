@@ -224,6 +224,23 @@ export type TogetherQueueEntry = {
     | "candidate_cancelled"
     | "location_required"
     | "unknown";
+  cancelledAt: string | null;
+  cancelSource:
+    | "user_stop"
+    | "user_back"
+    | "retry_restart"
+    | "radius_expansion"
+    | "screen_cleanup"
+    | "navigation_blur"
+    | "admin_cancel"
+    | "server_expired"
+    | "matched"
+    | "unknown"
+    | null;
+  cancelReason: string | null;
+  lastAction: string | null;
+  lastActionAt: string | null;
+  lastClientPollAt: string | null;
   ageSeconds: number;
   createdAt: string;
   expiresAt: string;

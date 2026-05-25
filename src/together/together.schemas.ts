@@ -17,8 +17,10 @@ import type {
   TogetherEventBody,
   TogetherHistoryQuery,
   TogetherQueueBody,
+  TogetherQueueCancelBody,
   TogetherRevealBody,
 } from "./together.types";
+import { TOGETHER_QUEUE_CANCEL_SOURCES } from "./together.types";
 
 const togetherRadiusKmSchema = z.union([
   z.literal(5),
@@ -37,6 +39,13 @@ export const togetherQueueBodySchema = z
         radiusKm: z.union([togetherRadiusKmSchema, z.null()]),
       })
       .strict(),
+  })
+  .strict();
+
+export const togetherQueueCancelBodySchema = z
+  .object({
+    cancelSource: z.enum(TOGETHER_QUEUE_CANCEL_SOURCES).optional(),
+    cancelReason: z.string().trim().min(1).max(500).optional(),
   })
   .strict();
 
@@ -81,6 +90,13 @@ export function parseTogetherQueueBody(input: unknown): TogetherQueueBody {
   return parseWithValidation(togetherQueueBodySchema, input);
 }
 
+export function parseTogetherQueueCancelBody(input: unknown): TogetherQueueCancelBody {
+  if (input === undefined || input === null || input === "") {
+    return {};
+  }
+  return parseWithValidation(togetherQueueCancelBodySchema, input);
+}
+
 export function parseTogetherEventBody(input: unknown): TogetherEventBody {
   return parseWithValidation(togetherEventBodySchema, input);
 }
@@ -104,13 +120,19 @@ const uuidParamSchema = {
 
 const queueEntrySchema = {
   type: "object",
-  required: ["id", "status", "expiresAt"],
+  required: ["id", "status", "createdAt", "expiresAt"],
   additionalProperties: false,
   properties: {
     id: { type: "string", format: "uuid" },
     status: { type: "string", enum: ["waiting", "matched", "cancelled", "expired"] },
     sessionId: { type: "string", format: "uuid" },
+    createdAt: { type: "string", format: "date-time" },
     expiresAt: { type: "string", format: "date-time" },
+    cancelledAt: { type: ["string", "null"], format: "date-time" },
+    cancelSource: {
+      type: ["string", "null"],
+      enum: [...TOGETHER_QUEUE_CANCEL_SOURCES, null],
+    },
   },
 } as const;
 
@@ -415,7 +437,18 @@ export const getTogetherQueueRouteSchema = {
   response: postTogetherQueueRouteSchema.response,
 } as const satisfies FastifySchema;
 
-export const deleteTogetherQueueRouteSchema = getTogetherQueueRouteSchema;
+export const deleteTogetherQueueRouteSchema = {
+  params: uuidParamSchema,
+  body: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      cancelSource: { type: "string", enum: TOGETHER_QUEUE_CANCEL_SOURCES },
+      cancelReason: { type: "string", minLength: 1, maxLength: 500 },
+    },
+  },
+  response: postTogetherQueueRouteSchema.response,
+} as const satisfies FastifySchema;
 
 export const getTogetherSessionRouteSchema = {
   params: uuidParamSchema,

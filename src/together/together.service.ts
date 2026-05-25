@@ -21,7 +21,9 @@ import type {
   TogetherEventResponse,
   TogetherHistoryResponse,
   TogetherQueueBody,
+  TogetherQueueCancelBody,
   TogetherQueueEntryDto,
+  TogetherQueueCancelSource,
   TogetherQueueResponse,
   TogetherQueueStatus,
   TogetherRevealBroadcastState,
@@ -193,8 +195,12 @@ export async function getQueueEntry(
 export async function cancelQueueEntry(
   userId: string,
   entryId: string,
+  input: TogetherQueueCancelBody = {},
 ): Promise<TogetherQueueResponse> {
-  const entry = await deps.repo.cancelQueueEntryForOwner(entryId, userId);
+  const entry = await deps.repo.cancelQueueEntryForOwner(entryId, userId, {
+    cancelSource: input.cancelSource ?? "unknown",
+    cancelReason: sanitizeCancelReason(input.cancelReason),
+  });
   if (!entry) {
     throw new AppError("not_found", "Queue entry not found", 404);
   }
@@ -562,8 +568,20 @@ function toQueueEntryDto(entry: TogetherQueueRow): TogetherQueueEntryDto {
     id: entry.id,
     status: entry.status as TogetherQueueStatus,
     ...(entry.matchedSessionId ? { sessionId: entry.matchedSessionId } : {}),
+    createdAt: entry.createdAt.toISOString(),
     expiresAt: entry.expiresAt.toISOString(),
+    ...(entry.cancelledAt ? { cancelledAt: entry.cancelledAt.toISOString() } : {}),
+    ...(entry.cancelSource ? { cancelSource: entry.cancelSource as TogetherQueueCancelSource } : {}),
   };
+}
+
+function sanitizeCancelReason(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim().replace(/\s+/g, " ");
+  return trimmed ? trimmed.slice(0, 500) : null;
 }
 
 function toSessionDto(session: TogetherSessionRow): TogetherSessionDto {

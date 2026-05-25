@@ -56,6 +56,12 @@ export type AdminTogetherQueueEntryDto = {
     | "finite_with_location"
     | "missing_location_invalid_old_entry";
   waitingReason: togetherRepo.AdminTogetherQueueWaitingReason;
+  cancelledAt: string | null;
+  cancelSource: togetherRepo.AdminTogetherQueueEntryRow["cancelSource"];
+  cancelReason: string | null;
+  lastAction: string | null;
+  lastActionAt: string | null;
+  lastClientPollAt: string | null;
   ageSeconds: number;
   createdAt: string;
   expiresAt: string;
@@ -258,7 +264,7 @@ export async function actionTogetherQueueEntryForAdmin(
   input: AdminTogetherQueueActionBody,
   requestContext: AdminRequestContext,
 ): Promise<AdminTogetherQueueActionResponse> {
-  const entry = await deps.togetherQueue.cancelQueueEntryForAdmin(entryId);
+  const entry = await deps.togetherQueue.cancelQueueEntryForAdmin(entryId, input.reason);
   if (!entry) {
     throw new AppError("not_found", "Together queue entry not found", 404);
   }
@@ -283,6 +289,9 @@ export async function actionTogetherQueueEntryForAdmin(
       hasCoordinates: entry.hasCoordinates,
       geoMode: entry.geoMode,
       waitingReason: entry.waitingReason,
+      cancelSource: entry.cancelSource,
+      cancelReason: entry.cancelReason,
+      cancelledAt: entry.cancelledAt?.toISOString() ?? null,
       reason: input.reason,
     },
     ...requestContext,
@@ -336,6 +345,12 @@ function toAdminTogetherQueueEntryDto(
     hasCoordinates: entry.hasCoordinates,
     geoMode: entry.geoMode,
     waitingReason: entry.waitingReason,
+    cancelledAt: entry.cancelledAt?.toISOString() ?? null,
+    cancelSource: entry.cancelSource,
+    cancelReason: entry.cancelReason,
+    lastAction: entry.lastAction,
+    lastActionAt: entry.lastActionAt?.toISOString() ?? null,
+    lastClientPollAt: entry.lastClientPollAt?.toISOString() ?? null,
     ageSeconds: entry.ageSeconds,
     createdAt: entry.createdAt.toISOString(),
     expiresAt: entry.expiresAt.toISOString(),

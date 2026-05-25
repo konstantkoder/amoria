@@ -1,6 +1,6 @@
 # Admin Web Regression Pass
 
-Updated: 2026-05-24
+Updated: 2026-05-25
 
 ## Pages Checked
 
@@ -20,6 +20,8 @@ Updated: 2026-05-24
 
 - Together Queue now shows `geoMode` and filters by activity, status, radius, `geoMode`, and `hasCoordinates`.
 - Together Queue helper text explains that new requests require coordinates and no-limit still uses geolocation.
+- Together Queue now distinguishes `waitingReason` from `cancelSource`, shows `cancelReason`, `cancelledAt`, and `lastAction`, and highlights suspicious lifecycle cancels.
+- Russian queue age label is now `Время в очереди`, not `Возраст`.
 - Old coordinate-less rows are labeled as old invalid entries without exposing coordinates.
 - Together Sessions shows top-level latest heartbeat and left timestamp in addition to participant-level diagnostics.
 
@@ -40,3 +42,7 @@ Updated: 2026-05-24
 ## Safety
 
 Admin Web must not show secrets, tokens, passwords, raw event payloads, private chat, locked media without audited reason, or exact coordinates.
+
+## Sessions Visibility
+
+If a queue row cancelled before match, Admin Sessions should not show a session for it. If `matchedSessionId` exists, the Sessions page should show the session newest-first, including zero-event sessions, stale heartbeat, participant `leftAt`, and `endedReason`.

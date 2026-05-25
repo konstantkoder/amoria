@@ -120,6 +120,13 @@
       "when": 1779382800000,
       "tag": "0016_together_queue_geo",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1779706800000,
+      "tag": "0017_together_queue_cancel_diagnostics",
+      "breakpoints": true
     }
   ]
 }

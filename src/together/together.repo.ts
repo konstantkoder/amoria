@@ -30,7 +30,7 @@ import {
   togetherSessions,
   users,
 } from "../db/schema";
-import type { TogetherParticipantDto } from "./together.types";
+import type { TogetherParticipantDto, TogetherQueueCancelSource } from "./together.types";
 
 type DbTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -67,10 +67,21 @@ export type AdminTogetherQueueEntryRow = {
   hasCoordinates: boolean;
   geoMode: AdminTogetherQueueGeoMode;
   waitingReason: AdminTogetherQueueWaitingReason;
+  cancelledAt: Date | null;
+  cancelSource: TogetherQueueCancelSource | null;
+  cancelReason: string | null;
+  lastAction: string | null;
+  lastActionAt: Date | null;
+  lastClientPollAt: Date | null;
   ageSeconds: number;
   createdAt: Date;
   expiresAt: Date;
   matchedSessionId: string | null;
+};
+
+export type QueueCancelInput = {
+  cancelSource: TogetherQueueCancelSource;
+  cancelReason?: string | null;
 };
 
 export type AdminTogetherQueueGeoMode =
@@ -162,6 +173,15 @@ export async function enqueueAndMatch(input: EnqueueInput): Promise<TogetherQueu
       .for("update");
 
     if (existing && isSameQueueSearch(input, existing)) {
+      const [rejoined] = await tx
+        .update(togetherQueue)
+        .set({
+          lastAction: "same_search_rejoin",
+          lastActionAt: now,
+        })
+        .where(eq(togetherQueue.id, existing.id))
+        .returning();
+      const activeExisting = rejoined ?? existing;
       const peers = await tx
         .select()
         .from(togetherQueue)
@@ -176,19 +196,22 @@ export async function enqueueAndMatch(input: EnqueueInput): Promise<TogetherQueu
         .orderBy(asc(togetherQueue.createdAt))
         .limit(50)
         .for("update", { skipLocked: true });
-      const peer = peers.find((candidate) => areQueueEntriesGeoCompatible(existing, candidate));
+      const peer = peers.find((candidate) => areQueueEntriesGeoCompatible(activeExisting, candidate));
 
       if (!peer) {
-        return existing;
+        return activeExisting;
       }
 
-      return createMatchedSessionForEntries(tx, input, existing, peer, now);
+      return createMatchedSessionForEntries(tx, input, activeExisting, peer, now);
     }
 
     if (existing) {
       await tx
         .update(togetherQueue)
-        .set({ status: "cancelled" })
+        .set(queueCancelledUpdate(now, {
+          cancelSource: replacementCancelSource(input, existing),
+          cancelReason: "same_user_replaced_with_new_search",
+        }))
         .where(eq(togetherQueue.id, existing.id));
     }
 
@@ -218,6 +241,8 @@ export async function enqueueAndMatch(input: EnqueueInput): Promise<TogetherQueu
         longitude: input.longitude ?? null,
         radiusKm: input.radiusKm ?? null,
         locationUpdatedAt: input.locationUpdatedAt ?? null,
+        lastAction: "queued",
+        lastActionAt: now,
       })
       .returning();
 
@@ -263,6 +288,8 @@ async function createMatchedSessionForEntries(
     .set({
       status: "matched",
       matchedSessionId: session.id,
+      lastAction: "matched",
+      lastActionAt: now,
     })
     .where(eq(togetherQueue.id, peer.id));
 
@@ -271,6 +298,8 @@ async function createMatchedSessionForEntries(
     .set({
       status: "matched",
       matchedSessionId: session.id,
+      lastAction: "matched",
+      lastActionAt: now,
     })
     .where(eq(togetherQueue.id, currentEntry.id))
     .returning();
@@ -282,7 +311,8 @@ export async function findQueueEntryForOwner(
   entryId: string,
   userId: string,
 ): Promise<TogetherQueueRow | undefined> {
-  await expireWaitingEntries(new Date());
+  const now = new Date();
+  await expireWaitingEntries(now);
 
   const [entry] = await db
     .select()
@@ -290,12 +320,26 @@ export async function findQueueEntryForOwner(
     .where(and(eq(togetherQueue.id, entryId), eq(togetherQueue.userId, userId)))
     .limit(1);
 
+  if (entry?.status === "waiting") {
+    const [polled] = await db
+      .update(togetherQueue)
+      .set({
+        lastClientPollAt: now,
+        lastAction: "client_poll",
+        lastActionAt: now,
+      })
+      .where(and(eq(togetherQueue.id, entryId), eq(togetherQueue.userId, userId), eq(togetherQueue.status, "waiting")))
+      .returning();
+    return polled ?? entry;
+  }
+
   return entry;
 }
 
 export async function cancelQueueEntryForOwner(
   entryId: string,
   userId: string,
+  input: QueueCancelInput = { cancelSource: "unknown" },
 ): Promise<TogetherQueueRow | undefined> {
   return db.transaction(async (tx) => {
     const now = new Date();
@@ -319,7 +363,7 @@ export async function cancelQueueEntryForOwner(
 
     const [cancelled] = await tx
       .update(togetherQueue)
-      .set({ status: "cancelled" })
+      .set(queueCancelledUpdate(now, input))
       .where(eq(togetherQueue.id, entry.id))
       .returning();
 
@@ -763,6 +807,12 @@ export async function listQueueEntriesForAdmin(
       radiusKm: togetherQueue.radiusKm,
       latitude: togetherQueue.latitude,
       longitude: togetherQueue.longitude,
+      cancelledAt: togetherQueue.cancelledAt,
+      cancelSource: togetherQueue.cancelSource,
+      cancelReason: togetherQueue.cancelReason,
+      lastAction: togetherQueue.lastAction,
+      lastActionAt: togetherQueue.lastActionAt,
+      lastClientPollAt: togetherQueue.lastClientPollAt,
       createdAt: togetherQueue.createdAt,
       expiresAt: togetherQueue.expiresAt,
       matchedSessionId: togetherQueue.matchedSessionId,
@@ -783,6 +833,7 @@ export async function listQueueEntriesForAdmin(
 
 export async function cancelQueueEntryForAdmin(
   entryId: string,
+  reason: string,
 ): Promise<AdminTogetherQueueEntryRow | undefined> {
   return db.transaction(async (tx) => {
     const now = new Date();
@@ -800,6 +851,12 @@ export async function cancelQueueEntryForAdmin(
         radiusKm: togetherQueue.radiusKm,
         latitude: togetherQueue.latitude,
         longitude: togetherQueue.longitude,
+        cancelledAt: togetherQueue.cancelledAt,
+        cancelSource: togetherQueue.cancelSource,
+        cancelReason: togetherQueue.cancelReason,
+        lastAction: togetherQueue.lastAction,
+        lastActionAt: togetherQueue.lastActionAt,
+        lastClientPollAt: togetherQueue.lastClientPollAt,
         createdAt: togetherQueue.createdAt,
         expiresAt: togetherQueue.expiresAt,
         matchedSessionId: togetherQueue.matchedSessionId,
@@ -820,7 +877,10 @@ export async function cancelQueueEntryForAdmin(
 
     const [cancelled] = await tx
       .update(togetherQueue)
-      .set({ status: "cancelled" })
+      .set(queueCancelledUpdate(now, {
+        cancelSource: "admin_cancel",
+        cancelReason: reason,
+      }))
       .where(eq(togetherQueue.id, entryId))
       .returning({
         entryId: togetherQueue.id,
@@ -830,6 +890,12 @@ export async function cancelQueueEntryForAdmin(
         radiusKm: togetherQueue.radiusKm,
         latitude: togetherQueue.latitude,
         longitude: togetherQueue.longitude,
+        cancelledAt: togetherQueue.cancelledAt,
+        cancelSource: togetherQueue.cancelSource,
+        cancelReason: togetherQueue.cancelReason,
+        lastAction: togetherQueue.lastAction,
+        lastActionAt: togetherQueue.lastActionAt,
+        lastClientPollAt: togetherQueue.lastClientPollAt,
         createdAt: togetherQueue.createdAt,
         expiresAt: togetherQueue.expiresAt,
         matchedSessionId: togetherQueue.matchedSessionId,
@@ -1025,6 +1091,12 @@ function toAdminTogetherQueueEntry(row: {
   radiusKm: number | null;
   latitude?: number | null;
   longitude?: number | null;
+  cancelledAt?: Date | null;
+  cancelSource?: string | null;
+  cancelReason?: string | null;
+  lastAction?: string | null;
+  lastActionAt?: Date | null;
+  lastClientPollAt?: Date | null;
   createdAt: Date;
   expiresAt: Date;
   matchedSessionId: string | null;
@@ -1040,6 +1112,12 @@ function toAdminTogetherQueueEntry(row: {
     hasCoordinates: hasCoordinates(row),
     geoMode: getAdminQueueGeoMode(row),
     waitingReason: getAdminQueueWaitingReason(row, diagnostics, now),
+    cancelledAt: row.cancelledAt ?? null,
+    cancelSource: normalizeCancelSource(row.cancelSource),
+    cancelReason: row.cancelReason ?? null,
+    lastAction: row.lastAction ?? null,
+    lastActionAt: row.lastActionAt ?? null,
+    lastClientPollAt: row.lastClientPollAt ?? null,
     ageSeconds: Math.max(0, Math.floor((now.getTime() - row.createdAt.getTime()) / 1000)),
     createdAt: row.createdAt,
     expiresAt: row.expiresAt,
@@ -1055,6 +1133,12 @@ type QueueDiagnosticRow = {
   radiusKm: number | null;
   latitude?: number | null;
   longitude?: number | null;
+  cancelledAt?: Date | null;
+  cancelSource?: string | null;
+  cancelReason?: string | null;
+  lastAction?: string | null;
+  lastActionAt?: Date | null;
+  lastClientPollAt?: Date | null;
   createdAt: Date;
   expiresAt: Date;
   matchedSessionId: string | null;
@@ -1071,6 +1155,12 @@ async function listQueueDiagnosticsForAdmin(now: Date): Promise<QueueDiagnosticR
       radiusKm: togetherQueue.radiusKm,
       latitude: togetherQueue.latitude,
       longitude: togetherQueue.longitude,
+      cancelledAt: togetherQueue.cancelledAt,
+      cancelSource: togetherQueue.cancelSource,
+      cancelReason: togetherQueue.cancelReason,
+      lastAction: togetherQueue.lastAction,
+      lastActionAt: togetherQueue.lastActionAt,
+      lastClientPollAt: togetherQueue.lastClientPollAt,
       createdAt: togetherQueue.createdAt,
       expiresAt: togetherQueue.expiresAt,
       matchedSessionId: togetherQueue.matchedSessionId,
@@ -1084,21 +1174,21 @@ async function listQueueDiagnosticsForAdmin(now: Date): Promise<QueueDiagnosticR
 async function expireWaitingEntries(now: Date): Promise<void> {
   await db
     .update(togetherQueue)
-    .set({ status: "expired" })
+    .set(queueExpiredUpdate(now))
     .where(and(eq(togetherQueue.status, "waiting"), lte(togetherQueue.expiresAt, now)));
 }
 
 async function expireWaitingEntriesTx(tx: DbTransaction, now: Date): Promise<void> {
   await tx
     .update(togetherQueue)
-    .set({ status: "expired" })
+    .set(queueExpiredUpdate(now))
     .where(and(eq(togetherQueue.status, "waiting"), lte(togetherQueue.expiresAt, now)));
 }
 
 async function expireWaitingEntriesForMatching(tx: DbTransaction, now: Date): Promise<void> {
   await tx
     .update(togetherQueue)
-    .set({ status: "expired" })
+    .set(queueExpiredUpdate(now))
     .where(
       and(
         eq(togetherQueue.status, "waiting"),
@@ -1116,6 +1206,36 @@ type QueueGeoInput = {
   longitude?: number | null;
   radiusKm?: number | null;
 };
+
+function queueCancelledUpdate(now: Date, input: QueueCancelInput) {
+  return {
+    status: "cancelled",
+    cancelledAt: now,
+    cancelSource: input.cancelSource,
+    cancelReason: input.cancelReason ?? null,
+    lastAction: "cancelled",
+    lastActionAt: now,
+  };
+}
+
+function queueExpiredUpdate(now: Date) {
+  return {
+    status: "expired",
+    lastAction: "expired",
+    lastActionAt: now,
+  };
+}
+
+function replacementCancelSource(
+  current: EnqueueInput,
+  existing: TogetherQueueRow,
+): TogetherQueueCancelSource {
+  if (!sameNullableNumber(existing.radiusKm, current.radiusKm ?? null)) {
+    return "radius_expansion";
+  }
+
+  return "retry_restart";
+}
 
 function areQueueEntriesGeoCompatible(
   current: QueueGeoInput,
@@ -1176,6 +1296,24 @@ function hasCoordinates(
     typeof value.longitude === "number" &&
     Number.isFinite(value.longitude)
   );
+}
+
+function normalizeCancelSource(value?: string | null): TogetherQueueCancelSource | null {
+  switch (value) {
+    case "user_stop":
+    case "user_back":
+    case "retry_restart":
+    case "radius_expansion":
+    case "screen_cleanup":
+    case "navigation_blur":
+    case "admin_cancel":
+    case "server_expired":
+    case "matched":
+    case "unknown":
+      return value;
+    default:
+      return null;
+  }
 }
 
 function getAdminQueueGeoMode(row: QueueGeoInput): AdminTogetherQueueGeoMode {
@@ -1307,4 +1445,5 @@ export const __geoForTests = {
 export const __queueForTests = {
   getAdminQueueWaitingReason,
   isSameQueueSearch,
+  replacementCancelSource,
 };

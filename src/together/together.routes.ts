@@ -12,6 +12,7 @@ import {
   parseTogetherEventBody,
   parseTogetherHistoryQuery,
   parseTogetherQueueBody,
+  parseTogetherQueueCancelBody,
   parseTogetherRevealBody,
   postTogetherEventRouteSchema,
   postTogetherFinishRouteSchema,
@@ -57,7 +58,12 @@ export async function togetherRoutes(fastify: FastifyInstance): Promise<void> {
       preHandler: authMiddleware,
       schema: withErrorResponses(deleteTogetherQueueRouteSchema),
     },
-    async (request) => togetherService.cancelQueueEntry(currentUserId(request), request.params.id),
+    async (request) =>
+      togetherService.cancelQueueEntry(
+        currentUserId(request),
+        request.params.id,
+        parseTogetherQueueCancelBody(request.body),
+      ),
   );
 
   fastify.get<{ Params: { id: string } }>(
