@@ -1107,6 +1107,8 @@
   "play.match.pollRetrying": "Проблема соединения, пробуем снова.",
   "play.match.restartSearch": "Остановить и начать заново",
   "play.match.expandRadius": "Расширить радиус",
+  "play.match.expandRadiusConfirmTitle": "Расширить радиус?",
+  "play.match.expandRadiusConfirmBody": "Текущий поиск будет остановлен, затем начнётся новый поиск с большим радиусом.",
   "play.match.locationReady": "Геолокация готова",
   "play.match.locationNotReady": "Геолокация не готова",
   "play.challenge.draw.rainHideout": "Нарисуйте место, где хотелось бы спрятаться от дождя.",

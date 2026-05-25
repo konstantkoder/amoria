@@ -11,7 +11,6 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import * as Device from "expo-device";
 import {
-  type EventArg,
   useNavigation,
   useRoute,
 } from "@react-navigation/native";
@@ -30,6 +29,7 @@ import {
 import * as togetherApi from "@/services/api/togetherApi";
 import type {
   TogetherActivity,
+  TogetherQueueCancelSource,
   TogetherQueueEntry,
   TogetherQueueLocationInput,
 } from "@/services/api/types";
@@ -76,6 +76,11 @@ function formatQueueExpiresAt(value: string) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function queueStartedAtFromEntry(entry: TogetherQueueEntry) {
+  const createdAt = Date.parse(entry.createdAt);
+  return Number.isFinite(createdAt) ? createdAt : Date.now();
 }
 
 function getLocationMetadata(location?: TogetherQueueLocationInput) {
@@ -252,6 +257,9 @@ export default function PlayMatchScreen() {
   const entryIdRef = React.useRef("");
   const matchedRef = React.useRef(false);
   const cancelRequestedRef = React.useRef(false);
+  const userRequestedExitRef = React.useRef(false);
+  const userRequestedRestartRef = React.useRef(false);
+  const radiusExpansionRef = React.useRef(false);
   const autoStartedRef = React.useRef(false);
   const inFlightRef = React.useRef(false);
   const invalidActivityReportedRef = React.useRef(false);
@@ -279,12 +287,36 @@ export default function PlayMatchScreen() {
     }
   }, [activity, navigation]);
 
-  const cancelCurrentQueue = React.useCallback(async (reportFailure = false) => {
+  const isQueueCancellationAllowed = React.useCallback((
+    cancelSource: TogetherQueueCancelSource
+  ) => {
+    switch (cancelSource) {
+      case "user_stop":
+      case "user_back":
+        return userRequestedExitRef.current;
+      case "retry_restart":
+        return userRequestedRestartRef.current;
+      case "radius_expansion":
+        return radiusExpansionRef.current;
+      default:
+        return false;
+    }
+  }, []);
+
+  const cancelCurrentQueue = React.useCallback(async (
+    cancelSource: TogetherQueueCancelSource,
+    reportFailure = false
+  ) => {
     const entryId = entryIdRef.current;
     if (!entryId || matchedRef.current || cancelRequestedRef.current) return;
+    if (!isQueueCancellationAllowed(cancelSource)) return;
     cancelRequestedRef.current = true;
     try {
-      await togetherApi.cancelQueue(entryId);
+      const response = await togetherApi.cancelQueue(entryId, { cancelSource });
+      setEntry(response.entry);
+      if (response.entry.status === "cancelled") {
+        setStatusKey("cancelled");
+      }
     } catch (error) {
       if (!reportFailure) return;
 
@@ -299,6 +331,8 @@ export default function PlayMatchScreen() {
         metadata: {
           activity: activity ?? null,
           entryIdExists: Boolean(entryId),
+          queueEntryId: entryId,
+          cancelSource,
           status: statusKey,
         },
       });
@@ -310,7 +344,7 @@ export default function PlayMatchScreen() {
         )
       );
     }
-  }, [activity, statusKey, tt]);
+  }, [activity, isQueueCancellationAllowed, statusKey, tt]);
 
   const resolveLocationForQueue = React.useCallback(async (
     locationForRequest: TogetherQueueLocationInput | undefined,
@@ -373,14 +407,18 @@ export default function PlayMatchScreen() {
     return null;
   }, [activeQueueLocation?.radiusKm, activity, tt]);
 
-  const exitToMainTabs = React.useCallback(async () => {
+  const exitToMainTabs = React.useCallback(async (
+    cancelSource: TogetherQueueCancelSource = "user_back"
+  ) => {
     if (exiting) return;
+    userRequestedExitRef.current = true;
     setExiting(true);
     try {
-      await cancelCurrentQueue(true);
+      await cancelCurrentQueue(cancelSource, true);
     } finally {
       goToTogether();
       setExiting(false);
+      userRequestedExitRef.current = false;
     }
   }, [cancelCurrentQueue, exiting, goToTogether]);
 
@@ -413,6 +451,7 @@ export default function PlayMatchScreen() {
       setActiveQueueLocation(preparedLocation);
       const response = await togetherApi.joinQueue(activity, preparedLocation);
       entryIdRef.current = response.entry.id;
+      setQueueStartedAt(queueStartedAtFromEntry(response.entry));
       setEntry(response.entry);
       if (response.entry.status === "matched" && response.entry.sessionId) {
         matchedRef.current = true;
@@ -571,33 +610,26 @@ export default function PlayMatchScreen() {
     };
   }, [activity, activeQueueLocation, entry?.id, navigation, queueStartedAt, statusKey, tt]);
 
-  React.useEffect(() => {
-    const unsubscribe = navigation.addListener(
-      "beforeRemove",
-      (_event: EventArg<"beforeRemove", true, undefined>) => {
-        void cancelCurrentQueue();
-      }
-    );
-    return unsubscribe;
-  }, [cancelCurrentQueue, navigation]);
-
-  React.useEffect(() => {
-    return () => {
-      void cancelCurrentQueue();
-    };
-  }, [cancelCurrentQueue]);
-
   const restartQueue = React.useCallback(async (
     locationForRequest?: TogetherQueueLocationInput,
     reason: "retry" | "expandRadius" = "retry"
   ) => {
     if (busy || inFlightRef.current) return;
-    await cancelCurrentQueue(true);
+    const cancelSource: TogetherQueueCancelSource =
+      reason === "expandRadius" ? "radius_expansion" : "retry_restart";
+    userRequestedRestartRef.current = reason === "retry";
+    radiusExpansionRef.current = reason === "expandRadius";
+    await cancelCurrentQueue(cancelSource, true);
     entryIdRef.current = "";
     cancelRequestedRef.current = false;
     matchedRef.current = false;
     setEntry(null);
-    await startQueue(locationForRequest, reason);
+    try {
+      await startQueue(locationForRequest, reason);
+    } finally {
+      userRequestedRestartRef.current = false;
+      radiusExpansionRef.current = false;
+    }
   }, [busy, cancelCurrentQueue, startQueue]);
 
   const retry = React.useCallback(() => {
@@ -605,23 +637,45 @@ export default function PlayMatchScreen() {
   }, [activeQueueLocation, restartQueue]);
 
   const expandRadius = React.useCallback(() => {
-    if (!hasTogetherQueueCoordinates(activeQueueLocation)) {
-      void restartQueue(undefined, "expandRadius");
-      return;
-    }
-    const nextRadiusKm = nextExpandedRadius(activeQueueLocation.radiusKm);
-    void restartQueue(
-      {
-        latitude: activeQueueLocation.latitude,
-        longitude: activeQueueLocation.longitude,
-        radiusKm: nextRadiusKm,
-      },
-      "expandRadius"
+    const runExpansion = () => {
+      if (!hasTogetherQueueCoordinates(activeQueueLocation)) {
+        void restartQueue(undefined, "expandRadius");
+        return;
+      }
+      const nextRadiusKm = nextExpandedRadius(activeQueueLocation.radiusKm);
+      void restartQueue(
+        {
+          latitude: activeQueueLocation.latitude,
+          longitude: activeQueueLocation.longitude,
+          radiusKm: nextRadiusKm,
+        },
+        "expandRadius"
+      );
+    };
+
+    Alert.alert(
+      tt("play.match.expandRadiusConfirmTitle", "Расширить радиус?"),
+      tt(
+        "play.match.expandRadiusConfirmBody",
+        "Текущий поиск будет остановлен, затем начнётся новый поиск с большим радиусом."
+      ),
+      [
+        { text: tt("common.cancel", "Отмена"), style: "cancel" },
+        {
+          text: tt("play.match.expandRadius", "Расширить радиус"),
+          style: "destructive",
+          onPress: runExpansion,
+        },
+      ]
     );
-  }, [activeQueueLocation, restartQueue]);
+  }, [activeQueueLocation, restartQueue, tt]);
 
   const handleBack = React.useCallback(() => {
-    void exitToMainTabs();
+    void exitToMainTabs("user_back");
+  }, [exitToMainTabs]);
+
+  const handleStopSearch = React.useCallback(() => {
+    void exitToMainTabs("user_stop");
   }, [exitToMainTabs]);
 
   const blockedTitle = !uid
@@ -659,6 +713,7 @@ export default function PlayMatchScreen() {
   }
 
   const meta = getMatchStateMeta(statusKey, tt);
+  const isActiveSearch = statusKey === "searching" || statusKey === "delayed";
   const canRetry = statusKey === "error" || statusKey === "expired" || statusKey === "cancelled";
   const activeRadiusKm = activeQueueLocation
     ? activeQueueLocation.radiusKm
@@ -724,9 +779,23 @@ export default function PlayMatchScreen() {
               : tt("play.match.locationNotReady", "Геолокация не готова")}
           </Text>
           <View style={styles.actions}>
-            {canExpandRadius ? (
-              <Pressable style={styles.primaryButton} onPress={expandRadius} disabled={busy}>
+            {isActiveSearch ? (
+              <Pressable
+                style={[styles.primaryButton, exiting ? styles.buttonDisabled : null]}
+                onPress={handleStopSearch}
+                disabled={exiting}
+                accessibilityRole="button"
+              >
                 <Text style={styles.primaryButtonText}>
+                  {exiting
+                    ? tt("common.exiting", "Выходим…")
+                    : tt("play.match.stopSearch", "Остановить поиск")}
+                </Text>
+              </Pressable>
+            ) : null}
+            {canExpandRadius ? (
+              <Pressable style={styles.secondaryButton} onPress={expandRadius} disabled={busy}>
+                <Text style={styles.secondaryButtonText}>
                   {tt("play.match.expandRadius", "Расширить радиус")}
                 </Text>
               </Pressable>
@@ -738,22 +807,20 @@ export default function PlayMatchScreen() {
                 </Text>
               </Pressable>
             ) : null}
-            <Pressable
-              style={[styles.secondaryButton, exiting ? styles.buttonDisabled : null]}
-              onPress={handleBack}
-              disabled={exiting}
-              accessibilityRole="button"
-            >
-              <Text style={styles.secondaryButtonText}>
-                {exiting
-                  ? tt("common.exiting", "Выходим…")
-                  : statusKey === "delayed"
-                    ? tt("play.match.stopSearch", "Остановить поиск")
-                    : statusKey === "searching"
-                      ? tt("play.match.stopSearch", "Остановить поиск")
-                      : tt("common.backToMainTabs", "Вернуться в меню")}
-              </Text>
-            </Pressable>
+            {!isActiveSearch ? (
+              <Pressable
+                style={[styles.secondaryButton, exiting ? styles.buttonDisabled : null]}
+                onPress={handleBack}
+                disabled={exiting}
+                accessibilityRole="button"
+              >
+                <Text style={styles.secondaryButtonText}>
+                  {exiting
+                    ? tt("common.exiting", "Выходим…")
+                    : tt("common.backToMainTabs", "Вернуться в меню")}
+                </Text>
+              </Pressable>
+            ) : null}
           </View>
         </View>
       </View>

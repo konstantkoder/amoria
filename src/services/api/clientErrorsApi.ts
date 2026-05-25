@@ -1,8 +1,8 @@
 import { Platform } from "react-native";
 import * as Device from "expo-device";
 
-import appConfig from "../../../app.json";
 import { getApiBaseUrl } from "@/config/apiConfig";
+import { getReleaseMetadata, type ReleaseMetadata } from "@/config/releaseMetadata";
 import { ApiError, request } from "@/services/api/apiClient";
 
 export type ClientErrorReportInput = {
@@ -16,7 +16,7 @@ export type ClientErrorReportInput = {
 };
 
 const blockedMetadataKeyPattern =
-  /password|token|secret|authorization|cookie|jwt|refresh|accessToken|refreshToken|s3|database|connection|privateKey|lockedGalleryPassword|folderPassword|accountPassword|headers?|\.env|uploadUrl$|signedUrl$/i;
+  /^(lat|lng|latitude|longitude)$|password|token|secret|authorization|cookie|jwt|refresh|accessToken|refreshToken|s3|database|connection|privateKey|lockedGalleryPassword|folderPassword|accountPassword|headers?|\.env|uploadUrl$|signedUrl$/i;
 const maxObjectKeys = 40;
 const maxArrayItems = 20;
 const maxStringLength = 500;
@@ -82,8 +82,8 @@ export function getErrorCode(error: unknown): string | undefined {
 }
 
 function buildClientErrorPayload(input: ClientErrorReportInput) {
-  const appVersion = readAppVersion();
-  const buildNumber = readBuildNumber();
+  const releaseMetadata = getReleaseMetadata();
+  const metadata = withReleaseMetadata(input.metadata, releaseMetadata);
 
   return {
     screen: input.screen,
@@ -92,33 +92,14 @@ function buildClientErrorPayload(input: ClientErrorReportInput) {
     ...(input.code ? { code: input.code } : {}),
     message: input.message,
     ...(input.stack ? { stack: truncate(input.stack, 8000) } : {}),
-    ...(input.metadata !== undefined
-      ? { metadata: sanitizeMetadataForReport(input.metadata) }
-      : {}),
+    ...(metadata !== undefined ? { metadata: sanitizeMetadataForReport(metadata) } : {}),
     platform: Platform.OS,
-    ...(appVersion ? { appVersion } : {}),
-    ...(buildNumber ? { buildNumber } : {}),
+    ...(releaseMetadata.appVersion ? { appVersion: releaseMetadata.appVersion } : {}),
+    ...(releaseMetadata.buildNumber ? { buildNumber: releaseMetadata.buildNumber } : {}),
     ...(Device.modelName ? { deviceModel: Device.modelName } : {}),
     ...(Device.osVersion ? { osVersion: Device.osVersion } : {}),
     backendUrl: getSafeBackendUrl(),
   };
-}
-
-function readAppVersion(): string | undefined {
-  const version = String(appConfig.expo?.version ?? "").trim();
-  return version || undefined;
-}
-
-function readBuildNumber(): string | undefined {
-  const expoConfig = appConfig.expo as {
-    ios?: { buildNumber?: string };
-    android?: { versionCode?: number | string };
-  };
-  const iosBuildNumber = String(expoConfig.ios?.buildNumber ?? "").trim();
-  if (iosBuildNumber) return iosBuildNumber;
-
-  const androidVersionCode = expoConfig.android?.versionCode;
-  return androidVersionCode ? String(androidVersionCode) : undefined;
 }
 
 function getSafeBackendUrl(): string | undefined {
@@ -127,6 +108,37 @@ function getSafeBackendUrl(): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+function withReleaseMetadata(
+  metadata: unknown,
+  releaseMetadata: ReleaseMetadata,
+): unknown {
+  if (Object.keys(releaseMetadata).length === 0) {
+    return metadata;
+  }
+
+  if (
+    metadata &&
+    typeof metadata === "object" &&
+    !Array.isArray(metadata)
+  ) {
+    return {
+      ...metadata,
+      build: releaseMetadata,
+    };
+  }
+
+  if (metadata === undefined) {
+    return {
+      build: releaseMetadata,
+    };
+  }
+
+  return {
+    details: metadata,
+    build: releaseMetadata,
+  };
 }
 
 function truncate(value: string, maxLength: number): string {

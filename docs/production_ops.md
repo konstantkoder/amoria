@@ -1,6 +1,6 @@
 # Production Ops
 
-Updated: 2026-05-23 after `ADMIN-OPS-05`
+Updated: 2026-05-25 after `BUGFIX-TOGETHER-QUEUE-CANCEL-LIFECYCLE-06`
 
 ## Hard Rule
 
@@ -32,6 +32,17 @@ Codex must not modify production directly and must not receive production server
 - JS-only fixes may use OTA only if Expo Updates are configured and release policy allows it.
 - Native changes require EAS build and store release.
 - Client Errors must include release version/build number so ops can tie failures to deployed app builds.
+- Before Together smoke, clear Metro cache with `npx expo start -c`.
+- Set `EXPO_PUBLIC_RELEASE_VERSION` when Git SHA is not injected automatically.
+- Native `app.json` changes, including Android `usesCleartextTraffic`, require a rebuilt/reinstalled dev/native build, not only JS reload.
+
+## Together Queue Triage
+
+- `waitingReason` explains why no candidate matched yet.
+- `cancelSource` explains who or what cancelled a queue row.
+- `screen_cleanup`, `navigation_blur`, and `unknown` are suspicious mobile lifecycle sources.
+- If a queue cancels before match, no session should appear.
+- If `matchedSessionId` exists, Admin Sessions should show the session.
 
 ## Required Before Public Beta
 
@@ -44,4 +55,3 @@ Codex must not modify production directly and must not receive production server
 - admin support workflow;
 - incident checklist;
 - documented media moderation staffing or a real automated moderation provider.
-

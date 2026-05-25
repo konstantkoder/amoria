@@ -1,6 +1,6 @@
 # Admin Web Regression Pass
 
-Updated: 2026-05-24
+Updated: 2026-05-25
 
 Canonical Admin Web code lives in the server repo under `admin-web/`; this mobile-side note tracks what mobile testers should verify from the app side during the same release pass.
 
@@ -8,6 +8,7 @@ Canonical Admin Web code lives in the server repo under `admin-web/`; this mobil
 
 - Client Errors: confirm location-read-failed and canvas/session diagnostics are safe and useful.
 - Together Queue: confirm every new queue row has `hasCoordinates=true`, the expected `radiusKm`, and a safe `geoMode`.
+- Together Queue: confirm `waitingReason` is separate from `cancelSource`, and suspicious `screen_cleanup`, `navigation_blur`, or `unknown` cancels are visible.
 - Together Sessions: confirm created sessions appear even when the emulator freezes, one participant exits, or no canvas events arrive.
 - Media Moderation: confirm uploaded profile media appears for real manual review.
 - Reports and Audit: confirm real actions write real audit entries.
@@ -24,3 +25,8 @@ Admin Web must not show exact latitude/longitude, private chat, raw draw/story e
 - Permission-denied queue block.
 - App exit from draw/story session marks backend leave state.
 - If possible, freeze/kill one client and inspect stale heartbeat/session diagnostics.
+- Stagger Together start: Device A starts, wait 10-30 seconds, then Device B starts; A should remain waiting unless the user explicitly stopped.
+
+## Sessions Visibility
+
+If the queue cancels before match, there should be no session. If Admin Queue has `matchedSessionId`, Admin Sessions should show that session newest-first, including zero-event sessions, stale heartbeat, `leftAt`, and `endedReason`.

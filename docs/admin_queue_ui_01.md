@@ -1,6 +1,6 @@
 # Admin Queue UI 01
 
-Updated: 2026-05-24 after `BUGFIX-TOGETHER-GEO-REQUIRED-01`
+Updated: 2026-05-25 after `BUGFIX-TOGETHER-QUEUE-CANCEL-LIFECYCLE-06`
 
 ## Together Queue Page
 
@@ -26,6 +26,10 @@ It shows:
 - `hasCoordinates`
 - `geoMode`
 - `waitingReason`
+- `cancelSource`
+- `cancelReason`
+- `cancelledAt`
+- `lastAction`
 - `matchedSessionId`
 
 It does not show latitude, longitude, exact user location, tokens, secrets, or credentials.
@@ -45,6 +49,8 @@ Refresh re-reads the backend endpoint.
 `matchedSessionId` opens the Together Sessions page filtered to that session when the session id is present. If the session endpoint does not return that id, Admin Web shows a clear diagnostic error.
 
 `waitingReason` values are safe derived diagnostics: `no_candidate`, `activity_mismatch`, `radius_distance_too_far`, `missing_coordinates_old_entry`, `same_user_excluded`, `candidate_expired`, `candidate_cancelled`, `location_required`, and `unknown`.
+
+`waitingReason` is not the true cancellation source. Use `cancelSource`, `cancelReason`, and `cancelledAt` to see who or what stopped the queue row. Suspicious lifecycle sources are `screen_cleanup`, `navigation_blur`, and `unknown`.
 
 ## Together Sessions Page
 
@@ -106,7 +112,7 @@ Body:
 }
 ```
 
-This is not a hard delete. It updates the row to `cancelled`, reloads the table, and writes `admin.togetherQueue.cancel` with safe metadata only: activity, radius, `hasCoordinates`, and reason. Latitude and longitude remain hidden.
+This is not a hard delete. It updates the row to `cancelled`, sets `cancelSource=admin_cancel`, reloads the table, and writes `admin.togetherQueue.cancel` with safe metadata only: activity, radius, `hasCoordinates`, cancel diagnostics, and reason. Latitude and longitude remain hidden.
 
 ## Smoke Use
 

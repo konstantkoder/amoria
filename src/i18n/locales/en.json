@@ -1107,6 +1107,8 @@
   "play.match.pollRetrying": "Connection problem, trying again.",
   "play.match.restartSearch": "Stop and start again",
   "play.match.expandRadius": "Expand radius",
+  "play.match.expandRadiusConfirmTitle": "Expand radius?",
+  "play.match.expandRadiusConfirmBody": "The current search will stop, then a new search with a larger radius will start.",
   "play.match.locationReady": "Location ready",
   "play.match.locationNotReady": "Location not ready",
   "play.challenge.draw.rainHideout": "Draw a place where you would want to hide from the rain.",

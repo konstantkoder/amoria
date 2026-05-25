@@ -652,6 +652,8 @@
   "play.match.pollRetrying": "Problem s vezom, pokušavamo ponovno.",
   "play.match.restartSearch": "Zaustavi i kreni ponovno",
   "play.match.expandRadius": "Proširi radijus",
+  "play.match.expandRadiusConfirmTitle": "Proširiti radijus?",
+  "play.match.expandRadiusConfirmBody": "Trenutna pretraga će se zaustaviti, zatim će početi nova pretraga s većim radijusom.",
   "play.match.locationReady": "Lokacija je spremna",
   "play.match.locationNotReady": "Lokacija nije spremna",
   "play.match.status.preparingStorySparksTitle": "Pripremamo priču za dvoje",

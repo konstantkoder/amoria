@@ -1,6 +1,6 @@
 # Together Smoke Pass
 
-Updated: 2026-05-24 for `BUGFIX-TOGETHER-GEO-REQUIRED-01`
+Updated: 2026-05-25 for `BUGFIX-TOGETHER-QUEUE-CANCEL-LIFECYCLE-06`
 
 ## Run Metadata
 
@@ -47,6 +47,8 @@ Geo matching rule:
 - no-match/retry does not appear after one poll or 2-3 seconds;
 - delayed guidance appears after about 90 seconds and offers radius expansion or stop search;
 - temporary poll failures show a retrying connection message and do not cancel queue;
+- normal PlayMatch cleanup, remount, focus/blur, route changes, and temporary backgrounding do not cancel queue;
+- explicit mobile cancels send `cancelSource`: `user_stop`, `user_back`, `retry_restart`, or `radius_expansion`;
 - exact peer coordinates must not appear in UI, logs, queue/session responses, DM, history, or detail;
 - Story Sparks continuation after draw keeps the same pair and does not re-match by geo.
 - Admin Web has Together Queue and Together Sessions pages for owner/ops. Use Queue before match to see activity/status/radius/hasCoordinates without exact coordinates; use Sessions after match to see status, participant heartbeat, event counts, reveal summaries, and stale active sessions.
@@ -60,6 +62,16 @@ These checks passed for the Story Sparks implementation, but they do not replace
 | Server typecheck | `npm run typecheck` | PASS | `tsc -p tsconfig.json --noEmit` completed with exit code 0 |
 | Server tests | `npm test` | PASS | 171/171 tests passed |
 | Mobile TypeScript | `npx tsc --noEmit` | PASS | Completed with exit code 0 |
+
+## Build Verification
+
+Before manual smoke:
+
+```bash
+npx expo start -c
+```
+
+Set `EXPO_PUBLIC_RELEASE_VERSION` if exact Git SHA injection is not available. Client Errors should include `appVersion`, `buildNumber`, and release metadata. If native `app.json` flags changed, including Android `usesCleartextTraffic`, rebuild/reinstall the dev/native app; JS reload is not enough.
 
 Known automated-check warning: the server test run prints the existing AWS SDK future Node support warning because this shell uses Node `v18.19.1`. It did not fail tests.
 
@@ -83,7 +95,7 @@ Known automated-check warning: the server test run prints the existing AWS SDK f
 | N - Location denied | Select any radius, deny location, no queue join, clear UI explains Together needs location and exact position is not shown | NOT TESTED | Prepared for manual pass. | - |
 | O - No limit | Select no limit, grant location, backend accepts coordinates with `radiusKm:null`, UI keeps showing active waiting/countdown without premature repeated retry | NOT TESTED | Prepared for manual pass. | - |
 | P - Expand to no-limit | Start finite-radius search, wait for delayed state, tap `Расширить радиус` until no-limit; backend cancels old queue row and starts no-limit with coordinates | NOT TESTED | Prepared for manual pass. | - |
-| Q - No-limit staggered join | A starts no-limit with coordinates, B starts no-limit with coordinates seconds later, both match without repeated retry taps | NOT TESTED | Prepared for manual pass. | - |
+| Q - No-limit staggered join | A starts no-limit with coordinates, waits 10-30 seconds, B starts no-limit with coordinates, both match without repeated retry taps | NOT TESTED | Prepared for manual pass. | - |
 | R - Stuck/frozen client diagnostics | Match into draw, freeze/kill one client if safe, inspect Together Sessions for stale heartbeat/no events/left state | NOT TESTED | Prepared for manual pass. | - |
 | S - BlueStacks GPS unavailable | Grant permission but leave emulator location broken; app says the device is not returning coordinates and does not join queue | NOT TESTED | Prepared for manual pass. | - |
 | T - Peer media | Open peer profile after Together/DM; avatar/photos load or Client Errors show safe `urlKind`/`mediaId` diagnostics | NOT TESTED | Prepared for manual pass. | - |
@@ -118,10 +130,10 @@ Known automated-check warning: the server test run prints the existing AWS SDK f
 | 3. Deny location | A | App shows location-required state and does not join queue in any radius mode |  | NOT TESTED |
 | 4. Select no limit | A | App requests location, sends coordinates with `radiusKm:null`, and shows no exact coordinates |  | NOT TESTED |
 | 5. Active no-limit waiting | A | While the no-limit queue row is still active, UI shows searching/countdown and does not encourage retry taps |  | NOT TESTED |
-| 6. Staggered start | B starts 10-30 seconds later | A remains waiting and B can still match without simultaneous tapping |  | NOT TESTED |
+| 6. Staggered start | B starts 10-30 seconds later | A remains waiting, is not cancelled by lifecycle cleanup, and B can still match without simultaneous tapping |  | NOT TESTED |
 | 7. Expand radius | A | After delayed search, tap `Расширить радиус`; old entry is cancelled and new queue starts with the next radius using the same safe coordinate contract |  | NOT TESTED |
 | 8. Inspect responses/logs | A+B | Queue/session/history/DM do not expose peer latitude/longitude; `/admin/together/queue` shows `hasCoordinates`, `geoMode`, `waitingReason`, and age |  | NOT TESTED |
-| 9. Inspect Admin Web queue | Owner/Ops | Admin Web `Очередь Together` shows current queue rows with status/activity/radius/hasCoordinates/geoMode/waitingReason/matchedSessionId, stale indicator, cancel action for waiting rows, and no latitude/longitude columns |  | NOT TESTED |
+| 9. Inspect Admin Web queue | Owner/Ops | Admin Web `Очередь Together` shows status/activity/radius/hasCoordinates/geoMode/waitingReason/cancelSource/cancelReason/cancelledAt/lastAction/matchedSessionId, and no latitude/longitude columns |  | NOT TESTED |
 | 10. Inspect Admin Web sessions | Owner/Ops | Admin Web `Сессии Together` shows matched/active sessions, participants, heartbeat, event counts, reveal summary, stale warnings, and no latitude/longitude/raw payload columns |  | NOT TESTED |
 | 8. Continue story | A+B | Story Sparks continuation keeps same pair and does not perform a second geo match |  | NOT TESTED |
 
@@ -157,6 +169,10 @@ Known automated-check warning: the server test run prints the existing AWS SDK f
 ## Found Bugs
 
 No real 2-device bugs were observed because the manual smoke pass was not executed from this environment.
+
+## Future Age Filter
+
+Together age filter is planned after Together start reliability is fixed. `FlirtSettingsScreen` is not the Together age filter. Future block name: `TOGETHER-AGE-FILTER-01`.
 
 Use this format for every bug found during the real pass:
 

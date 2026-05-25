@@ -3,6 +3,7 @@ import type {
   TogetherActivity,
   TogetherEventType,
   TogetherHistoryResponse,
+  TogetherQueueCancelInput,
   TogetherQueueLocationInput,
   TogetherQueueResponse,
   TogetherRevealDecision,
@@ -47,10 +48,14 @@ export function getQueue(id: string): Promise<TogetherQueueResponse> {
   );
 }
 
-export function cancelQueue(id: string): Promise<TogetherQueueResponse> {
+export function cancelQueue(
+  id: string,
+  input: TogetherQueueCancelInput
+): Promise<TogetherQueueResponse> {
   return request<TogetherQueueResponse>(
     "DELETE",
-    `/together/queue/${encodeURIComponent(id)}`
+    `/together/queue/${encodeURIComponent(id)}`,
+    input
   );
 }
 

@@ -113,6 +113,12 @@ This launcher is local dev tooling only and is not product logic.
   - Android local-dev media loading allows cleartext backend origins for BlueStacks/dev API smoke tests.
   - Admin Queue exposes safe `waitingReason`, waiting age, and amoria/display name for release diagnosis.
   - Admin Sessions shows a clear error when a queue row links to a missing session.
+- BUGFIX-TOGETHER-QUEUE-CANCEL-LIFECYCLE-06 is fixed in code and awaiting release smoke:
+  - PlayMatch no longer cancels Together queue from cleanup, remount, focus/blur, route param changes, or normal navigation replacement.
+  - Mobile queue cancellation is source-explicit: `user_stop`, `user_back`, `retry_restart`, or `radius_expansion`.
+  - Active waiting keeps polling through transient poll failures and does not switch to retry/no-match after 2-3 seconds.
+  - Client Errors include safe app/build/release metadata and redact exact coordinate keys.
+  - Admin Queue distinguishes `waitingReason` from `cancelSource`.
 
 See `docs/bugfix_ux_01_audit.md`.
 See `docs/bugfix_ux_02_media_nav_profile.md`.
@@ -131,6 +137,17 @@ See `docs/bugfix_together_geo_required_matching.md`.
 See `docs/admin_web_regression_pass.md`.
 See `docs/bugfix_together_match_peer_media.md`.
 See `docs/gallery_smoke_pass.md`.
+See `docs/bugfix_together_queue_cancel_lifecycle.md`.
+
+## Build Verification Before Smoke
+
+- Clear Metro cache: `npx expo start -c`.
+- Set `EXPO_PUBLIC_RELEASE_VERSION` when Git SHA is not injected automatically.
+- Rebuild/reinstall the native/dev build when `app.json` native flags change, including Android `usesCleartextTraffic`; JS reload is not enough.
+
+## Future Age Filter Note
+
+Together age filter is planned after Together start reliability is fixed. `FlirtSettingsScreen` is not the Together age filter. Future block name: `TOGETHER-AGE-FILTER-01`.
 
 ## Identity rule verification
 

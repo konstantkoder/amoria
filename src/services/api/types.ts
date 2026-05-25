@@ -303,10 +303,30 @@ export type TogetherQueueEntry = {
   id: string;
   status: string;
   sessionId?: string;
+  createdAt: string;
   expiresAt: string;
+  cancelledAt?: string | null;
+  cancelSource?: TogetherQueueCancelSource | null;
 };
 
 export type TogetherActivity = "draw" | "story_sparks";
+
+export type TogetherQueueCancelSource =
+  | "user_stop"
+  | "user_back"
+  | "retry_restart"
+  | "radius_expansion"
+  | "screen_cleanup"
+  | "navigation_blur"
+  | "admin_cancel"
+  | "server_expired"
+  | "matched"
+  | "unknown";
+
+export type TogetherQueueCancelInput = {
+  cancelSource: TogetherQueueCancelSource;
+  cancelReason?: string;
+};
 
 export type TogetherQueueLocationInput = {
   latitude: number;
