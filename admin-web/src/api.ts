@@ -402,6 +402,49 @@ export function resolveApiUrl(value: string | null | undefined): string | null {
   }
 }
 
+export type PublicMediaProbeResult = {
+  ok: boolean;
+  httpStatus: number | null;
+  contentType: string | null;
+  error: string | null;
+};
+
+export async function probePublicMediaUrl(
+  value: string | null | undefined,
+): Promise<PublicMediaProbeResult> {
+  const url = resolveApiUrl(value);
+  if (!url) {
+    return {
+      ok: false,
+      httpStatus: null,
+      contentType: null,
+      error: "invalid_url",
+    };
+  }
+
+  try {
+    const response = await fetch(url, {
+      method: "GET",
+      cache: "no-store",
+    });
+    const contentType = response.headers.get("content-type");
+    await response.blob().catch(() => undefined);
+    return {
+      ok: response.ok,
+      httpStatus: response.status,
+      contentType,
+      error: null,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      httpStatus: null,
+      contentType: null,
+      error: error instanceof Error ? error.name : "network_error",
+    };
+  }
+}
+
 async function apiFetch<T = unknown>(
   path: string,
   options: RequestInit & { skipAuth?: boolean; skipRefresh?: boolean } = {},

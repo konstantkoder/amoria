@@ -30,9 +30,11 @@ Updated: 2026-05-25
 - In one real backend `draw` session, draw with brush and confirm peer sees the stroke.
 - Switch to eraser, erase part of the drawing, and confirm peer sees the erased result.
 - Reload/background one client and confirm `getSessionEvents` hydration restores brush and erase strokes.
-- Zoom in/out/reset and draw while zoomed; saved strokes must not be distorted.
-- Use Move mode to pan the zoomed canvas without creating a stroke.
-- Enter and exit fullscreen/focus mode; leave-session control must remain available.
+- Enter fullscreen/focus mode and hide the tool palette so the canvas visibly gets more phone space.
+- Draw/erase with one finger.
+- Pinch zoom and two-finger pan; saved strokes must land under the finger and remain undistorted.
+- Use zoom in/out/reset and Move mode as fallback controls.
+- Android back should hide tools first, exit fullscreen second, and never trap the user.
 - Finish the session and confirm history/detail replay preserves eraser effects.
 
 ## Admin Checks
@@ -61,9 +63,16 @@ After mutual open, open the peer profile from Together/DM context:
 
 - avatar should render when `hasAvatarUrl=true`;
 - public photos should render when `photoCount>0`;
-- Client Errors should include safe `urlKind` and `mediaId` if image loading fails;
+- Client Errors should include safe `urlKind`, `mediaId`, `httpStatus`, and `contentType` if image loading fails;
 - diagnostics should retain safe `hasAvatarUrl` and `photoCount`;
 - locked gallery photos must remain hidden unless unlocked by user password.
+
+Admin Media smoke:
+
+- thumbnails render in Media Moderation;
+- `Открыть фото` opens the real image;
+- `Проверить URL` returns HTTP 200 and an image content type for allowed public avatar/profile media;
+- failed thumbnails show media id, moderation status, MIME, and HTTP diagnostic instead of only a broken image icon.
 
 ## Build Verification
 

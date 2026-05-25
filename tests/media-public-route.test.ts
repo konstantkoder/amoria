@@ -88,6 +88,7 @@ test("GET /media/public/:mediaId streams only public profile gallery media", asy
   });
 
   assert.equal(response.statusCode, 200);
+  assert.equal(response.headers["content-type"], "image/webp");
   assert.deepEqual(response.rawPayload, objectBody);
 });
 
@@ -122,6 +123,7 @@ test("GET /media/public/:mediaId does not expose locked gallery media", async (t
   });
 
   assert.equal(response.statusCode, 404);
+  assert.notEqual(response.headers["content-type"], "image/webp");
   assert.equal(objectRead, false);
 });
 

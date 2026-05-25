@@ -379,6 +379,49 @@ nav button:hover {
   background: #eef3f4;
 }
 
+.media-thumb-cell,
+.media-url-cell,
+.media-diagnostic {
+  display: grid;
+  gap: 5px;
+}
+
+.media-url-cell code {
+  max-width: 220px;
+  color: #60717a;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.media-thumb-fallback {
+  display: grid;
+  gap: 3px;
+  width: 150px;
+  min-height: 74px;
+  padding: 8px;
+  color: #7f1d1d;
+  background: #fee2e2;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  font-size: 11px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.media-probe-ok,
+.media-probe-failed {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.media-probe-ok {
+  color: #166534;
+}
+
+.media-probe-failed {
+  color: #991b1b;
+}
+
 .muted {
   color: #60717a;
 }

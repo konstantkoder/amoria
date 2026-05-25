@@ -126,6 +126,7 @@ export const ru: Record<TranslationKey, string> = {
   "media.ownerAmoriaId": "Amoria ID владельца",
   "media.ownerUserId": "User ID владельца",
   "media.preview": "Фото",
+  "media.checkUrl": "Проверить URL",
   "media.previewFailed": "Фото не удалось открыть.",
   "media.previewLoading": "Загружаем фото...",
   "media.publicUrl": "Публичный URL",

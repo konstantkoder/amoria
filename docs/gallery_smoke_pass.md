@@ -1,6 +1,6 @@
 # Gallery / Peer Media Smoke Pass
 
-Updated: 2026-05-24
+Updated: 2026-05-25
 
 ## Peer Profile Media
 
@@ -16,7 +16,18 @@ Use a real account with an avatar and at least one public profile photo.
    - `step=avatarLoadFailed` or `publicPhotoLoadFailed`
    - safe `mediaId`
    - safe `urlKind`
+   - safe `httpStatus`
+   - safe `contentType`
 6. Confirm no full raw URL, signed URL, token, local file path, or locked-gallery media is exposed.
+
+## Admin Media Moderation
+
+1. Open Admin Media Moderation.
+2. Confirm avatar/public thumbnails render.
+3. Click `Открыть фото` and confirm an actual image opens.
+4. Click `Проверить URL` and confirm HTTP 200 with an image content type.
+5. If a thumbnail fails, confirm the row shows `Не удалось открыть изображение`, media id, moderation status, MIME, and HTTP status.
+6. Confirm locked gallery media has no public thumbnail or public URL.
 
 ## Policy
 

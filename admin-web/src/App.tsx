@@ -1,6 +1,7 @@
 import {
   createContext,
   FormEvent,
+  MouseEvent,
   useContext,
   useEffect,
   useMemo,
@@ -29,6 +30,7 @@ import {
   loadTokens,
   login,
   logout,
+  probePublicMediaUrl,
   resolveApiUrl,
   saveTokens,
   toQuery,
@@ -1125,6 +1127,71 @@ function TogetherSessionsScreen({ initialSessionId }: { initialSessionId: string
   );
 }
 
+function MediaPreviewCell({ item }: { item: MediaItem }) {
+  const { t } = useI18n();
+  const previewUrl = resolveApiUrl(item.previewUrl);
+  const [failed, setFailed] = useState(false);
+  const [probe, setProbe] = useState<{
+    ok: boolean;
+    httpStatus: number | null;
+    contentType: string | null;
+    error: string | null;
+  } | null>(null);
+
+  useEffect(() => {
+    setFailed(false);
+    setProbe(null);
+  }, [item.id, previewUrl]);
+
+  async function checkUrl(event: MouseEvent) {
+    event.stopPropagation();
+    setProbe(await probePublicMediaUrl(item.publicUrl ?? item.previewUrl));
+  }
+
+  if (!previewUrl) {
+    return (
+      <span className="muted">
+        {item.visibility === "locked" ? t("media.lockedPreview") : ""}
+      </span>
+    );
+  }
+
+  return (
+    <div className="media-thumb-cell">
+      {!failed ? (
+        <img
+          className="media-thumb"
+          src={previewUrl}
+          alt=""
+          onError={() => setFailed(true)}
+        />
+      ) : (
+        <div className="media-thumb-fallback">
+          <strong>{t("media.previewFailed")}</strong>
+          <span>{item.id}</span>
+          <span>{formatStatus(item.moderationStatus, t)}</span>
+          <span>{item.mimeType}</span>
+          {probe ? (
+            <span>
+              HTTP {probe.httpStatus ?? "?"}
+              {probe.contentType ? ` · ${probe.contentType}` : ""}
+              {probe.error ? ` · ${probe.error}` : ""}
+            </span>
+          ) : null}
+        </div>
+      )}
+      <button className="link-button" type="button" onClick={(event) => void checkUrl(event)}>
+        {t("media.checkUrl")}
+      </button>
+      {probe ? (
+        <span className={probe.ok ? "media-probe-ok" : "media-probe-failed"}>
+          HTTP {probe.httpStatus ?? "?"}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
 function MediaScreen({ setMessage }: { setMessage: (message: string | null) => void }) {
   const { language, t, tx } = useI18n();
   const [filters, setFilters] = useState({ ownerAmoriaId: "", type: "", moderationStatus: "", limit: "50" });
@@ -1136,6 +1203,12 @@ function MediaScreen({ setMessage }: { setMessage: (message: string | null) => v
   const [decisionReason, setDecisionReason] = useState("");
   const [previewBlobUrl, setPreviewBlobUrl] = useState<string | null>(null);
   const [previewError, setPreviewError] = useState(false);
+  const [previewProbe, setPreviewProbe] = useState<{
+    ok: boolean;
+    httpStatus: number | null;
+    contentType: string | null;
+    error: string | null;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const decisionRequiresReason = decisionAction === "restrict" || decisionAction === "remove" || selected?.visibility === "locked";
 
@@ -1143,6 +1216,7 @@ function MediaScreen({ setMessage }: { setMessage: (message: string | null) => v
     if (!selected) {
       setPreviewBlobUrl(null);
       setPreviewError(false);
+      setPreviewProbe(null);
       return;
     }
 
@@ -1150,6 +1224,7 @@ function MediaScreen({ setMessage }: { setMessage: (message: string | null) => v
     let objectUrl: string | null = null;
     setPreviewBlobUrl(null);
     setPreviewError(false);
+    setPreviewProbe(null);
 
     apiBlob(`/admin/media/${selected.id}/content${toQuery({ reason: selectedReason })}`)
       .then((blob) => {
@@ -1216,6 +1291,11 @@ function MediaScreen({ setMessage }: { setMessage: (message: string | null) => v
     }
   }
 
+  async function checkSelectedPublicUrl() {
+    if (!selected) return;
+    setPreviewProbe(await probePublicMediaUrl(selected.publicUrl ?? selected.previewUrl));
+  }
+
   return (
     <section className="grid-two">
       <div className="panel">
@@ -1254,16 +1334,11 @@ function MediaScreen({ setMessage }: { setMessage: (message: string | null) => v
             </thead>
             <tbody>
               {items.map((item) => {
-                const previewUrl = resolveApiUrl(item.previewUrl);
                 const publicUrl = resolveApiUrl(item.publicUrl);
                 return (
                   <tr key={item.id} onClick={() => void openDetail(item)} className={selected?.id === item.id ? "selected" : ""}>
                     <td>
-                      {previewUrl ? (
-                        <img className="media-thumb" src={previewUrl} alt="" />
-                      ) : (
-                        <span className="muted">{item.visibility === "locked" ? t("media.lockedPreview") : ""}</span>
-                      )}
+                      <MediaPreviewCell item={item} />
                     </td>
                     <td>{formatDate(item.createdAt, language)}</td>
                     <td>{item.id}</td>
@@ -1276,9 +1351,12 @@ function MediaScreen({ setMessage }: { setMessage: (message: string | null) => v
                     <td>{formatStatus(item.moderationStatus, t)}</td>
                     <td>
                       {publicUrl ? (
-                        <a href={publicUrl} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>
-                          {t("media.openImage")}
-                        </a>
+                        <div className="media-url-cell">
+                          <a href={publicUrl} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>
+                            {t("media.openImage")}
+                          </a>
+                          <code>{item.publicUrl}</code>
+                        </div>
                       ) : ""}
                     </td>
                   </tr>
@@ -1294,12 +1372,33 @@ function MediaScreen({ setMessage }: { setMessage: (message: string | null) => v
           <>
             <div className="media-preview-frame">
               {previewBlobUrl ? <img className="media-preview" src={previewBlobUrl} alt="" /> : null}
-              {previewError ? <div className="error">{t("media.previewFailed")}</div> : null}
+              {previewError ? (
+                <div className="error">
+                  {t("media.previewFailed")}
+                  <div className="media-diagnostic">
+                    <span>{selected.id}</span>
+                    <span>{formatStatus(selected.moderationStatus, t)}</span>
+                    <span>{selected.mimeType}</span>
+                  </div>
+                </div>
+              ) : null}
               {!previewBlobUrl && !previewError ? <div className="empty">{t("media.previewLoading")}</div> : null}
               {previewBlobUrl ? (
                 <button className="secondary" type="button" onClick={() => window.open(previewBlobUrl, "_blank", "noopener,noreferrer")}>
                   {t("media.openImage")}
                 </button>
+              ) : null}
+              {selected.publicUrl ? (
+                <button className="secondary" type="button" onClick={() => void checkSelectedPublicUrl()}>
+                  {t("media.checkUrl")}
+                </button>
+              ) : null}
+              {previewProbe ? (
+                <div className={previewProbe.ok ? "notice" : "error"}>
+                  HTTP {previewProbe.httpStatus ?? "?"}
+                  {previewProbe.contentType ? ` · ${previewProbe.contentType}` : ""}
+                  {previewProbe.error ? ` · ${previewProbe.error}` : ""}
+                </div>
               ) : null}
             </div>
             <dl className="facts compact">

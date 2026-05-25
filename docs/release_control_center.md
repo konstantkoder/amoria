@@ -33,8 +33,15 @@ Updated: 2026-05-25
 - Brush strokes use `tool:"draw"`; legacy strokes without `tool` remain valid as draw strokes.
 - Story Sparks sessions reject draw stroke events.
 - Replay/history/detail must rebuild brush and eraser effects from backend events.
-- Mobile zoom/pan/reset is viewport-only and must not alter saved stroke coordinates.
-- Fullscreen/focus mode must keep exit fullscreen and leave-session controls available.
+- Mobile zoom/pan/reset and two-finger pan/zoom are viewport-only and must not alter saved stroke coordinates.
+- Fullscreen/focus mode must let testers hide the tool palette while keeping exit fullscreen and leave-session controls available.
+
+## Media Render Contract
+
+- Public avatar/profile media must render through `/media/public/:mediaId` with image content type.
+- Admin Media thumbnails use safe public media paths; locked media must not get public preview URLs.
+- Admin Media detail preview uses the authenticated audited content route.
+- Mobile peer media failures must report safe `mediaId`, `urlKind`, `httpStatus`, and `contentType`; raw full URLs, signed URLs, tokens, and local paths must not appear.
 
 ## Admin Web Release Surface
 
@@ -66,10 +73,11 @@ Automated checks cannot replace the real two-client pass:
 4. Repeat with `5`, `100`, `250`, and no-limit.
 5. Inspect Admin Queue before match.
 6. Inspect Admin Sessions after match, exit, freeze, or abandon.
-7. Confirm peer avatar/photos render or emit safe media diagnostics.
-8. Confirm no exact coordinates appear in mobile UI, Admin Web, client errors, DM, history, or public profile.
-9. Confirm Client Errors include enough app/build/release metadata to identify the running build.
-10. In draw, smoke brush, eraser, zoom in/out/reset, Move pan mode, fullscreen on/off, finish, and history/detail replay.
+7. Confirm Admin Media thumbnails and `Открыть фото` render real images.
+8. Confirm peer avatar/photos render or emit safe media diagnostics.
+9. Confirm no exact coordinates appear in mobile UI, Admin Web, client errors, DM, history, or public profile.
+10. Confirm Client Errors include enough app/build/release metadata to identify the running build.
+11. In draw, smoke brush, eraser, hidden tools, pinch pan/zoom, zoom in/out/reset, Move pan mode, fullscreen on/off, finish, and history/detail replay.
 
 ## Build Verification
 

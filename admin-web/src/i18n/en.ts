@@ -124,6 +124,7 @@ export const en = {
   "media.ownerAmoriaId": "Owner Amoria ID",
   "media.ownerUserId": "Owner User ID",
   "media.preview": "Preview",
+  "media.checkUrl": "Check URL",
   "media.previewFailed": "Photo could not be opened.",
   "media.previewLoading": "Loading photo...",
   "media.publicUrl": "Public URL",
