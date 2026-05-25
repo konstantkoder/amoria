@@ -125,6 +125,16 @@ This launcher is local dev tooling only and is not product logic.
   - Zoom in/out/reset and Move mode are viewport-only and do not change backend stroke data.
   - Fullscreen/focus mode gives more phone space while keeping exit fullscreen and leave-session controls available.
   - History/detail replay restores eraser effects from backend events.
+- `TOGETHER-DRAW-TOOLS-02` phone draw UX:
+  - Fullscreen lets testers hide/show `Инструменты` so the canvas uses more phone space.
+  - One finger draws or erases; two fingers pan/zoom the viewport.
+  - Android back hides tools first, exits fullscreen second, then follows normal leave behavior.
+  - Gesture failures report safe `canvasGestureFailed` metadata without drawing payloads.
+- `MEDIA-RENDER-FIX-01` media rendering diagnostics:
+  - Peer avatar/photos still resolve through current-backend `/media/public/:mediaId`.
+  - Failed mobile image loads probe the public route and report safe `httpStatus` and `contentType`.
+  - Admin Media has `Проверить URL` and thumbnail failure diagnostics.
+  - Locked gallery media must not receive public preview URLs.
 
 See `docs/bugfix_ux_01_audit.md`.
 See `docs/bugfix_ux_02_media_nav_profile.md`.
@@ -134,6 +144,8 @@ See `docs/together_story_sparks.md`.
 See `docs/together_flow_02_staged_story.md`.
 See `docs/together_geo_matching.md`.
 See `docs/admin_queue_ui_01.md`.
+See `docs/media_render_fix_01.md`.
+See `docs/together_draw_tools_02.md`.
 See `docs/media_moderation_policy.md`.
 See `docs/production_ops.md`.
 See `docs/legacy_cleanup_01_color_mood_removed.md`.
@@ -243,6 +255,8 @@ Continue Admin/Ops hardening and final smoke pass.
 - Complete real-device MEDIA-01 smoke: profile photo upload through `POST /media/profile-photo`, peer public profile visibility, and no `putUpload/minio` client errors.
 - Complete real-device TOGETHER-GEO-01 smoke: 25 km default, 5/25/100/250/no-limit matching with granted location, denied-location blocking, staggered no-limit matching with coordinates, and no peer coordinate exposure.
 - Complete real-device BUGFIX-TOGETHER-START-PEER-MEDIA-05 smoke: staggered starts, no-limit/no-limit with coordinates, BlueStacks GPS unavailable copy, Admin Queue waitingReason/age, Admin Sessions matched row, and peer avatar/photo rendering.
+- Complete real-device MEDIA-RENDER-FIX-01 smoke: Admin thumbnails, open photo, peer avatar/photos, and safe Client Error media diagnostics.
+- Complete real-device TOGETHER-DRAW-TOOLS-02 smoke: fullscreen hidden tools, one-finger draw/erase, two-finger pan/zoom, fallback zoom controls, finish, and replay.
 - BUGFIX-TOGETHER-PROMPTS-I18N-EXAMPLES.
 - Full RU locale cleanup.
 - Complete a real signed-in Together/Gallery smoke pass; `TOGETHER-04` is checklist-only so far and Story Sparks requires a real 2-account smoke pass.

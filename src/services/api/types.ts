@@ -28,6 +28,7 @@ export type ProfilePhotoDto = {
   mediaId: string;
   url: string;
   position?: number;
+  visibility?: "public" | "locked";
 };
 
 export type ProfilePhotoPatchDto = {

@@ -104,11 +104,13 @@ function normalizeProfilePhotos(value: unknown): UserProfilePhoto[] {
       const url = normalizeSharedMediaUrl(candidate.url);
       if (!mediaId || !url) return null;
       const position = Number((candidate as { position?: unknown }).position);
+      const visibility = (candidate as { visibility?: unknown }).visibility;
 
       return {
         mediaId,
         url,
         ...(Number.isInteger(position) && position >= 0 ? { position } : {}),
+        ...(visibility === "public" || visibility === "locked" ? { visibility } : {}),
       };
     })
     .filter((entry): entry is UserProfilePhoto => Boolean(entry));

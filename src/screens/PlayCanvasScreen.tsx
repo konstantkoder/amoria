@@ -132,6 +132,7 @@ export default function PlayCanvasScreen() {
   const [strokeError, setStrokeError] = React.useState("");
   const [drawingStarted, setDrawingStarted] = React.useState(false);
   const [focusMode, setFocusMode] = React.useState(false);
+  const [toolPaletteVisible, setToolPaletteVisible] = React.useState(true);
   const [tick, setTick] = React.useState(Date.now());
   const [canvasRevision, setCanvasRevision] = React.useState(0);
   const [closedActorUserId, setClosedActorUserId] = React.useState<string | null>(null);
@@ -171,6 +172,20 @@ export default function PlayCanvasScreen() {
     }
     goToTogether();
   }, [goToTogether, navigation]);
+
+  const enterFocusMode = React.useCallback(() => {
+    setFocusMode(true);
+    setToolPaletteVisible(false);
+  }, []);
+
+  const exitFocusMode = React.useCallback(() => {
+    setFocusMode(false);
+    setToolPaletteVisible(true);
+  }, []);
+
+  const toggleToolPalette = React.useCallback(() => {
+    setToolPaletteVisible((value) => !value);
+  }, []);
 
   const reportCanvasFailure = React.useCallback((
     step: string,
@@ -230,6 +245,7 @@ export default function PlayCanvasScreen() {
     setStrokeError("");
     setDrawingStarted(false);
     setFocusMode(false);
+    setToolPaletteVisible(true);
     setTick(Date.now());
     setCanvasRevision((value) => value + 1);
     setClosedActorUserId(null);
@@ -547,9 +563,14 @@ export default function PlayCanvasScreen() {
       (event: EventArg<"beforeRemove", true, undefined>) => {
         if (allowExitRef.current || navigationHandledRef.current) return;
         if (session?.status !== "active") return;
+        if (focusMode && toolPaletteVisible) {
+          event.preventDefault();
+          setToolPaletteVisible(false);
+          return;
+        }
         if (focusMode) {
           event.preventDefault();
-          setFocusMode(false);
+          exitFocusMode();
           return;
         }
 
@@ -575,11 +596,15 @@ export default function PlayCanvasScreen() {
     );
 
     return unsubscribe;
-  }, [focusMode, leaveSessionAndExit, navigation, session?.status, tt]);
+  }, [exitFocusMode, focusMode, leaveSessionAndExit, navigation, session?.status, toolPaletteVisible, tt]);
 
   const handleCanvasBack = React.useCallback(() => {
+    if (focusMode && toolPaletteVisible) {
+      setToolPaletteVisible(false);
+      return;
+    }
     if (focusMode) {
-      setFocusMode(false);
+      exitFocusMode();
       return;
     }
     if (session?.status !== "active") {
@@ -603,7 +628,7 @@ export default function PlayCanvasScreen() {
         },
       ]
     );
-  }, [focusMode, handleSafeBack, leaveSessionAndExit, session?.status, tt]);
+  }, [exitFocusMode, focusMode, handleSafeBack, leaveSessionAndExit, session?.status, toolPaletteVisible, tt]);
 
   const handleLocalBatch = React.useCallback(
     async (localStrokes: SharedCanvasStroke[]) => {
@@ -924,8 +949,29 @@ export default function PlayCanvasScreen() {
             </View>
             <View style={styles.focusActions}>
               <Pressable
+                style={[styles.focusToolButton, toolPaletteVisible ? styles.focusToolButtonActive : null]}
+                onPress={toggleToolPalette}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  toolPaletteVisible
+                    ? tt("play.canvas.hideTools", "Скрыть инструменты")
+                    : tt("play.canvas.showTools", "Показать инструменты")
+                }
+              >
+                <Ionicons
+                  name={toolPaletteVisible ? "chevron-down-outline" : "color-palette-outline"}
+                  size={16}
+                  color={theme.colors.text}
+                />
+                <Text style={styles.focusToolText}>
+                  {toolPaletteVisible
+                    ? tt("play.canvas.hideTools", "Скрыть инструменты")
+                    : tt("play.canvas.tools", "Инструменты")}
+                </Text>
+              </Pressable>
+              <Pressable
                 style={styles.focusActionButton}
-                onPress={() => setFocusMode(false)}
+                onPress={exitFocusMode}
                 accessibilityRole="button"
               >
                 <Text style={styles.focusActionText}>
@@ -970,7 +1016,7 @@ export default function PlayCanvasScreen() {
               </View>
               <Pressable
                 style={styles.fullscreenButton}
-                onPress={() => setFocusMode(true)}
+                onPress={enterFocusMode}
                 accessibilityRole="button"
               >
                 <Text style={styles.fullscreenButtonText}>
@@ -1008,8 +1054,25 @@ export default function PlayCanvasScreen() {
               : undefined
           }
           fullscreen
+          toolbarVisible={!focusMode || toolPaletteVisible}
           toolLabels={canvasToolLabels}
         />
+
+        {focusMode && !toolPaletteVisible ? (
+          <View pointerEvents="box-none" style={styles.focusFloatingTools}>
+            <Pressable
+              style={styles.floatingToolsButton}
+              onPress={toggleToolPalette}
+              accessibilityRole="button"
+              accessibilityLabel={tt("play.canvas.showTools", "Показать инструменты")}
+            >
+              <Ionicons name="color-palette-outline" size={18} color={theme.colors.text} />
+              <Text style={styles.floatingToolsText}>
+                {tt("play.canvas.tools", "Инструменты")}
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
 
         {!focusMode ? (
         <View style={styles.footerBar}>
@@ -1266,6 +1329,27 @@ const styles = StyleSheet.create({
     gap: 8,
     flexWrap: "wrap",
   },
+  focusToolButton: {
+    minHeight: 38,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.14)",
+  },
+  focusToolButtonActive: {
+    backgroundColor: "rgba(255, 224, 184, 0.14)",
+    borderColor: "rgba(255, 224, 184, 0.34)",
+  },
+  focusToolText: {
+    color: theme.colors.text,
+    fontSize: 12,
+    fontWeight: "800",
+  },
   focusActionButton: {
     minHeight: 38,
     borderRadius: 12,
@@ -1290,6 +1374,28 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.14)",
   },
   focusLeaveText: {
+    color: theme.colors.text,
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  focusFloatingTools: {
+    position: "absolute",
+    right: 12,
+    bottom: 14,
+    zIndex: 5,
+  },
+  floatingToolsButton: {
+    minHeight: 42,
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    backgroundColor: "rgba(8,10,18,0.9)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.18)",
+  },
+  floatingToolsText: {
     color: theme.colors.text,
     fontSize: 12,
     fontWeight: "800",

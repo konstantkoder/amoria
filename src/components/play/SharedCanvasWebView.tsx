@@ -44,6 +44,7 @@ type Props = {
   disabledTitle?: string;
   disabledBody?: string;
   fullscreen?: boolean;
+  toolbarVisible?: boolean;
   toolbarAccessory?: React.ReactNode;
   toolLabels?: {
     colors: string;
@@ -144,6 +145,8 @@ const HTML = `<!doctype html>
       strokeOrder: [],
       drawing: false,
       panning: false,
+      activePointers: {},
+      gesture: null,
       currentStroke: null,
       activePointerId: null,
       lastPanPoint: null,
@@ -354,6 +357,108 @@ const HTML = `<!doctype html>
         x: rect.width > 0 ? clamp(logicalX / rect.width, 0, 1) : 0,
         y: rect.height > 0 ? clamp(logicalY / rect.height, 0, 1) : 0,
       };
+    }
+
+    function getLocalTouchPoints(event) {
+      const touches = event.touches ? Array.from(event.touches) : [];
+      return touches.map(function(touch) {
+        return { x: Number(touch.clientX || 0), y: Number(touch.clientY || 0) };
+      });
+    }
+
+    function rememberPointer(event) {
+      if (!event || event.pointerId == null || event.pointerType !== "touch") return;
+      state.activePointers[String(event.pointerId)] = {
+        x: Number(event.clientX || 0),
+        y: Number(event.clientY || 0),
+      };
+    }
+
+    function forgetPointer(event) {
+      if (!event || event.pointerId == null) return;
+      delete state.activePointers[String(event.pointerId)];
+    }
+
+    function getActiveTouchPoints() {
+      return Object.keys(state.activePointers).map(function(key) {
+        return state.activePointers[key];
+      });
+    }
+
+    function distanceBetween(left, right) {
+      return Math.max(Math.hypot(left.x - right.x, left.y - right.y), 1);
+    }
+
+    function midpoint(left, right) {
+      return {
+        x: (left.x + right.x) / 2,
+        y: (left.y + right.y) / 2,
+      };
+    }
+
+    function localPointFromClient(point) {
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: Number(point.x || 0) - rect.left,
+        y: Number(point.y || 0) - rect.top,
+      };
+    }
+
+    function cancelCurrentStroke() {
+      if (state.activePointerId != null) {
+        try {
+          canvas.releasePointerCapture(state.activePointerId);
+        } catch (e) {}
+      }
+      state.drawing = false;
+      state.panning = false;
+      state.currentStroke = null;
+      state.activePointerId = null;
+      state.lastPanPoint = null;
+      redraw();
+    }
+
+    function startGesture(points) {
+      if (!points || points.length < 2) return;
+      const mid = localPointFromClient(midpoint(points[0], points[1]));
+      const safeZoom = Math.max(state.zoom, 0.1);
+      state.gesture = {
+        startDistance: distanceBetween(points[0], points[1]),
+        startZoom: safeZoom,
+        logicalMidX: (mid.x - state.panX) / safeZoom,
+        logicalMidY: (mid.y - state.panY) / safeZoom,
+      };
+    }
+
+    function updateGesture(points) {
+      if (!state.gesture || !points || points.length < 2) return;
+      const mid = localPointFromClient(midpoint(points[0], points[1]));
+      const nextZoom = state.gesture.startZoom * (distanceBetween(points[0], points[1]) / state.gesture.startDistance);
+      setViewport(
+        nextZoom,
+        mid.x - state.gesture.logicalMidX * nextZoom,
+        mid.y - state.gesture.logicalMidY * nextZoom
+      );
+    }
+
+    function finishGestureIfNeeded(points) {
+      if (!state.gesture) return false;
+      if (points && points.length >= 2) {
+        startGesture(points);
+      } else {
+        state.gesture = null;
+      }
+      return true;
+    }
+
+    function reportGestureError(error, gestureType) {
+      post({
+        type: "gesture_error",
+        gestureType: gestureType || "pinch_pan",
+        tool: state.tool,
+        zoomLevel: state.zoom,
+        message: error && error.message ? String(error.message) : "canvas_gesture_failed",
+      });
     }
 
     function preventCanvasDefault(event) {
@@ -577,6 +682,99 @@ const HTML = `<!doctype html>
       post({ type: "stroke_batch", strokes: [stroke] });
     }
 
+    function handlePointerDown(event) {
+      preventCanvasDefault(event);
+      if (state.disabled) return;
+      if (event.pointerId != null && event.pointerType === "touch") {
+        try {
+          canvas.setPointerCapture(event.pointerId);
+        } catch (e) {}
+      }
+      rememberPointer(event);
+      const touchPoints = getActiveTouchPoints();
+      if (event.pointerType === "touch" && touchPoints.length >= 2) {
+        cancelCurrentStroke();
+        try {
+          startGesture(touchPoints);
+        } catch (error) {
+          reportGestureError(error, "pinch_start");
+        }
+        return;
+      }
+      startStroke(event);
+    }
+
+    function handlePointerMove(event) {
+      preventCanvasDefault(event);
+      rememberPointer(event);
+      if (state.gesture) {
+        try {
+          updateGesture(getActiveTouchPoints());
+        } catch (error) {
+          reportGestureError(error, "pinch_pan");
+        }
+        return;
+      }
+      moveStroke(event);
+    }
+
+    function handlePointerEnd(event) {
+      preventCanvasDefault(event);
+      if (state.gesture) {
+        forgetPointer(event);
+        try {
+          finishGestureIfNeeded(getActiveTouchPoints());
+        } catch (error) {
+          reportGestureError(error, "pinch_end");
+        }
+        return;
+      }
+      finishStroke(event);
+      forgetPointer(event);
+    }
+
+    function handleTouchStart(event) {
+      preventCanvasDefault(event);
+      if (state.disabled) return;
+      const points = getLocalTouchPoints(event);
+      if (points.length >= 2) {
+        cancelCurrentStroke();
+        try {
+          startGesture(points);
+        } catch (error) {
+          reportGestureError(error, "touch_pinch_start");
+        }
+        return;
+      }
+      startStroke(event);
+    }
+
+    function handleTouchMove(event) {
+      preventCanvasDefault(event);
+      if (state.gesture) {
+        try {
+          updateGesture(getLocalTouchPoints(event));
+        } catch (error) {
+          reportGestureError(error, "touch_pinch_pan");
+        }
+        return;
+      }
+      moveStroke(event);
+    }
+
+    function handleTouchEnd(event) {
+      preventCanvasDefault(event);
+      if (state.gesture) {
+        try {
+          finishGestureIfNeeded(getLocalTouchPoints(event));
+        } catch (error) {
+          reportGestureError(error, "touch_pinch_end");
+        }
+        return;
+      }
+      finishStroke(event);
+    }
+
     function applyPayload(data) {
       if (!data) return;
 
@@ -622,18 +820,18 @@ const HTML = `<!doctype html>
     window.__applyPayload = applyPayload;
 
     if (window.PointerEvent) {
-      canvas.addEventListener("pointerdown", startStroke, { passive: false });
-      window.addEventListener("pointermove", moveStroke, { passive: false });
-      window.addEventListener("pointerup", finishStroke, { passive: false });
-      window.addEventListener("pointercancel", finishStroke, { passive: false });
+      canvas.addEventListener("pointerdown", handlePointerDown, { passive: false });
+      window.addEventListener("pointermove", handlePointerMove, { passive: false });
+      window.addEventListener("pointerup", handlePointerEnd, { passive: false });
+      window.addEventListener("pointercancel", handlePointerEnd, { passive: false });
     } else {
       canvas.addEventListener("mousedown", startStroke);
       window.addEventListener("mousemove", moveStroke);
       window.addEventListener("mouseup", finishStroke);
-      canvas.addEventListener("touchstart", startStroke, { passive: false });
-      window.addEventListener("touchmove", moveStroke, { passive: false });
-      window.addEventListener("touchend", finishStroke, { passive: false });
-      window.addEventListener("touchcancel", finishStroke, { passive: false });
+      canvas.addEventListener("touchstart", handleTouchStart, { passive: false });
+      window.addEventListener("touchmove", handleTouchMove, { passive: false });
+      window.addEventListener("touchend", handleTouchEnd, { passive: false });
+      window.addEventListener("touchcancel", handleTouchEnd, { passive: false });
     }
 
     document.addEventListener("touchmove", function(event) {
@@ -670,6 +868,7 @@ export default function SharedCanvasWebView({
   disabledTitle,
   disabledBody,
   fullscreen = false,
+  toolbarVisible = true,
   toolbarAccessory,
   toolLabels,
 }: Props) {
@@ -1076,6 +1275,19 @@ export default function SharedCanvasWebView({
                 }
                 if (payload?.type === "stroke_batch" && Array.isArray(payload.strokes)) {
                   onLocalStrokeBatch?.(payload.strokes as SharedCanvasStroke[]);
+                  return;
+                }
+                if (payload?.type === "gesture_error") {
+                  onCanvasControlError?.(
+                    "canvasGestureFailed",
+                    typeof payload.message === "string" ? payload.message : "canvas_gesture_failed",
+                    undefined,
+                    {
+                      gestureType: payload.gestureType,
+                      tool: payload.tool,
+                      zoomLevel: payload.zoomLevel,
+                    }
+                  );
                 }
               } catch {
                 onMessageParseError?.("canvas_webview_message_parse_failed", {
@@ -1102,11 +1314,11 @@ export default function SharedCanvasWebView({
       {fullscreen ? (
         <>
           {canvas}
-          {toolbar}
+          {toolbarVisible ? toolbar : null}
         </>
       ) : (
         <>
-          {toolbar}
+          {toolbarVisible ? toolbar : null}
           {canvas}
         </>
       )}
@@ -1129,6 +1341,7 @@ const styles = StyleSheet.create({
   },
   cardFullscreen: {
     flex: 1,
+    position: "relative",
     padding: 0,
     borderRadius: 0,
     borderWidth: 0,
@@ -1141,8 +1354,13 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   toolbarFullscreen: {
+    position: "absolute",
+    left: 8,
+    right: 8,
+    bottom: 8,
+    zIndex: 2,
     marginBottom: 0,
-    marginTop: 8,
+    marginTop: 0,
     paddingHorizontal: 9,
     paddingVertical: 8,
     borderRadius: 8,

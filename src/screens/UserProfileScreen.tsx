@@ -34,6 +34,7 @@ import { getUserProfileById } from "@/services/user";
 import {
   getPublicMediaUrlInfo,
   normalizePublicMediaUrl,
+  probePublicMediaUrl,
   type PublicMediaUrlInfo,
 } from "@/services/media/mediaUrl";
 import type { UserProfile, UserProfilePhoto } from "@/models/User";
@@ -259,39 +260,56 @@ export default function UserProfileScreen() {
   const reportPeerMediaLoadFailed = useCallback(
     (
       step: "avatarLoadFailed" | "publicPhotoLoadFailed",
-      input: { mediaId?: string; urlInfo?: PublicMediaUrlInfo } = {}
+      input: {
+        mediaId?: string;
+        urlInfo?: PublicMediaUrlInfo;
+        visibility?: string;
+        moderationStatus?: string;
+      } = {}
     ) => {
       const mediaId = input.mediaId ?? input.urlInfo?.mediaId;
       const reportKey = `${step}:${mediaId ?? input.urlInfo?.urlKind ?? "avatar"}`;
       if (reportedMediaFailuresRef.current.has(reportKey)) return;
       reportedMediaFailuresRef.current.add(reportKey);
 
-      reportClientError({
-        screen: "UserProfileScreen",
-        action: "loadPeerMedia",
-        step,
-        message: "Peer profile media failed to load",
-        metadata: {
-          hasAvatarUrl: Boolean(avatarUrl),
-          photoCount: photos.length,
-          ...(mediaId ? { mediaId } : {}),
-          urlKind: input.urlInfo?.urlKind ?? "unknown",
-          source: sourceContext?.source ?? null,
-          hasThread,
-        },
+      void probePublicMediaUrl(
+        input.urlInfo?.url,
+        step === "avatarLoadFailed" ? "peer avatar URL" : "peer public photo URL"
+      ).then((probe) => {
+        reportClientError({
+          screen: "UserProfileScreen",
+          action: "loadPeerMedia",
+          step,
+          message: "Peer profile media failed to load",
+          metadata: {
+            hasAvatarUrl: Boolean(avatarUrl),
+            photoCount: photos.length,
+            ...(mediaId ? { mediaId } : {}),
+            urlKind: probe.urlKind ?? input.urlInfo?.urlKind ?? "unknown",
+            httpStatus: probe.httpStatus ?? null,
+            contentType: probe.contentType ?? null,
+            probeOk: probe.ok,
+            probeErrorCode: probe.errorCode ?? null,
+            visibility: input.visibility ?? (step === "avatarLoadFailed" ? "avatar" : "public"),
+            moderationStatus: input.moderationStatus ?? null,
+            source: sourceContext?.source ?? null,
+            hasThread,
+          },
+        });
       });
     },
     [avatarUrl, hasThread, photos.length, sourceContext?.source]
   );
 
   const markPublicPhotoFailed = useCallback(
-    (mediaId: string, url: string) => {
+    (photo: UserProfilePhoto) => {
       setFailedPublicPhotoIds((current) =>
-        current.includes(mediaId) ? current : [...current, mediaId]
+        current.includes(photo.mediaId) ? current : [...current, photo.mediaId]
       );
       reportPeerMediaLoadFailed("publicPhotoLoadFailed", {
-        mediaId,
-        urlInfo: getPublicMediaUrlInfo(url, "peer public photo URL"),
+        mediaId: photo.mediaId,
+        urlInfo: getPublicMediaUrlInfo(photo.url, "peer public photo URL"),
+        visibility: photo.visibility ?? "public",
       });
     },
     [reportPeerMediaLoadFailed]
@@ -599,7 +617,7 @@ export default function UserProfileScreen() {
               size={112}
               onLoadError={(urlInfo) => {
                 setAvatarLoadFailed(true);
-                reportPeerMediaLoadFailed("avatarLoadFailed", { urlInfo });
+                reportPeerMediaLoadFailed("avatarLoadFailed", { urlInfo, visibility: "avatar" });
               }}
             />
             <View style={styles.avatarCopy}>
@@ -676,7 +694,7 @@ export default function UserProfileScreen() {
                     key={`${photo.mediaId ?? photo.url}-${index}`}
                     source={{ uri: photo.url }}
                     style={styles.galleryPhoto}
-                    onError={() => markPublicPhotoFailed(photo.mediaId, photo.url)}
+                    onError={() => markPublicPhotoFailed(photo)}
                   />
                 )
               ))}

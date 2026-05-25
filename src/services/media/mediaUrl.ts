@@ -109,6 +109,15 @@ export type PublicMediaUrlInfo = {
   mediaId?: string;
 };
 
+export type PublicMediaProbeResult = {
+  ok: boolean;
+  urlKind: PublicMediaUrlKind;
+  mediaId?: string;
+  httpStatus?: number;
+  contentType?: string;
+  errorCode?: string;
+};
+
 export function getPublicMediaUrlInfo(
   value: unknown,
   context = "media URL"
@@ -158,6 +167,49 @@ export function getPublicMediaUrlInfo(
 
   warnInvalidMediaUrl(context, normalized);
   return { urlKind: "invalid" };
+}
+
+export async function probePublicMediaUrl(
+  value: unknown,
+  context = "media URL"
+): Promise<PublicMediaProbeResult> {
+  const urlInfo = getPublicMediaUrlInfo(value, context);
+  if (!urlInfo.url) {
+    return {
+      ok: false,
+      urlKind: urlInfo.urlKind,
+      ...(urlInfo.mediaId ? { mediaId: urlInfo.mediaId } : {}),
+      errorCode: "invalid_url",
+    };
+  }
+
+  try {
+    const response = await fetch(urlInfo.url, {
+      method: "GET",
+      cache: "no-store",
+    });
+    const contentType = response.headers.get("content-type") ?? undefined;
+    await response.blob().catch(() => undefined);
+
+    return {
+      ok: response.ok,
+      urlKind: urlInfo.urlKind,
+      ...(urlInfo.mediaId ? { mediaId: urlInfo.mediaId } : {}),
+      httpStatus: response.status,
+      ...(contentType ? { contentType } : {}),
+    };
+  } catch (error) {
+    const errorName =
+      error && typeof error === "object" && "name" in error
+        ? String((error as { name?: unknown }).name ?? "network_error")
+        : "network_error";
+    return {
+      ok: false,
+      urlKind: urlInfo.urlKind,
+      ...(urlInfo.mediaId ? { mediaId: urlInfo.mediaId } : {}),
+      errorCode: errorName || "network_error",
+    };
+  }
 }
 
 function isCurrentApiOrigin(url: URL): boolean {

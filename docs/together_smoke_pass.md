@@ -80,7 +80,7 @@ Known automated-check warning: the server test run prints the existing AWS SDK f
 | Scenario | Required Coverage | Result | Evidence / Notes | Bug ID |
 | --- | --- | --- | --- | --- |
 | A - Draw happy path | 2 accounts match into one `draw` session, live strokes sync, finish, mutual open, one DM chat, `activity: draw`, history/detail replay, app restart replay from backend events | NOT TESTED | Prepared for manual 2-device pass. No phone/emulator pair and account credentials are available in this Codex shell. | - |
-| A1 - Draw tools | In one real `draw` session: brush stroke, eraser stroke, peer sees erase, zoom in/out/reset, draw while zoomed, Move mode pan, fullscreen on/off, finish, history/detail replay preserves erase | NOT TESTED | Prepared for manual 2-device pass. Eraser must be visible only after backend event success or backend event hydration. | - |
+| A1 - Draw tools | In one real `draw` session: brush stroke, eraser stroke, peer sees erase, fullscreen with hidden tools, one-finger draw/erase, pinch pan/zoom, zoom in/out/reset, draw while zoomed, Move mode fallback, finish, history/detail replay preserves erase | NOT TESTED | Prepared for manual 2-device pass. Brush/eraser must remain backend-backed through `stroke_batch`; pinch/zoom is viewport-only. | - |
 | B - Staged Story Sparks happy path | Complete `draw`, both choose `continue_story`, both enter the same backend `story_sparks` continuation session, complete 4 rounds, mutual open creates one DM chat with draw + story context | NOT TESTED | Prepared for manual 2-device pass. No phone/emulator pair and account credentials are available in this Codex shell. | - |
 | C - Draw open/skip | Complete `draw`, A opens, B skips, no mutual DM chat, honest result/history state, no chat-promise CTA | NOT TESTED | Prepared for manual 2-device pass. | - |
 | D - Story Sparks open/skip | Complete `story_sparks`, A opens, B skips, no mutual DM chat, honest result/history state, story remains in history/detail | NOT TESTED | Prepared for manual 2-device pass. | - |
@@ -99,7 +99,7 @@ Known automated-check warning: the server test run prints the existing AWS SDK f
 | Q - No-limit staggered join | A starts no-limit with coordinates, waits 10-30 seconds, B starts no-limit with coordinates, both match without repeated retry taps | NOT TESTED | Prepared for manual pass. | - |
 | R - Stuck/frozen client diagnostics | Match into draw, freeze/kill one client if safe, inspect Together Sessions for stale heartbeat/no events/left state | NOT TESTED | Prepared for manual pass. | - |
 | S - BlueStacks GPS unavailable | Grant permission but leave emulator location broken; app says the device is not returning coordinates and does not join queue | NOT TESTED | Prepared for manual pass. | - |
-| T - Peer media | Open peer profile after Together/DM; avatar/photos load or Client Errors show safe `urlKind`/`mediaId` diagnostics | NOT TESTED | Prepared for manual pass. | - |
+| T - Peer media | Open peer profile after Together/DM; avatar/photos load or Client Errors show safe `urlKind`/`mediaId`/`httpStatus`/`contentType` diagnostics | NOT TESTED | Prepared for manual pass. | - |
 
 ## Staged Story Sparks Manual Checklist
 
@@ -162,14 +162,14 @@ Known automated-check warning: the server test run prints the existing AWS SDK f
 
 | Step | Account / Device | Expected Result | Actual Result | Status |
 | --- | --- | --- | --- | --- |
-| Brush | A -> B | A draws with brush; B sees the stroke from backend/WebSocket or backend refresh |  | NOT TESTED |
-| Eraser | A -> B | A selects `Ластик` and erases part of the drawing; B sees the erased result |  | NOT TESTED |
+| Fullscreen + hidden tools | A | Tap `На весь экран`, hide `Инструменты`, and confirm the canvas gets noticeably more space |  | NOT TESTED |
+| Brush | A -> B | A draws with one finger; B sees the stroke from backend/WebSocket or backend refresh |  | NOT TESTED |
+| Eraser | A -> B | A selects `Ластик` and erases with one finger; B sees the erased result |  | NOT TESTED |
 | Backend refresh | A or B | Reload/background recovery rebuilds the erased canvas from `getSessionEvents` |  | NOT TESTED |
-| Zoom in | A | Tap `+`; canvas zooms without changing saved stroke data |  | NOT TESTED |
+| Pinch zoom/pan | A | Use two fingers to zoom and pan; no stroke is created by the gesture |  | NOT TESTED |
+| Zoom buttons | A | Tap `+`, `-`, and `Сброс`; canvas zooms/resets without changing saved stroke data |  | NOT TESTED |
 | Draw while zoomed | A -> B | Stroke lands under finger and peer sees correct unwarped stroke |  | NOT TESTED |
-| Move mode | A | Select move/pan and drag the zoomed viewport without creating a stroke |  | NOT TESTED |
-| Reset zoom | A | Tap `Сброс`; viewport returns to normal |  | NOT TESTED |
-| Fullscreen | A | Tap `На весь экран`; canvas gets more phone space and essential controls remain visible |  | NOT TESTED |
+| Move mode fallback | A | Select move/pan and drag the zoomed viewport without creating a stroke |  | NOT TESTED |
 | Exit fullscreen | A | Tap `Выйти из полного экрана` or Android back; user returns to normal draw screen |  | NOT TESTED |
 | Finish + replay | A+B | Finish session, open history/detail, replay preserves brush and erase effects |  | NOT TESTED |
 
