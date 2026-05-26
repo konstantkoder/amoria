@@ -1,6 +1,6 @@
 # Amoria Release Control Center
 
-Updated: 2026-05-24
+Updated: 2026-05-26
 
 ## Branches
 
@@ -35,6 +35,16 @@ This launcher is local dev tooling only and is not product logic.
   - Granted-but-unavailable GPS failures show a device/emulator explanation, including the BlueStacks Google Maps check.
   - Admin Queue shows safe age/user/waiting-reason diagnostics for the location -> queue -> match chain.
   - Peer avatar/photo load failures now report safe `urlKind` and `mediaId` diagnostics instead of only `hasAvatarUrl` and `photoCount`.
+- MEDIA-RENDER-DELETE-FIX-03 is fixed in code and awaiting release smoke:
+  - Public profile no longer returns avatar/photo URLs when the corresponding `/media/public/:mediaId` object would be missing.
+  - `/media/public/:mediaId` reports `object_not_found` for missing storage objects instead of fake image success.
+  - Owner gallery resolves media URLs against the current backend API origin and shows loading/error states instead of black silent placeholders.
+  - Owner delete remains backend-backed and reports safe delete failure metadata.
+- TOGETHER-DRAW-TOOLS-04 is fixed in code and awaiting release smoke:
+  - Normal mode opens with tools hidden and canvas dominant.
+  - Fullscreen has one top/edge tools button and no duplicate bottom floating tools button.
+  - Brush/eraser are primary; move is secondary fallback.
+  - One-finger draw/erase and two-finger pan/zoom keep backend replay/history unchanged.
 
 ## Completed blocks
 

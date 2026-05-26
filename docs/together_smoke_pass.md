@@ -1,6 +1,6 @@
 # Together Smoke Pass
 
-Updated: 2026-05-25 for `TOGETHER-DRAW-TOOLS-01`
+Updated: 2026-05-26 for `TOGETHER-DRAW-TOOLS-04`
 
 ## Run Metadata
 
@@ -62,6 +62,16 @@ These checks passed for the Story Sparks implementation, but they do not replace
 | Server typecheck | `npm run typecheck` | PASS | `tsc -p tsconfig.json --noEmit` completed with exit code 0 |
 | Server tests | `npm test` | PASS | 171/171 tests passed |
 | Mobile TypeScript | `npx tsc --noEmit` | PASS | Completed with exit code 0 |
+
+## Draw UX Cleanup 04
+
+- Normal mode should show mostly canvas: compact `Инструменты`, timer, fullscreen, finish, and leave controls only.
+- Tools are hidden by default and open in a compact drawer.
+- Fullscreen has one top/edge tools button; there is no duplicate bottom floating tools button.
+- The drawer keeps brush/eraser primary, move as secondary fallback, compact zoom, colors, and sizes.
+- Hint copy should be visible in the draw footer: `Одним пальцем рисуйте, двумя — двигайте и масштабируйте.`
+- Android back closes the drawer first, exits fullscreen second, and then follows normal leave confirmation.
+- One-finger draw/erase, two-finger pan/zoom, peer strokes, and replay/history must remain backend-backed and unchanged.
 
 ## Build Verification
 

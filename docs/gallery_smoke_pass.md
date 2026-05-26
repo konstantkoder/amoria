@@ -1,6 +1,6 @@
 # Gallery Smoke Pass
 
-Updated: 2026-05-25 for `MEDIA-RENDER-FIX-01`.
+Updated: 2026-05-26 for `MEDIA-RENDER-DELETE-FIX-03`.
 
 ## Run Metadata
 
@@ -31,8 +31,9 @@ Updated: 2026-05-25 for `MEDIA-RENDER-FIX-01`.
 | H | Password set/reset | NOT TESTED | Owner sets locked gallery password with current account password, wrong account password fails, reset requires current account password, old folder password no longer unlocks after reset. |
 | I | Blocked peer | NOT TESTED | Account A blocks account B, account B tries public profile and locked unlock, backend denies according to product rule, UI does not show locked photos or broken state. |
 | J | Delete photo | NOT TESTED | Owner deletes public photo, backend deletes/updates gallery, photo disappears after refresh/restart, peer no longer sees deleted photo, delete cannot break min visible rule silently. |
-| K | Object storage / CDN | NOT TESTED | Uploaded avatar/profile photo URLs open from mobile, use `/media/public/:mediaId` resolved against the current backend origin, no localhost/private/internal MinIO URL in production-like responses, no object key/private path leakage, no `putUpload`/internal object-storage Admin Client Error for profile photo upload. |
-| L | Admin Media Moderation preview | NOT TESTED | Owner/moderator opens Admin Web Media Moderation, sees uploaded avatar/profile photo as an image preview, clicks `Открыть фото`, clicks `Проверить URL`, and sees safe HTTP/content-type diagnostics if a thumbnail fails. |
+| J1 | Broken photo cleanup | NOT TESTED | If object storage returns missing for an owned media row/gallery item, owner delete still removes the row through backend and gallery refresh; no manual DB cleanup or local-only deletion. |
+| K | Object storage / CDN | NOT TESTED | Uploaded avatar/profile photo URLs open from mobile, use `/media/public/:mediaId` resolved against the current backend origin, no localhost/private/internal MinIO URL in production-like responses, no object key/private path leakage, no `putUpload`/internal object-storage Admin Client Error for profile photo upload. Missing objects return `object_not_found`. |
+| L | Admin Media Moderation preview | NOT TESTED | Owner/moderator opens Admin Web Media Moderation, sees uploaded avatar/profile photo as an image preview, clicks `Открыть фото`, clicks `Проверить URL`, and sees safe HTTP/content-type/error-code diagnostics if a thumbnail fails. |
 | M | Locked media admin review | NOT TESTED | Move a photo to locked, open Admin Web Media Moderation, verify list does not expose a public locked URL, detail requires owner/moderator reason, image preview loads through audited admin access, and `/media/public/:mediaId` does not expose the locked photo. |
 | N | Manual moderation actions | NOT TESTED | Approve media, mark under review, then reject/restrict with required reason; verify status changes and audit entries exist. |
 
@@ -50,6 +51,9 @@ Updated: 2026-05-25 for `MEDIA-RENDER-FIX-01`.
 | Initial moderation status | PASS | New avatar/profile photo uploads create a manual-review moderation record. `NOT_CONFIGURED` automated provider does not fake approval. |
 | Closed-test visibility policy | PASS | Pending review public profile media is visible for closed testing; public beta should move to approved-only visibility after real moderation is staffed/configured. |
 | Peer media URL diagnostics | PASS | Mobile resolves relative `/media/public/:mediaId` against the current API origin, rewrites old absolute public-media paths to the current origin, rejects invalid URLs safely, probes failed loads, and reports `urlKind`/`mediaId`/`httpStatus`/`contentType` diagnostics without full raw URLs. |
+| Owner gallery URL resolution | PASS | Owner gallery uses the same current-origin resolver as peer profile instead of passing relative media paths directly to React Native `Image`. |
+| Owner delete diagnostics | PASS | Delete failures report safe `mediaId`, optional `galleryItemId`, HTTP status, error code, visibility, and moderation status without raw URLs or tokens. |
+| Broken owner thumbnails | PASS | Owner gallery shows loading/error state and a remove/reupload path instead of silent black placeholders. |
 
 ## Found Bugs
 

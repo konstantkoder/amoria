@@ -89,7 +89,10 @@ export type ProfileGalleryPhotoDto = {
   mediaId: string;
   url: string;
   position: number;
+  galleryItemId?: string;
   visibility?: ProfileGalleryVisibility;
+  mimeType?: string;
+  moderationStatus?: string | null;
 };
 
 export type LockedGallerySummaryDto = {

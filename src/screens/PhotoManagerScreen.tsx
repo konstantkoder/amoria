@@ -38,6 +38,7 @@ import {
   uploadProfilePhoto,
   deleteProfilePhoto,
 } from "@/services/storage";
+import { normalizePublicMediaUrl } from "@/services/media/mediaUrl";
 import { theme } from "@/theme";
 
 type PasswordMode = "set" | "reset" | "";
@@ -46,6 +47,7 @@ type PendingPickedPhoto = {
   mimeType?: string;
   fileSize?: number;
 };
+type PhotoImageState = "idle" | "loading" | "loaded" | "error";
 const FALLBACK_MAX_PROFILE_GALLERY_PHOTOS = 15;
 const FALLBACK_MAX_LOCKED_PROFILE_PHOTOS = 10;
 
@@ -66,6 +68,7 @@ export default function PhotoManagerScreen() {
   const [passwordMode, setPasswordMode] = React.useState<PasswordMode>("");
   const [currentAccountPassword, setCurrentAccountPassword] = React.useState("");
   const [newFolderPassword, setNewFolderPassword] = React.useState("");
+  const [photoImageStates, setPhotoImageStates] = React.useState<Record<string, PhotoImageState>>({});
   const currentPasswordInputRef = React.useRef<TextInput>(null);
   const newFolderPasswordInputRef = React.useRef<TextInput>(null);
 
@@ -330,6 +333,32 @@ export default function PhotoManagerScreen() {
       await deleteProfilePhoto(photo.mediaId);
       await refreshGallery();
     } catch (error) {
+      const safeError = sanitizeErrorForReport(error);
+      void reportClientError({
+        screen: "PhotoManagerScreen",
+        action: "deletePhoto",
+        step: "deleteFailed",
+        code: error instanceof ApiError ? error.code : safeError.code,
+        message: safeError.message,
+        stack: safeError.stack,
+        metadata: {
+          mediaId: photo.mediaId,
+          ...(photo.galleryItemId ? { galleryItemId: photo.galleryItemId } : {}),
+          httpStatus: error instanceof ApiError ? error.status : null,
+          errorCode: error instanceof ApiError ? error.code ?? null : safeError.code ?? null,
+          visibility: photo.visibility ?? null,
+          moderationStatus: photo.moderationStatus ?? null,
+          mimeType: photo.mimeType ?? null,
+        },
+      });
+      if (error instanceof ApiError && error.status === 404) {
+        await refreshGallery().catch(() => undefined);
+        Alert.alert(
+          tt("photos.alreadyRemovedTitle", "Фото уже удалено"),
+          tt("photos.alreadyRemovedBody", "Мы обновили галерею с сервера.")
+        );
+        return;
+      }
       handleApiError(error, t("photos.removeErrorTitle"), t("photos.removeErrorBody"));
     } finally {
       setBusy(false);
@@ -418,9 +447,45 @@ export default function PhotoManagerScreen() {
   ) {
     const moveTarget = visibility === "public" ? "locked" : "public";
     const moveDisabled = busy || (moveTarget === "locked" && lockedLimitReached);
+    const resolvedPhotoUrl = normalizePublicMediaUrl(photo.url, "owner gallery photo URL") ?? "";
+    const imageState = photoImageStates[photo.mediaId] ?? (resolvedPhotoUrl ? "idle" : "error");
+    const imageLoading = imageState === "loading" || imageState === "idle";
+    const imageFailed = imageState === "error";
+    const setImageState = (state: PhotoImageState) => {
+      setPhotoImageStates((current) => ({
+        ...current,
+        [photo.mediaId]: state,
+      }));
+    };
+
     return (
       <View key={photo.mediaId} style={styles.photoCard}>
-        <Image source={{ uri: photo.url }} style={styles.photoImage} />
+        <View style={styles.photoImageWrap}>
+          {resolvedPhotoUrl ? (
+            <Image
+              source={{ uri: resolvedPhotoUrl }}
+              style={styles.photoImage}
+              onLoadStart={() => setImageState("loading")}
+              onLoad={() => setImageState("loaded")}
+              onError={() => setImageState("error")}
+            />
+          ) : null}
+          {imageLoading && resolvedPhotoUrl ? (
+            <View style={styles.photoImageOverlay}>
+              <ActivityIndicator color="#FFFFFF" />
+            </View>
+          ) : null}
+          {imageFailed ? (
+            <View style={styles.photoImageError}>
+              <Text style={styles.photoImageErrorTitle}>
+                {tt("photos.previewFailed", "Фото не открылось")}
+              </Text>
+              <Text style={styles.photoImageErrorText}>
+                {tt("photos.brokenPhotoCanRemove", "Можно удалить это фото и загрузить новое.")}
+              </Text>
+            </View>
+          ) : null}
+        </View>
         <View style={styles.photoActions}>
           <TouchableOpacity
             activeOpacity={0.86}
@@ -876,10 +941,40 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.1)",
   },
-  photoImage: {
+  photoImageWrap: {
     width: "100%",
     aspectRatio: 1,
-    backgroundColor: "rgba(255,255,255,0.08)",
+    backgroundColor: "rgba(255,255,255,0.07)",
+  },
+  photoImage: {
+    width: "100%",
+    height: "100%",
+  },
+  photoImageOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.18)",
+  },
+  photoImageError: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 10,
+    gap: 5,
+    backgroundColor: "rgba(8, 12, 24, 0.92)",
+  },
+  photoImageErrorTitle: {
+    color: theme.colors.text,
+    fontSize: 12,
+    fontWeight: "900",
+    textAlign: "center",
+  },
+  photoImageErrorText: {
+    color: theme.colors.subtext,
+    fontSize: 10,
+    lineHeight: 14,
+    textAlign: "center",
   },
   photoActions: {
     gap: 1,

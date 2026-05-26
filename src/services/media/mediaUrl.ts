@@ -189,14 +189,16 @@ export async function probePublicMediaUrl(
       cache: "no-store",
     });
     const contentType = response.headers.get("content-type") ?? undefined;
+    const errorCode = await readProbeErrorCode(response, contentType);
     await response.blob().catch(() => undefined);
 
     return {
-      ok: response.ok,
+      ok: response.ok && Boolean(contentType?.startsWith("image/")),
       urlKind: urlInfo.urlKind,
       ...(urlInfo.mediaId ? { mediaId: urlInfo.mediaId } : {}),
       httpStatus: response.status,
       ...(contentType ? { contentType } : {}),
+      ...(errorCode ? { errorCode } : {}),
     };
   } catch (error) {
     const errorName =
@@ -210,6 +212,17 @@ export async function probePublicMediaUrl(
       errorCode: errorName || "network_error",
     };
   }
+}
+
+async function readProbeErrorCode(
+  response: Response,
+  contentType: string | undefined
+): Promise<string | undefined> {
+  if (!contentType?.includes("application/json")) return undefined;
+
+  const data = await response.clone().json().catch(() => undefined);
+  const errorCode = (data as { error?: { code?: unknown } } | undefined)?.error?.code;
+  return typeof errorCode === "string" && errorCode.trim() ? errorCode : undefined;
 }
 
 function isCurrentApiOrigin(url: URL): boolean {

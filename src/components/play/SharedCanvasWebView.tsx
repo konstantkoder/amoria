@@ -1039,7 +1039,6 @@ export default function SharedCanvasWebView({
   const toolOptions = [
     { mode: "draw", label: toolLabels?.brushTool ?? "Brush", icon: "brush-outline" },
     { mode: "erase", label: toolLabels?.eraserTool ?? "Eraser", icon: "remove-circle-outline" },
-    { mode: "move", label: toolLabels?.moveTool ?? "Move", icon: "move-outline" },
   ] as const;
 
   const toolbar = (
@@ -1077,6 +1076,32 @@ export default function SharedCanvasWebView({
             );
           })}
         </View>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={toolLabels?.moveTool ?? "Move mode"}
+          disabled={disabled}
+          onPress={() => applyTool("move")}
+          style={[
+            styles.moveFallbackButton,
+            fullscreen ? styles.moveFallbackButtonFullscreen : null,
+            selectedTool === "move" && styles.modeButtonActive,
+            disabled && styles.toolButtonDisabled,
+          ]}
+        >
+          <Ionicons
+            name="move-outline"
+            size={fullscreen ? 15 : 16}
+            color={selectedTool === "move" ? theme.colors.text : theme.colors.subtext}
+          />
+          <Text
+            style={[
+              styles.moveFallbackText,
+              selectedTool === "move" && styles.modeButtonTextActive,
+            ]}
+          >
+            {toolLabels?.moveTool ?? "Move mode"}
+          </Text>
+        </Pressable>
       </View>
 
       <View style={[styles.toolGroup, fullscreen ? styles.toolGroupFullscreen : null]}>
@@ -1350,14 +1375,14 @@ const styles = StyleSheet.create({
     shadowRadius: 0,
   },
   toolbar: {
-    gap: 12,
+    gap: 9,
     marginBottom: 12,
   },
   toolbarFullscreen: {
     position: "absolute",
     left: 8,
     right: 8,
-    bottom: 8,
+    top: 8,
     zIndex: 2,
     marginBottom: 0,
     marginTop: 0,
@@ -1367,7 +1392,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(7, 11, 21, 0.94)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.14)",
-    gap: 8,
+    gap: 7,
   },
   toolGroup: {
     gap: 7,
@@ -1384,12 +1409,12 @@ const styles = StyleSheet.create({
   },
   modeRow: {
     flexDirection: "row",
-    gap: 8,
+    gap: 7,
     flexWrap: "wrap",
   },
   modeButton: {
-    minHeight: 42,
-    minWidth: 86,
+    minHeight: 38,
+    minWidth: 78,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -1401,8 +1426,8 @@ const styles = StyleSheet.create({
     borderColor: "transparent",
   },
   modeButtonFullscreen: {
-    minHeight: 34,
-    minWidth: 72,
+    minHeight: 32,
+    minWidth: 68,
     borderRadius: 8,
     paddingHorizontal: 8,
   },
@@ -1412,31 +1437,54 @@ const styles = StyleSheet.create({
   },
   modeButtonText: {
     color: theme.colors.subtext,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "800",
   },
   modeButtonTextActive: {
     color: theme.colors.text,
   },
+  moveFallbackButton: {
+    alignSelf: "flex-start",
+    minHeight: 32,
+    borderRadius: 8,
+    paddingHorizontal: 9,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    backgroundColor: "rgba(255,255,255,0.045)",
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+  },
+  moveFallbackButtonFullscreen: {
+    minHeight: 28,
+    paddingHorizontal: 8,
+    marginTop: 6,
+  },
+  moveFallbackText: {
+    color: theme.colors.subtext,
+    fontSize: 10,
+    fontWeight: "800",
+  },
   colorRow: {
     flexDirection: "row",
-    gap: 10,
+    gap: 8,
     flexWrap: "wrap",
   },
   colorRowFullscreen: {
-    gap: 7,
+    gap: 6,
   },
   colorButton: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     borderWidth: 2,
     borderColor: "transparent",
   },
   colorButtonFullscreen: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
   },
   colorButtonActive: {
     borderColor: "#FFFFFF",
@@ -1446,20 +1494,20 @@ const styles = StyleSheet.create({
   },
   sizeGrid: {
     flexDirection: "row",
-    gap: 12,
+    gap: 8,
     flexWrap: "wrap",
   },
   brushRow: {
     flexDirection: "row",
-    gap: 10,
+    gap: 8,
     flexWrap: "wrap",
   },
   brushRowFullscreen: {
-    gap: 7,
+    gap: 6,
   },
   brushButton: {
-    minWidth: 58,
-    minHeight: 42,
+    minWidth: 50,
+    minHeight: 36,
     borderRadius: theme.shapes.pill,
     alignItems: "center",
     justifyContent: "center",
@@ -1469,8 +1517,8 @@ const styles = StyleSheet.create({
     borderColor: "transparent",
   },
   brushButtonFullscreen: {
-    minWidth: 42,
-    minHeight: 32,
+    minWidth: 38,
+    minHeight: 30,
     borderRadius: 8,
   },
   brushButtonActive: {
@@ -1496,12 +1544,12 @@ const styles = StyleSheet.create({
   zoomRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 7,
     flexWrap: "wrap",
   },
   zoomButton: {
-    minWidth: 42,
-    minHeight: 38,
+    minWidth: 36,
+    minHeight: 34,
     borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
@@ -1511,12 +1559,12 @@ const styles = StyleSheet.create({
   },
   zoomButtonText: {
     color: theme.colors.text,
-    fontSize: 22,
-    lineHeight: 24,
+    fontSize: 20,
+    lineHeight: 22,
     fontWeight: "900",
   },
   resetZoomButton: {
-    minHeight: 38,
+    minHeight: 34,
     borderRadius: 8,
     paddingHorizontal: 12,
     alignItems: "center",
@@ -1527,7 +1575,7 @@ const styles = StyleSheet.create({
   },
   resetZoomText: {
     color: theme.colors.text,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "800",
   },
   canvasShell: {
