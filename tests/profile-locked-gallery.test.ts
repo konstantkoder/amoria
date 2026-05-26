@@ -6,6 +6,7 @@ import type {
   ProfileLockedGallerySettingsRow,
   UserRow,
 } from "../src/db/schema";
+import { AppError } from "../src/common/errors";
 import {
   MAX_LOCKED_PROFILE_PHOTOS,
   MAX_PROFILE_GALLERY_PHOTOS,
@@ -66,6 +67,19 @@ test("public gallery summary returns public photos and hides locked photos", asy
   assert.equal(JSON.stringify(response).includes("users/owner/profile"), false);
   assert.equal(JSON.stringify(response).includes("localhost"), false);
   assert.equal(JSON.stringify(response).includes("minio"), false);
+});
+
+test("public gallery summary hides public photos whose storage object is missing", async (t) => {
+  t.after(restoreGalleryDeps);
+  mockGallery({ missingObjectIds: [publicPhoto2Id] });
+
+  const response = await galleryService.getPublicGalleryForUser(ownerId);
+
+  assert.deepEqual(
+    response.photos.map((photo) => photo.mediaId),
+    [publicPhoto1Id, publicPhoto3Id],
+  );
+  assert.equal(response.photos.some((photo) => photo.mediaId === publicPhoto2Id), false);
 });
 
 test("wrong locked gallery password returns 403 without photos", async (t) => {
@@ -238,6 +252,22 @@ test("owner can delete own profile photo and public read model is synced", async
   );
 });
 
+test("owner can remove own profile photo row when storage object is missing", async (t) => {
+  t.after(restoreGalleryDeps);
+  const state = mockGallery({ missingObjectIds: [publicPhoto1Id] });
+
+  const response = await galleryService.deleteOwnedMediaWithGalleryGuards(ownerId, publicPhoto1Id);
+
+  assert.deepEqual(response, { ok: true });
+  assert.deepEqual(state.deletedObjectKeys, []);
+  assert.deepEqual(state.deletedMediaIds, [publicPhoto1Id]);
+  assert.equal(state.items.some((entry) => entry.item.mediaId === publicPhoto1Id), false);
+  assert.deepEqual(
+    state.updatedPhotos.map((photo) => photo.mediaId),
+    [publicPhoto2Id, publicPhoto3Id],
+  );
+});
+
 test("owner cannot exceed locked gallery photo limit", async (t) => {
   t.after(restoreGalleryDeps);
   const lockedItems = Array.from({ length: MAX_LOCKED_PROFILE_PHOTOS }, (_, index) =>
@@ -305,8 +335,10 @@ function mockGallery(input: {
   blocked?: boolean;
   passwordHash?: string | null;
   items?: ReturnType<typeof galleryEntry>[];
+  missingObjectIds?: string[];
 } = {}) {
   restoreGalleryDeps();
+  const missingObjectIds = new Set(input.missingObjectIds ?? []);
 
   const state = {
     users: new Map<string, UserRow>([
@@ -416,6 +448,13 @@ function mockGallery(input: {
     },
     deleteObject: async (input) => {
       state.deletedObjectKeys.push(input.key);
+    },
+    headObject: async (input) => {
+      const mediaId = String(input.key).split("/").pop()?.replace(".webp", "") ?? "";
+      if (missingObjectIds.has(mediaId)) {
+        throw new AppError("not_found", "Object was not found in storage", 404);
+      }
+      return { sizeBytes: 1234, contentType: "image/webp" };
     },
   });
 

@@ -1,6 +1,6 @@
 # Amoria Release Control Center
 
-Updated: 2026-05-25
+Updated: 2026-05-26
 
 ## Release Rules
 
@@ -39,6 +39,9 @@ Updated: 2026-05-25
 ## Media Render Contract
 
 - Public avatar/profile media must render through `/media/public/:mediaId` with image content type.
+- Public profile must not return `avatarUrl` or public photo entries when the public media route would return `404`.
+- Missing storage objects return `error.code=object_not_found` and are not treated as successful image loads.
+- Owner delete can remove owned broken media rows/gallery items when the storage object is already missing.
 - Admin Media thumbnails use safe public media paths; locked media must not get public preview URLs.
 - Admin Media detail preview uses the authenticated audited content route.
 - Mobile peer media failures must report safe `mediaId`, `urlKind`, `httpStatus`, and `contentType`; raw full URLs, signed URLs, tokens, and local paths must not appear.

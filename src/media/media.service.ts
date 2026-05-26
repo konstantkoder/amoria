@@ -179,16 +179,38 @@ export async function getPublicMedia(mediaId: string): Promise<PublicMediaRespon
     }
   }
 
-  const body = await deps.getObjectBuffer({
-    bucket: env.S3_BUCKET,
-    key: media.path,
-    maxBytes: MAX_MEDIA_UPLOAD_BYTES,
-  });
+  const body = await readPublicMediaObject(media);
 
   return {
     body,
     contentType: media.mimeType,
   };
+}
+
+async function readPublicMediaObject(media: MediaFileRow): Promise<Buffer> {
+  try {
+    return await deps.getObjectBuffer({
+      bucket: env.S3_BUCKET,
+      key: media.path,
+      maxBytes: MAX_MEDIA_UPLOAD_BYTES,
+    });
+  } catch (error) {
+    if (error instanceof AppError && error.code === "not_found") {
+      throw new AppError("object_not_found", "Media object was not found in storage", 404, {
+        mediaId: media.id,
+        type: media.type,
+      });
+    }
+
+    if (error instanceof AppError && error.code === "internal_error") {
+      throw new AppError("storage_read_failed", "Media object storage read failed", 500, {
+        mediaId: media.id,
+        type: media.type,
+      });
+    }
+
+    throw error;
+  }
 }
 
 function avatarObjectKey(userId: string, mediaId: string): string {

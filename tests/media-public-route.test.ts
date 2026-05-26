@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { MediaFileRow } from "../src/db/schema";
+import { AppError } from "../src/common/errors";
 
 process.env.NODE_ENV = "test";
 process.env.DATABASE_URL = "postgresql://amoria:amoria_password@localhost:5432/amoria_test";
@@ -25,7 +26,7 @@ test.after(async () => {
   await closeDb();
 });
 
-test("GET /media/public/:mediaId streams media object by current media id", async (t) => {
+test("GET /media/public/:mediaId streams pending_review avatar media by current media id", async (t) => {
   t.after(restoreMediaDeps);
   const app = buildApp();
   t.after(async () => {
@@ -41,6 +42,7 @@ test("GET /media/public/:mediaId streams media object by current media id", asyn
             ownerUserId: ownerId,
             type: "avatar",
             path: objectKey,
+            url: "https://old.example.test/stale-avatar.webp",
           })
         : undefined,
     getObjectBuffer: async (input) => {
@@ -125,6 +127,35 @@ test("GET /media/public/:mediaId does not expose locked gallery media", async (t
   assert.equal(response.statusCode, 404);
   assert.notEqual(response.headers["content-type"], "image/webp");
   assert.equal(objectRead, false);
+});
+
+test("GET /media/public/:mediaId returns object_not_found when media row points to missing storage object", async (t) => {
+  t.after(restoreMediaDeps);
+  const app = buildApp();
+  t.after(async () => {
+    await app.close();
+  });
+
+  restoreDeps = mediaService.__setMediaServiceDepsForTests({
+    findMediaFileById: async () => mediaRow({
+      id: mediaId,
+      ownerUserId: ownerId,
+      type: "avatar",
+      path: objectKey,
+    }),
+    getObjectBuffer: async () => {
+      throw new AppError("not_found", "Object was not found in storage", 404);
+    },
+  });
+
+  const response = await app.inject({
+    method: "GET",
+    url: `/media/public/${mediaId}`,
+  });
+
+  assert.equal(response.statusCode, 404);
+  assert.equal(response.json().error.code, "object_not_found");
+  assert.notEqual(response.headers["content-type"], "image/webp");
 });
 
 function restoreMediaDeps(): void {

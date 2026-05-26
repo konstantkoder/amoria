@@ -17,6 +17,7 @@ import {
   MediaDetail,
   MediaItem,
   OpsHealth,
+  PublicMediaProbeResult,
   ReportDetail,
   ReportItem,
   Tokens,
@@ -1131,17 +1132,25 @@ function MediaPreviewCell({ item }: { item: MediaItem }) {
   const { t } = useI18n();
   const previewUrl = resolveApiUrl(item.previewUrl);
   const [failed, setFailed] = useState(false);
-  const [probe, setProbe] = useState<{
-    ok: boolean;
-    httpStatus: number | null;
-    contentType: string | null;
-    error: string | null;
-  } | null>(null);
+  const [probe, setProbe] = useState<PublicMediaProbeResult | null>(null);
 
   useEffect(() => {
     setFailed(false);
     setProbe(null);
   }, [item.id, previewUrl]);
+
+  useEffect(() => {
+    if (!failed || probe || !previewUrl) return;
+    let cancelled = false;
+    void probePublicMediaUrl(item.publicUrl ?? item.previewUrl).then((result) => {
+      if (!cancelled) {
+        setProbe(result);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [failed, item.previewUrl, item.publicUrl, previewUrl, probe]);
 
   async function checkUrl(event: MouseEvent) {
     event.stopPropagation();
@@ -1171,13 +1180,7 @@ function MediaPreviewCell({ item }: { item: MediaItem }) {
           <span>{item.id}</span>
           <span>{formatStatus(item.moderationStatus, t)}</span>
           <span>{item.mimeType}</span>
-          {probe ? (
-            <span>
-              HTTP {probe.httpStatus ?? "?"}
-              {probe.contentType ? ` · ${probe.contentType}` : ""}
-              {probe.error ? ` · ${probe.error}` : ""}
-            </span>
-          ) : null}
+          {probe ? <span>{formatProbeDetails(probe)}</span> : null}
         </div>
       )}
       <button className="link-button" type="button" onClick={(event) => void checkUrl(event)}>
@@ -1185,11 +1188,20 @@ function MediaPreviewCell({ item }: { item: MediaItem }) {
       </button>
       {probe ? (
         <span className={probe.ok ? "media-probe-ok" : "media-probe-failed"}>
-          HTTP {probe.httpStatus ?? "?"}
+          {formatProbeDetails(probe)}
         </span>
       ) : null}
     </div>
   );
+}
+
+function formatProbeDetails(probe: PublicMediaProbeResult): string {
+  return [
+    `HTTP ${probe.httpStatus ?? "?"}`,
+    probe.contentType,
+    probe.errorCode ? `code=${probe.errorCode}` : null,
+    probe.error,
+  ].filter(Boolean).join(" · ");
 }
 
 function MediaScreen({ setMessage }: { setMessage: (message: string | null) => void }) {
@@ -1203,12 +1215,7 @@ function MediaScreen({ setMessage }: { setMessage: (message: string | null) => v
   const [decisionReason, setDecisionReason] = useState("");
   const [previewBlobUrl, setPreviewBlobUrl] = useState<string | null>(null);
   const [previewError, setPreviewError] = useState(false);
-  const [previewProbe, setPreviewProbe] = useState<{
-    ok: boolean;
-    httpStatus: number | null;
-    contentType: string | null;
-    error: string | null;
-  } | null>(null);
+  const [previewProbe, setPreviewProbe] = useState<PublicMediaProbeResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const decisionRequiresReason = decisionAction === "restrict" || decisionAction === "remove" || selected?.visibility === "locked";
 
@@ -1395,9 +1402,7 @@ function MediaScreen({ setMessage }: { setMessage: (message: string | null) => v
               ) : null}
               {previewProbe ? (
                 <div className={previewProbe.ok ? "notice" : "error"}>
-                  HTTP {previewProbe.httpStatus ?? "?"}
-                  {previewProbe.contentType ? ` · ${previewProbe.contentType}` : ""}
-                  {previewProbe.error ? ` · ${previewProbe.error}` : ""}
+                  {formatProbeDetails(previewProbe)}
                 </div>
               ) : null}
             </div>

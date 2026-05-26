@@ -6,7 +6,7 @@ import {
   MIN_VISIBLE_PROFILE_IMAGES_FOR_LOCKED_GALLERY,
 } from "../config/constants";
 import type { MediaFileRow, ProfilePhoto, UserRow } from "../db/schema";
-import { deleteObject } from "../media/object-storage";
+import { deleteObject, headObject } from "../media/object-storage";
 import { env } from "../config/env";
 import { findMediaFileByOwner, deleteMediaFileByOwner } from "../media/media.repo";
 import { publicMediaUrlForMediaId } from "../media/media-url";
@@ -22,7 +22,9 @@ export type ProfileGalleryPhoto = {
 };
 
 export type OwnerProfileGalleryPhoto = ProfileGalleryPhoto & {
+  galleryItemId: string;
   visibility: galleryRepo.ProfileGalleryVisibility;
+  mimeType: string;
 };
 
 export type LockedGallerySummary = {
@@ -75,6 +77,7 @@ type ProfileGalleryDeps = {
   usersRepo: typeof usersRepo;
   findMediaFileByOwner: typeof findMediaFileByOwner;
   deleteMediaFileByOwner: typeof deleteMediaFileByOwner;
+  headObject: typeof headObject;
   deleteObject: typeof deleteObject;
   hashPassword: typeof hashPassword;
   verifyPassword: typeof verifyPassword;
@@ -86,6 +89,7 @@ const defaultDeps: ProfileGalleryDeps = {
   usersRepo,
   findMediaFileByOwner,
   deleteMediaFileByOwner,
+  headObject,
   deleteObject,
   hashPassword,
   verifyPassword,
@@ -127,7 +131,9 @@ export async function getPublicGalleryForUser(
     deps.repo.listGalleryItemsForUser(userId),
     deps.repo.getLockedGallerySettings(userId),
   ]);
-  const publicItems = items.filter((entry) => entry.item.visibility === "public");
+  const publicItems = await filterLoadablePublicGalleryItems(
+    items.filter((entry) => entry.item.visibility === "public"),
+  );
   const lockedItems = items.filter((entry) => entry.item.visibility === "locked");
   const enabled = Boolean(settings?.passwordHash && lockedItems.length > 0);
 
@@ -350,14 +356,14 @@ export async function deleteOwnedMediaWithGalleryGuards(
     throw new AppError("not_found", "Media file not found", 404);
   }
 
-  if (media.type === "profile_photo") {
+  const objectMissing = await mediaObjectIsMissing(media);
+  if (media.type === "profile_photo" && !objectMissing) {
     await assertProfilePhotoCanBeDeleted(ownerUserId, mediaId);
   }
 
-  await deps.deleteObject({
-    bucket: env.S3_BUCKET,
-    key: media.path,
-  });
+  if (!objectMissing) {
+    await deleteMediaObjectIfPossible(media);
+  }
 
   await deps.deleteMediaFileByOwner(mediaId, ownerUserId);
   if (media.type === "profile_photo") {
@@ -386,12 +392,13 @@ async function assertProfilePhotoCanBeDeleted(userId: string, mediaId: string): 
 
 async function syncPublicPhotosReadModel(userId: string): Promise<void> {
   const items = await deps.repo.listGalleryItemsForUser(userId);
-  const photos = items
-    .filter((entry) => entry.item.visibility === "public")
-    .map((entry) => ({
-      mediaId: entry.item.mediaId,
-      url: publicMediaUrlForMediaId(entry.media.id),
-    }));
+  const publicItems = await filterLoadablePublicGalleryItems(
+    items.filter((entry) => entry.item.visibility === "public"),
+  );
+  const photos = publicItems.map((entry) => ({
+    mediaId: entry.item.mediaId,
+    url: publicMediaUrlForMediaId(entry.media.id),
+  }));
 
   await deps.usersRepo.updateUserProfile(userId, { photos });
 }
@@ -418,7 +425,9 @@ function toOwnerGalleryResponse(
 ): OwnerProfileGalleryResponse {
   const photos = items.map((entry) => ({
     ...toPublicPhoto(entry),
+    galleryItemId: entry.item.id,
     visibility: entry.item.visibility as galleryRepo.ProfileGalleryVisibility,
+    mimeType: entry.media.mimeType,
   }));
   const publicPhotos = photos.filter((photo) => photo.visibility === "public");
   const lockedPhotos = photos.filter((photo) => photo.visibility === "locked");
@@ -441,6 +450,72 @@ function toPublicPhoto(entry: galleryRepo.ProfileGalleryItemWithMedia): ProfileG
     url: publicMediaUrlForMediaId(entry.media.id),
     position: entry.item.position,
   };
+}
+
+async function filterLoadablePublicGalleryItems(
+  items: galleryRepo.ProfileGalleryItemWithMedia[],
+): Promise<galleryRepo.ProfileGalleryItemWithMedia[]> {
+  const loadable: galleryRepo.ProfileGalleryItemWithMedia[] = [];
+  for (const entry of items) {
+    if (entry.media.type !== "profile_photo") {
+      continue;
+    }
+    if (await mediaObjectExists(entry.media)) {
+      loadable.push(entry);
+    }
+  }
+  return loadable;
+}
+
+async function mediaObjectExists(media: Pick<MediaFileRow, "path">): Promise<boolean> {
+  try {
+    await deps.headObject({
+      bucket: env.S3_BUCKET,
+      key: media.path,
+    });
+    return true;
+  } catch (error) {
+    if (error instanceof AppError && (
+      error.code === "not_found" ||
+      error.code === "internal_error" ||
+      error.code === "storage_read_failed"
+    )) {
+      return false;
+    }
+
+    throw error;
+  }
+}
+
+async function mediaObjectIsMissing(media: Pick<MediaFileRow, "path">): Promise<boolean> {
+  try {
+    await deps.headObject({
+      bucket: env.S3_BUCKET,
+      key: media.path,
+    });
+    return false;
+  } catch (error) {
+    if (error instanceof AppError && error.code === "not_found") {
+      return true;
+    }
+
+    throw error;
+  }
+}
+
+async function deleteMediaObjectIfPossible(media: Pick<MediaFileRow, "path">): Promise<void> {
+  try {
+    await deps.deleteObject({
+      bucket: env.S3_BUCKET,
+      key: media.path,
+    });
+  } catch (error) {
+    if (error instanceof AppError && error.code === "not_found") {
+      return;
+    }
+
+    throw error;
+  }
 }
 
 function assertVisibleImageRule(

@@ -12,7 +12,7 @@ import {
   normalizeOptionalPhotos,
   normalizeOptionalUrl,
 } from "../common/validators";
-import type { ProfilePhoto, UserRow } from "../db/schema";
+import type { MediaFileRow, ProfilePhoto, UserRow } from "../db/schema";
 import {
   findOwnedMediaFileByUrl,
   findOwnedMediaFilesByIds,
@@ -21,6 +21,8 @@ import {
   mediaIdFromPublicMediaReference,
   publicMediaUrlForMediaId,
 } from "../media/media-url";
+import { headObject } from "../media/object-storage";
+import { env } from "../config/env";
 import { isBlockedEitherWay } from "../safety/safety.repo";
 import * as profileGalleryService from "./profile-gallery.service";
 import * as usersRepo from "./users.repo";
@@ -83,6 +85,7 @@ type UsersServiceDeps = {
   repo: typeof usersRepo;
   findOwnedMediaFileByUrl: typeof findOwnedMediaFileByUrl;
   findOwnedMediaFilesByIds: typeof findOwnedMediaFilesByIds;
+  headObject: typeof headObject;
   isBlockedEitherWay: typeof isBlockedEitherWay;
   gallery: Pick<
     typeof profileGalleryService,
@@ -94,6 +97,7 @@ const defaultDeps: UsersServiceDeps = {
   repo: usersRepo,
   findOwnedMediaFileByUrl,
   findOwnedMediaFilesByIds,
+  headObject,
   isBlockedEitherWay,
   gallery: profileGalleryService,
 };
@@ -302,8 +306,31 @@ async function toCurrentAvatarUrl(user: Pick<UserRow, "id" | "avatarUrl">): Prom
   if (!media || !avatarMediaTypes.has(media.type)) {
     return null;
   }
+  if (!await mediaObjectExists(media)) {
+    return null;
+  }
 
   return publicMediaUrlForMediaId(media.id);
+}
+
+async function mediaObjectExists(media: Pick<MediaFileRow, "path">): Promise<boolean> {
+  try {
+    await deps.headObject({
+      bucket: env.S3_BUCKET,
+      key: media.path,
+    });
+    return true;
+  } catch (error) {
+    if (error instanceof AppError && (
+      error.code === "not_found" ||
+      error.code === "internal_error" ||
+      error.code === "storage_read_failed"
+    )) {
+      return false;
+    }
+
+    throw error;
+  }
 }
 
 async function normalizeOwnedPhotos(

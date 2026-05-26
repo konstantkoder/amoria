@@ -47,13 +47,15 @@ const publicGalleryPhotosSchema = {
 
 const ownerGalleryPhotoSchema = {
   type: "object",
-  required: ["mediaId", "url", "position", "visibility"],
+  required: ["mediaId", "url", "position", "galleryItemId", "visibility", "mimeType"],
   additionalProperties: false,
   properties: {
     mediaId: { type: "string", format: "uuid" },
     url: { type: "string", maxLength: PROFILE_URL_MAX_LENGTH },
     position: { type: "integer", minimum: 0 },
+    galleryItemId: { type: "string", format: "uuid" },
     visibility: { type: "string", enum: ["public", "locked"] },
+    mimeType: { type: "string" },
   },
 } as const;
 

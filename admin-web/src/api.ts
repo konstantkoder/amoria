@@ -406,6 +406,7 @@ export type PublicMediaProbeResult = {
   ok: boolean;
   httpStatus: number | null;
   contentType: string | null;
+  errorCode: string | null;
   error: string | null;
 };
 
@@ -418,6 +419,7 @@ export async function probePublicMediaUrl(
       ok: false,
       httpStatus: null,
       contentType: null,
+      errorCode: "invalid_url",
       error: "invalid_url",
     };
   }
@@ -428,11 +430,13 @@ export async function probePublicMediaUrl(
       cache: "no-store",
     });
     const contentType = response.headers.get("content-type");
+    const errorCode = await readProbeErrorCode(response, contentType);
     await response.blob().catch(() => undefined);
     return {
-      ok: response.ok,
+      ok: response.ok && Boolean(contentType?.startsWith("image/")),
       httpStatus: response.status,
       contentType,
+      errorCode,
       error: null,
     };
   } catch (error) {
@@ -440,9 +444,23 @@ export async function probePublicMediaUrl(
       ok: false,
       httpStatus: null,
       contentType: null,
+      errorCode: null,
       error: error instanceof Error ? error.name : "network_error",
     };
   }
+}
+
+async function readProbeErrorCode(
+  response: Response,
+  contentType: string | null,
+): Promise<string | null> {
+  if (!contentType?.includes("application/json")) {
+    return null;
+  }
+
+  const data = await response.clone().json().catch(() => undefined);
+  const errorCode = (data as { error?: { code?: unknown } } | undefined)?.error?.code;
+  return typeof errorCode === "string" && errorCode.trim() ? errorCode : null;
 }
 
 async function apiFetch<T = unknown>(

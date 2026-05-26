@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { MediaFileRow, UserRow } from "../src/db/schema";
+import { AppError } from "../src/common/errors";
 
 process.env.NODE_ENV = "test";
 process.env.DATABASE_URL = "postgresql://amoria:amoria_password@localhost:5432/amoria_test";
@@ -212,9 +213,31 @@ test("legacy local avatarUrl is hidden without profile failure", async (t) => {
   assert.equal(response.json().avatarUrl, null);
 });
 
+test("public profile hides avatarUrl when avatar media object is missing", async (t) => {
+  t.after(restoreUsersDeps);
+  const app = buildApp();
+  t.after(async () => {
+    await app.close();
+  });
+
+  mockUsers({ missingAvatarObject: true });
+
+  const response = await app.inject({
+    method: "GET",
+    url: `/users/${userBId}/public`,
+    headers: {
+      Authorization: `Bearer ${signAccessToken(userAId)}`,
+    },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.json().avatarUrl, null);
+});
+
 function mockUsers(input: {
   isBlockedEitherWay?: (currentUserId: string, targetUserId: string) => Promise<boolean>;
   userBOverrides?: Partial<UserRow>;
+  missingAvatarObject?: boolean;
 } = {}): void {
   restoreUsersDeps();
 
@@ -248,6 +271,12 @@ function mockUsers(input: {
         });
       }
       return undefined;
+    },
+    headObject: async () => {
+      if (input.missingAvatarObject) {
+        throw new AppError("not_found", "Object was not found in storage", 404);
+      }
+      return { sizeBytes: 1234, contentType: "image/webp" };
     },
     isBlockedEitherWay: input.isBlockedEitherWay ?? (async () => false),
     gallery: {

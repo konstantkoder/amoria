@@ -27,6 +27,8 @@ export type ErrorCode =
   | "image_too_large"
   | "image_too_small"
   | "corrupt_image"
+  | "object_not_found"
+  | "storage_read_failed"
   | "storage_write_failed"
   | "internal_error";
 
