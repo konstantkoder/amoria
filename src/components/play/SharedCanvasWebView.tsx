@@ -50,6 +50,7 @@ type Props = {
     colors: string;
     brush: string;
     tools: string;
+    toolsHint?: string;
     brushTool: string;
     eraserTool: string;
     moveTool: string;
@@ -1076,32 +1077,6 @@ export default function SharedCanvasWebView({
             );
           })}
         </View>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={toolLabels?.moveTool ?? "Move mode"}
-          disabled={disabled}
-          onPress={() => applyTool("move")}
-          style={[
-            styles.moveFallbackButton,
-            fullscreen ? styles.moveFallbackButtonFullscreen : null,
-            selectedTool === "move" && styles.modeButtonActive,
-            disabled && styles.toolButtonDisabled,
-          ]}
-        >
-          <Ionicons
-            name="move-outline"
-            size={fullscreen ? 15 : 16}
-            color={selectedTool === "move" ? theme.colors.text : theme.colors.subtext}
-          />
-          <Text
-            style={[
-              styles.moveFallbackText,
-              selectedTool === "move" && styles.modeButtonTextActive,
-            ]}
-          >
-            {toolLabels?.moveTool ?? "Move mode"}
-          </Text>
-        </Pressable>
       </View>
 
       <View style={[styles.toolGroup, fullscreen ? styles.toolGroupFullscreen : null]}>
@@ -1218,40 +1193,49 @@ export default function SharedCanvasWebView({
         </View>
       </View>
 
-      <View style={[styles.toolGroup, fullscreen ? styles.toolGroupFullscreen : null]}>
-        {toolLabels?.zoom && !fullscreen ? (
-          <Text style={styles.toolLabel}>{toolLabels.zoom}</Text>
-        ) : null}
-        <View style={styles.zoomRow}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={toolLabels?.zoomOut ?? "Zoom out"}
-            disabled={disabled}
-            onPress={() => applyViewportAction("zoomOut")}
-            style={[styles.zoomButton, disabled && styles.toolButtonDisabled]}
+      <View style={styles.advancedRow}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={toolLabels?.moveTool ?? "Move mode"}
+          disabled={disabled}
+          onPress={() => applyTool("move")}
+          style={[
+            styles.moveFallbackButton,
+            fullscreen ? styles.moveFallbackButtonFullscreen : null,
+            selectedTool === "move" && styles.modeButtonActive,
+            disabled && styles.toolButtonDisabled,
+          ]}
+        >
+          <Ionicons
+            name="move-outline"
+            size={fullscreen ? 14 : 15}
+            color={selectedTool === "move" ? theme.colors.text : theme.colors.subtext}
+          />
+          <Text
+            style={[
+              styles.moveFallbackText,
+              selectedTool === "move" && styles.modeButtonTextActive,
+            ]}
+            numberOfLines={1}
           >
-            <Text style={styles.zoomButtonText}>−</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={toolLabels?.zoomIn ?? "Zoom in"}
-            disabled={disabled}
-            onPress={() => applyViewportAction("zoomIn")}
-            style={[styles.zoomButton, disabled && styles.toolButtonDisabled]}
-          >
-            <Text style={styles.zoomButtonText}>+</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={toolLabels?.resetZoom ?? "Reset zoom"}
-            disabled={disabled}
-            onPress={() => applyViewportAction("reset")}
-            style={[styles.resetZoomButton, disabled && styles.toolButtonDisabled]}
-          >
-            <Text style={styles.resetZoomText}>{toolLabels?.resetZoom ?? "Reset"}</Text>
-          </Pressable>
-        </View>
+            {toolLabels?.moveTool ?? "Move mode"}
+          </Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={toolLabels?.resetZoom ?? "Reset zoom"}
+          disabled={disabled}
+          onPress={() => applyViewportAction("reset")}
+          style={[styles.resetZoomButton, disabled && styles.toolButtonDisabled]}
+        >
+          <Ionicons name="refresh-outline" size={fullscreen ? 14 : 15} color={theme.colors.text} />
+          <Text style={styles.resetZoomText}>{toolLabels?.resetZoom ?? "Reset"}</Text>
+        </Pressable>
       </View>
+
+      {toolLabels?.toolsHint ? (
+        <Text style={styles.toolsHintText}>{toolLabels.toolsHint}</Text>
+      ) : null}
 
       {toolbarAccessory ? (
         <View style={styles.toolbarAccessory}>{toolbarAccessory}</View>
@@ -1375,8 +1359,8 @@ const styles = StyleSheet.create({
     shadowRadius: 0,
   },
   toolbar: {
-    gap: 9,
-    marginBottom: 12,
+    gap: 8,
+    marginBottom: 10,
   },
   toolbarFullscreen: {
     position: "absolute",
@@ -1386,16 +1370,16 @@ const styles = StyleSheet.create({
     zIndex: 2,
     marginBottom: 0,
     marginTop: 0,
-    paddingHorizontal: 9,
-    paddingVertical: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 7,
     borderRadius: 8,
     backgroundColor: "rgba(7, 11, 21, 0.94)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.14)",
-    gap: 7,
+    gap: 6,
   },
   toolGroup: {
-    gap: 7,
+    gap: 6,
   },
   toolGroupFullscreen: {
     gap: 0,
@@ -1409,27 +1393,27 @@ const styles = StyleSheet.create({
   },
   modeRow: {
     flexDirection: "row",
-    gap: 7,
+    gap: 6,
     flexWrap: "wrap",
   },
   modeButton: {
-    minHeight: 38,
-    minWidth: 78,
+    minHeight: 34,
+    minWidth: 70,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
-    borderRadius: theme.shapes.cardInner,
-    paddingHorizontal: 10,
+    gap: 5,
+    borderRadius: 10,
+    paddingHorizontal: 9,
     backgroundColor: theme.colors.pillBg,
     borderWidth: 1,
     borderColor: "transparent",
   },
   modeButtonFullscreen: {
-    minHeight: 32,
-    minWidth: 68,
+    minHeight: 30,
+    minWidth: 62,
     borderRadius: 8,
-    paddingHorizontal: 8,
+    paddingHorizontal: 7,
   },
   modeButtonActive: {
     borderColor: theme.colors.accent,
@@ -1445,9 +1429,9 @@ const styles = StyleSheet.create({
   },
   moveFallbackButton: {
     alignSelf: "flex-start",
-    minHeight: 32,
+    minHeight: 30,
     borderRadius: 8,
-    paddingHorizontal: 9,
+    paddingHorizontal: 8,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -1457,9 +1441,8 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.borderSubtle,
   },
   moveFallbackButtonFullscreen: {
-    minHeight: 28,
-    paddingHorizontal: 8,
-    marginTop: 6,
+    minHeight: 27,
+    paddingHorizontal: 7,
   },
   moveFallbackText: {
     color: theme.colors.subtext,
@@ -1468,23 +1451,23 @@ const styles = StyleSheet.create({
   },
   colorRow: {
     flexDirection: "row",
-    gap: 8,
+    gap: 7,
     flexWrap: "wrap",
   },
   colorRowFullscreen: {
-    gap: 6,
+    gap: 5,
   },
   colorButton: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     borderWidth: 2,
     borderColor: "transparent",
   },
   colorButtonFullscreen: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+    width: 19,
+    height: 19,
+    borderRadius: 10,
   },
   colorButtonActive: {
     borderColor: "#FFFFFF",
@@ -1494,21 +1477,21 @@ const styles = StyleSheet.create({
   },
   sizeGrid: {
     flexDirection: "row",
-    gap: 8,
+    gap: 7,
     flexWrap: "wrap",
   },
   brushRow: {
     flexDirection: "row",
-    gap: 8,
+    gap: 7,
     flexWrap: "wrap",
   },
   brushRowFullscreen: {
-    gap: 6,
+    gap: 5,
   },
   brushButton: {
-    minWidth: 50,
-    minHeight: 36,
-    borderRadius: theme.shapes.pill,
+    minWidth: 44,
+    minHeight: 32,
+    borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
     gap: 3,
@@ -1517,8 +1500,8 @@ const styles = StyleSheet.create({
     borderColor: "transparent",
   },
   brushButtonFullscreen: {
-    minWidth: 38,
-    minHeight: 30,
+    minWidth: 34,
+    minHeight: 28,
     borderRadius: 8,
   },
   brushButtonActive: {
@@ -1541,10 +1524,10 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "800",
   },
-  zoomRow: {
+  advancedRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 7,
+    gap: 6,
     flexWrap: "wrap",
   },
   zoomButton: {
@@ -1564,11 +1547,13 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
   resetZoomButton: {
-    minHeight: 34,
+    minHeight: 30,
     borderRadius: 8,
-    paddingHorizontal: 12,
+    paddingHorizontal: 9,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    gap: 4,
     backgroundColor: theme.colors.pillBg,
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
@@ -1577,6 +1562,12 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
     fontSize: 11,
     fontWeight: "800",
+  },
+  toolsHintText: {
+    color: theme.colors.muted,
+    fontSize: 10,
+    lineHeight: 14,
+    fontWeight: "700",
   },
   canvasShell: {
     borderRadius: theme.shapes.cardInner,

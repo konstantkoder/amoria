@@ -1,6 +1,6 @@
 # Together Smoke Pass
 
-Updated: 2026-05-26 for `TOGETHER-DRAW-TOOLS-04`
+Updated: 2026-05-27 for `TOGETHER-DRAW-TOOLS-05`
 
 ## Run Metadata
 
@@ -60,15 +60,16 @@ These checks passed for the Story Sparks implementation, but they do not replace
 | Area | Command | Result | Notes |
 | --- | --- | --- | --- |
 | Server typecheck | `npm run typecheck` | PASS | `tsc -p tsconfig.json --noEmit` completed with exit code 0 |
-| Server tests | `npm test` | PASS | 171/171 tests passed |
+| Server tests | `npm test` | PASS | 184/184 tests passed |
 | Mobile TypeScript | `npx tsc --noEmit` | PASS | Completed with exit code 0 |
 
-## Draw UX Cleanup 04
+## Draw UX Cleanup 05
 
-- Normal mode should show mostly canvas: compact `Инструменты`, timer, fullscreen, finish, and leave controls only.
+- Phone fullscreen topbar should stay compact and horizontal: timer left, tools/exit/menu actions in one row or horizontal scroll.
 - Tools are hidden by default and open in a compact drawer.
 - Fullscreen has one top/edge tools button; there is no duplicate bottom floating tools button.
-- The drawer keeps brush/eraser primary, move as secondary fallback, compact zoom, colors, and sizes.
+- The drawer keeps brush/eraser primary, move as secondary fallback, reset as a small secondary action, colors, and sizes.
+- `+` / `-` zoom controls are not prominent because two-finger pan/zoom is the primary viewport gesture.
 - Hint copy should be visible in the draw footer: `Одним пальцем рисуйте, двумя — двигайте и масштабируйте.`
 - Android back closes the drawer first, exits fullscreen second, and then follows normal leave confirmation.
 - One-finger draw/erase, two-finger pan/zoom, peer strokes, and replay/history must remain backend-backed and unchanged.
@@ -172,15 +173,16 @@ Known automated-check warning: the server test run prints the existing AWS SDK f
 
 | Step | Account / Device | Expected Result | Actual Result | Status |
 | --- | --- | --- | --- | --- |
-| Fullscreen + hidden tools | A | Tap `На весь экран`, hide `Инструменты`, and confirm the canvas gets noticeably more space |  | NOT TESTED |
+| Fullscreen compact topbar | A | Tap `На весь экран`; top actions stay horizontal/compact on phone, with no stacked giant buttons |  | NOT TESTED |
+| Hidden tools | A | Hide `Инструменты` and confirm the canvas gets noticeably more space |  | NOT TESTED |
 | Brush | A -> B | A draws with one finger; B sees the stroke from backend/WebSocket or backend refresh |  | NOT TESTED |
 | Eraser | A -> B | A selects `Ластик` and erases with one finger; B sees the erased result |  | NOT TESTED |
 | Backend refresh | A or B | Reload/background recovery rebuilds the erased canvas from `getSessionEvents` |  | NOT TESTED |
 | Pinch zoom/pan | A | Use two fingers to zoom and pan; no stroke is created by the gesture |  | NOT TESTED |
-| Zoom buttons | A | Tap `+`, `-`, and `Сброс`; canvas zooms/resets without changing saved stroke data |  | NOT TESTED |
+| Secondary reset | A | Tap `Сброс`; canvas resets without changing saved stroke data |  | NOT TESTED |
 | Draw while zoomed | A -> B | Stroke lands under finger and peer sees correct unwarped stroke |  | NOT TESTED |
-| Move mode fallback | A | Select move/pan and drag the zoomed viewport without creating a stroke |  | NOT TESTED |
-| Exit fullscreen | A | Tap `Выйти из полного экрана` or Android back; user returns to normal draw screen |  | NOT TESTED |
+| Move mode fallback | A | Move is secondary, not primary; if selected, drag the viewport without creating a stroke |  | NOT TESTED |
+| Exit fullscreen | A | Tap compact `Выйти` or Android back; user returns to normal draw screen |  | NOT TESTED |
 | Finish + replay | A+B | Finish session, open history/detail, replay preserves brush and erase effects |  | NOT TESTED |
 
 ## Removed Color Mood Guard Checklist

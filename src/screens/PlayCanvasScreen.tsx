@@ -694,6 +694,10 @@ export default function PlayCanvasScreen() {
       brushTool: tt("play.canvas.toolBrushTool", "Кисть"),
       eraserTool: tt("play.canvas.toolEraserTool", "Ластик"),
       moveTool: tt("play.canvas.toolMoveTool", "Двигать"),
+      toolsHint: tt(
+        "play.canvas.toolsHint",
+        "Одним пальцем рисуйте, двумя — двигайте и масштабируйте."
+      ),
       colors: tt("play.canvas.toolColors", "Цвета"),
       brush: tt("play.canvas.toolBrush", "Толщина линии"),
       eraser: tt("play.canvas.toolEraser", "Ластик"),
@@ -721,6 +725,10 @@ export default function PlayCanvasScreen() {
         tt("play.canvas.toolEraserMedium", "Средний"),
         tt("play.canvas.toolEraserLarge", "Большой"),
       ],
+      toolsShort: tt("play.canvas.toolsShort", "Инстр."),
+      hideToolsShort: tt("play.canvas.hideToolsShort", "Скрыть"),
+      exitFullscreenShort: tt("play.canvas.exitFullscreenShort", "Выйти"),
+      menuShort: tt("play.canvas.menuShort", "Меню"),
     }),
     [tt]
   );
@@ -947,7 +955,13 @@ export default function PlayCanvasScreen() {
               </Text>
               <Text style={styles.timerValue}>{timerValue}</Text>
             </View>
-            <View style={styles.focusActions}>
+            <ScrollView
+              horizontal
+              style={styles.focusActionsScroll}
+              contentContainerStyle={styles.focusActions}
+              showsHorizontalScrollIndicator={false}
+              bounces={false}
+            >
               <Pressable
                 style={[styles.focusToolButton, toolPaletteVisible ? styles.focusToolButtonActive : null]}
                 onPress={toggleToolPalette}
@@ -960,22 +974,24 @@ export default function PlayCanvasScreen() {
               >
                 <Ionicons
                   name={toolPaletteVisible ? "chevron-down-outline" : "color-palette-outline"}
-                  size={16}
+                  size={15}
                   color={theme.colors.text}
                 />
-                <Text style={styles.focusToolText}>
+                <Text style={styles.focusToolText} numberOfLines={1}>
                   {toolPaletteVisible
-                    ? tt("play.canvas.hideTools", "Скрыть инструменты")
-                    : tt("play.canvas.tools", "Инструменты")}
+                    ? tt("play.canvas.hideToolsShort", "Скрыть")
+                    : tt("play.canvas.toolsShort", "Инстр.")}
                 </Text>
               </Pressable>
               <Pressable
                 style={styles.focusActionButton}
                 onPress={exitFocusMode}
                 accessibilityRole="button"
+                accessibilityLabel={tt("play.canvas.exitFullscreen", "Выйти из полного экрана")}
               >
-                <Text style={styles.focusActionText}>
-                  {tt("play.canvas.exitFullscreen", "Выйти из полного экрана")}
+                <Ionicons name="contract-outline" size={15} color="#FFFFFF" />
+                <Text style={styles.focusActionText} numberOfLines={1}>
+                  {tt("play.canvas.exitFullscreenShort", "Выйти")}
                 </Text>
               </Pressable>
               <Pressable
@@ -983,14 +999,14 @@ export default function PlayCanvasScreen() {
                 onPress={() => void leaveSessionAndExit()}
                 disabled={finishing || leaving}
                 accessibilityRole="button"
+                accessibilityLabel={tt("common.backToMainTabs", "Вернуться в меню")}
               >
-                <Text style={styles.focusLeaveText}>
-                  {leaving
-                    ? tt("common.exiting", "Выходим…")
-                    : tt("common.backToMainTabs", "Вернуться в меню")}
+                <Ionicons name="menu-outline" size={15} color={theme.colors.text} />
+                <Text style={styles.focusLeaveText} numberOfLines={1}>
+                  {leaving ? tt("common.exiting", "Выходим…") : tt("play.canvas.menuShort", "Меню")}
                 </Text>
               </Pressable>
-            </View>
+            </ScrollView>
           </View>
         ) : (
           <View style={styles.fullscreenHeader}>
@@ -1310,37 +1326,41 @@ const styles = StyleSheet.create({
   },
   focusTopBar: {
     paddingHorizontal: 10,
-    paddingVertical: 8,
+    paddingVertical: 6,
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 7,
     backgroundColor: "rgba(8,10,18,0.98)",
     borderBottomWidth: 1,
     borderBottomColor: "rgba(255,255,255,0.1)",
   },
   focusTimerPill: {
-    minWidth: 78,
-    borderRadius: 14,
-    paddingHorizontal: 9,
-    paddingVertical: 7,
+    minWidth: 70,
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
     alignItems: "center",
     backgroundColor: "rgba(255,255,255,0.1)",
   },
-  focusActions: {
+  focusActionsScroll: {
     flex: 1,
+  },
+  focusActions: {
+    flexGrow: 1,
     flexDirection: "row",
     justifyContent: "flex-end",
-    gap: 8,
-    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 6,
+    paddingLeft: 2,
   },
   focusToolButton: {
-    minHeight: 38,
-    borderRadius: 12,
-    paddingHorizontal: 10,
+    minHeight: 34,
+    borderRadius: 10,
+    paddingHorizontal: 8,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
+    gap: 5,
     backgroundColor: "rgba(255,255,255,0.08)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.14)",
@@ -1351,35 +1371,39 @@ const styles = StyleSheet.create({
   },
   focusToolText: {
     color: theme.colors.text,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "800",
   },
   focusActionButton: {
-    minHeight: 38,
-    borderRadius: 12,
-    paddingHorizontal: 10,
+    minHeight: 34,
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    gap: 5,
     backgroundColor: theme.colors.primary,
   },
   focusActionText: {
     color: "#FFFFFF",
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "800",
   },
   focusLeaveButton: {
-    minHeight: 38,
-    borderRadius: 12,
-    paddingHorizontal: 10,
+    minHeight: 34,
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    gap: 5,
     backgroundColor: "rgba(255,255,255,0.08)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.14)",
   },
   focusLeaveText: {
     color: theme.colors.text,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "800",
   },
   footerBar: {

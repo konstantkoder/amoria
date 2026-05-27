@@ -1,6 +1,6 @@
 # Amoria Release Control Center
 
-Updated: 2026-05-26
+Updated: 2026-05-27
 
 ## Branches
 
@@ -45,6 +45,16 @@ This launcher is local dev tooling only and is not product logic.
   - Fullscreen has one top/edge tools button and no duplicate bottom floating tools button.
   - Brush/eraser are primary; move is secondary fallback.
   - One-finger draw/erase and two-finger pan/zoom keep backend replay/history unchanged.
+- PHOTO-DELETE-AVATAR-UPLOAD-FIX-04 is fixed in code and awaiting release smoke:
+  - Owner delete is backend-backed and can clean owned broken photos even when the storage object is missing.
+  - Already-removed media rows are idempotent success for refresh; another user's media still cannot be deleted.
+  - Owner gallery returns safe moderation status for delete diagnostics and reports broken thumbnail probes without raw URLs.
+  - Avatar/profile photo selection uses visible in-app preview/confirm actions instead of the hidden native cropper action bar.
+- TOGETHER-DRAW-TOOLS-05 is fixed in code and awaiting release smoke:
+  - Phone fullscreen top actions remain compact and horizontal, with horizontal scroll if width is tight.
+  - Brush/eraser remain primary; Move and Reset are secondary.
+  - `+` / `-` zoom controls are no longer prominent because two-finger pan/zoom is the primary gesture.
+  - Backend draw event/replay format is unchanged.
 
 ## Completed blocks
 
@@ -167,6 +177,8 @@ See `docs/bugfix_together_match_peer_media.md`.
 See `docs/gallery_smoke_pass.md`.
 See `docs/bugfix_together_queue_cancel_lifecycle.md`.
 See `docs/together_draw_tools_01.md`.
+See `docs/photo_delete_avatar_upload_fix_04.md`.
+See `docs/together_draw_tools_05.md`.
 
 ## Build Verification Before Smoke
 

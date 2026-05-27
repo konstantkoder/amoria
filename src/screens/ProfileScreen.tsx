@@ -194,8 +194,7 @@ export default function ProfileScreen() {
     try {
       result = await ImagePicker.launchImageLibraryAsync({
         quality: 0.8,
-        allowsEditing: true,
-        aspect: [1, 1],
+        allowsEditing: false,
         mediaTypes: ["images"],
         selectionLimit: 1,
       });
@@ -215,13 +214,6 @@ export default function ProfileScreen() {
     }
 
     if (result.canceled) {
-      reportClientError({
-        screen: "ProfileScreen",
-        action: "pickPhoto",
-        step: "cropCancelled",
-        message: "Avatar crop or picker was cancelled before upload",
-        metadata: { permissionStatus: status || "granted" },
-      });
       return;
     }
 
@@ -275,7 +267,24 @@ export default function ProfileScreen() {
       setProfile(nextProfile);
       setPendingAvatar(null);
       Alert.alert(t("common.done"), t("photos.photoUpdated"));
-    } catch {
+    } catch (error) {
+      const safeError = sanitizeErrorForReport(error);
+      void reportClientError({
+        screen: "ProfileScreen",
+        action: "confirmUpload",
+        step: "uploadAvatarFailed",
+        code: safeError.code,
+        message: safeError.message,
+        stack: safeError.stack,
+        metadata: {
+          hasPendingPhotoUri: Boolean(pendingAvatar?.uri),
+          ...(pendingAvatar?.mimeType ? { mimeType: pendingAvatar.mimeType } : {}),
+          ...(typeof pendingAvatar?.fileSize === "number" ? { fileSize: pendingAvatar.fileSize } : {}),
+          ...(pendingAvatar?.uri && getUriScheme(pendingAvatar.uri)
+            ? { uriScheme: getUriScheme(pendingAvatar.uri) }
+            : {}),
+        },
+      });
       Alert.alert(t("photos.saveFailed"), t("photos.uploadErrorBody"));
     } finally {
       setAvatarUploading(false);
@@ -296,7 +305,7 @@ export default function ProfileScreen() {
     void reportClientError({
       screen: "ProfileScreen",
       action: "confirmUpload",
-      step: "backendUploadFailed",
+      step: "uploadAvatarFailed",
       code: uploadError?.code ?? safeError.code,
       message: safeError.message,
       stack: safeError.stack,
@@ -387,6 +396,9 @@ export default function ProfileScreen() {
               </Text>
               <Text style={styles.avatarBody}>{t("photos.avatarSharedBody")}</Text>
               {pendingAvatar ? (
+                <Text style={styles.avatarBody}>{t("photos.avatarPreviewReady")}</Text>
+              ) : null}
+              {pendingAvatar ? (
                 <View style={styles.avatarConfirmActions}>
                   <TouchableOpacity
                     style={[
@@ -398,7 +410,7 @@ export default function ProfileScreen() {
                     disabled={avatarUploading}
                   >
                     <Text style={styles.avatarButtonText}>
-                      {avatarUploading ? t("photos.uploading") : t("photos.uploadPhoto")}
+                      {avatarUploading ? t("photos.uploading") : t("photos.uploadAvatar")}
                     </Text>
                   </TouchableOpacity>
                   <TouchableOpacity

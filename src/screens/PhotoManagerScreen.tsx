@@ -38,7 +38,11 @@ import {
   uploadProfilePhoto,
   deleteProfilePhoto,
 } from "@/services/storage";
-import { normalizePublicMediaUrl } from "@/services/media/mediaUrl";
+import {
+  getPublicMediaUrlInfo,
+  normalizePublicMediaUrl,
+  probePublicMediaUrl,
+} from "@/services/media/mediaUrl";
 import { theme } from "@/theme";
 
 type PasswordMode = "set" | "reset" | "";
@@ -71,6 +75,7 @@ export default function PhotoManagerScreen() {
   const [photoImageStates, setPhotoImageStates] = React.useState<Record<string, PhotoImageState>>({});
   const currentPasswordInputRef = React.useRef<TextInput>(null);
   const newFolderPasswordInputRef = React.useRef<TextInput>(null);
+  const reportedPhotoFailuresRef = React.useRef<Set<string>>(new Set());
 
   const refreshGallery = React.useCallback(async () => {
     const nextGallery = await getMyProfileGallery();
@@ -174,7 +179,10 @@ export default function PhotoManagerScreen() {
       }
     }
 
-    Alert.alert(fallbackTitle, fallbackBody);
+    const diagnosticBody = error instanceof ApiError && error.code
+      ? `${fallbackBody}\n${error.code}`
+      : fallbackBody;
+    Alert.alert(fallbackTitle, diagnosticBody);
   }
 
   async function addPhoto() {
@@ -219,8 +227,7 @@ export default function PhotoManagerScreen() {
     try {
       result = await ImagePicker.launchImageLibraryAsync({
         quality: 0.8,
-        allowsEditing: true,
-        aspect: [1, 1],
+        allowsEditing: false,
         mediaTypes: ["images"],
         selectionLimit: 1,
       });
@@ -242,15 +249,6 @@ export default function PhotoManagerScreen() {
     }
 
     if (result.canceled) {
-      reportClientError({
-        screen: "PhotoManagerScreen",
-        action: "pickPhoto",
-        step: "cropCancelled",
-        message: "Profile photo crop or picker was cancelled before upload",
-        metadata: {
-          permissionStatus: status || "granted",
-        },
-      });
       return;
     }
 
@@ -365,6 +363,34 @@ export default function PhotoManagerScreen() {
     }
   }
 
+  function reportOwnerPhotoLoadFailed(photo: ProfileGalleryPhotoDto, url: string) {
+    const urlInfo = getPublicMediaUrlInfo(url, "owner gallery photo URL");
+    const reportKey = `${photo.mediaId}:${urlInfo.urlKind}`;
+    if (reportedPhotoFailuresRef.current.has(reportKey)) return;
+    reportedPhotoFailuresRef.current.add(reportKey);
+
+    void probePublicMediaUrl(urlInfo.url, "owner gallery photo URL").then((probe) => {
+      reportClientError({
+        screen: "PhotoManagerScreen",
+        action: "loadOwnerGalleryPhoto",
+        step: "thumbnailLoadFailed",
+        message: "Owner gallery photo failed to load",
+        metadata: {
+          mediaId: photo.mediaId,
+          ...(photo.galleryItemId ? { galleryItemId: photo.galleryItemId } : {}),
+          urlKind: probe.urlKind ?? urlInfo.urlKind,
+          httpStatus: probe.httpStatus ?? null,
+          contentType: probe.contentType ?? null,
+          probeOk: probe.ok,
+          errorCode: probe.errorCode ?? null,
+          visibility: photo.visibility ?? null,
+          moderationStatus: photo.moderationStatus ?? null,
+          mimeType: photo.mimeType ?? null,
+        },
+      });
+    });
+  }
+
   async function movePhoto(photo: ProfileGalleryPhotoDto, visibility: ProfileGalleryVisibility) {
     if (visibility === "locked" && !gallery?.lockedFolderEnabled) {
       Alert.alert(
@@ -467,7 +493,10 @@ export default function PhotoManagerScreen() {
               style={styles.photoImage}
               onLoadStart={() => setImageState("loading")}
               onLoad={() => setImageState("loaded")}
-              onError={() => setImageState("error")}
+              onError={() => {
+                setImageState("error");
+                reportOwnerPhotoLoadFailed(photo, resolvedPhotoUrl);
+              }}
             />
           ) : null}
           {imageLoading && resolvedPhotoUrl ? (
@@ -719,7 +748,7 @@ export default function PhotoManagerScreen() {
             <Text style={styles.pendingText}>
               {busy
                 ? t("photos.uploading")
-                : tt("photos.previewReady", "Проверьте кадрирование перед загрузкой.")}
+                : tt("photos.previewReady", "Проверьте фото перед загрузкой.")}
             </Text>
             <View style={styles.pendingActions}>
               <TouchableOpacity
