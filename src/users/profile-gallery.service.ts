@@ -5,10 +5,10 @@ import {
   MAX_PROFILE_GALLERY_PHOTOS,
   MIN_VISIBLE_PROFILE_IMAGES_FOR_LOCKED_GALLERY,
 } from "../config/constants";
-import type { MediaFileRow, ProfilePhoto, UserRow } from "../db/schema";
+import type { MediaFileRow, MediaModerationReviewRow, ProfilePhoto, UserRow } from "../db/schema";
 import { deleteObject, headObject } from "../media/object-storage";
 import { env } from "../config/env";
-import { findMediaFileByOwner, deleteMediaFileByOwner } from "../media/media.repo";
+import { findMediaFileById, findMediaFileByOwner, deleteMediaFileByOwner } from "../media/media.repo";
 import { publicMediaUrlForMediaId } from "../media/media-url";
 import { hashPassword, verifyPassword } from "../auth/passwords";
 import { isBlockedEitherWay } from "../safety/safety.repo";
@@ -25,7 +25,15 @@ export type OwnerProfileGalleryPhoto = ProfileGalleryPhoto & {
   galleryItemId: string;
   visibility: galleryRepo.ProfileGalleryVisibility;
   mimeType: string;
+  moderationStatus: MediaModerationStatus;
 };
+
+export type MediaModerationStatus =
+  | "pending_review"
+  | "approved"
+  | "rejected"
+  | "restricted"
+  | "needs_manual_review";
 
 export type LockedGallerySummary = {
   enabled: boolean;
@@ -75,6 +83,7 @@ export type OkResponse = {
 type ProfileGalleryDeps = {
   repo: typeof galleryRepo;
   usersRepo: typeof usersRepo;
+  findMediaFileById: typeof findMediaFileById;
   findMediaFileByOwner: typeof findMediaFileByOwner;
   deleteMediaFileByOwner: typeof deleteMediaFileByOwner;
   headObject: typeof headObject;
@@ -87,6 +96,7 @@ type ProfileGalleryDeps = {
 const defaultDeps: ProfileGalleryDeps = {
   repo: galleryRepo,
   usersRepo,
+  findMediaFileById,
   findMediaFileByOwner,
   deleteMediaFileByOwner,
   headObject,
@@ -120,8 +130,11 @@ export async function getOwnerProfileGallery(
     deps.repo.listGalleryItemsForUser(userId),
     deps.repo.getLockedGallerySettings(userId),
   ]);
+  const latestReviewByMediaId = await deps.repo.listLatestModerationReviewsForMediaIds(
+    items.map((entry) => entry.media.id),
+  );
 
-  return toOwnerGalleryResponse(user, items, Boolean(settings?.passwordHash));
+  return toOwnerGalleryResponse(user, items, Boolean(settings?.passwordHash), latestReviewByMediaId);
 }
 
 export async function getPublicGalleryForUser(
@@ -351,8 +364,13 @@ export async function deleteOwnedMediaWithGalleryGuards(
   ownerUserId: string,
   mediaId: string,
 ): Promise<{ ok: true }> {
-  const media = await deps.findMediaFileByOwner(ownerUserId, mediaId);
+  const media = await deps.findMediaFileById(mediaId);
   if (!media) {
+    await syncPublicPhotosReadModel(ownerUserId);
+    return { ok: true };
+  }
+
+  if (media.ownerUserId !== ownerUserId) {
     throw new AppError("not_found", "Media file not found", 404);
   }
 
@@ -422,12 +440,14 @@ function toOwnerGalleryResponse(
   user: UserRow,
   items: galleryRepo.ProfileGalleryItemWithMedia[],
   passwordIsSet: boolean,
+  latestReviewByMediaId: Record<string, Pick<MediaModerationReviewRow, "action"> | undefined>,
 ): OwnerProfileGalleryResponse {
   const photos = items.map((entry) => ({
     ...toPublicPhoto(entry),
     galleryItemId: entry.item.id,
     visibility: entry.item.visibility as galleryRepo.ProfileGalleryVisibility,
     mimeType: entry.media.mimeType,
+    moderationStatus: moderationStatusForReview(latestReviewByMediaId[entry.media.id]),
   }));
   const publicPhotos = photos.filter((photo) => photo.visibility === "public");
   const lockedPhotos = photos.filter((photo) => photo.visibility === "locked");
@@ -442,6 +462,27 @@ function toOwnerGalleryResponse(
     maxProfileGalleryPhotos: MAX_PROFILE_GALLERY_PHOTOS,
     maxLockedProfilePhotos: MAX_LOCKED_PROFILE_PHOTOS,
   };
+}
+
+function moderationStatusForReview(
+  review: Pick<MediaModerationReviewRow, "action"> | undefined,
+): MediaModerationStatus {
+  if (!review) {
+    return "pending_review";
+  }
+
+  switch (review.action) {
+    case "approve":
+      return "approved";
+    case "restrict":
+      return "restricted";
+    case "remove":
+      return "rejected";
+    case "mark_under_review":
+      return "needs_manual_review";
+    default:
+      return "pending_review";
+  }
 }
 
 function toPublicPhoto(entry: galleryRepo.ProfileGalleryItemWithMedia): ProfileGalleryPhoto {

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type {
   MediaFileRow,
+  MediaModerationReviewRow,
   ProfileGalleryItemRow,
   ProfileLockedGallerySettingsRow,
   UserRow,
@@ -195,7 +196,12 @@ test("owner can move a photo to locked when avatar keeps 3 visible images", asyn
 
 test("owner gallery endpoint returns public and locked photos to owner", async (t) => {
   t.after(restoreGalleryDeps);
-  mockGallery();
+  mockGallery({
+    latestReviewActions: {
+      [publicPhoto1Id]: "mark_under_review",
+      [lockedPhoto1Id]: "approve",
+    },
+  });
 
   const response = await galleryService.getOwnerProfileGallery(ownerId);
 
@@ -213,6 +219,9 @@ test("owner gallery endpoint returns public and locked photos to owner", async (
     response.lockedPhotos.map((photo) => photo.mediaId),
     [lockedPhoto1Id, lockedPhoto2Id],
   );
+  assert.equal(response.publicPhotos[0]?.moderationStatus, "needs_manual_review");
+  assert.equal(response.publicPhotos[1]?.moderationStatus, "pending_review");
+  assert.equal(response.lockedPhotos[0]?.moderationStatus, "approved");
   assert.equal(JSON.stringify(response).includes("passwordHash"), false);
   assert.equal(JSON.stringify(response).includes("users/owner/profile"), false);
 });
@@ -252,6 +261,21 @@ test("owner can delete own profile photo and public read model is synced", async
   );
 });
 
+test("owner can delete own pending-review profile photo", async (t) => {
+  t.after(restoreGalleryDeps);
+  const state = mockGallery();
+
+  const response = await galleryService.deleteOwnedMediaWithGalleryGuards(ownerId, publicPhoto2Id);
+
+  assert.deepEqual(response, { ok: true });
+  assert.deepEqual(state.deletedMediaIds, [publicPhoto2Id]);
+  assert.equal(state.items.some((entry) => entry.item.mediaId === publicPhoto2Id), false);
+  assert.deepEqual(
+    state.updatedPhotos.map((photo) => photo.mediaId),
+    [publicPhoto1Id, publicPhoto3Id],
+  );
+});
+
 test("owner can remove own profile photo row when storage object is missing", async (t) => {
   t.after(restoreGalleryDeps);
   const state = mockGallery({ missingObjectIds: [publicPhoto1Id] });
@@ -265,6 +289,24 @@ test("owner can remove own profile photo row when storage object is missing", as
   assert.deepEqual(
     state.updatedPhotos.map((photo) => photo.mediaId),
     [publicPhoto2Id, publicPhoto3Id],
+  );
+});
+
+test("delete media is idempotent after the media row is already gone", async (t) => {
+  t.after(restoreGalleryDeps);
+  const state = mockGallery();
+
+  const response = await galleryService.deleteOwnedMediaWithGalleryGuards(
+    ownerId,
+    galleryPhotoId(777),
+  );
+
+  assert.deepEqual(response, { ok: true });
+  assert.deepEqual(state.deletedObjectKeys, []);
+  assert.deepEqual(state.deletedMediaIds, []);
+  assert.deepEqual(
+    state.updatedPhotos.map((photo) => photo.mediaId),
+    [publicPhoto1Id, publicPhoto2Id, publicPhoto3Id],
   );
 });
 
@@ -336,6 +378,7 @@ function mockGallery(input: {
   passwordHash?: string | null;
   items?: ReturnType<typeof galleryEntry>[];
   missingObjectIds?: string[];
+  latestReviewActions?: Record<string, MediaModerationReviewRow["action"]>;
 } = {}) {
   restoreGalleryDeps();
   const missingObjectIds = new Set(input.missingObjectIds ?? []);
@@ -416,6 +459,16 @@ function mockGallery(input: {
       state.items.push(galleryEntry(mediaId, "public", state.items.length));
     },
     findGalleryItemForMedia: async () => undefined,
+    listLatestModerationReviewsForMediaIds: async (mediaIds: string[]) => {
+      const reviews: Record<string, MediaModerationReviewRow> = {};
+      for (const mediaId of mediaIds) {
+        const action = input.latestReviewActions?.[mediaId];
+        if (action) {
+          reviews[mediaId] = moderationReviewRow(mediaId, action);
+        }
+      }
+      return reviews;
+    },
   } satisfies Partial<GalleryRepo>;
 
   const usersRepo = {
@@ -438,6 +491,7 @@ function mockGallery(input: {
       if (userId !== ownerId) return undefined;
       return state.items.find((entry) => entry.media.id === mediaId)?.media;
     },
+    findMediaFileById: async (mediaId) => state.items.find((entry) => entry.media.id === mediaId)?.media,
     deleteMediaFileByOwner: async (mediaId, userId) => {
       if (userId !== ownerId) return undefined;
       const index = state.items.findIndex((entry) => entry.media.id === mediaId);
@@ -505,6 +559,23 @@ function mediaRow(mediaId: string): MediaFileRow {
     width: 512,
     height: 512,
     checksumSha256: null,
+    createdAt: now,
+  };
+}
+
+function moderationReviewRow(
+  mediaId: string,
+  action: MediaModerationReviewRow["action"],
+): MediaModerationReviewRow {
+  const now = new Date("2026-01-01T00:00:00.000Z");
+  return {
+    id: `20000000-0000-4000-8000-${mediaId.slice(-12)}`,
+    mediaId,
+    ownerUserId: ownerId,
+    adminUserId: null,
+    action,
+    reason: null,
+    metadata: null,
     createdAt: now,
   };
 }

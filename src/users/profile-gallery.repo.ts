@@ -2,9 +2,11 @@ import { and, asc, desc, eq, inArray, notInArray } from "drizzle-orm";
 import { db } from "../db/client";
 import {
   type MediaFileRow,
+  type MediaModerationReviewRow,
   type ProfileGalleryItemRow,
   type ProfileLockedGallerySettingsRow,
   mediaFiles,
+  mediaModerationReviews,
   profileGalleryItems,
   profileLockedGallerySettings,
 } from "../db/schema";
@@ -53,6 +55,30 @@ export async function findGalleryItemForMedia(
     .limit(1);
 
   return row;
+}
+
+export async function listLatestModerationReviewsForMediaIds(
+  mediaIds: string[],
+): Promise<Record<string, MediaModerationReviewRow>> {
+  const uniqueMediaIds = [...new Set(mediaIds)];
+  if (uniqueMediaIds.length === 0) {
+    return {};
+  }
+
+  const rows = await db
+    .select()
+    .from(mediaModerationReviews)
+    .where(inArray(mediaModerationReviews.mediaId, uniqueMediaIds))
+    .orderBy(desc(mediaModerationReviews.createdAt));
+
+  const latestByMediaId: Record<string, MediaModerationReviewRow> = {};
+  for (const row of rows) {
+    if (!latestByMediaId[row.mediaId]) {
+      latestByMediaId[row.mediaId] = row;
+    }
+  }
+
+  return latestByMediaId;
 }
 
 export async function getLockedGallerySettings(

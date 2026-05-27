@@ -47,7 +47,15 @@ const publicGalleryPhotosSchema = {
 
 const ownerGalleryPhotoSchema = {
   type: "object",
-  required: ["mediaId", "url", "position", "galleryItemId", "visibility", "mimeType"],
+  required: [
+    "mediaId",
+    "url",
+    "position",
+    "galleryItemId",
+    "visibility",
+    "mimeType",
+    "moderationStatus",
+  ],
   additionalProperties: false,
   properties: {
     mediaId: { type: "string", format: "uuid" },
@@ -56,6 +64,10 @@ const ownerGalleryPhotoSchema = {
     galleryItemId: { type: "string", format: "uuid" },
     visibility: { type: "string", enum: ["public", "locked"] },
     mimeType: { type: "string" },
+    moderationStatus: {
+      type: "string",
+      enum: ["pending_review", "approved", "rejected", "restricted", "needs_manual_review"],
+    },
   },
 } as const;
 
