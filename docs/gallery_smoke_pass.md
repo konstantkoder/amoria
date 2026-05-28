@@ -1,6 +1,6 @@
 # Gallery / Peer Media Smoke Pass
 
-Updated: 2026-05-26
+Updated: 2026-05-28 for `BUGFIX-DRAW-PHOTO-AVATAR-FINAL-06`
 
 ## Peer Profile Media
 
@@ -19,6 +19,7 @@ Use a real account with an avatar and at least one public profile photo.
    - safe `httpStatus`
    - safe `contentType`
 6. Confirm no full raw URL, signed URL, token, local file path, or locked-gallery media is exposed.
+7. Confirm an avatar uploaded through `/media/avatar` remains visible after app restart and renders for a peer account.
 
 ## Admin Media Moderation
 
@@ -28,6 +29,7 @@ Use a real account with an avatar and at least one public profile photo.
 4. Click `Проверить URL` and confirm HTTP 200 with an image content type.
 5. If a thumbnail fails, confirm the row shows media id, moderation status, MIME, HTTP status, content type, and backend error code such as `object_not_found`.
 6. Confirm locked gallery media has no public thumbnail or public URL.
+7. Confirm pending-review avatar/public media remains visible under closed-test policy.
 
 ## Owner Gallery Delete
 
@@ -36,6 +38,17 @@ Use a real account with an avatar and at least one public profile photo.
 3. Delete a public profile photo and confirm the backend refresh removes it from owner gallery and peer public profile.
 4. Delete a `pending_review` profile photo and confirm moderation status does not block owner cleanup.
 5. If an image object is missing, owner delete must still remove the owned media row/gallery item without manual DB cleanup.
+6. Delete can reduce public visible count below 3; the locked-folder minimum applies to hide/move/password flows, not actual owner delete.
+7. Delete failure copy must not say `Нельзя скрыть фото`; use the delete-specific failure message and safe Client Error metadata.
+
+## Avatar Upload
+
+1. Choose avatar in mobile Profile.
+2. Confirm square center-crop preview and `Предпросмотр — ещё не сохранено`.
+3. Tap explicit Upload.
+4. Confirm backend save succeeds and profile refreshes from backend.
+5. Confirm relative `/media/public/:mediaId` and absolute current-origin URL for the same media id are treated as the same avatar.
+6. Confirm failed upload leaves retry/cancel preview state and does not show saved-looking local success.
 
 ## Policy
 

@@ -1,6 +1,6 @@
 # Amoria Release Control Center
 
-Updated: 2026-05-26
+Updated: 2026-05-28
 
 ## Release Rules
 
@@ -33,7 +33,8 @@ Updated: 2026-05-26
 - Brush strokes use `tool:"draw"`; legacy strokes without `tool` remain valid as draw strokes.
 - Story Sparks sessions reject draw stroke events.
 - Replay/history/detail must rebuild brush and eraser effects from backend events.
-- Mobile zoom/pan/reset and two-finger pan/zoom are viewport-only and must not alter saved stroke coordinates.
+- Mobile two-finger pan/zoom is viewport-only and must not alter saved stroke coordinates.
+- Move and Reset must not be visible in the normal user drawer.
 - Fullscreen/focus mode must let testers hide the tool palette while keeping exit fullscreen and leave-session controls available.
 
 ## Media Render Contract
@@ -42,6 +43,8 @@ Updated: 2026-05-26
 - Public profile must not return `avatarUrl` or public photo entries when the public media route would return `404`.
 - Missing storage objects return `error.code=object_not_found` and are not treated as successful image loads.
 - Owner delete can remove owned broken media rows/gallery items when the storage object is already missing.
+- Owner delete bypasses the locked-folder minimum-visible guard; move/hide/password flows still enforce it.
+- Avatar upload uses square unsaved preview, explicit backend save, backend refresh, and mediaId-based URL equality.
 - Admin Media thumbnails use safe public media paths; locked media must not get public preview URLs.
 - Admin Media detail preview uses the authenticated audited content route.
 - Mobile peer media failures must report safe `mediaId`, `urlKind`, `httpStatus`, and `contentType`; raw full URLs, signed URLs, tokens, and local paths must not appear.
@@ -80,7 +83,8 @@ Automated checks cannot replace the real two-client pass:
 8. Confirm peer avatar/photos render or emit safe media diagnostics.
 9. Confirm no exact coordinates appear in mobile UI, Admin Web, client errors, DM, history, or public profile.
 10. Confirm Client Errors include enough app/build/release metadata to identify the running build.
-11. In draw, smoke brush, eraser, hidden tools, pinch pan/zoom, zoom in/out/reset, Move pan mode, fullscreen on/off, finish, and history/detail replay.
+11. In draw, smoke brush, eraser, hidden tools, no visible Move/Reset drawer controls, pinch pan/zoom, fullscreen on/off, finish, and history/detail replay.
+12. In gallery/avatar, smoke delete below 3 visible public photos, broken photo cleanup, avatar preview/upload/restart persistence, peer avatar visibility, and Admin `Проверить URL` HTTP 200 `image/webp`.
 
 ## Build Verification
 

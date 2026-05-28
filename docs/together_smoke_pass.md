@@ -33,7 +33,7 @@ Updated: 2026-05-25
 - Enter fullscreen/focus mode and hide the tool palette so the canvas visibly gets more phone space.
 - Draw/erase with one finger.
 - Pinch zoom and two-finger pan; saved strokes must land under the finger and remain undistorted.
-- Use zoom in/out/reset and Move mode as fallback controls.
+- Confirm Move and Reset are not visible in the normal drawer; use two-finger pan/zoom for viewport movement.
 - Android back should hide tools first, exit fullscreen second, and never trap the user.
 - Finish the session and confirm history/detail replay preserves eraser effects.
 

@@ -375,10 +375,6 @@ export async function deleteOwnedMediaWithGalleryGuards(
   }
 
   const objectMissing = await mediaObjectIsMissing(media);
-  if (media.type === "profile_photo" && !objectMissing) {
-    await assertProfilePhotoCanBeDeleted(ownerUserId, mediaId);
-  }
-
   if (!objectMissing) {
     await deleteMediaObjectIfPossible(media);
   }
@@ -389,23 +385,6 @@ export async function deleteOwnedMediaWithGalleryGuards(
   }
 
   return { ok: true };
-}
-
-async function assertProfilePhotoCanBeDeleted(userId: string, mediaId: string): Promise<void> {
-  const user = await loadUser(userId);
-  const [items, settings] = await Promise.all([
-    deps.repo.listGalleryItemsForUser(userId),
-    deps.repo.getLockedGallerySettings(userId),
-  ]);
-  const nextItems = items
-    .filter((entry) => entry.item.mediaId !== mediaId)
-    .map((entry) => ({
-      mediaId: entry.item.mediaId,
-      visibility: entry.item.visibility as galleryRepo.ProfileGalleryVisibility,
-      position: entry.item.position,
-    }));
-
-  assertVisibleImageRule(user, nextItems, Boolean(settings?.passwordHash));
 }
 
 async function syncPublicPhotosReadModel(userId: string): Promise<void> {

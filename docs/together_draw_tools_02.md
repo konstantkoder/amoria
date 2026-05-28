@@ -10,7 +10,7 @@ Updated: 2026-05-25
 - tool controls are collapsible;
 - one finger draws or erases;
 - two fingers pan and zoom;
-- zoom buttons and Move mode remain as fallback controls.
+- Move and Reset are no longer visible in the normal user drawer; two-finger pan/zoom remains the viewport control.
 
 No draw event format change is required.
 

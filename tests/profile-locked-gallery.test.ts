@@ -261,6 +261,29 @@ test("owner can delete own profile photo and public read model is synced", async
   );
 });
 
+test("owner can delete own public profile photo below locked-folder visible minimum", async (t) => {
+  t.after(restoreGalleryDeps);
+  const state = mockGallery({
+    ownerOverrides: { avatarUrl: null },
+    items: [
+      galleryEntry(publicPhoto1Id, "public", 0),
+      galleryEntry(publicPhoto2Id, "public", 1),
+      galleryEntry(publicPhoto3Id, "public", 2),
+    ],
+  });
+
+  const response = await galleryService.deleteOwnedMediaWithGalleryGuards(ownerId, publicPhoto1Id);
+
+  assert.deepEqual(response, { ok: true });
+  assert.deepEqual(state.deletedObjectKeys, [`users/owner/profile/${publicPhoto1Id}.webp`]);
+  assert.deepEqual(state.deletedMediaIds, [publicPhoto1Id]);
+  assert.equal(state.items.some((entry) => entry.item.mediaId === publicPhoto1Id), false);
+  assert.deepEqual(
+    state.updatedPhotos.map((photo) => photo.mediaId),
+    [publicPhoto2Id, publicPhoto3Id],
+  );
+});
+
 test("owner can delete own pending-review profile photo", async (t) => {
   t.after(restoreGalleryDeps);
   const state = mockGallery();
@@ -379,13 +402,14 @@ function mockGallery(input: {
   items?: ReturnType<typeof galleryEntry>[];
   missingObjectIds?: string[];
   latestReviewActions?: Record<string, MediaModerationReviewRow["action"]>;
+  ownerOverrides?: Partial<UserRow>;
 } = {}) {
   restoreGalleryDeps();
   const missingObjectIds = new Set(input.missingObjectIds ?? []);
 
   const state = {
     users: new Map<string, UserRow>([
-      [ownerId, userRow(ownerId)],
+      [ownerId, userRow(ownerId, input.ownerOverrides)],
       [viewerId, userRow(viewerId, { avatarUrl: null })],
     ]),
     items: input.items ?? [
