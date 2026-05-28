@@ -19,7 +19,10 @@ import type {
   PublicUserProfileDto,
   SelfUserProfileDto,
 } from "@/services/api/types";
-import { normalizePublicMediaUrl } from "@/services/media/mediaUrl";
+import {
+  getPublicMediaUrlInfo,
+  normalizePublicMediaUrl,
+} from "@/services/media/mediaUrl";
 import { uploadUserAvatar } from "@/services/storage";
 
 const AMORIA_ID_RE = /^AM-?[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{5}$/;
@@ -79,6 +82,16 @@ function normalizeOptionalString(value: unknown) {
 
 function normalizeSharedMediaUrl(value: unknown) {
   return normalizePublicMediaUrl(value, "profile media URL");
+}
+
+function samePublicMediaReference(left: unknown, right: unknown) {
+  const leftInfo = getPublicMediaUrlInfo(left, "avatar URL");
+  const rightInfo = getPublicMediaUrlInfo(right, "avatar URL");
+  if (leftInfo.mediaId && rightInfo.mediaId) {
+    return leftInfo.mediaId === rightInfo.mediaId;
+  }
+
+  return Boolean(leftInfo.url && rightInfo.url && leftInfo.url === rightInfo.url);
 }
 
 function normalizeStringArray(value: unknown) {
@@ -337,12 +350,12 @@ export async function updateUserAvatarUrl(avatarUrl: string): Promise<UserProfil
 
   const backendSession = await loadBackendSession();
   if (backendSession) {
-    if (backendSession.user.avatarUrl === sharedAvatarUrl) {
+    if (samePublicMediaReference(backendSession.user.avatarUrl, sharedAvatarUrl)) {
       return mapBackendUserProfile(backendSession.user);
     }
 
     const refreshedSession = await refreshBackendUser();
-    if (refreshedSession?.user.avatarUrl === sharedAvatarUrl) {
+    if (samePublicMediaReference(refreshedSession?.user.avatarUrl, sharedAvatarUrl)) {
       return mapBackendUserProfile(refreshedSession.user);
     }
   }

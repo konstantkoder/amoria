@@ -693,7 +693,6 @@ export default function PlayCanvasScreen() {
       tools: tt("play.canvas.toolTools", "Инструменты"),
       brushTool: tt("play.canvas.toolBrushTool", "Кисть"),
       eraserTool: tt("play.canvas.toolEraserTool", "Ластик"),
-      moveTool: tt("play.canvas.toolMoveTool", "Двигать"),
       toolsHint: tt(
         "play.canvas.toolsHint",
         "Одним пальцем рисуйте, двумя — двигайте и масштабируйте."
@@ -704,7 +703,6 @@ export default function PlayCanvasScreen() {
       zoom: tt("play.canvas.toolZoom", "Масштаб"),
       zoomIn: tt("play.canvas.zoomIn", "Увеличить"),
       zoomOut: tt("play.canvas.zoomOut", "Уменьшить"),
-      resetZoom: tt("play.canvas.resetZoom", "Сброс"),
       colorNames: [
         tt("play.canvas.toolColorRose", "Розовый"),
         tt("play.canvas.toolColorOrange", "Оранжевый"),

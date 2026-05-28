@@ -68,7 +68,7 @@ Android back exits fullscreen first instead of trapping the user or leaving the 
 4. B sees the erased result through WebSocket or backend refresh.
 5. B draws after the erased area; A sees correct strokes.
 6. Zoom in, draw while zoomed, and confirm the stroke lands under the finger.
-7. Switch to Move mode and pan the zoomed canvas.
+7. Confirm Move and Reset are not visible in the normal drawer, then pan/zoom with two fingers.
 8. Reset zoom.
 9. Enter fullscreen, draw, zoom, and erase.
 10. Exit fullscreen and confirm leave session is still available.

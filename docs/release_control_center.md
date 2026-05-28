@@ -1,6 +1,6 @@
 # Amoria Release Control Center
 
-Updated: 2026-05-27
+Updated: 2026-05-28
 
 ## Branches
 
@@ -52,9 +52,16 @@ This launcher is local dev tooling only and is not product logic.
   - Avatar/profile photo selection uses visible in-app preview/confirm actions instead of the hidden native cropper action bar.
 - TOGETHER-DRAW-TOOLS-05 is fixed in code and awaiting release smoke:
   - Phone fullscreen top actions remain compact and horizontal, with horizontal scroll if width is tight.
-  - Brush/eraser remain primary; Move and Reset are secondary.
+  - Brush/eraser remain primary; Move and Reset are no longer visible in the normal user drawer.
   - `+` / `-` zoom controls are no longer prominent because two-finger pan/zoom is the primary gesture.
   - Backend draw event/replay format is unchanged.
+- BUGFIX-DRAW-PHOTO-AVATAR-FINAL-06 is fixed in code and awaiting release smoke:
+  - Draw tools drawer has no visible Move/Reset controls while one-finger draw/erase and two-finger pan/zoom remain intact.
+  - Actual owner delete bypasses locked-folder minimum-visible guard and stays backend-backed.
+  - Delete failures use delete-specific copy and safe Client Error metadata, not hide-photo copy.
+  - Avatar flow uses square unsaved preview, explicit backend upload, backend profile refresh, and mediaId-based URL equality.
+  - Peer avatar/public profile remains backend-backed; missing objects are filtered or diagnosed, locked gallery remains blocked.
+  - Admin `Проверить URL` remains the smoke path for HTTP/content-type/object-not-found diagnostics.
 
 ## Completed blocks
 
@@ -142,7 +149,7 @@ This launcher is local dev tooling only and is not product logic.
 - `TOGETHER-DRAW-TOOLS-01` draw UX tools:
   - Draw canvas has backend-backed brush and eraser strokes via `stroke_batch` with `tool: draw|erase`.
   - Legacy draw strokes without `tool` remain valid as brush strokes.
-  - Zoom in/out/reset and Move mode are viewport-only and do not change backend stroke data.
+  - Move and Reset are no longer visible in the normal drawer; two-finger pan/zoom is viewport-only and does not change backend stroke data.
   - Fullscreen/focus mode gives more phone space while keeping exit fullscreen and leave-session controls available.
   - History/detail replay restores eraser effects from backend events.
 - `TOGETHER-DRAW-TOOLS-02` phone draw UX:
@@ -179,6 +186,7 @@ See `docs/bugfix_together_queue_cancel_lifecycle.md`.
 See `docs/together_draw_tools_01.md`.
 See `docs/photo_delete_avatar_upload_fix_04.md`.
 See `docs/together_draw_tools_05.md`.
+See `docs/bugfix_draw_photo_avatar_final_06.md`.
 
 ## Build Verification Before Smoke
 

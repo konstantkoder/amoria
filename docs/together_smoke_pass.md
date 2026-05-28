@@ -91,7 +91,7 @@ Known automated-check warning: the server test run prints the existing AWS SDK f
 | Scenario | Required Coverage | Result | Evidence / Notes | Bug ID |
 | --- | --- | --- | --- | --- |
 | A - Draw happy path | 2 accounts match into one `draw` session, live strokes sync, finish, mutual open, one DM chat, `activity: draw`, history/detail replay, app restart replay from backend events | NOT TESTED | Prepared for manual 2-device pass. No phone/emulator pair and account credentials are available in this Codex shell. | - |
-| A1 - Draw tools | In one real `draw` session: brush stroke, eraser stroke, peer sees erase, fullscreen with hidden tools, one-finger draw/erase, pinch pan/zoom, zoom in/out/reset, draw while zoomed, Move mode fallback, finish, history/detail replay preserves erase | NOT TESTED | Prepared for manual 2-device pass. Brush/eraser must remain backend-backed through `stroke_batch`; pinch/zoom is viewport-only. | - |
+| A1 - Draw tools | In one real `draw` session: brush stroke, eraser stroke, peer sees erase, fullscreen with hidden tools, one-finger draw/erase, pinch pan/zoom, draw while zoomed, no visible Move/Reset drawer controls, finish, history/detail replay preserves erase | NOT TESTED | Prepared for manual 2-device pass. Brush/eraser must remain backend-backed through `stroke_batch`; pinch/zoom is viewport-only. | - |
 | B - Staged Story Sparks happy path | Complete `draw`, both choose `continue_story`, both enter the same backend `story_sparks` continuation session, complete 4 rounds, mutual open creates one DM chat with draw + story context | NOT TESTED | Prepared for manual 2-device pass. No phone/emulator pair and account credentials are available in this Codex shell. | - |
 | C - Draw open/skip | Complete `draw`, A opens, B skips, no mutual DM chat, honest result/history state, no chat-promise CTA | NOT TESTED | Prepared for manual 2-device pass. | - |
 | D - Story Sparks open/skip | Complete `story_sparks`, A opens, B skips, no mutual DM chat, honest result/history state, story remains in history/detail | NOT TESTED | Prepared for manual 2-device pass. | - |
@@ -181,7 +181,7 @@ Known automated-check warning: the server test run prints the existing AWS SDK f
 | Pinch zoom/pan | A | Use two fingers to zoom and pan; no stroke is created by the gesture |  | NOT TESTED |
 | Secondary reset | A | Tap `Сброс`; canvas resets without changing saved stroke data |  | NOT TESTED |
 | Draw while zoomed | A -> B | Stroke lands under finger and peer sees correct unwarped stroke |  | NOT TESTED |
-| Move mode fallback | A | Move is secondary, not primary; if selected, drag the viewport without creating a stroke |  | NOT TESTED |
+| Move/Reset visibility | A | Drawer does not show visible Move or Reset controls; use two-finger pan/zoom for viewport movement |  | NOT TESTED |
 | Exit fullscreen | A | Tap compact `Выйти` or Android back; user returns to normal draw screen |  | NOT TESTED |
 | Finish + replay | A+B | Finish session, open history/detail, replay preserves brush and erase effects |  | NOT TESTED |
 

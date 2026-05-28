@@ -53,12 +53,10 @@ type Props = {
     toolsHint?: string;
     brushTool: string;
     eraserTool: string;
-    moveTool: string;
     eraser: string;
     zoom: string;
     zoomIn: string;
     zoomOut: string;
-    resetZoom: string;
     colorNames?: string[];
     brushSizes?: string[];
     eraserSizes?: string[];
@@ -1027,16 +1025,6 @@ export default function SharedCanvasWebView({
     }
   };
 
-  const applyViewportAction = (action: "zoomIn" | "zoomOut" | "reset") => {
-    try {
-      injectPayload({ type: "viewport", action }, true);
-    } catch (error) {
-      reportControlError("canvasTransformFailed", "Failed to transform Together canvas viewport", error, {
-        viewportAction: action,
-      });
-    }
-  };
-
   const toolOptions = [
     { mode: "draw", label: toolLabels?.brushTool ?? "Brush", icon: "brush-outline" },
     { mode: "erase", label: toolLabels?.eraserTool ?? "Eraser", icon: "remove-circle-outline" },
@@ -1191,46 +1179,6 @@ export default function SharedCanvasWebView({
             })}
           </View>
         </View>
-      </View>
-
-      <View style={styles.advancedRow}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={toolLabels?.moveTool ?? "Move mode"}
-          disabled={disabled}
-          onPress={() => applyTool("move")}
-          style={[
-            styles.moveFallbackButton,
-            fullscreen ? styles.moveFallbackButtonFullscreen : null,
-            selectedTool === "move" && styles.modeButtonActive,
-            disabled && styles.toolButtonDisabled,
-          ]}
-        >
-          <Ionicons
-            name="move-outline"
-            size={fullscreen ? 14 : 15}
-            color={selectedTool === "move" ? theme.colors.text : theme.colors.subtext}
-          />
-          <Text
-            style={[
-              styles.moveFallbackText,
-              selectedTool === "move" && styles.modeButtonTextActive,
-            ]}
-            numberOfLines={1}
-          >
-            {toolLabels?.moveTool ?? "Move mode"}
-          </Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={toolLabels?.resetZoom ?? "Reset zoom"}
-          disabled={disabled}
-          onPress={() => applyViewportAction("reset")}
-          style={[styles.resetZoomButton, disabled && styles.toolButtonDisabled]}
-        >
-          <Ionicons name="refresh-outline" size={fullscreen ? 14 : 15} color={theme.colors.text} />
-          <Text style={styles.resetZoomText}>{toolLabels?.resetZoom ?? "Reset"}</Text>
-        </Pressable>
       </View>
 
       {toolLabels?.toolsHint ? (
@@ -1427,28 +1375,6 @@ const styles = StyleSheet.create({
   modeButtonTextActive: {
     color: theme.colors.text,
   },
-  moveFallbackButton: {
-    alignSelf: "flex-start",
-    minHeight: 30,
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 5,
-    backgroundColor: "rgba(255,255,255,0.045)",
-    borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
-  },
-  moveFallbackButtonFullscreen: {
-    minHeight: 27,
-    paddingHorizontal: 7,
-  },
-  moveFallbackText: {
-    color: theme.colors.subtext,
-    fontSize: 10,
-    fontWeight: "800",
-  },
   colorRow: {
     flexDirection: "row",
     gap: 7,
@@ -1522,45 +1448,6 @@ const styles = StyleSheet.create({
   brushSizeText: {
     color: theme.colors.subtext,
     fontSize: 10,
-    fontWeight: "800",
-  },
-  advancedRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    flexWrap: "wrap",
-  },
-  zoomButton: {
-    minWidth: 36,
-    minHeight: 34,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: theme.colors.pillBg,
-    borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
-  },
-  zoomButtonText: {
-    color: theme.colors.text,
-    fontSize: 20,
-    lineHeight: 22,
-    fontWeight: "900",
-  },
-  resetZoomButton: {
-    minHeight: 30,
-    borderRadius: 8,
-    paddingHorizontal: 9,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 4,
-    backgroundColor: theme.colors.pillBg,
-    borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
-  },
-  resetZoomText: {
-    color: theme.colors.text,
-    fontSize: 11,
     fontWeight: "800",
   },
   toolsHintText: {

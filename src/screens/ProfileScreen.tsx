@@ -248,7 +248,9 @@ export default function ProfileScreen() {
 
       let avatarDownloadUrl = "";
       try {
-        avatarDownloadUrl = await uploadUserAvatar(currentProfile.id, pendingAvatar.uri);
+        avatarDownloadUrl = await uploadUserAvatar(currentProfile.id, pendingAvatar.uri, {
+          ...(pendingAvatar.mimeType ? { mimeType: pendingAvatar.mimeType } : {}),
+        });
       } catch (error) {
         reportAvatarUploadError(error, {
           uri: pendingAvatar.uri,
@@ -371,11 +373,15 @@ export default function ProfileScreen() {
       >
         <View style={styles.heroCard}>
           <View style={styles.avatarPanel}>
-            <View style={styles.avatarPreviewFrame}>
+            <View style={[
+              styles.avatarPreviewFrame,
+              pendingAvatar ? styles.avatarCropFrame : null,
+            ]}>
               {avatarPreviewUri ? (
                 <Image
                   source={{ uri: avatarPreviewUri }}
                   style={styles.avatarPreviewImage}
+                  resizeMode="cover"
                   onError={() => {
                     setPendingAvatar(null);
                     Alert.alert(t("photos.previewFailed"), t("photos.noAssetReturned"));
@@ -665,6 +671,11 @@ const styles = StyleSheet.create({
     borderRadius: 54,
     overflow: "hidden",
     backgroundColor: "rgba(255,255,255,0.08)",
+  },
+  avatarCropFrame: {
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: theme.colors.accent,
   },
   avatarPreviewImage: {
     width: "100%",

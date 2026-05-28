@@ -113,11 +113,15 @@ function mapMediaToProfilePhoto(media: MediaDto): UploadedProfilePhoto {
   return { mediaId, url };
 }
 
-async function uploadBackendUserAvatar(stableUid: string, stableUri: string) {
+async function uploadBackendUserAvatar(
+  stableUid: string,
+  stableUri: string,
+  options: { mimeType?: string } = {}
+) {
   const session = await loadBackendSession();
   if (!session || session.user.id !== stableUid) return null;
 
-  const contentType = normalizeMimeType(undefined, stableUri);
+  const contentType = normalizeMimeType(options.mimeType, stableUri);
   assertSupportedSharedProfileImage(contentType);
   const extension = inferImageExtension(contentType);
   const response = await uploadAvatarToBackend({
@@ -210,7 +214,11 @@ export async function deleteProfilePhoto(mediaId: string): Promise<void> {
   await deleteMedia(stableMediaId);
 }
 
-export async function uploadUserAvatar(uid: string, localUri: string) {
+export async function uploadUserAvatar(
+  uid: string,
+  localUri: string,
+  options: { mimeType?: string } = {}
+) {
   const stableUid = String(uid ?? "").trim();
   const stableUri = String(localUri ?? "").trim();
   if (!stableUid) {
@@ -230,7 +238,7 @@ export async function uploadUserAvatar(uid: string, localUri: string) {
 
   let backendAvatarUrl: string | null;
   try {
-    backendAvatarUrl = await uploadBackendUserAvatar(stableUid, stableUri);
+    backendAvatarUrl = await uploadBackendUserAvatar(stableUid, stableUri, options);
   } catch (error) {
     throw buildUploadFlowError(error, "uploadAvatar", {
       uriScheme: getUriScheme(stableUri),
@@ -245,8 +253,12 @@ export async function uploadUserAvatar(uid: string, localUri: string) {
   });
 }
 
-export async function uploadProfileAvatar(uid: string, uri: string) {
-  return uploadUserAvatar(uid, uri);
+export async function uploadProfileAvatar(
+  uid: string,
+  uri: string,
+  options: { mimeType?: string } = {}
+) {
+  return uploadUserAvatar(uid, uri, options);
 }
 
 function buildUploadFlowError(

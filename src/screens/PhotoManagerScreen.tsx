@@ -185,6 +185,10 @@ export default function PhotoManagerScreen() {
     Alert.alert(fallbackTitle, diagnosticBody);
   }
 
+  function handleDeleteError() {
+    Alert.alert(t("photos.removeErrorTitle"), t("photos.removeErrorBody"));
+  }
+
   async function addPhoto() {
     if (galleryLimitReached) {
       Alert.alert(
@@ -346,7 +350,6 @@ export default function PhotoManagerScreen() {
           errorCode: error instanceof ApiError ? error.code ?? null : safeError.code ?? null,
           visibility: photo.visibility ?? null,
           moderationStatus: photo.moderationStatus ?? null,
-          mimeType: photo.mimeType ?? null,
         },
       });
       if (error instanceof ApiError && error.status === 404) {
@@ -357,7 +360,7 @@ export default function PhotoManagerScreen() {
         );
         return;
       }
-      handleApiError(error, t("photos.removeErrorTitle"), t("photos.removeErrorBody"));
+      handleDeleteError();
     } finally {
       setBusy(false);
     }

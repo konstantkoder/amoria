@@ -14,7 +14,7 @@ Updated: 2026-05-26
 ## Tool Drawer
 
 - Primary tools: brush and eraser.
-- Move is secondary fallback only and is labeled `Режим перемещения`.
+- Move and Reset are no longer visible in the normal user drawer; two-finger pan/zoom is the viewport gesture.
 - Color chips, brush sizes, eraser sizes, and zoom controls are compact.
 - Hint copy: `Одним пальцем рисуйте, двумя — двигайте и масштабируйте.`
 
