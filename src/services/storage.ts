@@ -11,6 +11,7 @@ import {
   saveBackendSession,
 } from "@/services/api/sessionStorage";
 import type { MediaDto } from "@/services/api/types";
+import type { MediaCropDto } from "@/services/api/types";
 import { normalizePublicMediaUrl } from "@/services/media/mediaUrl";
 
 export type UploadedProfilePhoto = {
@@ -116,7 +117,7 @@ function mapMediaToProfilePhoto(media: MediaDto): UploadedProfilePhoto {
 async function uploadBackendUserAvatar(
   stableUid: string,
   stableUri: string,
-  options: { mimeType?: string } = {}
+  options: { mimeType?: string; crop?: MediaCropDto } = {}
 ) {
   const session = await loadBackendSession();
   if (!session || session.user.id !== stableUid) return null;
@@ -128,7 +129,7 @@ async function uploadBackendUserAvatar(
     uri: stableUri,
     name: `avatar.${extension}`,
     type: contentType,
-  });
+  }, options.crop);
   const accessToken = await getBackendAccessToken();
 
   await saveBackendSession({
@@ -141,7 +142,7 @@ async function uploadBackendUserAvatar(
 
 export async function uploadProfilePhoto(
   fileUri: string,
-  options: { mimeType?: string; checksumSha256?: string } = {}
+  options: { mimeType?: string; checksumSha256?: string; crop?: MediaCropDto } = {}
 ): Promise<UploadedProfilePhoto> {
   const stableUri = String(fileUri ?? "").trim();
   if (!stableUri) {
@@ -195,7 +196,7 @@ export async function uploadProfilePhoto(
       uri: stableUri,
       name: `profile-photo.${extension}`,
       type: mimeType,
-    });
+    }, options.crop);
   } catch (error) {
     throw buildUploadFlowError(error, "backendProfilePhotoUpload", baseMetadata);
   }
@@ -217,7 +218,7 @@ export async function deleteProfilePhoto(mediaId: string): Promise<void> {
 export async function uploadUserAvatar(
   uid: string,
   localUri: string,
-  options: { mimeType?: string } = {}
+  options: { mimeType?: string; crop?: MediaCropDto } = {}
 ) {
   const stableUid = String(uid ?? "").trim();
   const stableUri = String(localUri ?? "").trim();
@@ -256,7 +257,7 @@ export async function uploadUserAvatar(
 export async function uploadProfileAvatar(
   uid: string,
   uri: string,
-  options: { mimeType?: string } = {}
+  options: { mimeType?: string; crop?: MediaCropDto } = {}
 ) {
   return uploadUserAvatar(uid, uri, options);
 }

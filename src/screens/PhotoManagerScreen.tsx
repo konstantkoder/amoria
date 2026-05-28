@@ -14,6 +14,10 @@ import {
 import * as ImagePicker from "expo-image-picker";
 import { useFocusEffect } from "@react-navigation/native";
 
+import ImageCropper, {
+  CroppedMediaPreview,
+  type NormalizedMediaCrop,
+} from "@/components/media/ImageCropper";
 import ScreenShell from "@/components/ScreenShell";
 import { useLocale } from "@/contexts/LocaleContext";
 import { ApiError } from "@/services/api/apiClient";
@@ -50,10 +54,29 @@ type PendingPickedPhoto = {
   uri: string;
   mimeType?: string;
   fileSize?: number;
+  width?: number;
+  height?: number;
+  crop: NormalizedMediaCrop;
 };
+type PickedPhotoForCrop = Omit<PendingPickedPhoto, "crop">;
 type PhotoImageState = "idle" | "loading" | "loaded" | "error";
 const FALLBACK_MAX_PROFILE_GALLERY_PHOTOS = 15;
 const FALLBACK_MAX_LOCKED_PROFILE_PHOTOS = 10;
+
+function isValidCrop(crop: NormalizedMediaCrop) {
+  return (
+    Number.isFinite(crop.x) &&
+    Number.isFinite(crop.y) &&
+    Number.isFinite(crop.width) &&
+    Number.isFinite(crop.height) &&
+    crop.x >= 0 &&
+    crop.y >= 0 &&
+    crop.width > 0 &&
+    crop.height > 0 &&
+    crop.x + crop.width <= 1.000001 &&
+    crop.y + crop.height <= 1.000001
+  );
+}
 
 export default function PhotoManagerScreen() {
   const { t } = useLocale();
@@ -69,6 +92,7 @@ export default function PhotoManagerScreen() {
   const [passwordBusy, setPasswordBusy] = React.useState(false);
   const [gallery, setGallery] = React.useState<OwnerProfileGalleryResponse | null>(null);
   const [pendingPhoto, setPendingPhoto] = React.useState<PendingPickedPhoto | null>(null);
+  const [croppingPhoto, setCroppingPhoto] = React.useState<PickedPhotoForCrop | null>(null);
   const [passwordMode, setPasswordMode] = React.useState<PasswordMode>("");
   const [currentAccountPassword, setCurrentAccountPassword] = React.useState("");
   const [newFolderPassword, setNewFolderPassword] = React.useState("");
@@ -190,6 +214,10 @@ export default function PhotoManagerScreen() {
   }
 
   async function addPhoto() {
+    await pickPhotoForCrop();
+  }
+
+  async function pickPhotoForCrop() {
     if (galleryLimitReached) {
       Alert.alert(
         tt("photos.galleryLimitReachedTitle", "Лимит фото достигнут"),
@@ -263,10 +291,58 @@ export default function PhotoManagerScreen() {
       return;
     }
 
-    setPendingPhoto({
+    setCroppingPhoto({
       uri,
       ...(asset.mimeType ? { mimeType: asset.mimeType } : {}),
       ...(typeof asset.fileSize === "number" ? { fileSize: asset.fileSize } : {}),
+      ...(typeof asset.width === "number" ? { width: asset.width } : {}),
+      ...(typeof asset.height === "number" ? { height: asset.height } : {}),
+    });
+  }
+
+  function confirmPhotoCrop(crop: NormalizedMediaCrop) {
+    if (!croppingPhoto) return;
+    if (!isValidCrop(crop)) {
+      reportCropError("cropInvalid", "profile_photo", undefined, { cropRatio: 0 });
+      Alert.alert(t("photos.cropFailedTitle"), t("photos.cropFailedBody"));
+      return;
+    }
+
+    setPendingPhoto({
+      ...croppingPhoto,
+      crop,
+    });
+    setCroppingPhoto(null);
+  }
+
+  function cancelPhotoCrop() {
+    setCroppingPhoto(null);
+  }
+
+  async function chooseAnotherPhotoForCrop() {
+    setCroppingPhoto(null);
+    await pickPhotoForCrop();
+  }
+
+  function reportCropError(
+    step: "cropOpenFailed" | "cropConfirmFailed" | "cropInvalid",
+    source: "profile_photo",
+    error?: unknown,
+    metadata: Record<string, unknown> = {}
+  ) {
+    const safeError = error ? sanitizeErrorForReport(error) : null;
+    void reportClientError({
+      screen: "PhotoManagerScreen",
+      action: "cropPhoto",
+      step,
+      code: safeError?.code,
+      message: safeError?.message ?? step,
+      stack: safeError?.stack,
+      metadata: {
+        source,
+        mimeType: croppingPhoto?.mimeType ?? pendingPhoto?.mimeType ?? null,
+        ...metadata,
+      },
     });
   }
 
@@ -278,6 +354,7 @@ export default function PhotoManagerScreen() {
       setBusy(true);
       await uploadProfilePhoto(pendingPhoto.uri, {
         ...(pendingPhoto.mimeType ? { mimeType: pendingPhoto.mimeType } : {}),
+        crop: pendingPhoto.crop,
       });
       uploadCompleted = true;
       await refreshGallery();
@@ -289,7 +366,7 @@ export default function PhotoManagerScreen() {
         mimeType: pendingPhoto.mimeType,
         fileSize: pendingPhoto.fileSize,
         hasPendingPhotoUri: true,
-        stepOverride: uploadCompleted ? "refreshGallery" : "backendUploadFailed",
+        stepOverride: uploadCompleted ? "refreshGallery" : "profilePhotoUploadFailed",
       });
       handleApiError(error, t("photos.uploadFailed"), t("photos.uploadErrorBody"));
     } finally {
@@ -734,8 +811,9 @@ export default function PhotoManagerScreen() {
         {pendingPhotoUri ? (
           <View style={styles.pendingCard}>
             <View style={styles.pendingImageWrap}>
-              <Image
-                source={{ uri: pendingPhotoUri }}
+              <CroppedMediaPreview
+                uri={pendingPhotoUri}
+                crop={pendingPhoto?.crop}
                 style={styles.pendingImage}
                 onError={() => {
                   setPendingPhoto(null);
@@ -783,6 +861,27 @@ export default function PhotoManagerScreen() {
             </View>
           </View>
         ) : null}
+
+        <ImageCropper
+          visible={Boolean(croppingPhoto)}
+          source={croppingPhoto}
+          title={tt("photos.cropProfileTitle", "Обрезка фото")}
+          helpText={tt(
+            "photos.cropHelp",
+            "Переместите фото внутри квадрата и измените масштаб."
+          )}
+          doneLabel={t("common.done")}
+          cancelLabel={t("photos.cropCancel")}
+          chooseAnotherLabel={t("photos.cropChooseAnother")}
+          resetLabel={tt("photos.cropReset", "Сбросить")}
+          onDone={confirmPhotoCrop}
+          onCancel={cancelPhotoCrop}
+          onChooseAnother={() => void chooseAnotherPhotoForCrop()}
+          onError={(step, error, metadata) => {
+            reportCropError(step, "profile_photo", error, metadata);
+            Alert.alert(t("photos.cropFailedTitle"), t("photos.cropFailedBody"));
+          }}
+        />
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{tt("photos.publicSection", "Открытые фото")}</Text>

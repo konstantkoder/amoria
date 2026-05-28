@@ -15,6 +15,10 @@ import * as ImagePicker from "expo-image-picker";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
+import ImageCropper, {
+  CroppedMediaPreview,
+  type NormalizedMediaCrop,
+} from "@/components/media/ImageCropper";
 import ScreenShell from "@/components/ScreenShell";
 import UserAvatar from "@/components/UserAvatar";
 import { useLocale } from "@/contexts/LocaleContext";
@@ -43,7 +47,11 @@ type PendingAvatar = {
   uri: string;
   mimeType?: string;
   fileSize?: number;
+  width?: number;
+  height?: number;
+  crop: NormalizedMediaCrop;
 };
+type AvatarForCrop = Omit<PendingAvatar, "crop">;
 
 const GOAL_LABEL_KEYS: Record<Goal, string> = {
   relationship: "profile.goal.relationship",
@@ -77,6 +85,21 @@ const MOOD_LABEL_FALLBACKS: Record<Mood, string> = {
   adventurous: "Adventurous",
 };
 
+function isValidCrop(crop: NormalizedMediaCrop) {
+  return (
+    Number.isFinite(crop.x) &&
+    Number.isFinite(crop.y) &&
+    Number.isFinite(crop.width) &&
+    Number.isFinite(crop.height) &&
+    crop.x >= 0 &&
+    crop.y >= 0 &&
+    crop.width > 0 &&
+    crop.height > 0 &&
+    crop.x + crop.width <= 1.000001 &&
+    crop.y + crop.height <= 1.000001
+  );
+}
+
 function translatedOptionLabel(
   t: (key: string) => string,
   key: string,
@@ -93,6 +116,7 @@ export default function ProfileScreen() {
   const [loading, setLoading] = React.useState(true);
   const [avatarUploading, setAvatarUploading] = React.useState(false);
   const [pendingAvatar, setPendingAvatar] = React.useState<PendingAvatar | null>(null);
+  const [croppingAvatar, setCroppingAvatar] = React.useState<AvatarForCrop | null>(null);
   const [nameDraft, setNameDraft] = React.useState("");
   const [nameSaving, setNameSaving] = React.useState(false);
   const [nameError, setNameError] = React.useState("");
@@ -224,12 +248,38 @@ export default function ProfileScreen() {
       return;
     }
 
-    setPendingAvatar({
+    setCroppingAvatar({
       uri,
       ...(asset.mimeType ? { mimeType: asset.mimeType } : {}),
       ...(typeof asset.fileSize === "number" ? { fileSize: asset.fileSize } : {}),
+      ...(typeof asset.width === "number" ? { width: asset.width } : {}),
+      ...(typeof asset.height === "number" ? { height: asset.height } : {}),
     });
   }, [t]);
+
+  const confirmAvatarCrop = React.useCallback((crop: NormalizedMediaCrop) => {
+    if (!croppingAvatar) return;
+    if (!isValidCrop(crop)) {
+      reportAvatarCropError("cropInvalid", undefined, { cropRatio: 0 });
+      Alert.alert(t("photos.cropFailedTitle"), t("photos.cropFailedBody"));
+      return;
+    }
+
+    setPendingAvatar({
+      ...croppingAvatar,
+      crop,
+    });
+    setCroppingAvatar(null);
+  }, [croppingAvatar, t]);
+
+  const cancelAvatarCrop = React.useCallback(() => {
+    setCroppingAvatar(null);
+  }, []);
+
+  const chooseAnotherAvatarForCrop = React.useCallback(async () => {
+    setCroppingAvatar(null);
+    await pickAvatar();
+  }, [pickAvatar]);
 
   const confirmAvatarUpload = React.useCallback(async () => {
     if (!pendingAvatar || avatarUploading) return;
@@ -250,6 +300,7 @@ export default function ProfileScreen() {
       try {
         avatarDownloadUrl = await uploadUserAvatar(currentProfile.id, pendingAvatar.uri, {
           ...(pendingAvatar.mimeType ? { mimeType: pendingAvatar.mimeType } : {}),
+          crop: pendingAvatar.crop,
         });
       } catch (error) {
         reportAvatarUploadError(error, {
@@ -274,7 +325,7 @@ export default function ProfileScreen() {
       void reportClientError({
         screen: "ProfileScreen",
         action: "confirmUpload",
-        step: "uploadAvatarFailed",
+        step: "avatarUploadFailed",
         code: safeError.code,
         message: safeError.message,
         stack: safeError.stack,
@@ -307,7 +358,7 @@ export default function ProfileScreen() {
     void reportClientError({
       screen: "ProfileScreen",
       action: "confirmUpload",
-      step: "uploadAvatarFailed",
+      step: "avatarUploadFailed",
       code: uploadError?.code ?? safeError.code,
       message: safeError.message,
       stack: safeError.stack,
@@ -319,6 +370,27 @@ export default function ProfileScreen() {
         ...(getUriScheme(input.uri) ? { uriScheme: getUriScheme(input.uri) } : {}),
         ...(uploadError?.status ? { status: uploadError.status } : {}),
         ...(uploadError?.safeMetadata ?? {}),
+      },
+    });
+  }
+
+  function reportAvatarCropError(
+    step: "cropOpenFailed" | "cropConfirmFailed" | "cropInvalid",
+    error?: unknown,
+    metadata: Record<string, unknown> = {}
+  ) {
+    const safeError = error ? sanitizeErrorForReport(error) : null;
+    void reportClientError({
+      screen: "ProfileScreen",
+      action: "cropPhoto",
+      step,
+      code: safeError?.code,
+      message: safeError?.message ?? step,
+      stack: safeError?.stack,
+      metadata: {
+        source: "avatar",
+        mimeType: croppingAvatar?.mimeType ?? pendingAvatar?.mimeType ?? null,
+        ...metadata,
       },
     });
   }
@@ -378,10 +450,11 @@ export default function ProfileScreen() {
               pendingAvatar ? styles.avatarCropFrame : null,
             ]}>
               {avatarPreviewUri ? (
-                <Image
-                  source={{ uri: avatarPreviewUri }}
+                <CroppedMediaPreview
+                  uri={avatarPreviewUri}
+                  crop={pendingAvatar?.crop}
                   style={styles.avatarPreviewImage}
-                  resizeMode="cover"
+                  borderRadius={pendingAvatar ? 12 : 54}
                   onError={() => {
                     setPendingAvatar(null);
                     Alert.alert(t("photos.previewFailed"), t("photos.noAssetReturned"));
@@ -621,6 +694,24 @@ export default function ProfileScreen() {
             <Text style={styles.emptyPhotos}>{t("photos.empty")}</Text>
           )}
         </View>
+
+        <ImageCropper
+          visible={Boolean(croppingAvatar)}
+          source={croppingAvatar}
+          title={t("photos.cropAvatarTitle")}
+          helpText={t("photos.cropHelp")}
+          doneLabel={t("common.done")}
+          cancelLabel={t("photos.cropCancel")}
+          chooseAnotherLabel={t("photos.cropChooseAnother")}
+          resetLabel={t("photos.cropReset")}
+          onDone={confirmAvatarCrop}
+          onCancel={cancelAvatarCrop}
+          onChooseAnother={() => void chooseAnotherAvatarForCrop()}
+          onError={(step, error, metadata) => {
+            reportAvatarCropError(step, error, metadata);
+            Alert.alert(t("photos.cropFailedTitle"), t("photos.cropFailedBody"));
+          }}
+        />
       </ScrollView>
     </ScreenShell>
   );

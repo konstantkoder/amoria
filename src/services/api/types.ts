@@ -505,6 +505,13 @@ export type AvatarUploadResponse = {
   user: SelfUserProfileDto;
 };
 
+export type MediaCropDto = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
 export type BackendUploadFile = {
   uri: string;
   name?: string;

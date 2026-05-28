@@ -1,6 +1,6 @@
 # Gallery Smoke Pass
 
-Updated: 2026-05-28 for `BUGFIX-DRAW-PHOTO-AVATAR-FINAL-06`.
+Updated: 2026-05-28 for `MEDIA CROP FLOW FINAL 01`.
 
 ## Run Metadata
 
@@ -19,10 +19,11 @@ Updated: 2026-05-28 for `BUGFIX-DRAW-PHOTO-AVATAR-FINAL-06`.
 
 | ID | Scenario | Result | Manual checks |
 | --- | --- | --- | --- |
-| A | Avatar upload | NOT TESTED | Login account A, open Profile, choose JPEG/PNG/WebP avatar, verify square center-crop preview appears with `Предпросмотр — ещё не сохранено` and visible Cancel / Choose another / Upload avatar actions, tap Upload avatar, verify new avatar appears from backend, restart app, verify avatar persists, open public profile from account B, verify peer sees avatar. |
-| B | Profile photo upload | NOT TESTED | Open PhotoManager, choose JPEG/PNG/WebP profile photo, verify in-app preview appears with visible Cancel / Choose another / Upload photo actions, tap Upload photo, verify backend-mediated `POST /media/profile-photo` result appears in public gallery, restart app, verify it persists, login peer account, verify peer can see public photo, verify URL is relative `/media/public/:mediaId` or current backend origin plus that path. |
+| A | Avatar upload crop | NOT TESTED | Login account A, open Profile, choose JPEG/PNG/WebP avatar, verify in-app crop screen opens with square frame, move/zoom inside the square, tap `Готово`, verify unsaved preview appears with `Предпросмотр — ещё не сохранено`, tap Upload avatar, verify new avatar appears from backend, restart app, verify avatar persists, open public profile from account B, verify peer sees avatar. |
+| B | Profile photo upload crop | NOT TESTED | Open PhotoManager, choose JPEG/PNG/WebP profile photo, verify in-app crop screen opens with square frame, move/zoom inside the square, tap `Готово`, verify preview appears and upload has not happened yet, tap `Загрузить`, verify backend-mediated `POST /media/profile-photo` result appears cropped in public gallery, restart app, verify it persists, login peer account, verify peer can see public photo, verify URL is relative `/media/public/:mediaId` or current backend origin plus that path. |
 | B1 | Peer avatar/profile media | NOT TESTED | Account A uploads avatar and public profile photo; account B opens A from Together DM/profile context and sees current backend public media URLs derived from media ids or a clear moderation-waiting explanation if policy changes to approved-only. If an image fails, Admin Client Errors should show `screen=UserProfileScreen`, `action=loadPeerMedia`, safe `mediaId` when known, `urlKind`, `httpStatus`, `contentType`, `hasAvatarUrl`, and `photoCount`, never a raw URL. |
-| B2 | Profile photo cancel/change | NOT TESTED | Select a photo, reach preview, tap Cancel and verify no upload/gallery change. Repeat and tap Choose another; verify only the confirmed photo uploads. |
+| B2 | Crop cancel/change | NOT TESTED | Select avatar/photo, reach crop screen, tap `Отменить` and verify no upload/avatar/gallery change. Repeat and tap `Выбрать другое`; verify the previous image is replaced before upload and only the confirmed replacement can upload. |
+| B3 | Invalid crop | NOT TESTED | Submit an invalid/non-square crop in a controlled API test, verify backend rejects with `invalid_crop`, mobile keeps retry/cancel state, and no saved-looking local success appears. |
 | C | Unsupported format | NOT TESTED | Try HEIC/HEIF or unsupported image if device provides it, verify app rejects before upload, no backend media is created, clear error is shown. |
 | D | Move public to locked | NOT TESTED | Account A has enough visible public images, set locked gallery password if needed, move one photo to locked, verify public profile no longer exposes that photo URL, owner sees it in locked section, peer sees only locked count/state. |
 | E | Min visible rule | NOT TESTED | Try moving too many photos to locked, verify backend rejects minimum-visible violation, UI shows clear error, and no fake local move remains after failed mutation. |
@@ -54,7 +55,7 @@ Updated: 2026-05-28 for `BUGFIX-DRAW-PHOTO-AVATAR-FINAL-06`.
 | Owner gallery URL resolution | PASS | Owner gallery uses the same current-origin resolver as peer profile instead of passing relative media paths directly to React Native `Image`. |
 | Owner delete diagnostics | PASS | Delete failures report safe `mediaId`, optional `galleryItemId`, HTTP status, error code, visibility, and moderation status without raw URLs or tokens. |
 | Broken owner thumbnails | PASS | Owner gallery shows loading/error state and a remove/reupload path instead of silent black placeholders; thumbnail load failures probe `/media/public/:mediaId` safely. |
-| Avatar crop action visibility | PASS | Mobile no longer depends on the native cropper action bar; upload waits for visible in-app preview/confirm actions. |
+| Avatar/profile crop action visibility | PASS | Mobile no longer depends on the native cropper action bar; avatar and profile photo upload wait for visible in-app crop, preview, and explicit upload actions. |
 
 ## Found Bugs
 

@@ -62,6 +62,14 @@ This launcher is local dev tooling only and is not product logic.
   - Avatar flow uses square unsaved preview, explicit backend upload, backend profile refresh, and mediaId-based URL equality.
   - Peer avatar/public profile remains backend-backed; missing objects are filtered or diagnosed, locked gallery remains blocked.
   - Admin `Проверить URL` remains the smoke path for HTTP/content-type/object-not-found diagnostics.
+- MEDIA-CROP-FLOW-01 is fixed in code and awaiting release smoke:
+  - Avatar and profile photo selection open an in-app square crop UI instead of relying on native picker editing buttons.
+  - Users can move/zoom, reset, cancel, choose another image, and tap `Готово`.
+  - Upload happens only after crop confirmation and explicit upload confirmation.
+  - Mobile sends normalized `0..1` crop metadata to the backend.
+  - Backend validates crop bounds/square shape, applies the crop, strips metadata, and re-encodes WebP.
+  - Missing crop metadata falls back to backend center-square crop for old clients.
+  - Failed crop/upload states do not produce local-only saved-looking success.
 
 ## Completed blocks
 
@@ -92,7 +100,8 @@ This launcher is local dev tooling only and is not product logic.
   - Story Sparks continuation after draw keeps the same pair and does not re-match by geo.
 - `MEDIA-01` backend-mediated profile photo upload:
   - Avatar and profile photo uploads are backend-mediated multipart flows.
-  - Mobile now crops/previews first and uploads only after explicit user confirmation.
+  - Mobile now uses in-app square crop, previews first, and uploads only after explicit user confirmation.
+  - Backend applies normalized crop metadata authoritatively and falls back to center-square crop for old clients.
   - Mobile profile photo upload no longer depends on direct internal MinIO/S3 `PUT` URLs.
   - Returned profile media URL is the backend public media route `/media/public/:mediaId`.
   - Prepared direct upload endpoints remain available but are not used by mobile profile photo upload.
@@ -187,6 +196,7 @@ See `docs/together_draw_tools_01.md`.
 See `docs/photo_delete_avatar_upload_fix_04.md`.
 See `docs/together_draw_tools_05.md`.
 See `docs/bugfix_draw_photo_avatar_final_06.md`.
+See `docs/media_crop_flow_01.md`.
 
 ## Build Verification Before Smoke
 

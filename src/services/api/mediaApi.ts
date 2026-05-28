@@ -3,23 +3,32 @@ import type {
   AvatarUploadResponse,
   BackendUploadFile,
   CompleteUploadResponse,
+  MediaCropDto,
 } from "@/services/api/types";
 
-export function uploadAvatarToBackend(file: BackendUploadFile): Promise<AvatarUploadResponse>;
+export function uploadAvatarToBackend(
+  file: BackendUploadFile,
+  crop?: MediaCropDto
+): Promise<AvatarUploadResponse>;
 export function uploadAvatarToBackend(
   accessToken: string,
-  file: BackendUploadFile
+  file: BackendUploadFile,
+  crop?: MediaCropDto
 ): Promise<AvatarUploadResponse>;
 export function uploadAvatarToBackend(
   fileOrAccessToken: BackendUploadFile | string,
-  maybeFile?: BackendUploadFile
+  maybeFileOrCrop?: BackendUploadFile | MediaCropDto,
+  maybeCrop?: MediaCropDto
 ): Promise<AvatarUploadResponse> {
   const accessToken = typeof fileOrAccessToken === "string"
     ? fileOrAccessToken
     : undefined;
   const file = typeof fileOrAccessToken === "string"
-    ? maybeFile
+    ? maybeFileOrCrop as BackendUploadFile | undefined
     : fileOrAccessToken;
+  const crop = typeof fileOrAccessToken === "string"
+    ? maybeCrop
+    : maybeFileOrCrop as MediaCropDto | undefined;
 
   if (!file) {
     throw new Error("Avatar file is required");
@@ -33,6 +42,7 @@ export function uploadAvatarToBackend(
   };
 
   formData.append("avatar", uploadFile as unknown as Blob);
+  appendCrop(formData, crop);
 
   return apiRequest<AvatarUploadResponse>("/media/avatar", {
     method: "POST",
@@ -42,7 +52,8 @@ export function uploadAvatarToBackend(
 }
 
 export function uploadProfilePhotoToBackend(
-  file: BackendUploadFile
+  file: BackendUploadFile,
+  crop?: MediaCropDto
 ): Promise<CompleteUploadResponse> {
   const formData = new FormData();
   const uploadFile: BackendUploadFile = {
@@ -52,9 +63,15 @@ export function uploadProfilePhotoToBackend(
   };
 
   formData.append("file", uploadFile as unknown as Blob);
+  appendCrop(formData, crop);
 
   return apiRequest<CompleteUploadResponse>("/media/profile-photo", {
     method: "POST",
     body: formData,
   });
+}
+
+function appendCrop(formData: FormData, crop?: MediaCropDto) {
+  if (!crop) return;
+  formData.append("crop", JSON.stringify(crop));
 }
