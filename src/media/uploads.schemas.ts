@@ -8,6 +8,14 @@ import {
 } from "../config/constants";
 
 const checksumSha256Pattern = /^[a-fA-F0-9]{64}$/;
+const normalizedCropSchema = z
+  .object({
+    x: z.number().min(0).max(1),
+    y: z.number().min(0).max(1),
+    width: z.number().positive().max(1),
+    height: z.number().positive().max(1),
+  })
+  .strict();
 
 export const prepareUploadBodySchema = z
   .object({
@@ -22,6 +30,7 @@ export const completeUploadBodySchema = z
   .object({
     sizeBytes: z.number().int().positive().max(MAX_MEDIA_UPLOAD_BYTES),
     checksumSha256: z.string().regex(checksumSha256Pattern).optional(),
+    crop: normalizedCropSchema.optional(),
   })
   .strict();
 
@@ -121,6 +130,17 @@ export const completeUploadRouteSchema = {
       checksumSha256: {
         type: "string",
         pattern: checksumSha256Pattern.source,
+      },
+      crop: {
+        type: "object",
+        additionalProperties: false,
+        required: ["x", "y", "width", "height"],
+        properties: {
+          x: { type: "number", minimum: 0, maximum: 1 },
+          y: { type: "number", minimum: 0, maximum: 1 },
+          width: { type: "number", exclusiveMinimum: 0, maximum: 1 },
+          height: { type: "number", exclusiveMinimum: 0, maximum: 1 },
+        },
       },
     },
   },

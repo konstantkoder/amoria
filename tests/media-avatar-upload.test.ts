@@ -96,6 +96,48 @@ test("avatar upload keeps legacy local avatar URL intact during replacement", as
   assert.deepEqual(state.deletedMediaIds, []);
 });
 
+test("avatar upload with normalized crop stores cropped WebP", async (t) => {
+  t.after(restoreMediaDeps);
+  const inputBuffer = await splitImageBuffer("jpeg", 800, 400);
+  const state = mockAvatarUpload();
+
+  await mediaService.uploadAvatar(ownerId, multipartFile(inputBuffer), {
+    x: 0,
+    y: 0,
+    width: 0.5,
+    height: 1,
+  });
+
+  assert.equal(state.putObject?.contentType, "image/webp");
+  const metadata = await sharp(state.putObject?.body).metadata();
+  assert.equal(metadata.width, 512);
+  assert.equal(metadata.height, 512);
+  const center = await centerPixel(state.putObject?.body ?? Buffer.alloc(0));
+  assert.ok(center.r > 180, `expected red crop, got ${JSON.stringify(center)}`);
+  assert.ok(center.b < 80, `expected red crop, got ${JSON.stringify(center)}`);
+});
+
+test("avatar upload rejects invalid non-square crop metadata", async (t) => {
+  t.after(restoreMediaDeps);
+  const inputBuffer = await imageBuffer("jpeg", 800, 400);
+  const state = mockAvatarUpload();
+
+  await assertAppError(
+    mediaService.uploadAvatar(ownerId, multipartFile(inputBuffer), {
+      x: 0,
+      y: 0,
+      width: 0.25,
+      height: 0.25,
+    }),
+    "invalid_crop",
+    400,
+  );
+
+  assert.equal(state.putObject, undefined);
+  assert.equal(state.mediaInput, undefined);
+  assert.equal(state.updatedAvatarUrl, undefined);
+});
+
 test("avatar upload rejects corrupt JPEG content before object storage write", async (t) => {
   t.after(restoreMediaDeps);
   const corruptJpeg = Buffer.concat([
@@ -270,6 +312,56 @@ async function imageBuffer(
   });
 
   return format === "jpeg" ? image.jpeg({ quality: 90 }).toBuffer() : image.png().toBuffer();
+}
+
+async function splitImageBuffer(
+  format: "jpeg" | "png",
+  width: number,
+  height: number,
+): Promise<Buffer> {
+  const left = await sharp({
+    create: {
+      width: Math.floor(width / 2),
+      height,
+      channels: 3,
+      background: { r: 230, g: 20, b: 20 },
+    },
+  }).png().toBuffer();
+  const right = await sharp({
+    create: {
+      width: width - Math.floor(width / 2),
+      height,
+      channels: 3,
+      background: { r: 20, g: 40, b: 230 },
+    },
+  }).png().toBuffer();
+  const image = sharp({
+    create: {
+      width,
+      height,
+      channels: 3,
+      background: { r: 0, g: 0, b: 0 },
+    },
+  }).composite([
+    { input: left, left: 0, top: 0 },
+    { input: right, left: Math.floor(width / 2), top: 0 },
+  ]);
+
+  return format === "jpeg" ? image.jpeg({ quality: 95 }).toBuffer() : image.png().toBuffer();
+}
+
+async function centerPixel(buffer: Buffer): Promise<{ r: number; g: number; b: number }> {
+  const { data, info } = await sharp(buffer)
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const x = Math.floor(info.width / 2);
+  const y = Math.floor(info.height / 2);
+  const index = (y * info.width + x) * info.channels;
+  return {
+    r: data[index] ?? 0,
+    g: data[index + 1] ?? 0,
+    b: data[index + 2] ?? 0,
+  };
 }
 
 async function assertAppError(

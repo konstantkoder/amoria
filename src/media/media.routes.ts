@@ -1,9 +1,11 @@
 import "@fastify/multipart";
-import type { FastifyInstance } from "fastify";
+import type { MultipartFile } from "@fastify/multipart";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import { MAX_AVATAR_INPUT_BYTES, MAX_MEDIA_UPLOAD_BYTES } from "../config/constants";
-import { unauthorized } from "../common/errors";
+import { AppError, unauthorized } from "../common/errors";
 import { withErrorResponses } from "../common/http";
 import { authMiddleware } from "../common/security/auth-middleware";
+import { isMultipartFileTooLarge } from "./file-guards";
 import { uploadAvatarRouteSchema } from "./media.schemas";
 import * as mediaService from "./media.service";
 import { uploadProfilePhotoRouteSchema } from "./uploads.schemas";
@@ -15,6 +17,60 @@ function currentUserId(request: { auth?: { userId: string } }): string {
   }
 
   return request.auth.userId;
+}
+
+type MultipartImageUpload = {
+  file?: MultipartFile;
+  crop?: unknown;
+};
+
+async function readMultipartImageUpload(
+  request: FastifyRequest,
+  fileFieldName: string,
+  maxFileSize: number,
+): Promise<MultipartImageUpload> {
+  let file: MultipartFile | undefined;
+  let crop: unknown;
+
+  for await (const part of request.parts({
+    limits: {
+      fileSize: maxFileSize,
+      files: 1,
+      fields: 4,
+    },
+  })) {
+    if (part.type === "file") {
+      const buffer = await readMultipartFileBuffer(part, maxFileSize);
+      if (part.fieldname !== fileFieldName || file) {
+        continue;
+      }
+      file = {
+        ...part,
+        toBuffer: async () => buffer,
+      } as MultipartFile;
+      continue;
+    }
+
+    if (part.fieldname === "crop") {
+      crop = part.value;
+    }
+  }
+
+  return { file, crop };
+}
+
+async function readMultipartFileBuffer(part: MultipartFile, maxFileSize: number): Promise<Buffer> {
+  try {
+    return await part.toBuffer();
+  } catch (error) {
+    if (isMultipartFileTooLarge(error)) {
+      throw new AppError("file_too_large", "Uploaded image file is too large", 413, {
+        file: maxFileSize === MAX_AVATAR_INPUT_BYTES ? "avatar_too_large" : "too_large",
+      });
+    }
+
+    throw error;
+  }
 }
 
 export async function mediaRoutes(fastify: FastifyInstance): Promise<void> {
@@ -36,14 +92,8 @@ export async function mediaRoutes(fastify: FastifyInstance): Promise<void> {
       schema: withErrorResponses(uploadAvatarRouteSchema),
     },
     async (request) => {
-      const file = await request.file({
-        limits: {
-          fileSize: MAX_AVATAR_INPUT_BYTES,
-          files: 1,
-        },
-      });
-
-      return mediaService.uploadAvatar(currentUserId(request), file);
+      const upload = await readMultipartImageUpload(request, "avatar", MAX_AVATAR_INPUT_BYTES);
+      return mediaService.uploadAvatar(currentUserId(request), upload.file, upload.crop);
     },
   );
 
@@ -54,14 +104,8 @@ export async function mediaRoutes(fastify: FastifyInstance): Promise<void> {
       schema: withErrorResponses(uploadProfilePhotoRouteSchema),
     },
     async (request) => {
-      const file = await request.file({
-        limits: {
-          fileSize: MAX_MEDIA_UPLOAD_BYTES,
-          files: 1,
-        },
-      });
-
-      return uploadsService.uploadProfilePhoto(currentUserId(request), file);
+      const upload = await readMultipartImageUpload(request, "file", MAX_MEDIA_UPLOAD_BYTES);
+      return uploadsService.uploadProfilePhoto(currentUserId(request), upload.file, upload.crop);
     },
   );
 }

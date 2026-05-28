@@ -27,6 +27,7 @@ export type ErrorCode =
   | "image_too_large"
   | "image_too_small"
   | "corrupt_image"
+  | "invalid_crop"
   | "object_not_found"
   | "storage_read_failed"
   | "storage_write_failed"

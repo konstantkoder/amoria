@@ -7,7 +7,10 @@ import type { MediaFileRow } from "../db/schema";
 import { findUserById, updateUserAvatar } from "../users/users.repo";
 import { toSelfUserProfile, type SelfUserProfile } from "../users/users.service";
 import { assertAvatarInput, checksumSha256, isMultipartFileTooLarge } from "./file-guards";
-import { processAvatarImage } from "./image-processing";
+import {
+  normalizeMediaCrop,
+  processAvatarImage,
+} from "./image-processing";
 import {
   createMediaFile,
   deleteMediaFileByOwner,
@@ -78,6 +81,7 @@ export function __setMediaServiceDepsForTests(
 export async function uploadAvatar(
   userId: string,
   file: MultipartFile | undefined,
+  cropInput?: unknown,
 ): Promise<AvatarUploadResponse> {
   if (!file) {
     throw validationError("Avatar file is required", { file: "required" });
@@ -107,7 +111,8 @@ export async function uploadAvatar(
     throw unauthorized("User no longer exists");
   }
 
-  const processed = await deps.processAvatarImage(inputBuffer);
+  const crop = normalizeMediaCrop(cropInput);
+  const processed = await deps.processAvatarImage(inputBuffer, crop);
   const checksum = checksumSha256(processed.buffer);
   const mediaId = randomUUID();
   const objectKey = avatarObjectKey(userId, mediaId);

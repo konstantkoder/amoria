@@ -45,6 +45,9 @@ Updated: 2026-05-28
 - Owner delete can remove owned broken media rows/gallery items when the storage object is already missing.
 - Owner delete bypasses the locked-folder minimum-visible guard; move/hide/password flows still enforce it.
 - Avatar upload uses square unsaved preview, explicit backend save, backend refresh, and mediaId-based URL equality.
+- Avatar and profile photo upload require in-app square crop confirmation before upload.
+- Crop metadata uses normalized `0..1` coordinates against the oriented source image; the backend validates crop bounds/square shape, applies the crop, strips metadata, and re-encodes WebP.
+- Old clients without crop metadata get backend center-square fallback; this is compatibility, not fake crop success.
 - Admin Media thumbnails use safe public media paths; locked media must not get public preview URLs.
 - Admin Media detail preview uses the authenticated audited content route.
 - Mobile peer media failures must report safe `mediaId`, `urlKind`, `httpStatus`, and `contentType`; raw full URLs, signed URLs, tokens, and local paths must not appear.
@@ -84,7 +87,7 @@ Automated checks cannot replace the real two-client pass:
 9. Confirm no exact coordinates appear in mobile UI, Admin Web, client errors, DM, history, or public profile.
 10. Confirm Client Errors include enough app/build/release metadata to identify the running build.
 11. In draw, smoke brush, eraser, hidden tools, no visible Move/Reset drawer controls, pinch pan/zoom, fullscreen on/off, finish, and history/detail replay.
-12. In gallery/avatar, smoke delete below 3 visible public photos, broken photo cleanup, avatar preview/upload/restart persistence, peer avatar visibility, and Admin `Проверить URL` HTTP 200 `image/webp`.
+12. In gallery/avatar, smoke delete below 3 visible public photos, broken photo cleanup, avatar crop/preview/upload/restart persistence, profile photo crop/preview/upload, peer avatar/photo visibility, crop cancel/choose-another, invalid crop rejection, and Admin `Проверить URL` HTTP 200 `image/webp`.
 
 ## Build Verification
 

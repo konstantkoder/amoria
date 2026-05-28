@@ -27,7 +27,10 @@ import {
   deleteOwnedMediaWithGalleryGuards,
 } from "../users/profile-gallery.service";
 import { checksumSha256, isMultipartFileTooLarge } from "./file-guards";
-import { processProfilePhotoImage } from "./image-processing";
+import {
+  normalizeMediaCrop,
+  processProfilePhotoImage,
+} from "./image-processing";
 
 export type PrepareUploadResponse = {
   uploadId: string;
@@ -217,6 +220,7 @@ export async function completeUpload(
 export async function uploadProfilePhoto(
   ownerUserId: string,
   file: MultipartFile | undefined,
+  cropInput?: unknown,
 ): Promise<CompleteUploadResponse> {
   if (!file) {
     throw validationError("Profile photo file is required", { file: "required" });
@@ -248,7 +252,8 @@ export async function uploadProfilePhoto(
 
   await deps.assertCanAddProfilePhotoToGallery(ownerUserId);
 
-  const processed = await deps.processProfilePhotoImage(inputBuffer);
+  const crop = normalizeMediaCrop(cropInput);
+  const processed = await deps.processProfilePhotoImage(inputBuffer, {}, crop);
   const mediaId = randomUUID();
   const objectKey = backendProfilePhotoObjectKey(ownerUserId, mediaId);
   const mediaUrl = publicMediaUrlForMediaId(mediaId);
@@ -363,7 +368,7 @@ async function toCompletedMediaInput(
   input: CompleteUploadBody,
 ): Promise<NewMediaFileRow> {
   if (upload.purpose === "profile_photo") {
-    return toCompletedProfilePhotoMediaInput(ownerUserId, upload);
+    return toCompletedProfilePhotoMediaInput(ownerUserId, upload, input);
   }
 
   return {
@@ -381,9 +386,11 @@ async function toCompletedMediaInput(
 async function toCompletedProfilePhotoMediaInput(
   ownerUserId: string,
   upload: MediaUploadRow,
+  input: CompleteUploadBody,
 ): Promise<NewMediaFileRow> {
   const rawBuffer = await getUploadedObjectBuffer(upload);
-  const processed = await deps.processProfilePhotoImage(rawBuffer);
+  const crop = normalizeMediaCrop(input.crop);
+  const processed = await deps.processProfilePhotoImage(rawBuffer, {}, crop);
   const sanitizedObjectKey = sanitizedProfilePhotoObjectKey(upload.objectKey);
 
   await deps.putObjectBuffer({

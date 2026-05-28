@@ -60,7 +60,7 @@ for (const format of ["jpeg", "png", "webp"] as const) {
     assert.equal(state.mediaInput?.url, publicMediaPath(uploadId));
     assert.equal(state.mediaInput?.mimeType, "image/webp");
     assert.equal(state.mediaInput?.sizeBytes, state.putObject?.body.length);
-    assert.equal(state.mediaInput?.width, 640);
+    assert.equal(state.mediaInput?.width, 480);
     assert.equal(state.mediaInput?.height, 480);
     assert.equal(state.mediaInput?.checksumSha256, sha256(state.putObject?.body ?? Buffer.alloc(0)));
     assert.deepEqual(state.moderationMediaIds, [state.mediaInput?.id]);
@@ -102,6 +102,9 @@ test("POST /media/profile-photo uploads profile photo through backend", async (t
       filename: "profile.jpg",
       contentType: "image/jpeg",
       body: rawBuffer,
+      fields: {
+        crop: JSON.stringify({ x: 0.125, y: 0, width: 0.75, height: 1 }),
+      },
     }),
   });
 
@@ -124,6 +127,72 @@ test("POST /media/profile-photo uploads profile photo through backend", async (t
   assert.equal(JSON.stringify(body).includes("minio"), false);
   assert.equal(JSON.stringify(body).includes("objectKey"), false);
   assert.equal(JSON.stringify(body).includes('"path"'), false);
+});
+
+test("uploadProfilePhoto with normalized crop stores cropped WebP", async (t) => {
+  t.after(restoreUploadServiceDeps);
+  const rawBuffer = await splitImageBuffer("jpeg", 800, 400);
+  const state = mockBackendProfilePhotoUpload();
+
+  const response = await uploadsService.uploadProfilePhoto(
+    ownerId,
+    multipartFile(rawBuffer, "image/jpeg"),
+    { x: 0, y: 0, width: 0.5, height: 1 },
+  );
+
+  assert.equal(state.putObject?.contentType, "image/webp");
+  assert.equal(state.mediaInput?.width, 400);
+  assert.equal(state.mediaInput?.height, 400);
+  assert.equal(response.media.mimeType, "image/webp");
+  const center = await centerPixel(state.putObject?.body ?? Buffer.alloc(0));
+  assert.ok(center.r > 180, `expected red crop, got ${JSON.stringify(center)}`);
+  assert.ok(center.b < 80, `expected red crop, got ${JSON.stringify(center)}`);
+});
+
+test("completeUpload with normalized crop stores cropped profile photo WebP", async (t) => {
+  t.after(restoreUploadServiceDeps);
+  const rawBuffer = await splitImageBuffer("jpeg", 800, 400);
+  const state = mockCompleteProfilePhotoUpload(rawBuffer, "image/jpeg");
+
+  await uploadsService.completeUpload(ownerId, uploadId, {
+    sizeBytes: rawBuffer.length,
+    crop: { x: 0, y: 0, width: 0.5, height: 1 },
+  });
+
+  assert.equal(state.putObject?.contentType, "image/webp");
+  assert.equal(state.mediaInput?.width, 400);
+  assert.equal(state.mediaInput?.height, 400);
+  const center = await centerPixel(state.putObject?.body ?? Buffer.alloc(0));
+  assert.ok(center.r > 180, `expected red crop, got ${JSON.stringify(center)}`);
+  assert.ok(center.b < 80, `expected red crop, got ${JSON.stringify(center)}`);
+});
+
+test("uploadProfilePhoto rejects invalid non-square crop metadata", async (t) => {
+  t.after(restoreUploadServiceDeps);
+  const state = mockBackendProfilePhotoUpload();
+
+  await assertAppError(
+    uploadsService.uploadProfilePhoto(
+      ownerId,
+      multipartFile(await imageBuffer("jpeg", 800, 400), "image/jpeg"),
+      { x: 0, y: 0, width: 0.25, height: 0.25 },
+    ),
+    "invalid_crop",
+    400,
+  );
+
+  assert.equal(state.putObject, undefined);
+  assert.equal(state.mediaInput, undefined);
+  assert.equal(state.galleryMedia, undefined);
+});
+
+test("missing crop metadata uses center square fallback for profile photos", async () => {
+  const processed = await imageProcessing.processProfilePhotoImage(
+    await splitImageBuffer("jpeg", 800, 400),
+  );
+
+  assert.equal(processed.width, 400);
+  assert.equal(processed.height, 400);
 });
 
 test("POST /media/profile-photo requires authentication", async () => {
@@ -563,8 +632,18 @@ function multipartPayload(input: {
   filename: string;
   contentType: string;
   body: Buffer;
+  fields?: Record<string, string>;
 }): Buffer {
+  const fieldBuffers = Object.entries(input.fields ?? {}).map(([name, value]) =>
+    Buffer.from(
+      `--${input.boundary}\r\n` +
+        `Content-Disposition: form-data; name="${name}"\r\n\r\n` +
+        `${value}\r\n`,
+    ),
+  );
+
   return Buffer.concat([
+    ...fieldBuffers,
     Buffer.from(
       `--${input.boundary}\r\n` +
         `Content-Disposition: form-data; name="${input.fieldName}"; filename="${input.filename}"\r\n` +
@@ -598,6 +677,64 @@ async function imageBuffer(
   }
 
   return image.webp({ quality: 90 }).toBuffer();
+}
+
+async function splitImageBuffer(
+  format: keyof typeof mimeByFormat,
+  width: number,
+  height: number,
+): Promise<Buffer> {
+  const left = await sharp({
+    create: {
+      width: Math.floor(width / 2),
+      height,
+      channels: 3,
+      background: { r: 230, g: 20, b: 20 },
+    },
+  }).png().toBuffer();
+  const right = await sharp({
+    create: {
+      width: width - Math.floor(width / 2),
+      height,
+      channels: 3,
+      background: { r: 20, g: 40, b: 230 },
+    },
+  }).png().toBuffer();
+  const image = sharp({
+    create: {
+      width,
+      height,
+      channels: 3,
+      background: { r: 0, g: 0, b: 0 },
+    },
+  }).composite([
+    { input: left, left: 0, top: 0 },
+    { input: right, left: Math.floor(width / 2), top: 0 },
+  ]);
+
+  if (format === "jpeg") {
+    return image.jpeg({ quality: 95 }).toBuffer();
+  }
+
+  if (format === "png") {
+    return image.png().toBuffer();
+  }
+
+  return image.webp({ quality: 95 }).toBuffer();
+}
+
+async function centerPixel(buffer: Buffer): Promise<{ r: number; g: number; b: number }> {
+  const { data, info } = await sharp(buffer)
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const x = Math.floor(info.width / 2);
+  const y = Math.floor(info.height / 2);
+  const index = (y * info.width + x) * info.channels;
+  return {
+    r: data[index] ?? 0,
+    g: data[index + 1] ?? 0,
+    b: data[index + 2] ?? 0,
+  };
 }
 
 async function assertAppError(

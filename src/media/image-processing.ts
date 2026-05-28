@@ -25,6 +25,13 @@ export type ProcessedProfilePhotoImage = {
   sourceMimeType: "image/jpeg" | "image/png" | "image/webp";
 };
 
+export type NormalizedMediaCrop = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
 export type ProfilePhotoImageConstraints = {
   minWidth: number;
   minHeight: number;
@@ -47,7 +54,42 @@ const profilePhotoFormatMimeTypes = {
   webp: "image/webp",
 } as const;
 
-export async function processAvatarImage(input: Buffer): Promise<ProcessedImage> {
+export function normalizeMediaCrop(input: unknown): NormalizedMediaCrop | undefined {
+  if (input == null || input === "") {
+    return undefined;
+  }
+
+  const value = typeof input === "string" ? parseCropJson(input) : input;
+  if (!value || typeof value !== "object") {
+    throw invalidCrop("invalid");
+  }
+
+  const crop = value as Partial<Record<keyof NormalizedMediaCrop, unknown>>;
+  const normalized = {
+    x: readCropNumber(crop.x, "x"),
+    y: readCropNumber(crop.y, "y"),
+    width: readCropNumber(crop.width, "width"),
+    height: readCropNumber(crop.height, "height"),
+  };
+
+  if (normalized.x < 0 || normalized.y < 0) {
+    throw invalidCrop("origin_out_of_bounds");
+  }
+  if (normalized.width <= 0 || normalized.height <= 0) {
+    throw invalidCrop("size_required");
+  }
+  if (normalized.x + normalized.width > 1 + 0.000001 ||
+      normalized.y + normalized.height > 1 + 0.000001) {
+    throw invalidCrop("out_of_bounds");
+  }
+
+  return normalized;
+}
+
+export async function processAvatarImage(
+  input: Buffer,
+  crop?: NormalizedMediaCrop,
+): Promise<ProcessedImage> {
   if (input.length > MAX_AVATAR_INPUT_BYTES) {
     throw imageTooLarge("Avatar file is too large", "too_large");
   }
@@ -80,17 +122,26 @@ export async function processAvatarImage(input: Buffer): Promise<ProcessedImage>
   );
 
   try {
-    const result = await sharp(input, {
+    const oriented = await toOrientedImage(input);
+    const orientedDimensions = validateImageDimensions(
+      oriented.info.width,
+      oriented.info.height,
+      defaultProfilePhotoConstraints,
+      "Avatar",
+    );
+    const squareCrop = resolveSquareCrop(crop, orientedDimensions, "Avatar");
+    validateImageDimensions(squareCrop.width, squareCrop.height, defaultProfilePhotoConstraints, "Avatar");
+
+    const result = await sharp(oriented.data, {
       failOn: "warning",
       animated: false,
       limitInputPixels: PROFILE_PHOTO_MAX_WIDTH * PROFILE_PHOTO_MAX_HEIGHT,
     })
-      .rotate()
+      .extract(squareCrop)
       .resize({
         width: AVATAR_IMAGE_SIZE,
         height: AVATAR_IMAGE_SIZE,
-        fit: "cover",
-        position: "centre",
+        fit: "fill",
       })
       .webp({
         quality: 82,
@@ -116,6 +167,7 @@ export async function processAvatarImage(input: Buffer): Promise<ProcessedImage>
 export async function processProfilePhotoImage(
   input: Buffer,
   constraints: Partial<ProfilePhotoImageConstraints> = {},
+  crop?: NormalizedMediaCrop,
 ): Promise<ProcessedProfilePhotoImage> {
   const limits = {
     ...defaultProfilePhotoConstraints,
@@ -149,12 +201,27 @@ export async function processProfilePhotoImage(
   validateImageDimensions(metadata.width, metadata.height, limits, "Profile photo");
 
   try {
-    const result = await sharp(input, {
+    const oriented = await toOrientedImage(input);
+    const orientedDimensions = validateImageDimensions(
+      oriented.info.width,
+      oriented.info.height,
+      limits,
+      "Profile photo",
+    );
+    const squareCrop = resolveSquareCrop(crop, orientedDimensions, "Profile photo");
+    validateImageDimensions(
+      squareCrop.width,
+      squareCrop.height,
+      limits,
+      "Profile photo",
+    );
+
+    const result = await sharp(oriented.data, {
       failOn: "warning",
       animated: false,
       limitInputPixels: PROFILE_PHOTO_MAX_WIDTH * PROFILE_PHOTO_MAX_HEIGHT,
     })
-      .rotate()
+      .extract(squareCrop)
       .webp({
         quality: 86,
         effort: 4,
@@ -191,6 +258,26 @@ async function readProfilePhotoMetadata(input: Buffer): Promise<sharp.Metadata> 
   try {
     return await sharp(input, { failOn: "warning", animated: false }).metadata();
   } catch {
+    throw corruptImage();
+  }
+}
+
+async function toOrientedImage(
+  input: Buffer,
+): Promise<{ data: Buffer; info: sharp.OutputInfo }> {
+  try {
+    return await sharp(input, {
+      failOn: "warning",
+      animated: false,
+      limitInputPixels: PROFILE_PHOTO_MAX_WIDTH * PROFILE_PHOTO_MAX_HEIGHT,
+    })
+      .rotate()
+      .toBuffer({ resolveWithObject: true });
+  } catch (error) {
+    if (error instanceof AppError) {
+      throw error;
+    }
+
     throw corruptImage();
   }
 }
@@ -235,6 +322,67 @@ function validateImageDimensions(
   return { width, height };
 }
 
+function parseCropJson(input: string): unknown {
+  try {
+    return JSON.parse(input);
+  } catch {
+    throw invalidCrop("invalid_json");
+  }
+}
+
+function readCropNumber(value: unknown, field: keyof NormalizedMediaCrop): number {
+  const numberValue = typeof value === "number" ? value : Number.NaN;
+  if (!Number.isFinite(numberValue)) {
+    throw invalidCrop(`${field}_invalid`);
+  }
+  return numberValue;
+}
+
+function resolveSquareCrop(
+  crop: NormalizedMediaCrop | undefined,
+  dimensions: { width: number; height: number },
+  label: "Avatar" | "Profile photo",
+): sharp.Region {
+  if (!crop) {
+    const size = Math.min(dimensions.width, dimensions.height);
+    return {
+      left: Math.floor((dimensions.width - size) / 2),
+      top: Math.floor((dimensions.height - size) / 2),
+      width: size,
+      height: size,
+    };
+  }
+
+  const left = Math.round(crop.x * dimensions.width);
+  const top = Math.round(crop.y * dimensions.height);
+  const width = Math.round(crop.width * dimensions.width);
+  const height = Math.round(crop.height * dimensions.height);
+
+  if (width <= 0 || height <= 0) {
+    throw invalidCrop("size_required");
+  }
+  if (Math.abs(width - height) > 1) {
+    throw invalidCrop(label === "Avatar" ? "avatar_must_be_square" : "profile_photo_must_be_square");
+  }
+
+  const squareSize = Math.min(width, height);
+  if (
+    left < 0 ||
+    top < 0 ||
+    left + squareSize > dimensions.width ||
+    top + squareSize > dimensions.height
+  ) {
+    throw invalidCrop("out_of_bounds");
+  }
+
+  return {
+    left,
+    top,
+    width: squareSize,
+    height: squareSize,
+  };
+}
+
 function imageDimensionsTooLarge(label: string): AppError {
   return new AppError("image_too_large", `${label} dimensions are too large`, 422, {
     dimensions: "too_large",
@@ -250,5 +398,11 @@ function imageTooLarge(message: string, detail: string): AppError {
 function corruptImage(): AppError {
   return new AppError("corrupt_image", "Could not decode profile photo image", 400, {
     file: "corrupt_image",
+  });
+}
+
+function invalidCrop(reason: string): AppError {
+  return new AppError("invalid_crop", "Crop metadata is invalid", 400, {
+    crop: reason,
   });
 }

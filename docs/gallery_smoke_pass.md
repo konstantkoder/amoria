@@ -1,6 +1,6 @@
 # Gallery / Peer Media Smoke Pass
 
-Updated: 2026-05-28 for `BUGFIX-DRAW-PHOTO-AVATAR-FINAL-06`
+Updated: 2026-05-28 for `MEDIA CROP FLOW FINAL 01`
 
 ## Peer Profile Media
 
@@ -44,11 +44,29 @@ Use a real account with an avatar and at least one public profile photo.
 ## Avatar Upload
 
 1. Choose avatar in mobile Profile.
-2. Confirm square center-crop preview and `Предпросмотр — ещё не сохранено`.
-3. Tap explicit Upload.
-4. Confirm backend save succeeds and profile refreshes from backend.
-5. Confirm relative `/media/public/:mediaId` and absolute current-origin URL for the same media id are treated as the same avatar.
-6. Confirm failed upload leaves retry/cancel preview state and does not show saved-looking local success.
+2. Confirm the in-app crop UI opens with a visible square frame.
+3. Move/zoom inside the square and tap `Готово`.
+4. Confirm preview is marked `Предпросмотр — ещё не сохранено`.
+5. Tap explicit Upload.
+6. Confirm backend save succeeds and profile refreshes from backend.
+7. Restart the app and confirm the avatar persists.
+8. Open the profile from a peer account and confirm the peer sees the avatar.
+9. Confirm relative `/media/public/:mediaId` and absolute current-origin URL for the same media id are treated as the same avatar.
+10. Confirm failed upload leaves retry/cancel preview state and does not show saved-looking local success.
+
+## Profile Photo Upload Crop
+
+1. Choose a public profile photo in Photo Manager.
+2. Confirm the in-app crop UI opens with a visible square frame.
+3. Move/zoom inside the square and tap `Готово`.
+4. Confirm preview appears and no upload has happened yet.
+5. Tap `Загрузить`.
+6. Confirm backend save succeeds, owner gallery refreshes from backend, and the cropped photo appears.
+7. Restart the app and confirm the gallery still shows the backend-cropped photo.
+8. Open the profile from a peer account and confirm the peer sees the public photo.
+9. Cancel crop and confirm no upload happens.
+10. Use `Выбрать другое` and confirm only the replacement image can be uploaded.
+11. Submit an invalid crop in a controlled test and confirm the backend rejects it clearly.
 
 ## Policy
 
