@@ -82,6 +82,20 @@ function translatedOptionLabel(
   return value === key ? fallback : value;
 }
 
+function isValidBirthDateInput(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    return false;
+  }
+  return date.getTime() <= Date.now();
+}
+
 export default function EditProfileScreen() {
   const route = useRoute<EditProfileRouteProp>();
   const { t } = useLocale();
@@ -90,6 +104,7 @@ export default function EditProfileScreen() {
   const [displayName, setDisplayName] = React.useState("");
   const [about, setAbout] = React.useState("");
   const [interestsText, setInterestsText] = React.useState("");
+  const [birthDate, setBirthDate] = React.useState("");
   const [goal, setGoal] = React.useState<Goal>("dating");
   const [mood, setMood] = React.useState<Mood>("chill");
   const [allowAdultMode, setAllowAdultMode] = React.useState(false);
@@ -98,14 +113,17 @@ export default function EditProfileScreen() {
   const displayNameInputRef = React.useRef<TextInput>(null);
   const aboutInputRef = React.useRef<TextInput>(null);
   const interestsInputRef = React.useRef<TextInput>(null);
+  const birthDateInputRef = React.useRef<TextInput>(null);
   const goalYRef = React.useRef(0);
   const moodYRef = React.useRef(0);
+  const birthDateYRef = React.useRef(0);
   const focusTarget = route.params?.focus;
 
   const applyProfile = React.useCallback((profile: UserProfile) => {
     setDisplayName(profile.displayName ?? "");
     setAbout(profile.about ?? "");
     setInterestsText((profile.interests ?? []).join(", "));
+    setBirthDate(profile.birthDate ?? "");
     setGoal(profile.goal ?? "dating");
     setMood(profile.mood ?? "chill");
     setAllowAdultMode(profile.allowAdultMode ?? false);
@@ -162,6 +180,15 @@ export default function EditProfileScreen() {
           y: Math.max(moodYRef.current - 24, 0),
           animated: true,
         });
+        return;
+      }
+
+      if (focusTarget === "birthDate") {
+        scrollRef.current?.scrollTo({
+          y: Math.max(birthDateYRef.current - 24, 0),
+          animated: true,
+        });
+        birthDateInputRef.current?.focus();
       }
     }, 240);
 
@@ -181,11 +208,17 @@ export default function EditProfileScreen() {
         .split(",")
         .map((item) => item.trim())
         .filter(Boolean);
+      const nextBirthDate = birthDate.trim();
+      if (nextBirthDate && !isValidBirthDateInput(nextBirthDate)) {
+        Alert.alert(t("common.error"), t("editProfile.birthDateInvalid"));
+        return;
+      }
 
       const savedProfile = await updateUserFields({
         displayName: nextDisplayName,
         about,
         interests: interestsArray,
+        birthDate: nextBirthDate || null,
         goal,
         mood,
         allowAdultMode,
@@ -195,6 +228,7 @@ export default function EditProfileScreen() {
       displayNameInputRef.current?.blur();
       aboutInputRef.current?.blur();
       interestsInputRef.current?.blur();
+      birthDateInputRef.current?.blur();
       Keyboard.dismiss();
       Alert.alert(t("common.done"), t("editProfile.saveSuccessBody"));
     } catch {
@@ -271,9 +305,35 @@ export default function EditProfileScreen() {
             placeholder={t("editProfile.interestsPlaceholder")}
             placeholderTextColor={theme.colors.muted}
             style={styles.input}
-            returnKeyType="done"
-            onSubmitEditing={() => void handleSave()}
+            returnKeyType="next"
+            onSubmitEditing={() => birthDateInputRef.current?.focus()}
           />
+
+          <View
+            style={focusTarget === "birthDate" ? styles.focusedSection : null}
+            onLayout={(event) => {
+              birthDateYRef.current = event.nativeEvent.layout.y;
+            }}
+          >
+            <Text style={styles.label}>{t("editProfile.birthDateLabel")}</Text>
+            <TextInput
+              ref={birthDateInputRef}
+              value={birthDate}
+              onChangeText={setBirthDate}
+              placeholder={t("editProfile.birthDatePlaceholder")}
+              placeholderTextColor={theme.colors.muted}
+              style={styles.input}
+              keyboardType="numbers-and-punctuation"
+              autoCapitalize="none"
+              autoCorrect={false}
+              maxLength={10}
+              returnKeyType="done"
+              onSubmitEditing={() => void handleSave()}
+            />
+            <Text style={styles.helperText}>
+              {t("editProfile.birthDateSafetyBody")}
+            </Text>
+          </View>
 
           <View
             style={focusTarget === "goal" ? styles.focusedSection : null}
@@ -433,6 +493,13 @@ const styles = StyleSheet.create({
   multilineInput: {
     minHeight: 88,
     textAlignVertical: "top",
+  },
+  helperText: {
+    color: theme.colors.subtext,
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: -8,
+    marginBottom: 14,
   },
   optionsWrap: {
     flexDirection: "row",

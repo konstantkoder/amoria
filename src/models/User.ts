@@ -7,6 +7,8 @@ export type Goal =
   | "chat"
   | "unsure";
 
+export type AgeGroup = "18-24" | "25-34" | "35-44" | "45-54" | "55+";
+
 export type UserProfilePhoto = {
   mediaId: string;
   url: string;
@@ -28,6 +30,11 @@ export interface UserProfile {
   interests: string[];
   photos: UserProfilePhoto[];
   lockedGallery?: LockedGallerySummary;
+  birthDate?: string | null;
+  age?: number | null;
+  ageGroup?: AgeGroup | null;
+  preferredAgeMin?: number;
+  preferredAgeMax?: number | null;
   mood?: Mood;
   goal?: Goal;
   createdAt: number;

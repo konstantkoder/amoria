@@ -29,6 +29,7 @@ import {
 import * as togetherApi from "@/services/api/togetherApi";
 import type {
   TogetherActivity,
+  TogetherPreferredAgeRangeInput,
   TogetherQueueCancelSource,
   TogetherQueueEntry,
   TogetherQueueLocationInput,
@@ -88,6 +89,36 @@ function getLocationMetadata(location?: TogetherQueueLocationInput) {
     radiusKm: location?.radiusKm ?? null,
     hasCoordinates: hasTogetherQueueCoordinates(location),
   };
+}
+
+function getAgePreferenceMetadata(preference?: TogetherPreferredAgeRangeInput) {
+  return {
+    preferredAgeMin: preference?.min ?? null,
+    preferredAgeMax: preference?.max ?? null,
+  };
+}
+
+function isAgeValidationError(error: unknown) {
+  if (!(error instanceof Error)) return false;
+  const apiError = error as {
+    code?: string;
+    details?: Record<string, unknown>;
+    fields?: Record<string, unknown>;
+  };
+  const details = {
+    ...(apiError.details ?? {}),
+    ...(apiError.fields ?? {}),
+  };
+  return (
+    apiError.code === "validation_error" &&
+    (
+      "birthDate" in details ||
+      "age" in details ||
+      "preferredAgeMin" in details ||
+      "preferredAgeMax" in details ||
+      "preferredAgeRange" in details
+    )
+  );
 }
 
 function geoModeForLocation(location?: TogetherQueueLocationInput) {
@@ -241,6 +272,11 @@ export default function PlayMatchScreen() {
   const rawActivity = (route.params as { activity?: unknown } | undefined)?.activity;
   const routeQueueLocation = (route.params as { location?: TogetherQueueLocationInput } | undefined)
     ?.location;
+  const routeAgePreference = (
+    route.params as { agePreference?: TogetherPreferredAgeRangeInput } | undefined
+  )?.agePreference;
+  const routeAgeLabel = String((route.params as { ageLabel?: unknown } | undefined)?.ageLabel ?? "")
+    .trim();
   const activity: TogetherActivity | null =
     rawActivity === "draw" || rawActivity === "story_sparks"
       ? rawActivity
@@ -449,7 +485,7 @@ export default function PlayMatchScreen() {
       }
 
       setActiveQueueLocation(preparedLocation);
-      const response = await togetherApi.joinQueue(activity, preparedLocation);
+      const response = await togetherApi.joinQueue(activity, preparedLocation, routeAgePreference);
       entryIdRef.current = response.entry.id;
       setQueueStartedAt(queueStartedAtFromEntry(response.entry));
       setEntry(response.entry);
@@ -478,20 +514,27 @@ export default function PlayMatchScreen() {
         metadata: {
           activity,
           ...getLocationMetadata(preparedLocation),
+          ...getAgePreferenceMetadata(routeAgePreference),
+          hasAgePreference: Boolean(routeAgePreference),
         },
       });
       setStatusKey("error");
       setErrorText(
-        tt(
-          "play.match.queueNetworkError",
-          "Проверь подключение к интернету и попробуй ещё раз."
-        )
+        isAgeValidationError(error)
+          ? tt(
+              "together.age.backendRejected",
+              "Проверьте дату рождения в профиле и возрастной фильтр, затем попробуйте ещё раз."
+            )
+          : tt(
+              "play.match.queueNetworkError",
+              "Проверь подключение к интернету и попробуй ещё раз."
+            )
       );
     } finally {
       inFlightRef.current = false;
       setBusy(false);
     }
-  }, [activity, navigation, resolveLocationForQueue, tt, uid]);
+  }, [activity, navigation, resolveLocationForQueue, routeAgePreference, tt, uid]);
 
   React.useEffect(() => {
     if (!uid || !activity) return;
@@ -768,6 +811,11 @@ export default function PlayMatchScreen() {
           <Text style={styles.radiusText}>
             {tt("play.match.radiusLabel", "Радиус поиска: {radius}", {
               radius: activeRadiusLabel,
+            })}
+          </Text>
+          <Text style={styles.radiusText}>
+            {tt("play.match.ageLabel", "Возраст: {age}", {
+              age: routeAgeLabel || tt("together.age.anyAdult", "любой 18+"),
             })}
           </Text>
           <Text style={styles.radiusModeText}>

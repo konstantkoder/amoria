@@ -3,6 +3,7 @@ import type {
   TogetherActivity,
   TogetherEventType,
   TogetherHistoryResponse,
+  TogetherPreferredAgeRangeInput,
   TogetherQueueCancelInput,
   TogetherQueueLocationInput,
   TogetherQueueResponse,
@@ -33,11 +34,13 @@ function buildQuery(params: Record<string, string | number | undefined>) {
 
 export function joinQueue(
   activity: TogetherActivity = "draw",
-  location: TogetherQueueLocationInput
+  location: TogetherQueueLocationInput,
+  preferredAgeRange?: TogetherPreferredAgeRangeInput
 ): Promise<TogetherQueueResponse> {
   return request<TogetherQueueResponse>("POST", "/together/queue", {
     activity,
     location,
+    ...(preferredAgeRange ? { preferredAgeRange } : {}),
   });
 }
 

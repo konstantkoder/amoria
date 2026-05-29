@@ -7,7 +7,10 @@ import type {
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import type { NearbyAnnouncement } from "@/services/announcementsModel";
-import type { TogetherQueueLocationInput } from "@/services/api/types";
+import type {
+  TogetherPreferredAgeRangeInput,
+  TogetherQueueLocationInput,
+} from "@/services/api/types";
 
 export type ReleasePlayActivity = "draw" | "story_sparks";
 export type DmSource = "together" | "announcement" | "nearby";
@@ -62,7 +65,7 @@ export type MainTabParamList = {
 };
 
 export type EditProfileRouteParams = {
-  focus?: "about" | "goal" | "mood";
+  focus?: "about" | "goal" | "mood" | "birthDate";
 };
 
 export type ProfileStackParamList = {
@@ -83,6 +86,8 @@ export type PlayMatchRouteParams = {
   activity: ReleasePlayActivity;
   location?: TogetherQueueLocationInput;
   radiusLabel?: string;
+  agePreference?: TogetherPreferredAgeRangeInput;
+  ageLabel?: string;
 };
 
 export type PlaySessionRouteParams = {

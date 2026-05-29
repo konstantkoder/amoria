@@ -253,6 +253,9 @@ export default function UserProfileScreen() {
     lockedGallery?.enabled && (lockedGallery.count ?? 0) > 0
   );
   const about = profile?.about?.trim() || tt("profile.publicNoDescription", "Описание пока не добавлено.");
+  const publicAgeLabel = profile?.ageGroup
+    ? tt("profile.publicAgeGroup", "Возраст: {group}", { group: profile.ageGroup })
+    : "";
   const isBlocked = Boolean(userId && blockedUserIds.includes(userId));
   const profileUnavailable = isBlocked || profileLoadState === "blocked";
   const hasThread = Boolean(threadId && userId);
@@ -629,6 +632,9 @@ export default function UserProfileScreen() {
                 <Text style={styles.amoriaIdText}>
                   {tt("profile.amoriaId", "Amoria ID")}: {amoriaId}
                 </Text>
+              ) : null}
+              {publicAgeLabel ? (
+                <Text style={styles.amoriaIdText}>{publicAgeLabel}</Text>
               ) : null}
               <Text style={styles.avatarHint}>
                 {avatarLoadFailed

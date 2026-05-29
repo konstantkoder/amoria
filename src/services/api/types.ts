@@ -24,6 +24,8 @@ export type ProfileMood =
   | "curious"
   | "adventurous";
 
+export type AgeGroup = "18-24" | "25-34" | "35-44" | "45-54" | "55+";
+
 export type ProfilePhotoDto = {
   mediaId: string;
   url: string;
@@ -40,6 +42,11 @@ export type BackendProfileFields = {
   mood?: ProfileMood | null;
   interests?: string[];
   photos?: ProfilePhotoDto[];
+  birthDate?: string | null;
+  age?: number | null;
+  ageGroup?: AgeGroup | null;
+  preferredAgeMin?: number;
+  preferredAgeMax?: number | null;
   flirtEnabled?: boolean;
   allowAdultMode?: boolean;
   mysteryMode?: boolean;
@@ -80,6 +87,7 @@ export type PublicUserProfileDto = {
   amoriaId: string;
   avatarUrl: string | null;
   photos: ProfilePhotoDto[];
+  ageGroup?: AgeGroup | null;
   lockedGallery: LockedGallerySummaryDto;
 };
 
@@ -157,6 +165,9 @@ export type PatchProfileRequest = {
   mood?: ProfileMood | null;
   interests?: string[];
   photos?: ProfilePhotoPatchDto[];
+  birthDate?: string | null;
+  preferredAgeMin?: number;
+  preferredAgeMax?: number | null;
   flirtEnabled?: boolean;
   allowAdultMode?: boolean;
   mysteryMode?: boolean;
@@ -336,6 +347,11 @@ export type TogetherQueueLocationInput = {
   latitude: number;
   longitude: number;
   radiusKm: 5 | 25 | 100 | 250 | null;
+};
+
+export type TogetherPreferredAgeRangeInput = {
+  min: number;
+  max: number | null;
 };
 
 export type TogetherQueueResponse = {

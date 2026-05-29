@@ -10,6 +10,7 @@ import {
   type ReleasePlayActivity,
   type RootStackNavigationProp,
 } from "@/navigation/appRoutes";
+import type { TogetherPreferredAgeRangeInput } from "@/services/api/types";
 import {
   reportClientError,
   sanitizeErrorForReport,
@@ -22,6 +23,10 @@ import {
   serializeTogetherRadiusPreference,
   type TogetherRadiusKm,
 } from "@/services/togetherLocation";
+import {
+  getUserProfile,
+  hasBirthDate,
+} from "@/services/user";
 import { theme } from "@/theme";
 
 function isReleasePlayActivity(
@@ -31,6 +36,26 @@ function isReleasePlayActivity(
 }
 
 const RADIUS_STORAGE_KEY = "amoria:together:radiusKm:v2";
+const AGE_FILTER_STORAGE_KEY = "amoria:together:ageFilter:v1";
+type AgeFilterId = "any" | "18-24" | "25-34" | "35-44" | "45-54" | "55+";
+const AGE_FILTER_OPTIONS: Array<{ id: AgeFilterId; range: TogetherPreferredAgeRangeInput }> = [
+  { id: "any", range: { min: 18, max: null } },
+  { id: "18-24", range: { min: 18, max: 24 } },
+  { id: "25-34", range: { min: 25, max: 34 } },
+  { id: "35-44", range: { min: 35, max: 44 } },
+  { id: "45-54", range: { min: 45, max: 54 } },
+  { id: "55+", range: { min: 55, max: null } },
+];
+
+function parseAgeFilterPreference(value: string | null): AgeFilterId | undefined {
+  return AGE_FILTER_OPTIONS.some((option) => option.id === value)
+    ? (value as AgeFilterId)
+    : undefined;
+}
+
+function ageRangeForFilter(id: AgeFilterId): TogetherPreferredAgeRangeInput {
+  return AGE_FILTER_OPTIONS.find((option) => option.id === id)?.range ?? AGE_FILTER_OPTIONS[0].range;
+}
 
 export default function PlayLobbyScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"PlayMatch">>();
@@ -45,23 +70,35 @@ export default function PlayLobbyScreen() {
   const [selectedRadiusKm, setSelectedRadiusKm] = React.useState<TogetherRadiusKm>(
     DEFAULT_TOGETHER_RADIUS_KM
   );
+  const [selectedAgeFilter, setSelectedAgeFilter] = React.useState<AgeFilterId>("any");
   const [locationBusy, setLocationBusy] = React.useState(false);
   const [locationNotice, setLocationNotice] = React.useState("");
 
   React.useEffect(() => {
     let alive = true;
-    void AsyncStorage.getItem(RADIUS_STORAGE_KEY)
-      .then((value) => {
+    void Promise.all([
+      AsyncStorage.getItem(RADIUS_STORAGE_KEY),
+      AsyncStorage.getItem(AGE_FILTER_STORAGE_KEY),
+    ])
+      .then(([radiusValue, ageValue]) => {
         if (!alive) return;
-        const parsed = parseTogetherRadiusPreference(value);
+        const parsed = parseTogetherRadiusPreference(radiusValue);
         if (parsed !== undefined) {
           setSelectedRadiusKm(parsed);
-          return;
         }
-        void AsyncStorage.setItem(
-          RADIUS_STORAGE_KEY,
-          serializeTogetherRadiusPreference(DEFAULT_TOGETHER_RADIUS_KM)
-        ).catch(() => undefined);
+        const parsedAge = parseAgeFilterPreference(ageValue);
+        if (parsedAge !== undefined) {
+          setSelectedAgeFilter(parsedAge);
+        }
+        if (parsed === undefined) {
+          void AsyncStorage.setItem(
+            RADIUS_STORAGE_KEY,
+            serializeTogetherRadiusPreference(DEFAULT_TOGETHER_RADIUS_KM)
+          ).catch(() => undefined);
+        }
+        if (parsedAge === undefined) {
+          void AsyncStorage.setItem(AGE_FILTER_STORAGE_KEY, "any").catch(() => undefined);
+        }
       })
       .catch(() => undefined);
 
@@ -92,11 +129,26 @@ export default function PlayLobbyScreen() {
     [tt]
   );
 
+  const ageFilterLabel = React.useCallback(
+    (id: AgeFilterId) => {
+      if (id === "any") {
+        return tt("together.age.anyAdult", "Любой 18+");
+      }
+      return tt(`together.age.${id}`, id);
+    },
+    [tt]
+  );
+
   const selectRadius = React.useCallback((radiusKm: TogetherRadiusKm) => {
     setSelectedRadiusKm(radiusKm);
     setLocationNotice("");
     void AsyncStorage.setItem(RADIUS_STORAGE_KEY, serializeTogetherRadiusPreference(radiusKm))
       .catch(() => undefined);
+  }, []);
+
+  const selectAgeFilter = React.useCallback((id: AgeFilterId) => {
+    setSelectedAgeFilter(id);
+    void AsyncStorage.setItem(AGE_FILTER_STORAGE_KEY, id).catch(() => undefined);
   }, []);
 
   const resolveQueueLocation = React.useCallback(async () => {
@@ -179,6 +231,29 @@ export default function PlayLobbyScreen() {
       try {
         setLocationBusy(true);
         setLocationNotice("");
+        const profile = await getUserProfile();
+        if (!hasBirthDate(profile)) {
+          Alert.alert(
+            tt("together.age.birthDateRequiredTitle", "Заполните профиль"),
+            tt(
+              "together.age.birthDateRequiredBody",
+              "Дата рождения нужна для безопасности и подбора. Точная дата не показывается другим людям."
+            ),
+            [
+              {
+                text: tt("profile.completeProfile", "Заполнить профиль"),
+                onPress: () => {
+                  navigation.navigate("Profile", {
+                    screen: "EditProfile",
+                    params: { focus: "birthDate" },
+                  });
+                },
+              },
+              { text: tt("common.cancel", "Отмена"), style: "cancel" },
+            ]
+          );
+          return;
+        }
         const location = await resolveQueueLocation();
         if (location === null) {
           return;
@@ -187,6 +262,8 @@ export default function PlayLobbyScreen() {
           activity: safeActivity,
           location,
           radiusLabel: radiusLabel(selectedRadiusKm),
+          agePreference: ageRangeForFilter(selectedAgeFilter),
+          ageLabel: ageFilterLabel(selectedAgeFilter),
         });
       } catch (error) {
         const safeError = sanitizeErrorForReport(error);
@@ -207,6 +284,7 @@ export default function PlayLobbyScreen() {
           metadata: {
             activity: safeActivity,
             radiusKm: selectedRadiusKm,
+            ageFilter: selectedAgeFilter,
             hasCoordinates: false,
           },
         });
@@ -214,7 +292,15 @@ export default function PlayLobbyScreen() {
         setLocationBusy(false);
       }
     },
-    [navigation, radiusLabel, resolveQueueLocation, selectedRadiusKm, tt]
+    [
+      ageFilterLabel,
+      navigation,
+      radiusLabel,
+      resolveQueueLocation,
+      selectedAgeFilter,
+      selectedRadiusKm,
+      tt,
+    ]
   );
 
   return (
@@ -304,6 +390,42 @@ export default function PlayLobbyScreen() {
                   )}
                 </Text>
               )}
+            </View>
+            <View style={styles.radiusPanel}>
+              <Text style={styles.radiusTitle}>
+                {tt("together.age.title", "Кого искать")}
+              </Text>
+              <View style={styles.radiusOptions}>
+                {AGE_FILTER_OPTIONS.map((option) => {
+                  const selected = selectedAgeFilter === option.id;
+                  return (
+                    <Pressable
+                      key={option.id}
+                      onPress={() => selectAgeFilter(option.id)}
+                      style={[
+                        styles.radiusOption,
+                        selected ? styles.radiusOptionSelected : null,
+                      ]}
+                      accessibilityRole="button"
+                    >
+                      <Text
+                        style={[
+                          styles.radiusOptionText,
+                          selected ? styles.radiusOptionTextSelected : null,
+                        ]}
+                      >
+                        {ageFilterLabel(option.id)}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <Text style={styles.radiusHint}>
+                {tt(
+                  "together.age.privacyHint",
+                  "Возраст используется для подбора. Точная дата рождения не показывается."
+                )}
+              </Text>
             </View>
             <Pressable
               onPress={() => void openActivity("draw", "startDraw")}

@@ -109,6 +109,21 @@ function translatedOptionLabel(
   return value === key ? fallback : value;
 }
 
+function formatOwnAgeLabel(
+  profile: UserProfile | null,
+  t: (key: string, params?: Record<string, string>) => string
+) {
+  if (typeof profile?.age === "number") {
+    const value = t("profile.ageValue", { age: String(profile.age) });
+    return value === "profile.ageValue" ? `${profile.age}` : value;
+  }
+  if (profile?.ageGroup) {
+    const value = t("profile.ageGroupValue", { group: profile.ageGroup });
+    return value === "profile.ageGroupValue" ? profile.ageGroup : value;
+  }
+  return "";
+}
+
 export default function ProfileScreen() {
   const navigation = useNavigation<ProfileNav>();
   const { t } = useLocale();
@@ -164,6 +179,7 @@ export default function ProfileScreen() {
   const displayName = profile?.displayName || t("profile.amoriaUser");
   const amoriaId = profile?.amoriaId ?? "";
   const needsName = Boolean(getDisplayNameValidationErrorKey(profile?.displayName ?? ""));
+  const ageLabel = formatOwnAgeLabel(profile, t);
 
   const saveDisplayName = React.useCallback(async () => {
     const nextName = normalizeDisplayNameInput(nameDraft);
@@ -396,7 +412,7 @@ export default function ProfileScreen() {
   }
 
   const openEditProfile = React.useCallback(
-    (focus?: "about" | "goal" | "mood") => {
+    (focus?: "about" | "goal" | "mood" | "birthDate") => {
       try {
         if (focus) {
           navigation.navigate("EditProfile", { focus });
@@ -558,6 +574,23 @@ export default function ProfileScreen() {
                 {t("profile.editProfileEntrypointAction")}
               </Text>
             </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.badge,
+                styles.editableBadge,
+                !ageLabel ? styles.badgeWarning : null,
+              ]}
+              activeOpacity={0.86}
+              onPress={() => openEditProfile("birthDate")}
+              accessibilityRole="button"
+            >
+              <Text style={styles.badgeText}>
+                {ageLabel || t("profile.birthDateMissingBadge")}
+              </Text>
+              <Text style={styles.badgeActionText}>
+                {t("profile.editProfileEntrypointAction")}
+              </Text>
+            </TouchableOpacity>
             {profile?.allowAdultMode ? (
               <View style={styles.badge}>
                 <Text style={styles.badgeText}>{t("common.adultShort")}</Text>
@@ -598,6 +631,26 @@ export default function ProfileScreen() {
                 </Text>
                 <Text style={styles.editEntryValue} numberOfLines={1}>
                   {moodLabel}
+                </Text>
+              </View>
+              <Text style={styles.editEntryAction}>
+                {t("profile.editProfileEntrypointAction")}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.editEntryRow,
+                !ageLabel ? styles.editEntryRowWarning : null,
+              ]}
+              activeOpacity={0.86}
+              onPress={() => openEditProfile("birthDate")}
+            >
+              <View style={styles.editEntryCopy}>
+                <Text style={styles.editEntryTitle}>
+                  {t("profile.ageEntrypointTitle")}
+                </Text>
+                <Text style={styles.editEntryValue} numberOfLines={2}>
+                  {ageLabel || t("profile.birthDateMissingBody")}
                 </Text>
               </View>
               <Text style={styles.editEntryAction}>
@@ -905,6 +958,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.1)",
   },
+  badgeWarning: {
+    borderColor: "#FFE0B8",
+    backgroundColor: "rgba(255,224,184,0.10)",
+  },
   badgeText: {
     color: theme.colors.text,
     fontSize: 12,
@@ -934,6 +991,13 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: "rgba(255,255,255,0.1)",
+  },
+  editEntryRowWarning: {
+    borderBottomColor: "rgba(255,224,184,0.34)",
+    backgroundColor: "rgba(255,224,184,0.06)",
+    marginHorizontal: -8,
+    paddingHorizontal: 8,
+    borderRadius: theme.shapes.cardInner,
   },
   editEntryCopy: {
     flex: 1,

@@ -1,4 +1,4 @@
-import type { Goal, Mood, UserProfile, UserProfilePhoto } from "@/models/User";
+import type { AgeGroup, Goal, Mood, UserProfile, UserProfilePhoto } from "@/models/User";
 import { ApiError } from "@/services/api/apiClient";
 import { refreshBackendUser } from "@/services/api/backendSession";
 import { patchMeProfileOnBackend } from "@/services/api/profileApi";
@@ -43,6 +43,9 @@ const MOOD_VALUES: Mood[] = [
   "curious",
   "adventurous",
 ];
+const AGE_GROUP_VALUES: AgeGroup[] = ["18-24", "25-34", "35-44", "45-54", "55+"];
+const MIN_ADULT_AGE = 18;
+const MAX_PROFILE_AGE = 120;
 
 function normalizeString(value: unknown) {
   return String(value ?? "").trim();
@@ -147,6 +150,31 @@ function normalizeMood(value: unknown): Mood | undefined {
   return MOOD_VALUES.includes(value as Mood) ? (value as Mood) : undefined;
 }
 
+function normalizeAgeGroup(value: unknown): AgeGroup | undefined {
+  return AGE_GROUP_VALUES.includes(value as AgeGroup) ? (value as AgeGroup) : undefined;
+}
+
+function normalizeBirthDate(value: unknown): string | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  const normalized = normalizeString(value);
+  return /^\d{4}-\d{2}-\d{2}$/.test(normalized) ? normalized : null;
+}
+
+function normalizeAge(value: unknown): number | null {
+  const age = Number(value);
+  return Number.isInteger(age) && age >= MIN_ADULT_AGE && age <= MAX_PROFILE_AGE
+    ? age
+    : null;
+}
+
+function normalizePreferredAgeBound(value: unknown): number | undefined {
+  const age = Number(value);
+  return Number.isInteger(age) && age >= MIN_ADULT_AGE && age <= MAX_PROFILE_AGE
+    ? age
+    : undefined;
+}
+
 function normalizeAmoriaId(value: unknown) {
   const normalized = normalizeString(value).toUpperCase();
   return AMORIA_ID_RE.test(normalized) ? normalized : "";
@@ -170,6 +198,11 @@ function mapBackendUserProfile(
     allowAdultMode: boolean;
     flirtEnabled: boolean;
     mysteryMode: boolean;
+    birthDate: string | null;
+    age: number | null;
+    ageGroup: AgeGroup | null;
+    preferredAgeMin: number;
+    preferredAgeMax: number | null;
   }>;
   const createdAt = normalizeBackendTimestamp(backendFields.createdAt, now);
   const updatedAt = normalizeBackendTimestamp(backendFields.updatedAt, createdAt);
@@ -178,6 +211,13 @@ function mapBackendUserProfile(
   const avatarUrl = normalizeSharedMediaUrl(user.avatarUrl);
   const goal = normalizeGoal(backendFields.goal);
   const mood = normalizeMood(backendFields.mood);
+  const birthDate = normalizeBirthDate(backendFields.birthDate);
+  const age = normalizeAge(backendFields.age);
+  const ageGroup = normalizeAgeGroup(backendFields.ageGroup);
+  const preferredAgeMin = normalizePreferredAgeBound(backendFields.preferredAgeMin);
+  const preferredAgeMax = backendFields.preferredAgeMax === null
+    ? null
+    : normalizePreferredAgeBound(backendFields.preferredAgeMax);
 
   return {
     id: normalizeString(user.id),
@@ -197,6 +237,11 @@ function mapBackendUserProfile(
       : {}),
     ...(mood ? { mood } : {}),
     ...(goal ? { goal } : {}),
+    ...(birthDate !== undefined ? { birthDate } : {}),
+    ...(age !== null ? { age } : {}),
+    ...(ageGroup ? { ageGroup } : {}),
+    ...(preferredAgeMin !== undefined ? { preferredAgeMin } : {}),
+    ...(preferredAgeMax !== undefined ? { preferredAgeMax } : {}),
     createdAt,
     updatedAt,
     allowAdultMode: Boolean(backendFields.allowAdultMode),
@@ -216,6 +261,9 @@ const BACKEND_PROFILE_FIELD_KEYS = new Set([
   "mood",
   "interests",
   "photos",
+  "birthDate",
+  "preferredAgeMin",
+  "preferredAgeMax",
   "flirtEnabled",
   "allowAdultMode",
   "mysteryMode",
@@ -252,6 +300,18 @@ async function updateBackendSupportedProfileFields(
   }
   if ("photos" in fields) {
     input.photos = toBackendProfilePhotos(fields.photos);
+  }
+  if ("birthDate" in fields) {
+    input.birthDate = fields.birthDate ? normalizeBirthDate(fields.birthDate) ?? null : null;
+  }
+  if ("preferredAgeMin" in fields || "preferredAgeMax" in fields) {
+    const min = normalizePreferredAgeBound(fields.preferredAgeMin) ?? MIN_ADULT_AGE;
+    const rawMax = fields.preferredAgeMax;
+    const max = rawMax === null || rawMax === undefined
+      ? null
+      : normalizePreferredAgeBound(rawMax) ?? null;
+    input.preferredAgeMin = min;
+    input.preferredAgeMax = max;
   }
   if ("allowAdultMode" in fields) {
     input.allowAdultMode = Boolean(fields.allowAdultMode);
@@ -324,6 +384,14 @@ export async function updateUserFields(
 
 export async function updateUserDisplayName(displayName: string): Promise<UserProfile> {
   return updateUserFields({ displayName });
+}
+
+export function hasBirthDate(profile?: Pick<UserProfile, "birthDate"> | null): boolean {
+  return Boolean(profile?.birthDate && /^\d{4}-\d{2}-\d{2}$/.test(profile.birthDate));
+}
+
+export async function updateUserBirthDate(birthDate: string): Promise<UserProfile> {
+  return updateUserFields({ birthDate });
 }
 
 export async function getUserProfileById(id: string): Promise<UserProfile | null> {
