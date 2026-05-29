@@ -198,9 +198,9 @@ Known automated-check warning: the server test run prints the existing AWS SDK f
 
 No real 2-device bugs were observed because the manual smoke pass was not executed from this environment.
 
-## Future Age Filter
+## Age Filter
 
-Together age filter is planned after Together start reliability is fixed. `FlirtSettingsScreen` is not the Together age filter. Future block name: `TOGETHER-AGE-FILTER-01`.
+Together age filtering is active through private `birthDate`, backend 18+ validation, safe `ageGroup`, and `preferredAgeRange`. The standalone legacy `FlirtSettingsScreen` / `18+` toggle is removed from active release UI and must not be used for matching.
 
 Use this format for every bug found during the real pass:
 

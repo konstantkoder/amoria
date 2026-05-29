@@ -6,7 +6,7 @@
 - Nearby: quick shared nearby statuses only
 - Product screens: `CreateAnnouncement`, `AnnouncementDetail`, `PlayMatch`, `PlayCanvas`, `PlayResult`, `PlayHistory`, `PlaySessionDetail`, `DMChat`, `Profile`, `Settings`, `PrivacyPolicy`, `LocationInfo`
 - Removed pre-release screen: `PlayColorMood` is no longer routeable.
-- Profile subflow still includes editing screens that support the live profile path: `EditProfile`, `PhotoManager`, `FlirtSettings`
+- Profile subflow includes editing screens that support the live profile path: `EditProfile`, `PhotoManager`
 
 ## Removed or isolated from the release path
 
@@ -29,7 +29,8 @@
 - Profile media and locked gallery are backend-first for the release path: avatar/profile uploads go through backend media APIs, public profile responses expose public photos only, locked gallery unlock requires backend password verification, and owner gallery management uses backend state.
 - Final native identifiers are still not settled in Expo config: Android package is placeholder-like, and iOS bundle identifier is not declared here
 - Secondary locales still need a final product-language review, but dead keys from removed features no longer stay in the locale set
-- Settings / profile still carry older option groups like `18+` and `mystery mode`; they are live product settings, but they still need a stricter product decision if scope is reduced further
+- The standalone legacy `18+` / `Flirt` toggle has been removed from active release UI. Real age handling is backend-first through private `birthDate`, safe `ageGroup`, and Together age preferences.
+- `mystery mode` remains a live profile setting.
 
 ## Gallery / locked gallery status
 

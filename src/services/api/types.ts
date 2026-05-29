@@ -47,7 +47,9 @@ export type BackendProfileFields = {
   ageGroup?: AgeGroup | null;
   preferredAgeMin?: number;
   preferredAgeMax?: number | null;
+  /** @deprecated Legacy standalone Flirt flag. Not age verification and not used for Together matching. */
   flirtEnabled?: boolean;
+  /** @deprecated Legacy standalone 18+ flag. Not age verification and not used for Together matching. */
   allowAdultMode?: boolean;
   mysteryMode?: boolean;
 };
@@ -168,7 +170,9 @@ export type PatchProfileRequest = {
   birthDate?: string | null;
   preferredAgeMin?: number;
   preferredAgeMax?: number | null;
+  /** @deprecated Legacy standalone Flirt flag. Release UI must not send this. */
   flirtEnabled?: boolean;
+  /** @deprecated Legacy standalone 18+ flag. Release UI must not send this. */
   allowAdultMode?: boolean;
   mysteryMode?: boolean;
 };

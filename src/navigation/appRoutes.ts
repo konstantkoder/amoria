@@ -72,7 +72,6 @@ export type ProfileStackParamList = {
   ProfileMain: undefined;
   EditProfile: EditProfileRouteParams | undefined;
   PhotoManager: undefined;
-  FlirtSettings: undefined;
 };
 
 export type TabsNavigatorParams = NavigatorScreenParams<MainTabParamList>;

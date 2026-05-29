@@ -206,9 +206,9 @@ See `docs/media_crop_flow_01.md`.
 - Set `EXPO_PUBLIC_RELEASE_VERSION` when Git SHA is not injected automatically.
 - Rebuild/reinstall the native/dev build when `app.json` native flags change, including Android `usesCleartextTraffic`; JS reload is not enough.
 
-## Future Age Filter Note
+## Age Architecture Note
 
-Together age filter is planned after Together start reliability is fixed. `FlirtSettingsScreen` is not the Together age filter. Future block name: `TOGETHER-AGE-FILTER-01`.
+Together age filtering is backend-first through private `birthDate`, backend 18+ validation, safe `ageGroup`, and `preferredAgeRange`. The standalone legacy `FlirtSettingsScreen` / `18+` toggle is removed from active release UI and must not be reused as age matching or age verification.
 
 ## Identity rule verification
 

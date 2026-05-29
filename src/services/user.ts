@@ -195,8 +195,6 @@ function mapBackendUserProfile(
     goal: Goal | null;
     mood: Mood | null;
     interests: string[];
-    allowAdultMode: boolean;
-    flirtEnabled: boolean;
     mysteryMode: boolean;
     birthDate: string | null;
     age: number | null;
@@ -244,8 +242,6 @@ function mapBackendUserProfile(
     ...(preferredAgeMax !== undefined ? { preferredAgeMax } : {}),
     createdAt,
     updatedAt,
-    allowAdultMode: Boolean(backendFields.allowAdultMode),
-    flirtEnabled: Boolean(backendFields.flirtEnabled),
     mysteryMode: Boolean(backendFields.mysteryMode),
   };
 }
@@ -264,8 +260,6 @@ const BACKEND_PROFILE_FIELD_KEYS = new Set([
   "birthDate",
   "preferredAgeMin",
   "preferredAgeMax",
-  "flirtEnabled",
-  "allowAdultMode",
   "mysteryMode",
 ]);
 
@@ -312,12 +306,6 @@ async function updateBackendSupportedProfileFields(
       : normalizePreferredAgeBound(rawMax) ?? null;
     input.preferredAgeMin = min;
     input.preferredAgeMax = max;
-  }
-  if ("allowAdultMode" in fields) {
-    input.allowAdultMode = Boolean(fields.allowAdultMode);
-  }
-  if ("flirtEnabled" in fields) {
-    input.flirtEnabled = Boolean(fields.flirtEnabled);
   }
   if ("mysteryMode" in fields) {
     input.mysteryMode = Boolean(fields.mysteryMode);
@@ -445,14 +433,4 @@ export async function updateUserPhotos(
   photos: UserProfilePhoto[]
 ): Promise<UserProfile> {
   return updateUserFields({ photos: normalizeProfilePhotos(photos) });
-}
-
-export async function updateFlirtSettings(
-  allowAdultMode: boolean,
-  flirtEnabled: boolean
-): Promise<UserProfile> {
-  return updateUserFields({
-    allowAdultMode,
-    flirtEnabled: allowAdultMode && flirtEnabled,
-  });
 }

@@ -39,7 +39,5 @@ export interface UserProfile {
   goal?: Goal;
   createdAt: number;
   updatedAt: number;
-  allowAdultMode?: boolean;
-  flirtEnabled?: boolean;
   mysteryMode?: boolean;
 }

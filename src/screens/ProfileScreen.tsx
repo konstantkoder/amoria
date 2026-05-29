@@ -591,11 +591,6 @@ export default function ProfileScreen() {
                 {t("profile.editProfileEntrypointAction")}
               </Text>
             </TouchableOpacity>
-            {profile?.allowAdultMode ? (
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{t("common.adultShort")}</Text>
-              </View>
-            ) : null}
             {profile?.mysteryMode ? (
               <View style={styles.badge}>
                 <Text style={styles.badgeText}>{t("profile.mysteryBadge")}</Text>
@@ -722,13 +717,6 @@ export default function ProfileScreen() {
             onPress={() => navigation.navigate("PhotoManager")}
           >
             <Text style={styles.actionButtonText}>{t("profile.photos")}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.actionButton}
-            activeOpacity={0.86}
-            onPress={() => navigation.navigate("FlirtSettings")}
-          >
-            <Text style={styles.actionButtonText}>{t("profile.flirt18")}</Text>
           </TouchableOpacity>
         </View>
 

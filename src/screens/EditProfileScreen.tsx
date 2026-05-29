@@ -107,7 +107,6 @@ export default function EditProfileScreen() {
   const [birthDate, setBirthDate] = React.useState("");
   const [goal, setGoal] = React.useState<Goal>("dating");
   const [mood, setMood] = React.useState<Mood>("chill");
-  const [allowAdultMode, setAllowAdultMode] = React.useState(false);
   const [mysteryMode, setMysteryMode] = React.useState(false);
   const scrollRef = React.useRef<ScrollView>(null);
   const displayNameInputRef = React.useRef<TextInput>(null);
@@ -126,7 +125,6 @@ export default function EditProfileScreen() {
     setBirthDate(profile.birthDate ?? "");
     setGoal(profile.goal ?? "dating");
     setMood(profile.mood ?? "chill");
-    setAllowAdultMode(profile.allowAdultMode ?? false);
     setMysteryMode(profile.mysteryMode ?? false);
   }, []);
 
@@ -221,7 +219,6 @@ export default function EditProfileScreen() {
         birthDate: nextBirthDate || null,
         goal,
         mood,
-        allowAdultMode,
         mysteryMode,
       });
       applyProfile(savedProfile);
@@ -407,20 +404,6 @@ export default function EditProfileScreen() {
                 );
               })}
             </View>
-          </View>
-
-          <View style={styles.toggleCard}>
-            <Text style={styles.toggleTitle}>{t("editProfile.adultModeTitle")}</Text>
-            <Text style={styles.toggleBody}>{t("editProfile.adultModeDescription")}</Text>
-            <Switch
-              value={allowAdultMode}
-              onValueChange={setAllowAdultMode}
-              thumbColor={allowAdultMode ? theme.colors.primary : "#999"}
-              trackColor={{
-                false: "#444",
-                true: `${theme.colors.primary}88`,
-              }}
-            />
           </View>
 
           <View style={styles.toggleCard}>

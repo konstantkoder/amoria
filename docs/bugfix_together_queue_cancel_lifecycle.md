@@ -39,6 +39,6 @@ Exact coordinates are redacted from Client Error metadata.
 4. Both should match without simultaneous tapping.
 5. If the row cancels, inspect Admin Queue `cancelSource`, not only `waitingReason`.
 
-## Future Age Filter
+## Historical Age Filter Note
 
-Do not implement age filtering in this block. `FlirtSettingsScreen` is not the Together age filter. Future block name: `TOGETHER-AGE-FILTER-01`.
+Age filtering was intentionally not part of this historical block. The later release architecture uses private `birthDate`, safe `ageGroup`, and Together `preferredAgeRange`; the legacy `FlirtSettingsScreen` was removed from active release UI.

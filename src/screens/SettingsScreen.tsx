@@ -16,7 +16,6 @@ import ScreenShell from "@/components/ScreenShell";
 import LocationConsentModal from "@/components/LocationConsentModal";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocale } from "@/contexts/LocaleContext";
-import { loadAdultModeEnabled, setAdultModeEnabled } from "@/services/adultMode";
 import {
   clearLegacyMapPresencePrefs,
   loadLocationPrefs,
@@ -36,20 +35,15 @@ export default function SettingsScreen() {
     nearbyEnabled: false,
   });
   const [loadingPrefs, setLoadingPrefs] = useState(true);
-  const [adultMode, setAdultMode] = useState(false);
   const [consentVisible, setConsentVisible] = useState(false);
   const [consentAction, setConsentAction] = useState<"nearby" | null>(null);
 
   useEffect(() => {
     let alive = true;
     (async () => {
-      const [prefsValue, adultValue] = await Promise.all([
-        loadLocationPrefs(),
-        loadAdultModeEnabled(),
-      ]);
+      const prefsValue = await loadLocationPrefs();
       if (!alive) return;
       setPrefs(prefsValue);
-      setAdultMode(adultValue);
       setLoadingPrefs(false);
     })();
     return () => {
@@ -128,11 +122,6 @@ export default function SettingsScreen() {
     [prefs.consent, requestLocationPermission, updatePrefs]
   );
 
-  const handleAdultToggle = useCallback(async (value: boolean) => {
-    setAdultMode(value);
-    await setAdultModeEnabled(value);
-  }, []);
-
   const handleOpenPrivacyPolicy = useCallback(() => {
     navigation.navigate("PrivacyPolicy");
   }, [navigation]);
@@ -197,14 +186,6 @@ export default function SettingsScreen() {
               <Ionicons name="language-outline" size={18} color="#E5E7EB" />
               <Text style={styles.linkText}>{t("menu.language")}</Text>
             </TouchableOpacity>
-          </View>
-
-          <Text style={styles.sectionTitle}>{t("common.adultShort")}</Text>
-          <View style={styles.card}>
-            <View style={styles.row}>
-              <Text style={styles.label}>{t("settings.adultMode")}</Text>
-              <Switch value={adultMode} onValueChange={handleAdultToggle} />
-            </View>
           </View>
 
           <Text style={styles.sectionTitle}>{t("menu.profile")}</Text>

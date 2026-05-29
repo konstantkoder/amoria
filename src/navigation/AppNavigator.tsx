@@ -24,7 +24,6 @@ import AnnouncementDetailScreen from "@/screens/AnnouncementDetailScreen";
 import ProfileScreen from "@/screens/ProfileScreen";
 import EditProfileScreen from "@/screens/EditProfileScreen";
 import PhotoManagerScreen from "@/screens/PhotoManagerScreen";
-import FlirtSettingsScreen from "@/screens/settings/FlirtSettingsScreen";
 import SettingsScreen from "@/screens/SettingsScreen";
 import PrivacyPolicyScreen from "@/screens/PrivacyPolicyScreen";
 import LocationInfoScreen from "@/screens/LocationInfoScreen";
@@ -222,7 +221,6 @@ function ProfileStackNavigator() {
       <ProfileStack.Screen name="ProfileMain" component={ProfileScreen} />
       <ProfileStack.Screen name="EditProfile" component={EditProfileScreen} />
       <ProfileStack.Screen name="PhotoManager" component={PhotoManagerScreen} />
-      <ProfileStack.Screen name="FlirtSettings" component={FlirtSettingsScreen} />
     </ProfileStack.Navigator>
   );
 }
