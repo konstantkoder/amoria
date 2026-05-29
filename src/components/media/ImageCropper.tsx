@@ -16,12 +16,21 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { theme } from "@/theme";
 
-export type NormalizedMediaCrop = {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-};
+import {
+  clampCropScale,
+  clampCropTransform,
+  createCenteredCropTransform,
+  getCropRectFromTransform,
+  getFocalPointZoomTransform,
+  getSourceImageDisplaySize,
+  isValidNormalizedCrop,
+  type CropPoint,
+  type CropSize,
+  type CropTransform,
+  type NormalizedMediaCrop,
+} from "./imageCropMath";
+
+export type { NormalizedMediaCrop } from "./imageCropMath";
 
 export type CropImageSource = {
   uri: string;
@@ -59,14 +68,38 @@ type CroppedPreviewProps = {
   onError?: () => void;
 };
 
-const MIN_ZOOM = 1;
-const MAX_ZOOM = 4;
+type StageGeometry = {
+  width: number;
+  height: number;
+  cropSize: number;
+  cropLeft: number;
+  cropTop: number;
+  cropCenterX: number;
+  cropCenterY: number;
+};
 
-function clamp(value: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, value));
-}
+type NativeTouch = {
+  pageX: number;
+  pageY: number;
+  locationX?: number;
+  locationY?: number;
+};
 
-function distanceBetweenTouches(touches: readonly { pageX: number; pageY: number }[]) {
+type ActiveGesture =
+  | { mode: "none" }
+  | { mode: "pan"; lastPanPoint: CropPoint }
+  | {
+      mode: "pinch";
+      transform: CropTransform;
+      distance: number;
+      startFocalPoint: CropPoint;
+    };
+
+const MAX_ZOOM_MULTIPLIER = 4;
+const CROP_STAGE_INSET = 18;
+const EMPTY_GESTURE: ActiveGesture = { mode: "none" };
+
+function distanceBetweenTouches(touches: readonly NativeTouch[]) {
   if (touches.length < 2 || !touches[0] || !touches[1]) return 1;
   return Math.max(
     Math.hypot(touches[0].pageX - touches[1].pageX, touches[0].pageY - touches[1].pageY),
@@ -74,20 +107,54 @@ function distanceBetweenTouches(touches: readonly { pageX: number; pageY: number
   );
 }
 
-function cropIsValid(crop: NormalizedMediaCrop | null | undefined) {
-  if (!crop) return false;
-  return (
-    Number.isFinite(crop.x) &&
-    Number.isFinite(crop.y) &&
-    Number.isFinite(crop.width) &&
-    Number.isFinite(crop.height) &&
-    crop.x >= 0 &&
-    crop.y >= 0 &&
-    crop.width > 0 &&
-    crop.height > 0 &&
-    crop.x + crop.width <= 1.000001 &&
-    crop.y + crop.height <= 1.000001
+function touchLocation(touch: NativeTouch) {
+  return {
+    x: typeof touch.locationX === "number" ? touch.locationX : 0,
+    y: typeof touch.locationY === "number" ? touch.locationY : 0,
+  };
+}
+
+function focalPointFromTouches(
+  touches: readonly NativeTouch[],
+  geometry: StageGeometry
+): CropPoint {
+  const first = touches[0];
+  const second = touches[1];
+  if (!first) return { x: 0, y: 0 };
+  const firstLocation = touchLocation(first);
+  const midpoint = second
+    ? {
+        x: (firstLocation.x + touchLocation(second).x) / 2,
+        y: (firstLocation.y + touchLocation(second).y) / 2,
+      }
+    : firstLocation;
+
+  return {
+    x: midpoint.x - geometry.cropCenterX,
+    y: midpoint.y - geometry.cropCenterY,
+  };
+}
+
+function stageGeometryFromSize(stageSize: CropSize): StageGeometry | null {
+  const width = Math.floor(stageSize.width);
+  const height = Math.floor(stageSize.height);
+  const cropSize = Math.floor(
+    Math.min(width - CROP_STAGE_INSET * 2, height - CROP_STAGE_INSET * 2)
   );
+
+  if (width <= 0 || height <= 0 || cropSize <= 0) {
+    return null;
+  }
+
+  return {
+    width,
+    height,
+    cropSize,
+    cropLeft: (width - cropSize) / 2,
+    cropTop: (height - cropSize) / 2,
+    cropCenterX: width / 2,
+    cropCenterY: height / 2,
+  };
 }
 
 export default function ImageCropper({
@@ -105,22 +172,31 @@ export default function ImageCropper({
   onError,
 }: ImageCropperProps) {
   const insets = useSafeAreaInsets();
-  const [frameSize, setFrameSize] = React.useState(0);
-  const [loadedSize, setLoadedSize] = React.useState<{ width: number; height: number } | null>(
-    null
+  const [stageSize, setStageSize] = React.useState<CropSize>({ width: 0, height: 0 });
+  const [loadedSize, setLoadedSize] = React.useState<CropSize | null>(null);
+  const [transform, setTransform] = React.useState<CropTransform | null>(null);
+  const transformRef = React.useRef<CropTransform | null>(null);
+  const gestureRef = React.useRef<ActiveGesture>(EMPTY_GESTURE);
+
+  const setCropTransform = React.useCallback((nextTransform: CropTransform | null) => {
+    transformRef.current = nextTransform;
+    setTransform(nextTransform);
+  }, []);
+
+  const stageGeometry = React.useMemo(
+    () => stageGeometryFromSize(stageSize),
+    [stageSize.height, stageSize.width]
   );
-  const [pan, setPan] = React.useState({ x: 0, y: 0 });
-  const [zoom, setZoom] = React.useState(1);
-  const gestureRef = React.useRef({
-    pan: { x: 0, y: 0 },
-    zoom: 1,
-    distance: 1,
-  });
 
   React.useEffect(() => {
-    if (!visible) return;
-    setPan({ x: 0, y: 0 });
-    setZoom(1);
+    if (!visible) {
+      setCropTransform(null);
+      gestureRef.current = EMPTY_GESTURE;
+      return;
+    }
+
+    setCropTransform(null);
+    gestureRef.current = EMPTY_GESTURE;
     const width = Number(source?.width ?? 0);
     const height = Number(source?.height ?? 0);
     if (width > 0 && height > 0) {
@@ -141,109 +217,178 @@ export default function ImageCropper({
         });
       }
     );
-  }, [onError, source?.height, source?.mimeType, source?.uri, source?.width, visible]);
-
-  const imageMetrics = React.useMemo(() => {
-    if (!loadedSize || frameSize <= 0) return null;
-    const baseScale = Math.max(frameSize / loadedSize.width, frameSize / loadedSize.height);
-    const width = loadedSize.width * baseScale * zoom;
-    const height = loadedSize.height * baseScale * zoom;
-    const maxPanX = Math.max((width - frameSize) / 2, 0);
-    const maxPanY = Math.max((height - frameSize) / 2, 0);
-    const clampedPan = {
-      x: clamp(pan.x, -maxPanX, maxPanX),
-      y: clamp(pan.y, -maxPanY, maxPanY),
-    };
-
-    return {
-      width,
-      height,
-      left: (frameSize - width) / 2 + clampedPan.x,
-      top: (frameSize - height) / 2 + clampedPan.y,
-      maxPanX,
-      maxPanY,
-      clampedPan,
-    };
-  }, [frameSize, loadedSize, pan.x, pan.y, zoom]);
+  }, [
+    onError,
+    setCropTransform,
+    source?.height,
+    source?.mimeType,
+    source?.uri,
+    source?.width,
+    visible,
+  ]);
 
   React.useEffect(() => {
-    if (!imageMetrics) return;
-    if (imageMetrics.clampedPan.x === pan.x && imageMetrics.clampedPan.y === pan.y) return;
-    setPan(imageMetrics.clampedPan);
-  }, [imageMetrics, pan.x, pan.y]);
+    if (!visible || !loadedSize || !stageGeometry) return;
+    setCropTransform(createCenteredCropTransform(loadedSize, stageGeometry.cropSize));
+  }, [
+    loadedSize,
+    setCropTransform,
+    source?.uri,
+    stageGeometry?.cropSize,
+    visible,
+  ]);
+
+  const clampedTransform = React.useMemo(() => {
+    if (!loadedSize || !stageGeometry || !transform) return null;
+    return clampCropTransform(transform, loadedSize, stageGeometry.cropSize);
+  }, [loadedSize, stageGeometry, transform]);
+
+  React.useEffect(() => {
+    if (!clampedTransform || !transform) return;
+    if (
+      clampedTransform.scale === transform.scale &&
+      clampedTransform.offsetX === transform.offsetX &&
+      clampedTransform.offsetY === transform.offsetY
+    ) {
+      return;
+    }
+    setCropTransform(clampedTransform);
+  }, [clampedTransform, setCropTransform, transform]);
+
+  const imageMetrics = React.useMemo(() => {
+    if (!loadedSize || !stageGeometry || !clampedTransform) return null;
+    const displaySize = getSourceImageDisplaySize(loadedSize, clampedTransform.scale);
+    return {
+      width: displaySize.width,
+      height: displaySize.height,
+      left: stageGeometry.cropCenterX + clampedTransform.offsetX - displaySize.width / 2,
+      top: stageGeometry.cropCenterY + clampedTransform.offsetY - displaySize.height / 2,
+    };
+  }, [clampedTransform, loadedSize, stageGeometry]);
 
   const currentCrop = React.useMemo<NormalizedMediaCrop | null>(() => {
-    if (!imageMetrics || frameSize <= 0) return null;
-    return {
-      x: clamp(-imageMetrics.left / imageMetrics.width, 0, 1),
-      y: clamp(-imageMetrics.top / imageMetrics.height, 0, 1),
-      width: clamp(frameSize / imageMetrics.width, 0, 1),
-      height: clamp(frameSize / imageMetrics.height, 0, 1),
+    if (!loadedSize || !stageGeometry || !clampedTransform) return null;
+    return getCropRectFromTransform(loadedSize, stageGeometry.cropSize, clampedTransform);
+  }, [clampedTransform, loadedSize, stageGeometry]);
+
+  const panResponder = React.useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: () => true,
+        onPanResponderGrant: (event) => {
+          const touches = event.nativeEvent.touches as NativeTouch[];
+          const currentTransform = transformRef.current;
+          if (!currentTransform || !stageGeometry) return;
+
+          if (touches.length >= 2) {
+            gestureRef.current = {
+              mode: "pinch",
+              transform: currentTransform,
+              distance: distanceBetweenTouches(touches),
+              startFocalPoint: focalPointFromTouches(touches, stageGeometry),
+            };
+            return;
+          }
+
+          const touch = touches[0];
+          gestureRef.current = touch
+            ? { mode: "pan", lastPanPoint: { x: touch.pageX, y: touch.pageY } }
+            : EMPTY_GESTURE;
+        },
+        onPanResponderMove: (event) => {
+          const touches = event.nativeEvent.touches as NativeTouch[];
+          const currentTransform = transformRef.current;
+          if (!currentTransform || !loadedSize || !stageGeometry) return;
+
+          if (touches.length >= 2) {
+            if (gestureRef.current.mode !== "pinch") {
+              gestureRef.current = {
+                mode: "pinch",
+                transform: currentTransform,
+                distance: distanceBetweenTouches(touches),
+                startFocalPoint: focalPointFromTouches(touches, stageGeometry),
+              };
+            }
+
+            const gesture = gestureRef.current;
+            if (gesture.mode !== "pinch") return;
+            const nextScale = clampCropScale(
+              loadedSize,
+              stageGeometry.cropSize,
+              gesture.transform.scale * (distanceBetweenTouches(touches) / gesture.distance),
+              MAX_ZOOM_MULTIPLIER
+            );
+            setCropTransform(
+              getFocalPointZoomTransform({
+                sourceSize: loadedSize,
+                cropSize: stageGeometry.cropSize,
+                transform: gesture.transform,
+                startFocalPoint: gesture.startFocalPoint,
+                focalPoint: focalPointFromTouches(touches, stageGeometry),
+                nextScale,
+              })
+            );
+            return;
+          }
+
+          const touch = touches[0];
+          if (!touch) return;
+          if (gestureRef.current.mode !== "pan") {
+            gestureRef.current = {
+              mode: "pan",
+              lastPanPoint: { x: touch.pageX, y: touch.pageY },
+            };
+            return;
+          }
+
+          const deltaX = touch.pageX - gestureRef.current.lastPanPoint.x;
+          const deltaY = touch.pageY - gestureRef.current.lastPanPoint.y;
+          const nextTransform = clampCropTransform(
+            {
+              ...currentTransform,
+              offsetX: currentTransform.offsetX + deltaX,
+              offsetY: currentTransform.offsetY + deltaY,
+            },
+            loadedSize,
+            stageGeometry.cropSize
+          );
+
+          gestureRef.current = {
+            mode: "pan",
+            lastPanPoint: { x: touch.pageX, y: touch.pageY },
+          };
+          setCropTransform(nextTransform);
+        },
+        onPanResponderRelease: () => {
+          gestureRef.current = EMPTY_GESTURE;
+        },
+        onPanResponderTerminate: () => {
+          gestureRef.current = EMPTY_GESTURE;
+        },
+      }),
+    [loadedSize, setCropTransform, stageGeometry]
+  );
+
+  function handleStageLayout(event: LayoutChangeEvent) {
+    const nextSize = {
+      width: Math.floor(event.nativeEvent.layout.width),
+      height: Math.floor(event.nativeEvent.layout.height),
     };
-  }, [frameSize, imageMetrics]);
-
-  const clampPanForZoom = React.useCallback((
-    nextPan: { x: number; y: number },
-    nextZoom: number
-  ) => {
-    if (!loadedSize || frameSize <= 0) return nextPan;
-    const baseScale = Math.max(frameSize / loadedSize.width, frameSize / loadedSize.height);
-    const width = loadedSize.width * baseScale * nextZoom;
-    const height = loadedSize.height * baseScale * nextZoom;
-    return {
-      x: clamp(nextPan.x, -Math.max((width - frameSize) / 2, 0), Math.max((width - frameSize) / 2, 0)),
-      y: clamp(nextPan.y, -Math.max((height - frameSize) / 2, 0), Math.max((height - frameSize) / 2, 0)),
-    };
-  }, [frameSize, loadedSize]);
-
-  const panResponder = React.useMemo(() => PanResponder.create({
-    onStartShouldSetPanResponder: () => true,
-    onMoveShouldSetPanResponder: () => true,
-    onPanResponderGrant: (event) => {
-      const touches = event.nativeEvent.touches;
-      gestureRef.current = {
-        pan,
-        zoom,
-        distance: distanceBetweenTouches(touches),
-      };
-    },
-    onPanResponderMove: (event, gestureState) => {
-      const touches = event.nativeEvent.touches;
-      if (touches.length >= 2) {
-        const ratio = distanceBetweenTouches(touches) / gestureRef.current.distance;
-        const nextZoom = clamp(gestureRef.current.zoom * ratio, MIN_ZOOM, MAX_ZOOM);
-        setZoom(nextZoom);
-        setPan(clampPanForZoom(gestureRef.current.pan, nextZoom));
-        return;
-      }
-
-      const nextPan = {
-        x: gestureRef.current.pan.x + gestureState.dx,
-        y: gestureRef.current.pan.y + gestureState.dy,
-      };
-      setPan(clampPanForZoom(nextPan, zoom));
-    },
-  }), [clampPanForZoom, pan, zoom]);
-
-  function handleFrameLayout(event: LayoutChangeEvent) {
-    const width = event.nativeEvent.layout.width;
-    const height = event.nativeEvent.layout.height;
-    setFrameSize(Math.floor(Math.min(width, height)));
-  }
-
-  function setZoomSafely(nextZoom: number) {
-    const safeZoom = clamp(nextZoom, MIN_ZOOM, MAX_ZOOM);
-    setZoom(safeZoom);
-    setPan((current) => clampPanForZoom(current, safeZoom));
+    setStageSize((currentSize) =>
+      currentSize.width === nextSize.width && currentSize.height === nextSize.height
+        ? currentSize
+        : nextSize
+    );
   }
 
   function resetCrop() {
-    setZoom(1);
-    setPan({ x: 0, y: 0 });
+    if (!loadedSize || !stageGeometry) return;
+    setCropTransform(createCenteredCropTransform(loadedSize, stageGeometry.cropSize));
   }
 
   function confirmCrop() {
-    if (!cropIsValid(currentCrop)) {
+    if (!isValidNormalizedCrop(currentCrop)) {
       onError?.("cropInvalid", undefined, {
         sourceMimeType: source?.mimeType ?? null,
       });
@@ -260,92 +405,162 @@ export default function ImageCropper({
     }
   }
 
+  const cropReady = Boolean(source?.uri && imageMetrics && stageGeometry);
+
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="fullScreen">
-      <View style={[
-        styles.modal,
-        {
-          paddingTop: Math.max(insets.top, 12),
-          paddingBottom: Math.max(insets.bottom, 14),
-        },
-      ]}>
+      <View
+        style={[
+          styles.modal,
+          {
+            paddingTop: Math.max(insets.top, 12),
+            paddingBottom: Math.max(insets.bottom, 12),
+          },
+        ]}
+      >
         <View style={styles.header}>
           <Text style={styles.title}>{title}</Text>
           <Text style={styles.help}>{helpText}</Text>
         </View>
 
-        <View style={styles.stage}>
-          <View style={styles.frameOuter} onLayout={handleFrameLayout}>
-            {source?.uri && imageMetrics && frameSize > 0 ? (
-              <View
-                style={[styles.cropFrame, { width: frameSize, height: frameSize }]}
-                {...panResponder.panHandlers}
-              >
-                <Image
-                  source={{ uri: source.uri }}
+        <View style={styles.stage} onLayout={handleStageLayout}>
+          {cropReady && imageMetrics && stageGeometry ? (
+            <View style={styles.stageCanvas}>
+              <Image
+                source={{ uri: source?.uri ?? "" }}
+                style={[
+                  styles.cropImage,
+                  {
+                    width: imageMetrics.width,
+                    height: imageMetrics.height,
+                    left: imageMetrics.left,
+                    top: imageMetrics.top,
+                  },
+                ]}
+                resizeMode="stretch"
+                onError={(error) => {
+                  onError?.("cropOpenFailed", error.nativeEvent, {
+                    sourceMimeType: source?.mimeType ?? null,
+                  });
+                }}
+              />
+              <View style={styles.gestureLayer} {...panResponder.panHandlers} />
+              <View pointerEvents="none" style={styles.overlayLayer}>
+                <View
                   style={[
-                    styles.cropImage,
+                    styles.dimOverlay,
                     {
-                      width: imageMetrics.width,
-                      height: imageMetrics.height,
-                      left: imageMetrics.left,
-                      top: imageMetrics.top,
+                      left: 0,
+                      top: 0,
+                      width: stageGeometry.width,
+                      height: stageGeometry.cropTop,
                     },
                   ]}
-                  resizeMode="stretch"
-                  onError={(error) => {
-                    onError?.("cropOpenFailed", error.nativeEvent, {
-                      sourceMimeType: source.mimeType ?? null,
-                    });
-                  }}
                 />
-                <View pointerEvents="none" style={styles.cropFrameBorder} />
+                <View
+                  style={[
+                    styles.dimOverlay,
+                    {
+                      left: 0,
+                      top: stageGeometry.cropTop,
+                      width: stageGeometry.cropLeft,
+                      height: stageGeometry.cropSize,
+                    },
+                  ]}
+                />
+                <View
+                  style={[
+                    styles.dimOverlay,
+                    {
+                      left: stageGeometry.cropLeft + stageGeometry.cropSize,
+                      top: stageGeometry.cropTop,
+                      width:
+                        stageGeometry.width - stageGeometry.cropLeft - stageGeometry.cropSize,
+                      height: stageGeometry.cropSize,
+                    },
+                  ]}
+                />
+                <View
+                  style={[
+                    styles.dimOverlay,
+                    {
+                      left: 0,
+                      top: stageGeometry.cropTop + stageGeometry.cropSize,
+                      width: stageGeometry.width,
+                      height:
+                        stageGeometry.height - stageGeometry.cropTop - stageGeometry.cropSize,
+                    },
+                  ]}
+                />
+                <View
+                  style={[
+                    styles.cropFrameOverlay,
+                    {
+                      left: stageGeometry.cropLeft,
+                      top: stageGeometry.cropTop,
+                      width: stageGeometry.cropSize,
+                      height: stageGeometry.cropSize,
+                    },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.gridLineVertical,
+                      { left: stageGeometry.cropSize / 3 },
+                    ]}
+                  />
+                  <View
+                    style={[
+                      styles.gridLineVertical,
+                      { left: (stageGeometry.cropSize / 3) * 2 },
+                    ]}
+                  />
+                  <View
+                    style={[
+                      styles.gridLineHorizontal,
+                      { top: stageGeometry.cropSize / 3 },
+                    ]}
+                  />
+                  <View
+                    style={[
+                      styles.gridLineHorizontal,
+                      { top: (stageGeometry.cropSize / 3) * 2 },
+                    ]}
+                  />
+                </View>
               </View>
-            ) : (
-              <View style={styles.loadingFrame}>
-                <ActivityIndicator color={theme.colors.primary} />
-              </View>
-            )}
-          </View>
-
-          <View style={styles.zoomControls}>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => setZoomSafely(zoom - 0.2)}
-              style={styles.zoomButton}
-            >
-              <Text style={styles.zoomButtonText}>-</Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              onPress={resetCrop}
-              style={styles.resetButton}
-            >
-              <Text style={styles.resetText}>{resetLabel}</Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => setZoomSafely(zoom + 0.2)}
-              style={styles.zoomButton}
-            >
-              <Text style={styles.zoomButtonText}>+</Text>
-            </Pressable>
-          </View>
+            </View>
+          ) : (
+            <View style={styles.loadingFrame}>
+              <ActivityIndicator color={theme.colors.primary} />
+            </View>
+          )}
         </View>
 
         <View style={styles.actions}>
+          <Pressable accessibilityRole="button" onPress={confirmCrop} style={styles.primaryButton}>
+            <Text numberOfLines={2} style={styles.primaryText}>
+              {doneLabel}
+            </Text>
+          </Pressable>
           <Pressable accessibilityRole="button" onPress={onCancel} style={styles.secondaryButton}>
-            <Text style={styles.secondaryText}>{cancelLabel}</Text>
+            <Text numberOfLines={2} style={styles.secondaryText}>
+              {cancelLabel}
+            </Text>
           </Pressable>
           <Pressable
             accessibilityRole="button"
             onPress={onChooseAnother}
             style={styles.secondaryButton}
           >
-            <Text style={styles.secondaryText}>{chooseAnotherLabel}</Text>
+            <Text numberOfLines={2} style={styles.secondaryText}>
+              {chooseAnotherLabel}
+            </Text>
           </Pressable>
-          <Pressable accessibilityRole="button" onPress={confirmCrop} style={styles.primaryButton}>
-            <Text style={styles.primaryText}>{doneLabel}</Text>
+          <Pressable accessibilityRole="button" onPress={resetCrop} style={styles.secondaryButton}>
+            <Text numberOfLines={2} style={styles.secondaryText}>
+              {resetLabel}
+            </Text>
           </Pressable>
         </View>
       </View>
@@ -402,101 +617,88 @@ export function CroppedMediaPreview({
 const styles = StyleSheet.create({
   modal: {
     flex: 1,
-    backgroundColor: "#080C18",
-    paddingHorizontal: 16,
-    gap: 14,
+    backgroundColor: "#03050B",
   },
   header: {
+    paddingHorizontal: 18,
+    paddingBottom: 10,
     gap: 6,
   },
   title: {
-    color: theme.colors.text,
+    color: "#FFFFFF",
     fontSize: 20,
     fontWeight: "900",
   },
   help: {
-    color: theme.colors.subtext,
+    color: "rgba(255,255,255,0.74)",
     fontSize: 13,
     lineHeight: 18,
   },
   stage: {
     flex: 1,
-    minHeight: 260,
-    justifyContent: "center",
-    gap: 12,
-  },
-  frameOuter: {
-    width: "100%",
-    aspectRatio: 1,
-    maxHeight: "82%",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  cropFrame: {
+    minHeight: 220,
     overflow: "hidden",
-    backgroundColor: "#050814",
+    backgroundColor: "#03050B",
   },
-  cropFrameBorder: {
+  stageCanvas: {
     ...StyleSheet.absoluteFillObject,
-    borderWidth: 2,
-    borderColor: theme.colors.accent,
   },
   cropImage: {
     position: "absolute",
   },
+  gestureLayer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 2,
+  },
+  overlayLayer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 3,
+  },
+  dimOverlay: {
+    position: "absolute",
+    backgroundColor: "rgba(0,0,0,0.6)",
+  },
+  cropFrameOverlay: {
+    position: "absolute",
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
+  },
+  gridLineVertical: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    width: 1,
+    backgroundColor: "rgba(255,255,255,0.58)",
+  },
+  gridLineHorizontal: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    height: 1,
+    backgroundColor: "rgba(255,255,255,0.58)",
+  },
   loadingFrame: {
-    width: "100%",
-    aspectRatio: 1,
+    flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.06)",
-  },
-  zoomControls: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    gap: 10,
-  },
-  zoomButton: {
-    width: 44,
-    height: 40,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.08)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.14)",
-  },
-  zoomButtonText: {
-    color: theme.colors.text,
-    fontSize: 22,
-    lineHeight: 24,
-    fontWeight: "900",
-  },
-  resetButton: {
-    minHeight: 40,
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.08)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.14)",
-  },
-  resetText: {
-    color: theme.colors.text,
-    fontSize: 13,
-    fontWeight: "800",
+    backgroundColor: "#03050B",
   },
   actions: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 9,
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.1)",
   },
   primaryButton: {
-    minHeight: 44,
+    flexGrow: 1,
+    flexBasis: "46%",
+    minHeight: 46,
     borderRadius: 8,
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: theme.colors.primary,
@@ -504,22 +706,29 @@ const styles = StyleSheet.create({
   primaryText: {
     color: "#FFFFFF",
     fontSize: 14,
+    lineHeight: 18,
     fontWeight: "900",
+    textAlign: "center",
   },
   secondaryButton: {
-    minHeight: 44,
+    flexGrow: 1,
+    flexBasis: "46%",
+    minHeight: 46,
     borderRadius: 8,
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(255,255,255,0.08)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.14)",
+    borderColor: "rgba(255,255,255,0.16)",
   },
   secondaryText: {
-    color: theme.colors.text,
+    color: "#FFFFFF",
     fontSize: 13,
+    lineHeight: 17,
     fontWeight: "800",
+    textAlign: "center",
   },
   previewFrame: {
     overflow: "hidden",

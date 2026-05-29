@@ -557,7 +557,7 @@
   "photos.cancel": "Cancel",
   "photos.cropAvatarTitle": "Crop avatar",
   "photos.cropProfileTitle": "Crop photo",
-  "photos.cropHelp": "Move the photo inside the square and adjust zoom.",
+  "photos.cropHelp": "Drag the photo with one finger, pinch with two fingers to zoom.",
   "photos.cropReset": "Reset",
   "photos.cropCancel": "Cancel",
   "photos.cropChooseAnother": "Choose another",

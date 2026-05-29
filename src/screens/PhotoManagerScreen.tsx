@@ -868,7 +868,7 @@ export default function PhotoManagerScreen() {
           title={tt("photos.cropProfileTitle", "Обрезка фото")}
           helpText={tt(
             "photos.cropHelp",
-            "Переместите фото внутри квадрата и измените масштаб."
+            "Одним пальцем перемещайте фото, двумя — изменяйте масштаб."
           )}
           doneLabel={t("common.done")}
           cancelLabel={t("photos.cropCancel")}
