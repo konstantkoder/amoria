@@ -90,6 +90,7 @@ test("authenticated user can load peer public profile without internal fields", 
   assert.deepEqual(blockCheck, [userAId, userBId]);
   assert.deepEqual(Object.keys(body).sort(), [
     "about",
+    "ageGroup",
     "amoriaId",
     "avatarUrl",
     "displayName",
@@ -99,6 +100,9 @@ test("authenticated user can load peer public profile without internal fields", 
   ]);
   assert.equal(body.id, userBId);
   assert.equal(body.email, undefined);
+  assert.equal(body.birthDate, undefined);
+  assert.equal(body.age, undefined);
+  assert.equal(body.ageGroup, "25-34");
   assert.equal(body.passwordHash, undefined);
   assert.equal(body.createdAt, undefined);
   assert.equal(body.updatedAt, undefined);
@@ -318,6 +322,9 @@ function userRow(overrides: Partial<UserRow>): UserRow {
     flirtEnabled: true,
     allowAdultMode: true,
     mysteryMode: true,
+    birthDate: "1995-01-01",
+    preferredAgeMin: 18,
+    preferredAgeMax: null,
     createdAt: now,
     updatedAt: now,
     ...overrides,

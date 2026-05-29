@@ -1,6 +1,6 @@
 # Admin Queue UI 01
 
-Updated: 2026-05-25 for Together cancel diagnostics.
+Updated: 2026-05-29 for Together cancel and age diagnostics.
 
 `GET /admin/together/queue` remains owner/ops-only and writes `admin.togetherQueue.read`.
 
@@ -14,6 +14,8 @@ Admin Web now has a Together Queue page that displays:
 - radiusKm;
 - hasCoordinates;
 - geoMode;
+- userAgeGroup;
+- preferredAgeRange;
 - waitingReason;
 - cancelSource;
 - cancelReason;
@@ -22,7 +24,7 @@ Admin Web now has a Together Queue page that displays:
 - lastClientPollAt;
 - matchedSessionId.
 
-The response and UI intentionally omit latitude, longitude, exact location, tokens, and secrets.
+The response and UI intentionally omit latitude, longitude, exact location, exact birth date, tokens, and secrets.
 
 Helper text now states the release and diagnostic rule directly:
 
@@ -30,7 +32,9 @@ Helper text now states the release and diagnostic rule directly:
 
 > Причина ожидания показывает, почему не найден кандидат. Источник отмены показывает, кто остановил запись очереди.
 
-The page filters by status, activity, radius, `geoMode`, and `hasCoordinates`, and has Load/Refresh actions. `matchedSessionId` links to the Together Sessions page filtered to that session. If the session endpoint does not return that id, Admin Web shows a clear diagnostic error instead of a silent empty page.
+> Возрастная группа используется только для подбора. Точная дата рождения не показывается.
+
+The page filters by status, activity, radius, `geoMode`, `hasCoordinates`, `ageGroup`, and `waitingReason`, and has Load/Refresh actions. `matchedSessionId` links to the Together Sessions page filtered to that session. If the session endpoint does not return that id, Admin Web shows a clear diagnostic error instead of a silent empty page.
 
 `geoMode` values:
 
@@ -60,6 +64,9 @@ Expected explicit sources include `user_stop`, `user_back`, `retry_restart`, `ra
 - `candidate_expired`
 - `candidate_cancelled`
 - `location_required`
+- `age_mismatch`
+- `missing_user_age`
+- `missing_age_preference`
 - `unknown`
 
 ## Together Sessions Page

@@ -214,6 +214,8 @@ export type TogetherQueueEntry = {
     | "no_limit_with_location"
     | "finite_with_location"
     | "missing_location_invalid_old_entry";
+  userAgeGroup: "18-24" | "25-34" | "35-44" | "45-54" | "55+" | null;
+  preferredAgeRange: { min: number; max: number | null } | null;
   waitingReason:
     | "no_candidate"
     | "activity_mismatch"
@@ -223,6 +225,9 @@ export type TogetherQueueEntry = {
     | "candidate_expired"
     | "candidate_cancelled"
     | "location_required"
+    | "age_mismatch"
+    | "missing_user_age"
+    | "missing_age_preference"
     | "unknown";
   cancelledAt: string | null;
   cancelSource:

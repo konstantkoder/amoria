@@ -25,6 +25,13 @@ import { headObject } from "../media/object-storage";
 import { env } from "../config/env";
 import { isBlockedEitherWay } from "../safety/safety.repo";
 import * as profileGalleryService from "./profile-gallery.service";
+import {
+  calculateAge,
+  getAgeGroup,
+  normalizeOptionalBirthDate,
+  normalizePreferredAgeBounds,
+  type AgeGroup,
+} from "./age";
 import * as usersRepo from "./users.repo";
 
 export type SelfUserProfile = {
@@ -41,6 +48,11 @@ export type SelfUserProfile = {
   flirtEnabled: boolean;
   allowAdultMode: boolean;
   mysteryMode: boolean;
+  birthDate: string | null;
+  age: number | null;
+  ageGroup: AgeGroup | null;
+  preferredAgeMin: number;
+  preferredAgeMax: number | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -49,6 +61,7 @@ export type PublicUserProfile = Pick<
   SelfUserProfile,
   "id" | "displayName" | "amoriaId" | "about" | "avatarUrl" | "photos"
 > & {
+  ageGroup: AgeGroup | null;
   lockedGallery: profileGalleryService.LockedGallerySummary;
 };
 
@@ -63,6 +76,9 @@ export type UpdateProfileBody = {
   flirtEnabled?: boolean;
   allowAdultMode?: boolean;
   mysteryMode?: boolean;
+  birthDate?: string | null;
+  preferredAgeMin?: number;
+  preferredAgeMax?: number | null;
 };
 
 type UserProfileUpdate = Partial<Pick<
@@ -77,6 +93,9 @@ type UserProfileUpdate = Partial<Pick<
   | "flirtEnabled"
   | "allowAdultMode"
   | "mysteryMode"
+  | "birthDate"
+  | "preferredAgeMin"
+  | "preferredAgeMax"
 >>;
 
 const avatarMediaTypes = new Set(["avatar", "profile_avatar"]);
@@ -119,6 +138,7 @@ export function __setUsersServiceDepsForTests(
 }
 
 export function toSelfUserProfile(user: UserRow): SelfUserProfile {
+  const age = calculateAge(user.birthDate);
   return {
     id: user.id,
     email: user.email,
@@ -133,6 +153,11 @@ export function toSelfUserProfile(user: UserRow): SelfUserProfile {
     flirtEnabled: user.flirtEnabled,
     allowAdultMode: user.allowAdultMode,
     mysteryMode: user.mysteryMode,
+    birthDate: user.birthDate,
+    age,
+    ageGroup: getAgeGroup(age),
+    preferredAgeMin: user.preferredAgeMin,
+    preferredAgeMax: user.preferredAgeMax,
     createdAt: user.createdAt.toISOString(),
     updatedAt: user.updatedAt.toISOString(),
   };
@@ -140,6 +165,7 @@ export function toSelfUserProfile(user: UserRow): SelfUserProfile {
 
 export async function toPublicUserProfile(user: UserRow): Promise<PublicUserProfile> {
   const gallery = await deps.gallery.getPublicGalleryForUser(user.id);
+  const age = calculateAge(user.birthDate);
   return {
     id: user.id,
     displayName: user.displayName,
@@ -147,6 +173,7 @@ export async function toPublicUserProfile(user: UserRow): Promise<PublicUserProf
     about: user.about,
     avatarUrl: await toCurrentAvatarUrl(user),
     photos: gallery.photos,
+    ageGroup: getAgeGroup(age),
     lockedGallery: gallery.lockedGallery,
   };
 }
@@ -242,6 +269,19 @@ export async function updateCurrentUserProfile(
 
   if ("mysteryMode" in input) {
     setIfDefined(update, "mysteryMode", normalizeOptionalBoolean(input.mysteryMode, "mysteryMode"));
+  }
+
+  if ("birthDate" in input) {
+    setIfDefined(update, "birthDate", normalizeOptionalBirthDate(input.birthDate));
+  }
+
+  if ("preferredAgeMin" in input || "preferredAgeMax" in input) {
+    const range = normalizePreferredAgeBounds(
+      input.preferredAgeMin ?? 18,
+      input.preferredAgeMax ?? null,
+    );
+    setIfDefined(update, "preferredAgeMin", range.min);
+    setIfDefined(update, "preferredAgeMax", range.max);
   }
 
   if (Object.keys(update).length === 0) {

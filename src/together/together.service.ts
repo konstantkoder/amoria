@@ -13,6 +13,11 @@ import type {
 } from "../db/schema";
 import * as chatService from "../chat/chat.service";
 import { isBlockedEitherWay } from "../safety/safety.repo";
+import {
+  DEFAULT_PREFERRED_AGE_RANGE,
+  normalizePreferredAgeRange,
+  requireAdultAgeFromBirthDate,
+} from "../users/age";
 import * as togetherRepoImpl from "./together.repo";
 import type {
   TogetherActivity,
@@ -121,11 +126,31 @@ export async function enqueue(
 ): Promise<TogetherQueueResponse> {
   const expiresAt = new Date(Date.now() + TOGETHER_QUEUE_TTL_MS);
   const location = normalizeQueueLocation(input);
+  const userAgeProfile = await deps.repo.findUserAgeProfile(userId);
+  const userAge = requireAdultAgeFromBirthDate(userAgeProfile?.birthDate);
+  const storedPreference = userAgeProfile
+    ? {
+        min: userAgeProfile.preferredAgeMin ?? DEFAULT_PREFERRED_AGE_RANGE.min,
+        max: userAgeProfile.preferredAgeMax ?? DEFAULT_PREFERRED_AGE_RANGE.max,
+      }
+    : DEFAULT_PREFERRED_AGE_RANGE;
+  const preferredAgeRange = normalizePreferredAgeRange(
+    input.preferredAgeRange,
+    storedPreference,
+  );
+
+  if (input.preferredAgeRange) {
+    await deps.repo.updateUserAgePreference(userId, preferredAgeRange);
+  }
+
   const entry = await deps.repo.enqueueAndMatch({
     userId,
     activity: input.activity,
     expiresAt,
     promptText: choosePrompt(input.activity).text,
+    userAge,
+    preferredAgeMin: preferredAgeRange.min,
+    preferredAgeMax: preferredAgeRange.max,
     ...location,
   });
 

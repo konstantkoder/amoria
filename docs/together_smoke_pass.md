@@ -1,18 +1,19 @@
 # Together Smoke Pass
 
-Updated: 2026-05-25
+Updated: 2026-05-29
 
 ## Required Geo Pass
 
 1. Device A and Device B sign in to real backend accounts.
 2. Both grant foreground location.
-3. Both start Together with `25 km`.
-4. Start Device A first, wait 10-30 seconds, then start Device B. They should still match when compatible.
-5. If no match after the delayed guidance, expand to `100 km`, then `250 km`, then no limit.
-6. Confirm no-limit sends coordinates with `radiusKm: null`.
-7. Confirm permission denied blocks queue join and shows a clear privacy message.
-8. In BlueStacks, set emulator location and open Google Maps before retrying if the app says the device is not returning coordinates.
-9. Confirm exact coordinates are absent from UI, client errors, admin responses, history, DM, and public profile.
+3. Both set private birth date in Profile/Edit Profile.
+4. Both start Together with `25 km` and `Любой 18+`.
+5. Start Device A first, wait 10-30 seconds, then start Device B. They should still match when compatible.
+6. If no match after the delayed guidance, expand to `100 km`, then `250 km`, then no limit.
+7. Confirm no-limit sends coordinates with `radiusKm: null`.
+8. Confirm permission denied blocks queue join and shows a clear privacy message.
+9. In BlueStacks, set emulator location and open Google Maps before retrying if the app says the device is not returning coordinates.
+10. Confirm exact coordinates are absent from UI, client errors, admin responses, history, DM, and public profile.
 
 ## Cancel Lifecycle Pass
 
@@ -39,12 +40,21 @@ Updated: 2026-05-25
 
 ## Admin Checks
 
-- Queue: status, activity, radius, `hasCoordinates`, `geoMode`, `waitingReason`, `cancelSource`, `cancelReason`, `cancelledAt`, `lastAction`, waiting age, safe identity, stale state, matched session link, cancel waiting action.
+- Queue: status, activity, radius, `hasCoordinates`, `geoMode`, `userAgeGroup`, `preferredAgeRange`, `waitingReason`, `cancelSource`, `cancelReason`, `cancelledAt`, `lastAction`, waiting age, safe identity, stale state, matched session link, cancel waiting action.
 - Sessions: active, finished, abandoned/cancelled/recent sessions, zero-event sessions, stale heartbeat, participant left state, event counts, reveal summary.
 - Client Errors: location read failures, queue join failures, queue poll failures, canvas/session diagnostics.
 - Client Errors: confirm app/build metadata includes `appVersion`, `buildNumber`, and release metadata when public Expo release env vars were set.
 - Audit: queue reads/cancels, session reads, media/report actions.
 - Ops Health: DB status, object storage status, open client errors, reports, pending media.
+
+## Age Filter Pass
+
+- Missing birth date blocks Together start and prompts profile completion.
+- `Любой 18+` matches compatible adults.
+- A compatible age group, for example `25-34`, matches only if mutual preferences allow it.
+- An incompatible age group keeps the row waiting and Admin Queue shows `age_mismatch`.
+- Public profile and Admin Queue show safe age/ageGroup only; exact birth date must not appear.
+- Old Flirt 18+ toggle is not used for Together matching.
 
 ## Expected Waiting UX
 
@@ -84,9 +94,9 @@ npx expo start -c
 
 Set `EXPO_PUBLIC_RELEASE_VERSION` for the smoke build when an exact Git SHA is not injected automatically. If `app.json` native flags changed, for example Android `usesCleartextTraffic`, rebuild/reinstall the dev/native build; a JS reload is not enough.
 
-## Age Filter Note
+## Future Nearby Reuse
 
-Together age filtering is planned after Together start reliability is stable. `FlirtSettingsScreen` is not the Together age filter. Future block: `TOGETHER-AGE-FILTER-01`.
+Future Nearby redesign should reuse `birthDate`/`ageGroup` and `preferredAgeRange` from this profile/search model. Do not create separate age logic for Nearby. Announcements are not part of this architecture.
 
 ## Staged Flow
 

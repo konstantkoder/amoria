@@ -28,6 +28,9 @@ export async function updateUserProfile(
     | "flirtEnabled"
     | "allowAdultMode"
     | "mysteryMode"
+    | "birthDate"
+    | "preferredAgeMin"
+    | "preferredAgeMax"
   >>,
 ): Promise<UserRow | undefined> {
   const [updated] = await db

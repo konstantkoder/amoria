@@ -2,6 +2,7 @@ import { relations, sql } from "drizzle-orm";
 import {
   boolean,
   check,
+  date,
   doublePrecision,
   index,
   integer,
@@ -31,9 +32,21 @@ export const users = pgTable("users", {
   flirtEnabled: boolean("flirt_enabled").default(false).notNull(),
   allowAdultMode: boolean("allow_adult_mode").default(false).notNull(),
   mysteryMode: boolean("mystery_mode").default(false).notNull(),
+  birthDate: date("birth_date", { mode: "string" }),
+  preferredAgeMin: integer("preferred_age_min").default(18).notNull(),
+  preferredAgeMax: integer("preferred_age_max"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
-});
+}, (table) => [
+  check(
+    "users_preferred_age_min_check",
+    sql`${table.preferredAgeMin} >= 18 AND ${table.preferredAgeMin} <= 120`,
+  ),
+  check(
+    "users_preferred_age_max_check",
+    sql`${table.preferredAgeMax} IS NULL OR (${table.preferredAgeMax} >= ${table.preferredAgeMin} AND ${table.preferredAgeMax} <= 120)`,
+  ),
+]);
 
 export const mediaFiles = pgTable("media_files", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -389,6 +402,9 @@ export const togetherQueue = pgTable(
     longitude: doublePrecision("longitude"),
     radiusKm: integer("radius_km"),
     locationUpdatedAt: timestamp("location_updated_at", { withTimezone: true }),
+    userAge: integer("user_age"),
+    preferredAgeMin: integer("preferred_age_min"),
+    preferredAgeMax: integer("preferred_age_max"),
   },
   (table) => [
     uniqueIndex("together_queue_user_waiting_unique")
@@ -409,6 +425,18 @@ export const togetherQueue = pgTable(
     check(
       "together_queue_cancel_source_check",
       sql`${table.cancelSource} IS NULL OR ${table.cancelSource} IN ('user_stop', 'user_back', 'retry_restart', 'radius_expansion', 'screen_cleanup', 'navigation_blur', 'admin_cancel', 'server_expired', 'matched', 'unknown')`,
+    ),
+    check(
+      "together_queue_user_age_check",
+      sql`${table.userAge} IS NULL OR (${table.userAge} >= 18 AND ${table.userAge} <= 120)`,
+    ),
+    check(
+      "together_queue_preferred_age_min_check",
+      sql`${table.preferredAgeMin} IS NULL OR (${table.preferredAgeMin} >= 18 AND ${table.preferredAgeMin} <= 120)`,
+    ),
+    check(
+      "together_queue_preferred_age_max_check",
+      sql`${table.preferredAgeMax} IS NULL OR (${table.preferredAgeMin} IS NOT NULL AND ${table.preferredAgeMax} >= ${table.preferredAgeMin} AND ${table.preferredAgeMax} <= 120)`,
     ),
   ],
 );

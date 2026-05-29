@@ -798,6 +798,8 @@ function TogetherQueueScreen({ onOpenSession }: { onOpenSession: (sessionId: str
     radiusKm: "",
     geoMode: "",
     hasCoordinates: "",
+    ageGroup: "",
+    waitingReason: "",
     limit: "100",
   });
   const [items, setItems] = useState<TogetherQueueEntry[]>([]);
@@ -862,6 +864,7 @@ function TogetherQueueScreen({ onOpenSession }: { onOpenSession: (sessionId: str
       <div className="hint-list">
         <strong>{t("queue.whyNotMatchingTitle")}</strong>
         <span>{t("queue.whyNotMatchingBody")}</span>
+        <span>{t("queue.ageDiagnosticsBody")}</span>
         <span>{t("queue.cancelDiagnosticsBody")}</span>
       </div>
       <form className="filters" onSubmit={(event) => { event.preventDefault(); void load(); }}>
@@ -892,6 +895,24 @@ function TogetherQueueScreen({ onOpenSession }: { onOpenSession: (sessionId: str
           <option value="true">{t("common.yes")}</option>
           <option value="false">{t("common.no")}</option>
         </select></label>
+        <label>{t("queue.userAgeGroup")}<select value={filters.ageGroup} onChange={(event) => setFilters({ ...filters, ageGroup: event.target.value })}>
+          <option value="">{t("status.any")}</option>
+          <option value="18-24">18-24</option>
+          <option value="25-34">25-34</option>
+          <option value="35-44">35-44</option>
+          <option value="45-54">45-54</option>
+          <option value="55+">55+</option>
+        </select></label>
+        <label>{t("queue.waitingReason")}<select value={filters.waitingReason} onChange={(event) => setFilters({ ...filters, waitingReason: event.target.value })}>
+          <option value="">{t("status.any")}</option>
+          <option value="age_mismatch">{t("queue.reasonAgeMismatch")}</option>
+          <option value="missing_user_age">{t("queue.reasonMissingUserAge")}</option>
+          <option value="missing_age_preference">{t("queue.reasonMissingAgePreference")}</option>
+          <option value="radius_distance_too_far">{t("queue.reasonRadiusTooFar")}</option>
+          <option value="activity_mismatch">{t("queue.reasonActivityMismatch")}</option>
+          <option value="missing_coordinates_old_entry">{t("queue.reasonMissingCoordinates")}</option>
+          <option value="no_candidate">{t("queue.reasonNoCandidate")}</option>
+        </select></label>
         <label>{t("common.limit")}<input value={filters.limit} onChange={(event) => setFilters({ ...filters, limit: event.target.value })} inputMode="numeric" /></label>
         <button>{t("common.load")}</button>
       </form>
@@ -910,6 +931,8 @@ function TogetherQueueScreen({ onOpenSession }: { onOpenSession: (sessionId: str
               <th>{t("queue.radiusKm")}</th>
               <th>{t("queue.hasCoordinates")}</th>
               <th>{t("queue.geoMode")}</th>
+              <th>{t("queue.userAgeGroup")}</th>
+              <th>{t("queue.preferredAgeRange")}</th>
               <th>{t("queue.waitingReason")}</th>
               <th>{t("queue.cancelSource")}</th>
               <th>{t("queue.cancelReason")}</th>
@@ -943,6 +966,8 @@ function TogetherQueueScreen({ onOpenSession }: { onOpenSession: (sessionId: str
                     <span className="badge badge-warning">{t("queue.oldMissingLocation")}</span>
                   ) : formatQueueGeoMode(item.geoMode, t)}
                 </td>
+                <td>{item.userAgeGroup ?? ""}</td>
+                <td>{formatPreferredAgeRange(item.preferredAgeRange, t)}</td>
                 <td>{formatQueueWaitingReason(item.waitingReason, t)}</td>
                 <td>
                   {suspiciousCancel ? (
@@ -1709,11 +1734,30 @@ function formatQueueWaitingReason(reason: string, t: (key: TranslationKey) => st
       return t("queue.reasonCandidateCancelled");
     case "location_required":
       return t("queue.reasonLocationRequired");
+    case "age_mismatch":
+      return t("queue.reasonAgeMismatch");
+    case "missing_user_age":
+      return t("queue.reasonMissingUserAge");
+    case "missing_age_preference":
+      return t("queue.reasonMissingAgePreference");
     case "unknown":
       return t("queue.reasonUnknown");
     default:
       return reason;
   }
+}
+
+function formatPreferredAgeRange(
+  range: TogetherQueueEntry["preferredAgeRange"],
+  t: (key: TranslationKey) => string,
+): string {
+  if (!range) {
+    return "";
+  }
+  if (range.max === null) {
+    return range.min === 18 ? t("queue.ageAnyAdult") : `${range.min}+`;
+  }
+  return `${range.min}-${range.max}`;
 }
 
 function formatQueueCancelSource(

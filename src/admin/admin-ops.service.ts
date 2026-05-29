@@ -55,6 +55,8 @@ export type AdminTogetherQueueEntryDto = {
     | "no_limit_with_location"
     | "finite_with_location"
     | "missing_location_invalid_old_entry";
+  userAgeGroup: togetherRepo.AdminTogetherQueueEntryRow["userAgeGroup"];
+  preferredAgeRange: togetherRepo.AdminTogetherQueueEntryRow["preferredAgeRange"];
   waitingReason: togetherRepo.AdminTogetherQueueWaitingReason;
   cancelledAt: string | null;
   cancelSource: togetherRepo.AdminTogetherQueueEntryRow["cancelSource"];
@@ -246,6 +248,8 @@ export async function listTogetherQueueForAdmin(
         radiusKm: query.radiusKm ?? null,
         geoMode: query.geoMode ?? null,
         hasCoordinates: query.hasCoordinates ?? null,
+        ageGroup: query.ageGroup ?? null,
+        waitingReason: query.waitingReason ?? null,
       },
       resultCount: entries.length,
     },
@@ -289,6 +293,8 @@ export async function actionTogetherQueueEntryForAdmin(
       hasCoordinates: entry.hasCoordinates,
       geoMode: entry.geoMode,
       waitingReason: entry.waitingReason,
+      userAgeGroup: entry.userAgeGroup,
+      preferredAgeRange: entry.preferredAgeRange,
       cancelSource: entry.cancelSource,
       cancelReason: entry.cancelReason,
       cancelledAt: entry.cancelledAt?.toISOString() ?? null,
@@ -344,6 +350,8 @@ function toAdminTogetherQueueEntryDto(
     radiusKm: entry.radiusKm,
     hasCoordinates: entry.hasCoordinates,
     geoMode: entry.geoMode,
+    userAgeGroup: entry.userAgeGroup,
+    preferredAgeRange: entry.preferredAgeRange,
     waitingReason: entry.waitingReason,
     cancelledAt: entry.cancelledAt?.toISOString() ?? null,
     cancelSource: entry.cancelSource,

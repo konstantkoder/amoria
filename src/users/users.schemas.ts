@@ -1,7 +1,10 @@
 import {
   ABOUT_MAX_LENGTH,
+  AGE_GROUPS,
   DISPLAY_NAME_MAX_LENGTH,
   DISPLAY_NAME_MIN_LENGTH,
+  MAX_PROFILE_AGE,
+  MIN_ADULT_AGE,
   MAX_LOCKED_PROFILE_PHOTOS,
   MAX_PROFILE_GALLERY_PHOTOS,
   PROFILE_GOALS,
@@ -125,6 +128,13 @@ const nullableMoodSchema = {
   ],
 } as const;
 
+const nullableAgeGroupSchema = {
+  anyOf: [
+    { type: "string", enum: AGE_GROUPS },
+    { type: "null" },
+  ],
+} as const;
+
 export const selfUserProfileSchema = {
   type: "object",
   required: [
@@ -141,6 +151,11 @@ export const selfUserProfileSchema = {
     "flirtEnabled",
     "allowAdultMode",
     "mysteryMode",
+    "birthDate",
+    "age",
+    "ageGroup",
+    "preferredAgeMin",
+    "preferredAgeMax",
     "createdAt",
     "updatedAt",
   ],
@@ -159,6 +174,11 @@ export const selfUserProfileSchema = {
     flirtEnabled: { type: "boolean" },
     allowAdultMode: { type: "boolean" },
     mysteryMode: { type: "boolean" },
+    birthDate: { type: ["string", "null"], format: "date" },
+    age: { type: ["integer", "null"], minimum: MIN_ADULT_AGE, maximum: MAX_PROFILE_AGE },
+    ageGroup: nullableAgeGroupSchema,
+    preferredAgeMin: { type: "integer", minimum: MIN_ADULT_AGE, maximum: MAX_PROFILE_AGE },
+    preferredAgeMax: { type: ["integer", "null"], minimum: MIN_ADULT_AGE, maximum: MAX_PROFILE_AGE },
     createdAt: { type: "string", format: "date-time" },
     updatedAt: { type: "string", format: "date-time" },
   },
@@ -173,6 +193,7 @@ export const publicUserProfileSchema = {
     "about",
     "avatarUrl",
     "photos",
+    "ageGroup",
     "lockedGallery",
   ],
   additionalProperties: false,
@@ -183,6 +204,7 @@ export const publicUserProfileSchema = {
     about: { type: ["string", "null"] },
     avatarUrl: { type: ["string", "null"] },
     photos: publicGalleryPhotosSchema,
+    ageGroup: nullableAgeGroupSchema,
     lockedGallery: lockedGallerySummarySchema,
   },
 } as const;
@@ -257,6 +279,23 @@ export const updateProfileRouteSchema = {
       flirtEnabled: { type: "boolean" },
       allowAdultMode: { type: "boolean" },
       mysteryMode: { type: "boolean" },
+      birthDate: {
+        anyOf: [
+          { type: "string", format: "date" },
+          { type: "null" },
+        ],
+      },
+      preferredAgeMin: {
+        type: "integer",
+        minimum: MIN_ADULT_AGE,
+        maximum: MAX_PROFILE_AGE,
+      },
+      preferredAgeMax: {
+        anyOf: [
+          { type: "integer", minimum: MIN_ADULT_AGE, maximum: MAX_PROFILE_AGE },
+          { type: "null" },
+        ],
+      },
     },
   },
   response: {

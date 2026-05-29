@@ -1,6 +1,6 @@
 # Amoria Release Control Center
 
-Updated: 2026-05-28
+Updated: 2026-05-29
 
 ## Release Rules
 
@@ -26,6 +26,17 @@ Updated: 2026-05-28
 - PlayMatch must not cancel queue from cleanup, remount, focus/blur, route changes, or temporary backgrounding.
 - Queue cancellation must carry `cancelSource`; Admin Queue distinguishes `waitingReason` from true cancellation source.
 - Device/emulator GPS failures must explain that coordinates are unavailable and must not start queue.
+
+## Together Age Contract
+
+- User profile stores private `birthDate`.
+- Backend validates 18+ before Together queue join; missing DOB, minors, future DOB, and unreasonable age are rejected.
+- Exact `birthDate` is never public, never shown in Admin Queue, and redacted from client error metadata.
+- Backend computes safe `age` for self profile and safe `ageGroup` for public/admin surfaces.
+- Together sends a real backend `preferredAgeRange`; default is any adult `18+`.
+- Matching requires mutual age compatibility, 18+ users, and existing activity/geo rules.
+- Admin Queue exposes only `userAgeGroup`, `preferredAgeRange`, and age waiting reasons such as `age_mismatch`.
+- Old Flirt/18+ `allowAdultMode` toggle is not used for Together matching.
 
 ## Together Draw Tools
 
@@ -68,7 +79,7 @@ Owner/ops/moderator/support roles should use Admin Web for release diagnostics:
 - Ops Health
 - Bootstrap
 
-Together Queue is the smoke-test control surface for waiting/matched/expired/cancelled queue rows, `radiusKm`, `hasCoordinates`, `geoMode`, `waitingReason`, `cancelSource`, `cancelReason`, `cancelledAt`, `lastAction`, waiting age, stale state, and audited waiting-row cancellation.
+Together Queue is the smoke-test control surface for waiting/matched/expired/cancelled queue rows, `radiusKm`, `hasCoordinates`, `geoMode`, `userAgeGroup`, `preferredAgeRange`, `waitingReason`, `cancelSource`, `cancelReason`, `cancelledAt`, `lastAction`, waiting age, stale state, and audited waiting-row cancellation.
 
 Together Sessions is the smoke-test control surface for created, active, finished, abandoned, cancelled, and recently ended sessions, including zero-event sessions, stale heartbeat, participant counts, event counts, story choice counts, reveal summaries, and exit state.
 
@@ -78,16 +89,19 @@ Automated checks cannot replace the real two-client pass:
 
 1. Both test users grant location.
 2. Both start with `25 km`.
-3. Start one user first, wait 10-30 seconds, then start the second user.
-4. Repeat with `5`, `100`, `250`, and no-limit.
-5. Inspect Admin Queue before match.
-6. Inspect Admin Sessions after match, exit, freeze, or abandon.
-7. Confirm Admin Media thumbnails and `Открыть фото` render real images.
-8. Confirm peer avatar/photos render or emit safe media diagnostics.
-9. Confirm no exact coordinates appear in mobile UI, Admin Web, client errors, DM, history, or public profile.
-10. Confirm Client Errors include enough app/build/release metadata to identify the running build.
-11. In draw, smoke brush, eraser, hidden tools, no visible Move/Reset drawer controls, pinch pan/zoom, fullscreen on/off, finish, and history/detail replay.
-12. In gallery/avatar, smoke delete below 3 visible public photos, broken photo cleanup, avatar crop/preview/upload/restart persistence, profile photo crop/preview/upload, peer avatar/photo visibility, crop cancel/choose-another, invalid crop rejection, and Admin `Проверить URL` HTTP 200 `image/webp`.
+3. Both users must have private birth date set and use compatible age filters, starting with `Любой 18+`.
+4. Start one user first, wait 10-30 seconds, then start the second user.
+5. Repeat with `5`, `100`, `250`, and no-limit.
+6. Inspect Admin Queue before match.
+7. Inspect Admin Sessions after match, exit, freeze, or abandon.
+8. Confirm Admin Media thumbnails and `Открыть фото` render real images.
+9. Confirm peer avatar/photos render or emit safe media diagnostics.
+10. Confirm no exact coordinates appear in mobile UI, Admin Web, client errors, DM, history, or public profile.
+11. Confirm no exact birth date appears in public profile, Admin Queue, client errors, DM, history, or peer UI.
+12. Confirm Client Errors include enough app/build/release metadata to identify the running build.
+13. In draw, smoke brush, eraser, hidden tools, no visible Move/Reset drawer controls, pinch pan/zoom, fullscreen on/off, finish, and history/detail replay.
+14. In gallery/avatar, smoke delete below 3 visible public photos, broken photo cleanup, avatar crop/preview/upload/restart persistence, profile photo crop/preview/upload, peer avatar/photo visibility, crop cancel/choose-another, invalid crop rejection, and Admin `Проверить URL` HTTP 200 `image/webp`.
+15. In Together age filtering, smoke missing DOB block, `Любой 18+`, one compatible age group, one incompatible age group, and Admin `age_mismatch`.
 
 ## Build Verification
 
@@ -95,9 +109,9 @@ Automated checks cannot replace the real two-client pass:
 - Set `EXPO_PUBLIC_RELEASE_VERSION` for the smoke build when an exact Git SHA is not injected automatically.
 - Native `app.json` changes, including Android `usesCleartextTraffic`, require a rebuilt/reinstalled dev/native build, not only JS reload.
 
-## Future Age Filter
+## Future Nearby Age Reuse
 
-Together age filter is planned after Together start reliability is stable. `FlirtSettingsScreen` is not the Together age filter. Future block: `TOGETHER-AGE-FILTER-01`.
+Nearby future redesign should reuse `birthDate`/`ageGroup`, `preferredAgeRange`, and later shared interests/tags/goals. Do not create separate age logic for Nearby. Announcements are not part of the future age architecture.
 
 ## Public Beta Blockers
 

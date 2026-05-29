@@ -186,6 +186,8 @@ test("GET /admin/together/queue returns safe queue observability and writes audi
     radiusKm: null,
     hasCoordinates: false,
     geoMode: "missing_location_invalid_old_entry",
+    userAgeGroup: "25-34",
+    preferredAgeRange: { min: 18, max: null },
     waitingReason: "missing_coordinates_old_entry",
     cancelledAt: null,
     cancelSource: null,
@@ -201,6 +203,8 @@ test("GET /admin/together/queue returns safe queue observability and writes audi
   assert.equal(body.nextCursor, null);
   assert.equal(bodyText.includes("latitude"), false);
   assert.equal(bodyText.includes("longitude"), false);
+  assert.equal(bodyText.includes("birthDate"), false);
+  assert.equal(bodyText.includes("birth_date"), false);
   assert.equal(state.auditInputs[0]?.action, "admin.togetherQueue.read");
   assert.deepEqual(state.auditInputs[0]?.metadata, {
     filters: {
@@ -209,6 +213,8 @@ test("GET /admin/together/queue returns safe queue observability and writes audi
       radiusKm: null,
       geoMode: null,
       hasCoordinates: null,
+      ageGroup: null,
+      waitingReason: null,
     },
     resultCount: 1,
   });
@@ -292,6 +298,8 @@ test("POST /admin/together/queue/:entryId/actions cancels waiting entry and audi
   assert.equal(body.entry.status, "cancelled");
   assert.equal(bodyText.includes("latitude"), false);
   assert.equal(bodyText.includes("longitude"), false);
+  assert.equal(bodyText.includes("birthDate"), false);
+  assert.equal(bodyText.includes("birth_date"), false);
   assert.equal(state.auditInputs[0]?.action, "admin.togetherQueue.cancel");
   assert.equal(state.auditInputs[0]?.targetType, "together_queue");
   assert.equal(state.auditInputs[0]?.targetId, "00000000-0000-4000-8000-000000000401");
@@ -301,6 +309,8 @@ test("POST /admin/together/queue/:entryId/actions cancels waiting entry and audi
     radiusKm: null,
     hasCoordinates: false,
     geoMode: "missing_location_invalid_old_entry",
+    userAgeGroup: "25-34",
+    preferredAgeRange: { min: 18, max: null },
     waitingReason: "candidate_cancelled",
     cancelSource: "admin_cancel",
     cancelReason: "Smoke test stale waiting entry",
@@ -737,6 +747,8 @@ function mockOpsHealth() {
           radiusKm: null,
           hasCoordinates: false,
           geoMode: "missing_location_invalid_old_entry",
+          userAgeGroup: "25-34",
+          preferredAgeRange: { min: 18, max: null },
           waitingReason: "missing_coordinates_old_entry",
           cancelledAt: null,
           cancelSource: null,
@@ -760,6 +772,8 @@ function mockOpsHealth() {
         radiusKm: null,
         hasCoordinates: false,
           geoMode: "missing_location_invalid_old_entry",
+          userAgeGroup: "25-34",
+          preferredAgeRange: { min: 18, max: null },
           waitingReason: "candidate_cancelled",
           cancelledAt: new Date("2026-01-01T00:00:43.000Z"),
           cancelSource: "admin_cancel",
@@ -930,6 +944,9 @@ function userRow(input: Partial<UserRow>): UserRow {
     flirtEnabled: false,
     allowAdultMode: false,
     mysteryMode: false,
+    birthDate: "1995-01-01",
+    preferredAgeMin: 18,
+    preferredAgeMax: null,
     createdAt: now,
     updatedAt: now,
     ...input,

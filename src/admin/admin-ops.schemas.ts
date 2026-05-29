@@ -1,6 +1,11 @@
 import type { FastifySchema } from "fastify";
 import { z } from "zod";
 import { validationError } from "../common/errors";
+import {
+  AGE_GROUPS,
+  MAX_PROFILE_AGE,
+  MIN_ADULT_AGE,
+} from "../config/constants";
 
 const adminTogetherQueueActionBodySchema = z
   .object({
@@ -24,6 +29,9 @@ const adminTogetherQueueWaitingReasonValues = [
   "candidate_expired",
   "candidate_cancelled",
   "location_required",
+  "age_mismatch",
+  "missing_user_age",
+  "missing_age_preference",
   "unknown",
 ] as const;
 
@@ -56,6 +64,8 @@ const adminTogetherQueueQuerySchema = z
       .enum(["true", "false"])
       .transform((value) => value === "true")
       .optional(),
+    ageGroup: z.enum(AGE_GROUPS).optional(),
+    waitingReason: z.enum(adminTogetherQueueWaitingReasonValues).optional(),
     limit: z.coerce.number().int().positive().max(200).default(100),
   })
   .strict();
@@ -76,6 +86,8 @@ export type AdminTogetherQueueQuery = {
   radiusKm?: number | null;
   geoMode?: z.infer<typeof adminTogetherQueueGeoModeSchema>;
   hasCoordinates?: boolean;
+  ageGroup?: (typeof AGE_GROUPS)[number];
+  waitingReason?: (typeof adminTogetherQueueWaitingReasonValues)[number];
   limit: number;
 };
 export type AdminTogetherSessionsQuery = z.infer<typeof adminTogetherSessionsQuerySchema>;
@@ -108,6 +120,8 @@ export function parseAdminTogetherQueueQuery(input: unknown): AdminTogetherQueue
             : undefined,
       geoMode: result.data.geoMode,
       hasCoordinates: result.data.hasCoordinates,
+      ageGroup: result.data.ageGroup,
+      waitingReason: result.data.waitingReason,
       limit: result.data.limit,
     };
   }
@@ -207,6 +221,8 @@ const adminTogetherQueueEntrySchema = {
     "radiusKm",
     "hasCoordinates",
     "geoMode",
+    "userAgeGroup",
+    "preferredAgeRange",
     "waitingReason",
     "cancelledAt",
     "cancelSource",
@@ -235,6 +251,31 @@ const adminTogetherQueueEntrySchema = {
         "no_limit_with_location",
         "finite_with_location",
         "missing_location_invalid_old_entry",
+      ],
+    },
+    userAgeGroup: {
+      anyOf: [
+        { type: "string", enum: AGE_GROUPS },
+        { type: "null" },
+      ],
+    },
+    preferredAgeRange: {
+      anyOf: [
+        {
+          type: "object",
+          required: ["min", "max"],
+          additionalProperties: false,
+          properties: {
+            min: { type: "integer", minimum: MIN_ADULT_AGE, maximum: MAX_PROFILE_AGE },
+            max: {
+              anyOf: [
+                { type: "integer", minimum: MIN_ADULT_AGE, maximum: MAX_PROFILE_AGE },
+                { type: "null" },
+              ],
+            },
+          },
+        },
+        { type: "null" },
       ],
     },
     waitingReason: {
@@ -279,6 +320,8 @@ export const adminTogetherQueueRouteSchema = {
         ],
       },
       hasCoordinates: { type: "string", enum: ["true", "false"] },
+      ageGroup: { type: "string", enum: AGE_GROUPS },
+      waitingReason: { type: "string", enum: adminTogetherQueueWaitingReasonValues },
       limit: { type: "integer", minimum: 1, maximum: 200, default: 100 },
     },
   },

@@ -5,6 +5,7 @@ import {
   desc,
   eq,
   gt,
+  gte,
   inArray,
   isNotNull,
   isNull,
@@ -30,6 +31,13 @@ import {
   togetherSessions,
   users,
 } from "../db/schema";
+import {
+  DEFAULT_PREFERRED_AGE_RANGE,
+  getAgeGroup,
+  isAgeInsidePreferredRange,
+  type AgeGroup,
+  type PreferredAgeRange,
+} from "../users/age";
 import type { TogetherParticipantDto, TogetherQueueCancelSource } from "./together.types";
 
 type DbTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -44,6 +52,9 @@ export type EnqueueInput = {
   longitude?: number | null;
   radiusKm?: number | null;
   locationUpdatedAt?: Date | null;
+  userAge: number;
+  preferredAgeMin: number;
+  preferredAgeMax: number | null;
 };
 
 export type EventInsertResult = {
@@ -66,6 +77,8 @@ export type AdminTogetherQueueEntryRow = {
   radiusKm: number | null;
   hasCoordinates: boolean;
   geoMode: AdminTogetherQueueGeoMode;
+  userAgeGroup: AgeGroup | null;
+  preferredAgeRange: PreferredAgeRange | null;
   waitingReason: AdminTogetherQueueWaitingReason;
   cancelledAt: Date | null;
   cancelSource: TogetherQueueCancelSource | null;
@@ -98,6 +111,9 @@ export type AdminTogetherQueueWaitingReason =
   | "candidate_expired"
   | "candidate_cancelled"
   | "location_required"
+  | "age_mismatch"
+  | "missing_user_age"
+  | "missing_age_preference"
   | "unknown";
 
 export type AdminTogetherQueueQuery = {
@@ -106,6 +122,8 @@ export type AdminTogetherQueueQuery = {
   radiusKm?: number | null;
   geoMode?: AdminTogetherQueueGeoMode;
   hasCoordinates?: boolean;
+  ageGroup?: AgeGroup;
+  waitingReason?: AdminTogetherQueueWaitingReason;
   limit?: number;
 };
 
@@ -156,6 +174,38 @@ export type CreateStoryContinuationInput = {
   promptText: string;
 };
 
+export async function findUserAgeProfile(userId: string): Promise<{
+  birthDate: string | null;
+  preferredAgeMin: number;
+  preferredAgeMax: number | null;
+} | undefined> {
+  const [row] = await db
+    .select({
+      birthDate: users.birthDate,
+      preferredAgeMin: users.preferredAgeMin,
+      preferredAgeMax: users.preferredAgeMax,
+    })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+
+  return row;
+}
+
+export async function updateUserAgePreference(
+  userId: string,
+  preferredAgeRange: PreferredAgeRange,
+): Promise<void> {
+  await db
+    .update(users)
+    .set({
+      preferredAgeMin: preferredAgeRange.min,
+      preferredAgeMax: preferredAgeRange.max,
+      updatedAt: new Date(),
+    })
+    .where(eq(users.id, userId));
+}
+
 export async function enqueueAndMatch(input: EnqueueInput): Promise<TogetherQueueRow> {
   const now = new Date();
 
@@ -196,7 +246,7 @@ export async function enqueueAndMatch(input: EnqueueInput): Promise<TogetherQueu
         .orderBy(asc(togetherQueue.createdAt))
         .limit(50)
         .for("update", { skipLocked: true });
-      const peer = peers.find((candidate) => areQueueEntriesGeoCompatible(activeExisting, candidate));
+      const peer = peers.find((candidate) => areQueueEntriesCompatible(activeExisting, candidate));
 
       if (!peer) {
         return activeExisting;
@@ -229,7 +279,7 @@ export async function enqueueAndMatch(input: EnqueueInput): Promise<TogetherQueu
       .orderBy(asc(togetherQueue.createdAt))
       .limit(50)
       .for("update", { skipLocked: true });
-    const peer = peers.find((candidate) => areQueueEntriesGeoCompatible(input, candidate));
+    const peer = peers.find((candidate) => areQueueEntriesCompatible(input, candidate));
 
     const [entry] = await tx
       .insert(togetherQueue)
@@ -241,6 +291,9 @@ export async function enqueueAndMatch(input: EnqueueInput): Promise<TogetherQueu
         longitude: input.longitude ?? null,
         radiusKm: input.radiusKm ?? null,
         locationUpdatedAt: input.locationUpdatedAt ?? null,
+        userAge: input.userAge,
+        preferredAgeMin: input.preferredAgeMin,
+        preferredAgeMax: input.preferredAgeMax,
         lastAction: "queued",
         lastActionAt: now,
       })
@@ -795,6 +848,9 @@ export async function listQueueEntriesForAdmin(
   if (query.geoMode) {
     conditions.push(geoModeCondition(query.geoMode));
   }
+  if (query.ageGroup) {
+    conditions.push(ageGroupCondition(query.ageGroup));
+  }
 
   let selectQuery = db
     .select({
@@ -807,6 +863,9 @@ export async function listQueueEntriesForAdmin(
       radiusKm: togetherQueue.radiusKm,
       latitude: togetherQueue.latitude,
       longitude: togetherQueue.longitude,
+      userAge: togetherQueue.userAge,
+      preferredAgeMin: togetherQueue.preferredAgeMin,
+      preferredAgeMax: togetherQueue.preferredAgeMax,
       cancelledAt: togetherQueue.cancelledAt,
       cancelSource: togetherQueue.cancelSource,
       cancelReason: togetherQueue.cancelReason,
@@ -828,7 +887,11 @@ export async function listQueueEntriesForAdmin(
 
   const diagnostics = await listQueueDiagnosticsForAdmin(now);
 
-  return rows.map((row) => toAdminTogetherQueueEntry(row, now, diagnostics));
+  const entries = rows.map((row) => toAdminTogetherQueueEntry(row, now, diagnostics));
+  if (query.waitingReason) {
+    return entries.filter((entry) => entry.waitingReason === query.waitingReason);
+  }
+  return entries;
 }
 
 export async function cancelQueueEntryForAdmin(
@@ -851,6 +914,9 @@ export async function cancelQueueEntryForAdmin(
         radiusKm: togetherQueue.radiusKm,
         latitude: togetherQueue.latitude,
         longitude: togetherQueue.longitude,
+        userAge: togetherQueue.userAge,
+        preferredAgeMin: togetherQueue.preferredAgeMin,
+        preferredAgeMax: togetherQueue.preferredAgeMax,
         cancelledAt: togetherQueue.cancelledAt,
         cancelSource: togetherQueue.cancelSource,
         cancelReason: togetherQueue.cancelReason,
@@ -890,6 +956,9 @@ export async function cancelQueueEntryForAdmin(
         radiusKm: togetherQueue.radiusKm,
         latitude: togetherQueue.latitude,
         longitude: togetherQueue.longitude,
+        userAge: togetherQueue.userAge,
+        preferredAgeMin: togetherQueue.preferredAgeMin,
+        preferredAgeMax: togetherQueue.preferredAgeMax,
         cancelledAt: togetherQueue.cancelledAt,
         cancelSource: togetherQueue.cancelSource,
         cancelReason: togetherQueue.cancelReason,
@@ -1091,6 +1160,9 @@ function toAdminTogetherQueueEntry(row: {
   radiusKm: number | null;
   latitude?: number | null;
   longitude?: number | null;
+  userAge?: number | null;
+  preferredAgeMin?: number | null;
+  preferredAgeMax?: number | null;
   cancelledAt?: Date | null;
   cancelSource?: string | null;
   cancelReason?: string | null;
@@ -1111,6 +1183,8 @@ function toAdminTogetherQueueEntry(row: {
     radiusKm: row.radiusKm,
     hasCoordinates: hasCoordinates(row),
     geoMode: getAdminQueueGeoMode(row),
+    userAgeGroup: getAgeGroup(row.userAge),
+    preferredAgeRange: getAdminPreferredAgeRange(row),
     waitingReason: getAdminQueueWaitingReason(row, diagnostics, now),
     cancelledAt: row.cancelledAt ?? null,
     cancelSource: normalizeCancelSource(row.cancelSource),
@@ -1133,6 +1207,9 @@ type QueueDiagnosticRow = {
   radiusKm: number | null;
   latitude?: number | null;
   longitude?: number | null;
+  userAge?: number | null;
+  preferredAgeMin?: number | null;
+  preferredAgeMax?: number | null;
   cancelledAt?: Date | null;
   cancelSource?: string | null;
   cancelReason?: string | null;
@@ -1155,6 +1232,9 @@ async function listQueueDiagnosticsForAdmin(now: Date): Promise<QueueDiagnosticR
       radiusKm: togetherQueue.radiusKm,
       latitude: togetherQueue.latitude,
       longitude: togetherQueue.longitude,
+      userAge: togetherQueue.userAge,
+      preferredAgeMin: togetherQueue.preferredAgeMin,
+      preferredAgeMax: togetherQueue.preferredAgeMax,
       cancelledAt: togetherQueue.cancelledAt,
       cancelSource: togetherQueue.cancelSource,
       cancelReason: togetherQueue.cancelReason,
@@ -1205,6 +1285,12 @@ type QueueGeoInput = {
   latitude?: number | null;
   longitude?: number | null;
   radiusKm?: number | null;
+};
+
+type QueueAgeInput = {
+  userAge?: number | null;
+  preferredAgeMin?: number | null;
+  preferredAgeMax?: number | null;
 };
 
 function queueCancelledUpdate(now: Date, input: QueueCancelInput) {
@@ -1270,12 +1356,38 @@ function areQueueEntriesGeoCompatible(
   return true;
 }
 
+function areQueueEntriesCompatible(
+  current: QueueGeoInput & QueueAgeInput,
+  candidate: QueueGeoInput & QueueAgeInput,
+): boolean {
+  return areQueueEntriesGeoCompatible(current, candidate) &&
+    areQueueEntriesAgeCompatible(current, candidate);
+}
+
+function areQueueEntriesAgeCompatible(
+  current: QueueAgeInput,
+  candidate: QueueAgeInput,
+): boolean {
+  const currentRange = getQueuePreferredAgeRange(current);
+  const candidateRange = getQueuePreferredAgeRange(candidate);
+  if (!currentRange || !candidateRange) {
+    return false;
+  }
+
+  return (
+    isAgeInsidePreferredRange(candidate.userAge, currentRange) &&
+    isAgeInsidePreferredRange(current.userAge, candidateRange)
+  );
+}
+
 function isSameQueueSearch(current: EnqueueInput, existing: TogetherQueueRow): boolean {
   return (
     existing.activity === current.activity &&
     sameNullableNumber(existing.radiusKm, current.radiusKm ?? null) &&
     sameNullableNumber(existing.latitude, current.latitude ?? null) &&
-    sameNullableNumber(existing.longitude, current.longitude ?? null)
+    sameNullableNumber(existing.longitude, current.longitude ?? null) &&
+    sameNullableNumber(existing.preferredAgeMin, current.preferredAgeMin) &&
+    sameNullableNumber(existing.preferredAgeMax, current.preferredAgeMax)
   );
 }
 
@@ -1296,6 +1408,38 @@ function hasCoordinates(
     typeof value.longitude === "number" &&
     Number.isFinite(value.longitude)
   );
+}
+
+function hasAdultUserAge(value: QueueAgeInput): value is QueueAgeInput & { userAge: number } {
+  return (
+    typeof value.userAge === "number" &&
+    Number.isInteger(value.userAge) &&
+    value.userAge >= DEFAULT_PREFERRED_AGE_RANGE.min
+  );
+}
+
+function getQueuePreferredAgeRange(value: QueueAgeInput): PreferredAgeRange | null {
+  if (
+    typeof value.preferredAgeMin !== "number" ||
+    !Number.isInteger(value.preferredAgeMin) ||
+    value.preferredAgeMin < DEFAULT_PREFERRED_AGE_RANGE.min
+  ) {
+    return null;
+  }
+
+  const max = value.preferredAgeMax ?? null;
+  if (max !== null && (!Number.isInteger(max) || max < value.preferredAgeMin)) {
+    return null;
+  }
+
+  return {
+    min: value.preferredAgeMin,
+    max,
+  };
+}
+
+function getAdminPreferredAgeRange(value: QueueAgeInput): PreferredAgeRange | null {
+  return getQueuePreferredAgeRange(value);
 }
 
 function normalizeCancelSource(value?: string | null): TogetherQueueCancelSource | null {
@@ -1344,6 +1488,12 @@ function getAdminQueueWaitingReason(
   if (!hasCoordinates(row)) {
     return "missing_coordinates_old_entry";
   }
+  if (!hasAdultUserAge(row)) {
+    return "missing_user_age";
+  }
+  if (!getQueuePreferredAgeRange(row)) {
+    return "missing_age_preference";
+  }
 
   const candidates = diagnostics.filter((candidate) => candidate.entryId !== row.entryId);
   if (candidates.length === 0) {
@@ -1366,8 +1516,24 @@ function getAdminQueueWaitingReason(
     return "missing_coordinates_old_entry";
   }
 
-  if (sameActivityCandidates.some((candidate) => areQueueEntriesGeoCompatible(row, candidate))) {
+  if (sameActivityCandidates.some((candidate) => !hasAdultUserAge(candidate))) {
+    return "missing_user_age";
+  }
+
+  if (sameActivityCandidates.some((candidate) => !getQueuePreferredAgeRange(candidate))) {
+    return "missing_age_preference";
+  }
+
+  const geoCompatibleCandidates = sameActivityCandidates.filter((candidate) =>
+    areQueueEntriesGeoCompatible(row, candidate),
+  );
+
+  if (geoCompatibleCandidates.some((candidate) => areQueueEntriesAgeCompatible(row, candidate))) {
     return "unknown";
+  }
+
+  if (geoCompatibleCandidates.length > 0) {
+    return "age_mismatch";
   }
 
   if (sameActivityCandidates.length > 0) {
@@ -1414,6 +1580,21 @@ function geoModeCondition(geoMode: AdminTogetherQueueGeoMode): SQL {
   )!;
 }
 
+function ageGroupCondition(ageGroup: AgeGroup): SQL {
+  switch (ageGroup) {
+    case "18-24":
+      return and(gte(togetherQueue.userAge, 18), lte(togetherQueue.userAge, 24))!;
+    case "25-34":
+      return and(gte(togetherQueue.userAge, 25), lte(togetherQueue.userAge, 34))!;
+    case "35-44":
+      return and(gte(togetherQueue.userAge, 35), lte(togetherQueue.userAge, 44))!;
+    case "45-54":
+      return and(gte(togetherQueue.userAge, 45), lte(togetherQueue.userAge, 54))!;
+    case "55+":
+      return gte(togetherQueue.userAge, 55);
+  }
+}
+
 function distanceKmBetween(
   latitudeA: number,
   longitudeA: number,
@@ -1443,6 +1624,7 @@ export const __geoForTests = {
 };
 
 export const __queueForTests = {
+  areQueueEntriesAgeCompatible,
   getAdminQueueWaitingReason,
   isSameQueueSearch,
   replacementCancelSource,

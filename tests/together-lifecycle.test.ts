@@ -21,6 +21,7 @@ const togetherService = require(
 const togetherRepo = require(
   "../src/together/together.repo",
 ) as typeof import("../src/together/together.repo");
+const ageHelpers = require("../src/users/age") as typeof import("../src/users/age");
 const { buildApp } = require("../src/app") as typeof import("../src/app");
 const { signAccessToken } = require("../src/auth/jwt") as typeof import("../src/auth/jwt");
 const { closeDb } = require("../src/db/client") as typeof import("../src/db/client");
@@ -38,6 +39,11 @@ const warsawLocation = {
   latitude: 52.2297,
   longitude: 21.0122,
   radiusKm: 25,
+} as const;
+const defaultQueueAge = {
+  userAge: 31,
+  preferredAgeMin: 18,
+  preferredAgeMax: null,
 } as const;
 
 let restoreDeps: (() => void) | null = null;
@@ -371,6 +377,142 @@ test("queue accepts valid Together location and radius", async (t) => {
   assert.equal(bodyText.includes("longitude"), false);
 });
 
+test("queue rejects users without birthDate before Together matching", async (t) => {
+  t.after(restoreRepoMock);
+  const app = buildApp();
+  t.after(async () => {
+    await app.close();
+  });
+
+  let enqueueCalled = false;
+  mockRepo({
+    findUserAgeProfile: async () => ({
+      birthDate: null,
+      preferredAgeMin: 18,
+      preferredAgeMax: null,
+    }),
+    enqueueAndMatch: async () => {
+      enqueueCalled = true;
+      return queueRow();
+    },
+  });
+
+  const response = await app.inject({
+    method: "POST",
+    url: "/together/queue",
+    headers: {
+      Authorization: `Bearer ${signAccessToken(userAId)}`,
+    },
+    payload: {
+      activity: "draw",
+      location: warsawLocation,
+    },
+  });
+
+  assert.equal(response.statusCode, 400);
+  assert.equal(enqueueCalled, false);
+  assert.equal(response.json().error.details.birthDate, "required");
+  assert.equal(response.body.includes("1995-01-01"), false);
+});
+
+test("queue rejects underage users before Together matching", async (t) => {
+  t.after(restoreRepoMock);
+  const app = buildApp();
+  t.after(async () => {
+    await app.close();
+  });
+
+  let enqueueCalled = false;
+  mockRepo({
+    findUserAgeProfile: async () => ({
+      birthDate: "2012-01-01",
+      preferredAgeMin: 18,
+      preferredAgeMax: null,
+    }),
+    enqueueAndMatch: async () => {
+      enqueueCalled = true;
+      return queueRow();
+    },
+  });
+
+  const response = await app.inject({
+    method: "POST",
+    url: "/together/queue",
+    headers: {
+      Authorization: `Bearer ${signAccessToken(userAId)}`,
+    },
+    payload: {
+      activity: "draw",
+      location: warsawLocation,
+    },
+  });
+
+  assert.equal(response.statusCode, 400);
+  assert.equal(enqueueCalled, false);
+  assert.equal(response.json().error.details.age, "underage");
+  assert.equal(response.body.includes("2012-01-01"), false);
+});
+
+test("queue stores Together preferred age range with adult age snapshot", async (t) => {
+  t.after(restoreRepoMock);
+  const app = buildApp();
+  t.after(async () => {
+    await app.close();
+  });
+
+  let enqueuedAge:
+    | { userAge?: number; preferredAgeMin?: number; preferredAgeMax?: number | null }
+    | undefined;
+  let storedPreference:
+    | { min: number; max: number | null }
+    | undefined;
+  mockRepo({
+    updateUserAgePreference: async (_userId: string, range: { min: number; max: number | null }) => {
+      storedPreference = range;
+    },
+    enqueueAndMatch: async (input: {
+      userAge: number;
+      preferredAgeMin: number;
+      preferredAgeMax: number | null;
+    }) => {
+      enqueuedAge = {
+        userAge: input.userAge,
+        preferredAgeMin: input.preferredAgeMin,
+        preferredAgeMax: input.preferredAgeMax,
+      };
+      return queueRow({
+        userAge: input.userAge,
+        preferredAgeMin: input.preferredAgeMin,
+        preferredAgeMax: input.preferredAgeMax,
+      });
+    },
+  });
+
+  const response = await app.inject({
+    method: "POST",
+    url: "/together/queue",
+    headers: {
+      Authorization: `Bearer ${signAccessToken(userAId)}`,
+    },
+    payload: {
+      activity: "draw",
+      location: warsawLocation,
+      preferredAgeRange: {
+        min: 25,
+        max: 34,
+      },
+    },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(enqueuedAge, {
+    userAge: 31,
+    preferredAgeMin: 25,
+    preferredAgeMax: 34,
+  });
+  assert.deepEqual(storedPreference, { min: 25, max: 34 });
+});
+
 test("queue accepts no-limit matching with required coordinates", async (t) => {
   t.after(restoreRepoMock);
   const app = buildApp();
@@ -589,6 +731,32 @@ test("Together geo matching uses stricter radius and supports no-limit mode with
   assert.equal(areQueueEntriesGeoCompatible(noLocationUnlimited, lodzTight), false);
 });
 
+test("age helper enforces adult boundary and age groups without exposing birthDate", () => {
+  const now = new Date("2026-05-29T12:00:00.000Z");
+
+  assert.equal(ageHelpers.calculateAge("2008-05-29", now), 18);
+  assert.equal(ageHelpers.calculateAge("2008-05-30", now), 17);
+  assert.equal(ageHelpers.getAgeGroup(18), "18-24");
+  assert.equal(ageHelpers.getAgeGroup(34), "25-34");
+  assert.equal(ageHelpers.getAgeGroup(55), "55+");
+});
+
+test("Together age matching requires mutual adult age compatibility", () => {
+  const { areQueueEntriesAgeCompatible } = togetherRepo.__queueForTests;
+  const anyAdult = { userAge: 31, preferredAgeMin: 18, preferredAgeMax: null };
+  const compatible = { userAge: 28, preferredAgeMin: 25, preferredAgeMax: 34 };
+  const tooYoungForCurrent = { userAge: 22, preferredAgeMin: 18, preferredAgeMax: null };
+  const currentNotAllowedByPeer = { userAge: 41, preferredAgeMin: 18, preferredAgeMax: null };
+
+  assert.equal(areQueueEntriesAgeCompatible(anyAdult, compatible), true);
+  assert.equal(areQueueEntriesAgeCompatible(compatible, tooYoungForCurrent), false);
+  assert.equal(areQueueEntriesAgeCompatible(currentNotAllowedByPeer, compatible), false);
+  assert.equal(
+    areQueueEntriesAgeCompatible(anyAdult, { userAge: 17, preferredAgeMin: 18, preferredAgeMax: null }),
+    false,
+  );
+});
+
 test("no-limit queue rejoin keeps equivalent active waiting attempt", () => {
   const { isSameQueueSearch } = togetherRepo.__queueForTests;
   const existing = queueRow({
@@ -609,6 +777,7 @@ test("no-limit queue rejoin keeps equivalent active waiting attempt", () => {
         activity: "draw",
         promptText: "Draw together",
         expiresAt: new Date("2026-01-01T00:05:10.000Z"),
+        ...defaultQueueAge,
         radiusKm: null,
         latitude: 52.2297,
         longitude: 21.0122,
@@ -625,6 +794,7 @@ test("no-limit queue rejoin keeps equivalent active waiting attempt", () => {
         activity: "draw",
         promptText: "Draw together",
         expiresAt: new Date("2026-01-01T00:05:10.000Z"),
+        ...defaultQueueAge,
         radiusKm: 25,
         latitude: 52.2297,
         longitude: 21.0122,
@@ -650,6 +820,7 @@ test("different same-user queue search classifies replacement cancel source", ()
     activity: "draw",
     promptText: "Draw together",
     expiresAt: new Date("2026-01-01T00:05:10.000Z"),
+    ...defaultQueueAge,
     latitude: 52.2297,
     longitude: 21.0122,
   };
@@ -676,6 +847,7 @@ test("admin queue waiting diagnostics explain why a waiting row has not matched"
     radiusKm: null,
     latitude: 45.4929,
     longitude: 15.5553,
+    ...defaultQueueAge,
     createdAt,
     expiresAt: waitingUntil,
     matchedSessionId: null,
@@ -715,6 +887,24 @@ test("admin queue waiting diagnostics explain why a waiting row has not matched"
       now,
     ),
     "radius_distance_too_far",
+  );
+  assert.equal(
+    getAdminQueueWaitingReason(
+      { ...base, preferredAgeMin: 35, preferredAgeMax: 44 },
+      [
+        { ...base, preferredAgeMin: 35, preferredAgeMax: 44 },
+        {
+          ...base,
+          entryId: "00000000-0000-4000-8000-000000000605",
+          userId: userBId,
+          userAge: 24,
+          preferredAgeMin: 18,
+          preferredAgeMax: null,
+        },
+      ],
+      now,
+    ),
+    "age_mismatch",
   );
   assert.equal(
     getAdminQueueWaitingReason({ ...base, latitude: null }, [{ ...base, latitude: null }], now),
@@ -2374,6 +2564,12 @@ function mockRepo(
     listRevealsForSessions: async () => [],
     listHistorySessions: async () => [],
     findStoryChoiceEventForRound: async () => undefined,
+    findUserAgeProfile: async () => ({
+      birthDate: "1995-01-01",
+      preferredAgeMin: 18,
+      preferredAgeMax: null,
+    }),
+    updateUserAgePreference: async () => undefined,
   };
 
   const repo = new Proxy(
@@ -2442,6 +2638,9 @@ function queueRow(overrides: Partial<TogetherQueueRow> = {}): TogetherQueueRow {
     longitude: null,
     radiusKm: null,
     locationUpdatedAt: null,
+    userAge: defaultQueueAge.userAge,
+    preferredAgeMin: defaultQueueAge.preferredAgeMin,
+    preferredAgeMax: defaultQueueAge.preferredAgeMax,
     ...overrides,
   };
 }

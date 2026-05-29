@@ -11,6 +11,8 @@ import {
   TOGETHER_RADIUS_KM_VALUES,
   TOGETHER_REVEAL_DECISIONS,
   TOGETHER_SESSION_STATUSES,
+  MAX_PROFILE_AGE,
+  MIN_ADULT_AGE,
 } from "../config/constants";
 import type { JsonValue } from "../db/schema";
 import type {
@@ -29,6 +31,17 @@ const togetherRadiusKmSchema = z.union([
   z.literal(250),
 ]);
 
+const togetherPreferredAgeRangeSchema = z
+  .object({
+    min: z.number().int().min(MIN_ADULT_AGE).max(MAX_PROFILE_AGE),
+    max: z.number().int().min(MIN_ADULT_AGE).max(MAX_PROFILE_AGE).nullable(),
+  })
+  .strict()
+  .refine((value) => value.max === null || value.max >= value.min, {
+    message: "Preferred age max must be greater than or equal to min",
+    path: ["max"],
+  });
+
 export const togetherQueueBodySchema = z
   .object({
     activity: z.enum(TOGETHER_ACTIVITIES),
@@ -39,6 +52,7 @@ export const togetherQueueBodySchema = z
         radiusKm: z.union([togetherRadiusKmSchema, z.null()]),
       })
       .strict(),
+    preferredAgeRange: togetherPreferredAgeRangeSchema.optional(),
   })
   .strict();
 
@@ -413,6 +427,20 @@ export const postTogetherQueueRouteSchema = {
           radiusKm: {
             anyOf: [
               { type: "integer", enum: TOGETHER_RADIUS_KM_VALUES },
+              { type: "null" },
+            ],
+          },
+        },
+      },
+      preferredAgeRange: {
+        type: "object",
+        required: ["min", "max"],
+        additionalProperties: false,
+        properties: {
+          min: { type: "integer", minimum: MIN_ADULT_AGE, maximum: MAX_PROFILE_AGE },
+          max: {
+            anyOf: [
+              { type: "integer", minimum: MIN_ADULT_AGE, maximum: MAX_PROFILE_AGE },
               { type: "null" },
             ],
           },

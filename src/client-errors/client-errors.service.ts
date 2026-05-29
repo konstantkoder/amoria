@@ -21,7 +21,7 @@ import {
 } from "./client-errors.types";
 
 const blockedMetadataKeyPattern =
-  /password|token|secret|authorization|cookie|jwt|refresh|accessToken|refreshToken|s3|database|connection|privateKey|lockedGalleryPassword|folderPassword|accountPassword|headers?|\.env|uploadUrl$|signedUrl$/i;
+  /password|token|secret|authorization|cookie|jwt|refresh|accessToken|refreshToken|s3|database|connection|privateKey|lockedGalleryPassword|folderPassword|accountPassword|birthDate|birth_date|dateOfBirth|dob|headers?|\.env|uploadUrl$|signedUrl$/i;
 const maxObjectKeys = 50;
 const maxArrayItems = 25;
 const maxStringLength = 600;

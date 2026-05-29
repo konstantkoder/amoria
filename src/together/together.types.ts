@@ -37,9 +37,15 @@ export type TogetherQueueLocationBody = {
   radiusKm: 5 | 25 | 100 | 250 | null;
 };
 
+export type TogetherPreferredAgeRangeBody = {
+  min: number;
+  max: number | null;
+};
+
 export type TogetherQueueBody = {
   activity: TogetherActivity;
   location: TogetherQueueLocationBody;
+  preferredAgeRange?: TogetherPreferredAgeRangeBody;
 };
 
 export type TogetherQueueCancelBody = {
