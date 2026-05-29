@@ -57,6 +57,6 @@ If a queue row cancels before a match, no Together session should exist. If `mat
 
 Peer media diagnostics remain a secondary check in this block. Client Errors should use safe `mediaId`, `urlKind`, `hasAvatarUrl`, and `photoCount` metadata, with no raw media URLs.
 
-## Future Age Filter
+## Historical Age Filter Note
 
-Together age filtering is intentionally not part of this block. `FlirtSettingsScreen` is not the Together age filter. Future block name: `TOGETHER-AGE-FILTER-01`.
+Together age filtering was intentionally not part of this historical block. The later release architecture uses private `birthDate`, safe `ageGroup`, and Together `preferredAgeRange`; the legacy `FlirtSettingsScreen` was removed from active release UI.

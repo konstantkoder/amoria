@@ -171,8 +171,16 @@ export const selfUserProfileSchema = {
     goal: nullableGoalSchema,
     mood: nullableMoodSchema,
     interests: interestsSchema,
-    flirtEnabled: { type: "boolean" },
-    allowAdultMode: { type: "boolean" },
+    flirtEnabled: {
+      type: "boolean",
+      deprecated: true,
+      description: "Legacy standalone Flirt flag. Not age verification and not used for Together matching.",
+    },
+    allowAdultMode: {
+      type: "boolean",
+      deprecated: true,
+      description: "Legacy standalone 18+ flag. Not age verification and not used for Together matching.",
+    },
     mysteryMode: { type: "boolean" },
     birthDate: { type: ["string", "null"], format: "date" },
     age: { type: ["integer", "null"], minimum: MIN_ADULT_AGE, maximum: MAX_PROFILE_AGE },
@@ -276,8 +284,16 @@ export const updateProfileRouteSchema = {
       goal: nullableGoalSchema,
       mood: nullableMoodSchema,
       interests: interestsSchema,
-      flirtEnabled: { type: "boolean" },
-      allowAdultMode: { type: "boolean" },
+      flirtEnabled: {
+        type: "boolean",
+        deprecated: true,
+        description: "Legacy standalone Flirt flag. Release UI must not send this.",
+      },
+      allowAdultMode: {
+        type: "boolean",
+        deprecated: true,
+        description: "Legacy standalone 18+ flag. Release UI must not send this.",
+      },
       mysteryMode: { type: "boolean" },
       birthDate: {
         anyOf: [

@@ -54,7 +54,7 @@ These are matching diagnostics only. They are not cancellation sources.
 - Together blocks start if birth date is missing and routes the user to complete profile.
 - Together shows `Кого искать` with `Любой 18+`, `18-24`, `25-34`, `35-44`, `45-54`, `55+`.
 - PlayMatch shows selected filter as `Возраст: ...`.
-- Old `allowAdultMode` / Flirt 18+ toggle is not used for Together matching.
+- Old `allowAdultMode` / `flirtEnabled` / Flirt 18+ toggle is removed from active release UI and is not used for Together matching.
 
 ## Future Nearby
 

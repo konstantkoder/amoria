@@ -54,7 +54,7 @@ Updated: 2026-05-29
 - A compatible age group, for example `25-34`, matches only if mutual preferences allow it.
 - An incompatible age group keeps the row waiting and Admin Queue shows `age_mismatch`.
 - Public profile and Admin Queue show safe age/ageGroup only; exact birth date must not appear.
-- Old Flirt 18+ toggle is not used for Together matching.
+- Old Flirt 18+ toggle is removed from active release UI and is not used for Together matching.
 
 ## Expected Waiting UX
 

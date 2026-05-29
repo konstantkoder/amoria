@@ -45,7 +45,9 @@ export type SelfUserProfile = {
   goal: ProfileGoal | null;
   mood: ProfileMood | null;
   interests: string[];
+  /** @deprecated Legacy standalone Flirt flag. Not age verification and not used for Together matching. */
   flirtEnabled: boolean;
+  /** @deprecated Legacy standalone 18+ flag. Not age verification and not used for Together matching. */
   allowAdultMode: boolean;
   mysteryMode: boolean;
   birthDate: string | null;
@@ -73,7 +75,9 @@ export type UpdateProfileBody = {
   goal?: ProfileGoal | null;
   mood?: ProfileMood | null;
   interests?: string[];
+  /** @deprecated Legacy standalone Flirt flag. Release UI must not send this. */
   flirtEnabled?: boolean;
+  /** @deprecated Legacy standalone 18+ flag. Release UI must not send this. */
   allowAdultMode?: boolean;
   mysteryMode?: boolean;
   birthDate?: string | null;

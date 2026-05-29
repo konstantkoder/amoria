@@ -36,7 +36,7 @@ Updated: 2026-05-29
 - Together sends a real backend `preferredAgeRange`; default is any adult `18+`.
 - Matching requires mutual age compatibility, 18+ users, and existing activity/geo rules.
 - Admin Queue exposes only `userAgeGroup`, `preferredAgeRange`, and age waiting reasons such as `age_mismatch`.
-- Old Flirt/18+ `allowAdultMode` toggle is not used for Together matching.
+- Old Flirt/18+ `allowAdultMode` / `flirtEnabled` fields are deprecated compatibility fields only. The active mobile release UI no longer exposes the old standalone toggle, and these fields are not used for Together matching.
 
 ## Together Draw Tools
 
