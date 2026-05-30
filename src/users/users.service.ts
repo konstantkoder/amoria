@@ -61,7 +61,15 @@ export type SelfUserProfile = {
 
 export type PublicUserProfile = Pick<
   SelfUserProfile,
-  "id" | "displayName" | "amoriaId" | "about" | "avatarUrl" | "photos"
+  | "id"
+  | "displayName"
+  | "amoriaId"
+  | "about"
+  | "avatarUrl"
+  | "photos"
+  | "goal"
+  | "mood"
+  | "interests"
 > & {
   ageGroup: AgeGroup | null;
   lockedGallery: profileGalleryService.LockedGallerySummary;
@@ -177,6 +185,9 @@ export async function toPublicUserProfile(user: UserRow): Promise<PublicUserProf
     about: user.about,
     avatarUrl: await toCurrentAvatarUrl(user),
     photos: gallery.photos,
+    goal: toProfileGoal(user.goal),
+    mood: toProfileMood(user.mood),
+    interests: user.interests,
     ageGroup: getAgeGroup(age),
     lockedGallery: gallery.lockedGallery,
   };

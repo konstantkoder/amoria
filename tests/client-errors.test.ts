@@ -160,6 +160,47 @@ test("POST /client/error-reports redacts token password and secret metadata keys
   });
 });
 
+test("POST /client/error-reports redacts exact coordinates DOB and raw profile text", async (t) => {
+  t.after(restoreDeps);
+  const state = mockClientErrors();
+  const app = buildApp();
+  t.after(async () => {
+    await app.close();
+  });
+
+  const response = await app.inject({
+    method: "POST",
+    url: "/client/error-reports",
+    payload: {
+      screen: "EditProfileScreen",
+      action: "saveProfile",
+      message: "failed",
+      metadata: {
+        latitude: 45.815,
+        longitude: 15.9819,
+        birthDate: "1995-01-01",
+        about: "raw private profile text",
+        fields: {
+          about: "nested raw bio",
+          errorCode: "too_long",
+        },
+      },
+    },
+  });
+
+  assert.equal(response.statusCode, 201);
+  assert.deepEqual(state.created[0]?.metadata, {
+    latitude: "[redacted]",
+    longitude: "[redacted]",
+    birthDate: "[redacted]",
+    about: "[redacted]",
+    fields: {
+      about: "[redacted]",
+      errorCode: "too_long",
+    },
+  });
+});
+
 test("POST /client/error-reports truncates stack and message", async (t) => {
   t.after(restoreDeps);
   const state = mockClientErrors();

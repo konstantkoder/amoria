@@ -1,6 +1,6 @@
 # Together Smoke Pass
 
-Updated: 2026-05-29
+Updated: 2026-05-30
 
 ## Required Geo Pass
 
@@ -56,6 +56,17 @@ Updated: 2026-05-29
 - Public profile and Admin Queue show safe age/ageGroup only; exact birth date must not appear.
 - Old Flirt 18+ toggle is removed from active release UI and is not used for Together matching.
 
+## Profile Anketa Pass
+
+- Fill `О себе`, `Цель`, `Настроение`, and `Интересы` in Edit Profile.
+- Save must call backend and refresh profile from backend.
+- Restart the app and confirm saved anketa fields persist.
+- Peer profile must show safe `ageGroup`, `about`, `goal`, `mood`, `interests`, avatar, and public photos.
+- Peer profile must not show exact `birthDate`, exact coordinates, private preferences, or locked-gallery content without unlock.
+- Try too many/too long/empty/coordinate-like interests and confirm backend rejects them without storing local-only success.
+- Together lobby should show radius, age filter, and profile interest count.
+- Together must still start without interests and must not require interest overlap.
+
 ## Expected Waiting UX
 
 Search should not fall to no-match/retry after 2-3 seconds. It should show:
@@ -96,7 +107,7 @@ Set `EXPO_PUBLIC_RELEASE_VERSION` for the smoke build when an exact Git SHA is n
 
 ## Future Nearby Reuse
 
-Future Nearby redesign should reuse `birthDate`/`ageGroup` and `preferredAgeRange` from this profile/search model. Do not create separate age logic for Nearby. Announcements are not part of this architecture.
+Future Nearby redesign should reuse `birthDate`/`ageGroup`, `preferredAgeRange`, `interests`, `goal`, `mood`, and geolocation/radius from this profile/search model. Do not create separate Nearby profile fields or matching in this block. Announcements are not part of this architecture.
 
 ## Staged Flow
 

@@ -1,6 +1,6 @@
 # Profile Age Matching
 
-Updated: 2026-05-29
+Updated: 2026-05-30
 
 ## Data Model
 
@@ -10,10 +10,11 @@ Private profile:
 - `preferredAgeMin`
 - `preferredAgeMax`
 
-Safe computed fields:
+Safe computed/profile fields:
 
 - self profile: `age`, `ageGroup`;
 - public profile: `ageGroup`;
+- public anketa: `about`, `goal`, `mood`, `interests`;
 - Admin Queue: `userAgeGroup`, `preferredAgeRange`.
 
 Exact birth date is private and must not be shown to peers or Admin Queue.
@@ -31,7 +32,7 @@ Backend also validates preferred age range bounds and rejects invalid ranges.
 
 ## Public Profile
 
-Peers may see `ageGroup` only. Exact `birthDate` and exact self-only `age` are not public.
+Peers may see `ageGroup` and safe anketa fields only. Exact `birthDate`, exact self-only `age`, and private age preferences are not public.
 
 ## Legacy 18 Toggle
 
@@ -45,4 +46,4 @@ Client error metadata redacts DOB-like keys (`birthDate`, `birth_date`, `dateOfB
 
 ## Nearby Note
 
-Nearby should reuse this profile/search model in a future redesign. Do not add a separate age model for Nearby. Announcements are excluded.
+Nearby should reuse this profile/search model in a future redesign, including `interests`, `goal`, and `mood`. Do not add a separate age model or Nearby-only profile fields. Announcements are excluded.

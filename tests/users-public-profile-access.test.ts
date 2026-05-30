@@ -94,8 +94,11 @@ test("authenticated user can load peer public profile without internal fields", 
     "amoriaId",
     "avatarUrl",
     "displayName",
+    "goal",
     "id",
+    "interests",
     "lockedGallery",
+    "mood",
     "photos",
   ]);
   assert.equal(body.id, userBId);
@@ -103,6 +106,9 @@ test("authenticated user can load peer public profile without internal fields", 
   assert.equal(body.birthDate, undefined);
   assert.equal(body.age, undefined);
   assert.equal(body.ageGroup, "25-34");
+  assert.equal(body.goal, "dating");
+  assert.equal(body.mood, "curious");
+  assert.deepEqual(body.interests, ["coffee"]);
   assert.equal(body.passwordHash, undefined);
   assert.equal(body.createdAt, undefined);
   assert.equal(body.updatedAt, undefined);
@@ -238,10 +244,49 @@ test("public profile hides avatarUrl when avatar media object is missing", async
   assert.equal(response.json().avatarUrl, null);
 });
 
+test("PATCH /me/profile normalizes backend profile tags", async (t) => {
+  t.after(restoreUsersDeps);
+  mockUsers({
+    onUpdateProfile: async (_userId, input) => userRow({
+      id: userAId,
+      amoriaId: "AM23456",
+      interests: input.interests ?? [],
+    }),
+  });
+
+  const response = await usersService.updateCurrentUserProfile(userAId, {
+    interests: [" Coffee ", "#Travel", "coffee", "  live music  "],
+  });
+
+  assert.deepEqual(response.interests, ["coffee", "travel", "live music"]);
+});
+
+test("PATCH /me/profile rejects unsafe profile tags", async (t) => {
+  t.after(restoreUsersDeps);
+  mockUsers();
+
+  await assert.rejects(
+    async () =>
+      usersService.updateCurrentUserProfile(userAId, {
+        interests: ["45.815, 15.9819"],
+      }),
+    (error) => {
+      const appError = error as { code?: string; details?: Record<string, string> };
+      assert.equal(appError.code, "validation_error");
+      assert.deepEqual(appError.details, { "interests.0": "unsafe" });
+      return true;
+    },
+  );
+});
+
 function mockUsers(input: {
   isBlockedEitherWay?: (currentUserId: string, targetUserId: string) => Promise<boolean>;
   userBOverrides?: Partial<UserRow>;
   missingAvatarObject?: boolean;
+  onUpdateProfile?: (
+    userId: string,
+    input: Parameters<UsersRepo["updateUserProfile"]>[1],
+  ) => Promise<UserRow | undefined>;
 } = {}): void {
   restoreUsersDeps();
 
@@ -258,7 +303,7 @@ function mockUsers(input: {
       if (amoriaId === "AM34567") return userRow({ id: userBId, amoriaId });
       return undefined;
     },
-    updateUserProfile: async () => undefined,
+    updateUserProfile: input.onUpdateProfile ?? (async () => undefined),
     updateUserAvatar: async () => undefined,
   } satisfies Partial<UsersRepo>;
 

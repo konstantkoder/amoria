@@ -1,6 +1,6 @@
 # Amoria Release Control Center
 
-Updated: 2026-05-29
+Updated: 2026-05-30
 
 ## Release Rules
 
@@ -37,6 +37,16 @@ Updated: 2026-05-29
 - Matching requires mutual age compatibility, 18+ users, and existing activity/geo rules.
 - Admin Queue exposes only `userAgeGroup`, `preferredAgeRange`, and age waiting reasons such as `age_mismatch`.
 - Old Flirt/18+ `allowAdultMode` / `flirtEnabled` fields are deprecated compatibility fields only. The active mobile release UI no longer exposes the old standalone toggle, and these fields are not used for Together matching.
+
+## Profile Anketa Contract
+
+- Backend-backed anketa fields are `about`, `goal`, `mood`, and `interests`.
+- Public profile safely exposes `about`, `goal`, `mood`, `interests`, `ageGroup`, avatar, and public photos.
+- Public profile never exposes exact `birthDate`, exact coordinates, private age preferences, secrets, or locked-gallery content.
+- Interests are the single release tag list. Do not add duplicate hashtags/tags for release.
+- Interests are normalized by backend: trim, remove leading `#`, collapse whitespace, lowercase, deduplicate, enforce count/length, and reject empty/unsafe tags.
+- Mobile Profile shows `Моя анкета`; Edit Profile saves through backend and refreshes from backend after save.
+- Together lobby may display profile interest count, but interest overlap does not gate matching in this block.
 
 ## Together Draw Tools
 
@@ -98,10 +108,12 @@ Automated checks cannot replace the real two-client pass:
 9. Confirm peer avatar/photos render or emit safe media diagnostics.
 10. Confirm no exact coordinates appear in mobile UI, Admin Web, client errors, DM, history, or public profile.
 11. Confirm no exact birth date appears in public profile, Admin Queue, client errors, DM, history, or peer UI.
-12. Confirm Client Errors include enough app/build/release metadata to identify the running build.
-13. In draw, smoke brush, eraser, hidden tools, no visible Move/Reset drawer controls, pinch pan/zoom, fullscreen on/off, finish, and history/detail replay.
-14. In gallery/avatar, smoke delete below 3 visible public photos, broken photo cleanup, avatar crop/preview/upload/restart persistence, profile photo crop/preview/upload, peer avatar/photo visibility, crop cancel/choose-another, invalid crop rejection, and Admin `Проверить URL` HTTP 200 `image/webp`.
-15. In Together age filtering, smoke missing DOB block, `Любой 18+`, one compatible age group, one incompatible age group, and Admin `age_mismatch`.
+12. Confirm Profile/Edit Profile saves `about`, `goal`, `mood`, and `interests` to backend and persists after app restart.
+13. Confirm peer profile shows safe public `ageGroup`, `about`, `goal`, `mood`, `interests`, avatar, and public photos.
+14. Confirm Client Errors include enough app/build/release metadata to identify the running build and redact exact coordinates, exact birth date, secrets, and raw profile text.
+15. In draw, smoke brush, eraser, hidden tools, no visible Move/Reset drawer controls, pinch pan/zoom, fullscreen on/off, finish, and history/detail replay.
+16. In gallery/avatar, smoke delete below 3 visible public photos, broken photo cleanup, avatar crop/preview/upload/restart persistence, profile photo crop/preview/upload, peer avatar/photo visibility, crop cancel/choose-another, invalid crop rejection, and Admin `Проверить URL` HTTP 200 `image/webp`.
+17. In Together age filtering, smoke missing DOB block, `Любой 18+`, one compatible age group, one incompatible age group, and Admin `age_mismatch`.
 
 ## Build Verification
 
@@ -111,7 +123,7 @@ Automated checks cannot replace the real two-client pass:
 
 ## Future Nearby Age Reuse
 
-Nearby future redesign should reuse `birthDate`/`ageGroup`, `preferredAgeRange`, and later shared interests/tags/goals. Do not create separate age logic for Nearby. Announcements are not part of the future age architecture.
+Nearby future redesign should reuse `birthDate`/`ageGroup`, `preferredAgeRange`, `interests`, `goal`, `mood`, and geolocation/radius. Do not create separate age logic or separate Nearby-only profile fields. Announcements are not part of the future architecture.
 
 ## Public Beta Blockers
 

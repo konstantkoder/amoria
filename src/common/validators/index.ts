@@ -15,6 +15,12 @@ import { validationError } from "../errors";
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const profileInterestCoordinatePairPattern =
+  /^[-+]?(?:[0-8]?\d(?:\.\d+)?|90(?:\.0+)?)[,\s;]+[-+]?(?:1[0-7]\d(?:\.\d+)?|[0-9]?\d(?:\.\d+)?|180(?:\.0+)?)$/;
+const profileInterestPrivatePattern =
+  /(?:[^\s@]+@[^\s@]+\.[^\s@]+)|(?:\+?\d[\d\s().-]{6,}\d)|\b(?:password|token|secret|jwt|refresh|access)\b/i;
+const profileInterestLocationWordsPattern =
+  /\b(?:lat|latitude|lng|longitude|coordinates?|coords?|gps)\b/i;
 
 export type ProfileGoal = (typeof PROFILE_GOALS)[number];
 export type ProfileMood = (typeof PROFILE_MOODS)[number];
@@ -178,9 +184,9 @@ export function normalizeOptionalInterests(value: unknown): string[] | undefined
       throw validationError("Interest must be text", { [`interests.${index}`]: "invalid" });
     }
 
-    const interest = item.trim();
+    const interest = normalizeProfileInterest(item);
     if (!interest) {
-      continue;
+      throw validationError("Interest must not be empty", { [`interests.${index}`]: "empty" });
     }
 
     if (interest.length > PROFILE_INTEREST_MAX_LENGTH) {
@@ -190,12 +196,40 @@ export function normalizeOptionalInterests(value: unknown): string[] | undefined
       );
     }
 
+    if (isUnsafeProfileInterest(interest)) {
+      throw validationError("Interest is not allowed", { [`interests.${index}`]: "unsafe" });
+    }
+
     if (!normalized.includes(interest)) {
       normalized.push(interest);
     }
   }
 
   return normalized;
+}
+
+function normalizeProfileInterest(value: string): string {
+  return value
+    .trim()
+    .replace(/^#+/, "")
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+}
+
+function isUnsafeProfileInterest(value: string): boolean {
+  if (profileInterestCoordinatePairPattern.test(value)) {
+    return true;
+  }
+
+  if (profileInterestPrivatePattern.test(value)) {
+    return true;
+  }
+
+  if (profileInterestLocationWordsPattern.test(value)) {
+    return true;
+  }
+
+  return value.includes("координат") || value.includes("геолокац");
 }
 
 export function normalizeOptionalGoal(value: unknown): ProfileGoal | null | undefined {

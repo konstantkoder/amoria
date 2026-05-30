@@ -1,6 +1,6 @@
 # Together Age Filter 01
 
-Updated: 2026-05-29
+Updated: 2026-05-30
 
 ## Contract
 
@@ -54,6 +54,8 @@ These are matching diagnostics only. They are not cancellation sources.
 - Together blocks start if birth date is missing and routes the user to complete profile.
 - Together shows `Кого искать` with `Любой 18+`, `18-24`, `25-34`, `35-44`, `45-54`, `55+`.
 - PlayMatch shows selected filter as `Возраст: ...`.
+- Together lobby shows the current search context: radius, age filter, and profile interest count.
+- Interests are not required and are not used as hard matching criteria in this block.
 - Old `allowAdultMode` / `flirtEnabled` / Flirt 18+ toggle is removed from active release UI and is not used for Together matching.
 
 ## Future Nearby
@@ -63,6 +65,6 @@ Future Nearby redesign should reuse:
 - private `birthDate`;
 - computed `ageGroup`;
 - `preferredAgeRange`;
-- later interests/tags/goals.
+- shared `interests`, `goal`, and `mood`.
 
 Do not create separate Nearby age logic. Announcements are not part of the future age architecture.
