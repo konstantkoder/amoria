@@ -89,6 +89,9 @@ export type PublicUserProfileDto = {
   amoriaId: string;
   avatarUrl: string | null;
   photos: ProfilePhotoDto[];
+  goal: ProfileGoal | null;
+  mood: ProfileMood | null;
+  interests: string[];
   ageGroup?: AgeGroup | null;
   lockedGallery: LockedGallerySummaryDto;
 };

@@ -1,6 +1,6 @@
 import React from "react";
 import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Device from "expo-device";
 
@@ -73,6 +73,7 @@ export default function PlayLobbyScreen() {
   const [selectedAgeFilter, setSelectedAgeFilter] = React.useState<AgeFilterId>("any");
   const [locationBusy, setLocationBusy] = React.useState(false);
   const [locationNotice, setLocationNotice] = React.useState("");
+  const [profileInterestCount, setProfileInterestCount] = React.useState<number | null>(null);
 
   React.useEffect(() => {
     let alive = true;
@@ -106,6 +107,25 @@ export default function PlayLobbyScreen() {
       alive = false;
     };
   }, []);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      let alive = true;
+      void getUserProfile()
+        .then((profile) => {
+          if (!alive) return;
+          setProfileInterestCount(profile.interests.length);
+        })
+        .catch(() => {
+          if (!alive) return;
+          setProfileInterestCount(null);
+        });
+
+      return () => {
+        alive = false;
+      };
+    }, [])
+  );
 
   const storySparksCopy = {
     title: tt("together.lobby.storySparksTitle", "История на двоих"),
@@ -427,6 +447,28 @@ export default function PlayLobbyScreen() {
                 )}
               </Text>
             </View>
+            <View style={styles.searchSummaryPanel}>
+              <Text style={styles.radiusTitle}>
+                {tt("together.profileSummary.title", "Контекст поиска")}
+              </Text>
+              <Text style={styles.radiusHint}>
+                {tt(
+                  "together.profileSummary.body",
+                  "Радиус: {radius}. Возраст: {age}. Интересы в профиле: {count}.",
+                  {
+                    radius: radiusLabel(selectedRadiusKm),
+                    age: ageFilterLabel(selectedAgeFilter),
+                    count: profileInterestCount === null ? "-" : String(profileInterestCount),
+                  }
+                )}
+              </Text>
+              <Text style={styles.radiusHint}>
+                {tt(
+                  "together.profileSummary.futureMatching",
+                  "Интересы видны в анкете и подготовлены для будущего подбора, но сейчас не ограничивают старт Together."
+                )}
+              </Text>
+            </View>
             <Pressable
               onPress={() => void openActivity("draw", "startDraw")}
               style={[styles.primaryCta, locationBusy ? styles.primaryCtaDisabled : null]}
@@ -548,6 +590,14 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.07)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.12)",
+  },
+  searchSummaryPanel: {
+    gap: 7,
+    padding: 12,
+    borderRadius: theme.shapes.cardInner,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.10)",
   },
   radiusTitle: {
     color: theme.colors.text,

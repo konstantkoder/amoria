@@ -1,4 +1,5 @@
 import type { AgeGroup, Goal, Mood, UserProfile, UserProfilePhoto } from "@/models/User";
+import { normalizeProfileInterestInput } from "@/config/profileFields";
 import { ApiError } from "@/services/api/apiClient";
 import { refreshBackendUser } from "@/services/api/backendSession";
 import { patchMeProfileOnBackend } from "@/services/api/profileApi";
@@ -100,9 +101,15 @@ function samePublicMediaReference(left: unknown, right: unknown) {
 function normalizeStringArray(value: unknown) {
   if (!Array.isArray(value)) return [];
 
-  return value
-    .map((entry) => normalizeString(entry))
-    .filter(Boolean);
+  const normalized: string[] = [];
+  for (const entry of value) {
+    const item = normalizeProfileInterestInput(entry);
+    if (item && !normalized.includes(item)) {
+      normalized.push(item);
+    }
+  }
+
+  return normalized;
 }
 
 function normalizeProfilePhotos(value: unknown): UserProfilePhoto[] {

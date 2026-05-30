@@ -19,10 +19,16 @@ import ImageCropper, {
   CroppedMediaPreview,
   type NormalizedMediaCrop,
 } from "@/components/media/ImageCropper";
+import {
+  GOAL_LABEL_FALLBACKS,
+  GOAL_LABEL_KEYS,
+  MOOD_LABEL_FALLBACKS,
+  MOOD_LABEL_KEYS,
+} from "@/config/profileFields";
 import ScreenShell from "@/components/ScreenShell";
 import UserAvatar from "@/components/UserAvatar";
 import { useLocale } from "@/contexts/LocaleContext";
-import type { Goal, Mood, UserProfile } from "@/models/User";
+import type { UserProfile } from "@/models/User";
 import type { ProfileStackParamList } from "@/navigation/appRoutes";
 import {
   UploadFlowError,
@@ -52,38 +58,6 @@ type PendingAvatar = {
   crop: NormalizedMediaCrop;
 };
 type AvatarForCrop = Omit<PendingAvatar, "crop">;
-
-const GOAL_LABEL_KEYS: Record<Goal, string> = {
-  relationship: "profile.goal.relationship",
-  dating: "profile.goal.dating",
-  friendship: "profile.goal.friendship",
-  chat: "profile.goal.chat",
-  unsure: "profile.goal.unsure",
-};
-
-const MOOD_LABEL_KEYS: Record<Mood, string> = {
-  romantic: "profile.mood.romantic",
-  playful: "profile.mood.playful",
-  chill: "profile.mood.chill",
-  curious: "profile.mood.curious",
-  adventurous: "profile.mood.adventurous",
-};
-
-const GOAL_LABEL_FALLBACKS: Record<Goal, string> = {
-  relationship: "Relationship",
-  dating: "Dating",
-  friendship: "Friendship",
-  chat: "Chat",
-  unsure: "Not sure yet",
-};
-
-const MOOD_LABEL_FALLBACKS: Record<Mood, string> = {
-  romantic: "Romantic",
-  playful: "Playful",
-  chill: "Chill",
-  curious: "Curious",
-  adventurous: "Adventurous",
-};
 
 function isValidCrop(crop: NormalizedMediaCrop) {
   return (
@@ -180,6 +154,9 @@ export default function ProfileScreen() {
   const amoriaId = profile?.amoriaId ?? "";
   const needsName = Boolean(getDisplayNameValidationErrorKey(profile?.displayName ?? ""));
   const ageLabel = formatOwnAgeLabel(profile, t);
+  const interestsSummary = profile?.interests?.length
+    ? profile.interests.join(", ")
+    : t("profile.interestsEmpty");
 
   const saveDisplayName = React.useCallback(async () => {
     const nextName = normalizeDisplayNameInput(nameDraft);
@@ -412,7 +389,7 @@ export default function ProfileScreen() {
   }
 
   const openEditProfile = React.useCallback(
-    (focus?: "about" | "goal" | "mood" | "birthDate") => {
+    (focus?: "about" | "goal" | "mood" | "interests" | "birthDate") => {
       try {
         if (focus) {
           navigation.navigate("EditProfile", { focus });
@@ -551,6 +528,9 @@ export default function ProfileScreen() {
               {t("profile.amoriaId")}: {amoriaId}
             </Text>
           ) : null}
+          <View style={styles.anketaHeader}>
+            <Text style={styles.anketaTitle}>{t("profile.anketaTitle")}</Text>
+          </View>
           <View style={styles.badges}>
             <TouchableOpacity
               style={[styles.badge, styles.editableBadge]}
@@ -618,6 +598,23 @@ export default function ProfileScreen() {
             <TouchableOpacity
               style={styles.editEntryRow}
               activeOpacity={0.86}
+              onPress={() => openEditProfile("goal")}
+            >
+              <View style={styles.editEntryCopy}>
+                <Text style={styles.editEntryTitle}>
+                  {t("profile.goalEntrypointTitle")}
+                </Text>
+                <Text style={styles.editEntryValue} numberOfLines={1}>
+                  {goalLabel}
+                </Text>
+              </View>
+              <Text style={styles.editEntryAction}>
+                {t("profile.editProfileEntrypointAction")}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.editEntryRow}
+              activeOpacity={0.86}
               onPress={() => openEditProfile("mood")}
             >
               <View style={styles.editEntryCopy}>
@@ -626,6 +623,23 @@ export default function ProfileScreen() {
                 </Text>
                 <Text style={styles.editEntryValue} numberOfLines={1}>
                   {moodLabel}
+                </Text>
+              </View>
+              <Text style={styles.editEntryAction}>
+                {t("profile.editProfileEntrypointAction")}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.editEntryRow}
+              activeOpacity={0.86}
+              onPress={() => openEditProfile("interests")}
+            >
+              <View style={styles.editEntryCopy}>
+                <Text style={styles.editEntryTitle}>
+                  {t("profile.interestsTitle")}
+                </Text>
+                <Text style={styles.editEntryValue} numberOfLines={2}>
+                  {interestsSummary}
                 </Text>
               </View>
               <Text style={styles.editEntryAction}>
@@ -872,6 +886,16 @@ const styles = StyleSheet.create({
     color: theme.colors.subtext,
     fontSize: 13,
     fontWeight: "700",
+  },
+  anketaHeader: {
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.1)",
+    paddingTop: 12,
+  },
+  anketaTitle: {
+    color: theme.colors.text,
+    fontSize: 18,
+    fontWeight: "900",
   },
   identityCard: {
     backgroundColor: "rgba(8, 12, 24, 0.82)",

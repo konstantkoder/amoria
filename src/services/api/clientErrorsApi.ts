@@ -16,7 +16,7 @@ export type ClientErrorReportInput = {
 };
 
 const blockedMetadataKeyPattern =
-  /^(lat|lng|latitude|longitude)$|password|token|secret|authorization|cookie|jwt|refresh|accessToken|refreshToken|s3|database|connection|privateKey|lockedGalleryPassword|folderPassword|accountPassword|birthDate|birth_date|dateOfBirth|dob|headers?|\.env|uploadUrl$|signedUrl$/i;
+  /^(lat|lng|latitude|longitude)$|password|token|secret|authorization|cookie|jwt|refresh|accessToken|refreshToken|s3|database|connection|privateKey|lockedGalleryPassword|folderPassword|accountPassword|birthDate|birth_date|dateOfBirth|dob|about|bio|shortAbout|profileText|rawProfileText|rawPrivateProfileText|headers?|\.env|uploadUrl$|signedUrl$/i;
 const maxObjectKeys = 40;
 const maxArrayItems = 20;
 const maxStringLength = 500;

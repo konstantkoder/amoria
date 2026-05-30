@@ -16,6 +16,12 @@ import {
 import { useNavigation, useRoute } from "@react-navigation/native";
 
 import CoreStateCard from "@/components/CoreStateCard";
+import {
+  GOAL_LABEL_FALLBACKS,
+  GOAL_LABEL_KEYS,
+  MOOD_LABEL_FALLBACKS,
+  MOOD_LABEL_KEYS,
+} from "@/config/profileFields";
 import ScreenShell from "@/components/ScreenShell";
 import UserAvatar from "@/components/UserAvatar";
 import { useAuth } from "@/contexts/AuthContext";
@@ -37,7 +43,7 @@ import {
   probePublicMediaUrl,
   type PublicMediaUrlInfo,
 } from "@/services/media/mediaUrl";
-import type { UserProfile, UserProfilePhoto } from "@/models/User";
+import type { Goal, Mood, UserProfile, UserProfilePhoto } from "@/models/User";
 import { theme } from "@/theme";
 
 function buildReportReasonButtons(
@@ -74,6 +80,15 @@ function buildReportReasonButtons(
 
 function isTogetherSource(source: unknown): boolean {
   return source === "together" || source === "play";
+}
+
+function translatedProfileOptionLabel(
+  t: (key: string) => string,
+  key: string,
+  fallback: string
+) {
+  const value = t(key);
+  return value === key ? fallback : value;
 }
 
 type ProfileLoadState = "loading" | "ready" | "blocked" | "not_found" | "network";
@@ -253,9 +268,28 @@ export default function UserProfileScreen() {
     lockedGallery?.enabled && (lockedGallery.count ?? 0) > 0
   );
   const about = profile?.about?.trim() || tt("profile.publicNoDescription", "Описание пока не добавлено.");
+  const goalLabel = profile?.goal
+    ? translatedProfileOptionLabel(
+        t,
+        GOAL_LABEL_KEYS[profile.goal as Goal],
+        GOAL_LABEL_FALLBACKS[profile.goal as Goal]
+      )
+    : "";
+  const moodLabel = profile?.mood
+    ? translatedProfileOptionLabel(
+        t,
+        MOOD_LABEL_KEYS[profile.mood as Mood],
+        MOOD_LABEL_FALLBACKS[profile.mood as Mood]
+      )
+    : "";
   const publicAgeLabel = profile?.ageGroup
     ? tt("profile.publicAgeGroup", "Возраст: {group}", { group: profile.ageGroup })
     : "";
+  const profileFacts = [
+    publicAgeLabel,
+    goalLabel ? tt("profile.publicGoal", "Цель: {goal}", { goal: goalLabel }) : "",
+    moodLabel ? tt("profile.publicMood", "Настроение: {mood}", { mood: moodLabel }) : "",
+  ].filter(Boolean);
   const isBlocked = Boolean(userId && blockedUserIds.includes(userId));
   const profileUnavailable = isBlocked || profileLoadState === "blocked";
   const hasThread = Boolean(threadId && userId);
@@ -633,9 +667,9 @@ export default function UserProfileScreen() {
                   {tt("profile.amoriaId", "Amoria ID")}: {amoriaId}
                 </Text>
               ) : null}
-              {publicAgeLabel ? (
-                <Text style={styles.amoriaIdText}>{publicAgeLabel}</Text>
-              ) : null}
+              {profileFacts.map((item) => (
+                <Text key={item} style={styles.amoriaIdText}>{item}</Text>
+              ))}
               <Text style={styles.avatarHint}>
                 {avatarLoadFailed
                   ? tt("profile.peerMediaLoadFailed", "Фото не загрузилось. Мы уже сохранили ошибку для проверки.")
@@ -647,6 +681,15 @@ export default function UserProfileScreen() {
           </View>
 
           <Text style={styles.about}>{about}</Text>
+          {profile.interests.length ? (
+            <View style={styles.interestChips}>
+              {profile.interests.map((interest) => (
+                <View key={interest} style={styles.interestChip}>
+                  <Text style={styles.interestText}>{interest}</Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
         </View>
 
         {sourceTitle ? (
@@ -920,6 +963,24 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
     fontSize: 15,
     lineHeight: 22,
+  },
+  interestChips: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  interestChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: theme.shapes.pill,
+    backgroundColor: "rgba(255, 78, 138, 0.16)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 78, 138, 0.24)",
+  },
+  interestText: {
+    color: theme.colors.text,
+    fontSize: 12,
+    fontWeight: "700",
   },
   card: {
     backgroundColor: "rgba(10, 14, 26, 0.88)",

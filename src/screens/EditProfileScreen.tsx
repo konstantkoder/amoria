@@ -14,6 +14,18 @@ import {
 import { useFocusEffect, useRoute } from "@react-navigation/native";
 
 import ScreenShell from "@/components/ScreenShell";
+import {
+  GOAL_LABEL_FALLBACKS,
+  GOAL_LABEL_KEYS,
+  MOOD_LABEL_FALLBACKS,
+  MOOD_LABEL_KEYS,
+  PROFILE_GOAL_OPTIONS,
+  PROFILE_INTERESTS_MAX_COUNT,
+  PROFILE_INTEREST_MAX_LENGTH,
+  PROFILE_INTEREST_SUGGESTIONS,
+  PROFILE_MOOD_OPTIONS,
+  normalizeProfileInterestInput,
+} from "@/config/profileFields";
 import { useLocale } from "@/contexts/LocaleContext";
 import type { Goal, Mood, UserProfile } from "@/models/User";
 import type { EditProfileRouteProp } from "@/navigation/appRoutes";
@@ -24,54 +36,6 @@ import {
   normalizeDisplayNameInput,
   updateUserFields,
 } from "@/services/user";
-
-const GOAL_OPTIONS: Goal[] = [
-  "relationship",
-  "dating",
-  "friendship",
-  "chat",
-  "unsure",
-];
-
-const MOOD_OPTIONS: Mood[] = [
-  "romantic",
-  "playful",
-  "chill",
-  "curious",
-  "adventurous",
-];
-
-const GOAL_LABEL_KEYS: Record<Goal, string> = {
-  relationship: "profile.goal.relationship",
-  dating: "profile.goal.dating",
-  friendship: "profile.goal.friendship",
-  chat: "profile.goal.chat",
-  unsure: "profile.goal.unsure",
-};
-
-const MOOD_LABEL_KEYS: Record<Mood, string> = {
-  romantic: "profile.mood.romantic",
-  playful: "profile.mood.playful",
-  chill: "profile.mood.chill",
-  curious: "profile.mood.curious",
-  adventurous: "profile.mood.adventurous",
-};
-
-const GOAL_LABEL_FALLBACKS: Record<Goal, string> = {
-  relationship: "Relationship",
-  dating: "Dating",
-  friendship: "Friendship",
-  chat: "Chat",
-  unsure: "Not sure yet",
-};
-
-const MOOD_LABEL_FALLBACKS: Record<Mood, string> = {
-  romantic: "Romantic",
-  playful: "Playful",
-  chill: "Chill",
-  curious: "Curious",
-  adventurous: "Adventurous",
-};
 
 function translatedOptionLabel(
   t: (key: string) => string,
@@ -103,10 +67,12 @@ export default function EditProfileScreen() {
   const [saving, setSaving] = React.useState(false);
   const [displayName, setDisplayName] = React.useState("");
   const [about, setAbout] = React.useState("");
-  const [interestsText, setInterestsText] = React.useState("");
+  const [interests, setInterests] = React.useState<string[]>([]);
+  const [interestDraft, setInterestDraft] = React.useState("");
+  const [interestError, setInterestError] = React.useState("");
   const [birthDate, setBirthDate] = React.useState("");
-  const [goal, setGoal] = React.useState<Goal>("dating");
-  const [mood, setMood] = React.useState<Mood>("chill");
+  const [goal, setGoal] = React.useState<Goal | null>(null);
+  const [mood, setMood] = React.useState<Mood | null>(null);
   const [mysteryMode, setMysteryMode] = React.useState(false);
   const scrollRef = React.useRef<ScrollView>(null);
   const displayNameInputRef = React.useRef<TextInput>(null);
@@ -115,16 +81,19 @@ export default function EditProfileScreen() {
   const birthDateInputRef = React.useRef<TextInput>(null);
   const goalYRef = React.useRef(0);
   const moodYRef = React.useRef(0);
+  const interestsYRef = React.useRef(0);
   const birthDateYRef = React.useRef(0);
   const focusTarget = route.params?.focus;
 
   const applyProfile = React.useCallback((profile: UserProfile) => {
     setDisplayName(profile.displayName ?? "");
     setAbout(profile.about ?? "");
-    setInterestsText((profile.interests ?? []).join(", "));
+    setInterests(profile.interests ?? []);
+    setInterestDraft("");
+    setInterestError("");
     setBirthDate(profile.birthDate ?? "");
-    setGoal(profile.goal ?? "dating");
-    setMood(profile.mood ?? "chill");
+    setGoal(profile.goal ?? null);
+    setMood(profile.mood ?? null);
     setMysteryMode(profile.mysteryMode ?? false);
   }, []);
 
@@ -181,6 +150,15 @@ export default function EditProfileScreen() {
         return;
       }
 
+      if (focusTarget === "interests") {
+        scrollRef.current?.scrollTo({
+          y: Math.max(interestsYRef.current - 24, 0),
+          animated: true,
+        });
+        interestsInputRef.current?.focus();
+        return;
+      }
+
       if (focusTarget === "birthDate") {
         scrollRef.current?.scrollTo({
           y: Math.max(birthDateYRef.current - 24, 0),
@@ -193,6 +171,53 @@ export default function EditProfileScreen() {
     return () => clearTimeout(timer);
   }, [focusTarget, loading]);
 
+  const validateInterest = React.useCallback(
+    (value: string, current: string[]) => {
+      const normalized = normalizeProfileInterestInput(value);
+      if (!normalized) {
+        setInterestError(t("editProfile.interestEmptyError"));
+        return "";
+      }
+      if (normalized.length > PROFILE_INTEREST_MAX_LENGTH) {
+        setInterestError(
+          t("editProfile.interestTooLongError", {
+            max: String(PROFILE_INTEREST_MAX_LENGTH),
+          })
+        );
+        return "";
+      }
+      if (!current.includes(normalized) && current.length >= PROFILE_INTERESTS_MAX_COUNT) {
+        setInterestError(
+          t("editProfile.interestTooManyError", {
+            max: String(PROFILE_INTERESTS_MAX_COUNT),
+          })
+        );
+        return "";
+      }
+      return normalized;
+    },
+    [t]
+  );
+
+  const addInterest = React.useCallback(
+    (value = interestDraft) => {
+      const normalized = validateInterest(value, interests);
+      if (!normalized) return;
+      setInterestError("");
+      if (!interests.includes(normalized)) {
+        setInterests([...interests, normalized]);
+      }
+      setInterestDraft("");
+      interestsInputRef.current?.focus();
+    },
+    [interestDraft, interests, validateInterest]
+  );
+
+  const removeInterest = React.useCallback((value: string) => {
+    setInterests((current) => current.filter((item) => item !== value));
+    setInterestError("");
+  }, []);
+
   const handleSave = async () => {
     try {
       setSaving(true);
@@ -202,26 +227,31 @@ export default function EditProfileScreen() {
         Alert.alert(t("common.error"), t(displayNameErrorKey));
         return;
       }
-      const interestsArray = interestsText
-        .split(",")
-        .map((item) => item.trim())
-        .filter(Boolean);
+      const nextInterests = [...interests];
+      if (interestDraft.trim()) {
+        const normalized = validateInterest(interestDraft, nextInterests);
+        if (!normalized) return;
+        if (!nextInterests.includes(normalized)) {
+          nextInterests.push(normalized);
+        }
+      }
       const nextBirthDate = birthDate.trim();
       if (nextBirthDate && !isValidBirthDateInput(nextBirthDate)) {
         Alert.alert(t("common.error"), t("editProfile.birthDateInvalid"));
         return;
       }
 
-      const savedProfile = await updateUserFields({
+      await updateUserFields({
         displayName: nextDisplayName,
         about,
-        interests: interestsArray,
+        interests: nextInterests,
         birthDate: nextBirthDate || null,
         goal,
         mood,
         mysteryMode,
       });
-      applyProfile(savedProfile);
+      const refreshedProfile = await getUserProfile();
+      applyProfile(refreshedProfile);
       displayNameInputRef.current?.blur();
       aboutInputRef.current?.blur();
       interestsInputRef.current?.blur();
@@ -294,17 +324,99 @@ export default function EditProfileScreen() {
             style={[styles.input, styles.multilineInput]}
           />
 
-          <Text style={styles.label}>{t("editProfile.interestsLabel")}</Text>
-          <TextInput
-            ref={interestsInputRef}
-            value={interestsText}
-            onChangeText={setInterestsText}
-            placeholder={t("editProfile.interestsPlaceholder")}
-            placeholderTextColor={theme.colors.muted}
-            style={styles.input}
-            returnKeyType="next"
-            onSubmitEditing={() => birthDateInputRef.current?.focus()}
-          />
+          <View
+            style={focusTarget === "interests" ? styles.focusedSection : null}
+            onLayout={(event) => {
+              interestsYRef.current = event.nativeEvent.layout.y;
+            }}
+          >
+            <View style={styles.labelRow}>
+              <Text style={styles.label}>{t("editProfile.interestsLabel")}</Text>
+              <Text style={styles.labelMeta}>
+                {t("editProfile.interestsCount", {
+                  count: String(interests.length),
+                  max: String(PROFILE_INTERESTS_MAX_COUNT),
+                })}
+              </Text>
+            </View>
+            <View style={styles.interestInputRow}>
+              <TextInput
+                ref={interestsInputRef}
+                value={interestDraft}
+                onChangeText={(value) => {
+                  setInterestDraft(value);
+                  setInterestError("");
+                }}
+                placeholder={t("editProfile.interestsPlaceholder")}
+                placeholderTextColor={theme.colors.muted}
+                style={[styles.input, styles.interestInput]}
+                maxLength={PROFILE_INTEREST_MAX_LENGTH + 8}
+                returnKeyType="done"
+                autoCapitalize="none"
+                autoCorrect={false}
+                onSubmitEditing={() => addInterest()}
+              />
+              <TouchableOpacity
+                style={styles.addInterestButton}
+                onPress={() => addInterest()}
+                disabled={saving}
+                activeOpacity={0.86}
+              >
+                <Text style={styles.addInterestButtonText}>
+                  {t("editProfile.addInterest")}
+                </Text>
+              </TouchableOpacity>
+            </View>
+            {interestError ? <Text style={styles.inlineError}>{interestError}</Text> : null}
+            {interests.length ? (
+              <View style={styles.interestChips}>
+                {interests.map((interest) => (
+                  <TouchableOpacity
+                    key={interest}
+                    style={styles.interestChip}
+                    onPress={() => removeInterest(interest)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.interestText}>{interest}</Text>
+                    <Text style={styles.removeInterestText}>x</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ) : (
+              <Text style={styles.helperText}>
+                {t("editProfile.interestsEmpty")}
+              </Text>
+            )}
+            <Text style={styles.helperText}>
+              {t("editProfile.interestsHelper")}
+            </Text>
+            <View style={styles.suggestionChips}>
+              {PROFILE_INTEREST_SUGGESTIONS.map((interest) => {
+                const selected = interests.includes(interest);
+                return (
+                  <TouchableOpacity
+                    key={interest}
+                    style={[
+                      styles.suggestionChip,
+                      selected ? styles.suggestionChipSelected : null,
+                    ]}
+                    onPress={() => addInterest(interest)}
+                    disabled={selected || saving}
+                    activeOpacity={0.82}
+                  >
+                    <Text
+                      style={[
+                        styles.suggestionText,
+                        selected ? styles.suggestionTextSelected : null,
+                      ]}
+                    >
+                      {translatedOptionLabel(t, `profile.interest.${interest}`, interest)}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
 
           <View
             style={focusTarget === "birthDate" ? styles.focusedSection : null}
@@ -340,7 +452,7 @@ export default function EditProfileScreen() {
           >
             <Text style={styles.label}>{t("editProfile.goalLabel")}</Text>
             <View style={styles.optionsWrap}>
-              {GOAL_OPTIONS.map((option) => {
+              {PROFILE_GOAL_OPTIONS.map((option) => {
                 const active = goal === option;
                 return (
                   <TouchableOpacity
@@ -377,7 +489,7 @@ export default function EditProfileScreen() {
           >
             <Text style={styles.label}>{t("editProfile.moodLabel")}</Text>
             <View style={styles.optionsWrap}>
-              {MOOD_OPTIONS.map((option) => {
+              {PROFILE_MOOD_OPTIONS.map((option) => {
                 const active = mood === option;
                 return (
                   <TouchableOpacity
@@ -463,6 +575,18 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginBottom: 6,
   },
+  labelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  labelMeta: {
+    color: theme.colors.subtext,
+    fontSize: 11,
+    fontWeight: "700",
+    marginBottom: 6,
+  },
   input: {
     backgroundColor: theme.colors.card,
     borderRadius: theme.radius,
@@ -476,6 +600,88 @@ const styles = StyleSheet.create({
   multilineInput: {
     minHeight: 88,
     textAlignVertical: "top",
+  },
+  interestInputRow: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    gap: 8,
+    marginBottom: 10,
+  },
+  interestInput: {
+    flex: 1,
+    marginBottom: 0,
+  },
+  addInterestButton: {
+    borderRadius: theme.radius,
+    paddingHorizontal: 13,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.colors.primary,
+  },
+  addInterestButtonText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  inlineError: {
+    color: theme.colors.danger,
+    fontSize: 12,
+    fontWeight: "700",
+    marginTop: -4,
+    marginBottom: 10,
+  },
+  interestChips: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 10,
+  },
+  interestChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: theme.shapes.pill,
+    backgroundColor: "rgba(255, 78, 138, 0.16)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 78, 138, 0.24)",
+  },
+  interestText: {
+    color: theme.colors.text,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  removeInterestText: {
+    color: theme.colors.accent,
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  suggestionChips: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 14,
+  },
+  suggestionChip: {
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+    borderRadius: theme.shapes.pill,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+  },
+  suggestionChipSelected: {
+    backgroundColor: "rgba(255,255,255,0.04)",
+    opacity: 0.6,
+  },
+  suggestionText: {
+    color: theme.colors.text,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  suggestionTextSelected: {
+    color: theme.colors.subtext,
   },
   helperText: {
     color: theme.colors.subtext,
