@@ -52,6 +52,20 @@ function testClampPreventsBlankCropArea() {
   assertClose(clamped.offsetY, 0, "y pan clamps when image height exactly covers crop");
 }
 
+function testClampRaisesScaleToCoverCropArea() {
+  const sourceSize = { width: 800, height: 400 };
+  const cropSize = 300;
+  const clamped = clampCropTransform(
+    { scale: 0.1, offsetX: Number.NaN, offsetY: Number.POSITIVE_INFINITY },
+    sourceSize,
+    cropSize
+  );
+
+  assertClose(clamped.scale, 0.75, "scale clamps to the minimum square-covering zoom");
+  assertClose(clamped.offsetX, 0, "invalid x offset resets safely");
+  assertClose(clamped.offsetY, 0, "invalid y offset resets safely");
+}
+
 function testCropRectStaysInsideUnitBounds() {
   const sourceSize = { width: 1200, height: 800 };
   const cropSize = 300;
@@ -98,5 +112,6 @@ function testFocalPointZoomKeepsSelectedImagePointStable() {
 }
 
 testClampPreventsBlankCropArea();
+testClampRaisesScaleToCoverCropArea();
 testCropRectStaysInsideUnitBounds();
 testFocalPointZoomKeepsSelectedImagePointStable();

@@ -406,6 +406,7 @@ export default function ImageCropper({
   }
 
   const cropReady = Boolean(source?.uri && imageMetrics && stageGeometry);
+  const canConfirmCrop = isValidNormalizedCrop(currentCrop);
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="fullScreen">
@@ -538,27 +539,44 @@ export default function ImageCropper({
         </View>
 
         <View style={styles.actions}>
-          <Pressable accessibilityRole="button" onPress={confirmCrop} style={styles.primaryButton}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ disabled: !canConfirmCrop }}
+            disabled={!canConfirmCrop}
+            onPress={confirmCrop}
+            style={[
+              styles.primaryButton,
+              !canConfirmCrop ? styles.primaryButtonDisabled : null,
+            ]}
+          >
             <Text numberOfLines={2} style={styles.primaryText}>
               {doneLabel}
             </Text>
           </Pressable>
-          <Pressable accessibilityRole="button" onPress={onCancel} style={styles.secondaryButton}>
-            <Text numberOfLines={2} style={styles.secondaryText}>
-              {cancelLabel}
-            </Text>
-          </Pressable>
+          <View style={styles.secondaryActions}>
+            <Pressable accessibilityRole="button" onPress={onCancel} style={styles.secondaryButton}>
+              <Text numberOfLines={2} style={styles.secondaryText}>
+                {cancelLabel}
+              </Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              onPress={onChooseAnother}
+              style={styles.secondaryButton}
+            >
+              <Text numberOfLines={2} style={styles.secondaryText}>
+                {chooseAnotherLabel}
+              </Text>
+            </Pressable>
+          </View>
           <Pressable
             accessibilityRole="button"
-            onPress={onChooseAnother}
-            style={styles.secondaryButton}
+            accessibilityState={{ disabled: !cropReady }}
+            disabled={!cropReady}
+            onPress={resetCrop}
+            style={styles.resetButton}
           >
-            <Text numberOfLines={2} style={styles.secondaryText}>
-              {chooseAnotherLabel}
-            </Text>
-          </Pressable>
-          <Pressable accessibilityRole="button" onPress={resetCrop} style={styles.secondaryButton}>
-            <Text numberOfLines={2} style={styles.secondaryText}>
+            <Text numberOfLines={1} style={styles.resetText}>
               {resetLabel}
             </Text>
           </Pressable>
@@ -662,6 +680,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     borderWidth: 2,
     borderColor: "#FFFFFF",
+    overflow: "hidden",
   },
   gridLineVertical: {
     position: "absolute",
@@ -684,17 +703,13 @@ const styles = StyleSheet.create({
     backgroundColor: "#03050B",
   },
   actions: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 9,
+    gap: 10,
     paddingHorizontal: 14,
     paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: "rgba(255,255,255,0.1)",
   },
   primaryButton: {
-    flexGrow: 1,
-    flexBasis: "46%",
     minHeight: 46,
     borderRadius: 8,
     paddingHorizontal: 14,
@@ -703,6 +718,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: theme.colors.primary,
   },
+  primaryButtonDisabled: {
+    opacity: 0.42,
+  },
   primaryText: {
     color: "#FFFFFF",
     fontSize: 14,
@@ -710,9 +728,12 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     textAlign: "center",
   },
+  secondaryActions: {
+    flexDirection: "row",
+    gap: 9,
+  },
   secondaryButton: {
-    flexGrow: 1,
-    flexBasis: "46%",
+    flex: 1,
     minHeight: 46,
     borderRadius: 8,
     paddingHorizontal: 12,
@@ -728,6 +749,20 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 17,
     fontWeight: "800",
+    textAlign: "center",
+  },
+  resetButton: {
+    alignSelf: "center",
+    minHeight: 30,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    justifyContent: "center",
+  },
+  resetText: {
+    color: "rgba(255,255,255,0.72)",
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: "700",
     textAlign: "center",
   },
   previewFrame: {

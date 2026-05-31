@@ -64,9 +64,10 @@ This launcher is local dev tooling only and is not product logic.
   - Admin `Проверить URL` remains the smoke path for HTTP/content-type/object-not-found diagnostics.
 - MEDIA-CROP-FLOW-01 is fixed in code and awaiting release smoke:
   - Avatar and profile photo selection open an in-app square crop UI instead of relying on native picker editing buttons.
-  - Crop UI is full-screen/dark with source image context outside the crop square, dimmed outside area, 3x3 grid, clear square frame, and fixed bottom actions.
-  - Users can drag with one finger, pinch zoom with a stable focal point, reset, cancel, choose another image, and tap `Готово`.
-  - Crop pan is clamped after every transform so the square stays filled.
+  - Crop UI is full-screen/dark with a fixed square frame, source image under the frame, dimmed outside area, 3x3 grid only inside the square, and fixed bottom actions.
+  - Users can drag the image with one finger and pinch zoom with a stable focal point.
+  - `+` / `-` zoom buttons are not main controls; Reset is a small secondary action below Done/Cancel/Choose another.
+  - Crop pan and zoom are clamped after every transform so the square stays filled and no black/empty area can be confirmed.
   - Upload happens only after crop confirmation and explicit upload confirmation.
   - Mobile sends normalized `0..1` crop metadata to the backend.
   - Backend validates crop bounds/square shape, applies the crop, strips metadata, and re-encodes WebP.

@@ -78,14 +78,20 @@ export function clampCropTransform(
   sourceSize: CropSize,
   cropSize: number
 ): CropTransform {
-  const displaySize = getSourceImageDisplaySize(sourceSize, transform.scale);
+  const minScale = getMinZoomToCoverSquare(sourceSize, cropSize);
+  const scale = Number.isFinite(transform.scale)
+    ? Math.max(transform.scale, minScale)
+    : minScale;
+  const displaySize = getSourceImageDisplaySize(sourceSize, scale);
   const maxOffsetX = Math.max((displaySize.width - cropSize) / 2, 0);
   const maxOffsetY = Math.max((displaySize.height - cropSize) / 2, 0);
+  const offsetX = Number.isFinite(transform.offsetX) ? transform.offsetX : 0;
+  const offsetY = Number.isFinite(transform.offsetY) ? transform.offsetY : 0;
 
   return {
-    scale: transform.scale,
-    offsetX: clampNumber(transform.offsetX, -maxOffsetX, maxOffsetX),
-    offsetY: clampNumber(transform.offsetY, -maxOffsetY, maxOffsetY),
+    scale,
+    offsetX: clampNumber(offsetX, -maxOffsetX, maxOffsetX),
+    offsetY: clampNumber(offsetY, -maxOffsetY, maxOffsetY),
   };
 }
 

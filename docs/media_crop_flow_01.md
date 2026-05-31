@@ -41,7 +41,7 @@ If crop metadata is missing, old clients still work: the backend applies a safe 
 4. User sees the source image behind a clear square crop frame, with the outside area dimmed and a visible 3x3 grid inside the frame.
 5. User drags the image with one finger and pinches with two fingers to zoom. Pinch zoom keeps the pinch midpoint stable.
 6. The image transform is clamped after each drag or pinch so the crop square always stays filled.
-7. Fixed bottom actions remain visible on small phones: `Готово`, `Отменить`, `Выбрать другое`, and `Сбросить`.
+7. Fixed bottom actions remain visible outside the crop square: primary `Готово`, secondary `Отменить` and `Выбрать другое`; `Сбросить` is a small secondary reset action.
 8. After `Готово`, mobile shows an unsaved preview generated from the same normalized crop metadata that will be uploaded.
 9. Upload happens only after the user taps `Загрузить` / avatar upload.
 10. Mobile sends the original image plus normalized crop metadata.
@@ -52,8 +52,8 @@ There is no local-only crop success, no local-only avatar success, and no fake m
 
 ## Smoke Checklist
 
-1. Avatar: choose photo, crop screen opens, drag face/object inside square, pinch zoom, verify grid and dimmed outside area are visible, tap `Готово`, verify preview, upload, restart app, avatar persists, peer sees avatar.
-2. Profile photo: choose photo, crop screen opens, drag/pinch, tap `Готово`, verify preview, upload, owner gallery refreshes, peer sees public photo.
+1. Avatar: choose photo, crop screen opens, drag face/object under the fixed square, pinch zoom, verify grid and dimmed outside area are visible, verify no `+` / `-` zoom buttons dominate the crop UI, tap `Готово`, verify preview, upload, restart app, avatar persists, peer sees avatar.
+2. Profile photo: choose photo, crop screen opens, drag/pinch, verify the crop square stays filled with no black/empty area, tap `Готово`, verify preview, upload, owner gallery refreshes, peer sees public photo.
 3. Cancel crop: confirm no upload request happens and gallery/avatar does not change.
 4. Choose another: confirm it replaces the selected image before upload.
 5. Invalid crop: backend rejects clearly and mobile keeps retry/cancel state.
