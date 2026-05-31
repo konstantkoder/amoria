@@ -1,20 +1,16 @@
 import React from "react";
 import { View } from "react-native";
-import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 
 import CoreStateCard from "@/components/CoreStateCard";
 import ScreenShell from "@/components/ScreenShell";
 import NearbyAnnouncementsSection from "@/components/nearby/NearbyAnnouncementsSection";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocale } from "@/contexts/LocaleContext";
-import {
-  type AnnouncementsTabNavigationProp,
-  type AnnouncementsTabRouteProp,
-} from "@/navigation/appRoutes";
+import { type RootStackNavigationProp } from "@/navigation/appRoutes";
 import {
   openAnnouncementDetail,
   openCreateAnnouncement,
-  resetAnnouncementsRouteParams,
 } from "@/navigation/nearbyNavigation";
 import * as announcementsApi from "@/services/api/announcementsApi";
 import {
@@ -34,8 +30,7 @@ function copyOrFallback(
 }
 
 export default function AnnouncementsScreen() {
-  const navigation = useNavigation<AnnouncementsTabNavigationProp>();
-  const route = useRoute<AnnouncementsTabRouteProp>();
+  const navigation = useNavigation<RootStackNavigationProp>();
   const { user: authUser } = useAuth();
   const { t } = useLocale();
   const currentUid = authUser?.id ?? "";
@@ -83,15 +78,6 @@ export default function AnnouncementsScreen() {
       return undefined;
     }, [loadAnnouncements])
   );
-
-  React.useEffect(() => {
-    const requestedHighlightId = route.params?.highlightAnnouncementId?.trim();
-    if (!requestedHighlightId) return;
-
-    setAnnouncementCategory("all");
-    setHighlightedAnnouncementId(requestedHighlightId);
-    resetAnnouncementsRouteParams(navigation);
-  }, [navigation, route.params?.highlightAnnouncementId]);
 
   React.useEffect(() => {
     if (!highlightedAnnouncementId) return;

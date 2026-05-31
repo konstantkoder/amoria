@@ -84,7 +84,7 @@ This launcher is local dev tooling only and is not product logic.
   - Drawer includes direct `Главный экран`, `Вместе`, `Чаты`, `Профиль`, `Настройки`, language, privacy, and logout actions.
   - `Главный экран` returns to the main tab shell, `Чаты` opens Inbox directly, `Вместе` opens the Together tab root, and `Профиль` opens the profile root.
   - Drawer styling is lighter/glass-like while keeping readable dark action cards and clear active-section highlighting.
-  - Announcements remains in the bottom tabs for this block.
+  - Announcements was intentionally left unchanged in this block; active tab removal is handled by `REMOVE-ANNOUNCEMENTS-TAB-01`.
 - TOGETHER-UI-POLISH-01 is fixed in code and awaiting release smoke:
   - Together lobby keeps the existing background image but reduces the top section to one short headline, one short explanation, visible radius/age filters, and one primary `Начать` / `Start` CTA.
   - Secondary flow explanation, step chips, Story Sparks continuation copy, and search context are behind `Как это работает` / `How it works`.
@@ -95,7 +95,13 @@ This launcher is local dev tooling only and is not product logic.
   - Together bottom tab uses a JS-only custom Two-Stroke Loop icon: two dots connected by one imperfect shared trace.
   - The generic sparkle/star tab icon is removed from Together.
   - Active Together tab has a subtle lifted pill, amber outline, and soft glow; inactive state remains readable.
-  - Other bottom tab icons and Announcements tab remain unchanged.
+  - Other bottom tab icons remain unchanged; Announcements tab removal is handled by `REMOVE-ANNOUNCEMENTS-TAB-01`.
+- REMOVE-ANNOUNCEMENTS-TAB-01 is fixed in code and awaiting release smoke:
+  - Active bottom tabs are now `Together`, `Nearby`, and `Chats`.
+  - `Announcements` / `Объявления` is removed from the bottom tab bar and no longer has an active tab icon or label.
+  - Legacy announcement create/detail root routes are kept for old links and DM/source context, but they are deprecated and unreachable from the main tab UI.
+  - Legacy announcement fallback navigation returns to the existing Nearby tab instead of a removed Announcements tab.
+  - Backend announcement APIs/data are unchanged; future Nearby redesign must not depend on Announcements as a main tab.
 
 ## Completed blocks
 

@@ -53,14 +53,9 @@ export type AppStackParamList = {
   Root: undefined;
 };
 
-export type AnnouncementsTabParams = {
-  highlightAnnouncementId?: NearbyAnnouncement["id"];
-};
-
 export type MainTabParamList = {
   Together: undefined;
   Nearby: undefined;
-  Announcements: AnnouncementsTabParams | undefined;
   Inbox: undefined;
 };
 
@@ -106,7 +101,9 @@ export type UserProfileRouteParams = {
 
 export type RootStackParamList = {
   Tabs: TabsNavigatorParams | undefined;
+  /** @deprecated Kept for old links/DM source context; unreachable from active bottom tabs. */
   CreateAnnouncement: undefined;
+  /** @deprecated Kept for old links/DM source context; unreachable from active bottom tabs. */
   AnnouncementDetail: AnnouncementDetailRouteParams;
   PlayMatch: PlayMatchRouteParams;
   PlayCanvas: PlaySessionRouteParams;
@@ -131,16 +128,7 @@ export type NearbyTabNavigationProp = CompositeNavigationProp<
   RootStackNavigationProp
 >;
 
-export type AnnouncementsTabNavigationProp = CompositeNavigationProp<
-  BottomTabNavigationProp<MainTabParamList, "Announcements">,
-  RootStackNavigationProp
->;
-
 export type NearbyTabRouteProp = RouteProp<MainTabParamList, "Nearby">;
-export type AnnouncementsTabRouteProp = RouteProp<
-  MainTabParamList,
-  "Announcements"
->;
 export type AnnouncementDetailRouteProp = RouteProp<
   RootStackParamList,
   "AnnouncementDetail"

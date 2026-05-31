@@ -16,7 +16,6 @@ import { Drawer } from "react-native-drawer-layout";
 
 import PlayLobbyScreen from "@/screens/PlayLobbyScreen";
 import NearbyHubScreen from "@/screens/NearbyHubScreen";
-import AnnouncementsScreen from "@/screens/AnnouncementsScreen";
 import InboxScreen from "@/screens/InboxScreen";
 import PlayMatchScreen from "@/screens/PlayMatchScreen";
 import PlayCanvasScreen from "@/screens/PlayCanvasScreen";
@@ -335,10 +334,6 @@ function MainTabs() {
     const nearby = t("tabs.nearby");
     return nearby === "tabs.nearby" ? "Nearby" : nearby;
   }, [t]);
-  const announcementsTabLabel = React.useMemo(() => {
-    const announcements = t("tabs.announcements");
-    return announcements === "tabs.announcements" ? "Announcements" : announcements;
-  }, [t]);
 
   return (
     <Tab.Navigator
@@ -355,7 +350,6 @@ function MainTabs() {
           }
         > = {
           Nearby: { active: "location", inactive: "location-outline" },
-          Announcements: { active: "document-text", inactive: "document-text-outline" },
           Inbox: { active: "chatbubbles", inactive: "chatbubbles-outline" },
         };
 
@@ -416,14 +410,6 @@ function MainTabs() {
         }}
       />
       <Tab.Screen
-        name="Announcements"
-        component={AnnouncementsScreen}
-        options={{
-          title: announcementsTabLabel,
-          tabBarLabel: announcementsTabLabel,
-        }}
-      />
-      <Tab.Screen
         name="Inbox"
         component={InboxScreen}
         options={{
@@ -478,6 +464,7 @@ export default function AppNavigator() {
         }}
       >
         <RootStack.Screen name="Tabs" component={MainTabs} />
+        {/* Deprecated legacy announcement routes kept for old links and DM context only. */}
         <RootStack.Screen name="CreateAnnouncement" component={CreateAnnouncementScreen} />
         <RootStack.Screen name="AnnouncementDetail" component={AnnouncementDetailScreen} />
         <RootStack.Screen name="PlayMatch" component={PlayMatchScreen} />

@@ -1,9 +1,6 @@
 import type {
   AnnouncementDetailRouteParams,
-  AnnouncementsTabNavigationProp,
-  AnnouncementsTabParams,
   RootStackNavigationProp,
-  TabsNavigatorParams,
 } from "@/navigation/appRoutes";
 import type { NearbyAnnouncement } from "@/services/announcementsModel";
 
@@ -11,17 +8,6 @@ type NearbyFlowNavigator = Pick<
   RootStackNavigationProp,
   "canGoBack" | "goBack" | "navigate"
 >;
-
-type AnnouncementsParamsNavigator = Pick<AnnouncementsTabNavigationProp, "setParams">;
-
-function buildAnnouncementsTabsTarget(
-  params?: AnnouncementsTabParams
-): ["Tabs", NonNullable<TabsNavigatorParams>] {
-  return [
-    "Tabs",
-    params ? { screen: "Announcements", params } : { screen: "Announcements" },
-  ];
-}
 
 function buildAnnouncementDetailParams(
   announcement: NearbyAnnouncement
@@ -34,13 +20,9 @@ function buildAnnouncementDetailParams(
 
 export function openAnnouncements(
   navigation: NearbyFlowNavigator,
-  highlightAnnouncementId?: NearbyAnnouncement["id"]
+  _highlightAnnouncementId?: NearbyAnnouncement["id"]
 ) {
-  navigation.navigate(
-    ...buildAnnouncementsTabsTarget({
-      ...(highlightAnnouncementId ? { highlightAnnouncementId } : {}),
-    })
-  );
+  navigation.navigate("Tabs", { screen: "Nearby" });
 }
 
 export function openCreateAnnouncement(navigation: NearbyFlowNavigator) {
@@ -55,12 +37,6 @@ export function openAnnouncementDetail(
     "AnnouncementDetail",
     buildAnnouncementDetailParams(announcement)
   );
-}
-
-export function resetAnnouncementsRouteParams(navigation: AnnouncementsParamsNavigator) {
-  navigation.setParams({
-    highlightAnnouncementId: undefined,
-  });
 }
 
 export function goBackOrOpenAnnouncements(
