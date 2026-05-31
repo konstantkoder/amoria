@@ -85,6 +85,12 @@ This launcher is local dev tooling only and is not product logic.
   - `Главный экран` returns to the main tab shell, `Чаты` opens Inbox directly, `Вместе` opens the Together tab root, and `Профиль` opens the profile root.
   - Drawer styling is lighter/glass-like while keeping readable dark action cards and clear active-section highlighting.
   - Announcements remains in the bottom tabs for this block.
+- TOGETHER-UI-POLISH-01 is fixed in code and awaiting release smoke:
+  - Together lobby keeps the existing background image but reduces the top section to one short headline, one short explanation, visible radius/age filters, and one primary `Начать` / `Start` CTA.
+  - Secondary flow explanation, step chips, Story Sparks continuation copy, and search context are behind `Как это работает` / `How it works`.
+  - The primary CTA uses a softer coral/amber treatment with a lighter shadow instead of the previous hot-pink emphasis.
+  - History remains accessible below the main start area as a secondary entry.
+  - Queue API calls, radius/age matching, geolocation behavior, and Story Sparks continuation logic are unchanged.
 
 ## Completed blocks
 
@@ -96,7 +102,7 @@ This launcher is local dev tooling only and is not product logic.
   - Story Sparks uses backend-backed curated story packs, backend events, result/history/detail rendering, and DM source context.
   - Superseded by `TOGETHER-FLOW-02`: Story Sparks is now a staged continuation after draw, not an equal lobby start option.
 - `TOGETHER-FLOW-02` staged story continuation:
-  - Active Together lobby entry is `Начать вместе` / `Start Together`, which starts `draw`.
+  - Active Together lobby entry is `Начать` / `Start`, which starts `draw`.
   - After draw result, users can choose open chat, continue story, or leave the drawing as a story.
   - Mutual `continue_story` creates/reuses one backend `story_sparks` continuation session for the same pair.
   - Final Story Sparks result keeps the ordinary open/skip reveal flow.

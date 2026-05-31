@@ -1,6 +1,6 @@
 # Together Smoke Pass
 
-Updated: 2026-05-31 for `NAVIGATION-MENU-CLEANUP-01`
+Updated: 2026-05-31 for `TOGETHER-UI-POLISH-01`
 
 ## Run Metadata
 
@@ -83,6 +83,14 @@ These checks passed for the Story Sparks implementation, but they do not replace
 - `Профиль` opens the profile root, not an edit/photo subflow.
 - Returning from Chats/Profile/Settings back to Together must not require force-closing the app or walking through unrelated screens.
 
+## Together Lobby Polish
+
+- Together lobby keeps the existing background image and shows one calm hero with short headline/body copy.
+- Radius and age filters remain visible before the primary `Начать` / `Start` CTA.
+- `Как это работает` / `How it works` expands the secondary flow details, Story Sparks continuation copy, and search context.
+- History remains accessible below the main start area and does not compete with the primary CTA.
+- Lobby polish must not change queue API calls, radius/age matching, geolocation behavior, or Story Sparks continuation logic.
+
 ## Build Verification
 
 Before manual smoke:
@@ -121,14 +129,15 @@ Known automated-check warning: the server test run prints the existing AWS SDK f
 | S - BlueStacks GPS unavailable | Grant permission but leave emulator location broken; app says the device is not returning coordinates and does not join queue | NOT TESTED | Prepared for manual pass. | - |
 | T - Peer media | Open peer profile after Together/DM; avatar/photos load or Client Errors show safe `urlKind`/`mediaId`/`httpStatus`/`contentType` diagnostics | NOT TESTED | Prepared for manual pass. | - |
 | U - Menu escape paths | From Together lobby and at least one active Together subflow, open the app menu, go directly to Chats, Profile, Settings, Main tab shell, and Together root; verify the user is not trapped and bottom tabs still work | NOT TESTED | Prepared for manual navigation smoke. | - |
+| V - Lobby polish | Open Together lobby; verify filters are visible, Start begins queue, collapsed info opens/closes, Story Sparks info remains available inside it, and History is accessible below the main start area | NOT TESTED | Prepared for manual lobby smoke. | - |
 
 ## Staged Story Sparks Manual Checklist
 
 | Step | Account / Device | Expected Result | Actual Result | Status |
 | --- | --- | --- | --- | --- |
-| 1. Open Together lobby | A | Lobby sells one primary path: `Начать вместе`; Story Sparks is described as after-drawing continuation; no active `Палитра настроения` CTA |  | NOT TESTED |
+| 1. Open Together lobby | A | Lobby sells one primary path: `Начать` / `Start`; radius and age filters are visible; Story Sparks and flow details are behind collapsed info; no active `Палитра настроения` CTA |  | NOT TESTED |
 | 2. Choose radius | A+B | Radius selector defaults to 25 km; 5/25/100/250/no-limit choices all request location before queue |  | NOT TESTED |
-| 3. Start Together | A+B | Both users enter backend `draw` matching/session using selected radius; there is no first-step choice between draw and story_sparks |  | NOT TESTED |
+| 3. Start queue | A+B | Both users enter backend `draw` matching/session using selected radius; there is no first-step choice between draw and story_sparks |  | NOT TESTED |
 | 4. Finish draw | A+B | Both clients reach `PlayResult` for the same draw session |  | NOT TESTED |
 | 5. Continue story | A+B | Both tap `Продолжить историю`; backend stores `continue_story` decisions |  | NOT TESTED |
 | 6. Same continuation | A+B | Backend returns one `story_sparks` session id and both clients enter that same session |  | NOT TESTED |

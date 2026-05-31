@@ -74,6 +74,7 @@ export default function PlayLobbyScreen() {
   const [locationBusy, setLocationBusy] = React.useState(false);
   const [locationNotice, setLocationNotice] = React.useState("");
   const [profileInterestCount, setProfileInterestCount] = React.useState<number | null>(null);
+  const [detailsOpen, setDetailsOpen] = React.useState(false);
 
   React.useEffect(() => {
     let alive = true;
@@ -131,11 +132,11 @@ export default function PlayLobbyScreen() {
     title: tt("together.lobby.storySparksTitle", "История на двоих"),
     description: tt(
       "together.lobby.storySparksContinuationBody",
-      "После рисунка можно продолжить через Историю на двоих"
+      "После рисунка можно продолжить историю, если вы оба этого захотите."
     ),
     details: tt(
       "together.lobby.storySparksDetails",
-      "Если вы оба выберете продолжение, откроется общий Story Sparks этап для той же пары."
+      "Второй этап открывается после рисунка для той же пары."
     ),
   };
 
@@ -333,142 +334,86 @@ export default function PlayLobbyScreen() {
         <View style={styles.hero}>
           <View style={styles.heroTop}>
             <Text style={styles.kicker}>
-              {tt("together.lobby.drawKicker", "Главный сценарий")}
+              {tt("together.lobby.drawKicker", "Вместе")}
             </Text>
             <Text style={styles.heroTitle}>
-              {tt("together.lobby.drawHeroTitle", "Создай общий рисунок с другим человеком")}
+              {tt("together.lobby.drawHeroTitle", "Начните с общего момента")}
             </Text>
             <Text style={styles.heroText}>
               {tt(
                 "together.lobby.drawHeroBody",
-                "Вы получите один короткий творческий вызов, будете рисовать на одном холсте и сохраните общий след, который потом может стать поводом для чата."
+                "Один короткий рисунок помогает почувствовать человека без лишних слов."
               )}
             </Text>
-            <Text style={styles.heroBridgeText}>
-              {tt(
-                "together.lobby.coreLoopPlain",
-                "Сначала создайте общий момент, потом спокойно решите, хотите ли продолжить в личном разговоре."
-              )}
-            </Text>
-            <View style={styles.heroLoop}>
-              {[
-                tt("together.lobby.drawStepChallenge", "Творческий вызов"),
-                tt("together.lobby.drawStepCanvas", "Общий холст"),
-                tt("together.lobby.drawStepResult", "Совместный результат"),
-                tt("together.lobby.drawStepStory", "История на двоих"),
-                tt("together.lobby.drawStepChat", "Чат по взаимности"),
-              ].map((item) => (
-                <View key={item} style={styles.heroLoopChip}>
-                  <Text style={styles.heroLoopChipText}>{item}</Text>
-                </View>
-              ))}
-            </View>
           </View>
 
           <View style={styles.heroBottom}>
-            <View style={styles.radiusPanel}>
-              <Text style={styles.radiusTitle}>
-                {tt("together.geo.radiusTitle", "Радиус поиска")}
-              </Text>
-              <View style={styles.radiusOptions}>
-                {TOGETHER_RADIUS_OPTIONS.map((radiusKm) => {
-                  const selected = selectedRadiusKm === radiusKm;
-                  return (
-                    <Pressable
-                      key={radiusKm === null ? "anywhere" : String(radiusKm)}
-                      onPress={() => selectRadius(radiusKm)}
-                      style={[
-                        styles.radiusOption,
-                        selected ? styles.radiusOptionSelected : null,
-                      ]}
-                      accessibilityRole="button"
-                    >
-                      <Text
-                        style={[
-                          styles.radiusOptionText,
-                          selected ? styles.radiusOptionTextSelected : null,
-                        ]}
-                      >
-                        {radiusLabel(radiusKm)}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-              {locationNotice ? (
-                <Text style={styles.radiusNotice}>{locationNotice}</Text>
-              ) : (
-                <Text style={styles.radiusHint}>
-                  {tt(
-                    "together.geo.radiusHint",
-                    "Сначала ищите рядом. Если никого нет — расширьте радиус."
-                  )}
-                  {" "}
-                  {tt(
-                    "together.geo.privacyHint",
-                    "Точная геолокация не показывается другим людям."
-                  )}
+            <View style={styles.filtersPanel}>
+              <View style={styles.filterBlock}>
+                <Text style={styles.filterTitle}>
+                  {tt("together.geo.radiusTitle", "Радиус поиска")}
                 </Text>
-              )}
-            </View>
-            <View style={styles.radiusPanel}>
-              <Text style={styles.radiusTitle}>
-                {tt("together.age.title", "Кого искать")}
-              </Text>
-              <View style={styles.radiusOptions}>
-                {AGE_FILTER_OPTIONS.map((option) => {
-                  const selected = selectedAgeFilter === option.id;
-                  return (
-                    <Pressable
-                      key={option.id}
-                      onPress={() => selectAgeFilter(option.id)}
-                      style={[
-                        styles.radiusOption,
-                        selected ? styles.radiusOptionSelected : null,
-                      ]}
-                      accessibilityRole="button"
-                    >
-                      <Text
+                <View style={styles.optionRow}>
+                  {TOGETHER_RADIUS_OPTIONS.map((radiusKm) => {
+                    const selected = selectedRadiusKm === radiusKm;
+                    return (
+                      <Pressable
+                        key={radiusKm === null ? "anywhere" : String(radiusKm)}
+                        onPress={() => selectRadius(radiusKm)}
                         style={[
-                          styles.radiusOptionText,
-                          selected ? styles.radiusOptionTextSelected : null,
+                          styles.optionChip,
+                          selected ? styles.optionChipSelected : null,
                         ]}
+                        accessibilityRole="button"
                       >
-                        {ageFilterLabel(option.id)}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
+                        <Text
+                          style={[
+                            styles.optionChipText,
+                            selected ? styles.optionChipTextSelected : null,
+                          ]}
+                        >
+                          {radiusLabel(radiusKm)}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
               </View>
-              <Text style={styles.radiusHint}>
-                {tt(
-                  "together.age.privacyHint",
-                  "Возраст используется для подбора. Точная дата рождения не показывается."
-                )}
-              </Text>
+
+              <View style={styles.filterDivider} />
+
+              <View style={styles.filterBlock}>
+                <Text style={styles.filterTitle}>
+                  {tt("together.age.title", "Кого искать")}
+                </Text>
+                <View style={styles.optionRow}>
+                  {AGE_FILTER_OPTIONS.map((option) => {
+                    const selected = selectedAgeFilter === option.id;
+                    return (
+                      <Pressable
+                        key={option.id}
+                        onPress={() => selectAgeFilter(option.id)}
+                        style={[
+                          styles.optionChip,
+                          selected ? styles.optionChipSelected : null,
+                        ]}
+                        accessibilityRole="button"
+                      >
+                        <Text
+                          style={[
+                            styles.optionChipText,
+                            selected ? styles.optionChipTextSelected : null,
+                          ]}
+                        >
+                          {ageFilterLabel(option.id)}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
             </View>
-            <View style={styles.searchSummaryPanel}>
-              <Text style={styles.radiusTitle}>
-                {tt("together.profileSummary.title", "Контекст поиска")}
-              </Text>
-              <Text style={styles.radiusHint}>
-                {tt(
-                  "together.profileSummary.body",
-                  "Радиус: {radius}. Возраст: {age}. Интересы в профиле: {count}.",
-                  {
-                    radius: radiusLabel(selectedRadiusKm),
-                    age: ageFilterLabel(selectedAgeFilter),
-                    count: profileInterestCount === null ? "-" : String(profileInterestCount),
-                  }
-                )}
-              </Text>
-              <Text style={styles.radiusHint}>
-                {tt(
-                  "together.profileSummary.futureMatching",
-                  "Интересы видны в анкете и подготовлены для будущего подбора, но сейчас не ограничивают старт Together."
-                )}
-              </Text>
-            </View>
+
             <Pressable
               onPress={() => void openActivity("draw", "startDraw")}
               style={[styles.primaryCta, locationBusy ? styles.primaryCtaDisabled : null]}
@@ -477,36 +422,71 @@ export default function PlayLobbyScreen() {
               <Text style={styles.primaryCtaTitle}>
                 {locationBusy
                   ? tt("together.geo.locationLoading", "Получаем геолокацию...")
-                  : tt("together.lobby.startDrawChallenge", "Начать вместе")}
+                  : tt("together.lobby.startDrawChallenge", "Начать")}
               </Text>
             </Pressable>
             <Text style={styles.primaryCtaHint}>
               {tt(
                 "together.lobby.startDrawHint",
-                "7 минут на общий ответ, затем итог, история и честное решение про личный разговор."
+                "Сначала общий рисунок. Дальше - продолжение только по взаимности."
               )}
             </Text>
-          </View>
-        </View>
 
-        <View style={styles.secondarySection}>
-          <Text style={styles.secondarySectionTitle}>
-            {tt("together.lobby.storySparksSectionTitle", "Второй этап")}
-          </Text>
-          <Text style={styles.secondarySectionText}>
-            {tt(
-              "together.lobby.storySparksSectionBody",
-              "История на двоих усиливает знакомство после рисунка, а не конкурирует с ним на первом шаге."
-            )}
-          </Text>
-        </View>
+            {locationNotice ? (
+              <Text style={styles.locationNotice}>{locationNotice}</Text>
+            ) : null}
 
-        <View style={styles.secondaryCard}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>{storySparksCopy.title}</Text>
+            <Pressable
+              onPress={() => setDetailsOpen((current) => !current)}
+              style={styles.detailsToggle}
+              accessibilityRole="button"
+            >
+              <Text style={styles.detailsToggleText}>
+                {detailsOpen
+                  ? tt("together.lobby.detailsHide", "Скрыть детали")
+                  : tt("together.lobby.detailsShow", "Как это работает")}
+              </Text>
+              <Text style={styles.detailsToggleIcon}>{detailsOpen ? "-" : "+"}</Text>
+            </Pressable>
+
+            {detailsOpen ? (
+              <View style={styles.detailsPanel}>
+                <Text style={styles.detailsText}>
+                  {tt(
+                    "together.lobby.coreLoopPlain",
+                    "Короткий рисунок помогает почувствовать совпадение. Если обоим хочется, дальше будет чат или история."
+                  )}
+                </Text>
+                <View style={styles.detailSteps}>
+                  {[
+                    tt("together.lobby.drawStepChallenge", "Творческий вызов"),
+                    tt("together.lobby.drawStepCanvas", "Общий холст"),
+                    tt("together.lobby.drawStepResult", "Совместный результат"),
+                    tt("together.lobby.drawStepStory", "История на двоих"),
+                    tt("together.lobby.drawStepChat", "Чат по взаимности"),
+                  ].map((item) => (
+                    <View key={item} style={styles.detailStepChip}>
+                      <Text style={styles.detailStepText}>{item}</Text>
+                    </View>
+                  ))}
+                </View>
+                <Text style={styles.detailsTitle}>{storySparksCopy.title}</Text>
+                <Text style={styles.detailsText}>{storySparksCopy.description}</Text>
+                <Text style={styles.detailsMuted}>{storySparksCopy.details}</Text>
+                <Text style={styles.detailsMuted}>
+                  {tt(
+                    "together.profileSummary.body",
+                    "Радиус: {radius}. Возраст: {age}. Интересы в профиле: {count}.",
+                    {
+                      radius: radiusLabel(selectedRadiusKm),
+                      age: ageFilterLabel(selectedAgeFilter),
+                      count: profileInterestCount === null ? "-" : String(profileInterestCount),
+                    }
+                  )}
+                </Text>
+              </View>
+            ) : null}
           </View>
-          <Text style={styles.cardDescription}>{storySparksCopy.description}</Text>
-          <Text style={styles.cardDetails}>{storySparksCopy.details}</Text>
         </View>
 
         <Pressable
@@ -538,128 +518,91 @@ export default function PlayLobbyScreen() {
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
   content: {
-    padding: 16,
+    padding: 14,
     paddingBottom: 40,
-    gap: 16,
+    gap: 14,
   },
   hero: {
-    gap: 18,
-    paddingHorizontal: 20,
-    paddingTop: 22,
-    paddingBottom: 20,
+    gap: 16,
+    paddingHorizontal: 18,
+    paddingTop: 20,
+    paddingBottom: 18,
     borderRadius: theme.shapes.card,
-    backgroundColor: "rgba(10, 13, 26, 0.82)",
+    backgroundColor: "rgba(17, 18, 32, 0.66)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.16)",
+    borderColor: "rgba(255,255,255,0.13)",
   },
   heroTop: {
-    maxWidth: 340,
-    gap: 10,
+    gap: 8,
   },
   kicker: {
-    color: "#FFE0B8",
+    color: "#F3C98B",
     fontSize: 11,
     fontWeight: "800",
-    letterSpacing: 1,
+    letterSpacing: 0,
     textTransform: "uppercase",
   },
   heroTitle: {
     color: theme.colors.text,
-    fontSize: 27,
-    lineHeight: 32,
+    fontSize: 29,
+    lineHeight: 34,
     fontWeight: "800",
   },
   heroText: {
-    color: "rgba(255,255,255,0.86)",
-    fontSize: 15,
-    lineHeight: 21,
-  },
-  heroBridgeText: {
-    color: "#FFF5EA",
+    color: "rgba(255,255,255,0.82)",
     fontSize: 14,
     lineHeight: 20,
-    fontWeight: "700",
   },
   heroBottom: {
+    gap: 12,
+  },
+  filtersPanel: {
+    gap: 12,
+    padding: 13,
+    borderRadius: theme.shapes.cardInner,
+    backgroundColor: "rgba(14, 18, 31, 0.62)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+  },
+  filterBlock: {
     gap: 8,
   },
-  radiusPanel: {
-    gap: 9,
-    padding: 12,
-    borderRadius: theme.shapes.cardInner,
+  filterDivider: {
+    height: 1,
+    backgroundColor: "rgba(255,255,255,0.10)",
+  },
+  filterTitle: {
+    color: "rgba(255,255,255,0.92)",
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  optionRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 7,
+  },
+  optionChip: {
+    minHeight: 34,
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+    alignItems: "center",
+    justifyContent: "center",
     backgroundColor: "rgba(255,255,255,0.07)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.12)",
   },
-  searchSummaryPanel: {
-    gap: 7,
-    padding: 12,
-    borderRadius: theme.shapes.cardInner,
-    backgroundColor: "rgba(255,255,255,0.05)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
+  optionChipSelected: {
+    backgroundColor: "rgba(199, 143, 111, 0.34)",
+    borderColor: "rgba(241, 197, 132, 0.42)",
   },
-  radiusTitle: {
-    color: theme.colors.text,
-    fontSize: 13,
-    fontWeight: "900",
-  },
-  radiusOptions: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  radiusOption: {
-    minHeight: 36,
-    borderRadius: theme.shapes.pill,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.08)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
-  },
-  radiusOptionSelected: {
-    backgroundColor: theme.colors.primary,
-    borderColor: "rgba(255,255,255,0.24)",
-  },
-  radiusOptionText: {
-    color: theme.colors.text,
+  optionChipText: {
+    color: "rgba(255,255,255,0.86)",
     fontSize: 12,
     fontWeight: "800",
   },
-  radiusOptionTextSelected: {
-    color: "#FFFFFF",
-  },
-  radiusHint: {
-    color: "rgba(255,245,234,0.74)",
-    fontSize: 12,
-    lineHeight: 17,
-  },
-  radiusNotice: {
-    color: "#FFE0B8",
-    fontSize: 12,
-    lineHeight: 17,
-    fontWeight: "700",
-  },
-  heroLoop: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  heroLoopChip: {
-    borderRadius: theme.shapes.pill,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    backgroundColor: "rgba(255,255,255,0.08)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
-  },
-  heroLoopChipText: {
-    color: "#FFF5EA",
-    fontSize: 11,
-    fontWeight: "800",
+  optionChipTextSelected: {
+    color: "#FFF7EC",
   },
   primaryCta: {
     alignSelf: "center",
@@ -669,37 +612,109 @@ const styles = StyleSheet.create({
     borderRadius: theme.shapes.pill,
     paddingHorizontal: 24,
     paddingVertical: 15,
-    backgroundColor: theme.colors.primary,
+    backgroundColor: "#B98272",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.2)",
+    borderColor: "rgba(245, 205, 139, 0.40)",
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: theme.colors.primary,
-    shadowOpacity: 0.34,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 12,
+    shadowColor: "#D39B72",
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 7 },
+    elevation: 7,
   },
   primaryCtaDisabled: {
     opacity: 0.68,
   },
   primaryCtaTitle: {
     color: "#FFFFFF",
-    fontSize: 17,
-    fontWeight: "800",
+    fontSize: 18,
+    fontWeight: "900",
   },
   primaryCtaHint: {
-    color: "rgba(255,245,234,0.92)",
+    color: "rgba(255,245,234,0.72)",
     fontSize: 12,
     lineHeight: 17,
     textAlign: "center",
   },
+  locationNotice: {
+    color: "#F3C98B",
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  detailsToggle: {
+    minHeight: 42,
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 9,
+    backgroundColor: "rgba(255,255,255,0.07)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+  },
+  detailsToggleText: {
+    color: "#FFF7EC",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  detailsToggleIcon: {
+    color: "#F3C98B",
+    fontSize: 16,
+    fontWeight: "900",
+  },
+  detailsPanel: {
+    gap: 9,
+    padding: 13,
+    borderRadius: theme.shapes.cardInner,
+    backgroundColor: "rgba(255,255,255,0.055)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.10)",
+  },
+  detailsTitle: {
+    color: theme.colors.text,
+    fontSize: 14,
+    fontWeight: "900",
+    marginTop: 2,
+  },
+  detailsText: {
+    color: "rgba(255,255,255,0.82)",
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  detailsMuted: {
+    color: "rgba(255,255,255,0.62)",
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  detailSteps: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 7,
+  },
+  detailStepChip: {
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    backgroundColor: "rgba(255,255,255,0.07)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.10)",
+  },
+  detailStepText: {
+    color: "#FFF5EA",
+    fontSize: 11,
+    fontWeight: "800",
+  },
   historyCard: {
     borderRadius: theme.shapes.card,
-    padding: 17,
-    backgroundColor: "rgba(13, 17, 31, 0.84)",
+    padding: 14,
+    backgroundColor: "rgba(13, 17, 31, 0.58)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.14)",
+    borderColor: "rgba(255,255,255,0.11)",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -711,13 +726,13 @@ const styles = StyleSheet.create({
   },
   historyTitle: {
     color: theme.colors.text,
-    fontSize: 17,
+    fontSize: 15,
     fontWeight: "800",
   },
   historyText: {
     color: theme.colors.subtext,
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 12,
+    lineHeight: 17,
   },
   historyBadge: {
     borderRadius: theme.shapes.pill,
@@ -730,68 +745,6 @@ const styles = StyleSheet.create({
   historyBadgeText: {
     color: theme.colors.text,
     fontSize: 12,
-    fontWeight: "800",
-  },
-  secondarySection: {
-    gap: 4,
-    paddingHorizontal: 2,
-  },
-  secondarySectionTitle: {
-    color: theme.colors.text,
-    fontSize: 17,
-    fontWeight: "800",
-  },
-  secondarySectionText: {
-    color: theme.colors.subtext,
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  secondaryCard: {
-    borderRadius: theme.shapes.card,
-    padding: 17,
-    backgroundColor: "rgba(16, 20, 38, 0.90)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
-    gap: 10,
-  },
-  cardHeader: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    gap: 12,
-  },
-  cardTitle: {
-    flex: 1,
-    color: theme.colors.text,
-    fontSize: 17,
-    lineHeight: 22,
-    fontWeight: "800",
-  },
-  cardDescription: {
-    color: theme.colors.subtext,
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  cardDetails: {
-    color: theme.colors.text,
-    fontSize: 12,
-    lineHeight: 17,
-    fontWeight: "700",
-  },
-  secondaryCta: {
-    minHeight: 48,
-    borderRadius: theme.shapes.pill,
-    paddingHorizontal: 18,
-    paddingVertical: 13,
-    backgroundColor: theme.colors.accent,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.18)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  secondaryCtaText: {
-    color: "#FFFFFF",
-    fontSize: 14,
     fontWeight: "800",
   },
 });
