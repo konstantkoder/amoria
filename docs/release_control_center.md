@@ -91,6 +91,11 @@ This launcher is local dev tooling only and is not product logic.
   - The primary CTA uses a softer coral/amber treatment with a lighter shadow instead of the previous hot-pink emphasis.
   - History remains accessible below the main start area as a secondary entry.
   - Queue API calls, radius/age matching, geolocation behavior, and Story Sparks continuation logic are unchanged.
+- TOGETHER-TAB-ICON-01 is fixed in code and awaiting release smoke:
+  - Together bottom tab uses a JS-only custom Two-Stroke Loop icon: two dots connected by one imperfect shared trace.
+  - The generic sparkle/star tab icon is removed from Together.
+  - Active Together tab has a subtle lifted pill, amber outline, and soft glow; inactive state remains readable.
+  - Other bottom tab icons and Announcements tab remain unchanged.
 
 ## Completed blocks
 

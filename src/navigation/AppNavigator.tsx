@@ -2,7 +2,15 @@ import React from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
-import { ActivityIndicator, Keyboard, Text, TextInput, TouchableOpacity, View } from "react-native";
+import {
+  ActivityIndicator,
+  Keyboard,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Drawer } from "react-native-drawer-layout";
 
@@ -51,6 +59,58 @@ import {
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const RootStack = createNativeStackNavigator<RootStackParamList>();
 const ProfileStack = createNativeStackNavigator<ProfileStackParamList>();
+
+function TogetherTabIcon({ color, focused }: { color: string; focused: boolean }) {
+  const strokeColor = focused ? "#FFE2B3" : color;
+  const dotColor = focused ? "#FFF4E6" : color;
+
+  return (
+    <View
+      style={[
+        styles.togetherIconShell,
+        focused ? styles.togetherIconShellActive : styles.togetherIconShellInactive,
+      ]}
+    >
+      <View style={styles.togetherMark}>
+        <View
+          style={[
+            styles.togetherStroke,
+            styles.togetherStrokeStart,
+            { backgroundColor: strokeColor },
+          ]}
+        />
+        <View
+          style={[
+            styles.togetherStroke,
+            styles.togetherStrokeMiddle,
+            { backgroundColor: strokeColor },
+          ]}
+        />
+        <View
+          style={[
+            styles.togetherStroke,
+            styles.togetherStrokeEnd,
+            { backgroundColor: strokeColor },
+          ]}
+        />
+        <View
+          style={[
+            styles.togetherDot,
+            styles.togetherDotLeft,
+            { backgroundColor: dotColor },
+          ]}
+        />
+        <View
+          style={[
+            styles.togetherDot,
+            styles.togetherDotRight,
+            { backgroundColor: dotColor },
+          ]}
+        />
+      </View>
+    </View>
+  );
+}
 
 function IdentitySetupGate({ children }: { children: React.ReactNode }) {
   const { t } = useLocale();
@@ -295,7 +355,6 @@ function MainTabs() {
           }
         > = {
           Nearby: { active: "location", inactive: "location-outline" },
-          Together: { active: "sparkles", inactive: "sparkles-outline" },
           Announcements: { active: "document-text", inactive: "document-text-outline" },
           Inbox: { active: "chatbubbles", inactive: "chatbubbles-outline" },
         };
@@ -328,40 +387,12 @@ function MainTabs() {
             marginTop: 0,
           },
           tabBarIcon: ({ color, size, focused }) => {
+            if (isTogetherTab) {
+              return <TogetherTabIcon color={color} focused={focused} />;
+            }
+
             const icon = icons[route.name];
             const name = focused ? icon?.active ?? "ellipse" : icon?.inactive ?? "ellipse-outline";
-
-            if (isTogetherTab) {
-              return (
-                <View
-                  style={{
-                    minWidth: 44,
-                    minHeight: focused ? 40 : 38,
-                    borderRadius: 999,
-                    backgroundColor: focused
-                      ? "rgba(255, 78, 138, 0.18)"
-                      : "rgba(255,255,255,0.04)",
-                    borderWidth: 1,
-                    borderColor: focused
-                      ? "rgba(255, 122, 60, 0.28)"
-                      : "rgba(255,255,255,0.08)",
-                    shadowColor: focused ? theme.colors.primary : "transparent",
-                    shadowOpacity: focused ? 0.18 : 0,
-                    shadowRadius: focused ? 10 : 0,
-                    shadowOffset: { width: 0, height: 5 },
-                    elevation: focused ? 7 : 0,
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <Ionicons
-                    name={name}
-                    size={focused ? size + 3 : size + 1}
-                    color={color}
-                  />
-                </View>
-              );
-            }
 
             return <Ionicons name={name} size={focused ? size + 1 : size} color={color} />;
           },
@@ -466,3 +497,71 @@ export default function AppNavigator() {
     </IdentitySetupGate>
   );
 }
+
+const styles = StyleSheet.create({
+  togetherIconShell: {
+    minWidth: 48,
+    minHeight: 39,
+    borderRadius: 999,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  togetherIconShellActive: {
+    minHeight: 41,
+    backgroundColor: "rgba(185, 130, 114, 0.23)",
+    borderColor: "rgba(245, 205, 139, 0.42)",
+    shadowColor: "#D39B72",
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 7,
+    transform: [{ translateY: -2 }],
+  },
+  togetherIconShellInactive: {
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  togetherMark: {
+    width: 35,
+    height: 25,
+  },
+  togetherStroke: {
+    position: "absolute",
+    height: 3,
+    borderRadius: 999,
+    opacity: 0.95,
+  },
+  togetherStrokeStart: {
+    left: 7,
+    top: 15,
+    width: 10,
+    transform: [{ rotate: "-24deg" }],
+  },
+  togetherStrokeMiddle: {
+    left: 15,
+    top: 11,
+    width: 11,
+    transform: [{ rotate: "-8deg" }],
+  },
+  togetherStrokeEnd: {
+    left: 24,
+    top: 12,
+    width: 8,
+    transform: [{ rotate: "22deg" }],
+  },
+  togetherDot: {
+    position: "absolute",
+    width: 7,
+    height: 7,
+    borderRadius: 999,
+  },
+  togetherDotLeft: {
+    left: 2,
+    top: 17,
+  },
+  togetherDotRight: {
+    right: 1,
+    top: 6,
+  },
+});

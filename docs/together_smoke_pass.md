@@ -1,6 +1,6 @@
 # Together Smoke Pass
 
-Updated: 2026-05-31 for `TOGETHER-UI-POLISH-01`
+Updated: 2026-05-31 for `TOGETHER-TAB-ICON-01`
 
 ## Run Metadata
 
@@ -91,6 +91,13 @@ These checks passed for the Story Sparks implementation, but they do not replace
 - History remains accessible below the main start area and does not compete with the primary CTA.
 - Lobby polish must not change queue API calls, radius/age matching, geolocation behavior, or Story Sparks continuation logic.
 
+## Together Tab Icon
+
+- Together bottom tab must show the custom Two-Stroke Loop mark: two dots connected by one imperfect shared trace.
+- Together bottom tab must not show a generic star, sparkle, or simple heart-only icon.
+- Active Together tab should be visibly highlighted with a subtle lifted pill, amber outline, and soft glow.
+- Inactive Together tab remains readable, and Nearby, Announcements, and Chats tab icons still render normally.
+
 ## Build Verification
 
 Before manual smoke:
@@ -130,6 +137,7 @@ Known automated-check warning: the server test run prints the existing AWS SDK f
 | T - Peer media | Open peer profile after Together/DM; avatar/photos load or Client Errors show safe `urlKind`/`mediaId`/`httpStatus`/`contentType` diagnostics | NOT TESTED | Prepared for manual pass. | - |
 | U - Menu escape paths | From Together lobby and at least one active Together subflow, open the app menu, go directly to Chats, Profile, Settings, Main tab shell, and Together root; verify the user is not trapped and bottom tabs still work | NOT TESTED | Prepared for manual navigation smoke. | - |
 | V - Lobby polish | Open Together lobby; verify filters are visible, Start begins queue, collapsed info opens/closes, Story Sparks info remains available inside it, and History is accessible below the main start area | NOT TESTED | Prepared for manual lobby smoke. | - |
+| W - Together tab icon | Inspect bottom tabs in active and inactive states; Together shows the custom Two-Stroke Loop mark, not sparkle/star/heart-only, while Nearby/Announcements/Chats still render | NOT TESTED | Prepared for manual tab icon smoke. | - |
 
 ## Staged Story Sparks Manual Checklist
 
