@@ -1,6 +1,6 @@
 # Profile Age Matching
 
-Updated: 2026-05-30
+Updated: 2026-05-31
 
 ## Data Model
 
@@ -29,6 +29,8 @@ Backend rejects:
 - unreasonable profile age.
 
 Backend also validates preferred age range bounds and rejects invalid ranges.
+
+Mobile Edit Profile collects private `birthDate` through separate day/month/year numeric fields, then submits backend ISO `YYYY-MM-DD`. Mobile may show friendly missing/invalid/future/under-18/year messages before submit, but backend validation remains authoritative for persisted profile data and Together admission.
 
 ## Public Profile
 

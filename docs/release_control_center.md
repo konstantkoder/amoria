@@ -1,6 +1,6 @@
 # Amoria Release Control Center
 
-Updated: 2026-05-30
+Updated: 2026-05-31
 
 ## Release Rules
 
@@ -30,6 +30,8 @@ Updated: 2026-05-30
 ## Together Age Contract
 
 - User profile stores private `birthDate`.
+- Mobile Edit Profile collects `birthDate` through separate day/month/year numeric fields, assembles ISO `YYYY-MM-DD` for backend update, and splits saved self-profile dates back into the same fields.
+- Mobile shows friendly birth-date errors, but backend remains the authority for age validation and Together admission.
 - Backend validates 18+ before Together queue join; missing DOB, minors, future DOB, and unreasonable age are rejected.
 - Exact `birthDate` is never public, never shown in Admin Queue, and redacted from client error metadata.
 - Backend computes safe `age` for self profile and safe `ageGroup` for public/admin surfaces.
@@ -99,7 +101,7 @@ Automated checks cannot replace the real two-client pass:
 
 1. Both test users grant location.
 2. Both start with `25 km`.
-3. Both users must have private birth date set and use compatible age filters, starting with `Любой 18+`.
+3. Both users must have private birth date set through day/month/year fields and use compatible age filters, starting with `Любой 18+`.
 4. Start one user first, wait 10-30 seconds, then start the second user.
 5. Repeat with `5`, `100`, `250`, and no-limit.
 6. Inspect Admin Queue before match.

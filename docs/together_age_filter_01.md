@@ -1,6 +1,6 @@
 # Together Age Filter 01
 
-Updated: 2026-05-30
+Updated: 2026-05-31
 
 ## Contract
 
@@ -50,8 +50,11 @@ These are matching diagnostics only. They are not cancellation sources.
 
 ## Mobile UX
 
-- Profile/Edit Profile collects birth date with privacy copy.
-- Together blocks start if birth date is missing and routes the user to complete profile.
+- Profile/Edit Profile collects birth date with separate day/month/year numeric fields and privacy copy.
+- Mobile assembles ISO `YYYY-MM-DD` only before the backend profile update; saved self profile `birthDate` is split back into day/month/year for editing.
+- Edit Profile shows clear errors for missing fields, invalid calendar date, future date, under-18 Together access, and unreasonable birth year.
+- Backend remains the authority for age validation and Together admission.
+- Together blocks start if birth date is missing and routes the user to Edit Profile focused on birth date.
 - Together shows `Кого искать` with `Любой 18+`, `18-24`, `25-34`, `35-44`, `45-54`, `55+`.
 - PlayMatch shows selected filter as `Возраст: ...`.
 - Together lobby shows the current search context: radius, age filter, and profile interest count.
