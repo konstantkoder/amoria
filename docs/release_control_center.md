@@ -1,6 +1,6 @@
 # Amoria Release Control Center
 
-Updated: 2026-05-29
+Updated: 2026-05-31
 
 ## Branches
 
@@ -72,6 +72,12 @@ This launcher is local dev tooling only and is not product logic.
   - Backend validates crop bounds/square shape, applies the crop, strips metadata, and re-encodes WebP.
   - Missing crop metadata falls back to backend center-square crop for old clients.
   - Failed crop/upload states do not produce local-only saved-looking success.
+- BIRTHDATE-INPUT-UX-01 is fixed in code and awaiting release smoke:
+  - Edit Profile collects private birth date through separate day/month/year numeric fields instead of a raw `YYYY-MM-DD` text field.
+  - Mobile assembles backend ISO `YYYY-MM-DD` only on save and splits saved self-profile dates back into the three fields.
+  - The birth-date helper copy states that exact date is for safety/matching and is not shown to other people.
+  - Together still blocks missing birth date and routes to Edit Profile focused on the birth-date section.
+  - Exact birth date remains absent from public profile, Admin Queue, and Client Errors.
 
 ## Completed blocks
 

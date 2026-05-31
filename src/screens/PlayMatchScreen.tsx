@@ -121,6 +121,31 @@ function isAgeValidationError(error: unknown) {
   );
 }
 
+function firstValidationFieldValue(value: unknown) {
+  if (Array.isArray(value)) return String(value[0] ?? "");
+  return String(value ?? "");
+}
+
+function getAgeValidationErrorKey(error: unknown) {
+  if (!isAgeValidationError(error)) return "";
+  const apiError = error as {
+    details?: Record<string, unknown>;
+    fields?: Record<string, unknown>;
+  };
+  const details = {
+    ...(apiError.details ?? {}),
+    ...(apiError.fields ?? {}),
+  };
+  const birthDateError = firstValidationFieldValue(details.birthDate);
+  const ageError = firstValidationFieldValue(details.age);
+  if (ageError === "underage") return "editProfile.birthDateUnderage";
+  if (birthDateError === "future") return "editProfile.birthDateFuture";
+  if (birthDateError === "required") return "editProfile.birthDateRequired";
+  if (birthDateError === "unreasonable_age") return "editProfile.birthDateYearInvalid";
+  if (birthDateError === "invalid") return "editProfile.birthDateInvalid";
+  return "together.age.backendRejected";
+}
+
 function geoModeForLocation(location?: TogetherQueueLocationInput) {
   if (!hasTogetherQueueCoordinates(location)) {
     return "missing_location";
@@ -519,10 +544,11 @@ export default function PlayMatchScreen() {
         },
       });
       setStatusKey("error");
+      const ageErrorKey = getAgeValidationErrorKey(error);
       setErrorText(
-        isAgeValidationError(error)
+        ageErrorKey
           ? tt(
-              "together.age.backendRejected",
+              ageErrorKey,
               "Проверьте дату рождения в профиле и возрастной фильтр, затем попробуйте ещё раз."
             )
           : tt(

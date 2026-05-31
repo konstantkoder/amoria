@@ -36,6 +36,7 @@ import {
   normalizeDisplayNameInput,
   updateUserFields,
 } from "@/services/user";
+import { ApiError } from "@/services/api/apiClient";
 
 function translatedOptionLabel(
   t: (key: string) => string,
@@ -46,18 +47,127 @@ function translatedOptionLabel(
   return value === key ? fallback : value;
 }
 
-function isValidBirthDateInput(value: string) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-  const [year, month, day] = value.split("-").map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day));
-  if (
-    date.getUTCFullYear() !== year ||
-    date.getUTCMonth() !== month - 1 ||
-    date.getUTCDate() !== day
-  ) {
-    return false;
+const MIN_ADULT_AGE = 18;
+const MAX_PROFILE_AGE = 120;
+
+type BirthDateParts = {
+  day: string;
+  month: string;
+  year: string;
+};
+
+type BirthDateValidationResult =
+  | { ok: true; value: string }
+  | { ok: false; errorKey: string };
+
+function digitsOnly(value: string, maxLength: number) {
+  return value.replace(/\D/g, "").slice(0, maxLength);
+}
+
+function splitBirthDate(value?: string | null): BirthDateParts {
+  const normalized = String(value ?? "").trim();
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(normalized);
+  if (!match) {
+    return { day: "", month: "", year: "" };
   }
-  return date.getTime() <= Date.now();
+  return {
+    day: match[3],
+    month: match[2],
+    year: match[1],
+  };
+}
+
+function isLeapYear(year: number) {
+  return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+}
+
+function daysInMonth(year: number, month: number) {
+  if (month === 2) return isLeapYear(year) ? 29 : 28;
+  if ([4, 6, 9, 11].includes(month)) return 30;
+  return 31;
+}
+
+function calculateAge(year: number, month: number, day: number, now = new Date()) {
+  const nowYear = now.getUTCFullYear();
+  const nowMonth = now.getUTCMonth() + 1;
+  const nowDay = now.getUTCDate();
+  let age = nowYear - year;
+  if (nowMonth < month || (nowMonth === month && nowDay < day)) {
+    age -= 1;
+  }
+  return age;
+}
+
+function formatBirthDatePart(value: number) {
+  return String(value).padStart(2, "0");
+}
+
+function validateBirthDateParts(parts: BirthDateParts): BirthDateValidationResult {
+  const dayText = parts.day.trim();
+  const monthText = parts.month.trim();
+  const yearText = parts.year.trim();
+  const hasAnyPart = Boolean(dayText || monthText || yearText);
+  if (!hasAnyPart) {
+    return { ok: false, errorKey: "editProfile.birthDateRequired" };
+  }
+  if (!dayText || !monthText || !yearText) {
+    return { ok: false, errorKey: "editProfile.birthDateRequired" };
+  }
+  if (yearText.length !== 4) {
+    return { ok: false, errorKey: "editProfile.birthDateYearInvalid" };
+  }
+
+  const day = Number(dayText);
+  const month = Number(monthText);
+  const year = Number(yearText);
+  if (!Number.isInteger(day) || !Number.isInteger(month) || !Number.isInteger(year)) {
+    return { ok: false, errorKey: "editProfile.birthDateInvalid" };
+  }
+  if (month < 1 || month > 12 || day < 1 || day > daysInMonth(year, month)) {
+    return { ok: false, errorKey: "editProfile.birthDateInvalid" };
+  }
+
+  const today = new Date();
+  const birthTime = Date.UTC(year, month - 1, day);
+  const todayTime = Date.UTC(
+    today.getUTCFullYear(),
+    today.getUTCMonth(),
+    today.getUTCDate()
+  );
+  if (birthTime > todayTime) {
+    return { ok: false, errorKey: "editProfile.birthDateFuture" };
+  }
+
+  const age = calculateAge(year, month, day, today);
+  if (age > MAX_PROFILE_AGE) {
+    return { ok: false, errorKey: "editProfile.birthDateYearInvalid" };
+  }
+  if (age < MIN_ADULT_AGE) {
+    return { ok: false, errorKey: "editProfile.birthDateUnderage" };
+  }
+
+  return {
+    ok: true,
+    value: `${yearText}-${formatBirthDatePart(month)}-${formatBirthDatePart(day)}`,
+  };
+}
+
+function firstApiFieldValue(value: unknown) {
+  if (Array.isArray(value)) return String(value[0] ?? "");
+  return String(value ?? "");
+}
+
+function getBirthDateApiErrorKey(error: unknown) {
+  if (!(error instanceof ApiError)) return "";
+  const fields = error.fields ?? {};
+  const birthDateError = firstApiFieldValue(fields.birthDate);
+  const ageError = firstApiFieldValue(fields.age);
+  if (ageError === "underage") return "editProfile.birthDateUnderage";
+  if (birthDateError === "future") return "editProfile.birthDateFuture";
+  if (birthDateError === "required") return "editProfile.birthDateRequired";
+  if (birthDateError === "unreasonable_age") return "editProfile.birthDateYearInvalid";
+  if (birthDateError === "invalid") return "editProfile.birthDateInvalid";
+  return "";
 }
 
 export default function EditProfileScreen() {
@@ -70,7 +180,9 @@ export default function EditProfileScreen() {
   const [interests, setInterests] = React.useState<string[]>([]);
   const [interestDraft, setInterestDraft] = React.useState("");
   const [interestError, setInterestError] = React.useState("");
-  const [birthDate, setBirthDate] = React.useState("");
+  const [birthDay, setBirthDay] = React.useState("");
+  const [birthMonth, setBirthMonth] = React.useState("");
+  const [birthYear, setBirthYear] = React.useState("");
   const [goal, setGoal] = React.useState<Goal | null>(null);
   const [mood, setMood] = React.useState<Mood | null>(null);
   const [mysteryMode, setMysteryMode] = React.useState(false);
@@ -78,7 +190,9 @@ export default function EditProfileScreen() {
   const displayNameInputRef = React.useRef<TextInput>(null);
   const aboutInputRef = React.useRef<TextInput>(null);
   const interestsInputRef = React.useRef<TextInput>(null);
-  const birthDateInputRef = React.useRef<TextInput>(null);
+  const birthDayInputRef = React.useRef<TextInput>(null);
+  const birthMonthInputRef = React.useRef<TextInput>(null);
+  const birthYearInputRef = React.useRef<TextInput>(null);
   const goalYRef = React.useRef(0);
   const moodYRef = React.useRef(0);
   const interestsYRef = React.useRef(0);
@@ -91,7 +205,10 @@ export default function EditProfileScreen() {
     setInterests(profile.interests ?? []);
     setInterestDraft("");
     setInterestError("");
-    setBirthDate(profile.birthDate ?? "");
+    const parts = splitBirthDate(profile.birthDate);
+    setBirthDay(parts.day);
+    setBirthMonth(parts.month);
+    setBirthYear(parts.year);
     setGoal(profile.goal ?? null);
     setMood(profile.mood ?? null);
     setMysteryMode(profile.mysteryMode ?? false);
@@ -164,7 +281,7 @@ export default function EditProfileScreen() {
           y: Math.max(birthDateYRef.current - 24, 0),
           animated: true,
         });
-        birthDateInputRef.current?.focus();
+        birthDayInputRef.current?.focus();
       }
     }, 240);
 
@@ -235,9 +352,13 @@ export default function EditProfileScreen() {
           nextInterests.push(normalized);
         }
       }
-      const nextBirthDate = birthDate.trim();
-      if (nextBirthDate && !isValidBirthDateInput(nextBirthDate)) {
-        Alert.alert(t("common.error"), t("editProfile.birthDateInvalid"));
+      const birthDateValidation = validateBirthDateParts({
+        day: birthDay,
+        month: birthMonth,
+        year: birthYear,
+      });
+      if (birthDateValidation.ok === false) {
+        Alert.alert(t("common.error"), t(birthDateValidation.errorKey));
         return;
       }
 
@@ -245,7 +366,7 @@ export default function EditProfileScreen() {
         displayName: nextDisplayName,
         about,
         interests: nextInterests,
-        birthDate: nextBirthDate || null,
+        birthDate: birthDateValidation.value,
         goal,
         mood,
         mysteryMode,
@@ -255,11 +376,17 @@ export default function EditProfileScreen() {
       displayNameInputRef.current?.blur();
       aboutInputRef.current?.blur();
       interestsInputRef.current?.blur();
-      birthDateInputRef.current?.blur();
+      birthDayInputRef.current?.blur();
+      birthMonthInputRef.current?.blur();
+      birthYearInputRef.current?.blur();
       Keyboard.dismiss();
       Alert.alert(t("common.done"), t("editProfile.saveSuccessBody"));
-    } catch {
-      Alert.alert(t("common.error"), t("editProfile.saveErrorBody"));
+    } catch (error) {
+      const birthDateErrorKey = getBirthDateApiErrorKey(error);
+      Alert.alert(
+        t("common.error"),
+        birthDateErrorKey ? t(birthDateErrorKey) : t("editProfile.saveErrorBody")
+      );
     } finally {
       setSaving(false);
     }
@@ -425,20 +552,52 @@ export default function EditProfileScreen() {
             }}
           >
             <Text style={styles.label}>{t("editProfile.birthDateLabel")}</Text>
-            <TextInput
-              ref={birthDateInputRef}
-              value={birthDate}
-              onChangeText={setBirthDate}
-              placeholder={t("editProfile.birthDatePlaceholder")}
-              placeholderTextColor={theme.colors.muted}
-              style={styles.input}
-              keyboardType="numbers-and-punctuation"
-              autoCapitalize="none"
-              autoCorrect={false}
-              maxLength={10}
-              returnKeyType="done"
-              onSubmitEditing={() => void handleSave()}
-            />
+            <View style={styles.birthDateRow}>
+              <TextInput
+                ref={birthDayInputRef}
+                value={birthDay}
+                onChangeText={(value) => setBirthDay(digitsOnly(value, 2))}
+                placeholder={t("editProfile.birthDateDayPlaceholder")}
+                placeholderTextColor={theme.colors.muted}
+                style={[styles.input, styles.birthDateInput]}
+                keyboardType="number-pad"
+                autoCapitalize="none"
+                autoCorrect={false}
+                maxLength={2}
+                returnKeyType="next"
+                blurOnSubmit={false}
+                onSubmitEditing={() => birthMonthInputRef.current?.focus()}
+              />
+              <TextInput
+                ref={birthMonthInputRef}
+                value={birthMonth}
+                onChangeText={(value) => setBirthMonth(digitsOnly(value, 2))}
+                placeholder={t("editProfile.birthDateMonthPlaceholder")}
+                placeholderTextColor={theme.colors.muted}
+                style={[styles.input, styles.birthDateInput]}
+                keyboardType="number-pad"
+                autoCapitalize="none"
+                autoCorrect={false}
+                maxLength={2}
+                returnKeyType="next"
+                blurOnSubmit={false}
+                onSubmitEditing={() => birthYearInputRef.current?.focus()}
+              />
+              <TextInput
+                ref={birthYearInputRef}
+                value={birthYear}
+                onChangeText={(value) => setBirthYear(digitsOnly(value, 4))}
+                placeholder={t("editProfile.birthDateYearPlaceholder")}
+                placeholderTextColor={theme.colors.muted}
+                style={[styles.input, styles.birthDateYearInput]}
+                keyboardType="number-pad"
+                autoCapitalize="none"
+                autoCorrect={false}
+                maxLength={4}
+                returnKeyType="done"
+                onSubmitEditing={() => void handleSave()}
+              />
+            </View>
             <Text style={styles.helperText}>
               {t("editProfile.birthDateSafetyBody")}
             </Text>
@@ -689,6 +848,21 @@ const styles = StyleSheet.create({
     lineHeight: 17,
     marginTop: -8,
     marginBottom: 14,
+  },
+  birthDateRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 14,
+  },
+  birthDateInput: {
+    flex: 1,
+    marginBottom: 0,
+    textAlign: "center",
+  },
+  birthDateYearInput: {
+    flex: 1.3,
+    marginBottom: 0,
+    textAlign: "center",
   },
   optionsWrap: {
     flexDirection: "row",
