@@ -1,6 +1,6 @@
 # Together Smoke Pass
 
-Updated: 2026-05-27 for `TOGETHER-DRAW-TOOLS-05`
+Updated: 2026-05-31 for `NAVIGATION-MENU-CLEANUP-01`
 
 ## Run Metadata
 
@@ -74,6 +74,15 @@ These checks passed for the Story Sparks implementation, but they do not replace
 - Android back closes the drawer first, exits fullscreen second, and then follows normal leave confirmation.
 - One-finger draw/erase, two-finger pan/zoom, peer strokes, and replay/history must remain backend-backed and unchanged.
 
+## Navigation Menu Escape
+
+- From Together lobby, queue, draw, result, history, and detail screens, the app menu must provide direct exits to `Главный экран`, `Вместе`, `Чаты`, `Профиль`, and `Настройки`.
+- `Главный экран` returns to the main tab shell instead of leaving the user inside a nested Together screen.
+- `Чаты` opens the Inbox/Chats tab directly.
+- `Вместе` opens the Together tab root.
+- `Профиль` opens the profile root, not an edit/photo subflow.
+- Returning from Chats/Profile/Settings back to Together must not require force-closing the app or walking through unrelated screens.
+
 ## Build Verification
 
 Before manual smoke:
@@ -111,6 +120,7 @@ Known automated-check warning: the server test run prints the existing AWS SDK f
 | R - Stuck/frozen client diagnostics | Match into draw, freeze/kill one client if safe, inspect Together Sessions for stale heartbeat/no events/left state | NOT TESTED | Prepared for manual pass. | - |
 | S - BlueStacks GPS unavailable | Grant permission but leave emulator location broken; app says the device is not returning coordinates and does not join queue | NOT TESTED | Prepared for manual pass. | - |
 | T - Peer media | Open peer profile after Together/DM; avatar/photos load or Client Errors show safe `urlKind`/`mediaId`/`httpStatus`/`contentType` diagnostics | NOT TESTED | Prepared for manual pass. | - |
+| U - Menu escape paths | From Together lobby and at least one active Together subflow, open the app menu, go directly to Chats, Profile, Settings, Main tab shell, and Together root; verify the user is not trapped and bottom tabs still work | NOT TESTED | Prepared for manual navigation smoke. | - |
 
 ## Staged Story Sparks Manual Checklist
 

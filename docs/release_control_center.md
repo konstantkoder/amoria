@@ -79,6 +79,12 @@ This launcher is local dev tooling only and is not product logic.
   - The birth-date helper copy states that exact date is for safety/matching and is not shown to other people.
   - Together still blocks missing birth date and routes to Edit Profile focused on the birth-date section.
   - Exact birth date remains absent from public profile, Admin Queue, and Client Errors.
+- NAVIGATION-MENU-CLEANUP-01 is fixed in code and awaiting release smoke:
+  - App menu now groups navigation into main navigation and account actions.
+  - Drawer includes direct `Главный экран`, `Вместе`, `Чаты`, `Профиль`, `Настройки`, language, privacy, and logout actions.
+  - `Главный экран` returns to the main tab shell, `Чаты` opens Inbox directly, `Вместе` opens the Together tab root, and `Профиль` opens the profile root.
+  - Drawer styling is lighter/glass-like while keeping readable dark action cards and clear active-section highlighting.
+  - Announcements remains in the bottom tabs for this block.
 
 ## Completed blocks
 
