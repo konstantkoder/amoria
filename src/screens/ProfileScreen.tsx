@@ -87,15 +87,56 @@ function formatOwnAgeLabel(
   profile: UserProfile | null,
   t: (key: string, params?: Record<string, string>) => string
 ) {
-  if (typeof profile?.age === "number") {
-    const value = t("profile.ageValue", { age: String(profile.age) });
-    return value === "profile.ageValue" ? `${profile.age}` : value;
+  let ageGroup = profile?.ageGroup ?? "";
+  if (!ageGroup && typeof profile?.age === "number") {
+    if (profile.age >= 55) ageGroup = "55+";
+    else if (profile.age >= 45) ageGroup = "45-54";
+    else if (profile.age >= 35) ageGroup = "35-44";
+    else if (profile.age >= 25) ageGroup = "25-34";
+    else if (profile.age >= 18) ageGroup = "18-24";
   }
-  if (profile?.ageGroup) {
-    const value = t("profile.ageGroupValue", { group: profile.ageGroup });
-    return value === "profile.ageGroupValue" ? profile.ageGroup : value;
+  if (ageGroup) {
+    const value = t("profile.ageGroupValue", { group: ageGroup });
+    return value === "profile.ageGroupValue" ? ageGroup : value;
   }
   return "";
+}
+
+function formatSearchAgePreference(
+  profile: UserProfile | null,
+  t: (key: string, params?: Record<string, string>) => string
+) {
+  const min = profile?.preferredAgeMin;
+  const max = profile?.preferredAgeMax;
+  if (typeof min === "number" && typeof max === "number") {
+    const value = t("profile.searchAgePreferenceRange", {
+      min: String(min),
+      max: String(max),
+    });
+    return value === "profile.searchAgePreferenceRange" ? `${min}-${max}` : value;
+  }
+  if (typeof min === "number" && max === null) {
+    const value = t("profile.searchAgePreferenceOpen", { min: String(min) });
+    return value === "profile.searchAgePreferenceOpen" ? `${min}+` : value;
+  }
+  return t("profile.searchAgePreferenceDefault");
+}
+
+function ProfileSummaryRow({
+  label,
+  value,
+  warning,
+}: {
+  label: string;
+  value: string;
+  warning?: boolean;
+}) {
+  return (
+    <View style={[styles.summaryRow, warning ? styles.summaryRowWarning : null]}>
+      <Text style={styles.summaryLabel}>{label}</Text>
+      <Text style={styles.summaryValue}>{value}</Text>
+    </View>
+  );
 }
 
 export default function ProfileScreen() {
@@ -154,6 +195,7 @@ export default function ProfileScreen() {
   const amoriaId = profile?.amoriaId ?? "";
   const needsName = Boolean(getDisplayNameValidationErrorKey(profile?.displayName ?? ""));
   const ageLabel = formatOwnAgeLabel(profile, t);
+  const searchAgePreference = formatSearchAgePreference(profile, t);
   const interestsSummary = profile?.interests?.length
     ? profile.interests.join(", ")
     : t("profile.interestsEmpty");
@@ -528,145 +570,75 @@ export default function ProfileScreen() {
               {t("profile.amoriaId")}: {amoriaId}
             </Text>
           ) : null}
-          <View style={styles.anketaHeader}>
-            <Text style={styles.anketaTitle}>{t("profile.anketaTitle")}</Text>
-          </View>
-          <View style={styles.badges}>
+        </View>
+
+        {needsName ? (
+          <View style={[styles.identityCard, styles.identityCardAlert]}>
+            <Text style={styles.identityKicker}>{t("profile.completeProfile")}</Text>
+            <Text style={styles.identityTitle}>{t("profile.yourName")}</Text>
+            <Text style={styles.identityBody}>{t("profile.completeProfileBody")}</Text>
+            <TextInput
+              ref={nameInputRef}
+              value={nameDraft}
+              onChangeText={setNameDraft}
+              placeholder={t("profile.enterName")}
+              placeholderTextColor={theme.colors.muted}
+              autoCapitalize="words"
+              editable={!nameSaving}
+              style={styles.nameInput}
+              maxLength={30}
+              returnKeyType="done"
+              onSubmitEditing={() => void saveDisplayName()}
+            />
+            {nameError ? <Text style={styles.nameError}>{nameError}</Text> : null}
             <TouchableOpacity
-              style={[styles.badge, styles.editableBadge]}
+              style={[styles.saveNameButton, nameSaving ? styles.avatarButtonDisabled : null]}
               activeOpacity={0.86}
-              onPress={() => openEditProfile("goal")}
-              accessibilityRole="button"
+              onPress={() => void saveDisplayName()}
+              disabled={nameSaving}
             >
-              <Text style={styles.badgeText}>{goalLabel}</Text>
-              <Text style={styles.badgeActionText}>
-                {t("profile.editProfileEntrypointAction")}
+              <Text style={styles.saveNameButtonText}>
+                {nameSaving ? t("common.saving") : t("profile.saveName")}
               </Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.badge, styles.editableBadge]}
-              activeOpacity={0.86}
-              onPress={() => openEditProfile("mood")}
-              accessibilityRole="button"
-            >
-              <Text style={styles.badgeText}>{moodLabel}</Text>
-              <Text style={styles.badgeActionText}>
-                {t("profile.editProfileEntrypointAction")}
+            {amoriaId ? (
+              <Text style={styles.identityMeta}>
+                {t("profile.yourAmoriaId")}: {amoriaId}
               </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.badge,
-                styles.editableBadge,
-                !ageLabel ? styles.badgeWarning : null,
-              ]}
-              activeOpacity={0.86}
-              onPress={() => openEditProfile("birthDate")}
-              accessibilityRole="button"
-            >
-              <Text style={styles.badgeText}>
-                {ageLabel || t("profile.birthDateMissingBadge")}
-              </Text>
-              <Text style={styles.badgeActionText}>
-                {t("profile.editProfileEntrypointAction")}
-              </Text>
-            </TouchableOpacity>
-            {profile?.mysteryMode ? (
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{t("profile.mysteryBadge")}</Text>
-              </View>
             ) : null}
           </View>
-          <View style={styles.editEntrypoints}>
+        ) : null}
+
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionHeaderCopy}>
+              <Text style={styles.sectionTitle}>{t("profile.anketaTitle")}</Text>
+              <Text style={styles.sectionSubtitle}>{t("profile.anketaSubtitle")}</Text>
+            </View>
             <TouchableOpacity
-              style={styles.editEntryRow}
+              style={styles.sectionAction}
               activeOpacity={0.86}
-              onPress={() => openEditProfile("about")}
+              onPress={() => openEditProfile()}
             >
-              <View style={styles.editEntryCopy}>
-                <Text style={styles.editEntryTitle}>
-                  {t("profile.aboutEntrypointTitle")}
-                </Text>
-                <Text style={styles.editEntryValue} numberOfLines={2}>
-                  {about}
-                </Text>
-              </View>
-              <Text style={styles.editEntryAction}>
-                {t("profile.editProfileEntrypointAction")}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.editEntryRow}
-              activeOpacity={0.86}
-              onPress={() => openEditProfile("goal")}
-            >
-              <View style={styles.editEntryCopy}>
-                <Text style={styles.editEntryTitle}>
-                  {t("profile.goalEntrypointTitle")}
-                </Text>
-                <Text style={styles.editEntryValue} numberOfLines={1}>
-                  {goalLabel}
-                </Text>
-              </View>
-              <Text style={styles.editEntryAction}>
-                {t("profile.editProfileEntrypointAction")}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.editEntryRow}
-              activeOpacity={0.86}
-              onPress={() => openEditProfile("mood")}
-            >
-              <View style={styles.editEntryCopy}>
-                <Text style={styles.editEntryTitle}>
-                  {t("profile.moodEntrypointTitle")}
-                </Text>
-                <Text style={styles.editEntryValue} numberOfLines={1}>
-                  {moodLabel}
-                </Text>
-              </View>
-              <Text style={styles.editEntryAction}>
-                {t("profile.editProfileEntrypointAction")}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.editEntryRow}
-              activeOpacity={0.86}
-              onPress={() => openEditProfile("interests")}
-            >
-              <View style={styles.editEntryCopy}>
-                <Text style={styles.editEntryTitle}>
-                  {t("profile.interestsTitle")}
-                </Text>
-                <Text style={styles.editEntryValue} numberOfLines={2}>
-                  {interestsSummary}
-                </Text>
-              </View>
-              <Text style={styles.editEntryAction}>
-                {t("profile.editProfileEntrypointAction")}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.editEntryRow,
-                !ageLabel ? styles.editEntryRowWarning : null,
-              ]}
-              activeOpacity={0.86}
-              onPress={() => openEditProfile("birthDate")}
-            >
-              <View style={styles.editEntryCopy}>
-                <Text style={styles.editEntryTitle}>
-                  {t("profile.ageEntrypointTitle")}
-                </Text>
-                <Text style={styles.editEntryValue} numberOfLines={2}>
-                  {ageLabel || t("profile.birthDateMissingBody")}
-                </Text>
-              </View>
-              <Text style={styles.editEntryAction}>
+              <Text style={styles.sectionActionText}>
                 {t("profile.editProfileEntrypointAction")}
               </Text>
             </TouchableOpacity>
           </View>
+          <ProfileSummaryRow label={t("profile.aboutEntrypointTitle")} value={about} />
+          <ProfileSummaryRow label={t("profile.goalEntrypointTitle")} value={goalLabel} />
+          <ProfileSummaryRow label={t("profile.moodEntrypointTitle")} value={moodLabel} />
+          <ProfileSummaryRow
+            label={t("profile.ageEntrypointTitle")}
+            value={ageLabel || t("profile.birthDateMissingBody")}
+            warning={!ageLabel}
+          />
+          <ProfileSummaryRow label={t("profile.interestsTitle")} value={interestsSummary} />
+          {profile?.mysteryMode ? (
+            <View style={styles.metaPill}>
+              <Text style={styles.metaPillText}>{t("profile.mysteryBadge")}</Text>
+            </View>
+          ) : null}
           {profile?.interests?.length ? (
             <View style={styles.interests}>
               {profile.interests.map((interest) => (
@@ -678,63 +650,34 @@ export default function ProfileScreen() {
           ) : null}
         </View>
 
-        <View style={[styles.identityCard, needsName ? styles.identityCardAlert : null]}>
-          <Text style={styles.identityKicker}>
-            {needsName ? t("profile.completeProfile") : t("profile.editName")}
-          </Text>
-          <Text style={styles.identityTitle}>{t("profile.yourName")}</Text>
-          {needsName ? (
-            <Text style={styles.identityBody}>{t("profile.completeProfileBody")}</Text>
-          ) : null}
-          <TextInput
-            ref={nameInputRef}
-            value={nameDraft}
-            onChangeText={setNameDraft}
-            placeholder={t("profile.enterName")}
-            placeholderTextColor={theme.colors.muted}
-            autoCapitalize="words"
-            editable={!nameSaving}
-            style={styles.nameInput}
-            maxLength={30}
-            returnKeyType="done"
-            onSubmitEditing={() => void saveDisplayName()}
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionHeaderCopy}>
+              <Text style={styles.sectionTitle}>{t("profile.searchSectionTitle")}</Text>
+              <Text style={styles.sectionSubtitle}>{t("profile.searchSectionSubtitle")}</Text>
+            </View>
+          </View>
+          <ProfileSummaryRow
+            label={t("profile.searchAgePreferenceTitle")}
+            value={searchAgePreference}
           />
-          {nameError ? <Text style={styles.nameError}>{nameError}</Text> : null}
-          <TouchableOpacity
-            style={[styles.saveNameButton, nameSaving ? styles.avatarButtonDisabled : null]}
-            activeOpacity={0.86}
-            onPress={() => void saveDisplayName()}
-            disabled={nameSaving}
-          >
-            <Text style={styles.saveNameButtonText}>
-              {nameSaving ? t("common.saving") : t("profile.saveName")}
-            </Text>
-          </TouchableOpacity>
-          {amoriaId ? (
-            <Text style={styles.identityMeta}>
-              {t("profile.yourAmoriaId")}: {amoriaId}
-            </Text>
-          ) : null}
+          <Text style={styles.sectionNote}>{t("profile.searchReuseNote")}</Text>
         </View>
 
-        <View style={styles.actions}>
-          <TouchableOpacity
-            style={styles.actionButton}
-            activeOpacity={0.86}
-            onPress={() => openEditProfile()}
-          >
-            <Text style={styles.actionButtonText}>{t("profile.edit")}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.actionButton}
-            activeOpacity={0.86}
-            onPress={() => navigation.navigate("PhotoManager")}
-          >
-            <Text style={styles.actionButtonText}>{t("profile.photos")}</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.galleryCard}>
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionHeaderCopy}>
+              <Text style={styles.sectionTitle}>{t("profile.photos")}</Text>
+              <Text style={styles.sectionSubtitle}>{t("profile.photosSubtitle")}</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.sectionAction}
+              activeOpacity={0.86}
+              onPress={() => navigation.navigate("PhotoManager")}
+            >
+              <Text style={styles.sectionActionText}>{t("profile.managePhotos")}</Text>
+            </TouchableOpacity>
+          </View>
           {photos.length ? (
             <View style={styles.galleryGrid}>
               {photos.map((photo, index) => (
@@ -887,15 +830,74 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700",
   },
-  anketaHeader: {
-    borderTopWidth: 1,
-    borderTopColor: "rgba(255,255,255,0.1)",
-    paddingTop: 12,
+  sectionCard: {
+    backgroundColor: "rgba(8, 12, 24, 0.72)",
+    borderRadius: 20,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.11)",
+    gap: 12,
   },
-  anketaTitle: {
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  sectionHeaderCopy: {
+    flex: 1,
+  },
+  sectionTitle: {
     color: theme.colors.text,
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: "900",
+  },
+  sectionSubtitle: {
+    color: theme.colors.subtext,
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 3,
+  },
+  sectionAction: {
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+  },
+  sectionActionText: {
+    color: theme.colors.accent,
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  sectionNote: {
+    color: "rgba(255,255,255,0.68)",
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  summaryRow: {
+    gap: 4,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.09)",
+  },
+  summaryRowWarning: {
+    borderRadius: theme.shapes.cardInner,
+    paddingHorizontal: 10,
+    backgroundColor: "rgba(255,224,184,0.08)",
+    borderTopColor: "rgba(255,224,184,0.22)",
+  },
+  summaryLabel: {
+    color: "rgba(255,255,255,0.72)",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  summaryValue: {
+    color: theme.colors.text,
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "700",
   },
   identityCard: {
     backgroundColor: "rgba(8, 12, 24, 0.82)",
@@ -957,12 +959,8 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
   },
-  badges: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  badge: {
+  metaPill: {
+    alignSelf: "flex-start",
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: theme.shapes.pill,
@@ -970,65 +968,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.1)",
   },
-  badgeWarning: {
-    borderColor: "#FFE0B8",
-    backgroundColor: "rgba(255,224,184,0.10)",
-  },
-  badgeText: {
+  metaPillText: {
     color: theme.colors.text,
     fontSize: 12,
     fontWeight: "700",
-  },
-  editableBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 7,
-    borderColor: "rgba(255,255,255,0.18)",
-  },
-  badgeActionText: {
-    color: theme.colors.accent,
-    fontSize: 11,
-    fontWeight: "800",
-  },
-  editEntrypoints: {
-    borderTopWidth: 1,
-    borderTopColor: "rgba(255,255,255,0.1)",
-  },
-  editEntryRow: {
-    minHeight: 64,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(255,255,255,0.1)",
-  },
-  editEntryRowWarning: {
-    borderBottomColor: "rgba(255,224,184,0.34)",
-    backgroundColor: "rgba(255,224,184,0.06)",
-    marginHorizontal: -8,
-    paddingHorizontal: 8,
-    borderRadius: theme.shapes.cardInner,
-  },
-  editEntryCopy: {
-    flex: 1,
-    gap: 4,
-  },
-  editEntryTitle: {
-    color: theme.colors.text,
-    fontSize: 15,
-    fontWeight: "800",
-  },
-  editEntryValue: {
-    color: theme.colors.subtext,
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  editEntryAction: {
-    color: theme.colors.accent,
-    fontSize: 12,
-    fontWeight: "800",
   },
   interests: {
     flexDirection: "row",
@@ -1045,29 +988,6 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
     fontSize: 12,
     fontWeight: "600",
-  },
-  actions: {
-    gap: 10,
-  },
-  actionButton: {
-    backgroundColor: "rgba(8, 12, 24, 0.82)",
-    borderRadius: 18,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
-  },
-  actionButtonText: {
-    color: theme.colors.text,
-    fontSize: 15,
-    fontWeight: "800",
-  },
-  galleryCard: {
-    backgroundColor: "rgba(8, 12, 24, 0.74)",
-    borderRadius: 24,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
   },
   galleryGrid: {
     flexDirection: "row",

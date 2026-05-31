@@ -25,6 +25,15 @@ import {
 } from "@/services/locationPrivacy";
 import { type RootStackNavigationProp } from "@/navigation/appRoutes";
 
+function copyOrFallback(
+  t: (key: string, params?: Record<string, string>) => string,
+  key: string,
+  fallback: string
+) {
+  const value = t(key);
+  return value === key ? fallback : value;
+}
+
 export default function SettingsScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"Settings">>();
   const auth = useAuth();
@@ -140,22 +149,16 @@ export default function SettingsScreen() {
   }, [auth, t]);
 
   return (
-    <ScreenShell title={t("screen.settings")} background="profile">
+    <ScreenShell title={t("screen.settings")} background="profile" overlayOpacity={0.2}>
       <ScrollView showsVerticalScrollIndicator={false}>
-        <View style={{ paddingHorizontal: 6, paddingTop: 8, paddingBottom: 24 }}>
-          <Text style={styles.sectionTitle}>{t("screen.locationInfo")}</Text>
-
-          <View style={styles.card}>
-            <View style={styles.row}>
-              <Text style={styles.label}>{t("settings.nearbyEnabled")}</Text>
-              <Switch
-                value={prefs.nearbyEnabled}
-                onValueChange={toggleNearby}
-                disabled={loadingPrefs}
-              />
-            </View>
-          </View>
-
+        <View style={styles.content}>
+          <Text style={styles.sectionTitle}>
+            {copyOrFallback(
+              t,
+              "settings.sectionPrivacySecurity",
+              "Приватность и безопасность"
+            )}
+          </Text>
           <View style={styles.card}>
             <TouchableOpacity
               onPress={handleOpenPrivacyPolicy}
@@ -171,6 +174,52 @@ export default function SettingsScreen() {
               <Ionicons name="location-outline" size={18} color="#E5E7EB" />
               <Text style={styles.linkText}>{t("screen.locationInfo")}</Text>
             </TouchableOpacity>
+          </View>
+
+          <Text style={styles.sectionTitle}>
+            {copyOrFallback(t, "settings.sectionGeolocation", "Геолокация")}
+          </Text>
+          <Text style={styles.sectionBody}>
+            {copyOrFallback(
+              t,
+              "settings.geolocationBody",
+              "Геолокация нужна для честного поиска и подбора. Сейчас переключатель управляет текущим слоем «Рядом»; будущий Nearby будет оформлен отдельно."
+            )}
+          </Text>
+          <View style={styles.card}>
+            <View style={styles.row}>
+              <View style={styles.rowCopy}>
+                <Text style={styles.label}>
+                  {copyOrFallback(
+                    t,
+                    "settings.nearbyLocationPreview",
+                    "Геолокация для текущего «Рядом»"
+                  )}
+                </Text>
+                <Text style={styles.rowHelp}>
+                  {copyOrFallback(
+                    t,
+                    "settings.nearbyLocationPreviewBody",
+                    "Это не финальный Nearby-дизайн. Можно выключить без изменения Together."
+                  )}
+                </Text>
+              </View>
+              <Switch
+                value={prefs.nearbyEnabled}
+                onValueChange={toggleNearby}
+                disabled={loadingPrefs}
+              />
+            </View>
+          </View>
+
+          <Text style={styles.sectionTitle}>
+            {copyOrFallback(t, "settings.sectionApp", "Приложение")}
+          </Text>
+          <View style={styles.card}>
+            <TouchableOpacity onPress={openLanguagePicker} style={styles.linkRow}>
+              <Ionicons name="language-outline" size={18} color="#E5E7EB" />
+              <Text style={styles.linkText}>{t("menu.language")}</Text>
+            </TouchableOpacity>
             <TouchableOpacity
               onPress={() => Linking.openSettings()}
               style={styles.linkRow}
@@ -180,19 +229,13 @@ export default function SettingsScreen() {
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.sectionTitle}>{t("menu.language")}</Text>
-          <View style={styles.card}>
-            <TouchableOpacity onPress={openLanguagePicker} style={styles.linkRow}>
-              <Ionicons name="language-outline" size={18} color="#E5E7EB" />
-              <Text style={styles.linkText}>{t("menu.language")}</Text>
-            </TouchableOpacity>
-          </View>
-
-          <Text style={styles.sectionTitle}>{t("menu.profile")}</Text>
+          <Text style={styles.sectionTitle}>
+            {copyOrFallback(t, "settings.sectionAccount", "Аккаунт")}
+          </Text>
           <View style={styles.card}>
             <TouchableOpacity onPress={handleLogout} style={styles.linkRow}>
-              <Ionicons name="log-out-outline" size={18} color="#E5E7EB" />
-              <Text style={styles.linkText}>{t("menu.logout")}</Text>
+              <Ionicons name="log-out-outline" size={18} color="#FFD7DF" />
+              <Text style={[styles.linkText, styles.logoutText]}>{t("menu.logout")}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -209,18 +252,29 @@ export default function SettingsScreen() {
 }
 
 const styles = {
+  content: {
+    paddingHorizontal: 6,
+    paddingTop: 8,
+    paddingBottom: 24,
+  },
   sectionTitle: {
     color: "#E5E7EB",
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: "800" as const,
-    marginBottom: 10,
+    marginBottom: 8,
     marginTop: 18,
   },
+  sectionBody: {
+    color: "rgba(229,231,235,0.72)",
+    fontSize: 13,
+    lineHeight: 19,
+    marginBottom: 10,
+  },
   card: {
-    borderRadius: 16,
-    backgroundColor: "rgba(255,255,255,0.06)",
+    borderRadius: 14,
+    backgroundColor: "rgba(8, 12, 24, 0.70)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
+    borderColor: "rgba(255,255,255,0.11)",
     paddingHorizontal: 12,
     paddingVertical: 6,
     marginBottom: 12,
@@ -229,14 +283,22 @@ const styles = {
     flexDirection: "row" as const,
     alignItems: "center" as const,
     justifyContent: "space-between" as const,
+    gap: 12,
     paddingVertical: 10,
+  },
+  rowCopy: {
+    flex: 1,
+    gap: 4,
   },
   label: {
     color: "#E5E7EB",
     fontSize: 14,
     fontWeight: "700" as const,
-    flex: 1,
-    paddingRight: 12,
+  },
+  rowHelp: {
+    color: "rgba(229,231,235,0.64)",
+    fontSize: 12,
+    lineHeight: 17,
   },
   linkRow: {
     flexDirection: "row" as const,
@@ -248,5 +310,8 @@ const styles = {
     color: "#E5E7EB",
     fontSize: 14,
     fontWeight: "700" as const,
+  },
+  logoutText: {
+    color: "#FFD7DF",
   },
 };

@@ -102,6 +102,12 @@ This launcher is local dev tooling only and is not product logic.
   - Legacy announcement create/detail root routes are kept for old links and DM/source context, but they are deprecated and unreachable from the main tab UI.
   - Legacy announcement fallback navigation returns to the existing Nearby tab instead of a removed Announcements tab.
   - Backend announcement APIs/data are unchanged; future Nearby redesign must not depend on Announcements as a main tab.
+- SETTINGS-PROFILE-HIERARCHY-01 is fixed in code and awaiting release smoke:
+  - Profile is organized into top avatar/name basics, `Моя анкета`, `Кого я ищу`, and photos sections.
+  - `Моя анкета` summarizes about, goal, mood, interests, and age group with one clear edit action instead of repeated row-level edit buttons.
+  - Search preferences show the age preference summary and note that future Nearby reuse depends on its separate redesign.
+  - Settings is grouped into privacy/safety, geolocation, app, and account sections.
+  - The current Nearby location switch is labeled as a current layer control, not the final Nearby redesign; Together logic and age matching are unchanged.
 
 ## Completed blocks
 
