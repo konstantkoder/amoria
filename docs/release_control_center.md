@@ -1,6 +1,6 @@
 # Amoria Release Control Center
 
-Updated: 2026-05-31
+Updated: 2026-06-01
 
 ## Branches
 
@@ -65,9 +65,12 @@ This launcher is local dev tooling only and is not product logic.
 - MEDIA-CROP-FLOW-01 is fixed in code and awaiting release smoke:
   - Avatar and profile photo selection open an in-app square crop UI instead of relying on native picker editing buttons.
   - Crop UI is full-screen/dark with a fixed square frame, source image under the frame, dimmed outside area, 3x3 grid only inside the square, and fixed bottom actions.
-  - Users can drag the image with one finger and pinch zoom with a stable focal point.
-  - `+` / `-` zoom buttons are not main controls; Reset is a small secondary action below Done/Cancel/Choose another.
+  - Crop starts at `minCoverScale * 1.08` comfort zoom so portrait, landscape, and square photos have initial movement room on both axes.
+  - Users can drag the image naturally with one finger and pinch zoom with a stable focal point.
+  - Current crop code has no visible `+` / `-` zoom controls. If they appear on-device, the likely cause is stale JS or another crop path.
+  - Reset is removed from the crop controls; Done/Cancel/Choose another remain outside the crop square.
   - Crop pan and zoom are clamped after every transform so the square stays filled and no black/empty area can be confirmed.
+  - Crop help copy tells users to pinch-zoom in when exact min-cover zoom leaves one axis without movement room.
   - Upload happens only after crop confirmation and explicit upload confirmation.
   - Mobile sends normalized `0..1` crop metadata to the backend.
   - Backend validates crop bounds/square shape, applies the crop, strips metadata, and re-encodes WebP.

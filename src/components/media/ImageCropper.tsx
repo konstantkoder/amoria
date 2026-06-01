@@ -49,7 +49,6 @@ type ImageCropperProps = {
   doneLabel: string;
   cancelLabel: string;
   chooseAnotherLabel: string;
-  resetLabel: string;
   onDone: (crop: NormalizedMediaCrop) => void;
   onCancel: () => void;
   onChooseAnother: () => void;
@@ -165,7 +164,6 @@ export default function ImageCropper({
   doneLabel,
   cancelLabel,
   chooseAnotherLabel,
-  resetLabel,
   onDone,
   onCancel,
   onChooseAnother,
@@ -382,11 +380,6 @@ export default function ImageCropper({
     );
   }
 
-  function resetCrop() {
-    if (!loadedSize || !stageGeometry) return;
-    setCropTransform(createCenteredCropTransform(loadedSize, stageGeometry.cropSize));
-  }
-
   function confirmCrop() {
     if (!isValidNormalizedCrop(currentCrop)) {
       onError?.("cropInvalid", undefined, {
@@ -569,17 +562,6 @@ export default function ImageCropper({
               </Text>
             </Pressable>
           </View>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ disabled: !cropReady }}
-            disabled={!cropReady}
-            onPress={resetCrop}
-            style={styles.resetButton}
-          >
-            <Text numberOfLines={1} style={styles.resetText}>
-              {resetLabel}
-            </Text>
-          </Pressable>
         </View>
       </View>
     </Modal>
@@ -749,20 +731,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 17,
     fontWeight: "800",
-    textAlign: "center",
-  },
-  resetButton: {
-    alignSelf: "center",
-    minHeight: 30,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    justifyContent: "center",
-  },
-  resetText: {
-    color: "rgba(255,255,255,0.72)",
-    fontSize: 12,
-    lineHeight: 16,
-    fontWeight: "700",
     textAlign: "center",
   },
   previewFrame: {

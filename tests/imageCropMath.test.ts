@@ -1,10 +1,14 @@
 import {
+  CROP_COMFORT_ZOOM_MULTIPLIER,
   clampCropScale,
   clampCropTransform,
   createCenteredCropTransform,
   getCropRectFromTransform,
   getFocalPointZoomTransform,
+  getMinZoomToCoverSquare,
+  getSourceImageDisplaySize,
   type CropPoint,
+  type CropSize,
   type CropTransform,
 } from "../src/components/media/imageCropMath";
 
@@ -38,18 +42,72 @@ function imagePointAtScreenPoint(
   };
 }
 
-function testClampPreventsBlankCropArea() {
-  const sourceSize = { width: 800, height: 400 };
-  const cropSize = 200;
+function getMaxOffsets(sourceSize: CropSize, cropSize: number, scale: number) {
+  const displaySize = getSourceImageDisplaySize(sourceSize, scale);
+  return {
+    x: Math.max((displaySize.width - cropSize) / 2, 0),
+    y: Math.max((displaySize.height - cropSize) / 2, 0),
+  };
+}
+
+function assertInitialComfortTransformAllowsSmallXYMovement(
+  sourceSize: CropSize,
+  label: string
+) {
+  const cropSize = 300;
+  const minScale = getMinZoomToCoverSquare(sourceSize, cropSize);
   const centered = createCenteredCropTransform(sourceSize, cropSize);
-  const clamped = clampCropTransform(
-    { ...centered, offsetX: 999, offsetY: 999 },
+  const maxOffsets = getMaxOffsets(sourceSize, cropSize, centered.scale);
+  const smallOffset = 6;
+  const moved = clampCropTransform(
+    { ...centered, offsetX: smallOffset, offsetY: -smallOffset },
     sourceSize,
     cropSize
   );
 
-  assertClose(clamped.offsetX, 100, "x pan clamps to the horizontal image edge");
-  assertClose(clamped.offsetY, 0, "y pan clamps when image height exactly covers crop");
+  assertClose(
+    centered.scale,
+    minScale * CROP_COMFORT_ZOOM_MULTIPLIER,
+    `${label} starts at comfort zoom`
+  );
+  assert(maxOffsets.x >= smallOffset, `${label} has initial horizontal movement room`);
+  assert(maxOffsets.y >= smallOffset, `${label} has initial vertical movement room`);
+  assertClose(moved.offsetX, smallOffset, `${label} preserves small x drag`);
+  assertClose(moved.offsetY, -smallOffset, `${label} preserves small y drag`);
+}
+
+function testInitialPortraitTransformAllowsSmallXYMovement() {
+  assertInitialComfortTransformAllowsSmallXYMovement(
+    { width: 400, height: 800 },
+    "portrait transform"
+  );
+}
+
+function testInitialLandscapeTransformAllowsSmallXYMovement() {
+  assertInitialComfortTransformAllowsSmallXYMovement(
+    { width: 800, height: 400 },
+    "landscape transform"
+  );
+}
+
+function testClampPreventsBlankCropArea() {
+  const sourceSize = { width: 800, height: 400 };
+  const cropSize = 300;
+  const scale = 1;
+  const clamped = clampCropTransform(
+    { scale, offsetX: 999, offsetY: 999 },
+    sourceSize,
+    cropSize
+  );
+  const maxOffsets = getMaxOffsets(sourceSize, cropSize, clamped.scale);
+  const crop = getCropRectFromTransform(sourceSize, cropSize, clamped);
+
+  assertClose(clamped.offsetX, maxOffsets.x, "x pan clamps to the horizontal image edge");
+  assertClose(clamped.offsetY, maxOffsets.y, "y pan clamps to the vertical image edge");
+  assert(crop.x >= 0, "clamped crop keeps x inside the source image");
+  assert(crop.y >= 0, "clamped crop keeps y inside the source image");
+  assert(crop.x + crop.width <= 1.000001, "clamped crop width has no blank area");
+  assert(crop.y + crop.height <= 1.000001, "clamped crop height has no blank area");
 }
 
 function testClampRaisesScaleToCoverCropArea() {
@@ -111,6 +169,8 @@ function testFocalPointZoomKeepsSelectedImagePointStable() {
   assertClose(nextScreenPoint.y, nextFocalPoint.y, "focal zoom keeps y stable");
 }
 
+testInitialPortraitTransformAllowsSmallXYMovement();
+testInitialLandscapeTransformAllowsSmallXYMovement();
 testClampPreventsBlankCropArea();
 testClampRaisesScaleToCoverCropArea();
 testCropRectStaysInsideUnitBounds();

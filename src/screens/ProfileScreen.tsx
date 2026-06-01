@@ -701,7 +701,6 @@ export default function ProfileScreen() {
           doneLabel={t("common.done")}
           cancelLabel={t("photos.cropCancel")}
           chooseAnotherLabel={t("photos.cropChooseAnother")}
-          resetLabel={t("photos.cropReset")}
           onDone={confirmAvatarCrop}
           onCancel={cancelAvatarCrop}
           onChooseAnother={() => void chooseAnotherAvatarForCrop()}

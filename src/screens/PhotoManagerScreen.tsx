@@ -873,7 +873,6 @@ export default function PhotoManagerScreen() {
           doneLabel={t("common.done")}
           cancelLabel={t("photos.cropCancel")}
           chooseAnotherLabel={t("photos.cropChooseAnother")}
-          resetLabel={tt("photos.cropReset", "Сбросить")}
           onDone={confirmPhotoCrop}
           onCancel={cancelPhotoCrop}
           onChooseAnother={() => void chooseAnotherPhotoForCrop()}

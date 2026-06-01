@@ -26,6 +26,8 @@ export type CropDisplaySize = {
   height: number;
 };
 
+export const CROP_COMFORT_ZOOM_MULTIPLIER = 1.08;
+
 export function clampNumber(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
 }
@@ -67,7 +69,7 @@ export function createCenteredCropTransform(
   cropSize: number
 ): CropTransform {
   return {
-    scale: getMinZoomToCoverSquare(sourceSize, cropSize),
+    scale: getMinZoomToCoverSquare(sourceSize, cropSize) * CROP_COMFORT_ZOOM_MULTIPLIER,
     offsetX: 0,
     offsetY: 0,
   };
