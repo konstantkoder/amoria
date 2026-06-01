@@ -11,6 +11,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useNavigation, useNavigationState } from "@react-navigation/native";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocale } from "@/contexts/LocaleContext";
+import { AmoriaTogetherIcon } from "@/components/icons/AmoriaTogetherIcon";
 import { type RootStackNavigationProp } from "@/navigation/appRoutes";
 import { theme } from "@/theme";
 
@@ -140,13 +141,15 @@ export default function AppDrawerContent({ onClose }: Props) {
     ({
       section,
       icon,
+      iconNode,
       label,
       onPress,
       tone = "default",
       trailing,
     }: {
       section?: DrawerSection;
-      icon: keyof typeof Ionicons.glyphMap;
+      icon?: keyof typeof Ionicons.glyphMap;
+      iconNode?: (active: boolean) => React.ReactNode;
       label: string;
       onPress: () => void;
       tone?: "default" | "danger";
@@ -170,11 +173,15 @@ export default function AppDrawerContent({ onClose }: Props) {
               tone === "danger" ? styles.dangerIconWrap : null,
             ]}
           >
-            <Ionicons
-              name={icon}
-              size={20}
-              color={tone === "danger" ? "#FFD7DF" : "#FFFFFF"}
-            />
+            {iconNode ? (
+              iconNode(active)
+            ) : icon ? (
+              <Ionicons
+                name={icon}
+                size={20}
+                color={tone === "danger" ? "#FFD7DF" : "#FFFFFF"}
+              />
+            ) : null}
           </View>
           <Text style={[styles.buttonText, active ? styles.activeButtonText : null]}>
             {label}
@@ -223,7 +230,7 @@ export default function AppDrawerContent({ onClose }: Props) {
           })}
           {renderButton({
             section: "together",
-            icon: "sparkles-outline",
+            iconNode: (active) => <AmoriaTogetherIcon active={active} size={22} />,
             label: t("tabs.together"),
             onPress: handleOpenTogether,
           })}

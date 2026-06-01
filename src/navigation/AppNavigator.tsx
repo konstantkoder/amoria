@@ -35,6 +35,7 @@ import SettingsScreen from "@/screens/SettingsScreen";
 import PrivacyPolicyScreen from "@/screens/PrivacyPolicyScreen";
 import LocationInfoScreen from "@/screens/LocationInfoScreen";
 
+import { AmoriaTogetherIcon } from "@/components/icons/AmoriaTogetherIcon";
 import { theme } from "@/theme";
 import AppDrawerContent from "@/navigation/AppDrawerContent";
 import {
@@ -59,10 +60,7 @@ const Tab = createBottomTabNavigator<MainTabParamList>();
 const RootStack = createNativeStackNavigator<RootStackParamList>();
 const ProfileStack = createNativeStackNavigator<ProfileStackParamList>();
 
-function TogetherTabIcon({ color, focused }: { color: string; focused: boolean }) {
-  const strokeColor = focused ? "#FFE2B3" : color;
-  const dotColor = focused ? "#FFF4E6" : color;
-
+function TogetherTabIcon({ focused, size }: { focused: boolean; size: number }) {
   return (
     <View
       style={[
@@ -70,43 +68,7 @@ function TogetherTabIcon({ color, focused }: { color: string; focused: boolean }
         focused ? styles.togetherIconShellActive : styles.togetherIconShellInactive,
       ]}
     >
-      <View style={styles.togetherMark}>
-        <View
-          style={[
-            styles.togetherStroke,
-            styles.togetherStrokeStart,
-            { backgroundColor: strokeColor },
-          ]}
-        />
-        <View
-          style={[
-            styles.togetherStroke,
-            styles.togetherStrokeMiddle,
-            { backgroundColor: strokeColor },
-          ]}
-        />
-        <View
-          style={[
-            styles.togetherStroke,
-            styles.togetherStrokeEnd,
-            { backgroundColor: strokeColor },
-          ]}
-        />
-        <View
-          style={[
-            styles.togetherDot,
-            styles.togetherDotLeft,
-            { backgroundColor: dotColor },
-          ]}
-        />
-        <View
-          style={[
-            styles.togetherDot,
-            styles.togetherDotRight,
-            { backgroundColor: dotColor },
-          ]}
-        />
-      </View>
+      <AmoriaTogetherIcon active={focused} size={focused ? size + 2 : size} />
     </View>
   );
 }
@@ -382,7 +344,7 @@ function MainTabs() {
           },
           tabBarIcon: ({ color, size, focused }) => {
             if (isTogetherTab) {
-              return <TogetherTabIcon color={color} focused={focused} />;
+              return <TogetherTabIcon focused={focused} size={size} />;
             }
 
             const icon = icons[route.name];
@@ -508,47 +470,5 @@ const styles = StyleSheet.create({
   togetherIconShellInactive: {
     backgroundColor: "rgba(255,255,255,0.04)",
     borderColor: "rgba(255,255,255,0.08)",
-  },
-  togetherMark: {
-    width: 35,
-    height: 25,
-  },
-  togetherStroke: {
-    position: "absolute",
-    height: 3,
-    borderRadius: 999,
-    opacity: 0.95,
-  },
-  togetherStrokeStart: {
-    left: 7,
-    top: 15,
-    width: 10,
-    transform: [{ rotate: "-24deg" }],
-  },
-  togetherStrokeMiddle: {
-    left: 15,
-    top: 11,
-    width: 11,
-    transform: [{ rotate: "-8deg" }],
-  },
-  togetherStrokeEnd: {
-    left: 24,
-    top: 12,
-    width: 8,
-    transform: [{ rotate: "22deg" }],
-  },
-  togetherDot: {
-    position: "absolute",
-    width: 7,
-    height: 7,
-    borderRadius: 999,
-  },
-  togetherDotLeft: {
-    left: 2,
-    top: 17,
-  },
-  togetherDotRight: {
-    right: 1,
-    top: 6,
   },
 });

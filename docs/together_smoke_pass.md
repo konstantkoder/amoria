@@ -1,6 +1,6 @@
 # Together Smoke Pass
 
-Updated: 2026-05-31 for `REMOVE-ANNOUNCEMENTS-TAB-01`
+Updated: 2026-06-01 for `APP-ICON-ASSETS-01`
 
 ## Run Metadata
 
@@ -93,10 +93,12 @@ These checks passed for the Story Sparks implementation, but they do not replace
 
 ## Together Tab Icon
 
-- Together bottom tab must show the custom Two-Stroke Loop mark: two dots connected by one imperfect shared trace.
+- Together bottom tab must show the final Shared Canvas Mark from the Amoria icon set.
+- Together app menu/drawer entry must use the same Shared Canvas Mark, active in the current Together section and muted inactive elsewhere.
 - Together bottom tab must not show a generic star, sparkle, or simple heart-only icon.
-- Active Together tab should be visibly highlighted with a subtle lifted pill, amber outline, and soft glow.
+- Active Together tab should be visibly highlighted with a subtle lifted pill, amber outline, soft glow, and coral/amber/violet mark.
 - Inactive Together tab remains readable, and Nearby and Chats tab icons still render normally.
+- The app launcher/adaptive icons require a new EAS dev build; Metro reload alone is not valid evidence for the Android launcher icon.
 
 ## Announcements Tab Removal
 
@@ -145,7 +147,7 @@ Known automated-check warning: the server test run prints the existing AWS SDK f
 | T - Peer media | Open peer profile after Together/DM; avatar/photos load or Client Errors show safe `urlKind`/`mediaId`/`httpStatus`/`contentType` diagnostics | NOT TESTED | Prepared for manual pass. | - |
 | U - Menu escape paths | From Together lobby and at least one active Together subflow, open the app menu, go directly to Chats, Profile, Settings, Main tab shell, and Together root; verify the user is not trapped and bottom tabs still work | NOT TESTED | Prepared for manual navigation smoke. | - |
 | V - Lobby polish | Open Together lobby; verify filters are visible, Start begins queue, collapsed info opens/closes, Story Sparks info remains available inside it, and History is accessible below the main start area | NOT TESTED | Prepared for manual lobby smoke. | - |
-| W - Together tab icon | Inspect bottom tabs in active and inactive states; Together shows the custom Two-Stroke Loop mark, not sparkle/star/heart-only, while Nearby/Chats still render | NOT TESTED | Prepared for manual tab icon smoke. | - |
+| W - Together tab/menu icon | Inspect bottom tabs and app menu in active and inactive states; Together shows the final Shared Canvas Mark, not sparkle/star/heart-only, while Nearby/Chats still render | NOT TESTED | Prepared for manual tab and drawer icon smoke. Requires new EAS dev build to verify Android launcher/adaptive icons. | - |
 | X - Announcements tab removed | Start app and inspect bottom tabs; verify only Together, Nearby, and Chats appear, and no Announcements/Объявления tab icon or label is present | NOT TESTED | Prepared for manual tab removal smoke. | - |
 
 ## Staged Story Sparks Manual Checklist

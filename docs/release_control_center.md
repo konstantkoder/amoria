@@ -95,10 +95,16 @@ This launcher is local dev tooling only and is not product logic.
   - History remains accessible below the main start area as a secondary entry.
   - Queue API calls, radius/age matching, geolocation behavior, and Story Sparks continuation logic are unchanged.
 - TOGETHER-TAB-ICON-01 is fixed in code and awaiting release smoke:
-  - Together bottom tab uses a JS-only custom Two-Stroke Loop icon: two dots connected by one imperfect shared trace.
+  - Together bottom tab uses the final Shared Canvas Mark from the Amoria icon set.
   - The generic sparkle/star tab icon is removed from Together.
   - Active Together tab has a subtle lifted pill, amber outline, and soft glow; inactive state remains readable.
   - Other bottom tab icons remain unchanged; Announcements tab removal is handled by `REMOVE-ANNOUNCEMENTS-TAB-01`.
+- APP-ICON-ASSETS-01 is fixed in code and awaiting a new EAS dev build:
+  - Android launcher icon now points to `assets/icons/amoria_android_launcher_icon_1024.png`.
+  - Android adaptive icon foreground/background point to `assets/icons/amoria_adaptive_foreground_1024.png` and `assets/icons/amoria_adaptive_background_1024.png`.
+  - Together tab and drawer/menu use the final Shared Canvas Mark via PNG-backed mobile assets because `react-native-svg` is not installed.
+  - Android package, permissions, cleartext traffic, software keyboard layout mode, app scheme state, and active tab set are unchanged.
+  - New EAS dev build is required because Android app icon/adaptive icon native assets changed.
 - REMOVE-ANNOUNCEMENTS-TAB-01 is fixed in code and awaiting release smoke:
   - Active bottom tabs are now `Together`, `Nearby`, and `Chats`.
   - `Announcements` / `Объявления` is removed from the bottom tab bar and no longer has an active tab icon or label.
@@ -243,7 +249,7 @@ See `docs/media_crop_flow_01.md`.
 
 - Clear Metro cache: `npx expo start -c`.
 - Set `EXPO_PUBLIC_RELEASE_VERSION` when Git SHA is not injected automatically.
-- Rebuild/reinstall the native/dev build when `app.json` native flags change, including Android `usesCleartextTraffic`; JS reload is not enough.
+- Rebuild/reinstall the native/dev build when `app.json` native flags or native assets change, including Android `usesCleartextTraffic` or launcher/adaptive icons; JS reload is not enough.
 
 ## Age Architecture Note
 
