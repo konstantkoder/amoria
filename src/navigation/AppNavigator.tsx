@@ -62,16 +62,30 @@ const ProfileStack = createNativeStackNavigator<ProfileStackParamList>();
 const TAB_ACTIVE_TINT = "#F3C98B";
 const TAB_INACTIVE_TINT = "#8E94B4";
 
-function TogetherTabIcon({ focused, size }: { focused: boolean; size: number }) {
+function BottomTabIconShell({
+  focused,
+  children,
+}: {
+  focused: boolean;
+  children: React.ReactNode;
+}) {
   return (
     <View
       style={[
-        styles.togetherIconShell,
-        focused ? styles.togetherIconShellActive : styles.togetherIconShellInactive,
+        styles.tabIconShell,
+        focused ? styles.tabIconShellActive : styles.tabIconShellInactive,
       ]}
     >
-      <AmoriaTogetherIcon active={focused} size={focused ? size + 2 : size} />
+      {children}
     </View>
+  );
+}
+
+function TogetherTabIcon({ focused, size }: { focused: boolean; size: number }) {
+  return (
+    <BottomTabIconShell focused={focused}>
+      <AmoriaTogetherIcon active={focused} size={focused ? size + 2 : size} />
+    </BottomTabIconShell>
   );
 }
 
@@ -330,18 +344,13 @@ function MainTabs() {
             paddingBottom: 5 + insets.bottom,
             paddingTop: 4,
           },
-          tabBarItemStyle: isTogetherTab
-            ? {
-                marginTop: -3,
-                paddingHorizontal: 1,
-              }
-            : {
-                marginTop: 1,
-                paddingHorizontal: 1,
-              },
+          tabBarItemStyle: {
+            marginTop: -3,
+            paddingHorizontal: 1,
+          },
           tabBarLabelStyle: {
-            fontSize: isTogetherTab ? 11 : 10,
-            fontWeight: isTogetherTab ? "800" : "600",
+            fontSize: 11,
+            fontWeight: "700",
             marginTop: 0,
           },
           tabBarIcon: ({ color, size, focused }) => {
@@ -352,7 +361,11 @@ function MainTabs() {
             const icon = icons[route.name];
             const name = focused ? icon?.active ?? "ellipse" : icon?.inactive ?? "ellipse-outline";
 
-            return <Ionicons name={name} size={focused ? size + 1 : size} color={color} />;
+            return (
+              <BottomTabIconShell focused={focused}>
+                <Ionicons name={name} size={focused ? size + 1 : size} color={color} />
+              </BottomTabIconShell>
+            );
           },
         };
       }}
@@ -450,7 +463,7 @@ export default function AppNavigator() {
 }
 
 const styles = StyleSheet.create({
-  togetherIconShell: {
+  tabIconShell: {
     minWidth: 48,
     minHeight: 39,
     borderRadius: 999,
@@ -458,7 +471,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  togetherIconShellActive: {
+  tabIconShellActive: {
     minHeight: 41,
     backgroundColor: "rgba(185, 130, 114, 0.23)",
     borderColor: "rgba(243, 201, 139, 0.48)",
@@ -469,7 +482,7 @@ const styles = StyleSheet.create({
     elevation: 7,
     transform: [{ translateY: -2 }],
   },
-  togetherIconShellInactive: {
+  tabIconShellInactive: {
     backgroundColor: "rgba(255,255,255,0.04)",
     borderColor: "rgba(255,255,255,0.08)",
   },

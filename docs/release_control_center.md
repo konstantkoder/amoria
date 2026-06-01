@@ -98,8 +98,8 @@ This launcher is local dev tooling only and is not product logic.
 - TOGETHER-TAB-ICON-01 is fixed in code and awaiting release smoke:
   - Together bottom tab uses the final Shared Canvas Mark from the Amoria icon set.
   - The generic sparkle/star tab icon is removed from Together.
-  - Active Together tab has a subtle lifted pill, amber outline, soft glow, and warm active label tint.
-  - Nearby and Chats Ionicons use the same warm active tint; inactive state remains readable.
+  - Active Together, Nearby, and Chats tabs share the same subtle lifted pill, amber outline, soft glow, and warm active label tint.
+  - Nearby and Chats keep their location/chat Ionicons inside the shared active treatment; inactive state remains readable.
   - Announcements tab removal is handled by `REMOVE-ANNOUNCEMENTS-TAB-01`.
 - APP-ICON-ASSETS-01 is fixed in code and awaiting a new EAS dev build:
   - Android launcher icon now points to `assets/icons/amoria_android_launcher_icon_1024.png`.
@@ -109,7 +109,7 @@ This launcher is local dev tooling only and is not product logic.
   - New EAS dev build is required because Android app icon/adaptive icon native assets changed.
 - REMOVE-ANNOUNCEMENTS-TAB-01 is fixed in code and awaiting release smoke:
   - Active bottom tabs are now `Together`, `Nearby`, and `Chats`.
-  - Active bottom tab labels and regular Ionicons use the shared warm amber tint; inactive tabs use a muted lavender-gray tint.
+  - Active bottom tab icons and labels use the shared warm amber pill/glow treatment; inactive tabs use a muted lavender-gray tint.
   - `Announcements` / `Объявления` is removed from the bottom tab bar and no longer has an active tab icon or label.
   - Legacy announcement create/detail root routes are kept for old links and DM/source context, but they are deprecated and unreachable from the main tab UI.
   - Legacy announcement fallback navigation returns to the existing Nearby tab instead of a removed Announcements tab.
