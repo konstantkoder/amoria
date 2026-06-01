@@ -64,10 +64,10 @@ This launcher is local dev tooling only and is not product logic.
   - Admin `Проверить URL` remains the smoke path for HTTP/content-type/object-not-found diagnostics.
 - MEDIA-CROP-FLOW-01 is fixed in code and awaiting release smoke:
   - Avatar and profile photo selection open an in-app square crop UI instead of relying on native picker editing buttons.
-  - Crop UI is full-screen/dark with a fixed square frame, source image under the frame, dimmed outside area, 3x3 grid only inside the square, and fixed bottom actions.
+  - Crop UI is full-screen/dark with a fixed square frame, source image under the frame, dimmed outside area, 3x3 grid only inside the square, visible source context around the square, and fixed bottom actions.
   - Crop starts at `minCoverScale * 1.08` comfort zoom so portrait, landscape, and square photos have initial movement room on both axes.
   - Users can drag the image naturally with one finger and pinch zoom with a stable focal point.
-  - Current crop code has no visible `+` / `-` zoom controls. If they appear on-device, the likely cause is stale JS or another crop path.
+  - Current crop code has no visible `+` / `-` zoom controls. Test with a normal camera/photo-library image; if old controls appear only while cropping an old screenshot, they are pixels inside the chosen image, not crop UI.
   - Reset is removed from the crop controls; Done/Cancel/Choose another remain outside the crop square.
   - Crop pan and zoom are clamped after every transform so the square stays filled and no black/empty area can be confirmed.
   - Crop help copy tells users to pinch-zoom in when exact min-cover zoom leaves one axis without movement room.
@@ -83,11 +83,12 @@ This launcher is local dev tooling only and is not product logic.
   - Together still blocks missing birth date and routes to Edit Profile focused on the birth-date section.
   - Exact birth date remains absent from public profile, Admin Queue, and Client Errors.
 - NAVIGATION-MENU-CLEANUP-01 is fixed in code and awaiting release smoke:
-  - App menu now groups navigation into main navigation and account actions.
-  - Drawer includes direct `Главный экран`, `Вместе`, `Чаты`, `Профиль`, `Настройки`, language, privacy, and logout actions.
-  - `Главный экран` returns to the main tab shell, `Чаты` opens Inbox directly, `Вместе` opens the Together tab root, and `Профиль` opens the profile root.
+  - App menu now groups navigation into `Основное` and account actions.
+  - `Основное` contains direct `Вместе`, `Рядом`, and `Чаты` actions; the duplicate `Главный экран` drawer item is removed.
+  - Account contains `Профиль`, `Настройки`, language, privacy, and logout actions.
+  - `Вместе` opens the Together tab root, `Рядом` opens the Nearby tab, `Чаты` opens Inbox directly, and `Профиль` opens the profile root.
   - Drawer styling is lighter/glass-like while keeping readable dark action cards and clear active-section highlighting.
-  - Announcements was intentionally left unchanged in this block; active tab removal is handled by `REMOVE-ANNOUNCEMENTS-TAB-01`.
+  - Announcements was intentionally not restored; active tab removal remains handled by `REMOVE-ANNOUNCEMENTS-TAB-01`.
 - TOGETHER-UI-POLISH-01 is fixed in code and awaiting release smoke:
   - Together lobby keeps the existing background image but reduces the top section to one short headline, one short explanation, visible radius/age filters, and one primary `Начать` / `Start` CTA.
   - Secondary flow explanation, step chips, Story Sparks continuation copy, and search context are behind `Как это работает` / `How it works`.
@@ -97,8 +98,9 @@ This launcher is local dev tooling only and is not product logic.
 - TOGETHER-TAB-ICON-01 is fixed in code and awaiting release smoke:
   - Together bottom tab uses the final Shared Canvas Mark from the Amoria icon set.
   - The generic sparkle/star tab icon is removed from Together.
-  - Active Together tab has a subtle lifted pill, amber outline, and soft glow; inactive state remains readable.
-  - Other bottom tab icons remain unchanged; Announcements tab removal is handled by `REMOVE-ANNOUNCEMENTS-TAB-01`.
+  - Active Together tab has a subtle lifted pill, amber outline, soft glow, and warm active label tint.
+  - Nearby and Chats Ionicons use the same warm active tint; inactive state remains readable.
+  - Announcements tab removal is handled by `REMOVE-ANNOUNCEMENTS-TAB-01`.
 - APP-ICON-ASSETS-01 is fixed in code and awaiting a new EAS dev build:
   - Android launcher icon now points to `assets/icons/amoria_android_launcher_icon_1024.png`.
   - Android adaptive icon foreground/background point to `assets/icons/amoria_adaptive_foreground_1024.png` and `assets/icons/amoria_adaptive_background_1024.png`.
@@ -107,6 +109,7 @@ This launcher is local dev tooling only and is not product logic.
   - New EAS dev build is required because Android app icon/adaptive icon native assets changed.
 - REMOVE-ANNOUNCEMENTS-TAB-01 is fixed in code and awaiting release smoke:
   - Active bottom tabs are now `Together`, `Nearby`, and `Chats`.
+  - Active bottom tab labels and regular Ionicons use the shared warm amber tint; inactive tabs use a muted lavender-gray tint.
   - `Announcements` / `Объявления` is removed from the bottom tab bar and no longer has an active tab icon or label.
   - Legacy announcement create/detail root routes are kept for old links and DM/source context, but they are deprecated and unreachable from the main tab UI.
   - Legacy announcement fallback navigation returns to the existing Nearby tab instead of a removed Announcements tab.

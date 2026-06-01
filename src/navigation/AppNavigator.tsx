@@ -59,6 +59,8 @@ import {
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const RootStack = createNativeStackNavigator<RootStackParamList>();
 const ProfileStack = createNativeStackNavigator<ProfileStackParamList>();
+const TAB_ACTIVE_TINT = "#F3C98B";
+const TAB_INACTIVE_TINT = "#8E94B4";
 
 function TogetherTabIcon({ focused, size }: { focused: boolean; size: number }) {
   return (
@@ -319,8 +321,8 @@ function MainTabs() {
           headerShown: false,
           lazy: false,
           tabBarHideOnKeyboard: true,
-          tabBarActiveTintColor: theme.colors.text,
-          tabBarInactiveTintColor: theme.colors.tabInactive,
+          tabBarActiveTintColor: TAB_ACTIVE_TINT,
+          tabBarInactiveTintColor: TAB_INACTIVE_TINT,
           tabBarStyle: {
             backgroundColor: theme.colors.background,
             borderTopColor: "rgba(255,255,255,0.08)",
@@ -459,8 +461,8 @@ const styles = StyleSheet.create({
   togetherIconShellActive: {
     minHeight: 41,
     backgroundColor: "rgba(185, 130, 114, 0.23)",
-    borderColor: "rgba(245, 205, 139, 0.42)",
-    shadowColor: "#D39B72",
+    borderColor: "rgba(243, 201, 139, 0.48)",
+    shadowColor: TAB_ACTIVE_TINT,
     shadowOpacity: 0.18,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 5 },

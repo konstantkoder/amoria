@@ -29,8 +29,8 @@ function copyOrFallback(
 }
 
 type DrawerSection =
-  | "main"
   | "together"
+  | "nearby"
   | "chats"
   | "profile"
   | "settings"
@@ -45,14 +45,15 @@ type RouteSnapshot = {
   };
 };
 
-function activeSectionFromRoute(route?: RouteSnapshot): DrawerSection {
-  if (!route?.name) return "main";
+function activeSectionFromRoute(route?: RouteSnapshot): DrawerSection | null {
+  if (!route?.name) return null;
 
   if (route.name === "Tabs") {
     const activeTab = route.state?.routes?.[route.state.index ?? 0]?.name;
     if (activeTab === "Together") return "together";
+    if (activeTab === "Nearby") return "nearby";
     if (activeTab === "Inbox") return "chats";
-    return "main";
+    return null;
   }
 
   if (
@@ -67,10 +68,13 @@ function activeSectionFromRoute(route?: RouteSnapshot): DrawerSection {
   }
 
   if (route.name === "DMChat") return "chats";
+  if (route.name === "CreateAnnouncement" || route.name === "AnnouncementDetail") {
+    return "nearby";
+  }
   if (route.name === "Profile" || route.name === "UserProfile") return "profile";
   if (route.name === "Settings" || route.name === "LocationInfo") return "settings";
   if (route.name === "PrivacyPolicy") return "privacy";
-  return "main";
+  return null;
 }
 
 export default function AppDrawerContent({ onClose }: Props) {
@@ -102,14 +106,14 @@ export default function AppDrawerContent({ onClose }: Props) {
     }
   }, [auth, onClose, t]);
 
-  const handleOpenMain = React.useCallback(() => {
-    onClose?.();
-    navigation.navigate("Tabs");
-  }, [navigation, onClose]);
-
   const handleOpenTogether = React.useCallback(() => {
     onClose?.();
     navigation.navigate("Tabs", { screen: "Together" });
+  }, [navigation, onClose]);
+
+  const handleOpenNearby = React.useCallback(() => {
+    onClose?.();
+    navigation.navigate("Tabs", { screen: "Nearby" });
   }, [navigation, onClose]);
 
   const handleOpenChats = React.useCallback(() => {
@@ -220,14 +224,8 @@ export default function AppDrawerContent({ onClose }: Props) {
           showsVerticalScrollIndicator={false}
         >
           <Text style={styles.sectionLabel}>
-            {copyOrFallback(t, "menu.sectionNavigation", "Навигация")}
+            {copyOrFallback(t, "menu.sectionNavigation", "Основное")}
           </Text>
-          {renderButton({
-            section: "main",
-            icon: "home-outline",
-            label: copyOrFallback(t, "menu.main", "Главный экран"),
-            onPress: handleOpenMain,
-          })}
           {renderButton({
             section: "together",
             iconNode: (active) => <AmoriaTogetherIcon active={active} size={22} />,
@@ -235,21 +233,27 @@ export default function AppDrawerContent({ onClose }: Props) {
             onPress: handleOpenTogether,
           })}
           {renderButton({
+            section: "nearby",
+            icon: "location-outline",
+            label: t("tabs.nearby"),
+            onPress: handleOpenNearby,
+          })}
+          {renderButton({
             section: "chats",
             icon: "chatbubbles-outline",
             label: t("tabs.chats"),
             onPress: handleOpenChats,
           })}
+
+          <Text style={styles.sectionLabel}>
+            {copyOrFallback(t, "menu.sectionAccount", "Аккаунт")}
+          </Text>
           {renderButton({
             section: "profile",
             icon: "person-outline",
             label: t("menu.profile"),
             onPress: handleOpenProfile,
           })}
-
-          <Text style={styles.sectionLabel}>
-            {copyOrFallback(t, "menu.sectionAccount", "Аккаунт")}
-          </Text>
           {renderButton({
             section: "settings",
             icon: "settings-outline",
@@ -270,7 +274,7 @@ export default function AppDrawerContent({ onClose }: Props) {
           {renderButton({
             section: "privacy",
             icon: "document-text-outline",
-            label: t("screen.privacy"),
+            label: copyOrFallback(t, "menu.privacy", "Политика"),
             onPress: handleOpenPrivacyPolicy,
           })}
           {renderButton({

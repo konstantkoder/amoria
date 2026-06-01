@@ -95,7 +95,8 @@ type ActiveGesture =
     };
 
 const MAX_ZOOM_MULTIPLIER = 4;
-const CROP_STAGE_INSET = 18;
+const CROP_STAGE_INSET = 28;
+const CROP_STAGE_MAX_SIZE = 340;
 const EMPTY_GESTURE: ActiveGesture = { mode: "none" };
 
 function distanceBetweenTouches(touches: readonly NativeTouch[]) {
@@ -138,7 +139,11 @@ function stageGeometryFromSize(stageSize: CropSize): StageGeometry | null {
   const width = Math.floor(stageSize.width);
   const height = Math.floor(stageSize.height);
   const cropSize = Math.floor(
-    Math.min(width - CROP_STAGE_INSET * 2, height - CROP_STAGE_INSET * 2)
+    Math.min(
+      width - CROP_STAGE_INSET * 2,
+      height - CROP_STAGE_INSET * 2,
+      CROP_STAGE_MAX_SIZE
+    )
   );
 
   if (width <= 0 || height <= 0 || cropSize <= 0) {
