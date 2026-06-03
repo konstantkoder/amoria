@@ -136,6 +136,13 @@ This launcher is local dev tooling only and is not product logic.
   - Public photos are small previews only; locked gallery media is not shown.
   - Exact coordinates, exact birth date, object keys, signed URLs, fake users, and local-only Nearby success are not shown.
   - `Открыть` uses the existing profile route; `Написать` opens a real direct thread through the existing chat API.
+- NEARBY-PROFILE-FEED-UI-POLISH-02 is fixed in code and awaiting release smoke:
+  - Nearby profile cards are smaller anketa previews with phone-width two-column grid when readable and compact single-column fallback only for very narrow screens.
+  - Cards show small avatar/photo thumbnails, name, safe age group, coarse distance bucket, one compact goal/mood/status line, 2-3 interest chips, and small profile/message actions.
+  - Nearby now exposes age filter chips: `Любой 18+`, `18-24`, `25-34`, `35-44`, `45-54`, `55+`.
+  - Age filter writes existing profile preferred-age fields and relies on backend feed matching; it does not fake local age filtering.
+  - Radius chip changes debounce active feed refreshes and ignore stale in-flight responses to reduce visible flicker.
+  - Privacy remains unchanged: no exact coordinates, exact birth date, locked gallery media, object keys, signed URLs, fake users, or local-only success.
 
 ## Completed blocks
 

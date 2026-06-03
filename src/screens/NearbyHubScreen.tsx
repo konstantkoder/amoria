@@ -22,6 +22,7 @@ import { ApiError } from "@/services/api/apiClient";
 import * as chatApi from "@/services/api/chatApi";
 import * as nearbyApi from "@/services/api/nearbyApi";
 import type {
+  AgeGroup,
   NearbyProfileFeedItemDto,
   NearbyProfileStatusKind,
   NearbyProfileVisibilityDto,
@@ -33,6 +34,7 @@ import { theme } from "@/theme";
 
 type LocationIssue = "permissionDenied" | "permissionBlocked" | "readFailed";
 type GenderFilter = "all" | ProfileGender;
+type AgeFilterId = "any" | AgeGroup;
 
 const RADIUS_OPTIONS = [5, 25, 100, 250] as const;
 const FEED_LIMIT = 30;
@@ -40,6 +42,18 @@ const DEFAULT_RADIUS_KM = 25;
 const DEFAULT_STATUS_KIND: NearbyProfileStatusKind = "open_to_suggestions";
 
 const GENDER_FILTERS: GenderFilter[] = ["all", "woman", "man", "nonbinary"];
+const AGE_FILTER_OPTIONS: Array<{
+  id: AgeFilterId;
+  min: number;
+  max: number | null;
+}> = [
+  { id: "any", min: 18, max: null },
+  { id: "18-24", min: 18, max: 24 },
+  { id: "25-34", min: 25, max: 34 },
+  { id: "35-44", min: 35, max: 44 },
+  { id: "45-54", min: 45, max: 54 },
+  { id: "55+", min: 55, max: null },
+];
 
 function copyOrFallback(
   t: (key: string, params?: Record<string, string>) => string,
@@ -78,6 +92,22 @@ function getAgePreferenceLabel(
 function getGenderFilter(profile: UserProfile | null): GenderFilter {
   const values = profile?.preferredGenders ?? [];
   return values.length === 1 ? values[0] : "all";
+}
+
+function getAgeFilter(profile: UserProfile | null): AgeFilterId {
+  const min = profile?.preferredAgeMin ?? 18;
+  const max = profile?.preferredAgeMax ?? null;
+  return AGE_FILTER_OPTIONS.find((option) => option.min === min && option.max === max)?.id ?? "any";
+}
+
+function getAgeFilterLabel(
+  id: AgeFilterId,
+  t: (key: string, params?: Record<string, string>) => string
+) {
+  if (id === "any") {
+    return copyOrFallback(t, "nearby.filterAgeAny", "Любой 18+");
+  }
+  return copyOrFallback(t, `nearby.age.${id}`, id);
 }
 
 function isProfileReady(profile: UserProfile | null) {
@@ -147,6 +177,11 @@ export default function NearbyHubScreen() {
   const { width } = useWindowDimensions();
   const { t } = useLocale();
   const mountedRef = useRef(true);
+  const visibilityRef = useRef<NearbyProfileVisibilityDto | null>(null);
+  const radiusRef = useRef(DEFAULT_RADIUS_KM);
+  const profileReadyRef = useRef(false);
+  const feedRequestIdRef = useRef(0);
+  const radiusRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [visibility, setVisibility] = useState<NearbyProfileVisibilityDto | null>(null);
   const [items, setItems] = useState<NearbyProfileFeedItemDto[]>([]);
@@ -162,36 +197,53 @@ export default function NearbyHubScreen() {
   const active = visibility?.status === "active";
   const profileReady = isProfileReady(profile);
   const genderFilter = getGenderFilter(profile);
-  const columns = width >= 680 ? 2 : 1;
+  const ageFilter = getAgeFilter(profile);
+  const columns = width >= 350 ? 2 : 1;
 
   useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
+      if (radiusRefreshTimerRef.current) {
+        clearTimeout(radiusRefreshTimerRef.current);
+      }
     };
   }, []);
+
+  useEffect(() => {
+    visibilityRef.current = visibility;
+  }, [visibility]);
+
+  useEffect(() => {
+    radiusRef.current = radiusKm;
+  }, [radiusKm]);
+
+  useEffect(() => {
+    profileReadyRef.current = profileReady;
+  }, [profileReady]);
 
   const refreshFeed = useCallback(
     async (
       baseVisibility: NearbyProfileVisibilityDto | null,
-      nextRadiusKm = radiusKm,
+      nextRadiusKm: number,
       options?: { profileReady?: boolean }
     ) => {
       if (baseVisibility?.status !== "active") {
         setItems([]);
         return;
       }
-      if ((options?.profileReady ?? profileReady) === false) {
+      if ((options?.profileReady ?? profileReadyRef.current) === false) {
         setItems([]);
         return;
       }
 
+      const requestId = ++feedRequestIdRef.current;
       setFeedLoading(true);
       setErrorText("");
       setLocationIssue(null);
       try {
         const location = await requestNearbyLocation();
-        if (!mountedRef.current) return;
+        if (!mountedRef.current || requestId !== feedRequestIdRef.current) return;
         if (location.ok === false) {
           setItems([]);
           setLocationIssue(location.issue);
@@ -207,21 +259,21 @@ export default function NearbyHubScreen() {
           statusKind: baseVisibility.statusKind ?? DEFAULT_STATUS_KIND,
         });
         const response = await nearbyApi.listProfileFeed(FEED_LIMIT);
-        if (!mountedRef.current) return;
+        if (!mountedRef.current || requestId !== feedRequestIdRef.current) return;
         setVisibility(nextVisibility.visibility);
         setRadiusKm(nextVisibility.visibility.radiusKm ?? nextRadiusKm);
         setItems(response.items ?? []);
       } catch (error) {
-        if (!mountedRef.current) return;
+        if (!mountedRef.current || requestId !== feedRequestIdRef.current) return;
         setItems([]);
         setErrorText(getBackendErrorText(error, t));
       } finally {
-        if (mountedRef.current) {
+        if (mountedRef.current && requestId === feedRequestIdRef.current) {
           setFeedLoading(false);
         }
       }
     },
-    [profileReady, radiusKm, t]
+    [t]
   );
 
   const loadInitial = useCallback(async () => {
@@ -288,14 +340,14 @@ export default function NearbyHubScreen() {
         enabled: true,
         latitude: location.latitude,
         longitude: location.longitude,
-        radiusKm,
+        radiusKm: radiusRef.current,
         nearbyStatus: visibility?.nearbyStatus ?? null,
         statusKind: visibility?.statusKind ?? DEFAULT_STATUS_KIND,
       });
       await setNearbyEnabled(true).catch(() => {});
       if (!mountedRef.current) return;
       setVisibility(response.visibility);
-      await refreshFeed(response.visibility, response.visibility.radiusKm ?? radiusKm);
+      await refreshFeed(response.visibility, response.visibility.radiusKm ?? radiusRef.current);
     } catch (error) {
       if (!mountedRef.current) return;
       setErrorText(getBackendErrorText(error, t));
@@ -310,6 +362,11 @@ export default function NearbyHubScreen() {
     setToggleBusy(true);
     setErrorText("");
     setLocationIssue(null);
+    feedRequestIdRef.current += 1;
+    if (radiusRefreshTimerRef.current) {
+      clearTimeout(radiusRefreshTimerRef.current);
+      radiusRefreshTimerRef.current = null;
+    }
     try {
       const response = await nearbyApi.updateVisibility({ enabled: false });
       await setNearbyEnabled(false).catch(() => {});
@@ -336,9 +393,19 @@ export default function NearbyHubScreen() {
 
   const handleRadiusChange = useCallback(
     (nextRadiusKm: number) => {
+      if (nextRadiusKm === radiusRef.current) return;
+      radiusRef.current = nextRadiusKm;
+      feedRequestIdRef.current += 1;
       setRadiusKm(nextRadiusKm);
       if (visibility?.status === "active") {
-        void refreshFeed(visibility, nextRadiusKm);
+        if (radiusRefreshTimerRef.current) {
+          clearTimeout(radiusRefreshTimerRef.current);
+        }
+        setFeedLoading(true);
+        radiusRefreshTimerRef.current = setTimeout(() => {
+          radiusRefreshTimerRef.current = null;
+          void refreshFeed(visibilityRef.current, nextRadiusKm);
+        }, 320);
       }
     },
     [refreshFeed, visibility]
@@ -356,7 +423,9 @@ export default function NearbyHubScreen() {
         if (!mountedRef.current) return;
         setProfile(updated);
         if (visibility?.status === "active") {
-          await refreshFeed(visibility, radiusKm);
+          await refreshFeed(visibility, radiusRef.current, {
+            profileReady: isProfileReady(updated),
+          });
         }
       } catch (error) {
         if (!mountedRef.current) return;
@@ -367,7 +436,37 @@ export default function NearbyHubScreen() {
         }
       }
     },
-    [preferenceBusy, radiusKm, refreshFeed, t, visibility]
+    [preferenceBusy, refreshFeed, t, visibility]
+  );
+
+  const handleAgeFilterChange = useCallback(
+    async (next: AgeFilterId) => {
+      if (preferenceBusy) return;
+      const option = AGE_FILTER_OPTIONS.find((item) => item.id === next) ?? AGE_FILTER_OPTIONS[0];
+      setPreferenceBusy(true);
+      setErrorText("");
+      try {
+        const updated = await updateUserFields({
+          preferredAgeMin: option.min,
+          preferredAgeMax: option.max,
+        });
+        if (!mountedRef.current) return;
+        setProfile(updated);
+        if (visibility?.status === "active") {
+          await refreshFeed(visibility, radiusRef.current, {
+            profileReady: isProfileReady(updated),
+          });
+        }
+      } catch (error) {
+        if (!mountedRef.current) return;
+        setErrorText(getBackendErrorText(error, t));
+      } finally {
+        if (mountedRef.current) {
+          setPreferenceBusy(false);
+        }
+      }
+    },
+    [preferenceBusy, refreshFeed, t, visibility]
   );
 
   const openProfile = useCallback(
@@ -534,10 +633,43 @@ export default function NearbyHubScreen() {
             </View>
           </View>
 
+          <View style={styles.filterGroup}>
+            <Text style={styles.filterLabel}>
+              {copyOrFallback(t, "nearby.filterAge", "Возраст")}
+            </Text>
+            <View style={styles.segmentRow}>
+              {AGE_FILTER_OPTIONS.map((option) => (
+                <Pressable
+                  key={option.id}
+                  onPress={() => void handleAgeFilterChange(option.id)}
+                  disabled={preferenceBusy}
+                  style={[
+                    styles.segment,
+                    ageFilter === option.id ? styles.segmentActive : null,
+                    preferenceBusy ? styles.segmentDisabled : null,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.segmentText,
+                      ageFilter === option.id ? styles.segmentTextActive : null,
+                    ]}
+                  >
+                    {getAgeFilterLabel(option.id, t)}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+
           <View style={styles.summaryRow}>
             <Ionicons name="filter-outline" size={16} color="#F3C98B" />
             <Text style={styles.summaryText}>
-              {copyOrFallback(t, "nearby.filterAge", "Возраст")}:{" "}
+              {copyOrFallback(
+                t,
+                "nearby.ageBackendNote",
+                "Возрастный фильтр сохраняется в профиле и применяется backend-подбором."
+              )}{" "}
               {getAgePreferenceLabel(profile, t)}
             </Text>
           </View>
@@ -553,8 +685,10 @@ export default function NearbyHubScreen() {
     ),
     [
       active,
+      ageFilter,
       errorText,
       genderFilter,
+      handleAgeFilterChange,
       handleGenderFilterChange,
       handleRadiusChange,
       handleToggle,
@@ -679,15 +813,17 @@ export default function NearbyHubScreen() {
 
   const renderCard = useCallback(
     ({ item }: { item: NearbyProfileFeedItemDto }) => (
-      <NearbyProfileCard
-        item={item}
-        opening={openingUserId === item.userId}
-        onOpen={() => openProfile(item)}
-        onMessage={() => void openMessage(item)}
-        t={t}
-      />
+      <View style={[styles.cardSlot, columns > 1 ? styles.cardSlotGrid : styles.cardSlotList]}>
+        <NearbyProfileCard
+          item={item}
+          opening={openingUserId === item.userId}
+          onOpen={() => openProfile(item)}
+          onMessage={() => void openMessage(item)}
+          t={t}
+        />
+      </View>
     ),
-    [openMessage, openProfile, openingUserId, t]
+    [columns, openMessage, openProfile, openingUserId, t]
   );
 
   return (
@@ -736,15 +872,17 @@ function NearbyProfileCard({
     copyOrFallback(t, `nearby.distance.${item.distanceBucket}`, item.distanceBucket),
   ].filter(Boolean);
   const profileLabels = [
+    item.nearbyStatus ??
+      (item.statusKind ? copyOrFallback(t, `nearby.statusKind.${item.statusKind}`, "") : ""),
     item.goal ? copyOrFallback(t, `profile.goal.${item.goal}`, item.goal) : "",
     item.mood ? copyOrFallback(t, `profile.mood.${item.mood}`, item.mood) : "",
   ].filter(Boolean);
-  const photos = item.publicPhotos.slice(0, 3);
+  const photos = item.publicPhotos.slice(0, 2);
 
   return (
     <View style={styles.card}>
       <View style={styles.cardTop}>
-        <UserAvatar avatarUrl={item.avatarUrl ?? undefined} label={item.displayName} size={52} />
+        <UserAvatar avatarUrl={item.avatarUrl ?? undefined} label={item.displayName} size={38} />
         <View style={styles.cardIdentity}>
           <Text style={styles.cardName} numberOfLines={1}>
             {item.displayName}
@@ -755,16 +893,6 @@ function NearbyProfileCard({
         </View>
       </View>
 
-      {item.nearbyStatus || item.statusKind ? (
-        <View style={styles.statusPill}>
-          <Ionicons name="sparkles-outline" size={14} color="#F3C98B" />
-          <Text style={styles.statusText} numberOfLines={2}>
-            {item.nearbyStatus ??
-              copyOrFallback(t, `nearby.statusKind.${item.statusKind}`, "")}
-          </Text>
-        </View>
-      ) : null}
-
       {profileLabels.length ? (
         <Text style={styles.profileLine} numberOfLines={1}>
           {profileLabels.join(" · ")}
@@ -773,7 +901,7 @@ function NearbyProfileCard({
 
       {item.interests.length ? (
         <View style={styles.chipRow}>
-          {item.interests.slice(0, 4).map((interest) => (
+          {item.interests.slice(0, 3).map((interest) => (
             <View key={interest} style={styles.interestChip}>
               <Text style={styles.interestText} numberOfLines={1}>
                 {interest}
@@ -797,6 +925,7 @@ function NearbyProfileCard({
 
       <View style={styles.actionRow}>
         <Pressable style={styles.secondaryButton} onPress={onOpen}>
+          <Ionicons name="person-outline" size={13} color="#F3C98B" />
           <Text style={styles.secondaryButtonText}>
             {copyOrFallback(t, "nearby.openProfile", "Открыть")}
           </Text>
@@ -812,9 +941,12 @@ function NearbyProfileCard({
           {opening ? (
             <ActivityIndicator color="#24150B" size="small" />
           ) : (
-            <Text style={styles.primaryButtonText}>
-              {copyOrFallback(t, "nearby.message", "Написать")}
-            </Text>
+            <>
+              <Ionicons name="chatbubble-outline" size={13} color="#24150B" />
+              <Text style={styles.primaryButtonText}>
+                {copyOrFallback(t, "nearby.message", "Написать")}
+              </Text>
+            </>
           )}
         </Pressable>
       </View>
@@ -824,12 +956,22 @@ function NearbyProfileCard({
 
 const styles = StyleSheet.create({
   listContent: {
-    paddingHorizontal: 4,
+    paddingHorizontal: 0,
     paddingBottom: 18,
-    gap: 10,
+    gap: 8,
   },
   columnWrap: {
-    gap: 10,
+    alignItems: "stretch",
+  },
+  cardSlot: {
+    paddingHorizontal: 4,
+    marginBottom: 8,
+  },
+  cardSlotGrid: {
+    width: "50%",
+  },
+  cardSlotList: {
+    width: "100%",
   },
   headerArea: {
     gap: 12,
@@ -852,9 +994,9 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   controlPanel: {
-    borderRadius: 18,
-    padding: 14,
-    gap: 14,
+    borderRadius: 16,
+    padding: 12,
+    gap: 12,
     backgroundColor: "rgba(10, 16, 24, 0.86)",
     borderWidth: 1,
     borderColor: "rgba(245, 205, 139, 0.24)",
@@ -890,14 +1032,14 @@ const styles = StyleSheet.create({
   segmentRow: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 7,
+    gap: 6,
   },
   segment: {
-    minHeight: 34,
+    minHeight: 32,
     justifyContent: "center",
     borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     backgroundColor: "rgba(255,255,255,0.07)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.12)",
@@ -951,10 +1093,9 @@ const styles = StyleSheet.create({
   card: {
     flex: 1,
     minWidth: 0,
-    marginBottom: 10,
-    borderRadius: 18,
-    padding: 12,
-    gap: 10,
+    borderRadius: 14,
+    padding: 9,
+    gap: 7,
     backgroundColor: "rgba(12, 18, 28, 0.88)",
     borderWidth: 1,
     borderColor: "rgba(245, 205, 139, 0.20)",
@@ -962,7 +1103,7 @@ const styles = StyleSheet.create({
   cardTop: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 8,
   },
   cardIdentity: {
     flex: 1,
@@ -970,13 +1111,13 @@ const styles = StyleSheet.create({
   },
   cardName: {
     color: theme.colors.text,
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "900",
   },
   cardMeta: {
     color: "#B9C0D3",
-    fontSize: 12,
-    marginTop: 3,
+    fontSize: 11,
+    marginTop: 2,
   },
   statusPill: {
     flexDirection: "row",
@@ -996,7 +1137,7 @@ const styles = StyleSheet.create({
   },
   profileLine: {
     color: "#E9ECF7",
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "700",
   },
   chipRow: {
@@ -1005,56 +1146,60 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   interestChip: {
-    maxWidth: "48%",
+    maxWidth: "100%",
     borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
+    paddingHorizontal: 7,
+    paddingVertical: 4,
     backgroundColor: "rgba(255,255,255,0.08)",
   },
   interestText: {
     color: "#DCE1F2",
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "700",
   },
   photoRow: {
     flexDirection: "row",
-    gap: 6,
+    gap: 5,
   },
   photoPreview: {
-    width: 48,
-    height: 48,
-    borderRadius: 10,
+    width: 34,
+    height: 34,
+    borderRadius: 8,
     backgroundColor: "rgba(255,255,255,0.08)",
   },
   actionRow: {
     flexDirection: "row",
-    gap: 8,
+    gap: 6,
   },
   secondaryButton: {
     flex: 1,
-    minHeight: 38,
+    minHeight: 32,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 12,
+    gap: 4,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: "rgba(245, 205, 139, 0.30)",
   },
   secondaryButtonText: {
     color: "#F3C98B",
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: "800",
   },
   primaryButton: {
     flex: 1,
-    minHeight: 38,
+    minHeight: 32,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 12,
+    gap: 4,
+    borderRadius: 10,
     backgroundColor: "#F3C98B",
   },
   primaryButtonText: {
     color: "#24150B",
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: "900",
   },
   buttonDisabled: {
