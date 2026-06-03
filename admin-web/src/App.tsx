@@ -1475,7 +1475,8 @@ function OpsHealthScreen() {
           <Fact label={t("common.time")} value={formatDate(data.time, language)} />
           <Fact label={t("ops.nodeEnv")} value={data.nodeEnv} />
           <Fact label={t("ops.database")} value={data.database.ok ? t("status.ok") : t("status.failed")} />
-          <Fact label={t("ops.objectStorage")} value={`${formatStatus(data.objectStorage.status, t)}: ${data.objectStorage.reason}`} />
+          <Fact label={t("ops.objectStorage")} value={formatObjectStorageStatus(data.objectStorage, t)} />
+          <Fact label={t("ops.objectStorageCheckedAt")} value={formatDate(data.objectStorage.checkedAt, language)} />
           <Fact label={t("ops.openClientErrors")} value={formatCount(data.counts.openClientErrors)} />
           <Fact label={t("ops.openReports")} value={formatCount(data.counts.openReports)} />
           <Fact label={t("ops.pendingMedia")} value={formatCount(data.counts.pendingMediaModerationItems)} />
@@ -1624,6 +1625,15 @@ function formatCount(value: number | null): string {
   return value === null ? "" : String(value);
 }
 
+function formatObjectStorageStatus(
+  objectStorage: OpsHealth["objectStorage"],
+  t: (key: TranslationKey) => string,
+): string {
+  const detail = objectStorage.errorCode ?? objectStorage.reason;
+  const status = formatStatus(objectStorage.status, t);
+  return detail ? `${status}: ${detail}` : status;
+}
+
 function errorMessage(error: unknown, t: (key: TranslationKey) => string): string {
   return error instanceof Error ? error.message : t("error.requestFailed");
 }
@@ -1661,10 +1671,14 @@ function formatStatus(status: string, t: (key: TranslationKey) => string): strin
       return t("status.dismissed");
     case "escalated":
       return t("status.escalated");
+    case "error":
+      return t("status.error");
     case "failed":
       return t("status.failed");
     case "ignored":
       return t("status.ignored");
+    case "not_configured":
+      return t("status.notConfigured");
     case "not_checked":
       return t("status.notChecked");
     case "needs_manual_review":

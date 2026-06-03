@@ -57,8 +57,16 @@ export type OpsHealth = {
     ok: boolean;
   };
   objectStorage: {
-    status: "ok" | "failed" | "not_checked";
-    reason: string;
+    status: "ok" | "not_configured" | "error" | "not_checked";
+    checkedAt: string;
+    reason?: "missing_config" | "safe_check_unavailable";
+    errorCode?:
+      | "access_denied"
+      | "bucket_not_found"
+      | "credentials_error"
+      | "health_check_exception"
+      | "request_failed"
+      | "storage_check_failed";
   };
   counts: {
     openClientErrors: number | null;

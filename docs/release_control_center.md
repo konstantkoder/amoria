@@ -132,4 +132,11 @@ Nearby future redesign should reuse `birthDate`/`ageGroup`, `preferredAgeRange`,
 - Complete real phone/emulator Together smoke against the release backend.
 - Verify Admin Web role access in browser for owner, ops, moderator, and support.
 - Connect a real media moderation provider or staff manual moderation before public beta.
-- Add a real non-mutating object storage health check; current status must remain honest if not checked.
+
+## Completed Release Blocks
+
+- ADMIN-OBJECT-STORAGE-HEALTH-01:
+  - Admin/Ops Health now checks object storage with a non-mutating read-only bucket metadata check.
+  - The check writes no test file, deletes no file, and creates no object.
+  - Response statuses are `ok`, `not_configured`, `error`, and `not_checked`.
+  - Responses expose only `status`, `checkedAt`, and safe `reason`/`errorCode`; no bucket names, object keys, endpoints, internal MinIO paths, secrets, tokens, or signed URLs are exposed.

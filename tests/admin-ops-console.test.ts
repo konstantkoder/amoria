@@ -149,7 +149,17 @@ test("/admin/ops/health returns database status and real counts", async (t) => {
     openReports: 2,
     pendingMediaModerationItems: 1,
   });
-  assert.equal(body.objectStorage.status, "not_checked");
+  assert.deepEqual(body.objectStorage, {
+    status: "not_checked",
+    checkedAt: "2026-06-03T12:00:00.000Z",
+    reason: "safe_check_unavailable",
+  });
+  const serializedBody = JSON.stringify(body);
+  assert.equal(serializedBody.includes("minio"), false);
+  assert.equal(serializedBody.includes("amoria-test-bucket"), false);
+  assert.equal(serializedBody.includes("secret"), false);
+  assert.equal(serializedBody.includes("signedUrl"), false);
+  assert.equal(serializedBody.includes("objectKey"), false);
   assert.equal(body.databaseUrl, undefined);
   assert.equal(body.s3AccessKey, undefined);
   assert.equal(state.auditInputs[0]?.action, "admin.opsHealth.read");
@@ -733,7 +743,8 @@ function mockOpsHealth() {
     }),
     objectStorageCheck: async () => ({
       status: "not_checked",
-      reason: "Not checked in tests.",
+      checkedAt: "2026-06-03T12:00:00.000Z",
+      reason: "safe_check_unavailable",
     }),
     togetherQueue: {
       listQueueEntriesForAdmin: async () => [

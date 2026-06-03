@@ -1,6 +1,6 @@
 # Admin/Ops Architecture
 
-Updated: 2026-05-24
+Updated: 2026-06-03
 
 ## Purpose
 
@@ -65,12 +65,26 @@ They do not expose exact coordinates, private chat, locked media, or raw draw/st
 
 ## Health Honesty
 
-Ops Health may show backend and database health when actually checked. Object storage remains `not_checked` until a safe non-mutating check is wired. Counts for open client errors, open reports, and pending media moderation are real backend counts.
+Ops Health shows backend and database health when actually checked. Counts for open client errors, open reports, and pending media moderation are real backend counts.
+
+Object storage health uses a non-mutating bucket metadata check. It does not upload, delete, or create a test object. The response exposes only:
+
+- `status`;
+- `checkedAt`;
+- safe `reason` or `errorCode` when relevant.
+
+Object storage status meanings:
+
+- `ok`: configured and reachable through the safe read-only check.
+- `not_configured`: required object storage config is missing.
+- `error`: configured, but the safe check failed with a sanitized error code.
+- `not_checked`: the SDK/provider cannot perform the safe check; reason is `safe_check_unavailable`.
+
+Ops Health must not expose object storage bucket names, object keys, endpoints, internal MinIO paths, access keys, secrets, tokens, or signed URLs.
 
 ## Public Beta Gaps
 
 - Browser smoke all Admin Web pages with real admin users by role.
 - Complete real media moderation smoke with real uploaded media.
 - Complete real Together queue/session smoke with two clients.
-- Add object storage live health check.
 - Add rate-limit/anti-spam visibility if needed for public beta operations.

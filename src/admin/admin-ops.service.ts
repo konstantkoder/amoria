@@ -11,6 +11,10 @@ import {
   mediaModerationReviews,
   safetyReports,
 } from "../db/schema";
+import {
+  checkObjectStorageHealth,
+  type ObjectStorageHealth,
+} from "../media/object-storage";
 import * as togetherRepo from "../together/together.repo";
 import type {
   AdminTogetherQueueActionBody,
@@ -31,10 +35,7 @@ export type AdminOpsHealthResponse = {
   database: {
     ok: boolean;
   };
-  objectStorage: {
-    status: "ok" | "failed" | "not_checked";
-    reason: string;
-  };
+  objectStorage: ObjectStorageHealth;
   counts: {
     openClientErrors: number | null;
     openReports: number | null;
@@ -140,10 +141,7 @@ const defaultDeps: AdminOpsDeps = {
     openReports: await countOpenReports(),
     pendingMediaModerationItems: await countPendingMediaModerationItems(),
   }),
-  objectStorageCheck: async () => ({
-    status: "not_checked",
-    reason: "No safe non-mutating object storage health check is configured for this release block.",
-  }),
+  objectStorageCheck: checkObjectStorageHealth,
   togetherQueue: togetherRepo,
   audit: auditService,
 };
@@ -192,11 +190,12 @@ export async function getOpsHealth(
 
   let objectStorage: AdminOpsHealthResponse["objectStorage"];
   try {
-    objectStorage = await deps.objectStorageCheck();
+    objectStorage = normalizeObjectStorageHealth(await deps.objectStorageCheck());
   } catch {
     objectStorage = {
-      status: "failed",
-      reason: "Object storage health check failed.",
+      status: "error",
+      checkedAt: new Date().toISOString(),
+      errorCode: "health_check_exception",
     };
   }
 
@@ -228,6 +227,55 @@ export async function getOpsHealth(
     objectStorage,
     counts,
   };
+}
+
+function normalizeObjectStorageHealth(input: ObjectStorageHealth): ObjectStorageHealth {
+  const checkedAt = Number.isNaN(Date.parse(input.checkedAt))
+    ? new Date().toISOString()
+    : input.checkedAt;
+
+  if (input.status === "ok") {
+    return {
+      status: "ok",
+      checkedAt,
+    };
+  }
+
+  if (input.status === "not_configured") {
+    return {
+      status: "not_configured",
+      checkedAt,
+      reason: "missing_config",
+    };
+  }
+
+  if (input.status === "not_checked") {
+    return {
+      status: "not_checked",
+      checkedAt,
+      reason: "safe_check_unavailable",
+    };
+  }
+
+  return {
+    status: "error",
+    checkedAt,
+    errorCode: safeObjectStorageHealthErrorCode(input.errorCode),
+  };
+}
+
+function safeObjectStorageHealthErrorCode(errorCode: string | undefined): string {
+  switch (errorCode) {
+    case "access_denied":
+    case "bucket_not_found":
+    case "credentials_error":
+    case "health_check_exception":
+    case "request_failed":
+    case "storage_check_failed":
+      return errorCode;
+    default:
+      return "storage_check_failed";
+  }
 }
 
 export async function listTogetherQueueForAdmin(

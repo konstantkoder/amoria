@@ -1,6 +1,7 @@
 import {
   DeleteObjectCommand,
   GetObjectCommand,
+  HeadBucketCommand,
   HeadObjectCommand,
   PutObjectCommand,
   S3Client,
@@ -45,6 +46,38 @@ export type PutObjectBufferInput = ObjectStorageInput & {
   contentType: string;
 };
 
+export type ObjectStorageHealthStatus =
+  | "ok"
+  | "not_configured"
+  | "error"
+  | "not_checked";
+
+export type ObjectStorageHealthReason =
+  | "missing_config"
+  | "safe_check_unavailable";
+
+export type ObjectStorageHealth = {
+  status: ObjectStorageHealthStatus;
+  checkedAt: string;
+  reason?: ObjectStorageHealthReason;
+  errorCode?: string;
+};
+
+type ObjectStorageHealthConfig = {
+  provider: string;
+  endpoint: string;
+  region: string;
+  accessKey: string;
+  secretKey: string;
+  bucket: string;
+};
+
+type ObjectStorageHealthDeps = {
+  config?: Partial<ObjectStorageHealthConfig>;
+  now?: () => Date;
+  send?: (command: HeadBucketCommand) => Promise<unknown>;
+};
+
 export async function createPutPresignedUrl(
   input: CreatePutPresignedUrlInput,
 ): Promise<string> {
@@ -55,6 +88,56 @@ export async function createPutPresignedUrl(
   });
 
   return getSignedUrl(s3Client, command, { expiresIn: input.expiresInSec });
+}
+
+export async function checkObjectStorageHealth(
+  deps: ObjectStorageHealthDeps = {},
+): Promise<ObjectStorageHealth> {
+  const checkedAt = (deps.now?.() ?? new Date()).toISOString();
+  const config = objectStorageHealthConfig(deps.config);
+
+  if (!isObjectStorageConfigured(config)) {
+    return {
+      status: "not_configured",
+      checkedAt,
+      reason: "missing_config",
+    };
+  }
+
+  if (config.provider !== "s3") {
+    return {
+      status: "not_checked",
+      checkedAt,
+      reason: "safe_check_unavailable",
+    };
+  }
+
+  try {
+    await (deps.send ?? ((command) => s3Client.send(command)))(
+      new HeadBucketCommand({
+        Bucket: config.bucket,
+      }),
+    );
+
+    return {
+      status: "ok",
+      checkedAt,
+    };
+  } catch (error) {
+    if (isSafeBucketCheckUnavailable(error)) {
+      return {
+        status: "not_checked",
+        checkedAt,
+        reason: "safe_check_unavailable",
+      };
+    }
+
+    return {
+      status: "error",
+      checkedAt,
+      errorCode: safeObjectStorageErrorCode(error),
+    };
+  }
 }
 
 export async function headObject(input: ObjectStorageInput): Promise<HeadObjectResult> {
@@ -143,6 +226,30 @@ export async function deleteObject(input: ObjectStorageInput): Promise<void> {
   }
 }
 
+function objectStorageHealthConfig(
+  overrides: Partial<ObjectStorageHealthConfig> | undefined,
+): ObjectStorageHealthConfig {
+  return {
+    provider: overrides?.provider ?? env.OBJECT_STORAGE_PROVIDER,
+    endpoint: overrides?.endpoint ?? env.S3_ENDPOINT,
+    region: overrides?.region ?? env.S3_REGION,
+    accessKey: overrides?.accessKey ?? env.S3_ACCESS_KEY,
+    secretKey: overrides?.secretKey ?? env.S3_SECRET_KEY,
+    bucket: overrides?.bucket ?? env.S3_BUCKET,
+  };
+}
+
+function isObjectStorageConfigured(config: ObjectStorageHealthConfig): boolean {
+  return Boolean(
+    config.provider.trim() &&
+      config.endpoint.trim() &&
+      config.region.trim() &&
+      config.accessKey.trim() &&
+      config.secretKey.trim() &&
+      config.bucket.trim(),
+  );
+}
+
 function isObjectNotFound(error: unknown): boolean {
   const candidate = error as { name?: string; $metadata?: { httpStatusCode?: number } };
   return (
@@ -150,6 +257,63 @@ function isObjectNotFound(error: unknown): boolean {
     candidate.name === "NotFound" ||
     candidate.name === "NoSuchKey"
   );
+}
+
+function isSafeBucketCheckUnavailable(error: unknown): boolean {
+  const candidate = error as { name?: string; $metadata?: { httpStatusCode?: number } };
+  const name = candidate.name?.toLowerCase() ?? "";
+  return (
+    candidate.$metadata?.httpStatusCode === 405 ||
+    name === "notimplemented" ||
+    name === "not_supported" ||
+    name === "unsupportedoperation"
+  );
+}
+
+function safeObjectStorageErrorCode(error: unknown): string {
+  const candidate = error as {
+    name?: string;
+    code?: string;
+    $metadata?: { httpStatusCode?: number };
+  };
+  const name = (candidate.name ?? candidate.code ?? "").toLowerCase();
+  const statusCode = candidate.$metadata?.httpStatusCode;
+
+  if (
+    statusCode === 401 ||
+    statusCode === 403 ||
+    name.includes("accessdenied") ||
+    name.includes("forbidden")
+  ) {
+    return "access_denied";
+  }
+
+  if (
+    statusCode === 404 ||
+    name.includes("nosuchbucket") ||
+    name.includes("notfound")
+  ) {
+    return "bucket_not_found";
+  }
+
+  if (
+    name.includes("credential") ||
+    name.includes("signature") ||
+    name.includes("invalidaccesskeyid")
+  ) {
+    return "credentials_error";
+  }
+
+  if (
+    statusCode === 408 ||
+    name.includes("timeout") ||
+    name.includes("econnrefused") ||
+    name.includes("network")
+  ) {
+    return "request_failed";
+  }
+
+  return "storage_check_failed";
 }
 
 async function readBodyWithLimit(body: unknown, maxBytes: number): Promise<Buffer> {

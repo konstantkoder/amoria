@@ -187,11 +187,29 @@ export const adminOpsHealthRouteSchema = {
         },
         objectStorage: {
           type: "object",
-          required: ["status", "reason"],
+          required: ["status", "checkedAt"],
           additionalProperties: false,
           properties: {
-            status: { type: "string", enum: ["ok", "failed", "not_checked"] },
-            reason: { type: "string" },
+            status: {
+              type: "string",
+              enum: ["ok", "not_configured", "error", "not_checked"],
+            },
+            checkedAt: { type: "string", format: "date-time" },
+            reason: {
+              type: "string",
+              enum: ["missing_config", "safe_check_unavailable"],
+            },
+            errorCode: {
+              type: "string",
+              enum: [
+                "access_denied",
+                "bucket_not_found",
+                "credentials_error",
+                "health_check_exception",
+                "request_failed",
+                "storage_check_failed",
+              ],
+            },
           },
         },
         counts: {

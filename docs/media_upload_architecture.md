@@ -1,6 +1,6 @@
 # Media Upload Architecture
 
-Updated: 2026-05-23 after `RELEASE-SMOKE-BLOCKERS-03`
+Updated: 2026-06-03 after `ADMIN-OBJECT-STORAGE-HEALTH-01`
 
 ## Public Media Route
 
@@ -33,6 +33,19 @@ Avatar and profile photo uploads remain backend-mediated:
 - store object bytes;
 - create media row;
 - return only safe media fields.
+
+## Object Storage Health
+
+Admin/Ops Health checks object storage with a non-mutating bucket metadata check. This health check does not upload, delete, or create test objects, and it does not change media upload behavior.
+
+The health response uses these statuses:
+
+- `ok`: object storage is configured and reachable.
+- `not_configured`: required object storage config is missing.
+- `error`: config exists, but the safe read-only check failed with a sanitized error code.
+- `not_checked`: the SDK/provider cannot perform the safe check.
+
+The response must not expose bucket names, object keys, endpoints, internal MinIO paths, access keys, secrets, tokens, or signed URLs.
 
 ## Moderation Foundation
 
