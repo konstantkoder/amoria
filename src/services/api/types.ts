@@ -26,6 +26,8 @@ export type ProfileMood =
 
 export type AgeGroup = "18-24" | "25-34" | "35-44" | "45-54" | "55+";
 
+export type ProfileGender = "woman" | "man" | "nonbinary";
+
 export type ProfilePhotoDto = {
   mediaId: string;
   url: string;
@@ -38,6 +40,8 @@ export type ProfilePhotoPatchDto = {
 };
 
 export type BackendProfileFields = {
+  gender?: ProfileGender | null;
+  preferredGenders?: ProfileGender[];
   goal?: ProfileGoal | null;
   mood?: ProfileMood | null;
   interests?: string[];
@@ -166,6 +170,8 @@ export type PatchProfileRequest = {
   displayName?: string;
   about?: string | null;
   avatarUrl?: string | null;
+  gender?: ProfileGender | null;
+  preferredGenders?: ProfileGender[];
   goal?: ProfileGoal | null;
   mood?: ProfileMood | null;
   interests?: string[];
@@ -264,6 +270,76 @@ export type NearbyStatusDto = {
 
 export type NearbyFeedResponse = {
   items: NearbyStatusDto[];
+  nextCursor: string | null;
+};
+
+export type NearbyProfileVisibilityStatus = "active" | "off" | "expired";
+
+export type NearbyProfileStatusKind =
+  | "coffee"
+  | "walk"
+  | "bike"
+  | "talk_now"
+  | "open_to_suggestions";
+
+export type NearbyProfileDistanceBucket =
+  | "under_1km"
+  | "1_5km"
+  | "5_25km"
+  | "25_100km"
+  | "over_100km";
+
+export type NearbyProfileVisibilityDto = {
+  status: NearbyProfileVisibilityStatus;
+  radiusKm: number | null;
+  nearbyStatus: string | null;
+  statusKind: NearbyProfileStatusKind | null;
+  updatedAt: string | null;
+  expiresAt: string | null;
+};
+
+export type NearbyMeResponse = {
+  visibility: NearbyProfileVisibilityDto;
+};
+
+export type UpdateNearbyVisibilityRequest = {
+  enabled: boolean;
+  latitude?: number;
+  longitude?: number;
+  radiusKm?: number;
+  nearbyStatus?: string | null;
+  statusKind?: NearbyProfileStatusKind | null;
+  expiresInSec?: number;
+};
+
+export type PatchNearbyProfileStatusRequest = {
+  nearbyStatus?: string | null;
+  statusKind?: NearbyProfileStatusKind | null;
+  expiresInSec?: number;
+};
+
+export type NearbyProfilePhotoPreviewDto = {
+  mediaId: string;
+  url: string;
+};
+
+export type NearbyProfileFeedItemDto = {
+  userId: string;
+  displayName: string;
+  avatarUrl: string | null;
+  ageGroup: AgeGroup | null;
+  distanceBucket: NearbyProfileDistanceBucket;
+  goal: ProfileGoal | null;
+  mood: ProfileMood | null;
+  interests: string[];
+  publicPhotos: NearbyProfilePhotoPreviewDto[];
+  nearbyStatus: string | null;
+  statusKind: NearbyProfileStatusKind | null;
+  canMessage: boolean;
+};
+
+export type NearbyProfileFeedResponse = {
+  items: NearbyProfileFeedItemDto[];
   nextCursor: string | null;
 };
 

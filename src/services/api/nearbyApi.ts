@@ -1,10 +1,21 @@
 import { request } from "@/services/api/apiClient";
-import type { NearbyFeedResponse, NearbyStatusDto } from "@/services/api/types";
+import type {
+  NearbyFeedResponse,
+  NearbyMeResponse,
+  NearbyProfileFeedResponse,
+  NearbyStatusDto,
+  PatchNearbyProfileStatusRequest,
+  UpdateNearbyVisibilityRequest,
+} from "@/services/api/types";
 
 export type CreateNearbyStatusPayload = {
   text: string;
   lat: number;
   lng: number;
+};
+
+type CreateNearbyStatusResponse = {
+  status: NearbyStatusDto;
 };
 
 function buildQuery(params: Record<string, string | number | undefined>) {
@@ -18,10 +29,15 @@ function buildQuery(params: Record<string, string | number | undefined>) {
   return value ? `?${value}` : "";
 }
 
-export function createStatus(
+export async function createStatus(
   payload: CreateNearbyStatusPayload
 ): Promise<NearbyStatusDto> {
-  return request<NearbyStatusDto>("POST", "/nearby/statuses", payload);
+  const response = await request<CreateNearbyStatusResponse>(
+    "POST",
+    "/nearby/statuses",
+    payload
+  );
+  return response.status;
 }
 
 export function listFeed(
@@ -32,7 +48,30 @@ export function listFeed(
 ): Promise<NearbyFeedResponse> {
   return request<NearbyFeedResponse>(
     "GET",
-    `/nearby/feed${buildQuery({ lat, lng, radiusMeters, limit })}`
+    `/nearby/statuses/feed${buildQuery({ lat, lng, radiusMeters, limit })}`
+  );
+}
+
+export function getNearbyMe(): Promise<NearbyMeResponse> {
+  return request<NearbyMeResponse>("GET", "/nearby/me");
+}
+
+export function updateVisibility(
+  payload: UpdateNearbyVisibilityRequest
+): Promise<NearbyMeResponse> {
+  return request<NearbyMeResponse>("PUT", "/nearby/me/visibility", payload);
+}
+
+export function patchProfileStatus(
+  payload: PatchNearbyProfileStatusRequest
+): Promise<NearbyMeResponse> {
+  return request<NearbyMeResponse>("PATCH", "/nearby/me/status", payload);
+}
+
+export function listProfileFeed(limit = 30): Promise<NearbyProfileFeedResponse> {
+  return request<NearbyProfileFeedResponse>(
+    "GET",
+    `/nearby/feed${buildQuery({ limit })}`
   );
 }
 

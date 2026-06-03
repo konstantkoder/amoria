@@ -9,6 +9,8 @@ export type Goal =
 
 export type AgeGroup = "18-24" | "25-34" | "35-44" | "45-54" | "55+";
 
+export type ProfileGender = "woman" | "man" | "nonbinary";
+
 export type UserProfilePhoto = {
   mediaId: string;
   url: string;
@@ -30,6 +32,8 @@ export interface UserProfile {
   interests: string[];
   photos: UserProfilePhoto[];
   lockedGallery?: LockedGallerySummary;
+  gender?: ProfileGender | null;
+  preferredGenders?: ProfileGender[];
   birthDate?: string | null;
   age?: number | null;
   ageGroup?: AgeGroup | null;

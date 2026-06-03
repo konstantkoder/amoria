@@ -1,4 +1,11 @@
-import type { AgeGroup, Goal, Mood, UserProfile, UserProfilePhoto } from "@/models/User";
+import type {
+  AgeGroup,
+  Goal,
+  Mood,
+  ProfileGender,
+  UserProfile,
+  UserProfilePhoto,
+} from "@/models/User";
 import { normalizeProfileInterestInput } from "@/config/profileFields";
 import { ApiError } from "@/services/api/apiClient";
 import { refreshBackendUser } from "@/services/api/backendSession";
@@ -44,6 +51,7 @@ const MOOD_VALUES: Mood[] = [
   "curious",
   "adventurous",
 ];
+const GENDER_VALUES: ProfileGender[] = ["woman", "man", "nonbinary"];
 const AGE_GROUP_VALUES: AgeGroup[] = ["18-24", "25-34", "35-44", "45-54", "55+"];
 const MIN_ADULT_AGE = 18;
 const MAX_PROFILE_AGE = 120;
@@ -157,6 +165,23 @@ function normalizeMood(value: unknown): Mood | undefined {
   return MOOD_VALUES.includes(value as Mood) ? (value as Mood) : undefined;
 }
 
+function normalizeGender(value: unknown): ProfileGender | null | undefined {
+  if (value === null) return null;
+  return GENDER_VALUES.includes(value as ProfileGender) ? (value as ProfileGender) : undefined;
+}
+
+function normalizePreferredGenders(value: unknown): ProfileGender[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const normalized: ProfileGender[] = [];
+  for (const item of value) {
+    const gender = normalizeGender(item);
+    if (gender && !normalized.includes(gender)) {
+      normalized.push(gender);
+    }
+  }
+  return normalized;
+}
+
 function normalizeAgeGroup(value: unknown): AgeGroup | undefined {
   return AGE_GROUP_VALUES.includes(value as AgeGroup) ? (value as AgeGroup) : undefined;
 }
@@ -200,6 +225,8 @@ function mapBackendUserProfile(
     createdAt: string;
     updatedAt: string;
     goal: Goal | null;
+    gender: ProfileGender | null;
+    preferredGenders: ProfileGender[];
     mood: Mood | null;
     interests: string[];
     mysteryMode: boolean;
@@ -215,6 +242,8 @@ function mapBackendUserProfile(
   const about = normalizeOptionalString(user.about);
   const avatarUrl = normalizeSharedMediaUrl(user.avatarUrl);
   const goal = normalizeGoal(backendFields.goal);
+  const gender = normalizeGender(backendFields.gender);
+  const preferredGenders = normalizePreferredGenders(backendFields.preferredGenders);
   const mood = normalizeMood(backendFields.mood);
   const birthDate = normalizeBirthDate(backendFields.birthDate);
   const age = normalizeAge(backendFields.age);
@@ -232,6 +261,8 @@ function mapBackendUserProfile(
     ...(avatarUrl ? { avatarUrl } : {}),
     interests: normalizeStringArray(backendFields.interests),
     photos: normalizeProfilePhotos(user.photos),
+    ...(gender !== undefined ? { gender } : {}),
+    ...(preferredGenders !== undefined ? { preferredGenders } : {}),
     ...("lockedGallery" in user && user.lockedGallery
       ? {
           lockedGallery: {
@@ -260,6 +291,8 @@ function isBackendAuthError(error: unknown) {
 const BACKEND_PROFILE_FIELD_KEYS = new Set([
   "displayName",
   "about",
+  "gender",
+  "preferredGenders",
   "goal",
   "mood",
   "interests",
@@ -292,6 +325,12 @@ async function updateBackendSupportedProfileFields(
   }
   if ("goal" in fields) {
     input.goal = normalizeGoal(fields.goal) ?? null;
+  }
+  if ("gender" in fields) {
+    input.gender = normalizeGender(fields.gender) ?? null;
+  }
+  if ("preferredGenders" in fields) {
+    input.preferredGenders = normalizePreferredGenders(fields.preferredGenders) ?? [];
   }
   if ("mood" in fields) {
     input.mood = normalizeMood(fields.mood) ?? null;

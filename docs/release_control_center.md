@@ -1,6 +1,6 @@
 # Amoria Release Control Center
 
-Updated: 2026-06-01
+Updated: 2026-06-03
 
 ## Branches
 
@@ -128,6 +128,14 @@ This launcher is local dev tooling only and is not product logic.
   - Settings now frames location as privacy/search infrastructure for matching and nearby features, not as the final Nearby product.
   - RU/EN/HR copy states that exact coordinates are not shown to other people and that future Nearby can safely reuse location after a separate redesign.
   - Location toggle behavior, system settings link, language/privacy/logout rows, app permissions, backend, and Together geolocation logic are unchanged.
+- NEARBY-PROFILE-FEED-MOBILE-01 is fixed in code and awaiting release smoke:
+  - Nearby mobile now uses the real backend profile feed from `GET /nearby/feed`.
+  - Visibility is loaded from `GET /nearby/me` and updated through `PUT /nearby/me/visibility`.
+  - Foreground location is requested only when enabling visibility or refreshing the active feed.
+  - Feed cards are compact list/grid profile cards, not a full-screen photo feed.
+  - Public photos are small previews only; locked gallery media is not shown.
+  - Exact coordinates, exact birth date, object keys, signed URLs, fake users, and local-only Nearby success are not shown.
+  - `Открыть` uses the existing profile route; `Написать` opens a real direct thread through the existing chat API.
 
 ## Completed blocks
 
