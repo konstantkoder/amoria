@@ -361,6 +361,8 @@ function userRow(overrides: Partial<UserRow>): UserRow {
     amoriaId: "AM34567",
     avatarUrl: userBStoredAvatarUrl,
     photos: [{ mediaId: userBPhotoId, url: userBPhotoUrl }],
+    gender: null,
+    preferredGenders: [],
     goal: "dating",
     mood: "curious",
     interests: ["coffee"],

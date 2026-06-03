@@ -13,6 +13,42 @@ export type NearbyFeedQuery = {
   limit: number;
 };
 
+export type NearbyProfileVisibilityStatus = "active" | "off" | "expired";
+
+export type NearbyProfileStatusKind =
+  | "coffee"
+  | "walk"
+  | "bike"
+  | "talk_now"
+  | "open_to_suggestions";
+
+export type NearbyProfileDistanceBucket =
+  | "under_1km"
+  | "1_5km"
+  | "5_25km"
+  | "25_100km"
+  | "over_100km";
+
+export type UpdateNearbyVisibilityBody = {
+  enabled: boolean;
+  latitude?: number;
+  longitude?: number;
+  radiusKm?: number;
+  nearbyStatus?: string | null;
+  statusKind?: NearbyProfileStatusKind | null;
+  expiresInSec?: number;
+};
+
+export type PatchNearbyProfileStatusBody = {
+  nearbyStatus?: string | null;
+  statusKind?: NearbyProfileStatusKind | null;
+  expiresInSec?: number;
+};
+
+export type NearbyProfileFeedQuery = {
+  limit: number;
+};
+
 export type NearbyStatusCreateDto = {
   id: string;
   text: string;
@@ -41,6 +77,44 @@ export type NearbyStatusFeedDto = {
 
 export type NearbyFeedResponse = {
   items: NearbyStatusFeedDto[];
+  nextCursor: null;
+};
+
+export type NearbyProfileVisibilityDto = {
+  status: NearbyProfileVisibilityStatus;
+  radiusKm: number | null;
+  nearbyStatus: string | null;
+  statusKind: NearbyProfileStatusKind | null;
+  updatedAt: string | null;
+  expiresAt: string | null;
+};
+
+export type NearbyMeResponse = {
+  visibility: NearbyProfileVisibilityDto;
+};
+
+export type NearbyProfilePhotoPreviewDto = {
+  mediaId: string;
+  url: string;
+};
+
+export type NearbyProfileFeedItemDto = {
+  userId: string;
+  displayName: string;
+  avatarUrl: string | null;
+  ageGroup: string | null;
+  distanceBucket: NearbyProfileDistanceBucket;
+  goal: string | null;
+  mood: string | null;
+  interests: string[];
+  publicPhotos: NearbyProfilePhotoPreviewDto[];
+  nearbyStatus: string | null;
+  statusKind: NearbyProfileStatusKind | null;
+  canMessage: boolean;
+};
+
+export type NearbyProfileFeedResponse = {
+  items: NearbyProfileFeedItemDto[];
   nextCursor: null;
 };
 

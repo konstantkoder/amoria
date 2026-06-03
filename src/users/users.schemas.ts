@@ -8,6 +8,7 @@ import {
   MAX_LOCKED_PROFILE_PHOTOS,
   MAX_PROFILE_GALLERY_PHOTOS,
   PROFILE_GOALS,
+  PROFILE_GENDERS,
   PROFILE_INTERESTS_MAX_COUNT,
   PROFILE_INTEREST_MAX_LENGTH,
   PROFILE_MOODS,
@@ -128,6 +129,19 @@ const nullableMoodSchema = {
   ],
 } as const;
 
+const nullableGenderSchema = {
+  anyOf: [
+    { type: "string", enum: PROFILE_GENDERS },
+    { type: "null" },
+  ],
+} as const;
+
+const preferredGendersSchema = {
+  type: "array",
+  items: { type: "string", enum: PROFILE_GENDERS },
+  uniqueItems: true,
+} as const;
+
 const nullableAgeGroupSchema = {
   anyOf: [
     { type: "string", enum: AGE_GROUPS },
@@ -145,6 +159,8 @@ export const selfUserProfileSchema = {
     "amoriaId",
     "avatarUrl",
     "photos",
+    "gender",
+    "preferredGenders",
     "goal",
     "mood",
     "interests",
@@ -168,6 +184,8 @@ export const selfUserProfileSchema = {
     amoriaId: { type: "string" },
     avatarUrl: { type: ["string", "null"] },
     photos: profilePhotosSchema,
+    gender: nullableGenderSchema,
+    preferredGenders: preferredGendersSchema,
     goal: nullableGoalSchema,
     mood: nullableMoodSchema,
     interests: interestsSchema,
@@ -287,6 +305,8 @@ export const updateProfileRouteSchema = {
         ],
       },
       photos: updateProfilePhotosSchema,
+      gender: nullableGenderSchema,
+      preferredGenders: preferredGendersSchema,
       goal: nullableGoalSchema,
       mood: nullableMoodSchema,
       interests: interestsSchema,

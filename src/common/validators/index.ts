@@ -5,6 +5,7 @@ import {
   PASSWORD_MAX_LENGTH,
   PASSWORD_MIN_LENGTH,
   PROFILE_GOALS,
+  PROFILE_GENDERS,
   PROFILE_INTERESTS_MAX_COUNT,
   PROFILE_INTEREST_MAX_LENGTH,
   PROFILE_MOODS,
@@ -23,6 +24,7 @@ const profileInterestLocationWordsPattern =
   /\b(?:lat|latitude|lng|longitude|coordinates?|coords?|gps)\b/i;
 
 export type ProfileGoal = (typeof PROFILE_GOALS)[number];
+export type ProfileGender = (typeof PROFILE_GENDERS)[number];
 export type ProfileMood = (typeof PROFILE_MOODS)[number];
 export type ProfilePhotoInput = {
   mediaId: string;
@@ -234,6 +236,38 @@ function isUnsafeProfileInterest(value: string): boolean {
 
 export function normalizeOptionalGoal(value: unknown): ProfileGoal | null | undefined {
   return normalizeOptionalEnum(value, "goal", PROFILE_GOALS);
+}
+
+export function normalizeOptionalGender(value: unknown): ProfileGender | null | undefined {
+  return normalizeOptionalEnum(value, "gender", PROFILE_GENDERS);
+}
+
+export function normalizeOptionalPreferredGenders(value: unknown): ProfileGender[] | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (!Array.isArray(value)) {
+    throw validationError("Preferred genders must be an array", {
+      preferredGenders: "invalid",
+    });
+  }
+
+  const normalized: ProfileGender[] = [];
+  for (const [index, item] of value.entries()) {
+    if (typeof item !== "string" || !PROFILE_GENDERS.includes(item as ProfileGender)) {
+      throw validationError("Preferred gender is invalid", {
+        [`preferredGenders.${index}`]: "invalid",
+      });
+    }
+
+    const gender = item as ProfileGender;
+    if (!normalized.includes(gender)) {
+      normalized.push(gender);
+    }
+  }
+
+  return normalized;
 }
 
 export function normalizeOptionalMood(value: unknown): ProfileMood | null | undefined {

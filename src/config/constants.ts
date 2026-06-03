@@ -42,6 +42,7 @@ export const TOGETHER_HISTORY_LIMIT_MAX = 100;
 export const MIN_ADULT_AGE = 18;
 export const MAX_PROFILE_AGE = 120;
 export const AGE_GROUPS = ["18-24", "25-34", "35-44", "45-54", "55+"] as const;
+export const PROFILE_GENDERS = ["woman", "man", "nonbinary"] as const;
 
 export const PASSWORD_MIN_LENGTH = 8;
 export const PASSWORD_MAX_LENGTH = 128;

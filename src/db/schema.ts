@@ -26,6 +26,8 @@ export const users = pgTable("users", {
   amoriaId: varchar("amoria_id", { length: 16 }).notNull().unique(),
   avatarUrl: text("avatar_url"),
   photos: jsonb("photos").$type<ProfilePhoto[]>().default(sql`'[]'::jsonb`).notNull(),
+  gender: text("gender"),
+  preferredGenders: jsonb("preferred_genders").$type<ProfileGender[]>().default(sql`'[]'::jsonb`).notNull(),
   goal: text("goal"),
   mood: text("mood"),
   interests: jsonb("interests").$type<string[]>().default(sql`'[]'::jsonb`).notNull(),
@@ -45,6 +47,10 @@ export const users = pgTable("users", {
   check(
     "users_preferred_age_max_check",
     sql`${table.preferredAgeMax} IS NULL OR (${table.preferredAgeMax} >= ${table.preferredAgeMin} AND ${table.preferredAgeMax} <= 120)`,
+  ),
+  check(
+    "users_gender_check",
+    sql`${table.gender} IS NULL OR ${table.gender} IN ('woman', 'man', 'nonbinary')`,
   ),
 ]);
 
@@ -361,6 +367,50 @@ export const nearbyStatuses = pgTable("nearby_statuses", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+export const nearbyProfileVisibility = pgTable(
+  "nearby_profile_visibility",
+  {
+    userId: uuid("user_id")
+      .primaryKey()
+      .references(() => users.id, { onDelete: "cascade" }),
+    status: text("status").default("off").notNull(),
+    latitude: doublePrecision("latitude"),
+    longitude: doublePrecision("longitude"),
+    radiusKm: integer("radius_km"),
+    nearbyStatus: text("nearby_status"),
+    statusKind: text("status_kind"),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("nearby_profile_visibility_status_expires_idx").on(table.status, table.expiresAt),
+    check(
+      "nearby_profile_visibility_status_check",
+      sql`${table.status} IN ('active', 'off', 'expired')`,
+    ),
+    check(
+      "nearby_profile_visibility_status_kind_check",
+      sql`${table.statusKind} IS NULL OR ${table.statusKind} IN ('coffee', 'walk', 'bike', 'talk_now', 'open_to_suggestions')`,
+    ),
+    check(
+      "nearby_profile_visibility_latitude_check",
+      sql`${table.latitude} IS NULL OR (${table.latitude} >= -90 AND ${table.latitude} <= 90)`,
+    ),
+    check(
+      "nearby_profile_visibility_longitude_check",
+      sql`${table.longitude} IS NULL OR (${table.longitude} >= -180 AND ${table.longitude} <= 180)`,
+    ),
+    check(
+      "nearby_profile_visibility_radius_km_check",
+      sql`${table.radiusKm} IS NULL OR (${table.radiusKm} >= 1 AND ${table.radiusKm} <= 250)`,
+    ),
+    check(
+      "nearby_profile_visibility_active_location_check",
+      sql`${table.status} <> 'active' OR (${table.latitude} IS NOT NULL AND ${table.longitude} IS NOT NULL AND ${table.radiusKm} IS NOT NULL AND ${table.expiresAt} IS NOT NULL)`,
+    ),
+  ],
+);
+
 export const togetherSessions = pgTable("together_sessions", {
   id: uuid("id").defaultRandom().primaryKey(),
   activity: text("activity").notNull(),
@@ -623,7 +673,7 @@ export const refreshTokens = pgTable("refresh_tokens", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
-export const usersRelations = relations(users, ({ many }) => ({
+export const usersRelations = relations(users, ({ one, many }) => ({
   mediaFiles: many(mediaFiles),
   mediaUploads: many(mediaUploads),
   adminUsers: many(adminUsers),
@@ -635,6 +685,10 @@ export const usersRelations = relations(users, ({ many }) => ({
   safetyReports: many(safetyReports, { relationName: "reporter" }),
   ownedSafetyReports: many(safetyReports, { relationName: "target_owner" }),
   nearbyStatuses: many(nearbyStatuses),
+  nearbyProfileVisibility: one(nearbyProfileVisibility, {
+    fields: [users.id],
+    references: [nearbyProfileVisibility.userId],
+  }),
   togetherQueueEntries: many(togetherQueue),
   togetherSessionMembers: many(togetherSessionMembers),
   togetherEvents: many(togetherEvents),
@@ -780,6 +834,16 @@ export const nearbyStatusesRelations = relations(nearbyStatuses, ({ one }) => ({
     references: [users.id],
   }),
 }));
+
+export const nearbyProfileVisibilityRelations = relations(
+  nearbyProfileVisibility,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [nearbyProfileVisibility.userId],
+      references: [users.id],
+    }),
+  }),
+);
 
 export const togetherSessionsRelations = relations(togetherSessions, ({ many }) => ({
   queueEntries: many(togetherQueue),
@@ -948,6 +1012,8 @@ export type MediaModerationReviewRow = typeof mediaModerationReviews.$inferSelec
 export type NewMediaModerationReviewRow = typeof mediaModerationReviews.$inferInsert;
 export type NearbyStatusRow = typeof nearbyStatuses.$inferSelect;
 export type NewNearbyStatusRow = typeof nearbyStatuses.$inferInsert;
+export type NearbyProfileVisibilityRow = typeof nearbyProfileVisibility.$inferSelect;
+export type NewNearbyProfileVisibilityRow = typeof nearbyProfileVisibility.$inferInsert;
 export type TogetherQueueRow = typeof togetherQueue.$inferSelect;
 export type NewTogetherQueueRow = typeof togetherQueue.$inferInsert;
 export type TogetherSessionRow = typeof togetherSessions.$inferSelect;
@@ -977,6 +1043,8 @@ export type ProfilePhoto = {
   mediaId: string;
   url: string;
 };
+
+export type ProfileGender = "woman" | "man" | "nonbinary";
 
 export type JsonValue =
   | string

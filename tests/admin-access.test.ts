@@ -439,6 +439,8 @@ function userRow(input: Partial<UserRow>): UserRow {
     amoriaId: "AMOWNER1",
     avatarUrl: null,
     photos: [],
+    gender: null,
+    preferredGenders: [],
     goal: null,
     mood: null,
     interests: [],

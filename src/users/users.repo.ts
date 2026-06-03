@@ -22,6 +22,8 @@ export async function updateUserProfile(
     | "about"
     | "avatarUrl"
     | "photos"
+    | "gender"
+    | "preferredGenders"
     | "goal"
     | "mood"
     | "interests"

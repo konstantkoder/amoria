@@ -626,6 +626,8 @@ function userRow(userId: string, overrides: Partial<UserRow> = {}): UserRow {
     amoriaId: userId === ownerId ? "AM23456" : "AM34567",
     avatarUrl: "https://cdn.example.test/avatar.webp",
     photos: [],
+    gender: null,
+    preferredGenders: [],
     goal: null,
     mood: null,
     interests: [],

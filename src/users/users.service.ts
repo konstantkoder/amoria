@@ -1,15 +1,18 @@
 import { AppError, unauthorized, validationError } from "../common/errors";
 import {
   type ProfileGoal,
+  type ProfileGender,
   type ProfileMood,
   type ProfilePhotoInput,
   normalizeDisplayName,
   normalizeOptionalAbout,
   normalizeOptionalBoolean,
+  normalizeOptionalGender,
   normalizeOptionalGoal,
   normalizeOptionalInterests,
   normalizeOptionalMood,
   normalizeOptionalPhotos,
+  normalizeOptionalPreferredGenders,
   normalizeOptionalUrl,
 } from "../common/validators";
 import type { MediaFileRow, ProfilePhoto, UserRow } from "../db/schema";
@@ -42,6 +45,8 @@ export type SelfUserProfile = {
   amoriaId: string;
   avatarUrl: string | null;
   photos: ProfilePhoto[];
+  gender: ProfileGender | null;
+  preferredGenders: ProfileGender[];
   goal: ProfileGoal | null;
   mood: ProfileMood | null;
   interests: string[];
@@ -80,6 +85,8 @@ export type UpdateProfileBody = {
   about?: string | null;
   avatarUrl?: string | null;
   photos?: ProfilePhotoInput[];
+  gender?: ProfileGender | null;
+  preferredGenders?: ProfileGender[];
   goal?: ProfileGoal | null;
   mood?: ProfileMood | null;
   interests?: string[];
@@ -99,6 +106,8 @@ type UserProfileUpdate = Partial<Pick<
   | "about"
   | "avatarUrl"
   | "photos"
+  | "gender"
+  | "preferredGenders"
   | "goal"
   | "mood"
   | "interests"
@@ -159,6 +168,8 @@ export function toSelfUserProfile(user: UserRow): SelfUserProfile {
     amoriaId: user.amoriaId,
     avatarUrl: user.avatarUrl,
     photos: user.photos,
+    gender: toProfileGender(user.gender),
+    preferredGenders: user.preferredGenders,
     goal: toProfileGoal(user.goal),
     mood: toProfileMood(user.mood),
     interests: user.interests,
@@ -252,6 +263,18 @@ export async function updateCurrentUserProfile(
       await deps.gallery.replacePublicGalleryPhotosFromProfilePatch(userId, photos);
     }
     setIfDefined(update, "photos", photos);
+  }
+
+  if ("gender" in input) {
+    setIfDefined(update, "gender", normalizeOptionalGender(input.gender));
+  }
+
+  if ("preferredGenders" in input) {
+    setIfDefined(
+      update,
+      "preferredGenders",
+      normalizeOptionalPreferredGenders(input.preferredGenders),
+    );
   }
 
   if ("goal" in input) {
@@ -437,6 +460,10 @@ function normalizeOptionalMediaReference(
 
 function toProfileGoal(value: string | null): ProfileGoal | null {
   return value as ProfileGoal | null;
+}
+
+function toProfileGender(value: string | null): ProfileGender | null {
+  return value as ProfileGender | null;
 }
 
 function toProfileMood(value: string | null): ProfileMood | null {

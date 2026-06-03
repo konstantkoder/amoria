@@ -1,13 +1,13 @@
 # Amoria Release Control Center
 
-Updated: 2026-05-31
+Updated: 2026-06-03
 
 ## Release Rules
 
 - No mock, stub, fake, Firebase fallback, or local-only success path counts as release evidence.
 - Together, Admin Web, media moderation, reports, audit, and ops health must use real backend endpoints.
 - Do not touch local launch/archive files from release commits.
-- Nearby and Announcements are out of scope for this Together/Admin pass.
+- Nearby mobile redesign and Announcements are out of scope for this Together/Admin pass.
 
 ## Branches
 
@@ -127,6 +127,16 @@ Automated checks cannot replace the real two-client pass:
 
 Nearby future redesign should reuse `birthDate`/`ageGroup`, `preferredAgeRange`, `interests`, `goal`, `mood`, and geolocation/radius. Do not create separate age logic or separate Nearby-only profile fields. Announcements are not part of the future architecture.
 
+## Nearby Profile Feed Backend
+
+- Nearby profile feed uses real opted-in user profiles from `nearby_profile_visibility`.
+- Active visibility stores exact latitude/longitude server-side only and returns only safe visibility state to the owner.
+- Feed cards never expose exact coordinates, exact `birthDate`, exact distance, locked-gallery content, object keys, signed URLs, bucket names, or internal storage paths.
+- Feed filtering excludes self, blocked users, off/expired visibility, incompatible age, incompatible gender/preference, and users outside mutual radius.
+- Feed distance uses coarse `distanceBucket` only.
+- Future Nearby UI must use compact grid/list profile cards. It must not use a full-screen photo feed; photos should be thumbnails/previews inside cards.
+- Legacy Nearby status endpoints remain compatible under `/nearby/statuses`; the future UI should target profile cards from `GET /nearby/feed`.
+
 ## Public Beta Blockers
 
 - Complete real phone/emulator Together smoke against the release backend.
@@ -140,3 +150,8 @@ Nearby future redesign should reuse `birthDate`/`ageGroup`, `preferredAgeRange`,
   - The check writes no test file, deletes no file, and creates no object.
   - Response statuses are `ok`, `not_configured`, `error`, and `not_checked`.
   - Responses expose only `status`, `checkedAt`, and safe `reason`/`errorCode`; no bucket names, object keys, endpoints, internal MinIO paths, secrets, tokens, or signed URLs are exposed.
+- NEARBY-PROFILE-FEED-BACKEND-01:
+  - Backend foundation now serves real opted-in Nearby profile cards from `GET /nearby/feed`.
+  - Visibility is stored server-side with status, radius, optional short status, status kind, update time, expiry, and private coordinates.
+  - Matching excludes self, blocked users, off/expired users, incompatible age, incompatible gender/preference, and users outside mutual radius.
+  - Responses expose only safe profile card fields and coarse distance buckets.
