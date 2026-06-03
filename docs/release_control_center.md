@@ -123,7 +123,11 @@ This launcher is local dev tooling only and is not product logic.
   - `Моя анкета` summarizes about, goal, mood, interests, and age group with one clear edit action instead of repeated row-level edit buttons.
   - Search preferences show the age preference summary and note that future Nearby reuse depends on its separate redesign.
   - Settings is grouped into privacy/safety, geolocation, app, and account sections.
-  - The current Nearby location switch is labeled as a current layer control, not the final Nearby redesign; Together logic and age matching are unchanged.
+  - The location switch remains behaviorally unchanged; Together logic and age matching are unchanged.
+- SETTINGS-NEARBY-COPY-CLEANUP-01 is fixed in code and awaiting release smoke:
+  - Settings now frames location as privacy/search infrastructure for matching and nearby features, not as the final Nearby product.
+  - RU/EN/HR copy states that exact coordinates are not shown to other people and that future Nearby can safely reuse location after a separate redesign.
+  - Location toggle behavior, system settings link, language/privacy/logout rows, app permissions, backend, and Together geolocation logic are unchanged.
 
 ## Completed blocks
 

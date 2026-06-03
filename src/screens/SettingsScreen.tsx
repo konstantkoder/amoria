@@ -183,7 +183,7 @@ export default function SettingsScreen() {
             {copyOrFallback(
               t,
               "settings.geolocationBody",
-              "Геолокация нужна для честного поиска и подбора. Сейчас переключатель управляет текущим слоем «Рядом»; будущий Nearby будет оформлен отдельно."
+              "Геолокация используется для подбора и функций рядом. Мы не показываем точные координаты другим людям. Будущий «Рядом» сможет безопасно переиспользовать этот доступ после отдельного редизайна."
             )}
           </Text>
           <View style={styles.card}>
@@ -193,14 +193,14 @@ export default function SettingsScreen() {
                   {copyOrFallback(
                     t,
                     "settings.nearbyLocationPreview",
-                    "Геолокация для текущего «Рядом»"
+                    "Доступ к геолокации"
                   )}
                 </Text>
                 <Text style={styles.rowHelp}>
                   {copyOrFallback(
                     t,
                     "settings.nearbyLocationPreviewBody",
-                    "Это не финальный Nearby-дизайн. Можно выключить без изменения Together."
+                    "Управляет геолокацией для подбора и функций рядом. Можно выключить отдельно от Together."
                   )}
                 </Text>
               </View>
