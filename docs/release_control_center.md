@@ -101,6 +101,10 @@ This launcher is local dev tooling only and is not product logic.
   - Active Together, Nearby, and Chats tabs share the same subtle lifted pill, amber outline, soft glow, and warm active label tint.
   - Nearby and Chats keep their location/chat Ionicons inside the shared active treatment; inactive state remains readable.
   - Announcements tab removal is handled by `REMOVE-ANNOUNCEMENTS-TAB-01`.
+- DRAWER-ACTIVE-PALETTE-01 is fixed in code and awaiting release smoke:
+  - Drawer active items now use the same warm amber/coral palette as the active bottom tabs.
+  - The previous hot-pink active drawer background is removed; inactive drawer rows stay dark/glass and logout keeps its danger treatment.
+  - Drawer routes and menu item set are unchanged.
 - APP-ICON-ASSETS-01 is fixed in code and awaiting a new EAS dev build:
   - Android launcher icon now points to `assets/icons/amoria_android_launcher_icon_1024.png`.
   - Android adaptive icon foreground/background point to `assets/icons/amoria_adaptive_foreground_1024.png` and `assets/icons/amoria_adaptive_background_1024.png`.

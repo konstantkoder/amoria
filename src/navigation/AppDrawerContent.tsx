@@ -15,6 +15,10 @@ import { AmoriaTogetherIcon } from "@/components/icons/AmoriaTogetherIcon";
 import { type RootStackNavigationProp } from "@/navigation/appRoutes";
 import { theme } from "@/theme";
 
+const DRAWER_ACTIVE_TINT = "#F3C98B";
+const DRAWER_ACTIVE_BACKGROUND = "rgba(185, 130, 114, 0.23)";
+const DRAWER_ACTIVE_BORDER = "rgba(245, 205, 139, 0.42)";
+
 type Props = {
   onClose?: () => void;
 };
@@ -183,7 +187,7 @@ export default function AppDrawerContent({ onClose }: Props) {
               <Ionicons
                 name={icon}
                 size={20}
-                color={tone === "danger" ? "#FFD7DF" : "#FFFFFF"}
+                color={tone === "danger" ? "#FFD7DF" : active ? DRAWER_ACTIVE_TINT : "#FFFFFF"}
               />
             ) : null}
           </View>
@@ -393,8 +397,13 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   activeButton: {
-    backgroundColor: "rgba(255, 78, 138, 0.30)",
-    borderColor: "rgba(255, 122, 60, 0.42)",
+    backgroundColor: DRAWER_ACTIVE_BACKGROUND,
+    borderColor: DRAWER_ACTIVE_BORDER,
+    shadowColor: DRAWER_ACTIVE_TINT,
+    shadowOpacity: 0.14,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 6,
   },
   dangerButton: {
     backgroundColor: "rgba(255, 77, 103, 0.10)",
@@ -412,8 +421,8 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.16)",
   },
   activeIconWrap: {
-    backgroundColor: "rgba(255,255,255,0.14)",
-    borderColor: "rgba(255,255,255,0.2)",
+    backgroundColor: "rgba(185, 130, 114, 0.16)",
+    borderColor: "rgba(245, 205, 139, 0.36)",
   },
   dangerIconWrap: {
     backgroundColor: "rgba(255, 77, 103, 0.12)",
@@ -426,14 +435,14 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   activeButtonText: {
-    color: "#FFF5FA",
+    color: DRAWER_ACTIVE_TINT,
   },
   activeDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
     marginLeft: "auto",
-    backgroundColor: theme.colors.accent,
+    backgroundColor: DRAWER_ACTIVE_TINT,
   },
   localeBadge: {
     marginLeft: "auto",
