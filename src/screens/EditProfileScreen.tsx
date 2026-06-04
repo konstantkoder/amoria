@@ -27,7 +27,7 @@ import {
   normalizeProfileInterestInput,
 } from "@/config/profileFields";
 import { useLocale } from "@/contexts/LocaleContext";
-import type { Goal, Mood, UserProfile } from "@/models/User";
+import type { Goal, Mood, ProfileGender, UserProfile } from "@/models/User";
 import type { EditProfileRouteProp } from "@/navigation/appRoutes";
 import { theme } from "@/theme";
 import {
@@ -49,6 +49,30 @@ function translatedOptionLabel(
 
 const MIN_ADULT_AGE = 18;
 const MAX_PROFILE_AGE = 120;
+const SELF_GENDER_OPTIONS: Array<{
+  id: ProfileGender | "prefer_not_to_say";
+  value: ProfileGender | null;
+  labelKey: string;
+}> = [
+  { id: "man", value: "man", labelKey: "profile.gender.man" },
+  { id: "woman", value: "woman", labelKey: "profile.gender.woman" },
+  { id: "nonbinary", value: "nonbinary", labelKey: "profile.gender.nonbinary" },
+  {
+    id: "prefer_not_to_say",
+    value: null,
+    labelKey: "profile.gender.preferNotToSay",
+  },
+];
+const SEARCH_GENDER_OPTIONS: Array<{
+  id: "all" | ProfileGender;
+  value: ProfileGender[];
+  labelKey: string;
+}> = [
+  { id: "woman", value: ["woman"], labelKey: "profile.lookingFor.woman" },
+  { id: "man", value: ["man"], labelKey: "profile.lookingFor.man" },
+  { id: "all", value: [], labelKey: "profile.lookingFor.everyone" },
+  { id: "nonbinary", value: ["nonbinary"], labelKey: "profile.lookingFor.nonbinary" },
+];
 
 type BirthDateParts = {
   day: string;
@@ -170,6 +194,15 @@ function getBirthDateApiErrorKey(error: unknown) {
   return "";
 }
 
+function sameGenderPreference(
+  left: ProfileGender[] | undefined,
+  right: ProfileGender[]
+) {
+  if (!Array.isArray(left)) return false;
+  if (left.length !== right.length) return false;
+  return right.every((value) => left.includes(value));
+}
+
 export default function EditProfileScreen() {
   const route = useRoute<EditProfileRouteProp>();
   const { t } = useLocale();
@@ -183,6 +216,12 @@ export default function EditProfileScreen() {
   const [birthDay, setBirthDay] = React.useState("");
   const [birthMonth, setBirthMonth] = React.useState("");
   const [birthYear, setBirthYear] = React.useState("");
+  const [gender, setGender] = React.useState<ProfileGender | null | undefined>(
+    undefined
+  );
+  const [preferredGenders, setPreferredGenders] = React.useState<
+    ProfileGender[] | undefined
+  >(undefined);
   const [goal, setGoal] = React.useState<Goal | null>(null);
   const [mood, setMood] = React.useState<Mood | null>(null);
   const [mysteryMode, setMysteryMode] = React.useState(false);
@@ -197,6 +236,7 @@ export default function EditProfileScreen() {
   const moodYRef = React.useRef(0);
   const interestsYRef = React.useRef(0);
   const birthDateYRef = React.useRef(0);
+  const preferencesYRef = React.useRef(0);
   const focusTarget = route.params?.focus;
 
   const applyProfile = React.useCallback((profile: UserProfile) => {
@@ -209,6 +249,8 @@ export default function EditProfileScreen() {
     setBirthDay(parts.day);
     setBirthMonth(parts.month);
     setBirthYear(parts.year);
+    setGender(profile.gender);
+    setPreferredGenders(profile.preferredGenders);
     setGoal(profile.goal ?? null);
     setMood(profile.mood ?? null);
     setMysteryMode(profile.mysteryMode ?? false);
@@ -282,6 +324,14 @@ export default function EditProfileScreen() {
           animated: true,
         });
         birthDayInputRef.current?.focus();
+        return;
+      }
+
+      if (focusTarget === "preferences") {
+        scrollRef.current?.scrollTo({
+          y: Math.max(preferencesYRef.current - 24, 0),
+          animated: true,
+        });
       }
     }, 240);
 
@@ -362,7 +412,7 @@ export default function EditProfileScreen() {
         return;
       }
 
-      await updateUserFields({
+      const profilePatch: Partial<UserProfile> = {
         displayName: nextDisplayName,
         about,
         interests: nextInterests,
@@ -370,7 +420,15 @@ export default function EditProfileScreen() {
         goal,
         mood,
         mysteryMode,
-      });
+      };
+      if (gender !== undefined) {
+        profilePatch.gender = gender;
+      }
+      if (preferredGenders !== undefined) {
+        profilePatch.preferredGenders = preferredGenders;
+      }
+
+      await updateUserFields(profilePatch);
       const refreshedProfile = await getUserProfile();
       applyProfile(refreshedProfile);
       displayNameInputRef.current?.blur();
@@ -600,6 +658,68 @@ export default function EditProfileScreen() {
             </View>
             <Text style={styles.helperText}>
               {t("editProfile.birthDateSafetyBody")}
+            </Text>
+          </View>
+
+          <View
+            style={focusTarget === "preferences" ? styles.focusedSection : null}
+            onLayout={(event) => {
+              preferencesYRef.current = event.nativeEvent.layout.y;
+            }}
+          >
+            <Text style={styles.label}>{t("editProfile.genderLabel")}</Text>
+            <View style={styles.optionsWrap}>
+              {SELF_GENDER_OPTIONS.map((option) => {
+                const active = gender === option.value;
+                return (
+                  <TouchableOpacity
+                    key={option.id}
+                    onPress={() => setGender(option.value)}
+                    style={[
+                      styles.optionButton,
+                      active ? styles.preferenceOptionButtonActive : null,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.optionButtonText,
+                        active ? styles.optionButtonTextActive : null,
+                      ]}
+                    >
+                      {t(option.labelKey)}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <Text style={styles.label}>{t("editProfile.lookingForLabel")}</Text>
+            <View style={styles.optionsWrap}>
+              {SEARCH_GENDER_OPTIONS.map((option) => {
+                const active = sameGenderPreference(preferredGenders, option.value);
+                return (
+                  <TouchableOpacity
+                    key={option.id}
+                    onPress={() => setPreferredGenders(option.value)}
+                    style={[
+                      styles.optionButton,
+                      active ? styles.preferenceOptionButtonActive : null,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.optionButtonText,
+                        active ? styles.optionButtonTextActive : null,
+                      ]}
+                    >
+                      {t(option.labelKey)}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <Text style={styles.helperText}>
+              {t("editProfile.preferencesHelper")}
             </Text>
           </View>
 
@@ -887,6 +1007,9 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.pillBg,
   },
   goalOptionButtonActive: {
+    backgroundColor: theme.colors.primary,
+  },
+  preferenceOptionButtonActive: {
     backgroundColor: theme.colors.primary,
   },
   moodOptionButtonActive: {

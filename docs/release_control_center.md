@@ -22,6 +22,16 @@ This launcher is local dev tooling only and is not product logic.
 
 ## Current known live bug
 
+- PROFILE-GENDER-PREFERENCES-ONBOARDING-01 is fixed in code and awaiting release smoke:
+  - Edit Profile now has clear backend-backed fields for `Я` and `Кого я ищу`.
+  - `Я` supports man, woman, other, and prefer-not-to-say; prefer-not-to-say is saved as explicit `gender=null`, not as a missing field.
+  - `Кого я ищу` supports women, men, everyone, and the already-supported other/nonbinary option; everyone is saved as explicit `preferredGenders=[]`.
+  - Profile shows localized summaries for `Я` and `Кого я ищу` without exposing internal enum names.
+  - Nearby now blocks silent empty feeds when `gender` or `preferredGenders` is missing and routes to Edit Profile focused on the preference section.
+  - Save remains backend-backed through existing profile APIs, followed by backend profile refresh; no local-only preference success was added.
+  - Together matching, crop, app icon, Announcements, backend, DB migrations, and local bat files are unchanged.
+  - Client Error metadata for the Nearby completion gate is limited to `missingField: gender` or `missingField: preferredGenders`; no exact birth date or coordinates are reported.
+  - Build impact: EAS no, backend no, DB migration no, Metro yes.
 - NEARBY-CARDS-MEDIA-CHAT-03 is fixed in code and awaiting release smoke:
   - Nearby profile grid now uses 3 columns on normal phone widths, 2 columns on narrow widths, and 1 column only on very narrow widths through `FlatList numColumns={columns}` and `key={columns}`.
   - Nearby cards are compact anketa cards with one large avatar/public-photo media surface, one-line name, one-line age group plus coarse distance bucket, one short goal/mood/status line, 1-2 tiny interest chips, and compact `Открыть` / `Написать` actions.

@@ -40,6 +40,7 @@ import { theme } from "@/theme";
 type LocationIssue = "permissionDenied" | "permissionBlocked" | "readFailed";
 type GenderFilter = "all" | ProfileGender;
 type AgeFilterId = "any" | AgeGroup;
+type MissingNearbyPreferenceField = "gender" | "preferredGenders";
 
 const RADIUS_OPTIONS = [5, 25, 100, 250] as const;
 const FEED_LIMIT = 30;
@@ -121,6 +122,15 @@ function isProfileReady(profile: UserProfile | null) {
   return Boolean(profile?.birthDate && profile.displayName?.trim());
 }
 
+function getMissingNearbyPreferenceField(
+  profile: UserProfile | null
+): MissingNearbyPreferenceField | null {
+  if (!profile) return "gender";
+  if (profile.gender === undefined) return "gender";
+  if (profile.preferredGenders === undefined) return "preferredGenders";
+  return null;
+}
+
 function getInitials(label?: string) {
   const parts = String(label ?? "")
     .trim()
@@ -199,8 +209,10 @@ export default function NearbyHubScreen() {
   const visibilityRef = useRef<NearbyProfileVisibilityDto | null>(null);
   const radiusRef = useRef(DEFAULT_RADIUS_KM);
   const profileReadyRef = useRef(false);
+  const matchingPreferencesReadyRef = useRef(false);
   const feedRequestIdRef = useRef(0);
   const radiusRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reportedMissingPreferenceRef = useRef<Set<MissingNearbyPreferenceField>>(new Set());
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [visibility, setVisibility] = useState<NearbyProfileVisibilityDto | null>(null);
   const [items, setItems] = useState<NearbyProfileFeedItemDto[]>([]);
@@ -215,6 +227,8 @@ export default function NearbyHubScreen() {
 
   const active = visibility?.status === "active";
   const profileReady = isProfileReady(profile);
+  const missingPreferenceField = getMissingNearbyPreferenceField(profile);
+  const matchingPreferencesReady = !missingPreferenceField;
   const genderFilter = getGenderFilter(profile);
   const ageFilter = getAgeFilter(profile);
   const columns =
@@ -242,18 +256,43 @@ export default function NearbyHubScreen() {
     profileReadyRef.current = profileReady;
   }, [profileReady]);
 
+  useEffect(() => {
+    matchingPreferencesReadyRef.current = matchingPreferencesReady;
+  }, [matchingPreferencesReady]);
+
+  useEffect(() => {
+    if (!profileReady || !missingPreferenceField) return;
+    if (reportedMissingPreferenceRef.current.has(missingPreferenceField)) return;
+    reportedMissingPreferenceRef.current.add(missingPreferenceField);
+
+    reportClientError({
+      screen: "NearbyHubScreen",
+      action: "profileCompletionRequired",
+      step: "missingPreference",
+      message: "Nearby profile preferences are incomplete",
+      metadata: { missingField: missingPreferenceField },
+    });
+  }, [missingPreferenceField, profileReady]);
+
   const refreshFeed = useCallback(
     async (
       baseVisibility: NearbyProfileVisibilityDto | null,
       nextRadiusKm: number,
-      options?: { profileReady?: boolean }
+      options?: { profileReady?: boolean; matchingPreferencesReady?: boolean }
     ) => {
       if (baseVisibility?.status !== "active") {
         setItems([]);
+        setFeedLoading(false);
         return;
       }
       if ((options?.profileReady ?? profileReadyRef.current) === false) {
         setItems([]);
+        setFeedLoading(false);
+        return;
+      }
+      if ((options?.matchingPreferencesReady ?? matchingPreferencesReadyRef.current) === false) {
+        setItems([]);
+        setFeedLoading(false);
         return;
       }
 
@@ -309,9 +348,12 @@ export default function NearbyHubScreen() {
       setProfile(currentProfile);
       setVisibility(me.visibility);
       setRadiusKm(me.visibility.radiusKm ?? DEFAULT_RADIUS_KM);
-      if (me.visibility.status === "active" && isProfileReady(currentProfile)) {
+      const currentProfileReady = isProfileReady(currentProfile);
+      const currentPreferencesReady = !getMissingNearbyPreferenceField(currentProfile);
+      if (me.visibility.status === "active" && currentProfileReady && currentPreferencesReady) {
         await refreshFeed(me.visibility, me.visibility.radiusKm ?? DEFAULT_RADIUS_KM, {
           profileReady: true,
+          matchingPreferencesReady: true,
         });
       } else {
         setItems([]);
@@ -340,6 +382,16 @@ export default function NearbyHubScreen() {
           t,
           "nearby.errorProfileSetup",
           "Заполните профиль, чтобы Рядом мог подобрать людей честно."
+        )
+      );
+      return;
+    }
+    if (missingPreferenceField) {
+      setErrorText(
+        copyOrFallback(
+          t,
+          "nearby.errorProfilePreferences",
+          "Заполните, кого вы ищете, чтобы Рядом показывал подходящих людей."
         )
       );
       return;
@@ -376,7 +428,7 @@ export default function NearbyHubScreen() {
         setToggleBusy(false);
       }
     }
-  }, [profileReady, radiusKm, refreshFeed, t, visibility]);
+  }, [missingPreferenceField, profileReady, radiusKm, refreshFeed, t, visibility]);
 
   const disableVisibility = useCallback(async () => {
     setToggleBusy(true);
@@ -445,6 +497,7 @@ export default function NearbyHubScreen() {
         if (visibility?.status === "active") {
           await refreshFeed(visibility, radiusRef.current, {
             profileReady: isProfileReady(updated),
+            matchingPreferencesReady: !getMissingNearbyPreferenceField(updated),
           });
         }
       } catch (error) {
@@ -475,6 +528,7 @@ export default function NearbyHubScreen() {
         if (visibility?.status === "active") {
           await refreshFeed(visibility, radiusRef.current, {
             profileReady: isProfileReady(updated),
+            matchingPreferencesReady: !getMissingNearbyPreferenceField(updated),
           });
         }
       } catch (error) {
@@ -531,6 +585,13 @@ export default function NearbyHubScreen() {
     navigation.navigate("Profile", {
       screen: "EditProfile",
       params: { focus: "birthDate" },
+    });
+  }, [navigation]);
+
+  const goToProfilePreferences = useCallback(() => {
+    navigation.navigate("Profile", {
+      screen: "EditProfile",
+      params: { focus: "preferences" },
     });
   }, [navigation]);
 
@@ -737,6 +798,20 @@ export default function NearbyHubScreen() {
       };
     }
 
+    if (missingPreferenceField) {
+      return {
+        icon: "options-outline" as const,
+        title: copyOrFallback(t, "nearby.emptyPreferencesTitle", "Заполните анкету"),
+        body: copyOrFallback(
+          t,
+          "nearby.emptyPreferencesBody",
+          "Заполните, кого вы ищете, чтобы Рядом показывал подходящих людей."
+        ),
+        action: copyOrFallback(t, "nearby.emptyPreferencesAction", "Заполнить анкету"),
+        onPress: goToProfilePreferences,
+      };
+    }
+
     if (!active) {
       return {
         icon: "eye-off-outline" as const,
@@ -796,8 +871,10 @@ export default function NearbyHubScreen() {
     enableVisibility,
     feedLoading,
     goToProfileSetup,
+    goToProfilePreferences,
     loading,
     locationIssue,
+    missingPreferenceField,
     profileReady,
     radiusKm,
     refreshFeed,
@@ -864,7 +941,7 @@ export default function NearbyHubScreen() {
     >
       <FlatList
         key={columns}
-        data={active && profileReady ? items : []}
+        data={active && profileReady && matchingPreferencesReady ? items : []}
         numColumns={columns}
         keyExtractor={(item) => item.userId}
         renderItem={renderCard}

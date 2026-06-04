@@ -44,6 +44,10 @@ Nearby is a compact profile-card surface, not a full-screen photo feed.
 - Age filter is visible in Nearby: `Любой 18+`, `18-24`, `25-34`, `35-44`, `45-54`, `55+`.
 - Age filter is saved through the existing profile preferred-age fields and then applied by backend feed matching.
 - Gender preference uses existing profile `preferredGenders`; no local-only filtering is used.
+- New accounts complete two profile preference fields in Edit Profile:
+  - `Я`: man, woman, other, or prefer not to say.
+  - `Кого я ищу`: women, men, everyone, and the already-supported other/nonbinary option.
+- Save remains backend-backed through the profile API, and mobile refreshes the profile from backend after save.
 
 ## Privacy
 
@@ -67,8 +71,11 @@ Nearby distinguishes:
 - profile setup needed
 - no people nearby
 - radius too narrow
+- missing gender/search preference completion
 
 When visibility is off, the screen prompts the user to enable visibility instead of showing identifiable feed cards.
+
+If `gender` or `preferredGenders` is missing from the backend profile, Nearby shows a profile completion card instead of an empty/silent feed. The card routes to Edit Profile focused on the preferences section. Explicit `gender=null` means the user chose not to say; explicit `preferredGenders=[]` means everyone.
 
 ## Profile And Message Actions
 

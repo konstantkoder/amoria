@@ -60,7 +60,7 @@ export type MainTabParamList = {
 };
 
 export type EditProfileRouteParams = {
-  focus?: "about" | "goal" | "mood" | "interests" | "birthDate";
+  focus?: "about" | "goal" | "mood" | "interests" | "birthDate" | "preferences";
 };
 
 export type ProfileStackParamList = {

@@ -28,7 +28,7 @@ import {
 import ScreenShell from "@/components/ScreenShell";
 import UserAvatar from "@/components/UserAvatar";
 import { useLocale } from "@/contexts/LocaleContext";
-import type { UserProfile } from "@/models/User";
+import type { ProfileGender, UserProfile } from "@/models/User";
 import type { ProfileStackParamList } from "@/navigation/appRoutes";
 import {
   UploadFlowError,
@@ -49,6 +49,7 @@ import {
 import { theme } from "@/theme";
 
 type ProfileNav = NativeStackNavigationProp<ProfileStackParamList, "ProfileMain">;
+type EditProfileFocus = NonNullable<ProfileStackParamList["EditProfile"]>["focus"];
 type PendingAvatar = {
   uri: string;
   mimeType?: string;
@@ -120,6 +121,32 @@ function formatSearchAgePreference(
     return value === "profile.searchAgePreferenceOpen" ? `${min}+` : value;
   }
   return t("profile.searchAgePreferenceDefault");
+}
+
+function formatOwnGender(
+  profile: UserProfile | null,
+  t: (key: string, params?: Record<string, string>) => string
+) {
+  if (!profile || profile.gender === undefined) return t("profile.genderMissing");
+  if (profile.gender === null) return t("profile.gender.preferNotToSay");
+  return t(`profile.gender.${profile.gender}`);
+}
+
+function formatLookingForGender(
+  gender: ProfileGender,
+  t: (key: string, params?: Record<string, string>) => string
+) {
+  return t(`profile.lookingFor.${gender}`);
+}
+
+function formatLookingForPreference(
+  profile: UserProfile | null,
+  t: (key: string, params?: Record<string, string>) => string
+) {
+  const preferredGenders = profile?.preferredGenders;
+  if (!Array.isArray(preferredGenders)) return t("profile.lookingForMissing");
+  if (preferredGenders.length === 0) return t("profile.lookingFor.everyone");
+  return preferredGenders.map((gender) => formatLookingForGender(gender, t)).join(", ");
 }
 
 function ProfileSummaryRow({
@@ -196,6 +223,10 @@ export default function ProfileScreen() {
   const needsName = Boolean(getDisplayNameValidationErrorKey(profile?.displayName ?? ""));
   const ageLabel = formatOwnAgeLabel(profile, t);
   const searchAgePreference = formatSearchAgePreference(profile, t);
+  const ownGenderLabel = formatOwnGender(profile, t);
+  const lookingForLabel = formatLookingForPreference(profile, t);
+  const missingOwnGender = Boolean(profile && profile.gender === undefined);
+  const missingLookingFor = Boolean(profile && profile.preferredGenders === undefined);
   const interestsSummary = profile?.interests?.length
     ? profile.interests.join(", ")
     : t("profile.interestsEmpty");
@@ -431,7 +462,7 @@ export default function ProfileScreen() {
   }
 
   const openEditProfile = React.useCallback(
-    (focus?: "about" | "goal" | "mood" | "interests" | "birthDate") => {
+    (focus?: EditProfileFocus) => {
       try {
         if (focus) {
           navigation.navigate("EditProfile", { focus });
@@ -656,7 +687,26 @@ export default function ProfileScreen() {
               <Text style={styles.sectionTitle}>{t("profile.searchSectionTitle")}</Text>
               <Text style={styles.sectionSubtitle}>{t("profile.searchSectionSubtitle")}</Text>
             </View>
+            <TouchableOpacity
+              style={styles.sectionAction}
+              activeOpacity={0.86}
+              onPress={() => openEditProfile("preferences")}
+            >
+              <Text style={styles.sectionActionText}>
+                {t("profile.editProfileEntrypointAction")}
+              </Text>
+            </TouchableOpacity>
           </View>
+          <ProfileSummaryRow
+            label={t("profile.genderSummaryTitle")}
+            value={ownGenderLabel}
+            warning={missingOwnGender}
+          />
+          <ProfileSummaryRow
+            label={t("profile.lookingForSummaryTitle")}
+            value={lookingForLabel}
+            warning={missingLookingFor}
+          />
           <ProfileSummaryRow
             label={t("profile.searchAgePreferenceTitle")}
             value={searchAgePreference}
