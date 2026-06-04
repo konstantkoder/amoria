@@ -40,7 +40,7 @@ import { getUserProfileById } from "@/services/user";
 import {
   getPublicMediaUrlInfo,
   normalizePublicMediaUrl,
-  probePublicMediaUrl,
+  probePublicMediaUrlInfo,
   type PublicMediaUrlInfo,
 } from "@/services/media/mediaUrl";
 import type { Goal, Mood, UserProfile, UserProfilePhoto } from "@/models/User";
@@ -309,10 +309,12 @@ export default function UserProfileScreen() {
       if (reportedMediaFailuresRef.current.has(reportKey)) return;
       reportedMediaFailuresRef.current.add(reportKey);
 
-      void probePublicMediaUrl(
-        input.urlInfo?.url,
-        step === "avatarLoadFailed" ? "peer avatar URL" : "peer public photo URL"
-      ).then((probe) => {
+      const urlInfo = input.urlInfo ?? {
+        urlKind: "invalid" as const,
+        ...(mediaId ? { mediaId } : {}),
+      };
+
+      void probePublicMediaUrlInfo(urlInfo).then((probe) => {
         reportClientError({
           screen: "UserProfileScreen",
           action: "loadPeerMedia",

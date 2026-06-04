@@ -174,6 +174,12 @@ export async function probePublicMediaUrl(
   context = "media URL"
 ): Promise<PublicMediaProbeResult> {
   const urlInfo = getPublicMediaUrlInfo(value, context);
+  return probePublicMediaUrlInfo(urlInfo);
+}
+
+export async function probePublicMediaUrlInfo(
+  urlInfo: PublicMediaUrlInfo
+): Promise<PublicMediaProbeResult> {
   if (!urlInfo.url) {
     return {
       ok: false,

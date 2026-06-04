@@ -1,6 +1,6 @@
 # Amoria Release Control Center
 
-Updated: 2026-06-03
+Updated: 2026-06-04
 
 ## Branches
 
@@ -22,6 +22,16 @@ This launcher is local dev tooling only and is not product logic.
 
 ## Current known live bug
 
+- NEARBY-CARDS-MEDIA-CHAT-03 is fixed in code and awaiting release smoke:
+  - Nearby profile grid now uses 3 columns on normal phone widths, 2 columns on narrow widths, and 1 column only on very narrow widths through `FlatList numColumns={columns}` and `key={columns}`.
+  - Nearby cards are compact anketa cards with one large avatar/public-photo media surface, one-line name, one-line age group plus coarse distance bucket, one short goal/mood/status line, 1-2 tiny interest chips, and compact `Открыть` / `Написать` actions.
+  - Card media tries `avatarUrl` first, falls back to first public `publicPhotos[0]` after missing/failed avatar, and then shows initials/person placeholder.
+  - Nearby card images resolve `/media/public/:mediaId` against the current backend origin before rendering and do not pass relative URLs directly to `Image`.
+  - Nearby card media failures report safe Client Errors with `screen=NearbyHubScreen`, `action=loadNearbyCardMedia`, `step`, `userId`, optional `mediaId`, `urlKind`, optional `httpStatus`/`contentType`, `hasAvatarUrl`, and `publicPhotoCount`.
+  - UserProfile opened from Nearby remains the existing public profile route. Public avatar/photos render through safe public media URLs; failed public photos show an honest placeholder and safe Client Error diagnostics.
+  - DM chat clears text, blurs the input, and dismisses the keyboard only after a successful backend send. Failed sends keep the composer active and do not fake success.
+  - Privacy remains unchanged: no fake users, no mock feed, no runtime demo mode, no Announcements restoration, no exact coordinates, no exact birth date, no object keys, no raw media URLs, no signed URLs, and no locked-gallery media exposure.
+  - Build impact: EAS no, backend no, DB migration no, Metro yes.
 - RELEASE-SMOKE-BLOCKERS-03 is fixed in code and awaiting release smoke:
   - Peer/public/admin media responses derive `/media/public/:mediaId` at response time and no longer trust stale stored tunnel/local/object-storage URLs.
   - Admin Web has Together Queue and read-only Together Sessions observability for owner/ops.

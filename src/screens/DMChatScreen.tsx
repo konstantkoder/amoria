@@ -596,9 +596,6 @@ export default function DMChatScreen() {
       pending: true,
     };
 
-    textRef.current = "";
-    setText("");
-    inputRef.current?.clear?.();
     setSending(true);
     setMessages((current) => mergeMessages(current, [optimistic]));
 
@@ -607,8 +604,11 @@ export default function DMChatScreen() {
       if (!mountedRef.current) return;
       setMessages((current) => mergeMessages(current, [sent]));
       await chatApi.markRead(threadId, sent.id).catch(() => undefined);
+      textRef.current = "";
+      setText("");
+      inputRef.current?.clear?.();
       inputRef.current?.blur();
-      Keyboard.dismiss();
+      requestAnimationFrame(() => Keyboard.dismiss());
     } catch {
       if (!mountedRef.current) return;
       setMessages((current) =>

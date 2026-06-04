@@ -15,10 +15,10 @@ import * as Location from "expo-location";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 
 import ScreenShell from "@/components/ScreenShell";
-import UserAvatar from "@/components/UserAvatar";
 import { useLocale } from "@/contexts/LocaleContext";
 import type { NearbyTabNavigationProp } from "@/navigation/appRoutes";
 import { ApiError } from "@/services/api/apiClient";
+import { reportClientError } from "@/services/api/clientErrorsApi";
 import * as chatApi from "@/services/api/chatApi";
 import * as nearbyApi from "@/services/api/nearbyApi";
 import type {
@@ -28,6 +28,11 @@ import type {
   NearbyProfileVisibilityDto,
 } from "@/services/api/types";
 import { setNearbyEnabled } from "@/services/locationPrivacy";
+import {
+  getPublicMediaUrlInfo,
+  probePublicMediaUrlInfo,
+  type PublicMediaUrlInfo,
+} from "@/services/media/mediaUrl";
 import { getUserProfile, updateUserFields } from "@/services/user";
 import type { ProfileGender, UserProfile } from "@/models/User";
 import { theme } from "@/theme";
@@ -40,6 +45,8 @@ const RADIUS_OPTIONS = [5, 25, 100, 250] as const;
 const FEED_LIMIT = 30;
 const DEFAULT_RADIUS_KM = 25;
 const DEFAULT_STATUS_KIND: NearbyProfileStatusKind = "open_to_suggestions";
+const NORMAL_GRID_MIN_WIDTH = 360;
+const NARROW_GRID_MIN_WIDTH = 300;
 
 const GENDER_FILTERS: GenderFilter[] = ["all", "woman", "man", "nonbinary"];
 const AGE_FILTER_OPTIONS: Array<{
@@ -112,6 +119,18 @@ function getAgeFilterLabel(
 
 function isProfileReady(profile: UserProfile | null) {
   return Boolean(profile?.birthDate && profile.displayName?.trim());
+}
+
+function getInitials(label?: string) {
+  const parts = String(label ?? "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (!parts.length) return "";
+  return parts
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
 }
 
 async function requestNearbyLocation(): Promise<
@@ -198,7 +217,8 @@ export default function NearbyHubScreen() {
   const profileReady = isProfileReady(profile);
   const genderFilter = getGenderFilter(profile);
   const ageFilter = getAgeFilter(profile);
-  const columns = width >= 350 ? 2 : 1;
+  const columns =
+    width >= NORMAL_GRID_MIN_WIDTH ? 3 : width >= NARROW_GRID_MIN_WIDTH ? 2 : 1;
 
   useEffect(() => {
     mountedRef.current = true;
@@ -813,7 +833,16 @@ export default function NearbyHubScreen() {
 
   const renderCard = useCallback(
     ({ item }: { item: NearbyProfileFeedItemDto }) => (
-      <View style={[styles.cardSlot, columns > 1 ? styles.cardSlotGrid : styles.cardSlotList]}>
+      <View
+        style={[
+          styles.cardSlot,
+          columns === 3
+            ? styles.cardSlotThird
+            : columns === 2
+            ? styles.cardSlotHalf
+            : styles.cardSlotFull,
+        ]}
+      >
         <NearbyProfileCard
           item={item}
           opening={openingUserId === item.userId}
@@ -877,21 +906,17 @@ function NearbyProfileCard({
     item.goal ? copyOrFallback(t, `profile.goal.${item.goal}`, item.goal) : "",
     item.mood ? copyOrFallback(t, `profile.mood.${item.mood}`, item.mood) : "",
   ].filter(Boolean);
-  const photos = item.publicPhotos.slice(0, 2);
 
   return (
     <View style={styles.card}>
-      <View style={styles.cardTop}>
-        <UserAvatar avatarUrl={item.avatarUrl ?? undefined} label={item.displayName} size={38} />
-        <View style={styles.cardIdentity}>
-          <Text style={styles.cardName} numberOfLines={1}>
-            {item.displayName}
-          </Text>
-          <Text style={styles.cardMeta} numberOfLines={1}>
-            {details.join(" · ")}
-          </Text>
-        </View>
-      </View>
+      <NearbyCardMedia item={item} />
+
+      <Text style={styles.cardName} numberOfLines={1}>
+        {item.displayName}
+      </Text>
+      <Text style={styles.cardMeta} numberOfLines={1}>
+        {details.join(" · ")}
+      </Text>
 
       {profileLabels.length ? (
         <Text style={styles.profileLine} numberOfLines={1}>
@@ -901,7 +926,7 @@ function NearbyProfileCard({
 
       {item.interests.length ? (
         <View style={styles.chipRow}>
-          {item.interests.slice(0, 3).map((interest) => (
+          {item.interests.slice(0, 2).map((interest) => (
             <View key={interest} style={styles.interestChip}>
               <Text style={styles.interestText} numberOfLines={1}>
                 {interest}
@@ -911,22 +936,10 @@ function NearbyProfileCard({
         </View>
       ) : null}
 
-      {photos.length ? (
-        <View style={styles.photoRow}>
-          {photos.map((photo) => (
-            <Image
-              key={photo.mediaId}
-              source={{ uri: photo.url }}
-              style={styles.photoPreview}
-            />
-          ))}
-        </View>
-      ) : null}
-
       <View style={styles.actionRow}>
         <Pressable style={styles.secondaryButton} onPress={onOpen}>
           <Ionicons name="person-outline" size={13} color="#F3C98B" />
-          <Text style={styles.secondaryButtonText}>
+          <Text style={styles.secondaryButtonText} numberOfLines={1}>
             {copyOrFallback(t, "nearby.openProfile", "Открыть")}
           </Text>
         </Pressable>
@@ -943,7 +956,7 @@ function NearbyProfileCard({
           ) : (
             <>
               <Ionicons name="chatbubble-outline" size={13} color="#24150B" />
-              <Text style={styles.primaryButtonText}>
+              <Text style={styles.primaryButtonText} numberOfLines={1}>
                 {copyOrFallback(t, "nearby.message", "Написать")}
               </Text>
             </>
@@ -954,23 +967,146 @@ function NearbyProfileCard({
   );
 }
 
+function NearbyCardMedia({ item }: { item: NearbyProfileFeedItemDto }) {
+  const firstPublicPhoto = item.publicPhotos[0] ?? null;
+  const avatarInfo = React.useMemo(
+    () => getPublicMediaUrlInfo(item.avatarUrl, "nearby card avatar URL"),
+    [item.avatarUrl]
+  );
+  const publicPhotoInfo = React.useMemo(
+    () => getPublicMediaUrlInfo(firstPublicPhoto?.url, "nearby card public photo URL"),
+    [firstPublicPhoto?.url]
+  );
+  const [avatarFailed, setAvatarFailed] = React.useState(false);
+  const [publicPhotoFailed, setPublicPhotoFailed] = React.useState(false);
+  const reportedMediaFailuresRef = React.useRef<Set<string>>(new Set());
+  const hasAvatarUrl = Boolean(String(item.avatarUrl ?? "").trim());
+  const publicPhotoCount = item.publicPhotos.length;
+
+  React.useEffect(() => {
+    setAvatarFailed(false);
+    setPublicPhotoFailed(false);
+    reportedMediaFailuresRef.current.clear();
+  }, [avatarInfo.url, item.userId, publicPhotoInfo.url]);
+
+  const reportMediaFailure = React.useCallback(
+    (
+      step: "avatarLoadFailed" | "publicPhotoLoadFailed",
+      urlInfo: PublicMediaUrlInfo,
+      mediaId?: string
+    ) => {
+      const safeMediaId = mediaId ?? urlInfo.mediaId;
+      const reportKey = `${step}:${safeMediaId ?? urlInfo.urlKind}`;
+      if (reportedMediaFailuresRef.current.has(reportKey)) return;
+      reportedMediaFailuresRef.current.add(reportKey);
+
+      void probePublicMediaUrlInfo(urlInfo).then((probe) => {
+        const reportedMediaId = safeMediaId ?? probe.mediaId;
+        reportClientError({
+          screen: "NearbyHubScreen",
+          action: "loadNearbyCardMedia",
+          step,
+          message: "Nearby card media failed to load",
+          metadata: {
+            userId: item.userId,
+            ...(reportedMediaId ? { mediaId: reportedMediaId } : {}),
+            urlKind: probe.urlKind,
+            httpStatus: probe.httpStatus ?? null,
+            contentType: probe.contentType ?? null,
+            probeOk: probe.ok,
+            probeErrorCode: probe.errorCode ?? null,
+            hasAvatarUrl,
+            publicPhotoCount,
+          },
+        });
+      });
+    },
+    [hasAvatarUrl, item.userId, publicPhotoCount]
+  );
+
+  React.useEffect(() => {
+    if (hasAvatarUrl && !avatarInfo.url) {
+      reportMediaFailure("avatarLoadFailed", avatarInfo);
+    }
+  }, [avatarInfo, hasAvatarUrl, reportMediaFailure]);
+
+  React.useEffect(() => {
+    const shouldTryPublicPhoto = !avatarInfo.url || avatarFailed;
+    if (shouldTryPublicPhoto && firstPublicPhoto?.url && !publicPhotoInfo.url) {
+      reportMediaFailure("publicPhotoLoadFailed", publicPhotoInfo, firstPublicPhoto.mediaId);
+    }
+  }, [
+    avatarFailed,
+    avatarInfo.url,
+    firstPublicPhoto?.mediaId,
+    firstPublicPhoto?.url,
+    publicPhotoInfo,
+    reportMediaFailure,
+  ]);
+
+  if (avatarInfo.url && !avatarFailed) {
+    return (
+      <Image
+        source={{ uri: avatarInfo.url }}
+        style={styles.cardMedia}
+        resizeMode="cover"
+        onError={() => {
+          setAvatarFailed(true);
+          reportMediaFailure("avatarLoadFailed", avatarInfo);
+        }}
+      />
+    );
+  }
+
+  if (publicPhotoInfo.url && !publicPhotoFailed) {
+    return (
+      <Image
+        source={{ uri: publicPhotoInfo.url }}
+        style={styles.cardMedia}
+        resizeMode="cover"
+        onError={() => {
+          setPublicPhotoFailed(true);
+          reportMediaFailure(
+            "publicPhotoLoadFailed",
+            publicPhotoInfo,
+            firstPublicPhoto?.mediaId
+          );
+        }}
+      />
+    );
+  }
+
+  const initials = getInitials(item.displayName);
+  return (
+    <View style={[styles.cardMedia, styles.cardMediaFallback]}>
+      {initials ? (
+        <Text style={styles.cardMediaInitials}>{initials}</Text>
+      ) : (
+        <Ionicons name="person-outline" size={30} color={theme.colors.text} />
+      )}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   listContent: {
-    paddingHorizontal: 0,
+    paddingHorizontal: 1,
     paddingBottom: 18,
-    gap: 8,
   },
   columnWrap: {
     alignItems: "stretch",
   },
   cardSlot: {
-    paddingHorizontal: 4,
-    marginBottom: 8,
+    paddingHorizontal: 3,
+    marginBottom: 7,
   },
-  cardSlotGrid: {
+  cardSlotThird: {
+    width: "33.3333%",
+  },
+  cardSlotHalf: {
     width: "50%",
   },
-  cardSlotList: {
+  cardSlotFull: {
     width: "100%",
   },
   headerArea: {
@@ -1093,51 +1229,47 @@ const styles = StyleSheet.create({
   card: {
     flex: 1,
     minWidth: 0,
-    borderRadius: 14,
-    padding: 9,
-    gap: 7,
+    borderRadius: 8,
+    padding: 7,
+    gap: 5,
     backgroundColor: "rgba(12, 18, 28, 0.88)",
     borderWidth: 1,
     borderColor: "rgba(245, 205, 139, 0.20)",
   },
-  cardTop: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
+  cardMedia: {
+    width: "100%",
+    aspectRatio: 1,
+    borderRadius: 7,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
   },
-  cardIdentity: {
-    flex: 1,
-    minWidth: 0,
+  cardMediaFallback: {
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(243, 201, 139, 0.13)",
+  },
+  cardMediaInitials: {
+    color: theme.colors.text,
+    fontSize: 24,
+    lineHeight: 29,
+    fontWeight: "900",
   },
   cardName: {
     color: theme.colors.text,
-    fontSize: 14,
+    fontSize: 13,
+    lineHeight: 16,
     fontWeight: "900",
   },
   cardMeta: {
     color: "#B9C0D3",
-    fontSize: 11,
-    marginTop: 2,
-  },
-  statusPill: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 6,
-    borderRadius: 12,
-    paddingHorizontal: 9,
-    paddingVertical: 8,
-    backgroundColor: "rgba(243, 201, 139, 0.10)",
-  },
-  statusText: {
-    flex: 1,
-    color: "#FFE7B8",
-    fontSize: 12,
-    lineHeight: 17,
-    fontWeight: "700",
+    fontSize: 10,
+    lineHeight: 13,
   },
   profileLine: {
     color: "#E9ECF7",
-    fontSize: 11,
+    fontSize: 10,
+    lineHeight: 13,
     fontWeight: "700",
   },
   chipRow: {
@@ -1148,58 +1280,55 @@ const styles = StyleSheet.create({
   interestChip: {
     maxWidth: "100%",
     borderRadius: 999,
-    paddingHorizontal: 7,
-    paddingVertical: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
     backgroundColor: "rgba(255,255,255,0.08)",
   },
   interestText: {
     color: "#DCE1F2",
-    fontSize: 10,
+    fontSize: 9,
+    lineHeight: 11,
     fontWeight: "700",
-  },
-  photoRow: {
-    flexDirection: "row",
-    gap: 5,
-  },
-  photoPreview: {
-    width: 34,
-    height: 34,
-    borderRadius: 8,
-    backgroundColor: "rgba(255,255,255,0.08)",
   },
   actionRow: {
     flexDirection: "row",
-    gap: 6,
+    gap: 4,
   },
   secondaryButton: {
     flex: 1,
-    minHeight: 32,
+    minHeight: 28,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 4,
-    borderRadius: 10,
+    gap: 3,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: "rgba(245, 205, 139, 0.30)",
+    paddingHorizontal: 3,
   },
   secondaryButtonText: {
+    flexShrink: 1,
     color: "#F3C98B",
-    fontSize: 11,
+    fontSize: 10,
+    lineHeight: 12,
     fontWeight: "800",
   },
   primaryButton: {
     flex: 1,
-    minHeight: 32,
+    minHeight: 28,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 4,
-    borderRadius: 10,
+    gap: 3,
+    borderRadius: 8,
     backgroundColor: "#F3C98B",
+    paddingHorizontal: 3,
   },
   primaryButtonText: {
+    flexShrink: 1,
     color: "#24150B",
-    fontSize: 11,
+    fontSize: 10,
+    lineHeight: 12,
     fontWeight: "900",
   },
   buttonDisabled: {
