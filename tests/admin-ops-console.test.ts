@@ -167,6 +167,93 @@ test("/admin/ops/health returns database status and real counts", async (t) => {
   assert.equal(auditMetadata?.databaseOk, true);
 });
 
+test("GET /admin/nearby/diagnostics returns safe Nearby counts and writes audit log", async (t) => {
+  t.after(restoreDeps);
+  mockAdmin({ roles: ["ops"] });
+  const state = mockOpsHealth();
+  const app = buildApp();
+  t.after(async () => {
+    await app.close();
+  });
+
+  const response = await app.inject({
+    method: "GET",
+    url: "/admin/nearby/diagnostics",
+    headers: authHeaders(userId),
+  });
+  const bodyText = response.body;
+  const body = response.json();
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(body, {
+    ok: true,
+    status: "ok",
+    checkedAt: "2026-06-03T12:00:00.000Z",
+    activeVisibilityCount: 7,
+    offVisibilityCount: 2,
+    expiredVisibilityCount: 1,
+    recentlyUpdatedCount: 4,
+    profileReadinessMissing: {
+      missingBirthDate: 3,
+      missingGender: 5,
+      missingPreferredGenders: 1,
+      missingAvatar: 6,
+      missingDisplayName: 0,
+    },
+    feedExclusionReasons: {
+      self: 7,
+      blocked: 2,
+      visibility_off: 9,
+      visibility_expired: 1,
+      distance_too_far: 4,
+      age_mismatch: 3,
+      gender_mismatch: 2,
+      missing_birth_date: 3,
+      missing_gender: 5,
+      missing_preferred_genders: 1,
+    },
+  });
+  assert.equal(bodyText.includes("latitude"), false);
+  assert.equal(bodyText.includes("longitude"), false);
+  assert.equal(bodyText.includes('"birthDate":"'), false);
+  assert.equal(bodyText.includes('"birth_date":"'), false);
+  assert.equal(bodyText.includes("1995-01-01"), false);
+  assert.equal(bodyText.includes("lockedGallery"), false);
+  assert.equal(bodyText.includes("locked_gallery"), false);
+  assert.equal(bodyText.includes('"gallery"'), false);
+  assert.equal(bodyText.includes("mediaId"), false);
+  assert.equal(bodyText.includes("objectKey"), false);
+  assert.equal(bodyText.includes("signedUrl"), false);
+  assert.equal(state.auditInputs[0]?.action, "admin.nearbyDiagnostics.read");
+  assert.equal(state.auditInputs[0]?.targetType, "nearby_diagnostics");
+  assert.deepEqual(state.auditInputs[0]?.metadata, {
+    activeVisibilityCount: 7,
+    offVisibilityCount: 2,
+    expiredVisibilityCount: 1,
+    recentlyUpdatedCount: 4,
+    profileReadinessMissing: body.profileReadinessMissing,
+    feedExclusionReasons: body.feedExclusionReasons,
+  });
+});
+
+test("GET /admin/nearby/diagnostics enforces owner or ops role policy", async (t) => {
+  t.after(restoreDeps);
+  mockAdmin({ roles: ["support"] });
+  mockOpsHealth();
+  const app = buildApp();
+  t.after(async () => {
+    await app.close();
+  });
+
+  const response = await app.inject({
+    method: "GET",
+    url: "/admin/nearby/diagnostics",
+    headers: authHeaders(userId),
+  });
+
+  assert.equal(response.statusCode, 403);
+});
+
 test("GET /admin/together/queue returns safe queue observability and writes audit log", async (t) => {
   t.after(restoreDeps);
   mockAdmin({ roles: ["ops"] });
@@ -746,6 +833,34 @@ function mockOpsHealth() {
       checkedAt: "2026-06-03T12:00:00.000Z",
       reason: "safe_check_unavailable",
     }),
+    nearbyDiagnostics: {
+      getNearbyAdminDiagnostics: async () => ({
+        checkedAt: new Date("2026-06-03T12:00:00.000Z"),
+        activeVisibilityCount: 7,
+        offVisibilityCount: 2,
+        expiredVisibilityCount: 1,
+        recentlyUpdatedCount: 4,
+        profileReadinessMissing: {
+          missingBirthDate: 3,
+          missingGender: 5,
+          missingPreferredGenders: 1,
+          missingAvatar: 6,
+          missingDisplayName: 0,
+        },
+        feedExclusionReasons: {
+          self: 7,
+          blocked: 2,
+          visibility_off: 9,
+          visibility_expired: 1,
+          distance_too_far: 4,
+          age_mismatch: 3,
+          gender_mismatch: 2,
+          missing_birth_date: 3,
+          missing_gender: 5,
+          missing_preferred_genders: 1,
+        },
+      }),
+    },
     togetherQueue: {
       listQueueEntriesForAdmin: async () => [
         {

@@ -1,17 +1,24 @@
 import { and, desc, eq, gt, isNull, ne, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
+import { PROFILE_GENDERS } from "../config/constants";
 import { db } from "../db/client";
 import {
+  type BlockedUserRow,
   type NearbyProfileVisibilityRow,
   type NearbyStatusRow,
   type NewNearbyProfileVisibilityRow,
   type NewNearbyStatusRow,
+  type ProfileGender,
   type UserRow,
   blockedUsers,
   nearbyProfileVisibility,
   nearbyStatuses,
   users,
 } from "../db/schema";
+import {
+  calculateAge,
+  isAgeInsidePreferredRange,
+} from "../users/age";
 
 export type NearbyFeedRow = {
   id: string;
@@ -31,6 +38,38 @@ export type NearbyProfileFeedRow = {
   visibility: NearbyProfileVisibilityRow;
   user: UserRow;
   distanceKm: number;
+};
+
+export const nearbyAdminFeedExclusionReasons = [
+  "self",
+  "blocked",
+  "visibility_off",
+  "visibility_expired",
+  "distance_too_far",
+  "age_mismatch",
+  "gender_mismatch",
+  "missing_birth_date",
+  "missing_gender",
+  "missing_preferred_genders",
+] as const;
+
+export type NearbyAdminFeedExclusionReason =
+  (typeof nearbyAdminFeedExclusionReasons)[number];
+
+export type NearbyAdminDiagnostics = {
+  checkedAt: Date;
+  activeVisibilityCount: number;
+  offVisibilityCount: number;
+  expiredVisibilityCount: number;
+  recentlyUpdatedCount: number;
+  profileReadinessMissing: {
+    missingBirthDate: number;
+    missingGender: number;
+    missingPreferredGenders: number;
+    missingAvatar: number;
+    missingDisplayName: number;
+  };
+  feedExclusionReasons: Record<NearbyAdminFeedExclusionReason, number>;
 };
 
 export async function createNearbyStatus(input: NewNearbyStatusRow): Promise<NearbyStatusRow> {
@@ -119,6 +158,44 @@ export async function listNearbyProfileFeedRows(
     .limit(limit);
 }
 
+export async function getNearbyAdminDiagnostics(
+  checkedAt = new Date(),
+): Promise<NearbyAdminDiagnostics> {
+  const [userRows, visibilityRows, blockRows] = await Promise.all([
+    db.select({
+      id: users.id,
+      displayName: users.displayName,
+      avatarUrl: users.avatarUrl,
+      gender: users.gender,
+      preferredGenders: users.preferredGenders,
+      birthDate: users.birthDate,
+      preferredAgeMin: users.preferredAgeMin,
+      preferredAgeMax: users.preferredAgeMax,
+    }).from(users),
+    db.select({
+      userId: nearbyProfileVisibility.userId,
+      status: nearbyProfileVisibility.status,
+      latitude: nearbyProfileVisibility.latitude,
+      longitude: nearbyProfileVisibility.longitude,
+      radiusKm: nearbyProfileVisibility.radiusKm,
+      updatedAt: nearbyProfileVisibility.updatedAt,
+      expiresAt: nearbyProfileVisibility.expiresAt,
+    }).from(nearbyProfileVisibility),
+    db.select({
+      userId: blockedUsers.userId,
+      blockedUserId: blockedUsers.blockedUserId,
+      createdAt: blockedUsers.createdAt,
+    }).from(blockedUsers),
+  ]);
+
+  return buildNearbyAdminDiagnostics({
+    checkedAt,
+    users: userRows,
+    visibilities: visibilityRows,
+    blocks: blockRows,
+  });
+}
+
 export async function listNearbyFeedRows(
   viewerUserId: string,
   lat: number,
@@ -174,6 +251,324 @@ export async function deleteOwnedNearbyStatus(
     .returning({ id: nearbyStatuses.id });
 
   return Boolean(deleted);
+}
+
+type NearbyAdminUserSnapshot = Pick<
+  UserRow,
+  | "id"
+  | "displayName"
+  | "avatarUrl"
+  | "gender"
+  | "preferredGenders"
+  | "birthDate"
+  | "preferredAgeMin"
+  | "preferredAgeMax"
+>;
+
+type NearbyAdminVisibilitySnapshot = Pick<
+  NearbyProfileVisibilityRow,
+  | "userId"
+  | "status"
+  | "latitude"
+  | "longitude"
+  | "radiusKm"
+  | "updatedAt"
+  | "expiresAt"
+>;
+
+type NearbyAdminDiagnosticsInput = {
+  checkedAt: Date;
+  users: NearbyAdminUserSnapshot[];
+  visibilities: NearbyAdminVisibilitySnapshot[];
+  blocks: Pick<BlockedUserRow, "userId" | "blockedUserId">[];
+};
+
+function buildNearbyAdminDiagnostics(
+  input: NearbyAdminDiagnosticsInput,
+): NearbyAdminDiagnostics {
+  const recentSince = new Date(input.checkedAt.getTime() - 24 * 60 * 60 * 1000);
+  const profileReadinessMissing: NearbyAdminDiagnostics["profileReadinessMissing"] = {
+    missingBirthDate: 0,
+    missingGender: 0,
+    missingPreferredGenders: 0,
+    missingAvatar: 0,
+    missingDisplayName: 0,
+  };
+  const feedExclusionReasons = emptyFeedExclusionCounts();
+  const visibilityByUserId = new Map(input.visibilities.map((row) => [row.userId, row]));
+  const userById = new Map(input.users.map((row) => [row.id, row]));
+  const blockPairs = new Set(
+    input.blocks.map((row) => `${row.userId}:${row.blockedUserId}`),
+  );
+
+  let activeVisibilityCount = 0;
+  let offVisibilityCount = 0;
+  let expiredVisibilityCount = 0;
+  let recentlyUpdatedCount = 0;
+
+  for (const visibility of input.visibilities) {
+    const status = effectiveNearbyAdminVisibilityStatus(visibility, input.checkedAt);
+    if (status === "active") {
+      activeVisibilityCount += 1;
+    } else if (status === "expired") {
+      expiredVisibilityCount += 1;
+    } else {
+      offVisibilityCount += 1;
+    }
+    if (visibility.updatedAt >= recentSince) {
+      recentlyUpdatedCount += 1;
+    }
+  }
+
+  for (const user of input.users) {
+    if (!user.birthDate) {
+      profileReadinessMissing.missingBirthDate += 1;
+    }
+    if (!toProfileGender(user.gender)) {
+      profileReadinessMissing.missingGender += 1;
+    }
+    if (!Array.isArray(user.preferredGenders)) {
+      profileReadinessMissing.missingPreferredGenders += 1;
+    }
+    if (!hasText(user.avatarUrl)) {
+      profileReadinessMissing.missingAvatar += 1;
+    }
+    if (!hasText(user.displayName)) {
+      profileReadinessMissing.missingDisplayName += 1;
+    }
+  }
+
+  const activeViewers = input.visibilities.filter((visibility) =>
+    isActiveNearbyAdminVisibility(visibility, input.checkedAt),
+  );
+
+  for (const viewerVisibility of activeViewers) {
+    const viewer = userById.get(viewerVisibility.userId);
+    if (!viewer) {
+      continue;
+    }
+
+    for (const candidate of input.users) {
+      const reason = getNearbyFeedExclusionReason({
+        checkedAt: input.checkedAt,
+        viewer,
+        viewerVisibility,
+        candidate,
+        candidateVisibility: visibilityByUserId.get(candidate.id),
+        blockPairs,
+      });
+      if (reason) {
+        feedExclusionReasons[reason] += 1;
+      }
+    }
+  }
+
+  return {
+    checkedAt: input.checkedAt,
+    activeVisibilityCount,
+    offVisibilityCount,
+    expiredVisibilityCount,
+    recentlyUpdatedCount,
+    profileReadinessMissing,
+    feedExclusionReasons,
+  };
+}
+
+type NearbyFeedExclusionInput = {
+  checkedAt: Date;
+  viewer: NearbyAdminUserSnapshot;
+  viewerVisibility: NearbyAdminVisibilitySnapshot;
+  candidate: NearbyAdminUserSnapshot;
+  candidateVisibility: NearbyAdminVisibilitySnapshot | undefined;
+  blockPairs: Set<string>;
+};
+
+function getNearbyFeedExclusionReason(
+  input: NearbyFeedExclusionInput,
+): NearbyAdminFeedExclusionReason | null {
+  if (input.viewer.id === input.candidate.id) {
+    return "self";
+  }
+
+  if (
+    input.blockPairs.has(`${input.viewer.id}:${input.candidate.id}`) ||
+    input.blockPairs.has(`${input.candidate.id}:${input.viewer.id}`)
+  ) {
+    return "blocked";
+  }
+
+  if (!input.candidateVisibility) {
+    return "visibility_off";
+  }
+
+  const candidateStatus = effectiveNearbyAdminVisibilityStatus(
+    input.candidateVisibility,
+    input.checkedAt,
+  );
+  if (candidateStatus === "off") {
+    return "visibility_off";
+  }
+  if (candidateStatus === "expired") {
+    return "visibility_expired";
+  }
+
+  if (!isValidPreferredGenders(input.viewer.preferredGenders) ||
+      !isValidPreferredGenders(input.candidate.preferredGenders)) {
+    return "missing_preferred_genders";
+  }
+
+  if (isTooFarForNearbyFeed(input.viewerVisibility, input.candidateVisibility)) {
+    return "distance_too_far";
+  }
+
+  if (!input.viewer.birthDate || !input.candidate.birthDate) {
+    return "missing_birth_date";
+  }
+
+  if (!isMutuallyAgeCompatible(input.viewer, input.candidate, input.checkedAt)) {
+    return "age_mismatch";
+  }
+
+  if (!isMutuallyGenderCompatible(input.viewer, input.candidate)) {
+    if (!toProfileGender(input.viewer.gender) || !toProfileGender(input.candidate.gender)) {
+      return "missing_gender";
+    }
+    return "gender_mismatch";
+  }
+
+  return null;
+}
+
+function effectiveNearbyAdminVisibilityStatus(
+  visibility: NearbyAdminVisibilitySnapshot,
+  checkedAt: Date,
+): "active" | "off" | "expired" {
+  if (visibility.status === "active") {
+    return visibility.expiresAt && visibility.expiresAt > checkedAt ? "active" : "expired";
+  }
+
+  if (visibility.status === "expired") {
+    return "expired";
+  }
+
+  return "off";
+}
+
+function isActiveNearbyAdminVisibility(
+  visibility: NearbyAdminVisibilitySnapshot,
+  checkedAt: Date,
+): visibility is NearbyAdminVisibilitySnapshot & {
+  latitude: number;
+  longitude: number;
+  radiusKm: number;
+  expiresAt: Date;
+} {
+  return (
+    effectiveNearbyAdminVisibilityStatus(visibility, checkedAt) === "active" &&
+    typeof visibility.latitude === "number" &&
+    typeof visibility.longitude === "number" &&
+    typeof visibility.radiusKm === "number" &&
+    Boolean(visibility.expiresAt)
+  );
+}
+
+function isTooFarForNearbyFeed(
+  viewerVisibility: NearbyAdminVisibilitySnapshot,
+  candidateVisibility: NearbyAdminVisibilitySnapshot,
+): boolean {
+  if (
+    typeof viewerVisibility.latitude !== "number" ||
+    typeof viewerVisibility.longitude !== "number" ||
+    typeof viewerVisibility.radiusKm !== "number" ||
+    typeof candidateVisibility.latitude !== "number" ||
+    typeof candidateVisibility.longitude !== "number" ||
+    typeof candidateVisibility.radiusKm !== "number"
+  ) {
+    return true;
+  }
+
+  const distanceKm = approximateDistanceKm(
+    viewerVisibility.latitude,
+    viewerVisibility.longitude,
+    candidateVisibility.latitude,
+    candidateVisibility.longitude,
+  );
+  return distanceKm > viewerVisibility.radiusKm || distanceKm > candidateVisibility.radiusKm;
+}
+
+function isMutuallyAgeCompatible(
+  viewer: NearbyAdminUserSnapshot,
+  candidate: NearbyAdminUserSnapshot,
+  checkedAt: Date,
+): boolean {
+  const viewerAge = calculateAge(viewer.birthDate, checkedAt);
+  const candidateAge = calculateAge(candidate.birthDate, checkedAt);
+  return (
+    isAgeInsidePreferredRange(candidateAge, {
+      min: viewer.preferredAgeMin,
+      max: viewer.preferredAgeMax,
+    }) &&
+    isAgeInsidePreferredRange(viewerAge, {
+      min: candidate.preferredAgeMin,
+      max: candidate.preferredAgeMax,
+    })
+  );
+}
+
+function isMutuallyGenderCompatible(
+  viewer: NearbyAdminUserSnapshot,
+  candidate: NearbyAdminUserSnapshot,
+): boolean {
+  return (
+    genderAllowed(toProfileGender(candidate.gender), viewer.preferredGenders) &&
+    genderAllowed(toProfileGender(viewer.gender), candidate.preferredGenders)
+  );
+}
+
+function genderAllowed(
+  gender: ProfileGender | null,
+  preferredGenders: ProfileGender[],
+): boolean {
+  return preferredGenders.length === 0 || (gender !== null && preferredGenders.includes(gender));
+}
+
+function toProfileGender(value: string | null): ProfileGender | null {
+  return PROFILE_GENDERS.includes(value as ProfileGender) ? value as ProfileGender : null;
+}
+
+function isValidPreferredGenders(value: unknown): value is ProfileGender[] {
+  return Array.isArray(value);
+}
+
+function hasText(value: string | null): boolean {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function emptyFeedExclusionCounts(): Record<NearbyAdminFeedExclusionReason, number> {
+  return Object.fromEntries(
+    nearbyAdminFeedExclusionReasons.map((reason) => [reason, 0]),
+  ) as Record<NearbyAdminFeedExclusionReason, number>;
+}
+
+function approximateDistanceKm(
+  latA: number,
+  lngA: number,
+  latB: number,
+  lngB: number,
+): number {
+  const earthRadiusKm = 6371;
+  const dLat = toRadians(latB - latA);
+  const dLng = toRadians(lngB - lngA);
+  const startLat = toRadians(latA);
+  const endLat = toRadians(latB);
+  const haversine =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(startLat) * Math.cos(endLat) * Math.sin(dLng / 2) ** 2;
+  return earthRadiusKm * 2 * Math.asin(Math.min(1, Math.sqrt(haversine)));
+}
+
+function toRadians(value: number): number {
+  return value * (Math.PI / 180);
 }
 
 function haversineDistanceMeters(lat: number, lng: number) {

@@ -48,6 +48,19 @@ const adminTogetherQueueCancelSourceValues = [
   "unknown",
 ] as const;
 
+const nearbyFeedExclusionReasonValues = [
+  "self",
+  "blocked",
+  "visibility_off",
+  "visibility_expired",
+  "distance_too_far",
+  "age_mismatch",
+  "gender_mismatch",
+  "missing_birth_date",
+  "missing_gender",
+  "missing_preferred_genders",
+] as const;
+
 const adminTogetherQueueQuerySchema = z
   .object({
     status: z.string().trim().max(40).optional(),
@@ -222,6 +235,74 @@ export const adminOpsHealthRouteSchema = {
             pendingMediaModerationItems: { type: ["integer", "null"], minimum: 0 },
           },
         },
+      },
+    },
+  },
+} as const satisfies FastifySchema;
+
+const adminNearbyProfileReadinessMissingSchema = {
+  type: "object",
+  required: [
+    "missingBirthDate",
+    "missingGender",
+    "missingPreferredGenders",
+    "missingAvatar",
+    "missingDisplayName",
+  ],
+  additionalProperties: false,
+  properties: {
+    missingBirthDate: { type: "integer", minimum: 0 },
+    missingGender: { type: "integer", minimum: 0 },
+    missingPreferredGenders: { type: "integer", minimum: 0 },
+    missingAvatar: { type: "integer", minimum: 0 },
+    missingDisplayName: { type: "integer", minimum: 0 },
+  },
+} as const;
+
+const adminNearbyFeedExclusionReasonsSchema = {
+  type: "object",
+  required: nearbyFeedExclusionReasonValues,
+  additionalProperties: false,
+  properties: {
+    self: { type: "integer", minimum: 0 },
+    blocked: { type: "integer", minimum: 0 },
+    visibility_off: { type: "integer", minimum: 0 },
+    visibility_expired: { type: "integer", minimum: 0 },
+    distance_too_far: { type: "integer", minimum: 0 },
+    age_mismatch: { type: "integer", minimum: 0 },
+    gender_mismatch: { type: "integer", minimum: 0 },
+    missing_birth_date: { type: "integer", minimum: 0 },
+    missing_gender: { type: "integer", minimum: 0 },
+    missing_preferred_genders: { type: "integer", minimum: 0 },
+  },
+} as const;
+
+export const adminNearbyDiagnosticsRouteSchema = {
+  response: {
+    200: {
+      type: "object",
+      required: [
+        "ok",
+        "status",
+        "checkedAt",
+        "activeVisibilityCount",
+        "offVisibilityCount",
+        "expiredVisibilityCount",
+        "recentlyUpdatedCount",
+        "profileReadinessMissing",
+        "feedExclusionReasons",
+      ],
+      additionalProperties: false,
+      properties: {
+        ok: { type: "boolean", const: true },
+        status: { type: "string", const: "ok" },
+        checkedAt: { type: "string", format: "date-time" },
+        activeVisibilityCount: { type: "integer", minimum: 0 },
+        offVisibilityCount: { type: "integer", minimum: 0 },
+        expiredVisibilityCount: { type: "integer", minimum: 0 },
+        recentlyUpdatedCount: { type: "integer", minimum: 0 },
+        profileReadinessMissing: adminNearbyProfileReadinessMissingSchema,
+        feedExclusionReasons: adminNearbyFeedExclusionReasonsSchema,
       },
     },
   },

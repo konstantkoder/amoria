@@ -1,6 +1,6 @@
 # Amoria Release Control Center
 
-Updated: 2026-06-03
+Updated: 2026-06-04
 
 ## Release Rules
 
@@ -8,6 +8,7 @@ Updated: 2026-06-03
 - Together, Admin Web, media moderation, reports, audit, and ops health must use real backend endpoints.
 - Do not touch local launch/archive files from release commits.
 - Nearby mobile redesign and Announcements are out of scope for this Together/Admin pass.
+- Nearby Admin diagnostics must remain aggregate-only and must not expose exact coordinates, exact birth dates, locked gallery media, fake users, or raw profile text.
 
 ## Branches
 
@@ -134,6 +135,9 @@ Nearby future redesign should reuse `birthDate`/`ageGroup`, `preferredAgeRange`,
 - Feed cards never expose exact coordinates, exact `birthDate`, exact distance, locked-gallery content, object keys, signed URLs, bucket names, or internal storage paths.
 - Feed filtering excludes self, blocked users, off/expired visibility, incompatible age, incompatible gender/preference, and users outside mutual radius.
 - Feed distance uses coarse `distanceBucket` only.
+- Owner/ops Admin diagnostics for Nearby are available from `GET /admin/nearby/diagnostics` and the Admin Web Ops Health page.
+- Diagnostics return active/off/expired/recent visibility counts, missing profile readiness counts, and safe feed exclusion reason-code counts only.
+- Diagnostics help explain why users do not appear in the feed without exposing exact coordinates, exact `birthDate`, locked gallery media, media object keys, signed URLs, raw notes, or per-user private profile data.
 - Future Nearby UI must use compact grid/list profile cards. It must not use a full-screen photo feed; photos should be thumbnails/previews inside cards.
 - Legacy Nearby status endpoints remain compatible under `/nearby/statuses`; the future UI should target profile cards from `GET /nearby/feed`.
 
@@ -155,3 +159,7 @@ Nearby future redesign should reuse `birthDate`/`ageGroup`, `preferredAgeRange`,
   - Visibility is stored server-side with status, radius, optional short status, status kind, update time, expiry, and private coordinates.
   - Matching excludes self, blocked users, off/expired users, incompatible age, incompatible gender/preference, and users outside mutual radius.
   - Responses expose only safe profile card fields and coarse distance buckets.
+- NEARBY-ADMIN-DIAGNOSTICS-01:
+  - Backend/Admin Web now expose owner/ops Nearby diagnostics through aggregate counts and safe feed exclusion reason codes.
+  - Responses and UI omit exact coordinates, exact birth dates, locked gallery media, raw profile text, object keys, signed URLs, and fake users.
+  - Build impact: backend restart yes, admin build yes, DB migration no, EAS rebuild no, Metro cache clear no.

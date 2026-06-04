@@ -75,6 +75,36 @@ export type OpsHealth = {
   };
 };
 
+export type NearbyFeedExclusionReason =
+  | "self"
+  | "blocked"
+  | "visibility_off"
+  | "visibility_expired"
+  | "distance_too_far"
+  | "age_mismatch"
+  | "gender_mismatch"
+  | "missing_birth_date"
+  | "missing_gender"
+  | "missing_preferred_genders";
+
+export type NearbyDiagnostics = {
+  ok: true;
+  status: "ok";
+  checkedAt: string;
+  activeVisibilityCount: number;
+  offVisibilityCount: number;
+  expiredVisibilityCount: number;
+  recentlyUpdatedCount: number;
+  profileReadinessMissing: {
+    missingBirthDate: number;
+    missingGender: number;
+    missingPreferredGenders: number;
+    missingAvatar: number;
+    missingDisplayName: number;
+  };
+  feedExclusionReasons: Record<NearbyFeedExclusionReason, number>;
+};
+
 export type UserSearchItem = {
   id: string;
   amoriaId: string;

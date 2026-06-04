@@ -16,6 +16,8 @@ import {
   ClientErrorItem,
   MediaDetail,
   MediaItem,
+  NearbyDiagnostics,
+  NearbyFeedExclusionReason,
   OpsHealth,
   PublicMediaProbeResult,
   ReportDetail,
@@ -1461,12 +1463,22 @@ function MediaScreen({ setMessage }: { setMessage: (message: string | null) => v
 function OpsHealthScreen() {
   const { language, t } = useI18n();
   const { data, error, reload } = useLoad<OpsHealth>("/admin/ops/health");
+  const {
+    data: nearbyDiagnostics,
+    error: nearbyError,
+    reload: reloadNearby,
+  } = useLoad<NearbyDiagnostics>("/admin/nearby/diagnostics");
+
+  function reloadAll() {
+    reload();
+    reloadNearby();
+  }
 
   return (
     <section className="panel">
       <div className="panel-header">
         <h2>{t("ops.title")}</h2>
-        <button className="secondary" onClick={reload}>{t("common.refresh")}</button>
+        <button className="secondary" onClick={reloadAll}>{t("common.refresh")}</button>
       </div>
       {error ? <div className="error">{error}</div> : null}
       {data ? (
@@ -1482,6 +1494,36 @@ function OpsHealthScreen() {
           <Fact label={t("ops.pendingMedia")} value={formatCount(data.counts.pendingMediaModerationItems)} />
         </dl>
       ) : <EmptyState label={t("ops.empty")} />}
+      <h3>{t("ops.nearbyTitle")}</h3>
+      <p className="muted">{t("ops.nearbySafeNote")}</p>
+      {nearbyError ? <div className="error">{nearbyError}</div> : null}
+      {nearbyDiagnostics ? (
+        <>
+          <dl className="facts">
+            <Fact label={t("ops.nearbyCheckedAt")} value={formatDate(nearbyDiagnostics.checkedAt, language)} />
+            <Fact label={t("ops.nearbyActive")} value={formatCount(nearbyDiagnostics.activeVisibilityCount)} />
+            <Fact label={t("ops.nearbyOff")} value={formatCount(nearbyDiagnostics.offVisibilityCount)} />
+            <Fact label={t("ops.nearbyExpired")} value={formatCount(nearbyDiagnostics.expiredVisibilityCount)} />
+            <Fact label={t("ops.nearbyRecentlyUpdated")} value={formatCount(nearbyDiagnostics.recentlyUpdatedCount)} />
+          </dl>
+          <h3>{t("ops.nearbyReadiness")}</h3>
+          <dl className="facts">
+            <Fact label={t("ops.missingBirthDate")} value={formatCount(nearbyDiagnostics.profileReadinessMissing.missingBirthDate)} />
+            <Fact label={t("ops.missingGender")} value={formatCount(nearbyDiagnostics.profileReadinessMissing.missingGender)} />
+            <Fact label={t("ops.missingPreferredGenders")} value={formatCount(nearbyDiagnostics.profileReadinessMissing.missingPreferredGenders)} />
+            <Fact label={t("ops.missingAvatar")} value={formatCount(nearbyDiagnostics.profileReadinessMissing.missingAvatar)} />
+            <Fact label={t("ops.missingDisplayName")} value={formatCount(nearbyDiagnostics.profileReadinessMissing.missingDisplayName)} />
+          </dl>
+          <h3>{t("ops.nearbyExclusions")}</h3>
+          <DataTable
+            columns={[t("common.reason"), t("common.count")]}
+            rows={nearbyFeedExclusionReasons.map((reason) => [
+              formatNearbyFeedExclusionReason(reason, t),
+              formatCount(nearbyDiagnostics.feedExclusionReasons[reason]),
+            ])}
+          />
+        </>
+      ) : <EmptyState label={t("ops.nearbyEmpty")} />}
     </section>
   );
 }
@@ -1632,6 +1674,47 @@ function formatObjectStorageStatus(
   const detail = objectStorage.errorCode ?? objectStorage.reason;
   const status = formatStatus(objectStorage.status, t);
   return detail ? `${status}: ${detail}` : status;
+}
+
+const nearbyFeedExclusionReasons: NearbyFeedExclusionReason[] = [
+  "self",
+  "blocked",
+  "visibility_off",
+  "visibility_expired",
+  "distance_too_far",
+  "age_mismatch",
+  "gender_mismatch",
+  "missing_birth_date",
+  "missing_gender",
+  "missing_preferred_genders",
+];
+
+function formatNearbyFeedExclusionReason(
+  reason: NearbyFeedExclusionReason,
+  t: (key: TranslationKey) => string,
+): string {
+  switch (reason) {
+    case "self":
+      return t("ops.reasonSelf");
+    case "blocked":
+      return t("ops.reasonBlocked");
+    case "visibility_off":
+      return t("ops.reasonVisibilityOff");
+    case "visibility_expired":
+      return t("ops.reasonVisibilityExpired");
+    case "distance_too_far":
+      return t("ops.reasonDistanceTooFar");
+    case "age_mismatch":
+      return t("ops.reasonAgeMismatch");
+    case "gender_mismatch":
+      return t("ops.reasonGenderMismatch");
+    case "missing_birth_date":
+      return t("ops.reasonMissingBirthDate");
+    case "missing_gender":
+      return t("ops.reasonMissingGender");
+    case "missing_preferred_genders":
+      return t("ops.reasonMissingPreferredGenders");
+  }
 }
 
 function errorMessage(error: unknown, t: (key: TranslationKey) => string): string {

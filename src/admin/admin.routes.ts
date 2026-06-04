@@ -22,6 +22,7 @@ import {
 } from "./admin-media.schemas";
 import * as adminMediaService from "./admin-media.service";
 import {
+  adminNearbyDiagnosticsRouteSchema,
   adminOpsHealthRouteSchema,
   adminTogetherSessionsRouteSchema,
   adminTogetherQueueActionRouteSchema,
@@ -178,6 +179,19 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request) =>
       adminOpsService.getOpsHealth(currentAdmin(request), adminRequestContext(request)),
+  );
+
+  fastify.get(
+    "/nearby/diagnostics",
+    {
+      preHandler: [authMiddleware, requireAdmin(["owner", "ops"])],
+      schema: withErrorResponses(adminNearbyDiagnosticsRouteSchema),
+    },
+    async (request) =>
+      adminOpsService.getNearbyDiagnosticsForAdmin(
+        currentAdmin(request),
+        adminRequestContext(request),
+      ),
   );
 
   fastify.get(

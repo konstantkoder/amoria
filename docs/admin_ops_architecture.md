@@ -1,6 +1,6 @@
 # Admin/Ops Architecture
 
-Updated: 2026-06-03
+Updated: 2026-06-04
 
 ## Purpose
 
@@ -21,6 +21,7 @@ Admin reads/actions write audit entries where backend policy requires it. Releas
 - client error lifecycle actions;
 - report actions;
 - media review/detail/decision actions;
+- Nearby diagnostics reads;
 - Together queue reads and cancels;
 - Together session reads;
 - audit log reads;
@@ -39,8 +40,19 @@ Audit metadata must stay sanitized: no passwords, tokens, signed URLs, exact coo
 - Together Queue: owner/ops queue diagnostics with filters for activity, status, radius, `geoMode`, and `hasCoordinates`; no exact coordinates.
 - Together Sessions: owner/ops latest session diagnostics for active, finished, abandoned, cancelled, and recently ended sessions; no raw event payloads.
 - Audit Log: recent admin actions without secrets.
-- Ops Health: honest backend/database/object-storage/status counts; no fake OK for unchecked dependencies.
+- Ops Health: honest backend/database/object-storage/status counts plus safe Nearby diagnostics; no fake OK for unchecked dependencies.
 - Bootstrap: first owner flow only when backend permits it.
+
+## Nearby Diagnostics
+
+Owner/ops can read `GET /admin/nearby/diagnostics` from the Ops Health page. The response is aggregate-only:
+
+- active, off, expired, and recently updated visibility counts;
+- profile readiness missing counts for birth date, gender, preferred genders, avatar, and display name;
+- feed exclusion reason counts for self, blocked, visibility, distance, age, gender, and missing profile requirements;
+- `checkedAt`.
+
+Nearby diagnostics are designed to explain why real users do not appear in the Nearby feed. They do not expose exact coordinates, exact birth dates, locked gallery media, raw profile text, public media rows, object keys, signed URLs, or fake users.
 
 ## Together Diagnostics
 

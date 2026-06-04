@@ -15,6 +15,7 @@ import {
   checkObjectStorageHealth,
   type ObjectStorageHealth,
 } from "../media/object-storage";
+import * as nearbyRepo from "../nearby/nearby.repo";
 import * as togetherRepo from "../together/together.repo";
 import type {
   AdminTogetherQueueActionBody,
@@ -41,6 +42,24 @@ export type AdminOpsHealthResponse = {
     openReports: number | null;
     pendingMediaModerationItems: number | null;
   };
+};
+
+export type AdminNearbyDiagnosticsResponse = {
+  ok: true;
+  status: "ok";
+  checkedAt: string;
+  activeVisibilityCount: number;
+  offVisibilityCount: number;
+  expiredVisibilityCount: number;
+  recentlyUpdatedCount: number;
+  profileReadinessMissing: {
+    missingBirthDate: number;
+    missingGender: number;
+    missingPreferredGenders: number;
+    missingAvatar: number;
+    missingDisplayName: number;
+  };
+  feedExclusionReasons: Record<nearbyRepo.NearbyAdminFeedExclusionReason, number>;
 };
 
 export type AdminTogetherQueueEntryDto = {
@@ -124,6 +143,7 @@ type AdminOpsDeps = {
   dbCheck: () => Promise<boolean>;
   counts: () => Promise<AdminOpsHealthResponse["counts"]>;
   objectStorageCheck: () => Promise<AdminOpsHealthResponse["objectStorage"]>;
+  nearbyDiagnostics: Pick<typeof nearbyRepo, "getNearbyAdminDiagnostics">;
   togetherQueue: Pick<
     typeof togetherRepo,
     "listQueueEntriesForAdmin" | "cancelQueueEntryForAdmin" | "listSessionsForAdmin"
@@ -142,6 +162,7 @@ const defaultDeps: AdminOpsDeps = {
     pendingMediaModerationItems: await countPendingMediaModerationItems(),
   }),
   objectStorageCheck: checkObjectStorageHealth,
+  nearbyDiagnostics: nearbyRepo,
   togetherQueue: togetherRepo,
   audit: auditService,
 };
@@ -226,6 +247,40 @@ export async function getOpsHealth(
     },
     objectStorage,
     counts,
+  };
+}
+
+export async function getNearbyDiagnosticsForAdmin(
+  admin: AdminContext,
+  requestContext: AdminRequestContext,
+): Promise<AdminNearbyDiagnosticsResponse> {
+  const diagnostics = await deps.nearbyDiagnostics.getNearbyAdminDiagnostics();
+
+  await deps.audit.writeAuditLog({
+    adminUserId: admin.adminUser.id,
+    action: "admin.nearbyDiagnostics.read",
+    targetType: "nearby_diagnostics",
+    metadata: {
+      activeVisibilityCount: diagnostics.activeVisibilityCount,
+      offVisibilityCount: diagnostics.offVisibilityCount,
+      expiredVisibilityCount: diagnostics.expiredVisibilityCount,
+      recentlyUpdatedCount: diagnostics.recentlyUpdatedCount,
+      profileReadinessMissing: diagnostics.profileReadinessMissing,
+      feedExclusionReasons: diagnostics.feedExclusionReasons,
+    },
+    ...requestContext,
+  });
+
+  return {
+    ok: true,
+    status: "ok",
+    checkedAt: diagnostics.checkedAt.toISOString(),
+    activeVisibilityCount: diagnostics.activeVisibilityCount,
+    offVisibilityCount: diagnostics.offVisibilityCount,
+    expiredVisibilityCount: diagnostics.expiredVisibilityCount,
+    recentlyUpdatedCount: diagnostics.recentlyUpdatedCount,
+    profileReadinessMissing: diagnostics.profileReadinessMissing,
+    feedExclusionReasons: diagnostics.feedExclusionReasons,
   };
 }
 
