@@ -20,6 +20,10 @@ function isPublicMediaPath(pathname: string): boolean {
   return /^\/media\/public\/[^/?#]+$/.test(pathname);
 }
 
+function isLockedMediaPath(pathname: string): boolean {
+  return /^\/media\/locked\/[^/?#]+$/.test(pathname);
+}
+
 function mediaIdFromPublicMediaPath(pathname: string): string | undefined {
   if (!isPublicMediaPath(pathname)) return undefined;
   const mediaId = pathname.split("/").pop();
@@ -36,6 +40,29 @@ function resolveAgainstApiBase(pathname: string): string | undefined {
 
   try {
     return `${getApiBaseUrl()}${pathname}`;
+  } catch {
+    return undefined;
+  }
+}
+
+export function normalizeAuthenticatedLockedMediaUrl(
+  value: unknown,
+  context = "locked media URL"
+): string | undefined {
+  const normalized = normalizeString(value);
+  if (!normalized) return undefined;
+
+  const path = normalized.startsWith("/")
+    ? normalized.split(/[?#]/, 1)[0] ?? ""
+    : parseUrl(normalized)?.pathname ?? "";
+
+  if (!isLockedMediaPath(path)) {
+    warnInvalidMediaUrl(context, normalized);
+    return undefined;
+  }
+
+  try {
+    return `${getApiBaseUrl()}${path}`;
   } catch {
     return undefined;
   }

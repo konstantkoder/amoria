@@ -37,8 +37,10 @@ import { unlockUserLockedGallery } from "@/services/api/publicUsersApi";
 import * as safetyApi from "@/services/api/safetyApi";
 import type { SafetyReportReason } from "@/services/api/safetyApi";
 import { getUserProfileById } from "@/services/user";
+import { getBackendAccessToken } from "@/services/api/sessionStorage";
 import {
   getPublicMediaUrlInfo,
+  normalizeAuthenticatedLockedMediaUrl,
   normalizePublicMediaUrl,
   probePublicMediaUrlInfo,
   type PublicMediaUrlInfo,
@@ -92,6 +94,11 @@ function translatedProfileOptionLabel(
 }
 
 type ProfileLoadState = "loading" | "ready" | "blocked" | "not_found" | "network";
+type UnlockedGalleryPhoto = UserProfilePhoto & {
+  unlockToken: string;
+  unlockExpiresAt: string;
+  accessToken: string;
+};
 
 function isProfileUnavailableError(error: unknown): boolean {
   return (
@@ -132,7 +139,8 @@ export default function UserProfileScreen() {
   const [lockedPassword, setLockedPassword] = useState("");
   const [unlockBusy, setUnlockBusy] = useState(false);
   const [unlockError, setUnlockError] = useState("");
-  const [unlockedPhotos, setUnlockedPhotos] = useState<UserProfilePhoto[]>([]);
+  const [unlockedPhotos, setUnlockedPhotos] = useState<UnlockedGalleryPhoto[]>([]);
+  const [failedLockedPhotoIds, setFailedLockedPhotoIds] = useState<string[]>([]);
   const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
   const [failedPublicPhotoIds, setFailedPublicPhotoIds] = useState<string[]>([]);
   const reportedMediaFailuresRef = React.useRef<Set<string>>(new Set());
@@ -144,6 +152,7 @@ export default function UserProfileScreen() {
     setLockedPassword("");
     setUnlockError("");
     setUnlockedPhotos([]);
+    setFailedLockedPhotoIds([]);
     setAvatarLoadFailed(false);
     setFailedPublicPhotoIds([]);
     reportedMediaFailuresRef.current.clear();
@@ -414,22 +423,40 @@ export default function UserProfileScreen() {
     setUnlockError("");
     try {
       const response = await unlockUserLockedGallery(userId, password);
+      const accessToken = await getBackendAccessToken();
+      if (!accessToken) {
+        setUnlockError(tt("profile.lockedGalleryUnlockExpired", "Сессия истекла. Введите пароль ещё раз."));
+        return;
+      }
       setUnlockedPhotos(
         response.photos
-          .map((photo): UserProfilePhoto | null => {
-            const url = normalizePublicMediaUrl(photo.url, "locked gallery media URL");
+          .map((photo): UnlockedGalleryPhoto | null => {
+            const url = normalizeAuthenticatedLockedMediaUrl(photo.url, "locked gallery media URL");
             if (!url) return null;
             return {
               mediaId: photo.mediaId,
               url,
               position: photo.position,
+              visibility: "locked",
+              unlockToken: response.unlockToken,
+              unlockExpiresAt: response.unlockExpiresAt,
+              accessToken,
             };
           })
-          .filter((photo): photo is UserProfilePhoto => Boolean(photo))
+          .filter((photo): photo is UnlockedGalleryPhoto => Boolean(photo))
       );
+      setFailedLockedPhotoIds([]);
       setUnlockModalVisible(false);
       setLockedPassword("");
     } catch (error) {
+      if (error instanceof ApiError && error.code === "locked_gallery_rate_limited") {
+        setUnlockError(tt("profile.lockedGalleryTooManyAttempts", "Слишком много попыток. Попробуйте позже."));
+        return;
+      }
+      if (error instanceof ApiError && error.code === "locked_gallery_unlock_expired") {
+        setUnlockError(tt("profile.lockedGalleryUnlockExpired", "Сессия истекла. Введите пароль ещё раз."));
+        return;
+      }
       if (error instanceof ApiError && error.status === 403) {
         setUnlockError(tt("profile.lockedGalleryWrongPassword", "Неверный пароль."));
         return;
@@ -444,6 +471,18 @@ export default function UserProfileScreen() {
       setUnlockBusy(false);
     }
   }, [lockedPassword, tt, unlockBusy, userId]);
+
+  const handleLockedPhotoLoadFailed = useCallback(
+    (photo: UnlockedGalleryPhoto) => {
+      setFailedLockedPhotoIds((current) =>
+        current.includes(photo.mediaId) ? current : [...current, photo.mediaId]
+      );
+      setUnlockedPhotos([]);
+      setUnlockError(tt("profile.lockedGalleryUnlockExpired", "Сессия истекла. Введите пароль ещё раз."));
+      setUnlockModalVisible(true);
+    },
+    [tt]
+  );
 
   const reportUser = useCallback(
     async (reason: SafetyReportReason) => {
@@ -760,10 +799,10 @@ export default function UserProfileScreen() {
         {lockedGalleryAvailable ? (
           <View style={styles.galleryCard}>
             <Text style={styles.cardKicker}>
-              {tt("profile.lockedGalleryKicker", "Закрытая папка")}
+              {tt("profile.lockedGalleryKicker", "Закрытый альбом")}
             </Text>
             <Text style={styles.cardTitle}>
-              {tt("profile.lockedGalleryTitle", "Закрытая папка")}
+              {tt("profile.lockedGalleryTitle", "Закрытый альбом")}
             </Text>
             <Text style={styles.cardText}>
               {tt("profile.lockedGalleryBody", "Фотографии доступны по паролю")}
@@ -795,11 +834,29 @@ export default function UserProfileScreen() {
             </Text>
             <View style={styles.galleryGrid}>
               {unlockedPhotos.map((photo, index) => (
-                <Image
-                  key={`${photo.mediaId ?? photo.url}-${index}`}
-                  source={{ uri: photo.url }}
-                  style={styles.galleryPhoto}
-                />
+                failedLockedPhotoIds.includes(photo.mediaId) ? (
+                  <View
+                    key={`${photo.mediaId ?? photo.url}-${index}`}
+                    style={[styles.galleryPhoto, styles.galleryPhotoFailed]}
+                  >
+                    <Text style={styles.galleryPhotoFailedText}>
+                      {tt("profile.lockedGalleryUnlockExpired", "Сессия истекла. Введите пароль ещё раз.")}
+                    </Text>
+                  </View>
+                ) : (
+                  <Image
+                    key={`${photo.mediaId ?? photo.url}-${index}`}
+                    source={{
+                      uri: photo.url,
+                      headers: {
+                        Authorization: `Bearer ${photo.accessToken}`,
+                        "x-amoria-locked-gallery-token": photo.unlockToken,
+                      },
+                    }}
+                    style={styles.galleryPhoto}
+                    onError={() => handleLockedPhotoLoadFailed(photo)}
+                  />
+                )
               ))}
             </View>
           </View>
@@ -852,10 +909,10 @@ export default function UserProfileScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <Text style={styles.cardTitle}>
-              {tt("profile.lockedGalleryTitle", "Закрытая папка")}
+              {tt("profile.lockedGalleryTitle", "Закрытый альбом")}
             </Text>
             <Text style={styles.cardText}>
-              {tt("profile.lockedGalleryPasswordBody", "Введите пароль закрытой папки.")}
+              {tt("profile.lockedGalleryPasswordBody", "Введите пароль")}
             </Text>
             <TextInput
               value={lockedPassword}

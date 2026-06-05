@@ -147,6 +147,8 @@ export type ResetLockedGalleryPasswordRequest = {
 
 export type UnlockLockedGalleryResponse = {
   photos: ProfileGalleryPhotoDto[];
+  unlockToken: string;
+  unlockExpiresAt: string;
 };
 
 export type LoginRequest = {
