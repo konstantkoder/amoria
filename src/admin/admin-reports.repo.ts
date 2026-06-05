@@ -2,6 +2,7 @@ import { and, desc, eq, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "../db/client";
 import {
+  type JsonValue,
   type NewReportReviewActionRow,
   type ReportReviewActionRow,
   type SafetyReportRow,
@@ -85,8 +86,28 @@ export async function createReportReviewAction(input: {
   reason?: string | null;
   note?: string | null;
   metadata?: NewReportReviewActionRow["metadata"];
-}): Promise<{ report: AdminReportRow; reviewAction: ReportReviewActionRow } | undefined> {
-  const reviewAction = await db.transaction(async (tx) => {
+}): Promise<
+  | {
+    report: AdminReportRow;
+    reviewAction: ReportReviewActionRow;
+    previousStatus: ReportStatus;
+    nextStatus: ReportStatus;
+  }
+  | undefined
+> {
+  const result = await db.transaction(async (tx) => {
+    const [existingReport] = await tx
+      .select()
+      .from(safetyReports)
+      .where(eq(safetyReports.id, input.reportId))
+      .limit(1);
+
+    if (!existingReport) {
+      return undefined;
+    }
+
+    const previousStatus = existingReport.status as ReportStatus;
+    const nextStatus = input.status ?? previousStatus;
     const [updatedReport] = await tx
       .update(safetyReports)
       .set({
@@ -108,7 +129,7 @@ export async function createReportReviewAction(input: {
         action: input.action,
         reason: input.reason ?? null,
         note: input.note ?? null,
-        metadata: input.metadata ?? null,
+        metadata: withStatusMetadata(input.metadata, previousStatus, nextStatus),
       })
       .returning();
 
@@ -116,10 +137,14 @@ export async function createReportReviewAction(input: {
       throw new Error("Failed to write report review action");
     }
 
-    return reviewAction;
+    return {
+      reviewAction,
+      previousStatus,
+      nextStatus,
+    };
   });
 
-  if (!reviewAction) {
+  if (!result) {
     return undefined;
   }
 
@@ -128,7 +153,12 @@ export async function createReportReviewAction(input: {
     throw new Error("Failed to reload report after review action");
   }
 
-  return { report, reviewAction };
+  return {
+    report,
+    reviewAction: result.reviewAction,
+    previousStatus: result.previousStatus,
+    nextStatus: result.nextStatus,
+  };
 }
 
 function reportSelect() {
@@ -167,5 +197,32 @@ function toAdminReportRow(row: ReportSelectRow): AdminReportRow {
     status: row.report.status as ReportStatus,
     createdAt: row.report.createdAt,
     updatedAt: row.report.updatedAt,
+  };
+}
+
+function withStatusMetadata(
+  metadata: JsonValue | null | undefined,
+  previousStatus: ReportStatus,
+  nextStatus: ReportStatus,
+): JsonValue {
+  if (metadata && typeof metadata === "object" && !Array.isArray(metadata)) {
+    return {
+      ...metadata,
+      previousStatus,
+      nextStatus,
+    };
+  }
+
+  if (metadata === null || metadata === undefined) {
+    return {
+      previousStatus,
+      nextStatus,
+    };
+  }
+
+  return {
+    value: metadata,
+    previousStatus,
+    nextStatus,
   };
 }

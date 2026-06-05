@@ -9,6 +9,7 @@ Updated: 2026-06-05
 - Do not touch local launch/archive files from release commits.
 - Nearby mobile redesign and Announcements are out of scope for this Together/Admin pass.
 - Nearby Admin diagnostics must remain aggregate-only and must not expose exact coordinates, exact birth dates, locked gallery media, fake users, or raw profile text.
+- Admin Reports must show reporter, target owner/user, report reason/comment/status, safe target context, and audited status actions without exposing exact coordinates, exact birth dates, locked gallery content, private credentials, or signed URLs.
 
 ## Branches
 
@@ -104,6 +105,8 @@ Together Queue is the smoke-test control surface for waiting/matched/expired/can
 
 Together Sessions is the smoke-test control surface for created, active, finished, abandoned, cancelled, and recently ended sessions, including zero-event sessions, stale heartbeat, participant counts, event counts, story choice counts, reveal summaries, and exit state.
 
+Reports is the moderation control surface for safety reports. Moderators must see the reporter, target owner/user, target type/ID, reason/comment, status, created/updated timestamps, safe target context actions, and action audit history. Report actions are under review, dismiss, resolve, escalate, assign, and add note. Chat thread/message reports expose target IDs only until a safe chat-context viewer exists. Evidence upload is deferred to `REPORT-EVIDENCE-ATTACHMENTS-01`.
+
 ## Manual Smoke Required
 
 Automated checks cannot replace the real two-client pass:
@@ -170,4 +173,11 @@ Nearby future redesign should reuse `birthDate`/`ageGroup`, `preferredAgeRange`,
 - NEARBY-ADMIN-DIAGNOSTICS-01:
   - Backend/Admin Web now expose owner/ops Nearby diagnostics through aggregate counts and safe feed exclusion reason codes.
   - Responses and UI omit exact coordinates, exact birth dates, locked gallery media, raw profile text, object keys, signed URLs, and fake users.
+  - Build impact: backend restart yes, admin build yes, DB migration no, EAS rebuild no, Metro cache clear no.
+- ADMIN-REPORTS-MODERATION-WORKFLOW-01:
+  - Admin Reports now show reporter and target owner/user identity, target type/ID, reason/comment, status, timestamps, safe target context actions, and review action history.
+  - Report actions audit admin ID, action, reason/note, previous status, next status, and timestamp in both review action metadata and admin audit metadata.
+  - Safe context actions open existing admin user, media, Together session, and Nearby diagnostics views; chat thread/message viewers and evidence attachments remain deferred.
+  - Responses and UI omit exact coordinates, exact birth dates, locked gallery content, private credentials, signed URLs, password hashes, and refresh tokens.
+  - Verification: `npm run typecheck`, `npm test`, and `npm run admin:web:build` pass.
   - Build impact: backend restart yes, admin build yes, DB migration no, EAS rebuild no, Metro cache clear no.

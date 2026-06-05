@@ -60,6 +60,52 @@ const reportMetadataSchema = {
   ],
 } as const;
 
+const reportTargetContextLinkSchema = {
+  type: "object",
+  required: ["kind", "label", "screen", "available", "params", "unavailableReason"],
+  additionalProperties: false,
+  properties: {
+    kind: {
+      type: "string",
+      enum: [
+        "reporter_user",
+        "target_owner_user",
+        "target_user",
+        "target_media",
+        "target_thread",
+        "target_message",
+        "target_together_session",
+        "nearby_diagnostics",
+      ],
+    },
+    label: { type: "string" },
+    screen: {
+      type: "string",
+      enum: ["users", "media", "together_sessions", "nearby_diagnostics", "none"],
+    },
+    available: { type: "boolean" },
+    params: {
+      type: "object",
+      additionalProperties: { type: "string" },
+    },
+    unavailableReason: { type: ["string", "null"] },
+  },
+} as const;
+
+const reportTargetContextSchema = {
+  type: "object",
+  required: ["summary", "privacyNote", "links"],
+  additionalProperties: false,
+  properties: {
+    summary: { type: "string" },
+    privacyNote: { type: "string" },
+    links: {
+      type: "array",
+      items: reportTargetContextLinkSchema,
+    },
+  },
+} as const;
+
 const reportReviewActionItemSchema = {
   type: "object",
   required: ["id", "reportId", "adminUserId", "action", "reason", "note", "metadata", "createdAt"],
@@ -91,6 +137,7 @@ const reportItemSchema = {
     "status",
     "createdAt",
     "updatedAt",
+    "targetContext",
   ],
   additionalProperties: false,
   properties: {
@@ -108,6 +155,7 @@ const reportItemSchema = {
     status: { type: "string", enum: REPORT_STATUSES },
     createdAt: { type: "string", format: "date-time" },
     updatedAt: { type: "string", format: "date-time" },
+    targetContext: reportTargetContextSchema,
   },
 } as const;
 

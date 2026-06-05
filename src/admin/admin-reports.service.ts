@@ -116,13 +116,15 @@ export async function createReportActionForAdmin(
   assertCanActOnReport(admin, input.action);
 
   const status = statusForAction(input.action);
+  const cleanedReason = cleanOptional(input.reason, 500);
+  const cleanedNote = cleanOptional(input.note, 2000);
   const result = await deps.repo.createReportReviewAction({
     reportId,
     adminUserId: admin.adminUser.id,
     action: input.action,
     status,
-    reason: cleanOptional(input.reason, 500),
-    note: cleanOptional(input.note, 2000),
+    reason: cleanedReason,
+    note: cleanedNote,
     metadata: sanitizeAuditMetadata(input.metadata),
   });
 
@@ -135,11 +137,15 @@ export async function createReportActionForAdmin(
     action: "admin.reports.action",
     targetType: "safety_report",
     targetId: reportId,
-    reason: cleanOptional(input.reason, 500),
+    reason: cleanedReason,
     metadata: {
       action: input.action,
-      status: status ?? result.report.status,
-      hasNote: Boolean(cleanOptional(input.note, 2000)),
+      reason: cleanedReason,
+      note: cleanedNote,
+      previousStatus: result.previousStatus,
+      nextStatus: result.nextStatus,
+      hasNote: Boolean(cleanedNote),
+      actionCreatedAt: result.reviewAction.createdAt.toISOString(),
     },
     ...requestContext,
   });

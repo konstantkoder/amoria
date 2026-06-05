@@ -187,6 +187,30 @@ export type ReportItem = {
   status: string;
   createdAt: string;
   updatedAt: string;
+  targetContext: ReportTargetContext;
+};
+
+export type ReportTargetContext = {
+  summary: string;
+  privacyNote: string;
+  links: ReportTargetContextLink[];
+};
+
+export type ReportTargetContextLink = {
+  kind:
+    | "reporter_user"
+    | "target_owner_user"
+    | "target_user"
+    | "target_media"
+    | "target_thread"
+    | "target_message"
+    | "target_together_session"
+    | "nearby_diagnostics";
+  label: string;
+  screen: "users" | "media" | "together_sessions" | "nearby_diagnostics" | "none";
+  available: boolean;
+  params: Record<string, string>;
+  unavailableReason: string | null;
 };
 
 export type ReportReviewAction = {

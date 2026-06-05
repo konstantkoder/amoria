@@ -22,6 +22,7 @@ import {
   PublicMediaProbeResult,
   ReportDetail,
   ReportItem,
+  ReportTargetContextLink,
   Tokens,
   TogetherQueueEntry,
   TogetherSessionItem,
@@ -67,6 +68,19 @@ type ScreenItem = {
   roles?: string[];
 };
 
+type UserSearchRequest = {
+  nonce: number;
+  amoriaId?: string;
+  q?: string;
+};
+
+type MediaOpenRequest = {
+  nonce: number;
+  mediaId: string;
+  ownerAmoriaId?: string;
+  reason?: string;
+};
+
 const screens: ScreenItem[] = [
   { key: "dashboard", labelKey: "nav.dashboard" },
   { key: "users", labelKey: "nav.users" },
@@ -98,6 +112,8 @@ export function App() {
   const [authState, setAuthState] = useState<"checking" | "login" | "ready" | "forbidden">("checking");
   const [message, setMessage] = useState<string | null>(null);
   const [togetherSessionFilter, setTogetherSessionFilter] = useState("");
+  const [userSearchRequest, setUserSearchRequest] = useState<UserSearchRequest | null>(null);
+  const [mediaOpenRequest, setMediaOpenRequest] = useState<MediaOpenRequest | null>(null);
 
   const i18n = useMemo<I18nContextValue>(() => {
     const setLanguage = (nextLanguage: Language) => {
@@ -213,12 +229,29 @@ export function App() {
           {message ? <div className="notice">{message}</div> : null}
 
           {activeScreen === "dashboard" ? <Dashboard /> : null}
-          {activeScreen === "users" ? <UsersScreen /> : null}
+          {activeScreen === "users" ? <UsersScreen initialSearch={userSearchRequest} /> : null}
           {activeScreen === "adminUsers" ? <AdminUsersScreen /> : null}
           {activeScreen === "clientErrors" ? <ClientErrorsScreen setMessage={setMessage} /> : null}
           {activeScreen === "auditLog" ? <AuditLogScreen /> : null}
-          {activeScreen === "reports" ? <ReportsScreen setMessage={setMessage} /> : null}
-          {activeScreen === "media" ? <MediaScreen setMessage={setMessage} /> : null}
+          {activeScreen === "reports" ? (
+            <ReportsScreen
+              setMessage={setMessage}
+              onOpenUser={(request) => {
+                setUserSearchRequest({ ...request, nonce: Date.now() });
+                setScreen("users");
+              }}
+              onOpenMedia={(request) => {
+                setMediaOpenRequest({ ...request, nonce: Date.now() });
+                setScreen("media");
+              }}
+              onOpenTogetherSession={(sessionId) => {
+                setTogetherSessionFilter(sessionId);
+                setScreen("togetherSessions");
+              }}
+              onOpenNearbyDiagnostics={() => setScreen("opsHealth")}
+            />
+          ) : null}
+          {activeScreen === "media" ? <MediaScreen setMessage={setMessage} openRequest={mediaOpenRequest} /> : null}
           {activeScreen === "togetherQueue" ? (
             <TogetherQueueScreen
               onOpenSession={(sessionId) => {
@@ -329,7 +362,7 @@ function Dashboard() {
   );
 }
 
-function UsersScreen() {
+function UsersScreen({ initialSearch }: { initialSearch: UserSearchRequest | null }) {
   const { language, t } = useI18n();
   const [amoriaId, setAmoriaId] = useState("");
   const [q, setQ] = useState("");
@@ -337,20 +370,36 @@ function UsersScreen() {
   const [error, setError] = useState<string | null>(null);
   const [searched, setSearched] = useState(false);
 
-  async function search(event: FormEvent) {
-    event.preventDefault();
+  async function runSearch(nextAmoriaId = amoriaId, nextQ = q) {
     setError(null);
     setSearched(true);
 
     try {
       const response = await apiGet<{ items: UserSearchItem[] }>(
-        `/admin/users${toQuery({ amoriaId, q, limit: 50 })}`,
+        `/admin/users${toQuery({ amoriaId: nextAmoriaId, q: nextQ, limit: 50 })}`,
       );
       setItems(response.items);
     } catch (error) {
       setError(errorMessage(error, t));
     }
   }
+
+  async function search(event: FormEvent) {
+    event.preventDefault();
+    await runSearch();
+  }
+
+  useEffect(() => {
+    if (!initialSearch) {
+      return;
+    }
+
+    const nextAmoriaId = initialSearch.amoriaId ?? "";
+    const nextQ = initialSearch.q ?? "";
+    setAmoriaId(nextAmoriaId);
+    setQ(nextQ);
+    void runSearch(nextAmoriaId, nextQ);
+  }, [initialSearch?.nonce]);
 
   return (
     <section className="panel">
@@ -670,7 +719,19 @@ function AuditLogScreen() {
   );
 }
 
-function ReportsScreen({ setMessage }: { setMessage: (message: string | null) => void }) {
+function ReportsScreen({
+  setMessage,
+  onOpenUser,
+  onOpenMedia,
+  onOpenTogetherSession,
+  onOpenNearbyDiagnostics,
+}: {
+  setMessage: (message: string | null) => void;
+  onOpenUser: (request: Omit<UserSearchRequest, "nonce">) => void;
+  onOpenMedia: (request: Omit<MediaOpenRequest, "nonce">) => void;
+  onOpenTogetherSession: (sessionId: string) => void;
+  onOpenNearbyDiagnostics: () => void;
+}) {
   const { language, t, tx } = useI18n();
   const [filters, setFilters] = useState({ status: "", targetType: "", reporterAmoriaId: "", targetOwnerAmoriaId: "", limit: "50" });
   const [items, setItems] = useState<ReportItem[]>([]);
@@ -696,8 +757,13 @@ function ReportsScreen({ setMessage }: { setMessage: (message: string | null) =>
   }
 
   async function openDetail(id: string) {
-    const response = await apiGet<{ report: ReportDetail }>(`/admin/reports/${id}`);
-    setSelected(response.report);
+    setError(null);
+    try {
+      const response = await apiGet<{ report: ReportDetail }>(`/admin/reports/${id}`);
+      setSelected(response.report);
+    } catch (error) {
+      setError(errorMessage(error, t));
+    }
   }
 
   async function submitAction(event: FormEvent) {
@@ -718,6 +784,42 @@ function ReportsScreen({ setMessage }: { setMessage: (message: string | null) =>
       await load();
     } catch (error) {
       setError(errorMessage(error, t));
+    }
+  }
+
+  function openTargetContext(link: ReportTargetContextLink) {
+    if (!link.available) {
+      setMessage(link.unavailableReason ?? t("reports.contextUnavailable"));
+      return;
+    }
+
+    switch (link.screen) {
+      case "users":
+        onOpenUser({
+          amoriaId: link.params.amoriaId,
+          q: link.params.q,
+        });
+        break;
+      case "media":
+        if (link.params.mediaId) {
+          onOpenMedia({
+            mediaId: link.params.mediaId,
+            ownerAmoriaId: selected?.targetOwner?.amoriaId,
+            reason: link.params.reason,
+          });
+        }
+        break;
+      case "together_sessions":
+        if (link.params.sessionId) {
+          onOpenTogetherSession(link.params.sessionId);
+        }
+        break;
+      case "nearby_diagnostics":
+        onOpenNearbyDiagnostics();
+        break;
+      case "none":
+        setMessage(link.unavailableReason ?? t("reports.contextUnavailable"));
+        break;
     }
   }
 
@@ -757,9 +859,9 @@ function ReportsScreen({ setMessage }: { setMessage: (message: string | null) =>
                 <tr key={item.id} onClick={() => void openDetail(item.id)} className={selected?.id === item.id ? "selected" : ""}>
                   <td>{formatDate(item.createdAt, language)}</td>
                   <td>{formatStatus(item.status, t)}</td>
-                  <td>{item.reporter.amoriaId}</td>
-                  <td>{item.targetType}:{item.targetId}</td>
-                  <td>{item.targetOwner?.amoriaId ?? ""}</td>
+                  <td>{formatReportUser(item.reporter)}</td>
+                  <td>{item.targetContext.summary}</td>
+                  <td>{item.targetOwner ? formatReportUser(item.targetOwner) : ""}</td>
                   <td>{item.reason}</td>
                 </tr>
               ))}
@@ -771,7 +873,50 @@ function ReportsScreen({ setMessage }: { setMessage: (message: string | null) =>
         <h2>{t("reports.reportDetail")}</h2>
         {selected ? (
           <>
-            <JsonBlock data={selected} />
+            <dl className="facts compact">
+              <Fact label={t("common.status")} value={formatStatus(selected.status, t)} />
+              <Fact label={t("reports.targetType")} value={selected.targetType} />
+              <Fact label={t("reports.targetId")} value={selected.targetId} />
+              <Fact label={t("common.reason")} value={selected.reason} />
+              <Fact label={t("reports.comment")} value={selected.comment ?? ""} />
+              <Fact label={t("common.created")} value={formatDate(selected.createdAt, language)} />
+              <Fact label={t("common.updated")} value={formatDate(selected.updatedAt, language)} />
+            </dl>
+
+            <h3>{t("reports.reporterUser")}</h3>
+            <ReportUserFacts user={selected.reporter} />
+
+            <h3>{t("reports.targetUser")}</h3>
+            {selected.targetOwner ? (
+              <ReportUserFacts user={selected.targetOwner} />
+            ) : (
+              <p className="muted">{t("reports.noTargetOwner")}</p>
+            )}
+
+            <h3>{t("reports.targetContext")}</h3>
+            <p className="muted">{selected.targetContext.privacyNote}</p>
+            <div className="filters">
+              {selected.targetContext.links.map((link) => (
+                <button
+                  key={`${link.kind}-${link.label}`}
+                  className="secondary"
+                  type="button"
+                  onClick={() => openTargetContext(link)}
+                >
+                  {formatReportContextLinkLabel(link, t)}
+                </button>
+              ))}
+            </div>
+            {selected.targetContext.links.some((link) => !link.available) ? (
+              <div className="hint-list">
+                {selected.targetContext.links.filter((link) => !link.available).map((link) => (
+                  <span key={`${link.kind}-unavailable`}>
+                    <strong>{formatReportContextLinkLabel(link, t)}</strong>: {link.unavailableReason ?? t("reports.contextUnavailable")} {link.params.targetId ?? ""}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+
             <form className="stack-form" onSubmit={submitAction}>
               <label>{t("common.action")}<select value={action} onChange={(event) => setAction(event.target.value)}>
                 <option value="mark_under_review">{t("reports.markUnderReview")}</option>
@@ -785,10 +930,52 @@ function ReportsScreen({ setMessage }: { setMessage: (message: string | null) =>
               <label>{t("common.note")}<textarea value={note} onChange={(event) => setNote(event.target.value)} /></label>
               <button>{t("common.apply")}</button>
             </form>
+
+            <h3>{t("reports.auditTrail")}</h3>
+            {selected.reviewActions.length ? (
+              <table>
+                <thead>
+                  <tr>
+                    <th>{t("common.created")}</th>
+                    <th>{t("common.admin")}</th>
+                    <th>{t("common.action")}</th>
+                    <th>{t("reports.previousStatus")}</th>
+                    <th>{t("reports.nextStatus")}</th>
+                    <th>{t("common.reason")}</th>
+                    <th>{t("common.note")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {selected.reviewActions.map((reviewAction) => (
+                    <tr key={reviewAction.id}>
+                      <td>{formatDate(reviewAction.createdAt, language)}</td>
+                      <td>{reviewAction.adminUserId ?? ""}</td>
+                      <td>{formatReportReviewAction(reviewAction.action, t)}</td>
+                      <td>{formatMaybeStatus(metadataString(reviewAction.metadata, "previousStatus"), t)}</td>
+                      <td>{formatMaybeStatus(metadataString(reviewAction.metadata, "nextStatus"), t)}</td>
+                      <td>{reviewAction.reason ?? ""}</td>
+                      <td>{reviewAction.note ?? ""}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : <EmptyState label={t("reports.noAuditActions")} />}
           </>
         ) : <EmptyState label={t("reports.select")} />}
       </div>
     </section>
+  );
+}
+
+function ReportUserFacts({ user }: { user: ReportItem["reporter"] }) {
+  const { t } = useI18n();
+  return (
+    <dl className="facts compact">
+      <Fact label={t("common.displayName")} value={user.displayName} />
+      <Fact label={t("common.amoriaId")} value={user.amoriaId} />
+      <Fact label={t("reports.userId")} value={user.id} />
+      <Fact label={t("common.email")} value={user.email} />
+    </dl>
   );
 }
 
@@ -1231,7 +1418,13 @@ function formatProbeDetails(probe: PublicMediaProbeResult): string {
   ].filter(Boolean).join(" · ");
 }
 
-function MediaScreen({ setMessage }: { setMessage: (message: string | null) => void }) {
+function MediaScreen({
+  setMessage,
+  openRequest,
+}: {
+  setMessage: (message: string | null) => void;
+  openRequest: MediaOpenRequest | null;
+}) {
   const { language, t, tx } = useI18n();
   const [filters, setFilters] = useState({ ownerAmoriaId: "", type: "", moderationStatus: "", limit: "50" });
   const [items, setItems] = useState<MediaItem[]>([]);
@@ -1294,17 +1487,34 @@ function MediaScreen({ setMessage }: { setMessage: (message: string | null) => v
   }
 
   async function openDetail(item: MediaItem) {
+    await openDetailById(item.id, detailReason);
+  }
+
+  async function openDetailById(mediaId: string, reason: string) {
     setError(null);
     try {
       const response = await apiGet<{ media: MediaDetail }>(
-        `/admin/media/${item.id}${toQuery({ reason: detailReason })}`,
+        `/admin/media/${mediaId}${toQuery({ reason })}`,
       );
       setSelected(response.media);
-      setSelectedReason(detailReason);
+      setSelectedReason(reason);
     } catch (error) {
       setError(errorMessage(error, t));
     }
   }
+
+  useEffect(() => {
+    if (!openRequest) {
+      return;
+    }
+
+    const reason = openRequest.reason ?? "";
+    setDetailReason(reason);
+    if (openRequest.ownerAmoriaId) {
+      setFilters((current) => ({ ...current, ownerAmoriaId: openRequest.ownerAmoriaId ?? "" }));
+    }
+    void openDetailById(openRequest.mediaId, reason);
+  }, [openRequest?.nonce]);
 
   async function submitDecision(event: FormEvent) {
     event.preventDefault();
@@ -1719,6 +1929,69 @@ function formatNearbyFeedExclusionReason(
 
 function errorMessage(error: unknown, t: (key: TranslationKey) => string): string {
   return error instanceof Error ? error.message : t("error.requestFailed");
+}
+
+function formatReportUser(user: ReportItem["reporter"]): string {
+  return `${user.displayName} · ${user.amoriaId} · ${user.id}`;
+}
+
+function formatReportContextLinkLabel(
+  link: ReportTargetContextLink,
+  t: (key: TranslationKey) => string,
+): string {
+  switch (link.kind) {
+    case "reporter_user":
+      return t("reports.openReporter");
+    case "target_owner_user":
+      return t("reports.openTargetOwner");
+    case "target_user":
+      return t("reports.openTargetUser");
+    case "target_media":
+      return t("reports.openTargetMedia");
+    case "target_thread":
+      return t("reports.targetThread");
+    case "target_message":
+      return t("reports.targetMessage");
+    case "target_together_session":
+      return t("reports.openTogetherSession");
+    case "nearby_diagnostics":
+      return t("reports.openNearbyDiagnostics");
+  }
+}
+
+function formatReportReviewAction(
+  action: string,
+  t: (key: TranslationKey) => string,
+): string {
+  switch (action) {
+    case "assign":
+      return t("reports.assign");
+    case "mark_under_review":
+      return t("reports.markUnderReview");
+    case "dismiss":
+      return t("reports.dismiss");
+    case "resolve":
+      return t("reports.resolve");
+    case "escalate":
+      return t("reports.escalate");
+    case "add_note":
+      return t("reports.addNote");
+    default:
+      return action;
+  }
+}
+
+function metadataString(metadata: unknown, key: string): string {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+    return "";
+  }
+
+  const value = (metadata as Record<string, unknown>)[key];
+  return typeof value === "string" ? value : "";
+}
+
+function formatMaybeStatus(status: string, t: (key: TranslationKey) => string): string {
+  return status ? formatStatus(status, t) : "";
 }
 
 function formatRoles(roles: string[], t: (key: TranslationKey) => string): string {

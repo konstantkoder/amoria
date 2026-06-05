@@ -6,6 +6,7 @@ import type { AdminContextRow } from "../src/admin/admin.repo";
 import type { AdminAuditInput, AdminRoleKey } from "../src/admin/admin.types";
 import type {
   AdminUserRow,
+  JsonValue,
   MediaModerationReviewRow,
   ReportReviewActionRow,
   UserRow,
@@ -448,7 +449,69 @@ test("GET /admin/reports enforces report role policy", async (t) => {
   });
 
   assert.equal(allowed.statusCode, 200);
-  assert.equal(allowed.json().items[0].id, reportId);
+  const bodyText = allowed.body;
+  const item = allowed.json().items[0];
+  assert.equal(item.id, reportId);
+  assert.equal(item.reporter.displayName, "Amoria Owner");
+  assert.equal(item.reporter.amoriaId, "AMOWNER1");
+  assert.equal(item.reporter.id, userId);
+  assert.equal(item.targetOwner.displayName, "Target User");
+  assert.equal(item.targetOwner.amoriaId, "AMTARGET");
+  assert.equal(item.targetOwner.id, "00000000-0000-4000-8000-000000000099");
+  assert.equal(item.targetType, "user");
+  assert.equal(item.targetId, "00000000-0000-4000-8000-000000000099");
+  assert.equal(item.targetContext.summary, "user:00000000-0000-4000-8000-000000000099");
+  assert.equal(
+    item.targetContext.links.some((link: { kind: string; screen: string; available: boolean }) =>
+      link.kind === "target_user" && link.screen === "users" && link.available,
+    ),
+    true,
+  );
+  assert.equal(bodyText.includes("latitude"), false);
+  assert.equal(bodyText.includes("longitude"), false);
+  assert.equal(bodyText.includes("birthDate"), false);
+  assert.equal(bodyText.includes("birth_date"), false);
+  assert.equal(bodyText.includes("lockedGallery"), false);
+  assert.equal(bodyText.includes("locked_gallery"), false);
+  assert.equal(bodyText.includes("signedUrl"), false);
+});
+
+test("GET /admin/reports/:id exposes safe target context for media reports", async (t) => {
+  t.after(restoreDeps);
+  mockAdmin({ roles: ["moderator"] });
+  mockReports({
+    report: {
+      targetType: "media",
+      targetId: mediaId,
+    },
+  });
+  const app = buildApp();
+  t.after(async () => {
+    await app.close();
+  });
+
+  const response = await app.inject({
+    method: "GET",
+    url: `/admin/reports/${reportId}`,
+    headers: authHeaders(userId),
+  });
+  const bodyText = response.body;
+  const report = response.json().report;
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(report.targetContext.summary, `media:${mediaId}`);
+  const mediaLink = report.targetContext.links.find((link: { kind: string }) => link.kind === "target_media");
+  assert.equal(mediaLink.screen, "media");
+  assert.equal(mediaLink.available, true);
+  assert.equal(mediaLink.params.mediaId, mediaId);
+  assert.equal(mediaLink.params.reason, `Safety report ${reportId}`);
+  assert.equal(bodyText.includes("latitude"), false);
+  assert.equal(bodyText.includes("longitude"), false);
+  assert.equal(bodyText.includes("birthDate"), false);
+  assert.equal(bodyText.includes("birth_date"), false);
+  assert.equal(bodyText.includes("lockedGallery"), false);
+  assert.equal(bodyText.includes("locked_gallery"), false);
+  assert.equal(bodyText.includes("signedUrl"), false);
 });
 
 test("POST /admin/reports/:id/actions writes review action and audit log", async (t) => {
@@ -473,11 +536,48 @@ test("POST /admin/reports/:id/actions writes review action and audit log", async
   });
 
   assert.equal(response.statusCode, 200);
+  const body = response.json();
   assert.equal(state.reviewActions[0]?.action, "resolve");
   assert.equal(state.reviewActions[0]?.status, "resolved");
   assert.equal(state.reviewActions[0]?.metadata?.accessToken, "[redacted]");
+  assert.equal(state.reviewActions[0]?.metadata?.previousStatus, "open");
+  assert.equal(state.reviewActions[0]?.metadata?.nextStatus, "resolved");
+  assert.equal(body.report.status, "resolved");
+  assert.equal(body.reviewAction.metadata.previousStatus, "open");
+  assert.equal(body.reviewAction.metadata.nextStatus, "resolved");
   assert.equal(state.auditInputs[0]?.action, "admin.reports.action");
   assert.equal(state.auditInputs[0]?.targetId, reportId);
+  assert.equal(state.auditInputs[0]?.reason, "Reviewed evidence");
+  const auditMetadata = state.auditInputs[0]?.metadata as Record<string, unknown> | undefined;
+  assert.equal(auditMetadata?.action, "resolve");
+  assert.equal(auditMetadata?.reason, "Reviewed evidence");
+  assert.equal(auditMetadata?.note, "Handled by moderator");
+  assert.equal(auditMetadata?.previousStatus, "open");
+  assert.equal(auditMetadata?.nextStatus, "resolved");
+  assert.equal(auditMetadata?.hasNote, true);
+});
+
+test("POST /admin/reports/:id/actions blocks support from status changes", async (t) => {
+  t.after(restoreDeps);
+  mockAdmin({ roles: ["support"] });
+  const state = mockReports();
+  const app = buildApp();
+  t.after(async () => {
+    await app.close();
+  });
+
+  const denied = await app.inject({
+    method: "POST",
+    url: `/admin/reports/${reportId}/actions`,
+    headers: authHeaders(userId),
+    payload: {
+      action: "resolve",
+      reason: "Support should not resolve reports",
+    },
+  });
+
+  assert.equal(denied.statusCode, 403);
+  assert.equal(state.reviewActions.length, 0);
 });
 
 test("GET /admin/media enforces media role policy", async (t) => {
@@ -718,7 +818,7 @@ function mockOwnerBootstrap(input: { existingUser?: UserRow } = {}) {
   return state;
 }
 
-function mockReports() {
+function mockReports(input: { report?: Partial<AdminReportRow> } = {}) {
   restoreReportsDeps?.();
   restoreReportsDeps = null;
 
@@ -736,23 +836,28 @@ function mockReports() {
 
   restoreReportsDeps = adminReportsService.__setAdminReportsServiceDepsForTests({
     repo: {
-      listReports: async () => [reportRow({})],
-      findReportById: async () => reportRow({}),
+      listReports: async () => [reportRow(input.report ?? {})],
+      findReportById: async () => reportRow(input.report ?? {}),
       listReportReviewActions: async () => [reportReviewActionRow({})],
-      createReportReviewAction: async (input) => {
+      createReportReviewAction: async (actionInput) => {
+        const previousStatus = (input.report?.status ?? "open") as ReportStatus;
+        const nextStatus = actionInput.status ?? previousStatus;
+        const metadata = reportActionMetadata(actionInput.metadata, previousStatus, nextStatus);
         state.reviewActions.push({
-          action: input.action,
-          status: input.status,
-          metadata: input.metadata as Record<string, unknown> | null,
+          action: actionInput.action,
+          status: actionInput.status,
+          metadata,
         });
         return {
-          report: reportRow({ status: input.status ?? "open" }),
+          report: reportRow({ ...input.report, status: nextStatus }),
           reviewAction: reportReviewActionRow({
-            action: input.action,
-            reason: input.reason ?? null,
-            note: input.note ?? null,
-            metadata: input.metadata ?? null,
+            action: actionInput.action,
+            reason: actionInput.reason ?? null,
+            note: actionInput.note ?? null,
+            metadata,
           }),
+          previousStatus,
+          nextStatus,
         };
       },
     },
@@ -764,6 +869,25 @@ function mockReports() {
   });
 
   return state;
+}
+
+function reportActionMetadata(
+  metadata: JsonValue | null | undefined,
+  previousStatus: ReportStatus,
+  nextStatus: ReportStatus,
+): { [key: string]: JsonValue } {
+  if (metadata && typeof metadata === "object" && !Array.isArray(metadata)) {
+    return {
+      ...metadata,
+      previousStatus,
+      nextStatus,
+    };
+  }
+
+  return {
+    previousStatus,
+    nextStatus,
+  };
 }
 
 function mockMedia(input: { visibility?: AdminMediaRow["visibility"] } = {}) {

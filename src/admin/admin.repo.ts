@@ -179,11 +179,15 @@ export async function searchUsers(query: AdminUserSearchQuery): Promise<AdminUse
 
   if (query.q) {
     const pattern = `%${query.q}%`;
-    conditions.push(or(
+    const qConditions: SQL[] = [
       ilike(users.amoriaId, pattern),
       ilike(users.displayName, pattern),
       ilike(users.email, pattern),
-    ) as SQL);
+    ];
+    if (isUuidLike(query.q)) {
+      qConditions.push(eq(users.id, query.q));
+    }
+    conditions.push(or(...qConditions) as SQL);
   }
 
   let selectQuery = db
@@ -210,6 +214,10 @@ export async function searchUsers(query: AdminUserSearchQuery): Promise<AdminUse
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   }));
+}
+
+function isUuidLike(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
 export async function listAdminUsers(): Promise<AdminUserListItem[]> {

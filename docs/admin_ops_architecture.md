@@ -1,6 +1,6 @@
 # Admin/Ops Architecture
 
-Updated: 2026-06-04
+Updated: 2026-06-05
 
 ## Purpose
 
@@ -35,7 +35,7 @@ Audit metadata must stay sanitized: no passwords, tokens, signed URLs, exact coo
 - Users: real user lookup and safe identifiers.
 - Admin Users: owner-only safe admin user/role read view.
 - Client Errors: filterable lifecycle feed with safe metadata and audited status actions.
-- Reports: report list/detail/action flow with reason/note where required.
+- Reports: report list/detail/action flow with reporter, target owner, safe target context links, reason/note, and audited status transitions.
 - Media Moderation: real previews when allowed, authenticated locked-media review with reason/audit, audited decisions, and no fake moderation provider success.
 - Together Queue: owner/ops queue diagnostics with filters for activity, status, radius, `geoMode`, and `hasCoordinates`; no exact coordinates.
 - Together Sessions: owner/ops latest session diagnostics for active, finished, abandoned, cancelled, and recently ended sessions; no raw event payloads.
@@ -53,6 +53,24 @@ Owner/ops can read `GET /admin/nearby/diagnostics` from the Ops Health page. The
 - `checkedAt`.
 
 Nearby diagnostics are designed to explain why real users do not appear in the Nearby feed. They do not expose exact coordinates, exact birth dates, locked gallery media, raw profile text, public media rows, object keys, signed URLs, or fake users.
+
+## Reports Moderation Workflow
+
+Admin Reports show who reported whom and what was reported without exposing private context. List/detail rows include reporter user, target owner/user when available, target type, target ID, reason, comment, status, created/updated timestamps, and action history.
+
+Safe target context actions can open:
+
+- reporter and target owner user lookup;
+- target user lookup by user ID;
+- media detail through the existing audited Admin Media route;
+- Together session diagnostics by session ID;
+- Nearby aggregate diagnostics.
+
+Chat thread/message reports currently expose the target IDs only. A dedicated safe chat-context view is not part of this release block.
+
+Report actions are `mark_under_review`, `dismiss`, `resolve`, `escalate`, `add_note`, and `assign`. Each action writes the review action row and an admin audit row with admin ID, action, reason/note, previous status, next status, and timestamp. Support can add notes only; owner/moderator can change report status.
+
+Evidence uploads are deferred to `REPORT-EVIDENCE-ATTACHMENTS-01`.
 
 ## Together Diagnostics
 
