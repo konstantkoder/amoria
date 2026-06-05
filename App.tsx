@@ -21,6 +21,12 @@ import { LocaleProvider, useLocale } from "@/contexts/LocaleContext";
 import { theme } from "@/theme/theme";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import LanguagePickerHost from "@/components/LanguagePickerHost";
+import {
+  markStartupEvent,
+  markStartupTimingFromStart,
+} from "@/services/startupDiagnostics";
+
+markStartupEvent("app.module_loaded");
 
 LogBox.ignoreLogs([
   "expo-notifications: Android Push notifications (remote notifications) functionality provided by expo-notifications was removed from Expo Go with the release of SDK 53.",
@@ -54,6 +60,7 @@ function AppNavigation({ isSignedIn }: AppNavigationProps) {
       theme={navTheme}
       onReady={() => {
         (globalThis as any).__NAV = navigationRef;
+        markStartupTimingFromStart("first_screen.ready", { signedIn: isSignedIn });
       }}
     >
       <Stack.Navigator screenOptions={{ headerShown: false }}>

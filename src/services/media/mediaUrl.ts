@@ -1,4 +1,5 @@
 import { getApiBaseUrl } from "@/config/apiConfig";
+import { recordStartupMediaProbe } from "@/services/startupDiagnostics";
 
 function normalizeString(value: unknown) {
   return String(value ?? "").trim();
@@ -207,13 +208,21 @@ export async function probePublicMediaUrl(
 export async function probePublicMediaUrlInfo(
   urlInfo: PublicMediaUrlInfo
 ): Promise<PublicMediaProbeResult> {
+  const startedAtMs = Date.now();
   if (!urlInfo.url) {
-    return {
+    const result = {
       ok: false,
       urlKind: urlInfo.urlKind,
       ...(urlInfo.mediaId ? { mediaId: urlInfo.mediaId } : {}),
       errorCode: "invalid_url",
     };
+    recordStartupMediaProbe({
+      ok: result.ok,
+      urlKind: result.urlKind,
+      errorCode: result.errorCode,
+      durationMs: Date.now() - startedAtMs,
+    });
+    return result;
   }
 
   try {
@@ -225,7 +234,7 @@ export async function probePublicMediaUrlInfo(
     const errorCode = await readProbeErrorCode(response, contentType);
     await response.blob().catch(() => undefined);
 
-    return {
+    const result = {
       ok: response.ok && Boolean(contentType?.startsWith("image/")),
       urlKind: urlInfo.urlKind,
       ...(urlInfo.mediaId ? { mediaId: urlInfo.mediaId } : {}),
@@ -233,17 +242,33 @@ export async function probePublicMediaUrlInfo(
       ...(contentType ? { contentType } : {}),
       ...(errorCode ? { errorCode } : {}),
     };
+    recordStartupMediaProbe({
+      ok: result.ok,
+      urlKind: result.urlKind,
+      httpStatus: result.httpStatus,
+      contentType: result.contentType,
+      errorCode: result.errorCode,
+      durationMs: Date.now() - startedAtMs,
+    });
+    return result;
   } catch (error) {
     const errorName =
       error && typeof error === "object" && "name" in error
         ? String((error as { name?: unknown }).name ?? "network_error")
         : "network_error";
-    return {
+    const result = {
       ok: false,
       urlKind: urlInfo.urlKind,
       ...(urlInfo.mediaId ? { mediaId: urlInfo.mediaId } : {}),
       errorCode: errorName || "network_error",
     };
+    recordStartupMediaProbe({
+      ok: result.ok,
+      urlKind: result.urlKind,
+      errorCode: result.errorCode,
+      durationMs: Date.now() - startedAtMs,
+    });
+    return result;
   }
 }
 

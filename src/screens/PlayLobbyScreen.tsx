@@ -27,6 +27,7 @@ import {
   getUserProfile,
   hasBirthDate,
 } from "@/services/user";
+import { startStartupSpan } from "@/services/startupDiagnostics";
 import { theme } from "@/theme";
 
 function isReleasePlayActivity(
@@ -112,14 +113,22 @@ export default function PlayLobbyScreen() {
   useFocusEffect(
     React.useCallback(() => {
       let alive = true;
+      const finishTogetherInitialLoad = startStartupSpan("together.initial_load", {
+        focused: true,
+      });
       void getUserProfile()
         .then((profile) => {
           if (!alive) return;
           setProfileInterestCount(profile.interests.length);
+          finishTogetherInitialLoad({
+            outcome: "success",
+            interestCount: profile.interests.length,
+          });
         })
         .catch(() => {
           if (!alive) return;
           setProfileInterestCount(null);
+          finishTogetherInitialLoad({ outcome: "error" });
         });
 
       return () => {

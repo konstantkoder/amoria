@@ -55,6 +55,7 @@ import {
   normalizeDisplayNameInput,
   updateUserDisplayName,
 } from "@/services/user";
+import { startStartupSpan } from "@/services/startupDiagnostics";
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const RootStack = createNativeStackNavigator<RootStackParamList>();
@@ -113,17 +114,23 @@ function IdentitySetupGate({ children }: { children: React.ReactNode }) {
 
     setLoading(true);
     setErrorText("");
+    const finishProfileBootstrap = startStartupSpan("profile.bootstrap");
     void getUserProfile()
       .then((profile) => {
         if (!alive) return;
         const displayName = profile.displayName ?? "";
         setNameDraft(displayName);
         setRequiresName(Boolean(getDisplayNameValidationErrorKey(displayName)));
+        finishProfileBootstrap({
+          outcome: "success",
+          requiresName: Boolean(getDisplayNameValidationErrorKey(displayName)),
+        });
       })
       .catch(() => {
         if (!alive) return;
         setRequiresName(true);
         setErrorText(t("profile.nameUpdateFailed"));
+        finishProfileBootstrap({ outcome: "error" });
       })
       .finally(() => {
         if (!alive) return;

@@ -35,6 +35,10 @@ import type {
   LoginRequest,
   RegisterRequest,
 } from "@/services/api/types";
+import {
+  safeStartupErrorMetadata,
+  startStartupSpan,
+} from "@/services/startupDiagnostics";
 
 type AuthContextValue = {
   ready: boolean;
@@ -78,6 +82,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let alive = true;
 
     const bootstrap = async () => {
+      const finishAuthBootstrap = startStartupSpan("auth.bootstrap");
+      let outcome = "guest";
       setReady(false);
 
       try {
@@ -88,14 +94,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUser(null);
           setAccessTokenState(null);
           setReady(true);
+          finishAuthBootstrap({ outcome, signedIn: false });
           return;
         }
 
-        const response = await refreshWithBackend(refreshToken);
+        const finishAuthRefresh = startStartupSpan("auth.refresh");
+        let response: AuthResponse;
+        let refreshOutcome = "success";
+        try {
+          response = await refreshWithBackend(refreshToken);
+        } catch (error) {
+          refreshOutcome = "error";
+          throw error;
+        } finally {
+          finishAuthRefresh({ outcome: refreshOutcome });
+        }
         if (!alive) return;
         await applyAuthResponse(response);
+        outcome = "signed_in";
       } catch (error) {
-        console.error("[auth] bootstrap refresh failed", error);
+        outcome = "refresh_failed";
+        console.error("[auth] bootstrap refresh failed", safeStartupErrorMetadata(error));
         await clearBackendSession();
         if (!alive) return;
         setUser(null);
@@ -103,6 +122,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } finally {
         if (alive) {
           setReady(true);
+          finishAuthBootstrap({ outcome, signedIn: outcome === "signed_in" });
         }
       }
     };

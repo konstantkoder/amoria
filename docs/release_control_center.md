@@ -33,6 +33,15 @@ Updated: 2026-06-05
 - `npm run i18n:ui-risk` passes for EN/RU/HR and remains a length/wrapping warning report.
 - Build impact: EAS rebuild no, backend restart no, DB migration no, admin build no, Metro cache clear yes.
 
+## Startup Performance Baseline
+
+- `STARTUP-PERFORMANCE-BASELINE-01` is documented in `docs/startup_performance_baseline_01.md`.
+- Mobile now has dev-only startup timing diagnostics for locale ready, auth refresh/bootstrap, profile bootstrap, first screen ready, focused Together initial load, focused Nearby initial load, sanitized API request latency, duplicate startup API requests, and safe aggregate media probe timing.
+- Diagnostics are console-only, first-30-seconds only, and do not log request bodies, tokens, refresh tokens, passwords, exact coordinates, exact birth dates, profile text, raw media URLs, private media URLs, object keys, signed URLs, or locked-gallery content.
+- Static YELLOW finding: startup can repeat `GET /me` through the identity gate and the initially focused Together lobby. Optimize only after collecting baseline logs.
+- Static YELLOW finding: inbox badge/realtime starts during signed-in startup, and inactive tabs mount because bottom tabs use `lazy:false`; Nearby backend loading remains focus-gated.
+- Build impact: EAS rebuild no, backend restart no, DB migration no, admin build no, Metro cache clear yes.
+
 ## Main local start bat
 
 - `F:\Dev\START_AMORIA_DEV.bat`

@@ -11,6 +11,10 @@ import {
 } from "@/services/session/tokenStore";
 import type { AuthResponse } from "@/services/api/types";
 import type { ApiErrorDetails, ApiErrorResponse } from "@/services/api/types";
+import {
+  markStartupEvent,
+  recordStartupApiRequest,
+} from "@/services/startupDiagnostics";
 
 type HttpMethod = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
 
@@ -130,6 +134,8 @@ async function rawRequest<TResponse>(
   bodyValue?: unknown,
   options: RequestOptions = {}
 ): Promise<TResponse> {
+  const startedAtMs = Date.now();
+  let status: number | undefined;
   const headers: Record<string, string> = {
     Accept: "application/json",
     ...options.headers,
@@ -153,18 +159,28 @@ async function rawRequest<TResponse>(
     }
   }
 
-  const response = await fetch(buildUrl(path), {
-    method,
-    headers,
-    ...(body != null ? { body } : {}),
-  });
+  try {
+    const response = await fetch(buildUrl(path), {
+      method,
+      headers,
+      ...(body != null ? { body } : {}),
+    });
+    status = response.status;
 
-  const data = await parseJsonResponse(response);
-  if (!response.ok) {
-    throw buildError(response, data);
+    const data = await parseJsonResponse(response);
+    if (!response.ok) {
+      throw buildError(response, data);
+    }
+
+    return data as TResponse;
+  } finally {
+    recordStartupApiRequest({
+      method,
+      path,
+      status,
+      durationMs: Date.now() - startedAtMs,
+    });
   }
-
-  return data as TResponse;
 }
 
 async function clearTokensAfterRefreshFailure() {
@@ -217,6 +233,8 @@ export function refreshSession(): Promise<AuthResponse> {
       .finally(() => {
         refreshSessionPromise = null;
       });
+  } else {
+    markStartupEvent("auth.refresh_reused_in_flight");
   }
 
   return refreshSessionPromise;

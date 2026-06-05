@@ -18,6 +18,7 @@ import {
   isLocale,
   isReleaseLocale,
 } from "@/i18n/translations";
+import { startStartupSpan } from "@/services/startupDiagnostics";
 
 type LocaleContextValue = {
   locale: Locale;
@@ -42,6 +43,7 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let alive = true;
+    const finishLocaleReady = startStartupSpan("locale.ready");
     (async () => {
       let nextLocale = DEFAULT_LOCALE;
       let shouldPrompt = false;
@@ -74,6 +76,10 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
         setLanguagePickerVisible(shouldPrompt);
         setLanguagePickerMandatory(shouldPrompt);
         setReady(true);
+        finishLocaleReady({
+          locale: nextLocale,
+          prompted: shouldPrompt,
+        });
       }
     })();
     return () => {

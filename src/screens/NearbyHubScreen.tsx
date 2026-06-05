@@ -33,6 +33,7 @@ import {
   probePublicMediaUrlInfo,
   type PublicMediaUrlInfo,
 } from "@/services/media/mediaUrl";
+import { startStartupSpan } from "@/services/startupDiagnostics";
 import { getUserProfile, updateUserFields } from "@/services/user";
 import type { ProfileGender, UserProfile } from "@/models/User";
 import { theme } from "@/theme";
@@ -336,15 +337,21 @@ export default function NearbyHubScreen() {
   );
 
   const loadInitial = useCallback(async () => {
+    const finishNearbyInitialLoad = startStartupSpan("nearby.initial_load", {
+      focused: true,
+    });
     setLoading(true);
     setErrorText("");
     setLocationIssue(null);
+    let outcome = "success";
+    let visibilityStatus = "unknown";
     try {
       const [me, currentProfile] = await Promise.all([
         nearbyApi.getNearbyMe(),
         getUserProfile(),
       ]);
       if (!mountedRef.current) return;
+      visibilityStatus = me.visibility.status;
       setProfile(currentProfile);
       setVisibility(me.visibility);
       setRadiusKm(me.visibility.radiusKm ?? DEFAULT_RADIUS_KM);
@@ -360,11 +367,16 @@ export default function NearbyHubScreen() {
       }
     } catch (error) {
       if (!mountedRef.current) return;
+      outcome = "error";
       setItems([]);
       setErrorText(getBackendErrorText(error, t));
     } finally {
       if (mountedRef.current) {
         setLoading(false);
+        finishNearbyInitialLoad({
+          outcome,
+          visibilityStatus,
+        });
       }
     }
   }, [refreshFeed, t]);
