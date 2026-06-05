@@ -11,6 +11,8 @@ export type ErrorCode =
   | "profile_unavailable"
   | "locked_gallery_unavailable"
   | "locked_gallery_password_required"
+  | "locked_gallery_rate_limited"
+  | "locked_gallery_unlock_expired"
   | "min_visible_required"
   | "profile_gallery_limit_reached"
   | "locked_gallery_limit_reached"

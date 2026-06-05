@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { authMiddleware } from "../common/security/auth-middleware";
 import { unauthorized } from "../common/errors";
 import { withErrorResponses } from "../common/http";
+import { firstHeaderValue, type AdminRequestContext } from "../admin/admin.types";
 import type { UpdateProfileBody } from "./users.service";
 import type {
   ResetLockedGalleryPasswordBody,
@@ -29,6 +30,18 @@ function currentUserId(request: { auth?: { userId: string } }): string {
   }
 
   return request.auth.userId;
+}
+
+function requestContext(request: {
+  id: string;
+  ip: string;
+  headers: { "user-agent"?: string | string[] };
+}): AdminRequestContext {
+  return {
+    requestId: request.id,
+    ipAddress: request.ip,
+    userAgent: firstHeaderValue(request.headers["user-agent"]),
+  };
 }
 
 export async function usersRoutes(fastify: FastifyInstance): Promise<void> {
@@ -123,6 +136,7 @@ export async function usersRoutes(fastify: FastifyInstance): Promise<void> {
         currentUserId(request),
         request.params.id,
         request.body,
+        requestContext(request),
       ),
   );
 }

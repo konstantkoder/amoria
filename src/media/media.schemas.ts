@@ -16,3 +16,14 @@ export const uploadAvatarRouteSchema = {
     200: avatarUploadResponseSchema,
   },
 } as const;
+
+export const lockedGalleryMediaRouteSchema = {
+  params: {
+    type: "object",
+    required: ["mediaId"],
+    additionalProperties: false,
+    properties: {
+      mediaId: { type: "string", format: "uuid" },
+    },
+  },
+} as const;

@@ -10,6 +10,7 @@ Updated: 2026-06-05
 - Nearby mobile redesign and Announcements are out of scope for this Together/Admin pass.
 - Nearby Admin diagnostics must remain aggregate-only and must not expose exact coordinates, exact birth dates, locked gallery media, fake users, or raw profile text.
 - Admin Reports must show reporter, target owner/user, report reason/comment/status, safe target context, and audited status actions without exposing exact coordinates, exact birth dates, locked gallery content, private credentials, or signed URLs.
+- Locked gallery guest access must expose only a public summary until an authenticated viewer provides the correct password and receives a short-lived viewer/target-specific unlock token.
 
 ## Branches
 
@@ -73,6 +74,7 @@ Updated: 2026-06-05
 ## Media Render Contract
 
 - Public avatar/profile media must render through `/media/public/:mediaId` with image content type.
+- Locked profile gallery media must never render through `/media/public/:mediaId`; guest-unlocked locked media must render only through authenticated `/media/locked/:mediaId` with a valid unlock token.
 - Public profile must not return `avatarUrl` or public photo entries when the public media route would return `404`.
 - Missing storage objects return `error.code=object_not_found` and are not treated as successful image loads.
 - Owner delete can remove owned broken media rows/gallery items when the storage object is already missing.
@@ -128,6 +130,7 @@ Automated checks cannot replace the real two-client pass:
 15. In draw, smoke brush, eraser, hidden tools, no visible Move/Reset drawer controls, pinch pan/zoom, fullscreen on/off, finish, and history/detail replay.
 16. In gallery/avatar, smoke delete below 3 visible public photos, broken photo cleanup, avatar crop/preview/upload/restart persistence, profile photo crop/preview/upload, peer avatar/photo visibility, crop cancel/choose-another, invalid crop rejection, and Admin `Проверить URL` HTTP 200 `image/webp`.
 17. In Together age filtering, smoke missing DOB block, `Любой 18+`, one compatible age group, one incompatible age group, and Admin `age_mismatch`.
+18. In locked gallery guest access, smoke locked album summary, wrong password, rate-limit messaging, correct password unlock, expired-session re-prompt, and direct `/media/public/:mediaId` denial for locked media.
 
 ## Build Verification
 
@@ -181,3 +184,11 @@ Nearby future redesign should reuse `birthDate`/`ageGroup`, `preferredAgeRange`,
   - Responses and UI omit exact coordinates, exact birth dates, locked gallery content, private credentials, signed URLs, password hashes, and refresh tokens.
   - Verification: `npm run typecheck`, `npm test`, and `npm run admin:web:build` pass.
   - Build impact: backend restart yes, admin build yes, DB migration no, EAS rebuild no, Metro cache clear no.
+- LOCKED-GALLERY-GUEST-ACCESS-01:
+  - Public profile shows only locked gallery summary, never locked media URLs.
+  - Owner password management stores only password hashes and remains scoped to the owner.
+  - Guest unlock requires an authenticated viewer, blocks blocked pairs, rate-limits wrong attempts per viewer plus target, and returns a 10-minute viewer/target-specific unlock token on success.
+  - Locked media streams only through authenticated `/media/locked/:mediaId` with `x-amoria-locked-gallery-token`; `/media/public/:mediaId` continues to reject locked media.
+  - Unlock success/failure is audited with safe metadata and without passwords, hashes, raw storage URLs, object keys, signed URLs, exact coordinates, or exact birth dates.
+  - Verification: server `npm run typecheck`, server `npm test` (`215/215`), and mobile `npx tsc --noEmit` pass.
+  - Build impact: backend restart yes, admin build no, DB migration no, EAS rebuild no, Metro cache clear yes.

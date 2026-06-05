@@ -12,6 +12,7 @@ process.env.UPLOADS_DIR = "./uploads-test";
 
 const { buildApp } = require("../src/app") as typeof import("../src/app");
 const { closeDb } = require("../src/db/client") as typeof import("../src/db/client");
+const { signAccessToken } = require("../src/auth/jwt") as typeof import("../src/auth/jwt");
 const mediaService = require("../src/media/media.service") as typeof import("../src/media/media.service");
 
 const mediaId = "00000000-0000-4000-8000-000000000101";
@@ -127,6 +128,80 @@ test("GET /media/public/:mediaId does not expose locked gallery media", async (t
   assert.equal(response.statusCode, 404);
   assert.notEqual(response.headers["content-type"], "image/webp");
   assert.equal(objectRead, false);
+});
+
+test("GET /media/locked/:mediaId requires authenticated valid unlock token", async (t) => {
+  t.after(restoreMediaDeps);
+  const app = buildApp();
+  t.after(async () => {
+    await app.close();
+  });
+
+  let objectRead = false;
+  restoreDeps = mediaService.__setMediaServiceDepsForTests({
+    findMediaFileById: async () => mediaRow({
+      id: mediaId,
+      ownerUserId: ownerId,
+      type: "profile_photo",
+      path: `users/${ownerId}/profile_photo/${mediaId}.webp`,
+    }),
+    findGalleryItemForMedia: async () => ({
+      item: { visibility: "locked" },
+      media: mediaRow({ type: "profile_photo" }),
+    }) as never,
+    verifyLockedGalleryUnlockToken: (token, viewerUserId, targetUserId) => {
+      assert.equal(viewerUserId, "00000000-0000-4000-8000-000000000002");
+      assert.equal(targetUserId, ownerId);
+      if (token !== "valid-unlock-token") {
+        throw new AppError(
+          "locked_gallery_unlock_expired",
+          "Locked gallery unlock has expired",
+          401,
+        );
+      }
+    },
+    isBlockedEitherWay: async () => false,
+    getObjectBuffer: async () => {
+      objectRead = true;
+      return objectBody;
+    },
+  });
+
+  const unauthenticated = await app.inject({
+    method: "GET",
+    url: `/media/locked/${mediaId}`,
+    headers: {
+      "x-amoria-locked-gallery-token": "valid-unlock-token",
+    },
+  });
+  assert.equal(unauthenticated.statusCode, 401);
+
+  const expired = await app.inject({
+    method: "GET",
+    url: `/media/locked/${mediaId}`,
+    headers: {
+      Authorization: `Bearer ${signAccessToken("00000000-0000-4000-8000-000000000002")}`,
+      "x-amoria-locked-gallery-token": "expired-token",
+    },
+  });
+  assert.equal(expired.statusCode, 401);
+  assert.equal(expired.json().error.code, "locked_gallery_unlock_expired");
+  assert.equal(objectRead, false);
+
+  const allowed = await app.inject({
+    method: "GET",
+    url: `/media/locked/${mediaId}`,
+    headers: {
+      Authorization: `Bearer ${signAccessToken("00000000-0000-4000-8000-000000000002")}`,
+      "x-amoria-locked-gallery-token": "valid-unlock-token",
+    },
+  });
+
+  assert.equal(allowed.statusCode, 200);
+  assert.equal(allowed.headers["content-type"], "image/webp");
+  assert.equal(allowed.headers["cache-control"], "private, no-store");
+  assert.equal(objectRead, true);
+  assert.deepEqual(allowed.rawPayload, objectBody);
 });
 
 test("GET /media/public/:mediaId returns object_not_found when media row points to missing storage object", async (t) => {

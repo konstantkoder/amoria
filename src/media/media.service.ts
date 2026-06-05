@@ -6,6 +6,8 @@ import { env } from "../config/env";
 import type { MediaFileRow } from "../db/schema";
 import { findUserById, updateUserAvatar } from "../users/users.repo";
 import { toSelfUserProfile, type SelfUserProfile } from "../users/users.service";
+import { verifyLockedGalleryUnlockToken } from "../users/profile-gallery.service";
+import { isBlockedEitherWay } from "../safety/safety.repo";
 import { assertAvatarInput, checksumSha256, isMultipartFileTooLarge } from "./file-guards";
 import {
   normalizeMediaCrop,
@@ -40,6 +42,8 @@ type MediaServiceDeps = {
   findOwnedMediaFileByUrl: typeof findOwnedMediaFileByUrl;
   deleteMediaFileByOwner: typeof deleteMediaFileByOwner;
   findGalleryItemForMedia: typeof findGalleryItemForMedia;
+  verifyLockedGalleryUnlockToken: typeof verifyLockedGalleryUnlockToken;
+  isBlockedEitherWay: typeof isBlockedEitherWay;
   queueInitialMediaModeration: typeof queueInitialMediaModeration;
   putObjectBuffer: typeof putObjectBuffer;
   getObjectBuffer: typeof getObjectBuffer;
@@ -55,6 +59,8 @@ const defaultDeps: MediaServiceDeps = {
   findOwnedMediaFileByUrl,
   deleteMediaFileByOwner,
   findGalleryItemForMedia,
+  verifyLockedGalleryUnlockToken,
+  isBlockedEitherWay,
   queueInitialMediaModeration,
   putObjectBuffer,
   getObjectBuffer,
@@ -186,6 +192,33 @@ export async function getPublicMedia(mediaId: string): Promise<PublicMediaRespon
 
   const body = await readPublicMediaObject(media);
 
+  return {
+    body,
+    contentType: media.mimeType,
+  };
+}
+
+export async function getLockedGalleryMedia(
+  viewerUserId: string,
+  mediaId: string,
+  unlockToken: string,
+): Promise<PublicMediaResponse> {
+  const media = await deps.findMediaFileById(String(mediaId ?? "").trim());
+  if (!media || media.type !== "profile_photo") {
+    throw new AppError("not_found", "Media file not found", 404);
+  }
+
+  const galleryItem = await deps.findGalleryItemForMedia(media.ownerUserId, media.id);
+  if (!galleryItem || galleryItem.item.visibility !== "locked") {
+    throw new AppError("not_found", "Media file not found", 404);
+  }
+
+  deps.verifyLockedGalleryUnlockToken(unlockToken, viewerUserId, media.ownerUserId);
+  if (viewerUserId !== media.ownerUserId && await deps.isBlockedEitherWay(viewerUserId, media.ownerUserId)) {
+    throw new AppError("profile_unavailable", "Profile is unavailable", 403);
+  }
+
+  const body = await readPublicMediaObject(media);
   return {
     body,
     contentType: media.mimeType,

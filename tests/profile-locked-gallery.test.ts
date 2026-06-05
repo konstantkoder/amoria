@@ -7,8 +7,10 @@ import type {
   ProfileLockedGallerySettingsRow,
   UserRow,
 } from "../src/db/schema";
+import type { AdminAuditInput } from "../src/admin/admin.types";
 import { AppError } from "../src/common/errors";
 import {
+  LOCKED_GALLERY_WRONG_ATTEMPT_LIMIT,
   MAX_LOCKED_PROFILE_PHOTOS,
   MAX_PROFILE_GALLERY_PHOTOS,
 } from "../src/config/constants";
@@ -36,6 +38,7 @@ const publicPhoto3Id = "00000000-0000-4000-8000-000000000103";
 const lockedPhoto1Id = "00000000-0000-4000-8000-000000000201";
 const lockedPhoto2Id = "00000000-0000-4000-8000-000000000202";
 const publicMediaPath = (mediaId: string) => `/media/public/${mediaId}`;
+const lockedMediaPath = (mediaId: string) => `/media/locked/${mediaId}`;
 
 let restoreDeps: (() => void) | null = null;
 
@@ -85,7 +88,7 @@ test("public gallery summary hides public photos whose storage object is missing
 
 test("wrong locked gallery password returns 403 without photos", async (t) => {
   t.after(restoreGalleryDeps);
-  mockGallery();
+  const state = mockGallery();
 
   await assert.rejects(
     galleryService.unlockLockedGallery(viewerId, ownerId, { password: "wrong-password" }),
@@ -97,11 +100,21 @@ test("wrong locked gallery password returns 403 without photos", async (t) => {
       return true;
     },
   );
+  assert.equal(state.auditInputs.length, 1);
+  assert.deepEqual(state.auditInputs[0]?.metadata, {
+    viewerUserId: viewerId,
+    targetUserId: ownerId,
+    success: false,
+    reasonCode: "wrong_password",
+    timestamp: "2026-01-01T00:00:00.000Z",
+  });
+  assert.equal(JSON.stringify(state.auditInputs).includes("wrong-password"), false);
+  assert.equal(JSON.stringify(state.auditInputs).includes("folder-secret"), false);
 });
 
-test("correct locked gallery password returns locked photos only", async (t) => {
+test("correct locked gallery password returns locked media paths and unlock token", async (t) => {
   t.after(restoreGalleryDeps);
-  mockGallery();
+  const state = mockGallery();
 
   const response = await galleryService.unlockLockedGallery(viewerId, ownerId, {
     password: "folder-secret",
@@ -111,12 +124,88 @@ test("correct locked gallery password returns locked photos only", async (t) => 
     response.photos.map((photo) => photo.mediaId),
     [lockedPhoto1Id, lockedPhoto2Id],
   );
+  assert.deepEqual(
+    response.photos.map((photo) => photo.url),
+    [lockedMediaPath(lockedPhoto1Id), lockedMediaPath(lockedPhoto2Id)],
+  );
+  assert.equal(typeof response.unlockToken, "string");
+  assert.equal(response.unlockToken.length > 20, true);
+  assert.equal(Date.parse(response.unlockExpiresAt) > Date.parse("2026-01-01T00:00:00.000Z"), true);
   assert.equal(response.photos.some((photo) => photo.mediaId === publicPhoto1Id), false);
+  assert.equal(JSON.stringify(response).includes("/media/public/"), false);
+  assert.equal(JSON.stringify(response).includes("passwordHash"), false);
+  assert.equal(JSON.stringify(response).includes("folder-secret"), false);
+  assert.deepEqual(state.auditInputs[0]?.metadata, {
+    viewerUserId: viewerId,
+    targetUserId: ownerId,
+    success: true,
+    reasonCode: "unlocked",
+    timestamp: "2026-01-01T00:00:00.000Z",
+  });
+});
+
+test("too many wrong locked gallery attempts are rate-limited per viewer and target", async (t) => {
+  t.after(restoreGalleryDeps);
+  const state = mockGallery();
+
+  for (let index = 0; index < LOCKED_GALLERY_WRONG_ATTEMPT_LIMIT - 1; index += 1) {
+    await assert.rejects(
+      galleryService.unlockLockedGallery(viewerId, ownerId, { password: `wrong-${index}` }),
+      (error) => {
+        const appError = error as { code?: string; statusCode?: number };
+        assert.equal(appError.code, "forbidden");
+        assert.equal(appError.statusCode, 403);
+        return true;
+      },
+    );
+  }
+
+  await assert.rejects(
+    galleryService.unlockLockedGallery(viewerId, ownerId, { password: "wrong-limit" }),
+    (error) => {
+      const appError = error as { code?: string; statusCode?: number };
+      assert.equal(appError.code, "locked_gallery_rate_limited");
+      assert.equal(appError.statusCode, 429);
+      return true;
+    },
+  );
+
+  await assert.rejects(
+    galleryService.unlockLockedGallery(viewerId, ownerId, { password: "folder-secret" }),
+    (error) => {
+      const appError = error as { code?: string; statusCode?: number };
+      assert.equal(appError.code, "locked_gallery_rate_limited");
+      assert.equal(appError.statusCode, 429);
+      return true;
+    },
+  );
+
+  const reasonCodes = state.auditInputs.map((input) =>
+    (input.metadata as { reasonCode?: string } | null)?.reasonCode,
+  );
+  assert.equal(reasonCodes.filter((code) => code === "wrong_password").length, LOCKED_GALLERY_WRONG_ATTEMPT_LIMIT - 1);
+  assert.equal(reasonCodes.filter((code) => code === "rate_limited").length, 2);
+  assert.equal(JSON.stringify(state.auditInputs).includes("wrong-limit"), false);
+});
+
+test("expired locked gallery unlock token is rejected", async (t) => {
+  t.after(restoreGalleryDeps);
+  mockGallery();
+
+  await assert.rejects(
+    async () => galleryService.verifyLockedGalleryUnlockToken("expired", viewerId, ownerId),
+    (error) => {
+      const appError = error as { code?: string; statusCode?: number };
+      assert.equal(appError.code, "locked_gallery_unlock_expired");
+      assert.equal(appError.statusCode, 401);
+      return true;
+    },
+  );
 });
 
 test("blocked viewer cannot unlock locked gallery", async (t) => {
   t.after(restoreGalleryDeps);
-  mockGallery({ blocked: true });
+  const state = mockGallery({ blocked: true });
 
   await assert.rejects(
     galleryService.unlockLockedGallery(viewerId, ownerId, { password: "folder-secret" }),
@@ -127,6 +216,13 @@ test("blocked viewer cannot unlock locked gallery", async (t) => {
       return true;
     },
   );
+  assert.deepEqual(state.auditInputs[0]?.metadata, {
+    viewerUserId: viewerId,
+    targetUserId: ownerId,
+    success: false,
+    reasonCode: "blocked_pair",
+    timestamp: "2026-01-01T00:00:00.000Z",
+  });
 });
 
 test("owner can set and reset locked gallery password with account password", async (t) => {
@@ -147,6 +243,27 @@ test("owner can set and reset locked gallery password with account password", as
   assert.deepEqual(resetResponse, { ok: true });
   assert.equal(state.settings?.passwordHash, null);
   assert.equal(state.items.filter((entry) => entry.item.visibility === "locked").length, 2);
+});
+
+test("wrong owner cannot manage another user's locked gallery password", async (t) => {
+  t.after(restoreGalleryDeps);
+  const state = mockGallery();
+
+  await assert.rejects(
+    galleryService.setLockedGalleryPassword(viewerId, {
+      currentAccountPassword: "account-password",
+      newFolderPassword: "viewer-folder-password",
+    }),
+    (error) => {
+      const appError = error as { code?: string; statusCode?: number };
+      assert.equal(appError.code, "min_visible_required");
+      assert.equal(appError.statusCode, 409);
+      return true;
+    },
+  );
+
+  assert.equal(state.settings?.userId, ownerId);
+  assert.equal(state.settings?.passwordHash, "hash:folder-secret");
 });
 
 test("owner cannot move a photo to locked when fewer than 3 visible images remain", async (t) => {
@@ -426,6 +543,7 @@ function mockGallery(input: {
     deletedMediaIds: [] as string[],
     deletedObjectKeys: [] as string[],
     updatedPhotos: [] as { mediaId: string; url: string }[],
+    auditInputs: [] as AdminAuditInput[],
   };
 
   const repo = {
@@ -511,6 +629,12 @@ function mockGallery(input: {
     hashPassword: async (password: string) => `hash:${password}`,
     verifyPassword: async (password: string, passwordHash: string) => passwordHash === `hash:${password}`,
     isBlockedEitherWay: async () => input.blocked === true,
+    audit: {
+      writeAuditLog: async (auditInput: AdminAuditInput) => {
+        state.auditInputs.push(auditInput);
+      },
+    },
+    now: () => new Date("2026-01-01T00:00:00.000Z"),
     findMediaFileByOwner: async (userId, mediaId) => {
       if (userId !== ownerId) return undefined;
       return state.items.find((entry) => entry.media.id === mediaId)?.media;
@@ -544,6 +668,7 @@ function galleryPhotoId(index: number): string {
 }
 
 function restoreGalleryDeps(): void {
+  galleryService.__resetLockedGalleryRuntimeStateForTests();
   if (restoreDeps) {
     restoreDeps();
     restoreDeps = null;

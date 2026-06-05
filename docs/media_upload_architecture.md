@@ -22,6 +22,14 @@ Stored absolute `media_files.url` values are legacy/debug metadata only. They ma
 
 Mobile resolves `/media/public/:mediaId` against the current API origin. If an old absolute URL still points at `/media/public/:mediaId`, mobile rewrites it to the current API origin and records only safe diagnostics (`urlKind`, media id) if Android image loading fails.
 
+## Locked Gallery Guest Access
+
+Public profile reads may expose only a locked gallery summary: whether the locked gallery exists and the safe locked-photo count. They must not expose locked media URLs, object keys, storage paths, signed URLs, password hashes, exact coordinates, or exact birth dates.
+
+Guest access uses `POST /users/:id/locked-gallery/unlock` with an authenticated viewer. A correct password returns `/media/locked/:mediaId` paths plus a short-lived viewer-specific and target-specific unlock token. Locked media is then streamed from `GET /media/locked/:mediaId` only when both the viewer access token and `x-amoria-locked-gallery-token` are valid. Responses are private and no-store.
+
+Wrong attempts are rate-limited per viewer plus target user. Unlock success/failure is audited with safe metadata and never includes the password, password hash, raw storage URL, object key, or signed URL.
+
 ## Upload Hardening
 
 Avatar and profile photo uploads remain backend-mediated:

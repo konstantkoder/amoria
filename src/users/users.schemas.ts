@@ -427,10 +427,12 @@ export const unlockLockedGalleryRouteSchema = {
   response: {
     200: {
       type: "object",
-      required: ["photos"],
+      required: ["photos", "unlockToken", "unlockExpiresAt"],
       additionalProperties: false,
       properties: {
         photos: publicGalleryPhotosSchema,
+        unlockToken: { type: "string", minLength: 1 },
+        unlockExpiresAt: { type: "string", format: "date-time" },
       },
     },
   },

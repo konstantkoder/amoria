@@ -1,9 +1,16 @@
+import { randomUUID } from "node:crypto";
+import jwt from "jsonwebtoken";
 import { AppError, unauthorized, validationError } from "../common/errors";
 import { normalizePassword } from "../common/validators";
 import {
+  LOCKED_GALLERY_RATE_LIMIT_BLOCK_MS,
+  LOCKED_GALLERY_UNLOCK_EXPIRES_IN_SEC,
+  LOCKED_GALLERY_WRONG_ATTEMPT_LIMIT,
+  LOCKED_GALLERY_WRONG_ATTEMPT_WINDOW_MS,
   MAX_LOCKED_PROFILE_PHOTOS,
   MAX_PROFILE_GALLERY_PHOTOS,
   MIN_VISIBLE_PROFILE_IMAGES_FOR_LOCKED_GALLERY,
+  SERVICE_NAME,
 } from "../config/constants";
 import type { MediaFileRow, MediaModerationReviewRow, ProfilePhoto, UserRow } from "../db/schema";
 import { deleteObject, headObject } from "../media/object-storage";
@@ -12,6 +19,8 @@ import { findMediaFileById, findMediaFileByOwner, deleteMediaFileByOwner } from 
 import { publicMediaUrlForMediaId } from "../media/media-url";
 import { hashPassword, verifyPassword } from "../auth/passwords";
 import { isBlockedEitherWay } from "../safety/safety.repo";
+import * as auditService from "../admin/admin-audit.service";
+import type { AdminRequestContext } from "../admin/admin.types";
 import * as usersRepo from "./users.repo";
 import * as galleryRepo from "./profile-gallery.repo";
 
@@ -74,6 +83,8 @@ export type UnlockLockedGalleryBody = {
 
 export type UnlockLockedGalleryResponse = {
   photos: ProfileGalleryPhoto[];
+  unlockToken: string;
+  unlockExpiresAt: string;
 };
 
 export type OkResponse = {
@@ -91,6 +102,8 @@ type ProfileGalleryDeps = {
   hashPassword: typeof hashPassword;
   verifyPassword: typeof verifyPassword;
   isBlockedEitherWay: typeof isBlockedEitherWay;
+  audit: Pick<typeof auditService, "writeAuditLog">;
+  now: () => Date;
 };
 
 const defaultDeps: ProfileGalleryDeps = {
@@ -104,9 +117,23 @@ const defaultDeps: ProfileGalleryDeps = {
   hashPassword,
   verifyPassword,
   isBlockedEitherWay,
+  audit: auditService,
+  now: () => new Date(),
 };
 
 let deps: ProfileGalleryDeps = defaultDeps;
+const wrongAttemptBuckets = new Map<string, {
+  count: number;
+  windowStartedAtMs: number;
+  blockedUntilMs: number;
+}>();
+
+type LockedGalleryUnlockTokenPayload = {
+  sub: string;
+  typ: "locked_gallery_unlock";
+  targetUserId: string;
+  jti: string;
+};
 
 export function __setProfileGalleryServiceDepsForTests(
   overrides: Partial<ProfileGalleryDeps>,
@@ -120,6 +147,10 @@ export function __setProfileGalleryServiceDepsForTests(
   return () => {
     deps = previous;
   };
+}
+
+export function __resetLockedGalleryRuntimeStateForTests(): void {
+  wrongAttemptBuckets.clear();
 }
 
 export async function getOwnerProfileGallery(
@@ -268,6 +299,7 @@ export async function unlockLockedGallery(
   viewerUserId: string,
   targetUserId: string,
   input: UnlockLockedGalleryBody,
+  requestContext: AdminRequestContext = {},
 ): Promise<UnlockLockedGalleryResponse> {
   const target = await deps.usersRepo.findUserById(targetUserId);
   if (!target) {
@@ -275,6 +307,13 @@ export async function unlockLockedGallery(
   }
 
   if (viewerUserId !== target.id && await deps.isBlockedEitherWay(viewerUserId, target.id)) {
+    await writeLockedGalleryAudit({
+      viewerUserId,
+      targetUserId: target.id,
+      success: false,
+      reasonCode: "blocked_pair",
+      requestContext,
+    });
     throw new AppError("profile_unavailable", "Profile is unavailable", 403);
   }
 
@@ -284,18 +323,96 @@ export async function unlockLockedGallery(
   ]);
   const lockedItems = items.filter((entry) => entry.item.visibility === "locked");
   if (lockedItems.length === 0 || !settings?.passwordHash) {
+    await writeLockedGalleryAudit({
+      viewerUserId,
+      targetUserId: target.id,
+      success: false,
+      reasonCode: "locked_gallery_unavailable",
+      requestContext,
+    });
     throw new AppError("locked_gallery_unavailable", "Locked gallery is unavailable", 404);
   }
 
+  if (unlockAttemptIsRateLimited(viewerUserId, target.id)) {
+    await writeLockedGalleryAudit({
+      viewerUserId,
+      targetUserId: target.id,
+      success: false,
+      reasonCode: "rate_limited",
+      requestContext,
+    });
+    throw new AppError(
+      "locked_gallery_rate_limited",
+      "Too many locked gallery unlock attempts",
+      429,
+    );
+  }
   const password = requireString(input.password, "password");
   const passwordMatches = await deps.verifyPassword(password, settings.passwordHash);
   if (!passwordMatches) {
+    const rateLimited = recordWrongUnlockAttempt(viewerUserId, target.id);
+    await writeLockedGalleryAudit({
+      viewerUserId,
+      targetUserId: target.id,
+      success: false,
+      reasonCode: rateLimited ? "rate_limited" : "wrong_password",
+      requestContext,
+    });
+    if (rateLimited) {
+      throw new AppError(
+        "locked_gallery_rate_limited",
+        "Too many locked gallery unlock attempts",
+        429,
+      );
+    }
     throw new AppError("forbidden", "Access is forbidden", 403);
   }
 
+  clearWrongUnlockAttempts(viewerUserId, target.id);
+  const unlock = signLockedGalleryUnlockToken(viewerUserId, target.id);
+  await writeLockedGalleryAudit({
+    viewerUserId,
+    targetUserId: target.id,
+    success: true,
+    reasonCode: "unlocked",
+    requestContext,
+  });
+
   return {
-    photos: lockedItems.map(toPublicPhoto),
+    photos: lockedItems.map(toLockedGalleryPhoto),
+    unlockToken: unlock.token,
+    unlockExpiresAt: unlock.expiresAt,
   };
+}
+
+export function verifyLockedGalleryUnlockToken(
+  token: string,
+  viewerUserId: string,
+  targetUserId: string,
+): void {
+  const normalized = String(token ?? "").trim();
+  if (!normalized) {
+    throw new AppError("locked_gallery_unlock_expired", "Locked gallery unlock has expired", 401);
+  }
+
+  let decoded: string | jwt.JwtPayload;
+  try {
+    decoded = jwt.verify(normalized, env.JWT_SECRET, {
+      audience: "amoria-mobile",
+      issuer: SERVICE_NAME,
+    });
+  } catch {
+    throw new AppError("locked_gallery_unlock_expired", "Locked gallery unlock has expired", 401);
+  }
+
+  if (
+    typeof decoded !== "object" ||
+    decoded.typ !== "locked_gallery_unlock" ||
+    decoded.sub !== viewerUserId ||
+    decoded.targetUserId !== targetUserId
+  ) {
+    throw new AppError("forbidden", "Access is forbidden", 403);
+  }
 }
 
 export async function addCompletedProfilePhotoToGallery(
@@ -470,6 +587,114 @@ function toPublicPhoto(entry: galleryRepo.ProfileGalleryItemWithMedia): ProfileG
     url: publicMediaUrlForMediaId(entry.media.id),
     position: entry.item.position,
   };
+}
+
+function toLockedGalleryPhoto(entry: galleryRepo.ProfileGalleryItemWithMedia): ProfileGalleryPhoto {
+  return {
+    mediaId: entry.item.mediaId,
+    url: `/media/locked/${encodeURIComponent(entry.media.id)}`,
+    position: entry.item.position,
+  };
+}
+
+function unlockAttemptKey(viewerUserId: string, targetUserId: string): string {
+  return `${viewerUserId}:${targetUserId}`;
+}
+
+function currentTimeMs(): number {
+  return deps.now().getTime();
+}
+
+function unlockAttemptIsRateLimited(viewerUserId: string, targetUserId: string): boolean {
+  const key = unlockAttemptKey(viewerUserId, targetUserId);
+  const bucket = wrongAttemptBuckets.get(key);
+  if (!bucket) {
+    return false;
+  }
+
+  const nowMs = currentTimeMs();
+  if (bucket.blockedUntilMs > nowMs) {
+    return true;
+  }
+
+  if (nowMs - bucket.windowStartedAtMs > LOCKED_GALLERY_WRONG_ATTEMPT_WINDOW_MS) {
+    wrongAttemptBuckets.delete(key);
+  }
+
+  return false;
+}
+
+function recordWrongUnlockAttempt(viewerUserId: string, targetUserId: string): boolean {
+  const key = unlockAttemptKey(viewerUserId, targetUserId);
+  const nowMs = currentTimeMs();
+  const current = wrongAttemptBuckets.get(key);
+  const bucket = !current || nowMs - current.windowStartedAtMs > LOCKED_GALLERY_WRONG_ATTEMPT_WINDOW_MS
+    ? { count: 0, windowStartedAtMs: nowMs, blockedUntilMs: 0 }
+    : current;
+
+  bucket.count += 1;
+  if (bucket.count >= LOCKED_GALLERY_WRONG_ATTEMPT_LIMIT) {
+    bucket.blockedUntilMs = nowMs + LOCKED_GALLERY_RATE_LIMIT_BLOCK_MS;
+  }
+
+  wrongAttemptBuckets.set(key, bucket);
+  return bucket.blockedUntilMs > nowMs;
+}
+
+function clearWrongUnlockAttempts(viewerUserId: string, targetUserId: string): void {
+  wrongAttemptBuckets.delete(unlockAttemptKey(viewerUserId, targetUserId));
+}
+
+function signLockedGalleryUnlockToken(
+  viewerUserId: string,
+  targetUserId: string,
+): { token: string; expiresAt: string } {
+  const token = jwt.sign(
+    {
+      sub: viewerUserId,
+      typ: "locked_gallery_unlock",
+      targetUserId,
+      jti: randomUUID(),
+    } satisfies LockedGalleryUnlockTokenPayload,
+    env.JWT_SECRET,
+    {
+      audience: "amoria-mobile",
+      expiresIn: LOCKED_GALLERY_UNLOCK_EXPIRES_IN_SEC,
+      issuer: SERVICE_NAME,
+    },
+  );
+  const decoded = jwt.decode(token);
+  if (!decoded || typeof decoded !== "object" || typeof decoded.exp !== "number") {
+    throw new Error("Signed locked gallery unlock token is missing an expiry");
+  }
+
+  return {
+    token,
+    expiresAt: new Date(decoded.exp * 1000).toISOString(),
+  };
+}
+
+async function writeLockedGalleryAudit(input: {
+  viewerUserId: string;
+  targetUserId: string;
+  success: boolean;
+  reasonCode: string;
+  requestContext: AdminRequestContext;
+}): Promise<void> {
+  await deps.audit.writeAuditLog({
+    adminUserId: null,
+    action: "locked_gallery.unlock",
+    targetType: "user_profile_locked_gallery",
+    targetId: input.targetUserId,
+    metadata: {
+      viewerUserId: input.viewerUserId,
+      targetUserId: input.targetUserId,
+      success: input.success,
+      reasonCode: input.reasonCode,
+      timestamp: deps.now().toISOString(),
+    },
+    ...input.requestContext,
+  });
 }
 
 async function filterLoadablePublicGalleryItems(

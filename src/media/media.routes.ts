@@ -6,7 +6,7 @@ import { AppError, unauthorized } from "../common/errors";
 import { withErrorResponses } from "../common/http";
 import { authMiddleware } from "../common/security/auth-middleware";
 import { isMultipartFileTooLarge } from "./file-guards";
-import { uploadAvatarRouteSchema } from "./media.schemas";
+import { lockedGalleryMediaRouteSchema, uploadAvatarRouteSchema } from "./media.schemas";
 import * as mediaService from "./media.service";
 import { uploadProfilePhotoRouteSchema } from "./uploads.schemas";
 import * as uploadsService from "./uploads.service";
@@ -17,6 +17,10 @@ function currentUserId(request: { auth?: { userId: string } }): string {
   }
 
   return request.auth.userId;
+}
+
+function firstHeaderValue(value: string | string[] | undefined): string {
+  return Array.isArray(value) ? value[0] ?? "" : value ?? "";
 }
 
 type MultipartImageUpload = {
@@ -81,6 +85,25 @@ export async function mediaRoutes(fastify: FastifyInstance): Promise<void> {
       return reply
         .header("content-type", media.contentType)
         .header("cache-control", "public, max-age=31536000, immutable")
+        .send(media.body);
+    },
+  );
+
+  fastify.get<{ Params: { mediaId: string } }>(
+    "/locked/:mediaId",
+    {
+      preHandler: authMiddleware,
+      schema: withErrorResponses(lockedGalleryMediaRouteSchema),
+    },
+    async (request, reply) => {
+      const media = await mediaService.getLockedGalleryMedia(
+        currentUserId(request),
+        request.params.mediaId,
+        firstHeaderValue(request.headers["x-amoria-locked-gallery-token"]),
+      );
+      return reply
+        .header("content-type", media.contentType)
+        .header("cache-control", "private, no-store")
         .send(media.body);
     },
   );

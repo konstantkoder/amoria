@@ -64,6 +64,8 @@ Reports and target context do not expose:
 
 Media target links use the existing Admin Media guarded detail/content routes. Locked media still requires elevated role plus reason and remains audited.
 
+Locked-gallery guest unlock audit is separate from report review audit. It records safe metadata for viewer ID, target user ID, success/failure, reason code, and timestamp, and does not include the password, password hash, raw storage URL, object key, signed URL, exact coordinates, or exact birth date.
+
 ## Evidence Status
 
 Screenshot/evidence upload is not implemented in this task. Future task:
