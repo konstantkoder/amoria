@@ -16,6 +16,7 @@ import {
   translate,
   type Locale,
   isLocale,
+  isReleaseLocale,
 } from "@/i18n/translations";
 
 type LocaleContextValue = {
@@ -48,11 +49,15 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
         const stored = await AsyncStorage.getItem(STORAGE_KEY);
         if (!alive) return;
         if (stored && isLocale(stored)) {
-          nextLocale = stored;
+          if (isReleaseLocale(stored)) {
+            nextLocale = stored;
+          } else {
+            shouldPrompt = true;
+          }
         } else {
           const legacy = await AsyncStorage.getItem(LEGACY_STORAGE_KEY);
           if (!alive) return;
-          if (legacy && isLocale(legacy)) {
+          if (legacy && isLocale(legacy) && isReleaseLocale(legacy)) {
             nextLocale = legacy;
             await AsyncStorage.setItem(STORAGE_KEY, legacy);
           } else {

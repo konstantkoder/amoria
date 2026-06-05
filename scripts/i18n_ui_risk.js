@@ -6,13 +6,26 @@ const path = require("path");
 const LOCALES_DIR = path.join(process.cwd(), "src", "i18n", "locales");
 const BASE_FILE = "en.json";
 const OUTPUT_FILE = path.join(process.cwd(), "i18n_ui_risk.txt");
+const RELEASE_LOCALES = ["en", "ru", "hr"];
 
 const PREFIXES = [
   "auth.",
   "tabs.",
   "drawer.",
+  "menu.",
   "settings.",
+  "profile.",
+  "editProfile.",
+  "nearby.",
   "now.",
+  "dm.",
+  "inbox.",
+  "photos.",
+  "play.",
+  "playDetail.",
+  "playHistory.",
+  "safety.",
+  "together.",
   "feed.",
   "chats.",
   "rooms.",
@@ -85,7 +98,9 @@ function main() {
   }
 
   const base = readJson(basePath);
-  const files = listJsonFiles(LOCALES_DIR);
+  const files = listJsonFiles(LOCALES_DIR).filter((file) =>
+    RELEASE_LOCALES.includes(file.replace(/\.json$/i, ""))
+  );
   const locales = files.map((f) => f.replace(/\.json$/i, ""));
 
   const outputLines = [];

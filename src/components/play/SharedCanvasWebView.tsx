@@ -9,6 +9,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { WebView } from "react-native-webview";
 
+import { useLocale } from "@/contexts/LocaleContext";
 import { theme } from "@/theme/theme";
 
 export type SharedCanvasPoint = {
@@ -871,6 +872,7 @@ export default function SharedCanvasWebView({
   toolbarAccessory,
   toolLabels,
 }: Props) {
+  const { t } = useLocale();
   const ref = useRef<WebView>(null);
   const [ready, setReady] = useState(false);
   const [canvasSize, setCanvasSize] = useState({ width: 1, height: 1 });
@@ -1257,7 +1259,9 @@ export default function SharedCanvasWebView({
           {disabled ? (
             <View pointerEvents="none" style={styles.disabledOverlay}>
               <View style={styles.disabledCard}>
-                <Text style={styles.disabledTitle}>{disabledTitle ?? "Холст закрыт"}</Text>
+                <Text style={styles.disabledTitle}>
+                  {disabledTitle ?? t("play.canvas.disabledClosedTitle")}
+                </Text>
                 {disabledBody ? <Text style={styles.disabledBody}>{disabledBody}</Text> : null}
               </View>
             </View>

@@ -8,6 +8,7 @@ import {
 } from "react-native";
 import { WebView } from "react-native-webview";
 
+import { useLocale } from "@/contexts/LocaleContext";
 import { theme } from "@/theme/theme";
 import type { SharedCanvasStroke } from "@/components/play/SharedCanvasWebView";
 
@@ -266,6 +267,7 @@ export default function ReplayCanvasWebView({
   showControls = true,
   onReplayEnd,
 }: Props) {
+  const { t } = useLocale();
   const ref = useRef<WebView>(null);
   const [ready, setReady] = useState(false);
   const [canvasSize, setCanvasSize] = useState({ width: 1, height: 1 });
@@ -394,7 +396,7 @@ export default function ReplayCanvasWebView({
           />
           {!normalizedStrokes.length ? (
             <View pointerEvents="none" style={styles.emptyOverlay}>
-              <Text style={styles.emptyText}>Replay появится здесь</Text>
+              <Text style={styles.emptyText}>{t("play.replay.empty")}</Text>
             </View>
           ) : null}
         </View>
@@ -404,11 +406,15 @@ export default function ReplayCanvasWebView({
         <View style={styles.controlsRow}>
           <Pressable onPress={handleTogglePlay} style={styles.primaryButton}>
             <Text style={styles.primaryText}>
-              {visibleCount >= normalizedStrokes.length ? "Смотреть заново" : playing ? "Пауза" : "Играть"}
+              {visibleCount >= normalizedStrokes.length
+                ? t("play.replay.watchAgain")
+                : playing
+                  ? t("play.replay.pause")
+                  : t("play.replay.play")}
             </Text>
           </Pressable>
           <Pressable onPress={handleRestart} style={styles.secondaryButton}>
-            <Text style={styles.secondaryText}>Сначала</Text>
+            <Text style={styles.secondaryText}>{t("play.replay.restart")}</Text>
           </Pressable>
           <View style={styles.progressPill}>
             <Text style={styles.progressText}>

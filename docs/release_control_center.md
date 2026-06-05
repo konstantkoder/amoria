@@ -19,8 +19,19 @@ Updated: 2026-06-05
 - `TECH-DEBT-VSCODE-WARNINGS-01` is documented in `docs/tech_debt_vscode_warnings_01.md`.
 - Current open RED after the gate: none.
 - Fixed now: narrow package-lock audit updates for mobile transitive `fast-uri`, `ws`, and `brace-expansion`, plus server transitive `ws` and `brace-expansion`.
-- Deferred YELLOW: mobile i18n locale drift to `I18N-RELEASE-CLEANUP-01`, mobile Expo/tooling audit cleanup, mobile lint setup decision, intentional deprecated compatibility surfaces, and startup Node alignment.
+- Deferred YELLOW: mobile Expo/tooling audit cleanup, mobile lint setup decision, intentional deprecated compatibility surfaces, hidden beta locale expansion, and startup Node alignment.
 - Build impact: EAS rebuild no, backend restart yes when deploying the server dependency update, DB migration no, admin build no, Metro cache clear no.
+
+## I18N Release Gate
+
+- `I18N-RELEASE-CLEANUP-01` is documented in `docs/i18n_release_cleanup_01.md`.
+- Public-beta release languages are EN, RU, and HR.
+- The language picker exposes only EN/RU/HR; stored unsupported locale selections are routed back through the mandatory release-language picker.
+- The app still imports 24 locale files for compatibility and fallback, but the other 21 locale files are hidden beta locales and are not release-supported.
+- `npm run i18n:audit` now gates active EN/RU/HR UI keys and reports hidden beta locale drift separately.
+- Current result: 0 active missing keys for EN/RU/HR; remaining HR same-as-English entries are product names, units, ranges, or compact tokens.
+- `npm run i18n:ui-risk` passes for EN/RU/HR and remains a length/wrapping warning report.
+- Build impact: EAS rebuild no, backend restart no, DB migration no, admin build no, Metro cache clear yes.
 
 ## Main local start bat
 

@@ -50,6 +50,8 @@ export const LANGUAGE_CODES: Locale[] = [
   "ro","hu","el","tr",
 ];
 
+export const RELEASE_LANGUAGE_CODES: Locale[] = ["en", "ru", "hr"];
+
 export const LANGUAGE_LABELS: Record<Locale, string> = {
   en: "English",
   ru: "Русский",
@@ -106,6 +108,10 @@ export const DICT: Record<Locale, Record<string, string>> = {
 
 export function isLocale(x: string): x is Locale {
   return (LANGUAGE_CODES as string[]).includes(x);
+}
+
+export function isReleaseLocale(x: string): x is Locale {
+  return (RELEASE_LANGUAGE_CODES as string[]).includes(x);
 }
 
 export function translate(locale: Locale, key: string, params?: Record<string, string>) {

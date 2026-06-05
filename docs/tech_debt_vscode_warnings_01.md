@@ -106,11 +106,28 @@ Open RED after this task: none.
 
 ## Deferred
 
-- `I18N-RELEASE-CLEANUP-01`: repair missing/extra/same-as-English locale keys and review UI string length risk.
+- `I18N-RELEASE-CLEANUP-01`: completed for public-beta release languages EN/RU/HR; see `docs/i18n_release_cleanup_01.md`.
 - `ADMIN-REPORTS-MODERATION-WORKFLOW-01`: no new admin/report compile RED was found here; keep report/admin workflow and moderation completeness in that task.
 - Locked-gallery tasks: no locked-gallery RED was found here; keep existing locked-gallery smoke/release verification outside this warning-gate task.
 - Startup/toolchain tasks: align development, CI, EAS, and backend runtime Node versions with package engine requirements before release smoke.
 - Expo/tooling dependency task: plan the remaining mobile audit cleanup because the remaining audit fix path includes broader Expo/tooling movement.
+
+## I18N Release Cleanup Update
+
+`I18N-RELEASE-CLEANUP-01` changed the mobile i18n gate from full 24-locale
+parity to the actual public-beta release gate:
+
+| Area | Result |
+| --- | --- |
+| Active release languages | EN, RU, HR |
+| Hidden beta locale files | 21 |
+| `npm run i18n:audit` | pass: 0 active missing keys for EN/RU/HR |
+| `npm run i18n:ui-risk` | pass: EN/RU/HR warning report only |
+| `npx tsc --noEmit` | pass |
+| Remaining locale limitation | hidden beta locales still have large drift and are not release-supported |
+
+Build impact from the i18n cleanup: EAS rebuild no, backend restart no, DB
+migration no, admin build no, Metro cache clear yes.
 
 ## Build Impact
 
@@ -121,4 +138,3 @@ Open RED after this task: none.
 | DB migration | No |
 | Admin build | No |
 | Metro cache clear | No |
-

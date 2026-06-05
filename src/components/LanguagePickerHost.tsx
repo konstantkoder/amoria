@@ -2,7 +2,7 @@ import React from "react";
 
 import LanguagePickerModal from "@/components/LanguagePickerModal";
 import { useLocale } from "@/contexts/LocaleContext";
-import { LANGUAGE_CODES } from "@/i18n/translations";
+import { RELEASE_LANGUAGE_CODES } from "@/i18n/translations";
 
 export default function LanguagePickerHost() {
   const {
@@ -20,7 +20,7 @@ export default function LanguagePickerHost() {
     <LanguagePickerModal
       visible={languagePickerVisible}
       currentLocale={locale}
-      locales={LANGUAGE_CODES}
+      locales={RELEASE_LANGUAGE_CODES}
       mandatory={languagePickerMandatory}
       t={t}
       onSelect={setLocale}

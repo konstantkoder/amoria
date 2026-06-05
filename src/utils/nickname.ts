@@ -9,7 +9,13 @@ export function formatNickname(value: string, t: TranslateFn) {
   const color = parts[1];
   const animal = parts[2];
   const number = parts[3];
-  const colorText = t(`nickname.color.${color}`);
-  const animalText = t(`nickname.animal.${animal}`);
-  return t("nickname.format", { color: colorText, animal: animalText, number });
+  const colorKey = `nickname.color.${color}`;
+  const animalKey = `nickname.animal.${animal}`;
+  const colorText = t(colorKey);
+  const animalText = t(animalKey);
+  return t("nickname.format", {
+    color: colorText === colorKey ? color : colorText,
+    animal: animalText === animalKey ? animal : animalText,
+    number,
+  });
 }
