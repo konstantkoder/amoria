@@ -11,10 +11,12 @@ export type BackendSession = {
 };
 
 let currentBackendSession: BackendSession | null = null;
+let currentBackendSessionSavedAtMs = 0;
 
 export async function saveBackendSession(session: BackendSession): Promise<void> {
   setAccessToken(session.accessToken);
   currentBackendSession = session;
+  currentBackendSessionSavedAtMs = Date.now();
 }
 
 export async function loadBackendSession(): Promise<BackendSession | null> {
@@ -38,8 +40,13 @@ export function getBackendUserId(): string {
   return currentBackendSession?.user.id ?? "";
 }
 
+export function getBackendSessionSavedAtMs(): number {
+  return currentBackendSession ? currentBackendSessionSavedAtMs : 0;
+}
+
 export async function clearBackendSession(): Promise<void> {
   currentBackendSession = null;
+  currentBackendSessionSavedAtMs = 0;
   setAccessToken(null);
   await setRefreshToken(null);
 }

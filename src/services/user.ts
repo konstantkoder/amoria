@@ -456,7 +456,7 @@ export async function updateUserAvatarUrl(avatarUrl: string): Promise<UserProfil
       return mapBackendUserProfile(backendSession.user);
     }
 
-    const refreshedSession = await refreshBackendUser();
+    const refreshedSession = await refreshBackendUser({ allowCached: false });
     if (samePublicMediaReference(refreshedSession?.user.avatarUrl, sharedAvatarUrl)) {
       return mapBackendUserProfile(refreshedSession.user);
     }

@@ -8,6 +8,7 @@ import { getMeFromBackend } from "@/services/api/profileApi";
 import {
   clearBackendSession,
   getBackendAccessToken,
+  getBackendSessionSavedAtMs,
   loadBackendSession,
   saveBackendSession,
   type BackendSession,
@@ -21,6 +22,15 @@ import type {
   LoginRequest,
   RegisterRequest,
 } from "@/services/api/types";
+import { markStartupEvent } from "@/services/startupDiagnostics";
+
+const STARTUP_PROFILE_SESSION_CACHE_MS = 15 * 1000;
+
+type RefreshBackendUserOptions = {
+  allowCached?: boolean;
+};
+
+let refreshBackendUserPromise: Promise<BackendSession | null> | null = null;
 
 function shouldClearSessionForError(error: unknown) {
   return error instanceof ApiError && (error.status === 401 || error.status === 403);
@@ -54,7 +64,20 @@ export async function restoreBackendSession(): Promise<BackendSession | null> {
   return loadBackendSession();
 }
 
-export async function refreshBackendUser(): Promise<BackendSession | null> {
+async function loadFreshCachedBackendSession(): Promise<BackendSession | null> {
+  const session = await loadBackendSession();
+  if (!session) return null;
+
+  const savedAtMs = getBackendSessionSavedAtMs();
+  if (!savedAtMs || Date.now() - savedAtMs > STARTUP_PROFILE_SESSION_CACHE_MS) {
+    return null;
+  }
+
+  markStartupEvent("profile.cached_session_reused");
+  return session;
+}
+
+async function refreshBackendUserFromNetwork(): Promise<BackendSession | null> {
   const currentAccessToken = await getBackendAccessToken();
   const currentRefreshToken = await getRefreshToken();
   if (!currentAccessToken && !currentRefreshToken) return null;
@@ -83,6 +106,26 @@ export async function refreshBackendUser(): Promise<BackendSession | null> {
 
     throw error;
   }
+}
+
+export async function refreshBackendUser(
+  options: RefreshBackendUserOptions = {}
+): Promise<BackendSession | null> {
+  if (options.allowCached !== false) {
+    const cachedSession = await loadFreshCachedBackendSession();
+    if (cachedSession) return cachedSession;
+  }
+
+  if (!refreshBackendUserPromise) {
+    refreshBackendUserPromise = refreshBackendUserFromNetwork()
+      .finally(() => {
+        refreshBackendUserPromise = null;
+      });
+  } else {
+    markStartupEvent("profile.refresh_reused_in_flight");
+  }
+
+  return refreshBackendUserPromise;
 }
 
 export async function logoutBackendSession(): Promise<void> {

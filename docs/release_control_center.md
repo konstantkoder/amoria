@@ -36,10 +36,13 @@ Updated: 2026-06-05
 ## Startup Performance Baseline
 
 - `STARTUP-PERFORMANCE-BASELINE-01` is documented in `docs/startup_performance_baseline_01.md`.
+- `STARTUP-PERFORMANCE-OPTIMIZE-01` is documented in `docs/startup_performance_optimize_01.md`.
 - Mobile now has dev-only startup timing diagnostics for locale ready, auth refresh/bootstrap, profile bootstrap, first screen ready, focused Together initial load, focused Nearby initial load, sanitized API request latency, duplicate startup API requests, and safe aggregate media probe timing.
 - Diagnostics are console-only, first-30-seconds only, and do not log request bodies, tokens, refresh tokens, passwords, exact coordinates, exact birth dates, profile text, raw media URLs, private media URLs, object keys, signed URLs, or locked-gallery content.
-- Static YELLOW finding: startup can repeat `GET /me` through the identity gate and the initially focused Together lobby. Optimize only after collecting baseline logs.
-- Static YELLOW finding: inbox badge/realtime starts during signed-in startup, and inactive tabs mount because bottom tabs use `lazy:false`; Nearby backend loading remains focus-gated.
+- Optimized now: startup profile reads reuse a short-lived real backend session user and dedupe in-flight profile refreshes, reducing duplicate `GET /me` during signed-in startup.
+- Optimized now: inactive bottom tabs use lazy mounting, so Nearby/Inbox screens do not mount before they are opened.
+- Optimized now: inbox badge/realtime startup is deferred until after initial interactions; Inbox still loads its own data on focus.
+- Nearby backend loading remains focus-gated and must stay that way.
 - Build impact: EAS rebuild no, backend restart no, DB migration no, admin build no, Metro cache clear yes.
 
 ## Main local start bat

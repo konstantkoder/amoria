@@ -95,6 +95,19 @@ Recommended follow-up after collecting a few startup logs:
 - Consider `lazy:true` for inactive tabs if measured mount cost is meaningful, while preserving intended tab UX.
 - If `api.request` durations are high only through tunnel/dev-client, treat it as environment latency rather than app startup logic.
 
+## Optimization Follow-Up
+
+`STARTUP-PERFORMANCE-OPTIMIZE-01` is documented in `docs/startup_performance_optimize_01.md`.
+
+The optimization pass keeps the baseline diagnostics and reduces startup work by:
+
+- reusing a short-lived real backend session user after auth/profile responses;
+- deduplicating in-flight backend profile refreshes;
+- enabling lazy inactive tab mounting;
+- deferring inbox badge/realtime startup until after initial interactions.
+
+Nearby backend loading remains focus-gated.
+
 ## Commands Run
 
 - Mobile `git status --short`, `git branch --show-current`, `git log -1 --oneline`.

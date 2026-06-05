@@ -4,6 +4,7 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 import {
   ActivityIndicator,
+  InteractionManager,
   Keyboard,
   StyleSheet,
   Text,
@@ -278,11 +279,13 @@ function MainTabs() {
 
   React.useEffect(() => {
     let alive = true;
+    let deferredStartupWork: { cancel?: () => void } | null = null;
     if (!uid) {
       setThreads([]);
       wsClient.disconnect();
       return () => {
         alive = false;
+        deferredStartupWork?.cancel?.();
       };
     }
 
@@ -297,9 +300,12 @@ function MainTabs() {
       }
     }
 
-    void loadInboxBadge();
-    wsClient.connect();
-    wsClient.subscribeInbox();
+    deferredStartupWork = InteractionManager.runAfterInteractions(() => {
+      if (!alive) return;
+      void loadInboxBadge();
+      wsClient.connect();
+      wsClient.subscribeInbox();
+    });
     const unsubscribe = wsClient.onMessage((message) => {
       if (!alive || message.type !== "inbox.updated") return;
       void loadInboxBadge();
@@ -307,6 +313,7 @@ function MainTabs() {
 
     return () => {
       alive = false;
+      deferredStartupWork?.cancel?.();
       unsubscribe();
     };
   }, [uid]);
@@ -340,7 +347,7 @@ function MainTabs() {
 
         return {
           headerShown: false,
-          lazy: false,
+          lazy: true,
           tabBarHideOnKeyboard: true,
           tabBarActiveTintColor: TAB_ACTIVE_TINT,
           tabBarInactiveTintColor: TAB_INACTIVE_TINT,
