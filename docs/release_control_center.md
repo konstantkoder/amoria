@@ -1,6 +1,6 @@
 # Amoria Release Control Center
 
-Updated: 2026-06-04
+Updated: 2026-06-05
 
 ## Release Rules
 
@@ -14,6 +14,14 @@ Updated: 2026-06-04
 
 - Server branch: `backend/standalone-foundation`
 - Mobile branch: `migration/remove-firebase-foundation`
+
+## Warning Gate
+
+- `TECH-DEBT-VSCODE-WARNINGS-01` is documented in `docs/tech_debt_vscode_warnings_01.md`.
+- Current open RED after the gate: none.
+- Fixed now: server production audit is clean after package-lock updates to transitive `ws` `8.21.0` and `brace-expansion` `5.0.6`; mobile also received narrow transitive lock updates for `fast-uri`, `ws`, and `brace-expansion`.
+- Deferred YELLOW: mobile i18n locale drift to `I18N-RELEASE-CLEANUP-01`, remaining mobile Expo/tooling audit cleanup, mobile lint setup decision, intentional deprecated compatibility surfaces, and startup Node alignment.
+- Build impact: EAS rebuild no, backend restart yes when deploying the server dependency update, DB migration no, admin build no, Metro cache clear no.
 
 ## Together Geo Contract
 
