@@ -1,6 +1,6 @@
 # Amoria Release Control Center
 
-Updated: 2026-06-04
+Updated: 2026-06-05
 
 ## Branches
 
@@ -13,6 +13,14 @@ Updated: 2026-06-04
 - No Firebase fallback.
 - No local-only success.
 - Backend-first source of truth.
+
+## Warning Gate
+
+- `TECH-DEBT-VSCODE-WARNINGS-01` is documented in `docs/tech_debt_vscode_warnings_01.md`.
+- Current open RED after the gate: none.
+- Fixed now: narrow package-lock audit updates for mobile transitive `fast-uri`, `ws`, and `brace-expansion`, plus server transitive `ws` and `brace-expansion`.
+- Deferred YELLOW: mobile i18n locale drift to `I18N-RELEASE-CLEANUP-01`, mobile Expo/tooling audit cleanup, mobile lint setup decision, intentional deprecated compatibility surfaces, and startup Node alignment.
+- Build impact: EAS rebuild no, backend restart yes when deploying the server dependency update, DB migration no, admin build no, Metro cache clear no.
 
 ## Main local start bat
 
