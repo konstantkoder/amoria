@@ -14,6 +14,7 @@ export const en = {
   "nav.togetherSessions": "Together Sessions",
   "nav.auditLog": "Audit Log",
   "nav.opsHealth": "Ops Health",
+  "nav.nearbyDiagnostics": "Nearby Diagnostics",
   "nav.bootstrap": "Bootstrap",
 
   "common.action": "Action",

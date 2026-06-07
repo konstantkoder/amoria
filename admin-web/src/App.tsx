@@ -59,6 +59,7 @@ type Screen =
   | "togetherQueue"
   | "togetherSessions"
   | "opsHealth"
+  | "nearbyDiagnostics"
   | "bootstrap";
 
 type ScreenItem = {
@@ -92,6 +93,7 @@ const screens: ScreenItem[] = [
   { key: "togetherSessions", labelKey: "nav.togetherSessions", roles: ["owner", "ops"] },
   { key: "auditLog", labelKey: "nav.auditLog" },
   { key: "opsHealth", labelKey: "nav.opsHealth" },
+  { key: "nearbyDiagnostics", labelKey: "nav.nearbyDiagnostics", roles: ["owner", "ops"] },
   { key: "bootstrap", labelKey: "nav.bootstrap" },
 ];
 
@@ -256,7 +258,7 @@ export function App() {
                 setTogetherSessionFilter(sessionId);
                 setScreen("togetherSessions");
               }}
-              onOpenNearbyDiagnostics={() => setScreen("opsHealth")}
+              onOpenNearbyDiagnostics={() => setScreen("nearbyDiagnostics")}
             />
           ) : null}
           {activeScreen === "media" ? <MediaScreen setMessage={setMessage} openRequest={mediaOpenRequest} /> : null}
@@ -271,7 +273,7 @@ export function App() {
           {activeScreen === "togetherSessions" ? (
             <TogetherSessionsScreen initialSessionId={togetherSessionFilter} />
           ) : null}
-          {activeScreen === "opsHealth" ? <OpsHealthScreen /> : null}
+          {activeScreen === "opsHealth" || activeScreen === "nearbyDiagnostics" ? <OpsHealthScreen /> : null}
           {activeScreen === "bootstrap" ? <BootstrapScreen /> : null}
         </main>
       </div>
@@ -421,7 +423,7 @@ function Dashboard({
           ],
           note: t("dashboard.nearbyNote"),
           actionLabel: t("dashboard.openNearbyDiagnostics"),
-          target: "opsHealth" as Screen,
+          target: "nearbyDiagnostics" as Screen,
         },
         {
           key: "health",

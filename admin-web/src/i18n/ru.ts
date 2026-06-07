@@ -16,6 +16,7 @@ export const ru: Record<TranslationKey, string> = {
   "nav.togetherSessions": "Сессии Together",
   "nav.auditLog": "Аудит",
   "nav.opsHealth": "Состояние Ops",
+  "nav.nearbyDiagnostics": "Диагностика Рядом",
   "nav.bootstrap": "Первый owner",
 
   "common.action": "Действие",
