@@ -58,7 +58,7 @@ export function normalizeAuthenticatedLockedMediaUrl(
     : parseUrl(normalized)?.pathname ?? "";
 
   if (!isLockedMediaPath(path)) {
-    warnInvalidMediaUrl(context, normalized);
+    warnInvalidMediaUrl(context, "[redacted locked media URL]");
     return undefined;
   }
 

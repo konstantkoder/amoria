@@ -1,6 +1,6 @@
 # Amoria Release Control Center
 
-Updated: 2026-06-05
+Updated: 2026-06-07
 
 ## Branches
 
@@ -53,6 +53,15 @@ This launcher is local dev tooling only and is not product logic.
 
 ## Current known live bug
 
+- LOCKED-GALLERY-GUEST-MEDIA-FIX-02 is fixed in code and awaiting release smoke:
+  - Correct password unlock keeps backend returned locked photos and renders them from `/media/locked/:mediaId`.
+  - Locked photo tiles now have per-photo loading and honest failure states; one failed image no longer clears the whole unlocked album.
+  - If RN `Image` cannot render authenticated locked media, mobile downloads the locked image with `Authorization` and `x-amoria-locked-gallery-token`, verifies 2xx plus `image/*`, writes a short-lived cache file, and renders that local URI.
+  - Unlock tokens and access tokens remain in memory only. Cached locked media is cleared on profile/user change, token expiry, logout/session invalidation, and screen unmount.
+  - If unlock returns zero photos while the public locked-gallery summary has a positive count, mobile shows an explicit inconsistency message and reports a safe Client Error.
+  - Safe Client Error metadata for `loadLockedGalleryMedia` is limited to target/media IDs, counts, HTTP status, content type, probe code, and `tokenExpiresSoon`; no raw URLs, passwords, tokens, object keys, signed URLs, exact DOB, or coordinates are reported.
+  - Nearby/Together logic and public media exposure are unchanged.
+  - Build impact: EAS no, backend yes for Client Errors sanitizer, DB migration no, admin build no, Metro yes.
 - PROFILE-GENDER-PREFERENCES-ONBOARDING-01 is fixed in code and awaiting release smoke:
   - Edit Profile now has clear backend-backed fields for `Я` and `Кого я ищу`.
   - `Я` supports man, woman, other, and prefer-not-to-say; prefer-not-to-say is saved as explicit `gender=null`, not as a missing field.

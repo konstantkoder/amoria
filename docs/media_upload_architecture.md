@@ -1,6 +1,6 @@
 # Media Upload Architecture
 
-Updated: 2026-05-24 after `BUGFIX-TOGETHER-START-PEER-MEDIA-05`
+Updated: 2026-06-07 after `LOCKED-GALLERY-GUEST-MEDIA-FIX-02`
 
 ## Release Rule
 
@@ -24,6 +24,22 @@ Avatar and profile photo uploads wrote absolute URLs into `media_files.url` and 
 - Public profile, admin list/detail, and mobile-facing responses re-materialize avatar and public photo URLs from media IDs, so stale absolute DB URLs are not trusted as the public contract.
 - Mobile and Admin Web resolve relative `/media/public/:mediaId` paths against the current API origin.
 - Mobile image rendering keeps safe diagnostics for peer profile media: `mediaId` when available, `urlKind`, `hasAvatarUrl`, and `photoCount`. Full raw URLs are not sent to Client Errors.
+
+## Locked Gallery Guest Rendering
+
+After a successful guest unlock, locked photos render only from the unlock response and only through:
+
+```text
+GET /media/locked/:mediaId
+Authorization: Bearer <viewer access token>
+x-amoria-locked-gallery-token: <unlock token>
+```
+
+Mobile keeps the unlock token and viewer access token in memory only. Locked media is never rewritten to `/media/public/:mediaId`, never added to Nearby cards, and never stored as a public URL.
+
+The peer profile screen shows a per-photo loading state. If React Native `Image` cannot render the authenticated locked URL, mobile performs an authenticated file-system download with the same two headers, verifies a 2xx status and `image/*` content type, writes the bytes to the app cache for the short session, and renders that local cache URI. The cache directory is cleared when the profile/user changes, the unlock token expires, logout/session invalidation occurs, or the screen unmounts.
+
+If the backend returns zero photos after unlock while the public locked-gallery summary reported photos, mobile shows an explicit inconsistency message and reports a safe Client Error with `screen=UserProfileScreen`, `action=loadLockedGalleryMedia`, and `step=unlockResponseEmpty`. Locked media failures use `lockedPhotoLoadFailed`, `lockedPhotoFetchFailed`, or `lockedPhotoInvalidUrl` with only safe metadata such as `targetUserId`, `mediaId`, counts, HTTP status, content type, probe error code, and `tokenExpiresSoon`.
 
 ## Backend-Mediated Profile Photo Upload
 

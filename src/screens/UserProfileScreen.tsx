@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  DeviceEventEmitter,
   Image,
   Modal,
   Pressable,
@@ -14,6 +15,7 @@ import {
   type AlertButton,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
+import * as FileSystem from "expo-file-system/legacy";
 
 import CoreStateCard from "@/components/CoreStateCard";
 import {
@@ -39,9 +41,12 @@ import type { SafetyReportReason } from "@/services/api/safetyApi";
 import { getUserProfileById } from "@/services/user";
 import { getBackendAccessToken } from "@/services/api/sessionStorage";
 import {
+  AUTH_SESSION_CHANGED_EVENT,
+  type AuthSessionChangedEvent,
+} from "@/services/session/authEvents";
+import {
   getPublicMediaUrlInfo,
   normalizeAuthenticatedLockedMediaUrl,
-  normalizePublicMediaUrl,
   probePublicMediaUrlInfo,
   type PublicMediaUrlInfo,
 } from "@/services/media/mediaUrl";
@@ -99,6 +104,155 @@ type UnlockedGalleryPhoto = UserProfilePhoto & {
   unlockExpiresAt: string;
   accessToken: string;
 };
+type LockedPhotoRenderStatus = "loading" | "fetching" | "ready" | "failed";
+type LockedPhotoRenderState = {
+  status: LockedPhotoRenderStatus;
+  localUri?: string;
+  httpStatus?: number;
+  contentType?: string;
+  probeErrorCode?: string;
+};
+
+type LockedPhotoFetchResult = {
+  uri: string;
+  httpStatus: number;
+  contentType: string;
+};
+
+class LockedPhotoFetchError extends Error {
+  httpStatus?: number;
+  contentType?: string;
+  probeErrorCode?: string;
+
+  constructor(
+    message: string,
+    input: {
+      httpStatus?: number;
+      contentType?: string;
+      probeErrorCode?: string;
+    } = {}
+  ) {
+    super(message);
+    this.name = "LockedPhotoFetchError";
+    this.httpStatus = input.httpStatus;
+    this.contentType = input.contentType;
+    this.probeErrorCode = input.probeErrorCode;
+  }
+}
+
+const LOCKED_GALLERY_CACHE_DIR_NAME = "amoria-locked-gallery";
+const LOCKED_GALLERY_TOKEN_EXPIRY_SOON_MS = 30_000;
+
+function lockedGalleryCacheDir(): string | undefined {
+  return FileSystem.cacheDirectory
+    ? `${FileSystem.cacheDirectory}${LOCKED_GALLERY_CACHE_DIR_NAME}/`
+    : undefined;
+}
+
+function safeLockedPhotoFileName(mediaId: string): string {
+  return mediaId.replace(/[^a-zA-Z0-9_-]/g, "_") || "locked-photo";
+}
+
+function contentTypeFromHeaders(
+  headers: Record<string, string> | undefined,
+  fallback: string | null | undefined
+): string | undefined {
+  const normalizedFallback = String(fallback ?? "").trim();
+  if (normalizedFallback) return normalizedFallback;
+  if (!headers) return undefined;
+
+  const entry = Object.entries(headers).find(
+    ([key]) => key.toLowerCase() === "content-type"
+  );
+  return entry?.[1]?.trim() || undefined;
+}
+
+function imageFileExtensionForContentType(contentType: string): string {
+  const normalized = contentType.toLowerCase();
+  if (normalized.includes("jpeg") || normalized.includes("jpg")) return "jpg";
+  if (normalized.includes("png")) return "png";
+  if (normalized.includes("webp")) return "webp";
+  if (normalized.includes("gif")) return "gif";
+  return "img";
+}
+
+async function readJsonErrorCodeFromDownloadedFile(
+  fileUri: string,
+  contentType: string | undefined
+): Promise<string | undefined> {
+  if (!contentType?.toLowerCase().includes("application/json")) return undefined;
+
+  const body = await FileSystem.readAsStringAsync(fileUri).catch(() => "");
+  if (!body.trim()) return undefined;
+
+  try {
+    const data = JSON.parse(body) as { error?: { code?: unknown } };
+    const code = data.error?.code;
+    return typeof code === "string" && code.trim() ? code : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function tokenExpiresSoon(expiresAt: string): boolean {
+  const expiresAtMs = Date.parse(expiresAt);
+  return !Number.isFinite(expiresAtMs)
+    ? true
+    : expiresAtMs - Date.now() <= LOCKED_GALLERY_TOKEN_EXPIRY_SOON_MS;
+}
+
+async function fetchLockedPhotoToTemporaryUri(
+  photo: UnlockedGalleryPhoto
+): Promise<LockedPhotoFetchResult> {
+  const cacheDir = lockedGalleryCacheDir();
+  if (!cacheDir) {
+    throw new LockedPhotoFetchError("Locked gallery cache directory is unavailable", {
+      probeErrorCode: "cache_unavailable",
+    });
+  }
+
+  await FileSystem.makeDirectoryAsync(cacheDir, { intermediates: true });
+  const fileBaseName = `${safeLockedPhotoFileName(photo.mediaId)}-${Date.now()}`;
+  const downloadUri = `${cacheDir}${fileBaseName}.download`;
+
+  const response = await FileSystem.downloadAsync(photo.url, downloadUri, {
+    cache: false,
+    sessionType: FileSystem.FileSystemSessionType.FOREGROUND,
+    headers: {
+      Authorization: `Bearer ${photo.accessToken}`,
+      "x-amoria-locked-gallery-token": photo.unlockToken,
+    },
+  });
+  const contentType = contentTypeFromHeaders(response.headers, response.mimeType);
+  const probeErrorCode =
+    await readJsonErrorCodeFromDownloadedFile(response.uri, contentType);
+
+  if (response.status < 200 || response.status >= 300) {
+    await FileSystem.deleteAsync(response.uri, { idempotent: true }).catch(() => undefined);
+    throw new LockedPhotoFetchError("Locked media fetch failed", {
+      httpStatus: response.status,
+      ...(contentType ? { contentType } : {}),
+      probeErrorCode: probeErrorCode ?? "http_status_failed",
+    });
+  }
+
+  if (!contentType?.toLowerCase().startsWith("image/")) {
+    await FileSystem.deleteAsync(response.uri, { idempotent: true }).catch(() => undefined);
+    throw new LockedPhotoFetchError("Locked media response was not an image", {
+      httpStatus: response.status,
+      ...(contentType ? { contentType } : {}),
+      probeErrorCode: "non_image_content_type",
+    });
+  }
+
+  const finalUri = `${cacheDir}${fileBaseName}.${imageFileExtensionForContentType(contentType)}`;
+  await FileSystem.moveAsync({ from: response.uri, to: finalUri });
+  return {
+    uri: finalUri,
+    httpStatus: response.status,
+    contentType,
+  };
+}
 
 function isProfileUnavailableError(error: unknown): boolean {
   return (
@@ -111,7 +265,7 @@ function isProfileUnavailableError(error: unknown): boolean {
 export default function UserProfileScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"UserProfile">>();
   const route = useRoute<UserProfileRouteProp>();
-  const { user: authUser } = useAuth();
+  const { user: authUser, accessToken: authAccessToken } = useAuth();
   const { t } = useLocale();
   const tt = useCallback(
     (key: string, fallback: string, params?: Record<string, string>) => {
@@ -140,10 +294,35 @@ export default function UserProfileScreen() {
   const [unlockBusy, setUnlockBusy] = useState(false);
   const [unlockError, setUnlockError] = useState("");
   const [unlockedPhotos, setUnlockedPhotos] = useState<UnlockedGalleryPhoto[]>([]);
-  const [failedLockedPhotoIds, setFailedLockedPhotoIds] = useState<string[]>([]);
+  const [lockedGalleryMessage, setLockedGalleryMessage] = useState("");
+  const [lockedPhotoStates, setLockedPhotoStates] = useState<Record<string, LockedPhotoRenderState>>({});
   const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
   const [failedPublicPhotoIds, setFailedPublicPhotoIds] = useState<string[]>([]);
   const reportedMediaFailuresRef = React.useRef<Set<string>>(new Set());
+  const reportedLockedMediaFailuresRef = React.useRef<Set<string>>(new Set());
+  const lockedPhotoFallbackInFlightRef = React.useRef<Set<string>>(new Set());
+  const lockedPhotoTempUrisRef = React.useRef<Set<string>>(new Set());
+  const unlockedPhotoIdsRef = React.useRef<Set<string>>(new Set());
+
+  const clearLockedPhotoTempFiles = useCallback(async () => {
+    lockedPhotoFallbackInFlightRef.current.clear();
+    lockedPhotoTempUrisRef.current.clear();
+    const cacheDir = lockedGalleryCacheDir();
+    if (!cacheDir) return;
+    await FileSystem.deleteAsync(cacheDir, { idempotent: true }).catch(() => undefined);
+  }, []);
+
+  const clearUnlockedLockedGallery = useCallback(
+    (message = "") => {
+      unlockedPhotoIdsRef.current.clear();
+      setUnlockedPhotos([]);
+      setLockedPhotoStates({});
+      setLockedGalleryMessage(message);
+      reportedLockedMediaFailuresRef.current.clear();
+      void clearLockedPhotoTempFiles();
+    },
+    [clearLockedPhotoTempFiles]
+  );
 
   useEffect(() => {
     let alive = true;
@@ -151,8 +330,7 @@ export default function UserProfileScreen() {
     setUnlockModalVisible(false);
     setLockedPassword("");
     setUnlockError("");
-    setUnlockedPhotos([]);
-    setFailedLockedPhotoIds([]);
+    clearUnlockedLockedGallery();
     setAvatarLoadFailed(false);
     setFailedPublicPhotoIds([]);
     reportedMediaFailuresRef.current.clear();
@@ -187,7 +365,75 @@ export default function UserProfileScreen() {
     return () => {
       alive = false;
     };
-  }, [reloadKey, userId]);
+  }, [clearUnlockedLockedGallery, reloadKey, userId]);
+
+  useEffect(() => {
+    if (!authAccessToken) {
+      if (unlockedPhotos.length) {
+        clearUnlockedLockedGallery(
+          tt("profile.lockedGalleryUnlockExpired", "Сессия истекла. Введите пароль ещё раз.")
+        );
+      }
+      return;
+    }
+
+    setUnlockedPhotos((current) =>
+      current.map((photo) => ({
+        ...photo,
+        accessToken: authAccessToken,
+      }))
+    );
+  }, [authAccessToken, clearUnlockedLockedGallery, tt, unlockedPhotos.length]);
+
+  useEffect(() => {
+    const subscription = DeviceEventEmitter.addListener(
+      AUTH_SESSION_CHANGED_EVENT,
+      (event?: AuthSessionChangedEvent) => {
+        if (event?.signedIn === false) {
+          clearUnlockedLockedGallery(
+            tt("profile.lockedGalleryUnlockExpired", "Сессия истекла. Введите пароль ещё раз.")
+          );
+        }
+      }
+    );
+
+    return () => {
+      subscription.remove();
+    };
+  }, [clearUnlockedLockedGallery, tt]);
+
+  useEffect(() => {
+    const unlockExpiresAt = unlockedPhotos[0]?.unlockExpiresAt;
+    if (!unlockExpiresAt) return;
+
+    const expiresInMs = Date.parse(unlockExpiresAt) - Date.now();
+    if (!Number.isFinite(expiresInMs) || expiresInMs <= 0) {
+      clearUnlockedLockedGallery(
+        tt("profile.lockedGalleryUnlockExpired", "Сессия истекла. Введите пароль ещё раз.")
+      );
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      clearUnlockedLockedGallery(
+        tt("profile.lockedGalleryUnlockExpired", "Сессия истекла. Введите пароль ещё раз.")
+      );
+    }, expiresInMs);
+
+    return () => {
+      clearTimeout(timeout);
+    };
+  }, [clearUnlockedLockedGallery, tt, unlockedPhotos]);
+
+  useEffect(() => {
+    unlockedPhotoIdsRef.current = new Set(unlockedPhotos.map((photo) => photo.mediaId));
+  }, [unlockedPhotos]);
+
+  useEffect(() => {
+    return () => {
+      void clearLockedPhotoTempFiles();
+    };
+  }, [clearLockedPhotoTempFiles]);
 
   useEffect(() => {
     let alive = true;
@@ -363,6 +609,54 @@ export default function UserProfileScreen() {
     [reportPeerMediaLoadFailed]
   );
 
+  const reportLockedGalleryMediaIssue = useCallback(
+    (
+      step:
+        | "unlockResponseEmpty"
+        | "lockedPhotoLoadFailed"
+        | "lockedPhotoFetchFailed"
+        | "lockedPhotoInvalidUrl",
+      input: {
+        mediaId?: string;
+        lockedPhotoCount?: number;
+        mappedPhotoCount?: number;
+        invalidLockedUrlCount?: number;
+        httpStatus?: number;
+        contentType?: string;
+        probeErrorCode?: string;
+        tokenExpiresSoon?: boolean;
+      } = {}
+    ) => {
+      const reportKey = [
+        step,
+        input.mediaId ?? "album",
+        input.httpStatus ?? "",
+        input.probeErrorCode ?? "",
+      ].join(":");
+      if (reportedLockedMediaFailuresRef.current.has(reportKey)) return;
+      reportedLockedMediaFailuresRef.current.add(reportKey);
+
+      reportClientError({
+        screen: "UserProfileScreen",
+        action: "loadLockedGalleryMedia",
+        step,
+        message: "Locked gallery media could not be rendered",
+        metadata: {
+          targetUserId: userId,
+          ...(input.mediaId ? { mediaId: input.mediaId } : {}),
+          lockedPhotoCount: input.lockedPhotoCount ?? lockedGallery?.count ?? 0,
+          mappedPhotoCount: input.mappedPhotoCount ?? unlockedPhotos.length,
+          invalidLockedUrlCount: input.invalidLockedUrlCount ?? 0,
+          httpStatus: input.httpStatus ?? null,
+          contentType: input.contentType ?? null,
+          probeErrorCode: input.probeErrorCode ?? null,
+          tokenExpiresSoon: Boolean(input.tokenExpiresSoon),
+        },
+      });
+    },
+    [lockedGallery?.count, unlockedPhotos.length, userId]
+  );
+
   const sourceTitle = useMemo(() => {
     if (sourceContext?.source === "announcement") {
       return tt("profile.sourceAnnouncement", "Вы начали разговор после объявления");
@@ -421,6 +715,7 @@ export default function UserProfileScreen() {
 
     setUnlockBusy(true);
     setUnlockError("");
+    setLockedGalleryMessage("");
     try {
       const response = await unlockUserLockedGallery(userId, password);
       const accessToken = await getBackendAccessToken();
@@ -428,24 +723,78 @@ export default function UserProfileScreen() {
         setUnlockError(tt("profile.lockedGalleryUnlockExpired", "Сессия истекла. Введите пароль ещё раз."));
         return;
       }
-      setUnlockedPhotos(
-        response.photos
-          .map((photo): UnlockedGalleryPhoto | null => {
-            const url = normalizeAuthenticatedLockedMediaUrl(photo.url, "locked gallery media URL");
-            if (!url) return null;
-            return {
-              mediaId: photo.mediaId,
-              url,
-              position: photo.position,
-              visibility: "locked",
-              unlockToken: response.unlockToken,
-              unlockExpiresAt: response.unlockExpiresAt,
-              accessToken,
-            };
-          })
-          .filter((photo): photo is UnlockedGalleryPhoto => Boolean(photo))
+      const lockedPhotoCount = lockedGallery?.count ?? response.photos.length;
+      const tokenExpiresSoonValue = tokenExpiresSoon(response.unlockExpiresAt);
+      const invalidLockedMediaIds: string[] = [];
+      const mappedPhotos = response.photos
+        .map((photo): UnlockedGalleryPhoto | null => {
+          const url = normalizeAuthenticatedLockedMediaUrl(photo.url, "locked gallery media URL");
+          if (!url) {
+            invalidLockedMediaIds.push(photo.mediaId);
+            return null;
+          }
+          return {
+            mediaId: photo.mediaId,
+            url,
+            position: photo.position,
+            visibility: "locked",
+            unlockToken: response.unlockToken,
+            unlockExpiresAt: response.unlockExpiresAt,
+            accessToken,
+          };
+        })
+        .filter((photo): photo is UnlockedGalleryPhoto => Boolean(photo));
+      const invalidLockedUrlCount = invalidLockedMediaIds.length;
+
+      if (response.photos.length === 0 && lockedPhotoCount > 0) {
+        clearUnlockedLockedGallery(
+          tt(
+            "profile.lockedGalleryEmptyAfterUnlock",
+            "Пароль принят, но сервер не вернул закрытые фото. Мы сохранили безопасную ошибку для проверки."
+          )
+        );
+        reportLockedGalleryMediaIssue("unlockResponseEmpty", {
+          lockedPhotoCount,
+          mappedPhotoCount: 0,
+          invalidLockedUrlCount: 0,
+          tokenExpiresSoon: tokenExpiresSoonValue,
+        });
+        setUnlockModalVisible(false);
+        setLockedPassword("");
+        return;
+      }
+
+      invalidLockedMediaIds.forEach((mediaId) => {
+        reportLockedGalleryMediaIssue("lockedPhotoInvalidUrl", {
+          mediaId,
+          lockedPhotoCount,
+          mappedPhotoCount: mappedPhotos.length,
+          invalidLockedUrlCount,
+          tokenExpiresSoon: tokenExpiresSoonValue,
+        });
+      });
+
+      if (response.photos.length > 0 && mappedPhotos.length === 0) {
+        clearUnlockedLockedGallery(
+          tt(
+            "profile.lockedGalleryMediaUnavailable",
+            "Пароль принят, но закрытые фото сейчас не удалось подготовить."
+          )
+        );
+        setUnlockModalVisible(false);
+        setLockedPassword("");
+        return;
+      }
+
+      await clearLockedPhotoTempFiles();
+      unlockedPhotoIdsRef.current = new Set(mappedPhotos.map((photo) => photo.mediaId));
+      setUnlockedPhotos(mappedPhotos);
+      setLockedPhotoStates(
+        Object.fromEntries(
+          mappedPhotos.map((photo) => [photo.mediaId, { status: "loading" as const }])
+        )
       );
-      setFailedLockedPhotoIds([]);
+      setLockedGalleryMessage("");
       setUnlockModalVisible(false);
       setLockedPassword("");
     } catch (error) {
@@ -470,18 +819,158 @@ export default function UserProfileScreen() {
     } finally {
       setUnlockBusy(false);
     }
-  }, [lockedPassword, tt, unlockBusy, userId]);
+  }, [
+    clearLockedPhotoTempFiles,
+    clearUnlockedLockedGallery,
+    lockedGallery?.count,
+    lockedPassword,
+    reportLockedGalleryMediaIssue,
+    tt,
+    unlockBusy,
+    userId,
+  ]);
+
+  const handleLockedPhotoLoadStarted = useCallback((photo: UnlockedGalleryPhoto) => {
+    setLockedPhotoStates((current) => {
+      const existing = current[photo.mediaId];
+      if (existing?.status === "fetching" || existing?.status === "ready") return current;
+      return {
+        ...current,
+        [photo.mediaId]: {
+          ...existing,
+          status: "loading",
+        },
+      };
+    });
+  }, []);
+
+  const handleLockedPhotoLoaded = useCallback((photo: UnlockedGalleryPhoto) => {
+    setLockedPhotoStates((current) => {
+      const existing = current[photo.mediaId];
+      return {
+        ...current,
+        [photo.mediaId]: {
+          ...existing,
+          status: "ready",
+        },
+      };
+    });
+  }, []);
 
   const handleLockedPhotoLoadFailed = useCallback(
-    (photo: UnlockedGalleryPhoto) => {
-      setFailedLockedPhotoIds((current) =>
-        current.includes(photo.mediaId) ? current : [...current, photo.mediaId]
-      );
-      setUnlockedPhotos([]);
-      setUnlockError(tt("profile.lockedGalleryUnlockExpired", "Сессия истекла. Введите пароль ещё раз."));
-      setUnlockModalVisible(true);
+    (photo: UnlockedGalleryPhoto, renderState?: LockedPhotoRenderState) => {
+      reportLockedGalleryMediaIssue("lockedPhotoLoadFailed", {
+        mediaId: photo.mediaId,
+        mappedPhotoCount: unlockedPhotos.length,
+        httpStatus: renderState?.httpStatus,
+        contentType: renderState?.contentType,
+        probeErrorCode: renderState?.probeErrorCode,
+        tokenExpiresSoon: tokenExpiresSoon(photo.unlockExpiresAt),
+      });
+
+      if (renderState?.localUri) {
+        setLockedPhotoStates((current) => ({
+          ...current,
+          [photo.mediaId]: {
+            ...current[photo.mediaId],
+            status: "failed",
+          },
+        }));
+        return;
+      }
+
+      if (lockedPhotoFallbackInFlightRef.current.has(photo.mediaId)) return;
+      lockedPhotoFallbackInFlightRef.current.add(photo.mediaId);
+      setLockedPhotoStates((current) => ({
+        ...current,
+        [photo.mediaId]: {
+          ...current[photo.mediaId],
+          status: "fetching",
+        },
+      }));
+
+      void fetchLockedPhotoToTemporaryUri(photo)
+        .then((result) => {
+          lockedPhotoFallbackInFlightRef.current.delete(photo.mediaId);
+          if (!unlockedPhotoIdsRef.current.has(photo.mediaId)) {
+            void FileSystem.deleteAsync(result.uri, { idempotent: true }).catch(() => undefined);
+            return;
+          }
+
+          lockedPhotoTempUrisRef.current.add(result.uri);
+          setLockedPhotoStates((current) => {
+            const previousUri = current[photo.mediaId]?.localUri;
+            if (previousUri && previousUri !== result.uri) {
+              lockedPhotoTempUrisRef.current.delete(previousUri);
+              void FileSystem.deleteAsync(previousUri, { idempotent: true }).catch(
+                () => undefined
+              );
+            }
+            return {
+              ...current,
+              [photo.mediaId]: {
+                status: "loading",
+                localUri: result.uri,
+                httpStatus: result.httpStatus,
+                contentType: result.contentType,
+              },
+            };
+          });
+        })
+        .catch((error) => {
+          lockedPhotoFallbackInFlightRef.current.delete(photo.mediaId);
+          if (!unlockedPhotoIdsRef.current.has(photo.mediaId)) return;
+
+          const fetchError =
+            error instanceof LockedPhotoFetchError ? error : undefined;
+          const httpStatus = fetchError?.httpStatus;
+          const contentType = fetchError?.contentType;
+          const probeErrorCode =
+            fetchError?.probeErrorCode ??
+            (error && typeof error === "object" && "name" in error
+              ? String((error as { name?: unknown }).name ?? "fetch_failed")
+              : "fetch_failed");
+
+          reportLockedGalleryMediaIssue("lockedPhotoFetchFailed", {
+            mediaId: photo.mediaId,
+            mappedPhotoCount: unlockedPhotos.length,
+            httpStatus,
+            contentType,
+            probeErrorCode,
+            tokenExpiresSoon: tokenExpiresSoon(photo.unlockExpiresAt),
+          });
+
+          if (
+            httpStatus === 401 ||
+            probeErrorCode === "locked_gallery_unlock_expired"
+          ) {
+            clearUnlockedLockedGallery(
+              tt(
+                "profile.lockedGalleryUnlockExpired",
+                "Сессия истекла. Введите пароль ещё раз."
+              )
+            );
+            return;
+          }
+
+          setLockedPhotoStates((current) => ({
+            ...current,
+            [photo.mediaId]: {
+              ...current[photo.mediaId],
+              status: "failed",
+              ...(httpStatus ? { httpStatus } : {}),
+              ...(contentType ? { contentType } : {}),
+              probeErrorCode,
+            },
+          }));
+        });
     },
-    [tt]
+    [
+      clearUnlockedLockedGallery,
+      reportLockedGalleryMediaIssue,
+      tt,
+      unlockedPhotos.length,
+    ]
   );
 
   const reportUser = useCallback(
@@ -812,9 +1301,13 @@ export default function UserProfileScreen() {
                 count: String(lockedGallery?.count ?? 0),
               })}
             </Text>
+            {lockedGalleryMessage ? (
+              <Text style={styles.inlineInfo}>{lockedGalleryMessage}</Text>
+            ) : null}
             <TouchableOpacity
               onPress={() => {
                 setUnlockError("");
+                setLockedGalleryMessage("");
                 setUnlockModalVisible(true);
               }}
               style={styles.secondaryButton}
@@ -833,31 +1326,65 @@ export default function UserProfileScreen() {
               {tt("profile.lockedGalleryUnlockedTitle", "Закрытые фото")}
             </Text>
             <View style={styles.galleryGrid}>
-              {unlockedPhotos.map((photo, index) => (
-                failedLockedPhotoIds.includes(photo.mediaId) ? (
+              {unlockedPhotos.map((photo, index) => {
+                const renderState = lockedPhotoStates[photo.mediaId] ?? { status: "loading" };
+                const loading =
+                  renderState.status === "loading" || renderState.status === "fetching";
+
+                if (renderState.status === "failed") {
+                  return (
+                    <View
+                      key={`${photo.mediaId ?? photo.url}-${index}`}
+                      style={[styles.lockedPhotoFrame, styles.galleryPhotoFailed]}
+                    >
+                      <Text style={styles.galleryPhotoFailedText}>
+                        {tt(
+                          "profile.lockedPhotoLoadFailed",
+                          "Это закрытое фото не загрузилось."
+                        )}
+                      </Text>
+                    </View>
+                  );
+                }
+
+                return (
                   <View
                     key={`${photo.mediaId ?? photo.url}-${index}`}
-                    style={[styles.galleryPhoto, styles.galleryPhotoFailed]}
+                    style={styles.lockedPhotoFrame}
                   >
-                    <Text style={styles.galleryPhotoFailedText}>
-                      {tt("profile.lockedGalleryUnlockExpired", "Сессия истекла. Введите пароль ещё раз.")}
-                    </Text>
+                    <Image
+                      source={
+                        renderState.localUri
+                          ? { uri: renderState.localUri }
+                          : {
+                              uri: photo.url,
+                              headers: {
+                                Authorization: `Bearer ${photo.accessToken}`,
+                                "x-amoria-locked-gallery-token": photo.unlockToken,
+                              },
+                            }
+                      }
+                      style={styles.lockedPhotoImage}
+                      onLoadStart={() => handleLockedPhotoLoadStarted(photo)}
+                      onLoad={() => handleLockedPhotoLoaded(photo)}
+                      onError={() => handleLockedPhotoLoadFailed(photo, renderState)}
+                    />
+                    {loading ? (
+                      <View style={styles.lockedPhotoOverlay}>
+                        <ActivityIndicator color="#fff" />
+                        <Text style={styles.lockedPhotoLoadingText}>
+                          {renderState.status === "fetching"
+                            ? tt(
+                                "profile.lockedPhotoFallbackLoading",
+                                "Готовим фото…"
+                              )
+                            : tt("profile.lockedPhotoLoading", "Загружаем…")}
+                        </Text>
+                      </View>
+                    ) : null}
                   </View>
-                ) : (
-                  <Image
-                    key={`${photo.mediaId ?? photo.url}-${index}`}
-                    source={{
-                      uri: photo.url,
-                      headers: {
-                        Authorization: `Bearer ${photo.accessToken}`,
-                        "x-amoria-locked-gallery-token": photo.unlockToken,
-                      },
-                    }}
-                    style={styles.galleryPhoto}
-                    onError={() => handleLockedPhotoLoadFailed(photo)}
-                  />
-                )
-              ))}
+                );
+              })}
             </View>
           </View>
         ) : null}
@@ -1067,6 +1594,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 20,
   },
+  inlineInfo: {
+    color: theme.colors.text,
+    fontSize: 13,
+    lineHeight: 19,
+    fontWeight: "700",
+  },
   galleryCard: {
     backgroundColor: "rgba(10, 14, 26, 0.82)",
     borderRadius: theme.shapes.card,
@@ -1085,6 +1618,31 @@ const styles = StyleSheet.create({
     aspectRatio: 1,
     borderRadius: theme.shapes.cardInner,
     backgroundColor: "rgba(255,255,255,0.08)",
+  },
+  lockedPhotoFrame: {
+    width: "48.2%",
+    aspectRatio: 1,
+    borderRadius: theme.shapes.cardInner,
+    overflow: "hidden",
+    backgroundColor: "rgba(255,255,255,0.08)",
+  },
+  lockedPhotoImage: {
+    width: "100%",
+    height: "100%",
+  },
+  lockedPhotoOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "rgba(8, 12, 24, 0.42)",
+  },
+  lockedPhotoLoadingText: {
+    color: theme.colors.text,
+    fontSize: 12,
+    lineHeight: 16,
+    textAlign: "center",
+    fontWeight: "800",
   },
   galleryPhotoFailed: {
     alignItems: "center",

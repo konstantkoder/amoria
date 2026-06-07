@@ -17,6 +17,7 @@ export type ClientErrorReportInput = {
 
 const blockedMetadataKeyPattern =
   /^(lat|lng|latitude|longitude)$|password|token|secret|authorization|cookie|jwt|refresh|accessToken|refreshToken|s3|database|connection|privateKey|lockedGalleryPassword|folderPassword|accountPassword|birthDate|birth_date|dateOfBirth|dob|about|bio|shortAbout|profileText|rawProfileText|rawPrivateProfileText|headers?|\.env|uploadUrl$|signedUrl$/i;
+const allowedSensitiveKeyNames = new Set(["tokenExpiresSoon"]);
 const maxObjectKeys = 40;
 const maxArrayItems = 20;
 const maxStringLength = 500;
@@ -173,7 +174,7 @@ function sanitizeValue(value: unknown, depth: number): unknown {
       }
 
       const safeKey = truncate(key, 80);
-      output[safeKey] = blockedMetadataKeyPattern.test(key)
+      output[safeKey] = shouldRedactMetadataKey(key)
         ? "[redacted]"
         : sanitizeValue(item, depth + 1);
       count += 1;
@@ -183,4 +184,8 @@ function sanitizeValue(value: unknown, depth: number): unknown {
   }
 
   return truncate(String(value), maxStringLength);
+}
+
+function shouldRedactMetadataKey(key: string): boolean {
+  return !allowedSensitiveKeyNames.has(key) && blockedMetadataKeyPattern.test(key);
 }
