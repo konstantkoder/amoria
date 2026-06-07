@@ -213,6 +213,7 @@ export default function NearbyHubScreen() {
   const matchingPreferencesReadyRef = useRef(false);
   const feedRequestIdRef = useRef(0);
   const radiusRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const manualRefreshBusyRef = useRef(false);
   const reportedMissingPreferenceRef = useRef<Set<MissingNearbyPreferenceField>>(new Set());
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [visibility, setVisibility] = useState<NearbyProfileVisibilityDto | null>(null);
@@ -234,6 +235,7 @@ export default function NearbyHubScreen() {
   const ageFilter = getAgeFilter(profile);
   const columns =
     width >= NORMAL_GRID_MIN_WIDTH ? 3 : width >= NARROW_GRID_MIN_WIDTH ? 2 : 1;
+  const refreshDisabled = feedLoading || toggleBusy || preferenceBusy;
 
   useEffect(() => {
     mountedRef.current = true;
@@ -380,6 +382,27 @@ export default function NearbyHubScreen() {
       }
     }
   }, [refreshFeed, t]);
+
+  const refreshNearby = useCallback(() => {
+    if (refreshDisabled || manualRefreshBusyRef.current) return;
+    manualRefreshBusyRef.current = true;
+
+    const currentVisibility = visibilityRef.current;
+    if (
+      currentVisibility?.status === "active" &&
+      profileReadyRef.current &&
+      matchingPreferencesReadyRef.current
+    ) {
+      void refreshFeed(currentVisibility, radiusRef.current).finally(() => {
+        manualRefreshBusyRef.current = false;
+      });
+      return;
+    }
+
+    void loadInitial().finally(() => {
+      manualRefreshBusyRef.current = false;
+    });
+  }, [loadInitial, refreshDisabled, refreshFeed]);
 
   useFocusEffect(
     useCallback(() => {
@@ -608,12 +631,13 @@ export default function NearbyHubScreen() {
   }, [navigation]);
 
   const widenRadius = useCallback(() => {
+    if (refreshDisabled) return;
     const currentIndex = RADIUS_OPTIONS.findIndex((value) => value === radiusKm);
     const next = RADIUS_OPTIONS[Math.min(currentIndex + 1, RADIUS_OPTIONS.length - 1)];
     if (next) {
       handleRadiusChange(next);
     }
-  }, [handleRadiusChange, radiusKm]);
+  }, [handleRadiusChange, radiusKm, refreshDisabled]);
 
   const header = useMemo(
     () => (
@@ -766,12 +790,44 @@ export default function NearbyHubScreen() {
               {getAgePreferenceLabel(profile, t)}
             </Text>
           </View>
+
+          {active ? (
+            <Pressable
+              onPress={refreshNearby}
+              disabled={refreshDisabled}
+              style={[
+                styles.refreshButton,
+                refreshDisabled ? styles.buttonDisabled : null,
+              ]}
+            >
+              {feedLoading ? (
+                <ActivityIndicator color="#24150B" size="small" />
+              ) : (
+                <Ionicons name="refresh-outline" size={16} color="#24150B" />
+              )}
+              <Text style={styles.refreshButtonText}>
+                {copyOrFallback(t, "nearby.refreshAction", "Обновить")}
+              </Text>
+            </Pressable>
+          ) : null}
         </View>
 
         {errorText ? (
           <View style={styles.errorPanel}>
             <Ionicons name="alert-circle-outline" size={18} color="#FFD2DA" />
             <Text style={styles.errorText}>{errorText}</Text>
+            <Pressable
+              onPress={refreshNearby}
+              disabled={refreshDisabled}
+              style={[
+                styles.retryButton,
+                refreshDisabled ? styles.buttonDisabled : null,
+              ]}
+            >
+              <Text style={styles.retryButtonText}>
+                {copyOrFallback(t, "nearby.retryAction", "Повторить")}
+              </Text>
+            </Pressable>
           </View>
         ) : null}
       </View>
@@ -788,6 +844,8 @@ export default function NearbyHubScreen() {
       preferenceBusy,
       profile,
       radiusKm,
+      refreshDisabled,
+      refreshNearby,
       t,
       toggleBusy,
     ]
@@ -805,8 +863,23 @@ export default function NearbyHubScreen() {
           "nearby.emptyProfileBody",
           "Для честного подбора нужен возрастной контекст. Точная дата рождения другим людям не показывается."
         ),
-        action: copyOrFallback(t, "nearby.emptyProfileAction", "Заполнить профиль"),
-        onPress: goToProfileSetup,
+        actions: [
+          {
+            label: copyOrFallback(t, "nearby.emptyProfileAction", "Заполнить анкету"),
+            onPress: goToProfileSetup,
+            variant: "primary" as const,
+          },
+          ...(active
+            ? [
+                {
+                  label: copyOrFallback(t, "nearby.refreshAction", "Обновить"),
+                  onPress: refreshNearby,
+                  variant: "secondary" as const,
+                  disabled: refreshDisabled,
+                },
+              ]
+            : []),
+        ],
       };
     }
 
@@ -819,8 +892,23 @@ export default function NearbyHubScreen() {
           "nearby.emptyPreferencesBody",
           "Заполните, кого вы ищете, чтобы Рядом показывал подходящих людей."
         ),
-        action: copyOrFallback(t, "nearby.emptyPreferencesAction", "Заполнить анкету"),
-        onPress: goToProfilePreferences,
+        actions: [
+          {
+            label: copyOrFallback(t, "nearby.emptyPreferencesAction", "Заполнить анкету"),
+            onPress: goToProfilePreferences,
+            variant: "primary" as const,
+          },
+          ...(active
+            ? [
+                {
+                  label: copyOrFallback(t, "nearby.refreshAction", "Обновить"),
+                  onPress: refreshNearby,
+                  variant: "secondary" as const,
+                  disabled: refreshDisabled,
+                },
+              ]
+            : []),
+        ],
       };
     }
 
@@ -833,8 +921,14 @@ export default function NearbyHubScreen() {
           "nearby.emptyOffBody",
           "Пока видимость выключена, лента Рядом не показывает идентифицируемые профили."
         ),
-        action: copyOrFallback(t, "nearby.emptyOffAction", "Показывать меня"),
-        onPress: enableVisibility,
+        actions: [
+          {
+            label: copyOrFallback(t, "nearby.emptyOffAction", "Показывать меня"),
+            onPress: enableVisibility,
+            variant: "primary" as const,
+            disabled: toggleBusy,
+          },
+        ],
       };
     }
 
@@ -852,8 +946,14 @@ export default function NearbyHubScreen() {
           blocked ? "nearby.emptyLocationBlockedBody" : "nearby.emptyLocationBody",
           "Разрешите геолокацию, чтобы обновить Рядом. Точные координаты не показываются."
         ),
-        action: copyOrFallback(t, "nearby.emptyRefreshAction", "Обновить"),
-        onPress: () => void refreshFeed(visibility, radiusKm),
+        actions: [
+          {
+            label: copyOrFallback(t, "nearby.refreshAction", "Обновить"),
+            onPress: refreshNearby,
+            variant: "primary" as const,
+            disabled: refreshDisabled,
+          },
+        ],
       };
     }
 
@@ -872,11 +972,24 @@ export default function NearbyHubScreen() {
               "nearby.emptyPeopleBody",
               "Люди появятся здесь, когда включат видимость и подойдут по взаимным настройкам."
             ),
-      action:
-        radiusKm < 250
-          ? copyOrFallback(t, "nearby.emptyWidenAction", "Расширить радиус")
-          : copyOrFallback(t, "nearby.emptyRefreshAction", "Обновить"),
-      onPress: radiusKm < 250 ? widenRadius : () => void refreshFeed(visibility, radiusKm),
+      actions: [
+        {
+          label: copyOrFallback(t, "nearby.refreshAction", "Обновить"),
+          onPress: refreshNearby,
+          variant: "primary" as const,
+          disabled: refreshDisabled,
+        },
+        ...(radiusKm < 250
+          ? [
+              {
+                label: copyOrFallback(t, "nearby.emptyWidenAction", "Расширить радиус"),
+                onPress: widenRadius,
+                variant: "secondary" as const,
+                disabled: refreshDisabled,
+              },
+            ]
+          : []),
+      ],
     };
   }, [
     active,
@@ -889,9 +1002,10 @@ export default function NearbyHubScreen() {
     missingPreferenceField,
     profileReady,
     radiusKm,
-    refreshFeed,
+    refreshDisabled,
+    refreshNearby,
     t,
-    visibility,
+    toggleBusy,
     widenRadius,
   ]);
 
@@ -913,9 +1027,29 @@ export default function NearbyHubScreen() {
         <Ionicons name={emptyState.icon} size={30} color="#F3C98B" />
         <Text style={styles.emptyTitle}>{emptyState.title}</Text>
         <Text style={styles.emptyBody}>{emptyState.body}</Text>
-        <Pressable style={styles.emptyButton} onPress={emptyState.onPress}>
-          <Text style={styles.emptyButtonText}>{emptyState.action}</Text>
-        </Pressable>
+        <View style={styles.emptyActions}>
+          {emptyState.actions.map((action) => (
+            <Pressable
+              key={action.label}
+              style={[
+                styles.emptyButton,
+                action.variant === "secondary" ? styles.emptyButtonSecondary : null,
+                action.disabled ? styles.buttonDisabled : null,
+              ]}
+              disabled={action.disabled}
+              onPress={action.onPress}
+            >
+              <Text
+                style={[
+                  styles.emptyButtonText,
+                  action.variant === "secondary" ? styles.emptyButtonSecondaryText : null,
+                ]}
+              >
+                {action.label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
       </View>
     );
   }, [emptyState, feedLoading, loading, t]);
@@ -963,8 +1097,8 @@ export default function NearbyHubScreen() {
         contentContainerStyle={styles.listContent}
         refreshing={feedLoading}
         onRefresh={() => {
-          if (active) {
-            void refreshFeed(visibility, radiusKm);
+          if (active && !refreshDisabled) {
+            refreshNearby();
           }
         }}
       />
@@ -1299,6 +1433,21 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 17,
   },
+  refreshButton: {
+    minHeight: 40,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    backgroundColor: "#F3C98B",
+  },
+  refreshButtonText: {
+    color: "#24150B",
+    fontSize: 13,
+    fontWeight: "900",
+  },
   errorPanel: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -1314,6 +1463,20 @@ const styles = StyleSheet.create({
     color: "#FFD2DA",
     fontSize: 13,
     lineHeight: 18,
+  },
+  retryButton: {
+    minHeight: 30,
+    justifyContent: "center",
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    backgroundColor: "rgba(255, 210, 218, 0.18)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 210, 218, 0.30)",
+  },
+  retryButtonText: {
+    color: "#FFD2DA",
+    fontSize: 12,
+    fontWeight: "900",
   },
   card: {
     flex: 1,
@@ -1446,17 +1609,31 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     textAlign: "center",
   },
-  emptyButton: {
+  emptyActions: {
     marginTop: 4,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: 8,
+  },
+  emptyButton: {
     minHeight: 38,
     justifyContent: "center",
     borderRadius: 12,
     paddingHorizontal: 14,
     backgroundColor: "#F3C98B",
   },
+  emptyButtonSecondary: {
+    backgroundColor: "rgba(255,255,255,0.07)",
+    borderWidth: 1,
+    borderColor: "rgba(245, 205, 139, 0.34)",
+  },
   emptyButtonText: {
     color: "#24150B",
     fontSize: 13,
     fontWeight: "900",
+  },
+  emptyButtonSecondaryText: {
+    color: "#F3C98B",
   },
 });

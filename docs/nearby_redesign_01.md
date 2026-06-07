@@ -1,6 +1,6 @@
 # Nearby Redesign 01
 
-Updated: 2026-06-04
+Updated: 2026-06-07 after `NEARBY-REFRESH-UX-01`
 
 ## Mobile Contract
 
@@ -49,6 +49,15 @@ Nearby is a compact profile-card surface, not a full-screen photo feed.
   - `Кого я ищу`: women, men, everyone, and the already-supported other/nonbinary option.
 - Save remains backend-backed through the profile API, and mobile refreshes the profile from backend after save.
 
+## Refresh And Retry
+
+- When visibility is active, Nearby shows a visible `Обновить` / `Refresh` action in the control panel.
+- Pull-to-refresh remains available.
+- Error panels show `Повторить` / `Retry`.
+- Manual refresh, retry, and pull-to-refresh use the same real backend path as the feed refresh: request/refresh location when needed, update active visibility with the current radius/status, then reload `GET /nearby/feed`.
+- Refresh actions are disabled while feed loading, visibility toggle, or preference saves are in progress, so the UI does not create duplicate feed requests.
+- Radius, age, and gender chips keep their selected state while refresh is running.
+
 ## Privacy
 
 Mobile must not show:
@@ -72,6 +81,12 @@ Nearby distinguishes:
 - no people nearby
 - radius too narrow
 - missing gender/search preference completion
+
+When visibility is active, empty states offer useful backend-backed actions:
+
+- `Обновить` to retry the active feed path;
+- `Расширить радиус` when the selected radius is below the maximum;
+- `Заполнить анкету` when profile or matching preferences are incomplete.
 
 When visibility is off, the screen prompts the user to enable visibility instead of showing identifiable feed cards.
 

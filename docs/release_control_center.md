@@ -53,6 +53,15 @@ This launcher is local dev tooling only and is not product logic.
 
 ## Current known live bug
 
+- NEARBY-REFRESH-UX-01 is fixed in code and awaiting release smoke:
+  - Nearby shows a visible `Обновить` button when visibility is active.
+  - Error state shows `Повторить`.
+  - Refresh, retry, and pull-to-refresh route through the existing real backend feed path: refresh location when needed, update active visibility, then reload backend feed.
+  - Refresh actions are disabled while feed loading, visibility toggle, or preference saves are in progress to avoid duplicate requests.
+  - Radius, age, and gender chips keep their selected state while refreshing.
+  - Empty states can offer `Обновить`, `Расширить радиус`, and `Заполнить анкету` when applicable.
+  - No fake users, local-only success, exact coordinates, or exact birth date exposure were added.
+  - Build impact: EAS no, backend no, DB migration no, admin build no, Metro yes.
 - AUTH-KEYBOARD-UX-FIX-01 is fixed in code and awaiting release smoke:
   - Login/signup email input uses `next` and focuses password.
   - Password uses `go` and submits the active real backend auth flow.

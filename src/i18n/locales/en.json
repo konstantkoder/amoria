@@ -106,6 +106,8 @@
   "nearby.emptyWidenBody": "Try widening the radius or refresh later.",
   "nearby.emptyWidenAction": "Widen radius",
   "nearby.emptyRefreshAction": "Refresh",
+  "nearby.refreshAction": "Refresh",
+  "nearby.retryAction": "Retry",
   "nearby.emptyPreferencesTitle": "Complete your profile",
   "nearby.emptyPreferencesBody": "Fill in who you are looking for so Nearby can show suitable people. This helps matching.",
   "nearby.emptyPreferencesAction": "Complete profile",
