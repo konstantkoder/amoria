@@ -53,6 +53,14 @@ This launcher is local dev tooling only and is not product logic.
 
 ## Current known live bug
 
+- AUTH-KEYBOARD-UX-FIX-01 is fixed in code and awaiting release smoke:
+  - Login/signup email input uses `next` and focuses password.
+  - Password uses `go` and submits the active real backend auth flow.
+  - Successful login/signup blurs auth inputs and dismisses the keyboard after backend success.
+  - Failed login/signup keeps entered context and visible error alerts; password is not cleared.
+  - Tapping outside the form dismisses the keyboard, and the auth form uses keyboard-aware scrolling to keep buttons reachable on Android.
+  - Backend, Nearby, Together, media, locked gallery, monetization, app icon, and local launch files are unchanged.
+  - Build impact: EAS no, backend no, DB migration no, admin build no, Metro yes.
 - LOCKED-GALLERY-GUEST-MEDIA-FIX-02 is fixed in code and awaiting release smoke:
   - Correct password unlock keeps backend returned locked photos and renders them from `/media/locked/:mediaId`.
   - Locked photo tiles now have per-photo loading and honest failure states; one failed image no longer clears the whole unlocked album.

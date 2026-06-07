@@ -1,11 +1,16 @@
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
-  View,
+  Alert,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
-  Alert,
+  TouchableWithoutFeedback,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getApiBaseUrl } from "@/config/apiConfig";
@@ -94,6 +99,9 @@ export default function LoginScreen() {
   const auth = useAuth();
   const { t, locale, openLanguagePicker } = useLocale();
   const insets = useSafeAreaInsets();
+  const displayNameInputRef = useRef<TextInput>(null);
+  const emailInputRef = useRef<TextInput>(null);
+  const passwordInputRef = useRef<TextInput>(null);
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
@@ -111,6 +119,17 @@ export default function LoginScreen() {
     return null;
   }, [backendConfigured, t]);
   const authDisabled = !backendConfigured;
+
+  const dismissLanguagePicker = useCallback(() => {
+    Keyboard.dismiss();
+    openLanguagePicker();
+  }, [openLanguagePicker]);
+
+  const blurAuthInputs = useCallback(() => {
+    displayNameInputRef.current?.blur();
+    emailInputRef.current?.blur();
+    passwordInputRef.current?.blur();
+  }, []);
 
   const login = async () => {
     setMode("login");
@@ -136,6 +155,8 @@ export default function LoginScreen() {
         email: trimmedEmail,
         password,
       });
+      blurAuthInputs();
+      Keyboard.dismiss();
     } catch (e: unknown) {
       const { code, msg, rawMessage } = getLoginErrorMessage(e);
       console.error("LOGIN ERROR:", code, rawMessage);
@@ -175,6 +196,8 @@ export default function LoginScreen() {
         password,
         displayName: trimmedDisplayName,
       });
+      blurAuthInputs();
+      Keyboard.dismiss();
     } catch (e: unknown) {
       const { code, msg, rawMessage } = getSignupErrorMessage(e);
       console.error("SIGNUP ERROR:", code, rawMessage);
@@ -182,78 +205,125 @@ export default function LoginScreen() {
     }
   };
 
+  const submitPassword = () => {
+    if (mode === "signup") {
+      void register();
+      return;
+    }
+
+    void login();
+  };
+
   return (
     <View style={styles.screen}>
       <TouchableOpacity
         style={[styles.languageButton, { top: insets.top + 8 }]}
-        onPress={openLanguagePicker}
+        onPress={dismissLanguagePicker}
         activeOpacity={0.85}
       >
         <Text style={styles.languageButtonText}>{languageLabel}</Text>
       </TouchableOpacity>
-      <View style={styles.container}>
-        <Text style={styles.title}>{t("auth.loginTitle")}</Text>
-        {fallbackMessage ? (
-          <Text style={styles.errorText}>{fallbackMessage}</Text>
-        ) : null}
-        <TextInput
-          style={styles.input}
-          placeholder={t("auth.displayNamePlaceholder")}
-          placeholderTextColor="#6B7280"
-          autoCapitalize="words"
-          value={displayName}
-          onChangeText={setDisplayName}
-          onFocus={() => setMode("signup")}
-          maxLength={30}
-        />
-        <TextInput
-          style={styles.input}
-          placeholder={t("auth.emailPlaceholder")}
-          placeholderTextColor="#6B7280"
-          keyboardType="email-address"
-          autoCapitalize="none"
-          value={email}
-          onChangeText={setEmail}
-        />
-        <TextInput
-          style={styles.input}
-          placeholder={t("auth.passwordPlaceholder")}
-          placeholderTextColor="#6B7280"
-          secureTextEntry
-          value={password}
-          onChangeText={setPassword}
-        />
-        {mode === "signup" ? (
-          <Text
-            style={{
-              marginTop: 6,
-              opacity: 0.75,
-              fontSize: 12,
-              color: "#000000",
-            }}
+      <KeyboardAvoidingView
+        style={styles.keyboardAvoidingView}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+          <ScrollView
+            contentContainerStyle={[
+              styles.container,
+              {
+                paddingTop: insets.top + 64,
+                paddingBottom: insets.bottom + 32,
+              },
+            ]}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
           >
-            Пароль: минимум 6 символов
-          </Text>
-        ) : null}
-        <TouchableOpacity
-          style={[styles.button, authDisabled ? styles.buttonDisabled : null]}
-          onPress={login}
-          disabled={authDisabled}
-        >
-          <Text style={styles.buttonText}>{t("auth.loginButton")}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            styles.button,
-            { marginTop: 8 },
-            authDisabled ? styles.buttonDisabled : null,
-          ]}
-          onPress={register}
-          disabled={authDisabled}
-        >
-          <Text style={styles.buttonText}>{t("auth.registerButton")}</Text>
-        </TouchableOpacity>
-      </View>
+            <Text style={styles.title}>{t("auth.loginTitle")}</Text>
+            {fallbackMessage ? (
+              <Text style={styles.errorText}>{fallbackMessage}</Text>
+            ) : null}
+            <TextInput
+              ref={displayNameInputRef}
+              style={styles.input}
+              placeholder={t("auth.displayNamePlaceholder")}
+              placeholderTextColor="#6B7280"
+              autoCapitalize="words"
+              value={displayName}
+              onChangeText={(value) => {
+                setDisplayName(value);
+                setMode("signup");
+              }}
+              onFocus={() => setMode("signup")}
+              maxLength={30}
+              returnKeyType="next"
+              blurOnSubmit={false}
+              onSubmitEditing={() => emailInputRef.current?.focus()}
+            />
+            <TextInput
+              ref={emailInputRef}
+              style={styles.input}
+              placeholder={t("auth.emailPlaceholder")}
+              placeholderTextColor="#6B7280"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoComplete="email"
+              textContentType="emailAddress"
+              value={email}
+              onChangeText={setEmail}
+              returnKeyType="next"
+              blurOnSubmit={false}
+              onSubmitEditing={() => passwordInputRef.current?.focus()}
+            />
+            <TextInput
+              ref={passwordInputRef}
+              style={styles.input}
+              placeholder={t("auth.passwordPlaceholder")}
+              placeholderTextColor="#6B7280"
+              secureTextEntry
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoComplete={mode === "signup" ? "new-password" : "password"}
+              textContentType={mode === "signup" ? "newPassword" : "password"}
+              value={password}
+              onChangeText={setPassword}
+              returnKeyType="go"
+              onSubmitEditing={submitPassword}
+            />
+            {mode === "signup" ? (
+              <Text
+                style={{
+                  marginTop: 6,
+                  opacity: 0.75,
+                  fontSize: 12,
+                  color: "#000000",
+                }}
+              >
+                Пароль: минимум 6 символов
+              </Text>
+            ) : null}
+            <TouchableOpacity
+              style={[styles.button, authDisabled ? styles.buttonDisabled : null]}
+              onPress={login}
+              disabled={authDisabled}
+            >
+              <Text style={styles.buttonText}>{t("auth.loginButton")}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.button,
+                { marginTop: 8 },
+                authDisabled ? styles.buttonDisabled : null,
+              ]}
+              onPress={register}
+              disabled={authDisabled}
+            >
+              <Text style={styles.buttonText}>{t("auth.registerButton")}</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
     </View>
   );
 }
@@ -262,6 +332,9 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: "#FFFFFF",
+  },
+  keyboardAvoidingView: {
+    flex: 1,
   },
   languageButton: {
     position: "absolute",
@@ -284,7 +357,7 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 1 },
   },
   container: {
-    flex: 1,
+    flexGrow: 1,
     padding: 24,
     alignItems: "stretch",
     justifyContent: "center",
