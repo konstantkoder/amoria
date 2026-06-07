@@ -53,6 +53,15 @@ This launcher is local dev tooling only and is not product logic.
 
 ## Current known live bug
 
+- PROFILE-MEDIA-STABILITY-01 is fixed in code and awaiting release smoke:
+  - Public `/media/public/:mediaId` values are resolved through the shared current-backend media resolver before rendering.
+  - Shared avatars show a loading overlay, stable initials/person fallback, and safe diagnostics for invalid or failed avatar URLs.
+  - Profile and UserProfile public photo grids use loading and honest failure states instead of direct raw `photo.url` images or silent black placeholders.
+  - Nearby cards still try avatar first, then first public photo, then initials/person fallback, now with loading states and safe diagnostics.
+  - PhotoManager owner gallery remains backend-backed and keeps loading/error states; invalid owner thumbnail URLs now report safe `loadOwnerPhoto` diagnostics.
+  - Safe Client Error actions for media rendering are `loadAvatar`, `loadPublicPhoto`, and `loadOwnerPhoto`, with metadata limited to media ID, URL kind, HTTP status, content type, avatar presence, photo count, and safe visibility.
+  - No raw URLs, object keys, signed URLs, locked-gallery tokens/content, exact coordinates, or exact birth dates are exposed. Backend media routes were verified and not changed.
+  - Build impact: EAS no, backend no, DB migration no, admin build no, Metro yes.
 - NEARBY-REFRESH-UX-01 is fixed in code and awaiting release smoke:
   - Nearby shows a visible `Обновить` button when visibility is active.
   - Error state shows `Повторить`.
@@ -94,7 +103,7 @@ This launcher is local dev tooling only and is not product logic.
   - Nearby cards are compact anketa cards with one large avatar/public-photo media surface, one-line name, one-line age group plus coarse distance bucket, one short goal/mood/status line, 1-2 tiny interest chips, and compact `Открыть` / `Написать` actions.
   - Card media tries `avatarUrl` first, falls back to first public `publicPhotos[0]` after missing/failed avatar, and then shows initials/person placeholder.
   - Nearby card images resolve `/media/public/:mediaId` against the current backend origin before rendering and do not pass relative URLs directly to `Image`.
-  - Nearby card media failures report safe Client Errors with `screen=NearbyHubScreen`, `action=loadNearbyCardMedia`, `step`, `userId`, optional `mediaId`, `urlKind`, optional `httpStatus`/`contentType`, `hasAvatarUrl`, and `publicPhotoCount`.
+  - Nearby card media failures report safe Client Errors with `screen=NearbyHubScreen`, `action=loadAvatar` or `loadPublicPhoto`, optional `mediaId`, `urlKind`, optional `httpStatus`/`contentType`, `hasAvatarUrl`, `photoCount`, and safe `visibility`.
   - UserProfile opened from Nearby remains the existing public profile route. Public avatar/photos render through safe public media URLs; failed public photos show an honest placeholder and safe Client Error diagnostics.
   - DM chat clears text, blurs the input, and dismisses the keyboard only after a successful backend send. Failed sends keep the composer active and do not fake success.
   - Privacy remains unchanged: no fake users, no mock feed, no runtime demo mode, no Announcements restoration, no exact coordinates, no exact birth date, no object keys, no raw media URLs, no signed URLs, and no locked-gallery media exposure.
@@ -111,7 +120,7 @@ This launcher is local dev tooling only and is not product logic.
   - The first user can remain in queue while a second user joins later.
   - Granted-but-unavailable GPS failures show a device/emulator explanation, including the BlueStacks Google Maps check.
   - Admin Queue shows safe age/user/waiting-reason diagnostics for the location -> queue -> match chain.
-  - Peer avatar/photo load failures now report safe `urlKind` and `mediaId` diagnostics instead of only `hasAvatarUrl` and `photoCount`.
+  - Peer avatar/photo load failures now report safe `urlKind` and `mediaId` diagnostics through `loadAvatar` / `loadPublicPhoto` instead of only `hasAvatarUrl` and `photoCount`.
 - MEDIA-RENDER-DELETE-FIX-03 is fixed in code and awaiting release smoke:
   - Public profile no longer returns avatar/photo URLs when the corresponding `/media/public/:mediaId` object would be missing.
   - `/media/public/:mediaId` reports `object_not_found` for missing storage objects instead of fake image success.

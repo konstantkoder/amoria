@@ -119,6 +119,70 @@ type LockedPhotoFetchResult = {
   contentType: string;
 };
 
+function PeerPublicPhoto({
+  photo,
+  index,
+  failed,
+  failedLabel,
+  onLoadFailed,
+}: {
+  photo: UserProfilePhoto;
+  index: number;
+  failed: boolean;
+  failedLabel: string;
+  onLoadFailed: (photo: UserProfilePhoto) => void;
+}) {
+  const urlInfo = useMemo(
+    () => getPublicMediaUrlInfo(photo.url, "peer public photo URL"),
+    [photo.url]
+  );
+  const [state, setState] = useState<"idle" | "loading" | "loaded" | "error">(
+    urlInfo.url ? "idle" : "error"
+  );
+
+  useEffect(() => {
+    setState(urlInfo.url ? "idle" : "error");
+  }, [urlInfo.url]);
+
+  useEffect(() => {
+    if (!urlInfo.url) {
+      onLoadFailed(photo);
+    }
+  }, [onLoadFailed, photo, urlInfo.url]);
+
+  const imageFailed = failed || state === "error";
+  const imageLoading = !imageFailed && urlInfo.url && (state === "idle" || state === "loading");
+
+  return (
+    <View style={styles.galleryPhoto}>
+      {urlInfo.url && !imageFailed ? (
+        <Image
+          source={{ uri: urlInfo.url }}
+          style={styles.galleryPhotoImage}
+          resizeMode="cover"
+          onLoadStart={() => setState("loading")}
+          onLoad={() => setState("loaded")}
+          onError={() => {
+            setState("error");
+            onLoadFailed(photo);
+          }}
+          accessibilityLabel={`peer-profile-photo-${index + 1}`}
+        />
+      ) : null}
+      {imageLoading ? (
+        <View style={styles.galleryPhotoLoading}>
+          <ActivityIndicator color="#FFFFFF" />
+        </View>
+      ) : null}
+      {imageFailed ? (
+        <View style={styles.galleryPhotoFailedOverlay}>
+          <Text style={styles.galleryPhotoFailedText}>{failedLabel}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
 class LockedPhotoFetchError extends Error {
   httpStatus?: number;
   contentType?: string;
@@ -572,9 +636,9 @@ export default function UserProfileScreen() {
       void probePublicMediaUrlInfo(urlInfo).then((probe) => {
         reportClientError({
           screen: "UserProfileScreen",
-          action: "loadPeerMedia",
-          step,
-          message: "Peer profile media failed to load",
+          action: step === "avatarLoadFailed" ? "loadAvatar" : "loadPublicPhoto",
+          step: "imageLoadFailed",
+          message: "User profile media failed to load",
           metadata: {
             hasAvatarUrl: Boolean(avatarUrl),
             photoCount: photos.length,
@@ -582,17 +646,12 @@ export default function UserProfileScreen() {
             urlKind: probe.urlKind ?? input.urlInfo?.urlKind ?? "unknown",
             httpStatus: probe.httpStatus ?? null,
             contentType: probe.contentType ?? null,
-            probeOk: probe.ok,
-            probeErrorCode: probe.errorCode ?? null,
             visibility: input.visibility ?? (step === "avatarLoadFailed" ? "avatar" : "public"),
-            moderationStatus: input.moderationStatus ?? null,
-            source: sourceContext?.source ?? null,
-            hasThread,
           },
         });
       });
     },
-    [avatarUrl, hasThread, photos.length, sourceContext?.source]
+    [avatarUrl, photos.length]
   );
 
   const markPublicPhotoFailed = useCallback(
@@ -1259,23 +1318,14 @@ export default function UserProfileScreen() {
           {photos.length ? (
             <View style={styles.galleryGrid}>
               {photos.map((photo, index) => (
-                failedPublicPhotoIds.includes(photo.mediaId) ? (
-                  <View
-                    key={`${photo.mediaId ?? photo.url}-${index}`}
-                    style={[styles.galleryPhoto, styles.galleryPhotoFailed]}
-                  >
-                    <Text style={styles.galleryPhotoFailedText}>
-                      {tt("profile.peerMediaLoadFailedShort", "Фото не загрузилось")}
-                    </Text>
-                  </View>
-                ) : (
-                  <Image
-                    key={`${photo.mediaId ?? photo.url}-${index}`}
-                    source={{ uri: photo.url }}
-                    style={styles.galleryPhoto}
-                    onError={() => markPublicPhotoFailed(photo)}
-                  />
-                )
+                <PeerPublicPhoto
+                  key={`${photo.mediaId ?? photo.url}-${index}`}
+                  photo={photo}
+                  index={index}
+                  failed={failedPublicPhotoIds.includes(photo.mediaId)}
+                  failedLabel={tt("profile.peerMediaLoadFailedShort", "Фото не загрузилось")}
+                  onLoadFailed={markPublicPhotoFailed}
+                />
               ))}
             </View>
           ) : (
@@ -1617,7 +1667,18 @@ const styles = StyleSheet.create({
     width: "48.2%",
     aspectRatio: 1,
     borderRadius: theme.shapes.cardInner,
+    overflow: "hidden",
     backgroundColor: "rgba(255,255,255,0.08)",
+  },
+  galleryPhotoImage: {
+    width: "100%",
+    height: "100%",
+  },
+  galleryPhotoLoading: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(8, 12, 24, 0.22)",
   },
   lockedPhotoFrame: {
     width: "48.2%",
@@ -1643,6 +1704,15 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     textAlign: "center",
     fontWeight: "800",
+  },
+  galleryPhotoFailedOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+    backgroundColor: "rgba(8, 12, 24, 0.92)",
   },
   galleryPhotoFailed: {
     alignItems: "center",

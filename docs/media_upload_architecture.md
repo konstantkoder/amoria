@@ -1,6 +1,6 @@
 # Media Upload Architecture
 
-Updated: 2026-06-07 after `LOCKED-GALLERY-GUEST-MEDIA-FIX-02`
+Updated: 2026-06-07 after `PROFILE-MEDIA-STABILITY-01`
 
 ## Release Rule
 
@@ -23,7 +23,8 @@ Avatar and profile photo uploads wrote absolute URLs into `media_files.url` and 
 - `media_files.url` is legacy/debug metadata only and may contain an old tunnel/local/object-storage address.
 - Public profile, admin list/detail, and mobile-facing responses re-materialize avatar and public photo URLs from media IDs, so stale absolute DB URLs are not trusted as the public contract.
 - Mobile and Admin Web resolve relative `/media/public/:mediaId` paths against the current API origin.
-- Mobile image rendering keeps safe diagnostics for peer profile media: `mediaId` when available, `urlKind`, `hasAvatarUrl`, and `photoCount`. Full raw URLs are not sent to Client Errors.
+- Mobile image rendering keeps stable loading/fallback states for avatar, public profile photos, owner gallery thumbnails, and Nearby card media.
+- Mobile image rendering keeps safe diagnostics with `screen` set to the current surface and `action` set to `loadAvatar`, `loadPublicPhoto`, or `loadOwnerPhoto`. Metadata is limited to safe fields such as `mediaId`, `urlKind`, `httpStatus`, `contentType`, `hasAvatarUrl`, `photoCount`, and safe `visibility`. Full raw URLs are not sent to Client Errors.
 
 ## Locked Gallery Guest Rendering
 
@@ -119,7 +120,7 @@ The backend still decodes, validates, re-encodes to WebP, strips metadata, and e
 - Locked gallery photos are not included in public profile photos before unlock.
 - Stale avatar URLs without a matching media row are hidden instead of being returned to mobile.
 - If an old absolute `/media/public/:mediaId` URL reaches mobile, the client rewrites that path to the current API origin instead of loading a stale tunnel/localhost/object-storage host.
-- If a peer avatar/photo still fails to load, Client Errors should show whether the URL was `relative`, `currentOrigin`, `rewritten`, `external`, `devExternal`, or `invalid`.
+- If a peer avatar/photo still fails to load, Client Errors should show whether the URL was `relative`, `currentOrigin`, `rewritten`, `external`, `devExternal`, or `invalid` through the safe media-load actions. Raw URLs, object keys, signed URLs, exact birth dates, coordinates, and locked-gallery tokens must not be reported.
 
 ## Moderation Visibility Policy
 

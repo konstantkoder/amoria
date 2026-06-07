@@ -45,7 +45,7 @@ import {
 import {
   getPublicMediaUrlInfo,
   normalizePublicMediaUrl,
-  probePublicMediaUrl,
+  probePublicMediaUrlInfo,
 } from "@/services/media/mediaUrl";
 import { theme } from "@/theme";
 
@@ -141,6 +141,15 @@ export default function PhotoManagerScreen() {
   const galleryLimitReached = totalPhotos >= maxProfileGalleryPhotos;
   const lockedLimitReached = lockedPhotos.length >= maxLockedProfilePhotos;
   const pendingPhotoUri = pendingPhoto?.uri ?? "";
+
+  React.useEffect(() => {
+    [...publicPhotos, ...lockedPhotos].forEach((photo) => {
+      const urlInfo = getPublicMediaUrlInfo(photo.url, "owner gallery photo URL");
+      if (!urlInfo.url) {
+        reportOwnerPhotoLoadFailed(photo);
+      }
+    });
+  }, [lockedPhotos, publicPhotos]);
 
   function minVisibleMessage() {
     return tt(
@@ -443,29 +452,24 @@ export default function PhotoManagerScreen() {
     }
   }
 
-  function reportOwnerPhotoLoadFailed(photo: ProfileGalleryPhotoDto, url: string) {
-    const urlInfo = getPublicMediaUrlInfo(url, "owner gallery photo URL");
+  function reportOwnerPhotoLoadFailed(photo: ProfileGalleryPhotoDto) {
+    const urlInfo = getPublicMediaUrlInfo(photo.url, "owner gallery photo URL");
     const reportKey = `${photo.mediaId}:${urlInfo.urlKind}`;
     if (reportedPhotoFailuresRef.current.has(reportKey)) return;
     reportedPhotoFailuresRef.current.add(reportKey);
 
-    void probePublicMediaUrl(urlInfo.url, "owner gallery photo URL").then((probe) => {
+    void probePublicMediaUrlInfo(urlInfo).then((probe) => {
       reportClientError({
         screen: "PhotoManagerScreen",
-        action: "loadOwnerGalleryPhoto",
-        step: "thumbnailLoadFailed",
+        action: "loadOwnerPhoto",
+        step: "imageLoadFailed",
         message: "Owner gallery photo failed to load",
         metadata: {
           mediaId: photo.mediaId,
-          ...(photo.galleryItemId ? { galleryItemId: photo.galleryItemId } : {}),
           urlKind: probe.urlKind ?? urlInfo.urlKind,
           httpStatus: probe.httpStatus ?? null,
           contentType: probe.contentType ?? null,
-          probeOk: probe.ok,
-          errorCode: probe.errorCode ?? null,
           visibility: photo.visibility ?? null,
-          moderationStatus: photo.moderationStatus ?? null,
-          mimeType: photo.mimeType ?? null,
         },
       });
     });
@@ -575,7 +579,7 @@ export default function PhotoManagerScreen() {
               onLoad={() => setImageState("loaded")}
               onError={() => {
                 setImageState("error");
-                reportOwnerPhotoLoadFailed(photo, resolvedPhotoUrl);
+                reportOwnerPhotoLoadFailed(photo);
               }}
             />
           ) : null}

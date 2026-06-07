@@ -1202,6 +1202,8 @@ function NearbyCardMedia({ item }: { item: NearbyProfileFeedItemDto }) {
   );
   const [avatarFailed, setAvatarFailed] = React.useState(false);
   const [publicPhotoFailed, setPublicPhotoFailed] = React.useState(false);
+  const [avatarLoading, setAvatarLoading] = React.useState(false);
+  const [publicPhotoLoading, setPublicPhotoLoading] = React.useState(false);
   const reportedMediaFailuresRef = React.useRef<Set<string>>(new Set());
   const hasAvatarUrl = Boolean(String(item.avatarUrl ?? "").trim());
   const publicPhotoCount = item.publicPhotos.length;
@@ -1209,6 +1211,8 @@ function NearbyCardMedia({ item }: { item: NearbyProfileFeedItemDto }) {
   React.useEffect(() => {
     setAvatarFailed(false);
     setPublicPhotoFailed(false);
+    setAvatarLoading(Boolean(avatarInfo.url));
+    setPublicPhotoLoading(false);
     reportedMediaFailuresRef.current.clear();
   }, [avatarInfo.url, item.userId, publicPhotoInfo.url]);
 
@@ -1227,19 +1231,17 @@ function NearbyCardMedia({ item }: { item: NearbyProfileFeedItemDto }) {
         const reportedMediaId = safeMediaId ?? probe.mediaId;
         reportClientError({
           screen: "NearbyHubScreen",
-          action: "loadNearbyCardMedia",
-          step,
+          action: step === "avatarLoadFailed" ? "loadAvatar" : "loadPublicPhoto",
+          step: "imageLoadFailed",
           message: "Nearby card media failed to load",
           metadata: {
-            userId: item.userId,
             ...(reportedMediaId ? { mediaId: reportedMediaId } : {}),
             urlKind: probe.urlKind,
             httpStatus: probe.httpStatus ?? null,
             contentType: probe.contentType ?? null,
-            probeOk: probe.ok,
-            probeErrorCode: probe.errorCode ?? null,
             hasAvatarUrl,
-            publicPhotoCount,
+            photoCount: publicPhotoCount,
+            visibility: step === "avatarLoadFailed" ? "avatar" : "public",
           },
         });
       });
@@ -1269,33 +1271,53 @@ function NearbyCardMedia({ item }: { item: NearbyProfileFeedItemDto }) {
 
   if (avatarInfo.url && !avatarFailed) {
     return (
-      <Image
-        source={{ uri: avatarInfo.url }}
-        style={styles.cardMedia}
-        resizeMode="cover"
-        onError={() => {
-          setAvatarFailed(true);
-          reportMediaFailure("avatarLoadFailed", avatarInfo);
-        }}
-      />
+      <View style={styles.cardMedia}>
+        <Image
+          source={{ uri: avatarInfo.url }}
+          style={styles.cardMediaImage}
+          resizeMode="cover"
+          onLoadStart={() => setAvatarLoading(true)}
+          onLoadEnd={() => setAvatarLoading(false)}
+          onError={() => {
+            setAvatarFailed(true);
+            setAvatarLoading(false);
+            reportMediaFailure("avatarLoadFailed", avatarInfo);
+          }}
+        />
+        {avatarLoading ? (
+          <View style={styles.cardMediaLoading}>
+            <ActivityIndicator color="#FFFFFF" />
+          </View>
+        ) : null}
+      </View>
     );
   }
 
   if (publicPhotoInfo.url && !publicPhotoFailed) {
     return (
-      <Image
-        source={{ uri: publicPhotoInfo.url }}
-        style={styles.cardMedia}
-        resizeMode="cover"
-        onError={() => {
-          setPublicPhotoFailed(true);
-          reportMediaFailure(
-            "publicPhotoLoadFailed",
-            publicPhotoInfo,
-            firstPublicPhoto?.mediaId
-          );
-        }}
-      />
+      <View style={styles.cardMedia}>
+        <Image
+          source={{ uri: publicPhotoInfo.url }}
+          style={styles.cardMediaImage}
+          resizeMode="cover"
+          onLoadStart={() => setPublicPhotoLoading(true)}
+          onLoadEnd={() => setPublicPhotoLoading(false)}
+          onError={() => {
+            setPublicPhotoFailed(true);
+            setPublicPhotoLoading(false);
+            reportMediaFailure(
+              "publicPhotoLoadFailed",
+              publicPhotoInfo,
+              firstPublicPhoto?.mediaId
+            );
+          }}
+        />
+        {publicPhotoLoading ? (
+          <View style={styles.cardMediaLoading}>
+            <ActivityIndicator color="#FFFFFF" />
+          </View>
+        ) : null}
+      </View>
     );
   }
 
@@ -1492,9 +1514,20 @@ const styles = StyleSheet.create({
     width: "100%",
     aspectRatio: 1,
     borderRadius: 7,
+    overflow: "hidden",
     backgroundColor: "rgba(255,255,255,0.08)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.12)",
+  },
+  cardMediaImage: {
+    width: "100%",
+    height: "100%",
+  },
+  cardMediaLoading: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(8, 12, 24, 0.22)",
   },
   cardMediaFallback: {
     alignItems: "center",

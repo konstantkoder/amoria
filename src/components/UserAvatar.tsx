@@ -1,5 +1,5 @@
 import React from "react";
-import { Image, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Image, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 import {
@@ -33,18 +33,26 @@ function getInitials(label?: string) {
 
 export default function UserAvatar({ avatarUrl, label, size = 44, onLoadError }: Props) {
   const [failed, setFailed] = React.useState(false);
-  const urlInfo = normalizeAvatarUrl(avatarUrl);
+  const [loading, setLoading] = React.useState(false);
+  const urlInfo = React.useMemo(() => normalizeAvatarUrl(avatarUrl), [avatarUrl]);
   const sharedUrl = urlInfo.url ?? "";
+  const hasRawAvatarUrl = Boolean(String(avatarUrl ?? "").trim());
   const initials = getInitials(label);
 
   React.useEffect(() => {
     setFailed(false);
+    setLoading(Boolean(sharedUrl));
   }, [sharedUrl]);
+
+  React.useEffect(() => {
+    if (hasRawAvatarUrl && !sharedUrl) {
+      onLoadError?.(urlInfo);
+    }
+  }, [hasRawAvatarUrl, onLoadError, sharedUrl, urlInfo]);
 
   if (sharedUrl && !failed) {
     return (
-      <Image
-        source={{ uri: sharedUrl }}
+      <View
         style={[
           styles.avatar,
           {
@@ -53,11 +61,25 @@ export default function UserAvatar({ avatarUrl, label, size = 44, onLoadError }:
             borderRadius: size / 2,
           },
         ]}
-        onError={() => {
-          setFailed(true);
-          onLoadError?.(urlInfo);
-        }}
-      />
+      >
+        <Image
+          source={{ uri: sharedUrl }}
+          style={StyleSheet.absoluteFill}
+          resizeMode="cover"
+          onLoadStart={() => setLoading(true)}
+          onLoadEnd={() => setLoading(false)}
+          onError={() => {
+            setFailed(true);
+            setLoading(false);
+            onLoadError?.(urlInfo);
+          }}
+        />
+        {loading ? (
+          <View style={styles.loadingOverlay}>
+            <ActivityIndicator color={theme.colors.text} size="small" />
+          </View>
+        ) : null}
+      </View>
     );
   }
 
@@ -89,10 +111,17 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.08)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.16)",
+    overflow: "hidden",
   },
   fallback: {
     alignItems: "center",
     justifyContent: "center",
+  },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.18)",
   },
   initials: {
     color: theme.colors.text,

@@ -28,7 +28,7 @@ import {
 import ScreenShell from "@/components/ScreenShell";
 import UserAvatar from "@/components/UserAvatar";
 import { useLocale } from "@/contexts/LocaleContext";
-import type { ProfileGender, UserProfile } from "@/models/User";
+import type { ProfileGender, UserProfile, UserProfilePhoto } from "@/models/User";
 import type { ProfileStackParamList } from "@/navigation/appRoutes";
 import {
   UploadFlowError,
@@ -46,6 +46,11 @@ import {
   updateUserAvatarUrl,
   updateUserDisplayName,
 } from "@/services/user";
+import {
+  getPublicMediaUrlInfo,
+  probePublicMediaUrlInfo,
+  type PublicMediaUrlInfo,
+} from "@/services/media/mediaUrl";
 import { theme } from "@/theme";
 
 type ProfileNav = NativeStackNavigationProp<ProfileStackParamList, "ProfileMain">;
@@ -166,6 +171,80 @@ function ProfileSummaryRow({
   );
 }
 
+function ProfilePublicPhoto({
+  photo,
+  index,
+  onLoadFailed,
+  failedLabel,
+}: {
+  photo: UserProfilePhoto;
+  index: number;
+  onLoadFailed: (input: {
+    mediaId?: string;
+    urlInfo: PublicMediaUrlInfo;
+    visibility?: "public";
+  }) => void;
+  failedLabel: string;
+}) {
+  const urlInfo = React.useMemo(
+    () => getPublicMediaUrlInfo(photo.url, "profile public photo URL"),
+    [photo.url]
+  );
+  const [state, setState] = React.useState<"idle" | "loading" | "loaded" | "error">(
+    urlInfo.url ? "idle" : "error"
+  );
+
+  React.useEffect(() => {
+    setState(urlInfo.url ? "idle" : "error");
+  }, [urlInfo.url]);
+
+  React.useEffect(() => {
+    if (!urlInfo.url) {
+      onLoadFailed({
+        mediaId: photo.mediaId,
+        urlInfo,
+        visibility: "public",
+      });
+    }
+  }, [onLoadFailed, photo.mediaId, urlInfo]);
+
+  const imageLoading = state === "idle" || state === "loading";
+  const imageFailed = state === "error";
+
+  return (
+    <View style={styles.galleryPhotoFrame}>
+      {urlInfo.url && !imageFailed ? (
+        <Image
+          source={{ uri: urlInfo.url }}
+          style={styles.galleryPhoto}
+          resizeMode="cover"
+          onLoadStart={() => setState("loading")}
+          onLoad={() => setState("loaded")}
+          onError={() => {
+            setState("error");
+            onLoadFailed({
+              mediaId: photo.mediaId,
+              urlInfo,
+              visibility: "public",
+            });
+          }}
+          accessibilityLabel={`profile-photo-${index + 1}`}
+        />
+      ) : null}
+      {imageLoading && urlInfo.url ? (
+        <View style={styles.galleryPhotoOverlay}>
+          <ActivityIndicator color="#FFFFFF" />
+        </View>
+      ) : null}
+      {imageFailed ? (
+        <View style={styles.galleryPhotoError}>
+          <Text style={styles.galleryPhotoErrorText}>{failedLabel}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
 export default function ProfileScreen() {
   const navigation = useNavigation<ProfileNav>();
   const { t } = useLocale();
@@ -178,6 +257,7 @@ export default function ProfileScreen() {
   const [nameSaving, setNameSaving] = React.useState(false);
   const [nameError, setNameError] = React.useState("");
   const nameInputRef = React.useRef<TextInput>(null);
+  const reportedMediaFailuresRef = React.useRef<Set<string>>(new Set());
 
   useFocusEffect(
     React.useCallback(() => {
@@ -230,6 +310,41 @@ export default function ProfileScreen() {
   const interestsSummary = profile?.interests?.length
     ? profile.interests.join(", ")
     : t("profile.interestsEmpty");
+
+  const reportProfileMediaLoadFailed = React.useCallback(
+    (
+      action: "loadAvatar" | "loadPublicPhoto",
+      input: {
+        mediaId?: string;
+        urlInfo: PublicMediaUrlInfo;
+        visibility?: "avatar" | "public";
+      }
+    ) => {
+      const mediaId = input.mediaId ?? input.urlInfo.mediaId;
+      const reportKey = `${action}:${mediaId ?? input.urlInfo.urlKind}`;
+      if (reportedMediaFailuresRef.current.has(reportKey)) return;
+      reportedMediaFailuresRef.current.add(reportKey);
+
+      void probePublicMediaUrlInfo(input.urlInfo).then((probe) => {
+        reportClientError({
+          screen: "ProfileScreen",
+          action,
+          step: "imageLoadFailed",
+          message: "Profile media failed to load",
+          metadata: {
+            ...(mediaId ?? probe.mediaId ? { mediaId: mediaId ?? probe.mediaId } : {}),
+            urlKind: probe.urlKind,
+            httpStatus: probe.httpStatus ?? null,
+            contentType: probe.contentType ?? null,
+            hasAvatarUrl: Boolean(avatarUrl),
+            photoCount: photos.length,
+            visibility: input.visibility ?? (action === "loadAvatar" ? "avatar" : "public"),
+          },
+        });
+      });
+    },
+    [avatarUrl, photos.length]
+  );
 
   const saveDisplayName = React.useCallback(async () => {
     const nextName = normalizeDisplayNameInput(nameDraft);
@@ -527,7 +642,17 @@ export default function ProfileScreen() {
                   }}
                 />
               ) : (
-                <UserAvatar avatarUrl={avatarUrl} label={displayName} size={108} />
+                <UserAvatar
+                  avatarUrl={avatarUrl}
+                  label={displayName}
+                  size={108}
+                  onLoadError={(urlInfo) => {
+                    reportProfileMediaLoadFailed("loadAvatar", {
+                      urlInfo,
+                      visibility: "avatar",
+                    });
+                  }}
+                />
               )}
               {avatarUploading ? (
                 <View style={styles.avatarUploadOverlay}>
@@ -731,10 +856,14 @@ export default function ProfileScreen() {
           {photos.length ? (
             <View style={styles.galleryGrid}>
               {photos.map((photo, index) => (
-                <Image
+                <ProfilePublicPhoto
                   key={`${photo.mediaId ?? photo.url}-${index}`}
-                  source={{ uri: photo.url }}
-                  style={styles.galleryPhoto}
+                  photo={photo}
+                  index={index}
+                  onLoadFailed={(input) =>
+                    reportProfileMediaLoadFailed("loadPublicPhoto", input)
+                  }
+                  failedLabel={t("photos.previewFailed")}
                 />
               ))}
             </View>
@@ -1043,11 +1172,36 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: 10,
   },
-  galleryPhoto: {
+  galleryPhotoFrame: {
     width: "48.2%",
     aspectRatio: 1,
     borderRadius: 16,
+    overflow: "hidden",
     backgroundColor: "rgba(255,255,255,0.08)",
+  },
+  galleryPhoto: {
+    width: "100%",
+    height: "100%",
+  },
+  galleryPhotoOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.18)",
+  },
+  galleryPhotoError: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 10,
+    backgroundColor: "rgba(8, 12, 24, 0.92)",
+  },
+  galleryPhotoErrorText: {
+    color: theme.colors.subtext,
+    fontSize: 12,
+    lineHeight: 16,
+    textAlign: "center",
+    fontWeight: "800",
   },
   emptyPhotos: {
     color: theme.colors.subtext,
