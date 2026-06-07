@@ -24,6 +24,7 @@ import * as adminMediaService from "./admin-media.service";
 import {
   adminNearbyDiagnosticsRouteSchema,
   adminOpsHealthRouteSchema,
+  adminReleaseDashboardRouteSchema,
   adminTogetherSessionsRouteSchema,
   adminTogetherQueueActionRouteSchema,
   adminTogetherQueueRouteSchema,
@@ -85,6 +86,19 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
       schema: withErrorResponses(adminMeRouteSchema),
     },
     async (request) => adminService.getAdminMe(currentAdmin(request)),
+  );
+
+  fastify.get(
+    "/dashboard/release-control",
+    {
+      preHandler: [authMiddleware, requireAdmin()],
+      schema: withErrorResponses(adminReleaseDashboardRouteSchema),
+    },
+    async (request) =>
+      adminOpsService.getReleaseDashboardForAdmin(
+        currentAdmin(request),
+        adminRequestContext(request),
+      ),
   );
 
   fastify.get(

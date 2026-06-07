@@ -240,6 +240,150 @@ export const adminOpsHealthRouteSchema = {
   },
 } as const satisfies FastifySchema;
 
+const nullableCountSchema = { type: ["integer", "null"], minimum: 0 } as const;
+
+const adminReleaseDashboardCountsSchema = {
+  reports: {
+    type: "object",
+    required: ["open", "underReview", "escalated"],
+    additionalProperties: false,
+    properties: {
+      open: nullableCountSchema,
+      underReview: nullableCountSchema,
+      escalated: nullableCountSchema,
+    },
+  },
+  clientErrors: {
+    type: "object",
+    required: ["open"],
+    additionalProperties: false,
+    properties: {
+      open: nullableCountSchema,
+    },
+  },
+  mediaModeration: {
+    type: "object",
+    required: ["pending"],
+    additionalProperties: false,
+    properties: {
+      pending: nullableCountSchema,
+    },
+  },
+  togetherQueue: {
+    type: "object",
+    required: ["waiting"],
+    additionalProperties: false,
+    properties: {
+      waiting: nullableCountSchema,
+    },
+  },
+  togetherSessions: {
+    type: "object",
+    required: ["active", "recent24h"],
+    additionalProperties: false,
+    properties: {
+      active: nullableCountSchema,
+      recent24h: nullableCountSchema,
+    },
+  },
+} as const;
+
+export const adminReleaseDashboardRouteSchema = {
+  response: {
+    200: {
+      type: "object",
+      required: [
+        "ok",
+        "service",
+        "time",
+        "admin",
+        "health",
+        "reports",
+        "clientErrors",
+        "mediaModeration",
+        "togetherQueue",
+        "togetherSessions",
+        "nearby",
+      ],
+      additionalProperties: false,
+      properties: {
+        ok: { type: "boolean", const: true },
+        service: { type: "string", const: "amoria-admin-ops" },
+        time: { type: "string", format: "date-time" },
+        admin: {
+          type: "object",
+          required: ["id", "userId", "roles"],
+          additionalProperties: false,
+          properties: {
+            id: { type: "string", format: "uuid" },
+            userId: { type: "string", format: "uuid" },
+            roles: { type: "array", items: { type: "string" } },
+          },
+        },
+        health: {
+          type: "object",
+          required: ["apiStatus", "databaseStatus", "objectStorage"],
+          additionalProperties: false,
+          properties: {
+            apiStatus: { type: "string", const: "ok" },
+            databaseStatus: { type: "string", enum: ["ok", "failed"] },
+            objectStorage: {
+              type: "object",
+              required: ["status", "checkedAt"],
+              additionalProperties: false,
+              properties: {
+                status: {
+                  type: "string",
+                  enum: ["ok", "not_configured", "error", "not_checked"],
+                },
+                checkedAt: { type: "string", format: "date-time" },
+                reason: {
+                  type: "string",
+                  enum: ["missing_config", "safe_check_unavailable"],
+                },
+                errorCode: {
+                  type: "string",
+                  enum: [
+                    "access_denied",
+                    "bucket_not_found",
+                    "credentials_error",
+                    "health_check_exception",
+                    "request_failed",
+                    "storage_check_failed",
+                  ],
+                },
+              },
+            },
+          },
+        },
+        reports: adminReleaseDashboardCountsSchema.reports,
+        clientErrors: adminReleaseDashboardCountsSchema.clientErrors,
+        mediaModeration: adminReleaseDashboardCountsSchema.mediaModeration,
+        togetherQueue: adminReleaseDashboardCountsSchema.togetherQueue,
+        togetherSessions: adminReleaseDashboardCountsSchema.togetherSessions,
+        nearby: {
+          type: "object",
+          required: [
+            "checkedAt",
+            "activeVisibilityCount",
+            "offVisibilityCount",
+            "expiredVisibilityCount",
+            "profileReadinessMissingCount",
+          ],
+          additionalProperties: false,
+          properties: {
+            checkedAt: { type: ["string", "null"], format: "date-time" },
+            activeVisibilityCount: nullableCountSchema,
+            offVisibilityCount: nullableCountSchema,
+            expiredVisibilityCount: nullableCountSchema,
+            profileReadinessMissingCount: nullableCountSchema,
+          },
+        },
+      },
+    },
+  },
+} as const satisfies FastifySchema;
+
 const adminNearbyProfileReadinessMissingSchema = {
   type: "object",
   required: [

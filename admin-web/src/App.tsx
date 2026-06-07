@@ -8,8 +8,8 @@ import {
   useState,
 } from "react";
 import {
-  AdminHealth,
   AdminMe,
+  AdminReleaseDashboard,
   AdminUserItem,
   ApiError,
   AuditLogItem,
@@ -228,7 +228,15 @@ export function App() {
 
           {message ? <div className="notice">{message}</div> : null}
 
-          {activeScreen === "dashboard" ? <Dashboard /> : null}
+          {activeScreen === "dashboard" ? (
+            <Dashboard
+              canOpenScreen={(nextScreen) => visibleScreens.some((item) => item.key === nextScreen)}
+              onOpenScreen={(nextScreen) => {
+                setScreen(nextScreen);
+                setMessage(null);
+              }}
+            />
+          ) : null}
           {activeScreen === "users" ? <UsersScreen initialSearch={userSearchRequest} /> : null}
           {activeScreen === "adminUsers" ? <AdminUsersScreen /> : null}
           {activeScreen === "clientErrors" ? <ClientErrorsScreen setMessage={setMessage} /> : null}
@@ -339,9 +347,97 @@ function ForbiddenScreen({ onLogout }: { onLogout: () => void }) {
   );
 }
 
-function Dashboard() {
+function Dashboard({
+  canOpenScreen,
+  onOpenScreen,
+}: {
+  canOpenScreen: (screen: Screen) => boolean;
+  onOpenScreen: (screen: Screen) => void;
+}) {
   const { language, t } = useI18n();
-  const { data: health, error, reload } = useLoad<AdminHealth>("/admin/health");
+  const { data, error, reload } = useLoad<AdminReleaseDashboard>("/admin/dashboard/release-control");
+
+  const cards = data
+    ? [
+        {
+          key: "reports",
+          title: t("dashboard.reportsTitle"),
+          value: formatDashboardCount(data.reports.open, t),
+          meta: [
+            `${t("dashboard.underReview")}: ${formatDashboardCount(data.reports.underReview, t)}`,
+            `${t("dashboard.escalated")}: ${formatDashboardCount(data.reports.escalated, t)}`,
+          ],
+          note: t("dashboard.reportsNote"),
+          actionLabel: t("dashboard.openReports"),
+          target: "reports" as Screen,
+        },
+        {
+          key: "clientErrors",
+          title: t("dashboard.clientErrorsTitle"),
+          value: formatDashboardCount(data.clientErrors.open, t),
+          meta: [t("dashboard.openOnly")],
+          note: t("dashboard.clientErrorsNote"),
+          actionLabel: t("dashboard.openClientErrors"),
+          target: "clientErrors" as Screen,
+        },
+        {
+          key: "media",
+          title: t("dashboard.mediaTitle"),
+          value: formatDashboardCount(data.mediaModeration.pending, t),
+          meta: [t("dashboard.pendingReview")],
+          note: t("dashboard.mediaNote"),
+          actionLabel: t("dashboard.openMedia"),
+          target: "media" as Screen,
+        },
+        {
+          key: "togetherQueue",
+          title: t("dashboard.togetherQueueTitle"),
+          value: formatDashboardCount(data.togetherQueue.waiting, t),
+          meta: [t("dashboard.waitingQueue")],
+          note: t("dashboard.togetherQueueNote"),
+          actionLabel: t("dashboard.openTogetherQueue"),
+          target: "togetherQueue" as Screen,
+        },
+        {
+          key: "togetherSessions",
+          title: t("dashboard.togetherSessionsTitle"),
+          value: formatDashboardCount(data.togetherSessions.recent24h, t),
+          meta: [
+            `${t("dashboard.activeSessions")}: ${formatDashboardCount(data.togetherSessions.active, t)}`,
+            t("dashboard.recent24h"),
+          ],
+          note: t("dashboard.togetherSessionsNote"),
+          actionLabel: t("dashboard.openTogetherSessions"),
+          target: "togetherSessions" as Screen,
+        },
+        {
+          key: "nearby",
+          title: t("dashboard.nearbyTitle"),
+          value: formatDashboardCount(data.nearby.activeVisibilityCount, t),
+          meta: [
+            `${t("dashboard.offVisibility")}: ${formatDashboardCount(data.nearby.offVisibilityCount, t)}`,
+            `${t("dashboard.expiredVisibility")}: ${formatDashboardCount(data.nearby.expiredVisibilityCount, t)}`,
+            `${t("dashboard.profileReadinessMissing")}: ${formatDashboardCount(data.nearby.profileReadinessMissingCount, t)}`,
+          ],
+          note: t("dashboard.nearbyNote"),
+          actionLabel: t("dashboard.openNearbyDiagnostics"),
+          target: "opsHealth" as Screen,
+        },
+        {
+          key: "health",
+          title: t("dashboard.healthTitle"),
+          value: formatDashboardHealthStatus(data.health, t),
+          meta: [
+            `${t("dashboard.apiStatus")}: ${formatStatus(data.health.apiStatus, t)}`,
+            `${t("ops.database")}: ${formatStatus(data.health.databaseStatus, t)}`,
+            `${t("ops.objectStorage")}: ${formatObjectStorageStatus(data.health.objectStorage, t)}`,
+          ],
+          note: t("dashboard.healthNote"),
+          actionLabel: t("dashboard.openOpsHealth"),
+          target: "opsHealth" as Screen,
+        },
+      ]
+    : [];
 
   return (
     <section className="panel">
@@ -350,15 +446,68 @@ function Dashboard() {
         <button className="secondary" onClick={reload}>{t("common.refresh")}</button>
       </div>
       {error ? <div className="error">{error}</div> : null}
-      {health ? (
-        <dl className="facts">
-          <Fact label={t("common.service")} value={health.service} />
-          <Fact label={t("common.time")} value={formatDate(health.time, language)} />
-          <Fact label={t("common.adminUser")} value={health.admin.userId} />
-          <Fact label={t("common.roles")} value={formatRoles(health.admin.roles, t)} />
-        </dl>
+      {data ? (
+        <>
+          <dl className="facts dashboard-facts">
+            <Fact label={t("common.service")} value={data.service} />
+            <Fact label={t("common.time")} value={formatDate(data.time, language)} />
+            <Fact label={t("common.adminUser")} value={data.admin.userId} />
+            <Fact label={t("common.roles")} value={formatRoles(data.admin.roles, t)} />
+          </dl>
+          <div className="release-grid">
+            {cards.map((card) => (
+              <ReleaseControlCard
+                key={card.key}
+                title={card.title}
+                value={card.value}
+                meta={card.meta}
+                note={card.note}
+                actionLabel={card.actionLabel}
+                disabled={!canOpenScreen(card.target)}
+                onAction={() => onOpenScreen(card.target)}
+              />
+            ))}
+          </div>
+          <p className="muted dashboard-safe-note">{t("dashboard.safeNote")}</p>
+        </>
       ) : <EmptyState label={t("dashboard.empty")} />}
     </section>
+  );
+}
+
+function ReleaseControlCard({
+  title,
+  value,
+  meta,
+  note,
+  actionLabel,
+  disabled,
+  onAction,
+}: {
+  title: string;
+  value: string;
+  meta: string[];
+  note: string;
+  actionLabel: string;
+  disabled: boolean;
+  onAction: () => void;
+}) {
+  return (
+    <article className="release-card">
+      <div>
+        <h3>{title}</h3>
+        <strong>{value}</strong>
+      </div>
+      <div className="release-card-meta">
+        {meta.map((item) => (
+          <span key={item}>{item}</span>
+        ))}
+      </div>
+      <p>{note}</p>
+      <button className="secondary" type="button" disabled={disabled} onClick={onAction}>
+        {actionLabel}
+      </button>
+    </article>
   );
 }
 
@@ -1875,6 +2024,28 @@ function isSuspiciousQueueCancel(item: TogetherQueueEntry): boolean {
 
 function formatCount(value: number | null): string {
   return value === null ? "" : String(value);
+}
+
+function formatDashboardCount(
+  value: number | null,
+  t: (key: TranslationKey) => string,
+): string {
+  return value === null ? t("dashboard.notAvailable") : String(value);
+}
+
+function formatDashboardHealthStatus(
+  health: AdminReleaseDashboard["health"],
+  t: (key: TranslationKey) => string,
+): string {
+  if (health.databaseStatus !== "ok") {
+    return t("status.failed");
+  }
+
+  if (health.objectStorage.status !== "ok") {
+    return formatObjectStorageStatus(health.objectStorage, t);
+  }
+
+  return t("status.ok");
 }
 
 function formatObjectStorageStatus(

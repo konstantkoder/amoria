@@ -311,6 +311,10 @@ nav button:hover {
   margin-bottom: 14px;
 }
 
+.dashboard-facts {
+  margin-bottom: 16px;
+}
+
 .facts dt {
   color: #60717a;
   font-weight: 700;
@@ -319,6 +323,70 @@ nav button:hover {
 .facts dd {
   margin: 0;
   overflow-wrap: anywhere;
+}
+
+.release-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 12px;
+}
+
+.release-card {
+  min-width: 0;
+  min-height: 230px;
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  border: 1px solid #d7e2e6;
+  border-radius: 8px;
+  padding: 14px;
+  background: #fbfcfd;
+}
+
+.release-card h3 {
+  margin: 0 0 6px;
+  color: #53646d;
+  font-size: 13px;
+}
+
+.release-card strong {
+  display: block;
+  color: #102a2d;
+  font-size: 30px;
+  line-height: 1.1;
+}
+
+.release-card p {
+  margin: 0;
+  color: #60717a;
+  line-height: 1.45;
+}
+
+.release-card button {
+  align-self: end;
+  justify-self: start;
+}
+
+.release-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.release-card-meta span {
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 2px 8px;
+  background: #eaf3f4;
+  color: #17464a;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.dashboard-safe-note {
+  margin-bottom: 0;
 }
 
 .json-block {

@@ -75,6 +75,47 @@ export type OpsHealth = {
   };
 };
 
+export type AdminReleaseDashboard = {
+  ok: true;
+  service: string;
+  time: string;
+  admin: {
+    id: string;
+    userId: string;
+    roles: string[];
+  };
+  health: {
+    apiStatus: "ok";
+    databaseStatus: "ok" | "failed";
+    objectStorage: OpsHealth["objectStorage"];
+  };
+  reports: {
+    open: number | null;
+    underReview: number | null;
+    escalated: number | null;
+  };
+  clientErrors: {
+    open: number | null;
+  };
+  mediaModeration: {
+    pending: number | null;
+  };
+  togetherQueue: {
+    waiting: number | null;
+  };
+  togetherSessions: {
+    active: number | null;
+    recent24h: number | null;
+  };
+  nearby: {
+    checkedAt: string | null;
+    activeVisibilityCount: number | null;
+    offVisibilityCount: number | null;
+    expiredVisibilityCount: number | null;
+    profileReadinessMissingCount: number | null;
+  };
+};
+
 export type NearbyFeedExclusionReason =
   | "self"
   | "blocked"

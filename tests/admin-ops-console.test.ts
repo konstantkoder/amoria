@@ -168,6 +168,79 @@ test("/admin/ops/health returns database status and real counts", async (t) => {
   assert.equal(auditMetadata?.databaseOk, true);
 });
 
+test("GET /admin/dashboard/release-control returns safe release aggregates", async (t) => {
+  t.after(restoreDeps);
+  mockAdmin({ roles: ["owner"] });
+  const state = mockOpsHealth();
+  const app = buildApp();
+  t.after(async () => {
+    await app.close();
+  });
+
+  const response = await app.inject({
+    method: "GET",
+    url: "/admin/dashboard/release-control",
+    headers: authHeaders(userId),
+  });
+  const bodyText = response.body;
+  const body = response.json();
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(body.ok, true);
+  assert.equal(body.service, "amoria-admin-ops");
+  assert.deepEqual(body.reports, {
+    open: 2,
+    underReview: 1,
+    escalated: 1,
+  });
+  assert.deepEqual(body.clientErrors, {
+    open: 3,
+  });
+  assert.deepEqual(body.mediaModeration, {
+    pending: 1,
+  });
+  assert.deepEqual(body.togetherQueue, {
+    waiting: 4,
+  });
+  assert.deepEqual(body.togetherSessions, {
+    active: 2,
+    recent24h: 5,
+  });
+  assert.deepEqual(body.nearby, {
+    checkedAt: "2026-06-03T12:00:00.000Z",
+    activeVisibilityCount: 7,
+    offVisibilityCount: 2,
+    expiredVisibilityCount: 1,
+    profileReadinessMissingCount: 15,
+  });
+  assert.equal(body.health.apiStatus, "ok");
+  assert.equal(body.health.databaseStatus, "ok");
+  assert.deepEqual(body.health.objectStorage, {
+    status: "not_checked",
+    checkedAt: "2026-06-03T12:00:00.000Z",
+    reason: "safe_check_unavailable",
+  });
+
+  assert.equal(bodyText.includes("latitude"), false);
+  assert.equal(bodyText.includes("longitude"), false);
+  assert.equal(bodyText.includes('"birthDate":"'), false);
+  assert.equal(bodyText.includes('"birth_date":"'), false);
+  assert.equal(bodyText.includes("1995-01-01"), false);
+  assert.equal(bodyText.includes("lockedGallery"), false);
+  assert.equal(bodyText.includes("locked_gallery"), false);
+  assert.equal(bodyText.includes('"gallery"'), false);
+  assert.equal(bodyText.includes("mediaId"), false);
+  assert.equal(bodyText.includes("url"), false);
+  assert.equal(bodyText.includes("objectKey"), false);
+  assert.equal(bodyText.includes("signedUrl"), false);
+  assert.equal(bodyText.includes("secret"), false);
+  assert.equal(state.auditInputs[0]?.action, "admin.dashboard.releaseControl.read");
+  assert.equal(state.auditInputs[0]?.targetType, "release_control_dashboard");
+  const auditMetadata = state.auditInputs[0]?.metadata as Record<string, unknown> | undefined;
+  assert.equal(auditMetadata?.databaseStatus, "ok");
+  assert.equal(auditMetadata?.objectStorageStatus, "not_checked");
+});
+
 test("GET /admin/nearby/diagnostics returns safe Nearby counts and writes audit log", async (t) => {
   t.after(restoreDeps);
   mockAdmin({ roles: ["ops"] });
@@ -951,6 +1024,26 @@ function mockOpsHealth() {
       openClientErrors: 3,
       openReports: 2,
       pendingMediaModerationItems: 1,
+    }),
+    dashboardCounts: async () => ({
+      reports: {
+        open: 2,
+        underReview: 1,
+        escalated: 1,
+      },
+      clientErrors: {
+        open: 3,
+      },
+      mediaModeration: {
+        pending: 1,
+      },
+      togetherQueue: {
+        waiting: 4,
+      },
+      togetherSessions: {
+        active: 2,
+        recent24h: 5,
+      },
     }),
     objectStorageCheck: async () => ({
       status: "not_checked",

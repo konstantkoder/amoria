@@ -10,6 +10,8 @@ import {
   mediaFiles,
   mediaModerationReviews,
   safetyReports,
+  togetherQueue,
+  togetherSessions,
 } from "../db/schema";
 import {
   checkObjectStorageHealth,
@@ -41,6 +43,55 @@ export type AdminOpsHealthResponse = {
     openClientErrors: number | null;
     openReports: number | null;
     pendingMediaModerationItems: number | null;
+  };
+};
+
+export type AdminReleaseDashboardCounts = {
+  reports: {
+    open: number | null;
+    underReview: number | null;
+    escalated: number | null;
+  };
+  clientErrors: {
+    open: number | null;
+  };
+  mediaModeration: {
+    pending: number | null;
+  };
+  togetherQueue: {
+    waiting: number | null;
+  };
+  togetherSessions: {
+    active: number | null;
+    recent24h: number | null;
+  };
+};
+
+export type AdminReleaseDashboardResponse = {
+  ok: true;
+  service: "amoria-admin-ops";
+  time: string;
+  admin: {
+    id: string;
+    userId: string;
+    roles: string[];
+  };
+  health: {
+    apiStatus: "ok";
+    databaseStatus: "ok" | "failed";
+    objectStorage: ObjectStorageHealth;
+  };
+  reports: AdminReleaseDashboardCounts["reports"];
+  clientErrors: AdminReleaseDashboardCounts["clientErrors"];
+  mediaModeration: AdminReleaseDashboardCounts["mediaModeration"];
+  togetherQueue: AdminReleaseDashboardCounts["togetherQueue"];
+  togetherSessions: AdminReleaseDashboardCounts["togetherSessions"];
+  nearby: {
+    checkedAt: string | null;
+    activeVisibilityCount: number | null;
+    offVisibilityCount: number | null;
+    expiredVisibilityCount: number | null;
+    profileReadinessMissingCount: number | null;
   };
 };
 
@@ -142,6 +193,7 @@ export type AdminTogetherSessionsResponse = {
 type AdminOpsDeps = {
   dbCheck: () => Promise<boolean>;
   counts: () => Promise<AdminOpsHealthResponse["counts"]>;
+  dashboardCounts: () => Promise<AdminReleaseDashboardCounts>;
   objectStorageCheck: () => Promise<AdminOpsHealthResponse["objectStorage"]>;
   nearbyDiagnostics: Pick<typeof nearbyRepo, "getNearbyAdminDiagnostics">;
   togetherQueue: Pick<
@@ -161,6 +213,7 @@ const defaultDeps: AdminOpsDeps = {
     openReports: await countOpenReports(),
     pendingMediaModerationItems: await countPendingMediaModerationItems(),
   }),
+  dashboardCounts: getReleaseDashboardCounts,
   objectStorageCheck: checkObjectStorageHealth,
   nearbyDiagnostics: nearbyRepo,
   togetherQueue: togetherRepo,
@@ -250,6 +303,61 @@ export async function getOpsHealth(
   };
 }
 
+export async function getReleaseDashboardForAdmin(
+  admin: AdminContext,
+  requestContext: AdminRequestContext,
+): Promise<AdminReleaseDashboardResponse> {
+  let databaseOk = false;
+  try {
+    databaseOk = await deps.dbCheck();
+  } catch {
+    databaseOk = false;
+  }
+
+  const objectStorage = await getSafeObjectStorageHealth();
+  const counts = await getSafeReleaseDashboardCounts();
+  const nearby = await getSafeNearbyDashboardCounts();
+
+  await deps.audit.writeAuditLog({
+    adminUserId: admin.adminUser.id,
+    action: "admin.dashboard.releaseControl.read",
+    targetType: "release_control_dashboard",
+    metadata: {
+      databaseStatus: databaseOk ? "ok" : "failed",
+      objectStorageStatus: objectStorage.status,
+      reports: counts.reports,
+      clientErrors: counts.clientErrors,
+      mediaModeration: counts.mediaModeration,
+      togetherQueue: counts.togetherQueue,
+      togetherSessions: counts.togetherSessions,
+      nearby,
+    },
+    ...requestContext,
+  });
+
+  return {
+    ok: true,
+    service: "amoria-admin-ops",
+    time: new Date().toISOString(),
+    admin: {
+      id: admin.adminUser.id,
+      userId: admin.adminUser.userId,
+      roles: admin.adminUser.roles,
+    },
+    health: {
+      apiStatus: "ok",
+      databaseStatus: databaseOk ? "ok" : "failed",
+      objectStorage,
+    },
+    reports: counts.reports,
+    clientErrors: counts.clientErrors,
+    mediaModeration: counts.mediaModeration,
+    togetherQueue: counts.togetherQueue,
+    togetherSessions: counts.togetherSessions,
+    nearby,
+  };
+}
+
 export async function getNearbyDiagnosticsForAdmin(
   admin: AdminContext,
   requestContext: AdminRequestContext,
@@ -331,6 +439,73 @@ function safeObjectStorageHealthErrorCode(errorCode: string | undefined): string
     default:
       return "storage_check_failed";
   }
+}
+
+async function getSafeObjectStorageHealth(): Promise<ObjectStorageHealth> {
+  try {
+    return normalizeObjectStorageHealth(await deps.objectStorageCheck());
+  } catch {
+    return {
+      status: "error",
+      checkedAt: new Date().toISOString(),
+      errorCode: "health_check_exception",
+    };
+  }
+}
+
+async function getSafeReleaseDashboardCounts(): Promise<AdminReleaseDashboardCounts> {
+  try {
+    return await deps.dashboardCounts();
+  } catch {
+    return unavailableReleaseDashboardCounts();
+  }
+}
+
+async function getSafeNearbyDashboardCounts(): Promise<AdminReleaseDashboardResponse["nearby"]> {
+  try {
+    const diagnostics = await deps.nearbyDiagnostics.getNearbyAdminDiagnostics();
+    return {
+      checkedAt: diagnostics.checkedAt.toISOString(),
+      activeVisibilityCount: diagnostics.activeVisibilityCount,
+      offVisibilityCount: diagnostics.offVisibilityCount,
+      expiredVisibilityCount: diagnostics.expiredVisibilityCount,
+      profileReadinessMissingCount: Object.values(diagnostics.profileReadinessMissing).reduce(
+        (total, value) => total + value,
+        0,
+      ),
+    };
+  } catch {
+    return {
+      checkedAt: null,
+      activeVisibilityCount: null,
+      offVisibilityCount: null,
+      expiredVisibilityCount: null,
+      profileReadinessMissingCount: null,
+    };
+  }
+}
+
+function unavailableReleaseDashboardCounts(): AdminReleaseDashboardCounts {
+  return {
+    reports: {
+      open: null,
+      underReview: null,
+      escalated: null,
+    },
+    clientErrors: {
+      open: null,
+    },
+    mediaModeration: {
+      pending: null,
+    },
+    togetherQueue: {
+      waiting: null,
+    },
+    togetherSessions: {
+      active: null,
+      recent24h: null,
+    },
+  };
 }
 
 export async function listTogetherQueueForAdmin(
@@ -520,10 +695,57 @@ async function countOpenClientErrors(): Promise<number> {
 }
 
 async function countOpenReports(): Promise<number> {
+  return countSafetyReportsByStatus("open");
+}
+
+async function getReleaseDashboardCounts(): Promise<AdminReleaseDashboardCounts> {
+  const [
+    openReports,
+    underReviewReports,
+    escalatedReports,
+    openClientErrors,
+    pendingMediaModeration,
+    waitingTogetherQueue,
+    activeTogetherSessions,
+    recentTogetherSessions,
+  ] = await Promise.all([
+    countSafetyReportsByStatus("open"),
+    countSafetyReportsByStatus("under_review"),
+    countSafetyReportsByStatus("escalated"),
+    countOpenClientErrors(),
+    countPendingMediaModerationItems(),
+    countTogetherQueueByStatus("waiting"),
+    countTogetherSessionsByStatus("active"),
+    countRecentTogetherSessions(),
+  ]);
+
+  return {
+    reports: {
+      open: openReports,
+      underReview: underReviewReports,
+      escalated: escalatedReports,
+    },
+    clientErrors: {
+      open: openClientErrors,
+    },
+    mediaModeration: {
+      pending: pendingMediaModeration,
+    },
+    togetherQueue: {
+      waiting: waitingTogetherQueue,
+    },
+    togetherSessions: {
+      active: activeTogetherSessions,
+      recent24h: recentTogetherSessions,
+    },
+  };
+}
+
+async function countSafetyReportsByStatus(status: string): Promise<number> {
   const [row] = await db
     .select({ value: count() })
     .from(safetyReports)
-    .where(eq(safetyReports.status, "open"));
+    .where(eq(safetyReports.status, status));
 
   return row?.value ?? 0;
 }
@@ -546,6 +768,33 @@ async function countPendingMediaModerationItems(): Promise<number> {
           limit 1
         ) = 'mark_under_review'`,
     );
+
+  return row?.value ?? 0;
+}
+
+async function countTogetherQueueByStatus(status: string): Promise<number> {
+  const [row] = await db
+    .select({ value: count() })
+    .from(togetherQueue)
+    .where(eq(togetherQueue.status, status));
+
+  return row?.value ?? 0;
+}
+
+async function countTogetherSessionsByStatus(status: string): Promise<number> {
+  const [row] = await db
+    .select({ value: count() })
+    .from(togetherSessions)
+    .where(eq(togetherSessions.status, status));
+
+  return row?.value ?? 0;
+}
+
+async function countRecentTogetherSessions(): Promise<number> {
+  const [row] = await db
+    .select({ value: count() })
+    .from(togetherSessions)
+    .where(sql`${togetherSessions.createdAt} >= now() - interval '24 hours'`);
 
   return row?.value ?? 0;
 }

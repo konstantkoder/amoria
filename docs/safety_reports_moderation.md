@@ -1,6 +1,6 @@
 # Safety Reports Moderation
 
-Updated: 2026-06-05
+Updated: 2026-06-07 after `ADMIN-RELEASE-DASHBOARD-REPORTS-SMOKE-01`
 
 ## Scope
 
@@ -19,6 +19,8 @@ Admin Reports list and detail show:
 - action audit history.
 
 The report DTO also includes `targetContext`, a safe context block with a summary, privacy note, and available admin actions.
+
+The Admin Dashboard / Release Control Center shows report aggregates only: open, under-review, and escalated counts. It does not show report text, comments, evidence, locked gallery content, media URLs, object keys, signed URLs, exact coordinates, or exact birth dates.
 
 ## Target Context Actions
 
@@ -78,7 +80,7 @@ The future implementation must store evidence through a safe audited backend pat
 
 - `npm run typecheck`: pass.
 - `npm run admin:web:build`: pass.
-- `npm test`: first run found one privacy-test failure because the safe-context note contained the literal word checked by the existing secret-leak test; wording was changed and the second run passed `211/211`.
+- `npm test`: pass `216/216`.
 - `git diff --check`: pass.
 
 ## Build Impact

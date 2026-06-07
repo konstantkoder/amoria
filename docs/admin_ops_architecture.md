@@ -1,6 +1,6 @@
 # Admin/Ops Architecture
 
-Updated: 2026-06-05
+Updated: 2026-06-07 after `ADMIN-RELEASE-DASHBOARD-REPORTS-SMOKE-01`
 
 ## Purpose
 
@@ -31,7 +31,7 @@ Audit metadata must stay sanitized: no passwords, tokens, signed URLs, exact coo
 
 ## Admin Web Pages
 
-- Dashboard: summary counts and health links.
+- Dashboard: release control cards backed by safe aggregate counts and health status.
 - Users: real user lookup and safe identifiers.
 - Admin Users: owner-only safe admin user/role read view.
 - Client Errors: filterable lifecycle feed with safe metadata and audited status actions.
@@ -53,6 +53,20 @@ Owner/ops can read `GET /admin/nearby/diagnostics` from the Ops Health page. The
 - `checkedAt`.
 
 Nearby diagnostics are designed to explain why real users do not appear in the Nearby feed. They do not expose exact coordinates, exact birth dates, locked gallery media, raw profile text, public media rows, object keys, signed URLs, or fake users.
+
+## Release Control Dashboard
+
+Admin Web Dashboard reads `GET /admin/dashboard/release-control`. The response is aggregate-only and feeds the landing cards for:
+
+- Reports: open, under-review, and escalated counts;
+- Client Errors: open count;
+- Media Moderation: pending moderation count;
+- Together Queue: waiting queue count;
+- Together Sessions: active and recent-24-hour session counts;
+- Nearby Diagnostics: active/off/expired visibility counts plus total missing profile readiness count;
+- Ops Health: API/database status and safe object-storage status.
+
+Each card links to the existing Admin Web section for follow-up. The dashboard does not fetch private report lists, report comments, media rows, raw media URLs, object keys, signed URLs, exact coordinates, exact birth dates, locked gallery content, raw Together payloads, secrets, or internal storage endpoints.
 
 ## Reports Moderation Workflow
 

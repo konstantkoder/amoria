@@ -92,7 +92,7 @@ Updated: 2026-06-07
 
 Owner/ops/moderator/support roles should use Admin Web for release diagnostics:
 
-- Dashboard
+- Dashboard / Release Control Center
 - Users
 - Admin Users
 - Client Errors
@@ -103,6 +103,18 @@ Owner/ops/moderator/support roles should use Admin Web for release diagnostics:
 - Audit Log
 - Ops Health
 - Bootstrap
+
+Dashboard is the release landing page. It uses `GET /admin/dashboard/release-control` and shows only safe aggregates:
+
+- open/under-review/escalated Reports counts;
+- open Client Errors count;
+- pending Media Moderation count;
+- waiting Together Queue count;
+- active/recent Together Sessions counts;
+- active/off/expired Nearby visibility counts and total missing profile readiness count;
+- API/database/object-storage status.
+
+Dashboard cards route to Reports, Client Errors, Media Moderation, Together Queue, Together Sessions, and Ops Health/Nearby Diagnostics. The dashboard must not expose private report text, locked gallery content, raw media URLs, object keys, signed URLs, secrets, exact coordinates, exact birth dates, internal storage endpoints, or raw Together payloads.
 
 Together Queue is the smoke-test control surface for waiting/matched/expired/cancelled queue rows, `radiusKm`, `hasCoordinates`, `geoMode`, `userAgeGroup`, `preferredAgeRange`, `waitingReason`, `cancelSource`, `cancelReason`, `cancelledAt`, `lastAction`, waiting age, stale state, and audited waiting-row cancellation.
 
