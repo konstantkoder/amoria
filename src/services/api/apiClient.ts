@@ -55,6 +55,58 @@ function buildUrl(path: string) {
   return `${getApiBaseUrl()}${normalizedPath}`;
 }
 
+function getBackendOriginForDiagnostics(): string | null {
+  let apiBaseUrl: string;
+  try {
+    apiBaseUrl = getApiBaseUrl();
+  } catch {
+    return null;
+  }
+
+  try {
+    return new URL(apiBaseUrl).origin;
+  } catch {
+    const originMatch = apiBaseUrl.match(/^[a-z][a-z0-9+.-]*:\/\/[^/?#]+/i);
+    return originMatch?.[0] ?? "invalid_api_url";
+  }
+}
+
+function getApiNetworkErrorKind(error: unknown): string | undefined {
+  if (error instanceof ApiError) return undefined;
+
+  const errorName = typeof (error as { name?: unknown })?.name === "string"
+    ? String((error as { name: string }).name)
+    : "";
+  const message = typeof (error as { message?: unknown })?.message === "string"
+    ? String((error as { message: string }).message)
+    : "";
+  const normalizedMessage = message.toLowerCase();
+
+  if (normalizedMessage.includes("expo_public_api_url")) {
+    return "api_url_missing";
+  }
+  if (normalizedMessage.includes("network request failed")) {
+    return "network_request_failed";
+  }
+  if (normalizedMessage.includes("failed to fetch")) {
+    return "failed_to_fetch";
+  }
+  if (normalizedMessage.includes("timeout") || normalizedMessage.includes("timed out")) {
+    return "timeout";
+  }
+  if (errorName === "AbortError") {
+    return "aborted";
+  }
+  if (error instanceof TypeError) {
+    return "type_error";
+  }
+  if (error instanceof Error) {
+    return "request_error";
+  }
+
+  return undefined;
+}
+
 function isFormData(value: unknown): value is FormData {
   return typeof FormData !== "undefined" && value instanceof FormData;
 }
@@ -135,6 +187,8 @@ async function rawRequest<TResponse>(
   options: RequestOptions = {}
 ): Promise<TResponse> {
   const startedAtMs = Date.now();
+  const backendOrigin = getBackendOriginForDiagnostics();
+  let networkErrorKind: string | undefined;
   let status: number | undefined;
   const headers: Record<string, string> = {
     Accept: "application/json",
@@ -173,11 +227,16 @@ async function rawRequest<TResponse>(
     }
 
     return data as TResponse;
+  } catch (error) {
+    networkErrorKind = getApiNetworkErrorKind(error);
+    throw error;
   } finally {
     recordStartupApiRequest({
       method,
       path,
+      backendOrigin,
       status,
+      networkErrorKind,
       durationMs: Date.now() - startedAtMs,
     });
   }

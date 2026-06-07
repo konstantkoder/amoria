@@ -107,17 +107,23 @@ export function startStartupSpan(event: string, metadata: SafeMetadata = {}) {
 export function recordStartupApiRequest(input: {
   method: string;
   path: string;
+  backendOrigin?: string | null;
   status?: number;
+  networkErrorKind?: string;
   durationMs: number;
 }) {
-  if (!inStartupWindow()) return;
-  const request = `${input.method.toUpperCase()} ${sanitizeApiPath(input.path)}`;
+  if (!inStartupWindow() && !input.networkErrorKind) return;
+  const requestPath = sanitizeApiPath(input.path);
+  const request = `${input.method.toUpperCase()} ${requestPath}`;
   const count = (apiRequestCounts.get(request) ?? 0) + 1;
   apiRequestCounts.set(request, count);
 
-  writeStartupDiagnostic("info", "api.request", {
+  writeStartupDiagnostic(input.networkErrorKind ? "warn" : "info", "api.request", {
+    backendOrigin: input.backendOrigin ?? null,
+    requestPath,
     request,
     status: input.status ?? null,
+    networkErrorKind: input.networkErrorKind ?? null,
     durationMs: roundMs(input.durationMs),
     count,
   });
