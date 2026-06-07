@@ -22,6 +22,7 @@ import {
 
 const blockedMetadataKeyPattern =
   /^(lat|lng|latitude|longitude)$|password|token|secret|authorization|cookie|jwt|refresh|accessToken|refreshToken|s3|database|connection|privateKey|lockedGalleryPassword|folderPassword|accountPassword|birthDate|birth_date|dateOfBirth|dob|about|bio|shortAbout|profileText|rawProfileText|rawPrivateProfileText|headers?|\.env|uploadUrl$|signedUrl$/i;
+const allowedSensitiveKeyNames = new Set(["tokenExpiresSoon"]);
 const maxObjectKeys = 50;
 const maxArrayItems = 25;
 const maxStringLength = 600;
@@ -294,7 +295,7 @@ function sanitizeValue(input: unknown, depth: number): JsonValue {
       }
 
       const safeKey = truncateString(key, 80);
-      output[safeKey] = blockedMetadataKeyPattern.test(key)
+      output[safeKey] = shouldRedactMetadataKey(key)
         ? "[redacted]"
         : sanitizeValue(value, depth + 1);
       count += 1;
@@ -304,4 +305,8 @@ function sanitizeValue(input: unknown, depth: number): JsonValue {
   }
 
   return truncateString(String(input), maxStringLength);
+}
+
+function shouldRedactMetadataKey(key: string): boolean {
+  return !allowedSensitiveKeyNames.has(key) && blockedMetadataKeyPattern.test(key);
 }

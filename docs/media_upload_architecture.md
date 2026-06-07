@@ -1,6 +1,6 @@
 # Media Upload Architecture
 
-Updated: 2026-06-03 after `ADMIN-OBJECT-STORAGE-HEALTH-01`
+Updated: 2026-06-07 after `LOCKED-GALLERY-GUEST-MEDIA-FIX-02`
 
 ## Public Media Route
 
@@ -29,6 +29,10 @@ Public profile reads may expose only a locked gallery summary: whether the locke
 Guest access uses `POST /users/:id/locked-gallery/unlock` with an authenticated viewer. A correct password returns `/media/locked/:mediaId` paths plus a short-lived viewer-specific and target-specific unlock token. Locked media is then streamed from `GET /media/locked/:mediaId` only when both the viewer access token and `x-amoria-locked-gallery-token` are valid. Responses are private and no-store.
 
 Wrong attempts are rate-limited per viewer plus target user. Unlock success/failure is audited with safe metadata and never includes the password, password hash, raw storage URL, object key, or signed URL.
+
+Mobile renders guest-unlocked locked media with per-photo loading and failure states. If React Native `Image` cannot render the authenticated URL, mobile downloads the same `/media/locked/:mediaId` route with the viewer access token and unlock token, verifies 2xx plus `image/*`, writes a temporary cache file, and renders that local URI for the short session. Unlock tokens and locked cache files are cleared on profile/user change, token expiry, logout/session invalidation, and screen unmount.
+
+Locked guest media Client Errors use `UserProfileScreen/loadLockedGalleryMedia` with steps `unlockResponseEmpty`, `lockedPhotoLoadFailed`, `lockedPhotoFetchFailed`, or `lockedPhotoInvalidUrl`. Diagnostics may include only target/media IDs, safe counts, HTTP status, content type, probe error code, and `tokenExpiresSoon`; raw URLs, passwords, tokens, object keys, signed URLs, exact DOB, and coordinates remain forbidden.
 
 ## Upload Hardening
 

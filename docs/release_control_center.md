@@ -1,6 +1,6 @@
 # Amoria Release Control Center
 
-Updated: 2026-06-05
+Updated: 2026-06-07
 
 ## Release Rules
 
@@ -86,6 +86,7 @@ Updated: 2026-06-05
 - Admin Media thumbnails use safe public media paths; locked media must not get public preview URLs.
 - Admin Media detail preview uses the authenticated audited content route.
 - Mobile peer media failures must report safe `mediaId`, `urlKind`, `httpStatus`, and `contentType`; raw full URLs, signed URLs, tokens, and local paths must not appear.
+- Mobile locked guest media failures must report only `UserProfileScreen/loadLockedGalleryMedia` safe metadata: target/media IDs, counts, HTTP status, content type, probe error code, and `tokenExpiresSoon`. Actual passwords, tokens, auth headers, raw URLs, object keys, signed URLs, exact DOB, and coordinates must remain redacted.
 
 ## Admin Web Release Surface
 
@@ -131,6 +132,7 @@ Automated checks cannot replace the real two-client pass:
 16. In gallery/avatar, smoke delete below 3 visible public photos, broken photo cleanup, avatar crop/preview/upload/restart persistence, profile photo crop/preview/upload, peer avatar/photo visibility, crop cancel/choose-another, invalid crop rejection, and Admin `Проверить URL` HTTP 200 `image/webp`.
 17. In Together age filtering, smoke missing DOB block, `Любой 18+`, one compatible age group, one incompatible age group, and Admin `age_mismatch`.
 18. In locked gallery guest access, smoke locked album summary, wrong password, rate-limit messaging, correct password unlock, expired-session re-prompt, and direct `/media/public/:mediaId` denial for locked media.
+19. In locked gallery guest media rendering, smoke a correct-password unlock with real locked photos, per-photo loading, one forced image failure, authenticated fallback fetch, zero-photo unlock inconsistency messaging, and Client Errors redaction.
 
 ## Build Verification
 
@@ -192,3 +194,9 @@ Nearby future redesign should reuse `birthDate`/`ageGroup`, `preferredAgeRange`,
   - Unlock success/failure is audited with safe metadata and without passwords, hashes, raw storage URLs, object keys, signed URLs, exact coordinates, or exact birth dates.
   - Verification: server `npm run typecheck`, server `npm test` (`215/215`), and mobile `npx tsc --noEmit` pass.
   - Build impact: backend restart yes, admin build no, DB migration no, EAS rebuild no, Metro cache clear yes.
+- LOCKED-GALLERY-GUEST-MEDIA-FIX-02:
+  - Mobile keeps backend returned locked photos after a correct password and renders `/media/locked/:mediaId` with auth headers.
+  - RN `Image` failures no longer clear the whole unlocked album; each locked photo has loading, fallback-fetch, and failed states.
+  - The authenticated fallback downloads locked media with the viewer access token and unlock token, verifies 2xx plus `image/*`, stores only a short-lived cache file, and clears it with the unlock session.
+  - Client Errors sanitizer allows `tokenExpiresSoon` while continuing to redact real token/password/auth/raw URL/object key/signed URL/exact DOB/coordinate fields.
+  - Build impact: backend restart yes for Client Errors sanitizer, admin build no, DB migration no, EAS rebuild no, Metro cache clear yes.

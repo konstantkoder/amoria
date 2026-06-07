@@ -140,6 +140,7 @@ test("POST /client/error-reports redacts token password and secret metadata keys
         accessToken: "secret-token",
         accountPassword: "secret-password",
         s3SecretKey: "secret-s3",
+        tokenExpiresSoon: true,
         nested: {
           refreshToken: "secret-refresh",
           safe: "visible",
@@ -153,6 +154,7 @@ test("POST /client/error-reports redacts token password and secret metadata keys
     accessToken: "[redacted]",
     accountPassword: "[redacted]",
     s3SecretKey: "[redacted]",
+    tokenExpiresSoon: true,
     nested: {
       refreshToken: "[redacted]",
       safe: "visible",

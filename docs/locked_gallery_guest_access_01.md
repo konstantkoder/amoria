@@ -1,6 +1,6 @@
 # Locked Gallery Guest Access 01
 
-Updated: 2026-06-05
+Updated: 2026-06-07 after `LOCKED-GALLERY-GUEST-MEDIA-FIX-02`
 
 ## Scope
 
@@ -74,7 +74,25 @@ The peer profile screen shows a locked album card when the public profile summar
 - `Закрытый альбом`;
 - `Введите пароль`.
 
-Correct password unlocks the locked photos and loads them with authenticated headers against `/media/locked/:mediaId`. Wrong password, too many attempts, and expired unlock sessions show explicit errors and ask the user to enter the password again. Nearby cards still use only public media URL normalization and do not show locked gallery content.
+Correct password unlocks the locked photos and loads them with authenticated headers against `/media/locked/:mediaId`. The mobile screen keeps the unlock token and viewer access token in memory only. It clears unlocked photos on profile/user changes, token expiry, logout/session invalidation, and screen unmount.
+
+Locked photo tiles show per-photo loading and honest per-photo failure states. A single thumbnail load failure does not clear the entire unlocked album. If React Native `Image` cannot render the authenticated locked URL, mobile performs an authenticated file-system download using the same `Authorization` and `x-amoria-locked-gallery-token` headers, verifies a 2xx status and `image/*` content type, writes a short-lived cache file, and renders that local URI. The cache is not persisted beyond the short session.
+
+If unlock succeeds but returns zero photos while the public locked-gallery summary reported a positive count, mobile shows an explicit inconsistency message instead of silently showing an empty album.
+
+Wrong password, too many attempts, and expired unlock sessions show explicit errors and ask the user to enter the password again. Nearby cards still use only public media URL normalization and do not show locked gallery content.
+
+## Client Error Diagnostics
+
+Locked guest media diagnostics use:
+
+```text
+screen: UserProfileScreen
+action: loadLockedGalleryMedia
+step: unlockResponseEmpty | lockedPhotoLoadFailed | lockedPhotoFetchFailed | lockedPhotoInvalidUrl
+```
+
+Allowed metadata is limited to `targetUserId`, `mediaId`, `lockedPhotoCount`, `mappedPhotoCount`, `invalidLockedUrlCount`, `httpStatus`, `contentType`, `probeErrorCode`, and `tokenExpiresSoon`. The mobile and server Client Errors sanitizers allow the `tokenExpiresSoon` boolean while still redacting actual token, password, auth, object-key, signed-URL, exact-DOB, and coordinate fields.
 
 ## Audit
 
