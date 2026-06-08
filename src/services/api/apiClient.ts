@@ -1,4 +1,5 @@
 import { getApiBaseUrl } from "@/config/apiConfig";
+import { BACKEND_ORIGIN_SOURCE } from "@/config/runtimeConfig";
 import {
   emitAuthSignedOut,
   emitAuthUpdated,
@@ -56,6 +57,9 @@ function buildUrl(path: string) {
 }
 
 function getBackendOriginForDiagnostics(): string | null {
+  const configuredSource = normalizeBackendOriginSource(BACKEND_ORIGIN_SOURCE);
+  if (configuredSource) return configuredSource;
+
   let apiBaseUrl: string;
   try {
     apiBaseUrl = getApiBaseUrl();
@@ -64,11 +68,45 @@ function getBackendOriginForDiagnostics(): string | null {
   }
 
   try {
-    return new URL(apiBaseUrl).origin;
+    return classifyBackendOriginUrl(new URL(apiBaseUrl));
   } catch {
     const originMatch = apiBaseUrl.match(/^[a-z][a-z0-9+.-]*:\/\/[^/?#]+/i);
-    return originMatch?.[0] ?? "invalid_api_url";
+    if (!originMatch) return "invalid_api_url";
+
+    try {
+      return classifyBackendOriginUrl(new URL(originMatch[0]));
+    } catch {
+      return "invalid_api_url";
+    }
   }
+}
+
+function normalizeBackendOriginSource(source: string): string | null {
+  const normalizedSource = String(source ?? "").trim().toLowerCase();
+  if (normalizedSource === "tunnel") return "tunnel";
+  if (normalizedSource === "lan") return "LAN";
+  return null;
+}
+
+function classifyBackendOriginUrl(url: URL): string {
+  const hostname = url.hostname.toLowerCase();
+  if (hostname.endsWith(".trycloudflare.com")) return "tunnel";
+  if (hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1") {
+    return "local";
+  }
+  if (isLanHostname(hostname)) return "LAN";
+  return "remote";
+}
+
+function isLanHostname(hostname: string): boolean {
+  if (/^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname)) return true;
+  if (/^192\.168\.\d{1,3}\.\d{1,3}$/.test(hostname)) return true;
+
+  const private172Match = hostname.match(/^172\.(\d{1,3})\.\d{1,3}\.\d{1,3}$/);
+  if (!private172Match) return false;
+
+  const secondOctet = Number(private172Match[1]);
+  return secondOctet >= 16 && secondOctet <= 31;
 }
 
 function getApiNetworkErrorKind(error: unknown): string | undefined {

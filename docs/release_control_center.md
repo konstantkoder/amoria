@@ -1,6 +1,6 @@
 # Amoria Release Control Center
 
-Updated: 2026-06-07
+Updated: 2026-06-08
 
 ## Branches
 
@@ -44,6 +44,15 @@ Updated: 2026-06-07
 - Optimized now: inbox badge/realtime startup is deferred until after initial interactions; Inbox still loads its own data on focus.
 - Nearby backend loading remains focus-gated and must stay that way.
 - Build impact: EAS rebuild no, backend restart no, DB migration no, admin build no, Metro cache clear yes.
+
+## Startup API Connection Smoke Gate
+
+- `STARTUP-API-CONNECTION-SMOKE-GATE-01` hardens local Windows startup without changing product features, backend auth, Firebase removal, Nearby, or Together logic.
+- `F:\Dev\START_AMORIA_DEV.bat` selects a healthy Cloudflare tunnel first, otherwise a health-checked LAN backend URL, otherwise fails before Metro with manual backend/admin/Metro commands.
+- Metro is started with fresh non-secret Expo env values: `EXPO_PUBLIC_API_URL`, `EXPO_PUBLIC_WS_URL`, and `EXPO_PUBLIC_BACKEND_ORIGIN_SOURCE`, using `npx expo start -c --dev-client`.
+- Mobile startup API diagnostics report safe `backendOrigin` values such as `tunnel` or `LAN` and safe `networkErrorKind` values for network failures.
+- Diagnostics still do not log request bodies, tokens, refresh tokens, passwords, exact coordinates, exact birth dates, profile text, raw media URLs, object keys, signed URLs, or locked-gallery content.
+- Build impact: EAS no, backend no, DB migration no, admin no, Metro yes.
 
 ## Main local start bat
 
