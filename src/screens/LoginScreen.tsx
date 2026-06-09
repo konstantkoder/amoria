@@ -44,37 +44,39 @@ function isNetworkLikeError(error: unknown) {
   );
 }
 
-function getSignupErrorMessage(error: unknown) {
+function getSignupErrorMessageKey(error: unknown) {
   const err = error as any;
   const code = String(err?.code ?? "");
-  let msg = String(err?.message ?? "Ошибка");
+  let messageKey = "auth.unknownRegisterError";
 
   if (
     code === "auth/weak-password" ||
     (code === "validation_error" && err?.fields?.password)
   ) {
-    msg = "Пароль слишком короткий (минимум 6 символов).";
+    messageKey = "auth.weakPassword";
   } else if (
     code === "auth/invalid-email" ||
     (code === "validation_error" && err?.fields?.email)
   ) {
-    msg = "Неверный email.";
+    messageKey = "auth.invalidEmail";
   } else if (code === "auth/email-already-in-use" || code === "email_taken") {
-    msg = "Этот email уже используется.";
+    messageKey = "auth.emailInUse";
+  } else if (code === "auth/too-many-requests" || code === "rate_limited") {
+    messageKey = "auth.tooManyRequests";
   } else if (
     code === "auth/network-request-failed" ||
     isNetworkLikeError(error)
   ) {
-    msg = "Проблема с сетью. Попробуйте ещё раз.";
+    messageKey = "auth.networkError";
   }
 
-  return { code, msg, rawMessage: err?.message };
+  return { code, messageKey, rawMessage: err?.message };
 }
 
-function getLoginErrorMessage(error: unknown) {
+function getLoginErrorMessageKey(error: unknown) {
   const err = error as any;
   const code = String(err?.code ?? "");
-  let msg = String(err?.message ?? "Ошибка");
+  let messageKey = "auth.unknownLoginError";
 
   if (
     code === "auth/invalid-credential" ||
@@ -84,15 +86,17 @@ function getLoginErrorMessage(error: unknown) {
     code === "unauthorized" ||
     code === "validation_error"
   ) {
-    msg = "Неверный email или пароль.";
+    messageKey = "auth.invalidCredential";
+  } else if (code === "auth/too-many-requests" || code === "rate_limited") {
+    messageKey = "auth.tooManyRequests";
   } else if (
     code === "auth/network-request-failed" ||
     isNetworkLikeError(error)
   ) {
-    msg = "Проблема с сетью. Попробуйте ещё раз.";
+    messageKey = "auth.networkError";
   }
 
-  return { code, msg, rawMessage: err?.message };
+  return { code, messageKey, rawMessage: err?.message };
 }
 
 export default function LoginScreen() {
@@ -158,9 +162,9 @@ export default function LoginScreen() {
       blurAuthInputs();
       Keyboard.dismiss();
     } catch (e: unknown) {
-      const { code, msg, rawMessage } = getLoginErrorMessage(e);
+      const { code, messageKey, rawMessage } = getLoginErrorMessageKey(e);
       console.error("LOGIN ERROR:", code, rawMessage);
-      Alert.alert("Ошибка входа", msg);
+      Alert.alert(t("auth.loginError"), t(messageKey));
     }
   };
 
@@ -199,9 +203,9 @@ export default function LoginScreen() {
       blurAuthInputs();
       Keyboard.dismiss();
     } catch (e: unknown) {
-      const { code, msg, rawMessage } = getSignupErrorMessage(e);
+      const { code, messageKey, rawMessage } = getSignupErrorMessageKey(e);
       console.error("SIGNUP ERROR:", code, rawMessage);
-      Alert.alert("Ошибка регистрации", msg);
+      Alert.alert(t("auth.registerError"), t(messageKey));
     }
   };
 

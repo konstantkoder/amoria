@@ -12,6 +12,7 @@ import {
   DEFAULT_LOCALE,
   LEGACY_STORAGE_KEY,
   STORAGE_KEY,
+  getReleaseLocaleOrDefault,
   setRuntimeLocale,
   translate,
   type Locale,
@@ -97,9 +98,10 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
   }, [locale, ready, languagePickerMandatory]);
 
   const setLocale = useCallback((next: Locale) => {
-    setLocaleState(next);
-    setLanguagePickerVisible(false);
-    setLanguagePickerMandatory(false);
+    const releaseLocale = getReleaseLocaleOrDefault(next);
+    setLocaleState(releaseLocale);
+    setLanguagePickerVisible(!isReleaseLocale(next));
+    setLanguagePickerMandatory(!isReleaseLocale(next));
   }, []);
 
   const t = useCallback(

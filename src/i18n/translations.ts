@@ -36,7 +36,7 @@ export const LEGACY_STORAGE_KEY = "amoria_language";
 let runtimeLocale: Locale = DEFAULT_LOCALE;
 
 export function setRuntimeLocale(next: Locale) {
-  runtimeLocale = next;
+  runtimeLocale = getReleaseLocaleOrDefault(next);
 }
 
 export function getRuntimeLocale() {
@@ -114,8 +114,13 @@ export function isReleaseLocale(x: string): x is Locale {
   return (RELEASE_LANGUAGE_CODES as string[]).includes(x);
 }
 
+export function getReleaseLocaleOrDefault(value: string | null | undefined): Locale {
+  return value && isLocale(value) && isReleaseLocale(value) ? value : DEFAULT_LOCALE;
+}
+
 export function translate(locale: Locale, key: string, params?: Record<string, string>) {
-  const dict = DICT[locale];
+  const safeLocale = getReleaseLocaleOrDefault(locale);
+  const dict = DICT[safeLocale];
   const fallback = DICT.en;
   let out = dict[key] ?? fallback[key] ?? key;
 
