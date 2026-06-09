@@ -19,7 +19,6 @@ import { useLocale } from "@/contexts/LocaleContext";
 import type { NearbyTabNavigationProp } from "@/navigation/appRoutes";
 import { ApiError } from "@/services/api/apiClient";
 import { reportClientError } from "@/services/api/clientErrorsApi";
-import * as chatApi from "@/services/api/chatApi";
 import * as nearbyApi from "@/services/api/nearbyApi";
 import type {
   AgeGroup,
@@ -223,7 +222,6 @@ export default function NearbyHubScreen() {
   const [feedLoading, setFeedLoading] = useState(false);
   const [toggleBusy, setToggleBusy] = useState(false);
   const [preferenceBusy, setPreferenceBusy] = useState(false);
-  const [openingUserId, setOpeningUserId] = useState<string | null>(null);
   const [errorText, setErrorText] = useState("");
   const [locationIssue, setLocationIssue] = useState<LocationIssue | null>(null);
 
@@ -584,36 +582,10 @@ export default function NearbyHubScreen() {
         userId: item.userId,
         peerName: item.displayName,
         sourceContext: { source: "nearby" },
+        nearbyCanMessage: item.canMessage,
       });
     },
     [navigation]
-  );
-
-  const openMessage = useCallback(
-    async (item: NearbyProfileFeedItemDto) => {
-      if (!item.canMessage || openingUserId) return;
-      setOpeningUserId(item.userId);
-      setErrorText("");
-      try {
-        const thread = await chatApi.openDirectThread(item.userId, {
-          type: "nearby",
-          sourceId: item.userId,
-        });
-        navigation.navigate("DMChat", {
-          threadId: thread.id,
-          peerId: item.userId,
-          peerName: item.displayName,
-          sourceContext: { source: "nearby" },
-        });
-      } catch (error) {
-        setErrorText(getBackendErrorText(error, t));
-      } finally {
-        if (mountedRef.current) {
-          setOpeningUserId(null);
-        }
-      }
-    },
-    [navigation, openingUserId, t]
   );
 
   const goToProfileSetup = useCallback(() => {
@@ -1068,14 +1040,12 @@ export default function NearbyHubScreen() {
       >
         <NearbyProfileCard
           item={item}
-          opening={openingUserId === item.userId}
           onOpen={() => openProfile(item)}
-          onMessage={() => void openMessage(item)}
           t={t}
         />
       </View>
     ),
-    [columns, openMessage, openProfile, openingUserId, t]
+    [columns, openProfile, t]
   );
 
   return (
@@ -1108,30 +1078,30 @@ export default function NearbyHubScreen() {
 
 function NearbyProfileCard({
   item,
-  opening,
   onOpen,
-  onMessage,
   t,
 }: {
   item: NearbyProfileFeedItemDto;
-  opening: boolean;
   onOpen: () => void;
-  onMessage: () => void;
   t: (key: string, params?: Record<string, string>) => string;
 }) {
   const details = [
     item.ageGroup,
     copyOrFallback(t, `nearby.distance.${item.distanceBucket}`, item.distanceBucket),
   ].filter(Boolean);
-  const profileLabels = [
+  const statusLabel = [
     item.nearbyStatus ??
       (item.statusKind ? copyOrFallback(t, `nearby.statusKind.${item.statusKind}`, "") : ""),
-    item.goal ? copyOrFallback(t, `profile.goal.${item.goal}`, item.goal) : "",
     item.mood ? copyOrFallback(t, `profile.mood.${item.mood}`, item.mood) : "",
-  ].filter(Boolean);
+  ].find(Boolean);
 
   return (
-    <View style={styles.card}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={item.displayName}
+      onPress={onOpen}
+      style={({ pressed }) => [styles.card, pressed ? styles.cardPressed : null]}
+    >
       <NearbyCardMedia item={item} />
 
       <Text style={styles.cardName} numberOfLines={1}>
@@ -1141,52 +1111,12 @@ function NearbyProfileCard({
         {details.join(" · ")}
       </Text>
 
-      {profileLabels.length ? (
+      {statusLabel ? (
         <Text style={styles.profileLine} numberOfLines={1}>
-          {profileLabels.join(" · ")}
+          {statusLabel}
         </Text>
       ) : null}
-
-      {item.interests.length ? (
-        <View style={styles.chipRow}>
-          {item.interests.slice(0, 2).map((interest) => (
-            <View key={interest} style={styles.interestChip}>
-              <Text style={styles.interestText} numberOfLines={1}>
-                {interest}
-              </Text>
-            </View>
-          ))}
-        </View>
-      ) : null}
-
-      <View style={styles.actionRow}>
-        <Pressable style={styles.secondaryButton} onPress={onOpen}>
-          <Ionicons name="person-outline" size={13} color="#F3C98B" />
-          <Text style={styles.secondaryButtonText} numberOfLines={1}>
-            {copyOrFallback(t, "nearby.openProfile", "Открыть")}
-          </Text>
-        </Pressable>
-        <Pressable
-          style={[
-            styles.primaryButton,
-            !item.canMessage || opening ? styles.buttonDisabled : null,
-          ]}
-          disabled={!item.canMessage || opening}
-          onPress={onMessage}
-        >
-          {opening ? (
-            <ActivityIndicator color="#24150B" size="small" />
-          ) : (
-            <>
-              <Ionicons name="chatbubble-outline" size={13} color="#24150B" />
-              <Text style={styles.primaryButtonText} numberOfLines={1}>
-                {copyOrFallback(t, "nearby.message", "Написать")}
-              </Text>
-            </>
-          )}
-        </Pressable>
-      </View>
-    </View>
+    </Pressable>
   );
 }
 
@@ -1342,8 +1272,8 @@ const styles = StyleSheet.create({
     alignItems: "stretch",
   },
   cardSlot: {
-    paddingHorizontal: 3,
-    marginBottom: 7,
+    paddingHorizontal: 2,
+    marginBottom: 6,
   },
   cardSlotThird: {
     width: "33.3333%",
@@ -1504,20 +1434,23 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
     borderRadius: 8,
-    padding: 7,
-    gap: 5,
-    backgroundColor: "rgba(12, 18, 28, 0.88)",
+    padding: 4,
+    gap: 3,
+    backgroundColor: "rgba(12, 18, 28, 0.68)",
     borderWidth: 1,
-    borderColor: "rgba(245, 205, 139, 0.20)",
+    borderColor: "rgba(255,255,255,0.10)",
+  },
+  cardPressed: {
+    opacity: 0.82,
   },
   cardMedia: {
     width: "100%",
     aspectRatio: 1,
-    borderRadius: 7,
+    borderRadius: 6,
     overflow: "hidden",
     backgroundColor: "rgba(255,255,255,0.08)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
+    borderColor: "rgba(255,255,255,0.08)",
   },
   cardMediaImage: {
     width: "100%",
@@ -1536,85 +1469,26 @@ const styles = StyleSheet.create({
   },
   cardMediaInitials: {
     color: theme.colors.text,
-    fontSize: 24,
-    lineHeight: 29,
+    fontSize: 22,
+    lineHeight: 26,
     fontWeight: "900",
   },
   cardName: {
     color: theme.colors.text,
-    fontSize: 13,
-    lineHeight: 16,
+    fontSize: 12,
+    lineHeight: 15,
     fontWeight: "900",
   },
   cardMeta: {
     color: "#B9C0D3",
-    fontSize: 10,
-    lineHeight: 13,
+    fontSize: 9,
+    lineHeight: 11,
   },
   profileLine: {
-    color: "#E9ECF7",
-    fontSize: 10,
-    lineHeight: 13,
-    fontWeight: "700",
-  },
-  chipRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 6,
-  },
-  interestChip: {
-    maxWidth: "100%",
-    borderRadius: 999,
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    backgroundColor: "rgba(255,255,255,0.08)",
-  },
-  interestText: {
-    color: "#DCE1F2",
+    color: "#DDE3F2",
     fontSize: 9,
     lineHeight: 11,
     fontWeight: "700",
-  },
-  actionRow: {
-    flexDirection: "row",
-    gap: 4,
-  },
-  secondaryButton: {
-    flex: 1,
-    minHeight: 28,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 3,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "rgba(245, 205, 139, 0.30)",
-    paddingHorizontal: 3,
-  },
-  secondaryButtonText: {
-    flexShrink: 1,
-    color: "#F3C98B",
-    fontSize: 10,
-    lineHeight: 12,
-    fontWeight: "800",
-  },
-  primaryButton: {
-    flex: 1,
-    minHeight: 28,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 3,
-    borderRadius: 8,
-    backgroundColor: "#F3C98B",
-    paddingHorizontal: 3,
-  },
-  primaryButtonText: {
-    flexShrink: 1,
-    color: "#24150B",
-    fontSize: 10,
-    lineHeight: 12,
-    fontWeight: "900",
   },
   buttonDisabled: {
     opacity: 0.58,

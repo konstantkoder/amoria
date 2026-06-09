@@ -34,6 +34,7 @@ import {
 } from "@/navigation/appRoutes";
 import * as announcementsApi from "@/services/api/announcementsApi";
 import { ApiError } from "@/services/api/apiClient";
+import * as chatApi from "@/services/api/chatApi";
 import { reportClientError } from "@/services/api/clientErrorsApi";
 import { unlockUserLockedGallery } from "@/services/api/publicUsersApi";
 import * as safetyApi from "@/services/api/safetyApi";
@@ -343,6 +344,7 @@ export default function UserProfileScreen() {
   const routePeerName = String(route.params?.peerName ?? "").trim();
   const threadId = String(route.params?.threadId ?? "").trim();
   const sourceContext = route.params?.sourceContext;
+  const nearbyCanMessage = route.params?.nearbyCanMessage !== false;
   const sourceSessionId = String(sourceContext?.sourceSessionId ?? "").trim();
   const myId = authUser?.id ?? "";
 
@@ -362,6 +364,7 @@ export default function UserProfileScreen() {
   const [lockedPhotoStates, setLockedPhotoStates] = useState<Record<string, LockedPhotoRenderState>>({});
   const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
   const [failedPublicPhotoIds, setFailedPublicPhotoIds] = useState<string[]>([]);
+  const [nearbyChatOpening, setNearbyChatOpening] = useState(false);
   const reportedMediaFailuresRef = React.useRef<Set<string>>(new Set());
   const reportedLockedMediaFailuresRef = React.useRef<Set<string>>(new Set());
   const lockedPhotoFallbackInFlightRef = React.useRef<Set<string>>(new Set());
@@ -612,6 +615,15 @@ export default function UserProfileScreen() {
   const isBlocked = Boolean(userId && blockedUserIds.includes(userId));
   const profileUnavailable = isBlocked || profileLoadState === "blocked";
   const hasThread = Boolean(threadId && userId);
+  const canStartNearbyChat = Boolean(
+    sourceContext?.source === "nearby" &&
+      !hasThread &&
+      nearbyCanMessage &&
+      myId &&
+      userId &&
+      userId !== myId &&
+      !isBlocked
+  );
 
   const reportPeerMediaLoadFailed = useCallback(
     (
@@ -762,6 +774,34 @@ export default function UserProfileScreen() {
       ...(sourceContext ? { sourceContext } : {}),
     });
   }, [displayName, navigation, sourceContext, threadId, userId]);
+
+  const openNearbyChat = useCallback(async () => {
+    if (!canStartNearbyChat || nearbyChatOpening) return;
+
+    setNearbyChatOpening(true);
+    try {
+      const thread = await chatApi.openDirectThread(userId, {
+        type: "nearby",
+        sourceId: userId,
+      });
+      navigation.navigate("DMChat", {
+        threadId: thread.id,
+        peerId: userId,
+        peerName: displayName,
+        sourceContext: { source: "nearby" },
+      });
+    } catch {
+      Alert.alert(
+        tt("now.chatFailedTitle", "Не удалось открыть чат"),
+        tt(
+          "now.chatFailedBody",
+          "Не удалось открыть реальный личный чат из этого статуса рядом. Попробуй позже."
+        )
+      );
+    } finally {
+      setNearbyChatOpening(false);
+    }
+  }, [canStartNearbyChat, displayName, navigation, nearbyChatOpening, tt, userId]);
 
   const openSharedStory = useCallback(() => {
     if (!sourceSessionId || !sharedStoryAvailable) return;
@@ -1446,6 +1486,20 @@ export default function UserProfileScreen() {
                 {navigation.canGoBack()
                   ? tt("profile.backToChat", "Вернуться в чат")
                   : tt("common.openChat", "Открыть чат")}
+              </Text>
+            </Pressable>
+          ) : null}
+
+          {canStartNearbyChat ? (
+            <Pressable
+              onPress={() => void openNearbyChat()}
+              disabled={nearbyChatOpening}
+              style={[styles.primaryButton, nearbyChatOpening ? styles.disabledButton : null]}
+            >
+              <Text style={styles.primaryButtonText}>
+                {nearbyChatOpening
+                  ? tt("nearby.detail.openingChat", "Открываем чат...")
+                  : tt("nearby.message", "Написать")}
               </Text>
             </Pressable>
           ) : null}

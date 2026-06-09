@@ -97,6 +97,7 @@ export type UserProfileRouteParams = {
   peerName?: string;
   threadId?: string;
   sourceContext?: DmSourceContext;
+  nearbyCanMessage?: boolean;
 };
 
 export type RootStackParamList = {
