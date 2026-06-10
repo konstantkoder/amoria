@@ -704,6 +704,7 @@
   "auth.userNotFound": "Аккаунт не найден. Зарегистрируйтесь.",
   "auth.wrongPassword": "Неверный email или пароль.",
   "auth.passwordRequired": "Введите пароль.",
+  "auth.passwordHint": "Пароль: минимум 6 символов",
   "auth.loginError": "Ошибка входа",
   "auth.registerError": "Ошибка регистрации",
   "auth.emailInUse": "Аккаунт уже существует. Нажмите «Войти» или используйте другой email.",

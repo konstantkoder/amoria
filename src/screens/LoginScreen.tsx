@@ -16,12 +16,15 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getApiBaseUrl } from "@/config/apiConfig";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocale } from "@/contexts/LocaleContext";
+import { ApiError } from "@/services/api/apiClient";
+import { reportClientError } from "@/services/api/clientErrorsApi";
 import {
   getDisplayNameValidationErrorKey,
   normalizeDisplayNameInput,
 } from "@/services/user";
 
 const EMAIL_RE = /^\S+@\S+\.\S+$/;
+type AuthMode = "login" | "register";
 
 function isBackendApiConfigured() {
   try {
@@ -44,21 +47,100 @@ function isNetworkLikeError(error: unknown) {
   );
 }
 
+function getErrorCode(error: unknown) {
+  if (error instanceof ApiError && error.code) return error.code;
+  if (isNetworkLikeError(error)) return "network_request_failed";
+  const code = typeof (error as { code?: unknown })?.code === "string"
+    ? (error as { code: string }).code
+    : "";
+  return code.trim() || "unknown";
+}
+
+function getErrorStatus(error: unknown) {
+  if (error instanceof ApiError) return error.status;
+  const status = (error as { status?: unknown })?.status;
+  return typeof status === "number" ? status : undefined;
+}
+
+function getErrorFields(error: unknown): Record<string, unknown> | undefined {
+  const fields = error instanceof ApiError
+    ? error.fields
+    : (error as { fields?: unknown })?.fields;
+  return fields && typeof fields === "object"
+    ? fields as Record<string, unknown>
+    : undefined;
+}
+
+function getDisplayNameBackendValidationKey(fields: Record<string, unknown>) {
+  const detail = String(fields.displayName ?? "").toLowerCase();
+  return detail.includes("more") || detail.includes("30")
+    ? "profile.nameTooLong"
+    : "profile.nameTooShort";
+}
+
+function maskEmailForDiagnostics(value: string) {
+  const email = value.trim().toLowerCase();
+  const [localPart = "", domainPart = ""] = email.split("@");
+  const maskSegment = (segment: string) => {
+    if (!segment) return "";
+    return `${segment.slice(0, 1)}***`;
+  };
+
+  if (!domainPart) {
+    return maskSegment(localPart);
+  }
+
+  const domainPieces = domainPart.split(".");
+  const tld = domainPieces.length > 1 ? domainPieces[domainPieces.length - 1] : "";
+  const domainName = domainPieces[0] ?? "";
+  return `${maskSegment(localPart)}@${maskSegment(domainName)}${tld ? `.${tld}` : ""}`;
+}
+
+function reportAuthFailure(input: {
+  mode: AuthMode;
+  endpoint: AuthMode;
+  email: string;
+  error: unknown;
+  messageKey: string;
+}) {
+  const diagnostics = {
+    mode: input.mode,
+    endpoint: input.endpoint,
+    status: getErrorStatus(input.error) ?? null,
+    code: getErrorCode(input.error),
+    platform: Platform.OS,
+    maskedEmail: maskEmailForDiagnostics(input.email),
+    messageKey: input.messageKey,
+  };
+
+  console.warn("[auth] request failed", diagnostics);
+  reportClientError({
+    screen: "LoginScreen",
+    action: input.endpoint,
+    step: "authFailure",
+    code: diagnostics.code,
+    message: `${input.endpoint} failed`,
+    metadata: diagnostics,
+  });
+}
+
 function getSignupErrorMessageKey(error: unknown) {
-  const err = error as any;
-  const code = String(err?.code ?? "");
+  const code = getErrorCode(error);
+  const fields = getErrorFields(error);
   let messageKey = "auth.unknownRegisterError";
 
   if (
     code === "auth/weak-password" ||
-    (code === "validation_error" && err?.fields?.password)
+    (code === "validation_error" && fields?.password)
   ) {
     messageKey = "auth.weakPassword";
   } else if (
     code === "auth/invalid-email" ||
-    (code === "validation_error" && err?.fields?.email)
+    (code === "validation_error" && fields?.email)
   ) {
     messageKey = "auth.invalidEmail";
+  } else if (code === "validation_error" && fields?.displayName) {
+    messageKey = getDisplayNameBackendValidationKey(fields);
   } else if (code === "auth/email-already-in-use" || code === "email_taken") {
     messageKey = "auth.emailInUse";
   } else if (code === "auth/too-many-requests" || code === "rate_limited") {
@@ -70,12 +152,11 @@ function getSignupErrorMessageKey(error: unknown) {
     messageKey = "auth.networkError";
   }
 
-  return { code, messageKey, rawMessage: err?.message };
+  return { code, messageKey };
 }
 
 function getLoginErrorMessageKey(error: unknown) {
-  const err = error as any;
-  const code = String(err?.code ?? "");
+  const code = getErrorCode(error);
   let messageKey = "auth.unknownLoginError";
 
   if (
@@ -96,7 +177,7 @@ function getLoginErrorMessageKey(error: unknown) {
     messageKey = "auth.networkError";
   }
 
-  return { code, messageKey, rawMessage: err?.message };
+  return { code, messageKey };
 }
 
 export default function LoginScreen() {
@@ -106,11 +187,12 @@ export default function LoginScreen() {
   const displayNameInputRef = useRef<TextInput>(null);
   const emailInputRef = useRef<TextInput>(null);
   const passwordInputRef = useRef<TextInput>(null);
-  const [mode, setMode] = useState<"login" | "signup">("login");
+  const [mode, setMode] = useState<AuthMode>("login");
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const backendConfigured = isBackendApiConfigured();
+  const isRegisterMode = mode === "register";
   const localeCode = locale.toUpperCase();
   const languageLabel = useMemo(() => {
     const translated = t("menu.languageCurrent", { code: localeCode });
@@ -162,14 +244,20 @@ export default function LoginScreen() {
       blurAuthInputs();
       Keyboard.dismiss();
     } catch (e: unknown) {
-      const { code, messageKey, rawMessage } = getLoginErrorMessageKey(e);
-      console.error("LOGIN ERROR:", code, rawMessage);
+      const { messageKey } = getLoginErrorMessageKey(e);
+      reportAuthFailure({
+        mode: "login",
+        endpoint: "login",
+        email: trimmedEmail,
+        error: e,
+        messageKey,
+      });
       Alert.alert(t("auth.loginError"), t(messageKey));
     }
   };
 
   const register = async () => {
-    setMode("signup");
+    setMode("register");
     const trimmedDisplayName = normalizeDisplayNameInput(displayName);
     const displayNameErrorKey = getDisplayNameValidationErrorKey(trimmedDisplayName);
     if (displayNameErrorKey) {
@@ -203,14 +291,20 @@ export default function LoginScreen() {
       blurAuthInputs();
       Keyboard.dismiss();
     } catch (e: unknown) {
-      const { code, messageKey, rawMessage } = getSignupErrorMessageKey(e);
-      console.error("SIGNUP ERROR:", code, rawMessage);
+      const { messageKey } = getSignupErrorMessageKey(e);
+      reportAuthFailure({
+        mode: "register",
+        endpoint: "register",
+        email: trimmedEmail,
+        error: e,
+        messageKey,
+      });
       Alert.alert(t("auth.registerError"), t(messageKey));
     }
   };
 
-  const submitPassword = () => {
-    if (mode === "signup") {
+  const submitAuth = () => {
+    if (mode === "register") {
       void register();
       return;
     }
@@ -243,27 +337,63 @@ export default function LoginScreen() {
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-            <Text style={styles.title}>{t("auth.loginTitle")}</Text>
+            <Text style={styles.title}>
+              {isRegisterMode ? t("auth.registerTitle") : t("auth.loginTitle")}
+            </Text>
+            <View style={styles.modeSwitch}>
+              <TouchableOpacity
+                style={[
+                  styles.modeButton,
+                  !isRegisterMode ? styles.modeButtonActive : null,
+                ]}
+                onPress={() => setMode("login")}
+                activeOpacity={0.85}
+              >
+                <Text
+                  style={[
+                    styles.modeButtonText,
+                    !isRegisterMode ? styles.modeButtonTextActive : null,
+                  ]}
+                >
+                  {t("auth.loginTitle")}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.modeButton,
+                  isRegisterMode ? styles.modeButtonActive : null,
+                ]}
+                onPress={() => setMode("register")}
+                activeOpacity={0.85}
+              >
+                <Text
+                  style={[
+                    styles.modeButtonText,
+                    isRegisterMode ? styles.modeButtonTextActive : null,
+                  ]}
+                >
+                  {t("auth.registerTitle")}
+                </Text>
+              </TouchableOpacity>
+            </View>
             {fallbackMessage ? (
               <Text style={styles.errorText}>{fallbackMessage}</Text>
             ) : null}
-            <TextInput
-              ref={displayNameInputRef}
-              style={styles.input}
-              placeholder={t("auth.displayNamePlaceholder")}
-              placeholderTextColor="#6B7280"
-              autoCapitalize="words"
-              value={displayName}
-              onChangeText={(value) => {
-                setDisplayName(value);
-                setMode("signup");
-              }}
-              onFocus={() => setMode("signup")}
-              maxLength={30}
-              returnKeyType="next"
-              blurOnSubmit={false}
-              onSubmitEditing={() => emailInputRef.current?.focus()}
-            />
+            {isRegisterMode ? (
+              <TextInput
+                ref={displayNameInputRef}
+                style={styles.input}
+                placeholder={t("auth.displayNamePlaceholder")}
+                placeholderTextColor="#6B7280"
+                autoCapitalize="words"
+                value={displayName}
+                onChangeText={setDisplayName}
+                maxLength={30}
+                returnKeyType="next"
+                blurOnSubmit={false}
+                onSubmitEditing={() => emailInputRef.current?.focus()}
+              />
+            ) : null}
             <TextInput
               ref={emailInputRef}
               style={styles.input}
@@ -288,42 +418,24 @@ export default function LoginScreen() {
               secureTextEntry
               autoCapitalize="none"
               autoCorrect={false}
-              autoComplete={mode === "signup" ? "new-password" : "password"}
-              textContentType={mode === "signup" ? "newPassword" : "password"}
+              autoComplete={isRegisterMode ? "new-password" : "password"}
+              textContentType={isRegisterMode ? "newPassword" : "password"}
               value={password}
               onChangeText={setPassword}
               returnKeyType="go"
-              onSubmitEditing={submitPassword}
+              onSubmitEditing={submitAuth}
             />
-            {mode === "signup" ? (
-              <Text
-                style={{
-                  marginTop: 6,
-                  opacity: 0.75,
-                  fontSize: 12,
-                  color: "#000000",
-                }}
-              >
-                Пароль: минимум 6 символов
-              </Text>
+            {isRegisterMode ? (
+              <Text style={styles.passwordHint}>{t("auth.passwordHint")}</Text>
             ) : null}
             <TouchableOpacity
               style={[styles.button, authDisabled ? styles.buttonDisabled : null]}
-              onPress={login}
+              onPress={submitAuth}
               disabled={authDisabled}
             >
-              <Text style={styles.buttonText}>{t("auth.loginButton")}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.button,
-                { marginTop: 8 },
-                authDisabled ? styles.buttonDisabled : null,
-              ]}
-              onPress={register}
-              disabled={authDisabled}
-            >
-              <Text style={styles.buttonText}>{t("auth.registerButton")}</Text>
+              <Text style={styles.buttonText}>
+                {isRegisterMode ? t("auth.registerButton") : t("auth.loginButton")}
+              </Text>
             </TouchableOpacity>
           </ScrollView>
         </TouchableWithoutFeedback>
@@ -373,6 +485,31 @@ const styles = StyleSheet.create({
     textAlign: "center",
     color: "#000000",
   },
+  modeSwitch: {
+    flexDirection: "row",
+    borderWidth: 1,
+    borderColor: "#111827",
+    borderRadius: 8,
+    overflow: "hidden",
+    marginBottom: 12,
+  },
+  modeButton: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+  },
+  modeButtonActive: {
+    backgroundColor: "#111827",
+  },
+  modeButtonText: {
+    color: "#111827",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  modeButtonTextActive: {
+    color: "#FFFFFF",
+  },
   errorText: {
     color: "#B91C1C",
     fontSize: 13,
@@ -388,6 +525,13 @@ const styles = StyleSheet.create({
     borderColor: "#111827",
     color: "#000000",
     backgroundColor: "#FFFFFF",
+  },
+  passwordHint: {
+    marginTop: 6,
+    marginBottom: 6,
+    opacity: 0.75,
+    fontSize: 12,
+    color: "#000000",
   },
   button: {
     borderWidth: 1,

@@ -156,20 +156,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(
     async (input: LoginRequest) => {
+      await clearSessionState();
       const response = await loginWithBackend(input);
       await applyAuthResponse(response);
       return response.user;
     },
-    [applyAuthResponse]
+    [applyAuthResponse, clearSessionState]
   );
 
   const register = useCallback(
     async (input: RegisterRequest) => {
+      await clearSessionState();
       const response = await registerWithBackend(input);
       await applyAuthResponse(response);
       return response.user;
     },
-    [applyAuthResponse]
+    [applyAuthResponse, clearSessionState]
   );
 
   const logout = useCallback(async () => {

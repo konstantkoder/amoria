@@ -704,6 +704,7 @@
   "auth.userNotFound": "Account not found. Sign up first.",
   "auth.wrongPassword": "Invalid email or password.",
   "auth.passwordRequired": "Enter your password.",
+  "auth.passwordHint": "Password: at least 6 characters",
   "auth.loginError": "Couldn't sign in.",
   "auth.registerError": "Couldn't sign up.",
   "auth.emailInUse": "An account already exists. Tap \"Sign in\" or use another email.",
