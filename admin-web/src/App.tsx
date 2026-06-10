@@ -273,7 +273,8 @@ export function App() {
           {activeScreen === "togetherSessions" ? (
             <TogetherSessionsScreen initialSessionId={togetherSessionFilter} />
           ) : null}
-          {activeScreen === "opsHealth" || activeScreen === "nearbyDiagnostics" ? <OpsHealthScreen /> : null}
+          {activeScreen === "opsHealth" ? <OpsHealthScreen /> : null}
+          {activeScreen === "nearbyDiagnostics" ? <NearbyDiagnosticsScreen /> : null}
           {activeScreen === "bootstrap" ? <BootstrapScreen /> : null}
         </main>
       </div>
@@ -1824,22 +1825,12 @@ function MediaScreen({
 function OpsHealthScreen() {
   const { language, t } = useI18n();
   const { data, error, reload } = useLoad<OpsHealth>("/admin/ops/health");
-  const {
-    data: nearbyDiagnostics,
-    error: nearbyError,
-    reload: reloadNearby,
-  } = useLoad<NearbyDiagnostics>("/admin/nearby/diagnostics");
-
-  function reloadAll() {
-    reload();
-    reloadNearby();
-  }
 
   return (
     <section className="panel">
       <div className="panel-header">
         <h2>{t("ops.title")}</h2>
-        <button className="secondary" onClick={reloadAll}>{t("common.refresh")}</button>
+        <button className="secondary" onClick={reload}>{t("common.refresh")}</button>
       </div>
       {error ? <div className="error">{error}</div> : null}
       {data ? (
@@ -1855,7 +1846,24 @@ function OpsHealthScreen() {
           <Fact label={t("ops.pendingMedia")} value={formatCount(data.counts.pendingMediaModerationItems)} />
         </dl>
       ) : <EmptyState label={t("ops.empty")} />}
-      <h3>{t("ops.nearbyTitle")}</h3>
+    </section>
+  );
+}
+
+function NearbyDiagnosticsScreen() {
+  const { language, t } = useI18n();
+  const {
+    data: nearbyDiagnostics,
+    error: nearbyError,
+    reload: reloadNearby,
+  } = useLoad<NearbyDiagnostics>("/admin/nearby/diagnostics");
+
+  return (
+    <section className="panel">
+      <div className="panel-header">
+        <h2>{t("ops.nearbyTitle")}</h2>
+        <button className="secondary" onClick={reloadNearby}>{t("common.refresh")}</button>
+      </div>
       <p className="muted">{t("ops.nearbySafeNote")}</p>
       {nearbyError ? <div className="error">{nearbyError}</div> : null}
       {nearbyDiagnostics ? (
