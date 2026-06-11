@@ -12,6 +12,7 @@ type Props = {
   avatarUrl?: string;
   label?: string;
   size?: number;
+  cacheKey?: string | number;
   onLoadError?: (info: PublicMediaUrlInfo) => void;
 };
 
@@ -31,18 +32,41 @@ function getInitials(label?: string) {
     .join("");
 }
 
-export default function UserAvatar({ avatarUrl, label, size = 44, onLoadError }: Props) {
+function withCacheKey(url: string, cacheKey?: string | number) {
+  const stableKey = String(cacheKey ?? "").trim();
+  if (!stableKey) return url;
+
+  try {
+    const nextUrl = new URL(url);
+    nextUrl.searchParams.set("v", stableKey);
+    return nextUrl.toString();
+  } catch {
+    return url;
+  }
+}
+
+export default function UserAvatar({
+  avatarUrl,
+  label,
+  size = 44,
+  cacheKey,
+  onLoadError,
+}: Props) {
   const [failed, setFailed] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   const urlInfo = React.useMemo(() => normalizeAvatarUrl(avatarUrl), [avatarUrl]);
   const sharedUrl = urlInfo.url ?? "";
+  const imageUrl = React.useMemo(
+    () => (sharedUrl ? withCacheKey(sharedUrl, cacheKey) : ""),
+    [cacheKey, sharedUrl]
+  );
   const hasRawAvatarUrl = Boolean(String(avatarUrl ?? "").trim());
   const initials = getInitials(label);
 
   React.useEffect(() => {
     setFailed(false);
-    setLoading(Boolean(sharedUrl));
-  }, [sharedUrl]);
+    setLoading(Boolean(imageUrl));
+  }, [imageUrl]);
 
   React.useEffect(() => {
     if (hasRawAvatarUrl && !sharedUrl) {
@@ -50,7 +74,7 @@ export default function UserAvatar({ avatarUrl, label, size = 44, onLoadError }:
     }
   }, [hasRawAvatarUrl, onLoadError, sharedUrl, urlInfo]);
 
-  if (sharedUrl && !failed) {
+  if (imageUrl && !failed) {
     return (
       <View
         style={[
@@ -63,7 +87,8 @@ export default function UserAvatar({ avatarUrl, label, size = 44, onLoadError }:
         ]}
       >
         <Image
-          source={{ uri: sharedUrl }}
+          key={imageUrl}
+          source={{ uri: imageUrl }}
           style={StyleSheet.absoluteFill}
           resizeMode="cover"
           onLoadStart={() => setLoading(true)}

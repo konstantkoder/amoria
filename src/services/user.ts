@@ -56,6 +56,12 @@ const AGE_GROUP_VALUES: AgeGroup[] = ["18-24", "25-34", "35-44", "45-54", "55+"]
 const MIN_ADULT_AGE = 18;
 const MAX_PROFILE_AGE = 120;
 
+export type MatchingSafetyField = "birthDate" | "gender" | "preferredGenders";
+
+type GetUserProfileOptions = {
+  allowCached?: boolean;
+};
+
 function normalizeString(value: unknown) {
   return String(value ?? "").trim();
 }
@@ -307,8 +313,10 @@ function getUnsupportedBackendProfileFields(fields: Partial<UserProfile>) {
   return Object.keys(fields).filter((key) => !BACKEND_PROFILE_FIELD_KEYS.has(key));
 }
 
-async function getCurrentBackendUserProfile() {
-  const session = await refreshBackendUser();
+async function getCurrentBackendUserProfile(
+  options: GetUserProfileOptions = {}
+) {
+  const session = await refreshBackendUser(options);
   return session ? mapBackendUserProfile(session.user) : null;
 }
 
@@ -390,13 +398,19 @@ export async function updateMySettings(patch: Record<string, any>) {
   return updateUserFields(patch);
 }
 
-export async function getUserProfile(): Promise<UserProfile> {
-  const backendProfile = await getCurrentBackendUserProfile();
+export async function getUserProfile(
+  options: GetUserProfileOptions = {}
+): Promise<UserProfile> {
+  const backendProfile = await getCurrentBackendUserProfile(options);
   if (!backendProfile) {
     throw new Error("auth.sessionRequired");
   }
 
   return backendProfile;
+}
+
+export async function refreshUserProfile(): Promise<UserProfile> {
+  return getUserProfile({ allowCached: false });
 }
 
 export async function updateUserFields(
@@ -422,6 +436,28 @@ export async function updateUserDisplayName(displayName: string): Promise<UserPr
 
 export function hasBirthDate(profile?: Pick<UserProfile, "birthDate"> | null): boolean {
   return Boolean(profile?.birthDate && /^\d{4}-\d{2}-\d{2}$/.test(profile.birthDate));
+}
+
+export function getMissingMatchingSafetyFields(
+  profile?: Pick<UserProfile, "birthDate" | "gender" | "preferredGenders"> | null
+): MatchingSafetyField[] {
+  const missing: MatchingSafetyField[] = [];
+  if (!hasBirthDate(profile)) {
+    missing.push("birthDate");
+  }
+  if (!profile?.gender) {
+    missing.push("gender");
+  }
+  if (!Array.isArray(profile?.preferredGenders)) {
+    missing.push("preferredGenders");
+  }
+  return missing;
+}
+
+export function hasMatchingSafetyFields(
+  profile?: Pick<UserProfile, "birthDate" | "gender" | "preferredGenders"> | null
+): boolean {
+  return getMissingMatchingSafetyFields(profile).length === 0;
 }
 
 export async function updateUserBirthDate(birthDate: string): Promise<UserProfile> {

@@ -43,6 +43,7 @@ import {
   getDisplayNameValidationErrorKey,
   getUserProfile,
   normalizeDisplayNameInput,
+  refreshUserProfile,
   updateUserAvatarUrl,
   updateUserDisplayName,
 } from "@/services/user";
@@ -132,8 +133,7 @@ function formatOwnGender(
   profile: UserProfile | null,
   t: (key: string, params?: Record<string, string>) => string
 ) {
-  if (!profile || profile.gender === undefined) return t("profile.genderMissing");
-  if (profile.gender === null) return t("profile.gender.preferNotToSay");
+  if (!profile?.gender) return t("profile.genderMissing");
   return t(`profile.gender.${profile.gender}`);
 }
 
@@ -256,6 +256,7 @@ export default function ProfileScreen() {
   const [nameDraft, setNameDraft] = React.useState("");
   const [nameSaving, setNameSaving] = React.useState(false);
   const [nameError, setNameError] = React.useState("");
+  const [avatarCacheKey, setAvatarCacheKey] = React.useState(0);
   const nameInputRef = React.useRef<TextInput>(null);
   const reportedMediaFailuresRef = React.useRef<Set<string>>(new Set());
 
@@ -305,7 +306,7 @@ export default function ProfileScreen() {
   const searchAgePreference = formatSearchAgePreference(profile, t);
   const ownGenderLabel = formatOwnGender(profile, t);
   const lookingForLabel = formatLookingForPreference(profile, t);
-  const missingOwnGender = Boolean(profile && profile.gender === undefined);
+  const missingOwnGender = Boolean(profile && !profile.gender);
   const missingLookingFor = Boolean(profile && profile.preferredGenders === undefined);
   const interestsSummary = profile?.interests?.length
     ? profile.interests.join(", ")
@@ -499,6 +500,9 @@ export default function ProfileScreen() {
 
       const nextProfile = await updateUserAvatarUrl(avatarDownloadUrl);
       setProfile(nextProfile);
+      const refreshedProfile = await refreshUserProfile().catch(() => nextProfile);
+      setProfile(refreshedProfile);
+      setAvatarCacheKey(Date.now());
       setPendingAvatar(null);
       Alert.alert(t("common.done"), t("photos.photoUpdated"));
     } catch (error) {
@@ -608,7 +612,12 @@ export default function ProfileScreen() {
 
   if (loading) {
     return (
-      <ScreenShell title={t("screen.profile")} background="profile" overlayOpacity={0.16}>
+      <ScreenShell
+        title={t("screen.profile")}
+        background="profile"
+        overlayOpacity={0.16}
+        showMainTabs
+      >
         <View style={styles.loader}>
           <ActivityIndicator color={theme.colors.primary} />
           <Text style={styles.loaderText}>{t("editProfile.loading")}</Text>
@@ -618,7 +627,12 @@ export default function ProfileScreen() {
   }
 
   return (
-    <ScreenShell title={t("screen.profile")} background="profile" overlayOpacity={0.16}>
+    <ScreenShell
+      title={t("screen.profile")}
+      background="profile"
+      overlayOpacity={0.16}
+      showMainTabs
+    >
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}
@@ -646,6 +660,7 @@ export default function ProfileScreen() {
                   avatarUrl={avatarUrl}
                   label={displayName}
                   size={108}
+                  cacheKey={avatarCacheKey}
                   onLoadError={(urlInfo) => {
                     reportProfileMediaLoadFailed("loadAvatar", {
                       urlInfo,

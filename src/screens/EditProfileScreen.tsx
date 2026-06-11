@@ -3,6 +3,8 @@ import {
   ActivityIndicator,
   Alert,
   Keyboard,
+  KeyboardAvoidingView,
+  Platform,
   ScrollView,
   StyleSheet,
   Switch,
@@ -50,18 +52,13 @@ function translatedOptionLabel(
 const MIN_ADULT_AGE = 18;
 const MAX_PROFILE_AGE = 120;
 const SELF_GENDER_OPTIONS: Array<{
-  id: ProfileGender | "prefer_not_to_say";
-  value: ProfileGender | null;
+  id: ProfileGender;
+  value: ProfileGender;
   labelKey: string;
 }> = [
   { id: "man", value: "man", labelKey: "profile.gender.man" },
   { id: "woman", value: "woman", labelKey: "profile.gender.woman" },
   { id: "nonbinary", value: "nonbinary", labelKey: "profile.gender.nonbinary" },
-  {
-    id: "prefer_not_to_say",
-    value: null,
-    labelKey: "profile.gender.preferNotToSay",
-  },
 ];
 const SEARCH_GENDER_OPTIONS: Array<{
   id: "all" | ProfileGender;
@@ -239,6 +236,41 @@ export default function EditProfileScreen() {
   const preferencesYRef = React.useRef(0);
   const focusTarget = route.params?.focus;
 
+  const dismissKeyboard = React.useCallback(() => {
+    displayNameInputRef.current?.blur();
+    aboutInputRef.current?.blur();
+    interestsInputRef.current?.blur();
+    birthDayInputRef.current?.blur();
+    birthMonthInputRef.current?.blur();
+    birthYearInputRef.current?.blur();
+    Keyboard.dismiss();
+  }, []);
+
+  const handleBirthDayChange = React.useCallback((value: string) => {
+    const nextValue = digitsOnly(value, 2);
+    setBirthDay(nextValue);
+    if (nextValue.length === 2) {
+      birthMonthInputRef.current?.focus();
+    }
+  }, []);
+
+  const handleBirthMonthChange = React.useCallback((value: string) => {
+    const nextValue = digitsOnly(value, 2);
+    setBirthMonth(nextValue);
+    if (nextValue.length === 2) {
+      birthYearInputRef.current?.focus();
+    }
+  }, []);
+
+  const handleBirthYearChange = React.useCallback((value: string) => {
+    const nextValue = digitsOnly(value, 4);
+    setBirthYear(nextValue);
+    if (nextValue.length === 4) {
+      birthYearInputRef.current?.blur();
+      Keyboard.dismiss();
+    }
+  }, []);
+
   const applyProfile = React.useCallback((profile: UserProfile) => {
     setDisplayName(profile.displayName ?? "");
     setAbout(profile.about ?? "");
@@ -397,8 +429,7 @@ export default function EditProfileScreen() {
       const nextInterests = [...interests];
       if (interestDraft.trim()) {
         const normalized = validateInterest(interestDraft, nextInterests);
-        if (!normalized) return;
-        if (!nextInterests.includes(normalized)) {
+        if (normalized && !nextInterests.includes(normalized)) {
           nextInterests.push(normalized);
         }
       }
@@ -411,33 +442,31 @@ export default function EditProfileScreen() {
         Alert.alert(t("common.error"), t(birthDateValidation.errorKey));
         return;
       }
+      if (!gender) {
+        Alert.alert(t("common.error"), t("editProfile.genderRequired"));
+        return;
+      }
+      if (!Array.isArray(preferredGenders)) {
+        Alert.alert(t("common.error"), t("editProfile.preferredGendersRequired"));
+        return;
+      }
 
       const profilePatch: Partial<UserProfile> = {
         displayName: nextDisplayName,
         about,
         interests: nextInterests,
         birthDate: birthDateValidation.value,
+        gender,
+        preferredGenders,
         goal,
         mood,
         mysteryMode,
       };
-      if (gender !== undefined) {
-        profilePatch.gender = gender;
-      }
-      if (preferredGenders !== undefined) {
-        profilePatch.preferredGenders = preferredGenders;
-      }
 
       await updateUserFields(profilePatch);
       const refreshedProfile = await getUserProfile();
       applyProfile(refreshedProfile);
-      displayNameInputRef.current?.blur();
-      aboutInputRef.current?.blur();
-      interestsInputRef.current?.blur();
-      birthDayInputRef.current?.blur();
-      birthMonthInputRef.current?.blur();
-      birthYearInputRef.current?.blur();
-      Keyboard.dismiss();
+      dismissKeyboard();
       Alert.alert(t("common.done"), t("editProfile.saveSuccessBody"));
     } catch (error) {
       const birthDateErrorKey = getBirthDateApiErrorKey(error);
@@ -457,6 +486,7 @@ export default function EditProfileScreen() {
         background="profile"
         overlayOpacity={0.16}
         showBack
+        showMainTabs
       >
         <View style={styles.loader}>
           <ActivityIndicator color={theme.colors.primary} />
@@ -472,15 +502,21 @@ export default function EditProfileScreen() {
       background="profile"
       overlayOpacity={0.16}
       showBack
+      showMainTabs
     >
-      <ScrollView
-        ref={scrollRef}
-        style={styles.scroll}
-        contentContainerStyle={styles.content}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
+      <KeyboardAvoidingView
+        style={styles.keyboardAvoider}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <View style={styles.card}>
+        <ScrollView
+          ref={scrollRef}
+          style={styles.scroll}
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="always"
+          keyboardDismissMode="on-drag"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.card}>
           <Text style={styles.label}>{t("editProfile.nameLabel")}</Text>
           <TextInput
             ref={displayNameInputRef}
@@ -614,48 +650,61 @@ export default function EditProfileScreen() {
               <TextInput
                 ref={birthDayInputRef}
                 value={birthDay}
-                onChangeText={(value) => setBirthDay(digitsOnly(value, 2))}
+                onChangeText={handleBirthDayChange}
                 placeholder={t("editProfile.birthDateDayPlaceholder")}
                 placeholderTextColor={theme.colors.muted}
                 style={[styles.input, styles.birthDateInput]}
                 keyboardType="number-pad"
+                inputMode="numeric"
                 autoCapitalize="none"
                 autoCorrect={false}
                 maxLength={2}
                 returnKeyType="next"
                 blurOnSubmit={false}
+                selectTextOnFocus
                 onSubmitEditing={() => birthMonthInputRef.current?.focus()}
               />
               <TextInput
                 ref={birthMonthInputRef}
                 value={birthMonth}
-                onChangeText={(value) => setBirthMonth(digitsOnly(value, 2))}
+                onChangeText={handleBirthMonthChange}
                 placeholder={t("editProfile.birthDateMonthPlaceholder")}
                 placeholderTextColor={theme.colors.muted}
                 style={[styles.input, styles.birthDateInput]}
                 keyboardType="number-pad"
+                inputMode="numeric"
                 autoCapitalize="none"
                 autoCorrect={false}
                 maxLength={2}
                 returnKeyType="next"
                 blurOnSubmit={false}
+                selectTextOnFocus
                 onSubmitEditing={() => birthYearInputRef.current?.focus()}
               />
               <TextInput
                 ref={birthYearInputRef}
                 value={birthYear}
-                onChangeText={(value) => setBirthYear(digitsOnly(value, 4))}
+                onChangeText={handleBirthYearChange}
                 placeholder={t("editProfile.birthDateYearPlaceholder")}
                 placeholderTextColor={theme.colors.muted}
                 style={[styles.input, styles.birthDateYearInput]}
                 keyboardType="number-pad"
+                inputMode="numeric"
                 autoCapitalize="none"
                 autoCorrect={false}
                 maxLength={4}
                 returnKeyType="done"
-                onSubmitEditing={() => void handleSave()}
+                selectTextOnFocus
+                onSubmitEditing={dismissKeyboard}
               />
             </View>
+            <TouchableOpacity
+              style={styles.keyboardDoneButton}
+              onPress={dismissKeyboard}
+              activeOpacity={0.86}
+            >
+              <Text style={styles.keyboardDoneButtonText}>{t("common.done")}</Text>
+            </TouchableOpacity>
             <Text style={styles.helperText}>
               {t("editProfile.birthDateSafetyBody")}
             </Text>
@@ -820,18 +869,22 @@ export default function EditProfileScreen() {
               {saving ? t("common.saving") : t("common.save")}
             </Text>
           </TouchableOpacity>
-        </View>
-      </ScrollView>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </ScreenShell>
   );
 }
 
 const styles = StyleSheet.create({
+  keyboardAvoider: {
+    flex: 1,
+  },
   scroll: {
     flex: 1,
   },
   content: {
-    paddingBottom: theme.spacing * 2,
+    paddingBottom: theme.spacing * 8,
   },
   loader: {
     flex: 1,
@@ -972,7 +1025,7 @@ const styles = StyleSheet.create({
   birthDateRow: {
     flexDirection: "row",
     gap: 8,
-    marginBottom: 14,
+    marginBottom: 8,
   },
   birthDateInput: {
     flex: 1,
@@ -983,6 +1036,21 @@ const styles = StyleSheet.create({
     flex: 1.3,
     marginBottom: 0,
     textAlign: "center",
+  },
+  keyboardDoneButton: {
+    alignSelf: "flex-end",
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    marginBottom: 12,
+    backgroundColor: "rgba(255,255,255,0.10)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.16)",
+  },
+  keyboardDoneButtonText: {
+    color: theme.colors.text,
+    fontSize: 12,
+    fontWeight: "800",
   },
   optionsWrap: {
     flexDirection: "row",

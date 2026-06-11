@@ -11,7 +11,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { useNavigation, useNavigationState } from "@react-navigation/native";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocale } from "@/contexts/LocaleContext";
-import { AmoriaTogetherIcon } from "@/components/icons/AmoriaTogetherIcon";
 import { type RootStackNavigationProp } from "@/navigation/appRoutes";
 import { theme } from "@/theme";
 
@@ -33,9 +32,6 @@ function copyOrFallback(
 }
 
 type DrawerSection =
-  | "together"
-  | "nearby"
-  | "chats"
   | "profile"
   | "settings"
   | "language"
@@ -53,28 +49,9 @@ function activeSectionFromRoute(route?: RouteSnapshot): DrawerSection | null {
   if (!route?.name) return null;
 
   if (route.name === "Tabs") {
-    const activeTab = route.state?.routes?.[route.state.index ?? 0]?.name;
-    if (activeTab === "Together") return "together";
-    if (activeTab === "Nearby") return "nearby";
-    if (activeTab === "Inbox") return "chats";
     return null;
   }
 
-  if (
-    route.name === "PlayMatch" ||
-    route.name === "PlayCanvas" ||
-    route.name === "PlayStorySparks" ||
-    route.name === "PlayResult" ||
-    route.name === "PlayHistory" ||
-    route.name === "PlaySessionDetail"
-  ) {
-    return "together";
-  }
-
-  if (route.name === "DMChat") return "chats";
-  if (route.name === "CreateAnnouncement" || route.name === "AnnouncementDetail") {
-    return "nearby";
-  }
   if (route.name === "Profile" || route.name === "UserProfile") return "profile";
   if (route.name === "Settings" || route.name === "LocationInfo") return "settings";
   if (route.name === "PrivacyPolicy") return "privacy";
@@ -109,21 +86,6 @@ export default function AppDrawerContent({ onClose }: Props) {
       Alert.alert(t("common.error"), t("menu.logoutFailed"));
     }
   }, [auth, onClose, t]);
-
-  const handleOpenTogether = React.useCallback(() => {
-    onClose?.();
-    navigation.navigate("Tabs", { screen: "Together" });
-  }, [navigation, onClose]);
-
-  const handleOpenNearby = React.useCallback(() => {
-    onClose?.();
-    navigation.navigate("Tabs", { screen: "Nearby" });
-  }, [navigation, onClose]);
-
-  const handleOpenChats = React.useCallback(() => {
-    onClose?.();
-    navigation.navigate("Tabs", { screen: "Inbox" });
-  }, [navigation, onClose]);
 
   const handleOpenProfile = React.useCallback(() => {
     onClose?.();
@@ -227,28 +189,6 @@ export default function AppDrawerContent({ onClose }: Props) {
           contentContainerStyle={[styles.content, styles.panelContent]}
           showsVerticalScrollIndicator={false}
         >
-          <Text style={styles.sectionLabel}>
-            {copyOrFallback(t, "menu.sectionNavigation", "Основное")}
-          </Text>
-          {renderButton({
-            section: "together",
-            iconNode: (active) => <AmoriaTogetherIcon active={active} size={22} />,
-            label: t("tabs.together"),
-            onPress: handleOpenTogether,
-          })}
-          {renderButton({
-            section: "nearby",
-            icon: "location-outline",
-            label: t("tabs.nearby"),
-            onPress: handleOpenNearby,
-          })}
-          {renderButton({
-            section: "chats",
-            icon: "chatbubbles-outline",
-            label: t("tabs.chats"),
-            onPress: handleOpenChats,
-          })}
-
           <Text style={styles.sectionLabel}>
             {copyOrFallback(t, "menu.sectionAccount", "Аккаунт")}
           </Text>

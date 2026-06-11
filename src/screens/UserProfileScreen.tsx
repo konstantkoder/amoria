@@ -29,6 +29,7 @@ import UserAvatar from "@/components/UserAvatar";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocale } from "@/contexts/LocaleContext";
 import {
+  type MainTabParamList,
   type RootStackNavigationProp,
   type UserProfileRouteProp,
 } from "@/navigation/appRoutes";
@@ -347,6 +348,12 @@ export default function UserProfileScreen() {
   const nearbyCanMessage = route.params?.nearbyCanMessage !== false;
   const sourceSessionId = String(sourceContext?.sourceSessionId ?? "").trim();
   const myId = authUser?.id ?? "";
+  const activeMainTab: keyof MainTabParamList =
+    sourceContext?.source === "nearby"
+      ? "Nearby"
+      : sourceContext?.source === "together"
+      ? "Together"
+      : "Inbox";
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [profileLoadState, setProfileLoadState] = useState<ProfileLoadState>("loading");
@@ -1165,6 +1172,8 @@ export default function UserProfileScreen() {
         title={tt("profile.peerTitle", "Профиль собеседника")}
         background="profile"
         showBack
+        showMainTabs
+        activeMainTab={activeMainTab}
       >
         <View style={styles.centerState}>
           <CoreStateCard
@@ -1187,6 +1196,8 @@ export default function UserProfileScreen() {
         title={tt("profile.peerTitle", "Профиль собеседника")}
         background="profile"
         showBack
+        showMainTabs
+        activeMainTab={activeMainTab}
       >
         <View style={styles.centerState}>
           <CoreStateCard
@@ -1209,6 +1220,8 @@ export default function UserProfileScreen() {
         title={tt("profile.peerTitle", "Профиль собеседника")}
         background="profile"
         showBack
+        showMainTabs
+        activeMainTab={activeMainTab}
       >
         <View style={styles.centerState}>
           <CoreStateCard
@@ -1227,6 +1240,8 @@ export default function UserProfileScreen() {
         title={tt("profile.peerTitle", "Профиль собеседника")}
         background="profile"
         showBack
+        showMainTabs
+        activeMainTab={activeMainTab}
       >
         <View style={styles.centerState}>
           <CoreStateCard
@@ -1250,6 +1265,8 @@ export default function UserProfileScreen() {
         title={tt("profile.peerTitle", "Профиль собеседника")}
         background="profile"
         showBack
+        showMainTabs
+        activeMainTab={activeMainTab}
       >
         <View style={styles.centerState}>
           <CoreStateCard
@@ -1269,6 +1286,8 @@ export default function UserProfileScreen() {
       background="profile"
       overlayOpacity={0.16}
       showBack
+      showMainTabs
+      activeMainTab={activeMainTab}
     >
       <ScrollView
         style={styles.scroll}

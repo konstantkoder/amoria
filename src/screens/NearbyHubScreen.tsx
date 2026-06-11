@@ -33,14 +33,22 @@ import {
   type PublicMediaUrlInfo,
 } from "@/services/media/mediaUrl";
 import { startStartupSpan } from "@/services/startupDiagnostics";
-import { getUserProfile, updateUserFields } from "@/services/user";
+import {
+  getMissingMatchingSafetyFields,
+  getUserProfile,
+  updateUserFields,
+  type MatchingSafetyField,
+} from "@/services/user";
 import type { ProfileGender, UserProfile } from "@/models/User";
 import { theme } from "@/theme";
 
 type LocationIssue = "permissionDenied" | "permissionBlocked" | "readFailed";
 type GenderFilter = "all" | ProfileGender;
 type AgeFilterId = "any" | AgeGroup;
-type MissingNearbyPreferenceField = "gender" | "preferredGenders";
+type MissingNearbyPreferenceField = Extract<
+  MatchingSafetyField,
+  "gender" | "preferredGenders"
+>;
 
 const RADIUS_OPTIONS = [5, 25, 100, 250] as const;
 const FEED_LIMIT = 30;
@@ -118,16 +126,44 @@ function getAgeFilterLabel(
   return copyOrFallback(t, `nearby.age.${id}`, id);
 }
 
+function getMissingSafetyFieldLabels(
+  fields: MatchingSafetyField[],
+  t: (key: string, params?: Record<string, string>) => string
+) {
+  return fields.map((field) => {
+    if (field === "birthDate") {
+      return copyOrFallback(t, "profile.birthDateMissingBadge", "Birth date");
+    }
+    if (field === "gender") {
+      return copyOrFallback(t, "profile.genderSummaryTitle", "Your gender");
+    }
+    return copyOrFallback(t, "profile.lookingForSummaryTitle", "Preferred genders");
+  });
+}
+
+function getMissingSafetyFieldsBody(
+  fields: MatchingSafetyField[],
+  t: (key: string, params?: Record<string, string>) => string
+) {
+  const labels = getMissingSafetyFieldLabels(fields, t).join(", ");
+  return copyOrFallback(
+    t,
+    "nearby.missingSafetyFieldsBody",
+    "Required before matching: {fields}. Exact birth date is not shown to other people.",
+    { fields: labels }
+  );
+}
+
 function isProfileReady(profile: UserProfile | null) {
-  return Boolean(profile?.birthDate && profile.displayName?.trim());
+  return !getMissingMatchingSafetyFields(profile).includes("birthDate");
 }
 
 function getMissingNearbyPreferenceField(
   profile: UserProfile | null
 ): MissingNearbyPreferenceField | null {
-  if (!profile) return "gender";
-  if (profile.gender === undefined) return "gender";
-  if (profile.preferredGenders === undefined) return "preferredGenders";
+  const missing = getMissingMatchingSafetyFields(profile);
+  if (missing.includes("gender")) return "gender";
+  if (missing.includes("preferredGenders")) return "preferredGenders";
   return null;
 }
 
@@ -228,6 +264,7 @@ export default function NearbyHubScreen() {
   const active = visibility?.status === "active";
   const profileReady = isProfileReady(profile);
   const missingPreferenceField = getMissingNearbyPreferenceField(profile);
+  const missingSafetyFields = loading ? [] : getMissingMatchingSafetyFields(profile);
   const matchingPreferencesReady = !missingPreferenceField;
   const genderFilter = getGenderFilter(profile);
   const ageFilter = getAgeFilter(profile);
@@ -409,24 +446,9 @@ export default function NearbyHubScreen() {
   );
 
   const enableVisibility = useCallback(async () => {
-    if (!profileReady) {
-      setErrorText(
-        copyOrFallback(
-          t,
-          "nearby.errorProfileSetup",
-          "Заполните профиль, чтобы Рядом мог подобрать людей честно."
-        )
-      );
-      return;
-    }
-    if (missingPreferenceField) {
-      setErrorText(
-        copyOrFallback(
-          t,
-          "nearby.errorProfilePreferences",
-          "Заполните, кого вы ищете, чтобы Рядом показывал подходящих людей."
-        )
-      );
+    const missingFields = getMissingMatchingSafetyFields(profile);
+    if (missingFields.length) {
+      setErrorText(getMissingSafetyFieldsBody(missingFields, t));
       return;
     }
 
@@ -461,7 +483,7 @@ export default function NearbyHubScreen() {
         setToggleBusy(false);
       }
     }
-  }, [missingPreferenceField, profileReady, radiusKm, refreshFeed, t, visibility]);
+  }, [profile, radiusKm, refreshFeed, t, visibility]);
 
   const disableVisibility = useCallback(async () => {
     setToggleBusy(true);
@@ -784,6 +806,34 @@ export default function NearbyHubScreen() {
           ) : null}
         </View>
 
+        {missingSafetyFields.length ? (
+          <View style={styles.completionPanel}>
+            <View style={styles.completionIcon}>
+              <Ionicons name="shield-checkmark-outline" size={18} color="#F3C98B" />
+            </View>
+            <View style={styles.completionCopy}>
+              <Text style={styles.completionTitle}>
+                {copyOrFallback(t, "profile.completeProfile", "Complete profile")}
+              </Text>
+              <Text style={styles.completionBody}>
+                {getMissingSafetyFieldsBody(missingSafetyFields, t)}
+              </Text>
+            </View>
+            <Pressable
+              onPress={
+                missingSafetyFields.includes("birthDate")
+                  ? goToProfileSetup
+                  : goToProfilePreferences
+              }
+              style={styles.completionButton}
+            >
+              <Text style={styles.completionButtonText}>
+                {copyOrFallback(t, "nearby.emptyProfileAction", "Fill profile")}
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
+
         {errorText ? (
           <View style={styles.errorPanel}>
             <Ionicons name="alert-circle-outline" size={18} color="#FFD2DA" />
@@ -813,6 +863,7 @@ export default function NearbyHubScreen() {
       handleGenderFilterChange,
       handleRadiusChange,
       handleToggle,
+      missingSafetyFields,
       preferenceBusy,
       profile,
       radiusKm,
@@ -1311,6 +1362,51 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(10, 16, 24, 0.86)",
     borderWidth: 1,
     borderColor: "rgba(245, 205, 139, 0.24)",
+  },
+  completionPanel: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    padding: 12,
+    borderRadius: theme.shapes.cardInner,
+    backgroundColor: "rgba(243, 201, 139, 0.11)",
+    borderWidth: 1,
+    borderColor: "rgba(243, 201, 139, 0.24)",
+  },
+  completionIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.18)",
+  },
+  completionCopy: {
+    flex: 1,
+    gap: 3,
+  },
+  completionTitle: {
+    color: theme.colors.text,
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  completionBody: {
+    color: "rgba(255,255,255,0.72)",
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  completionButton: {
+    minHeight: 34,
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F3C98B",
+  },
+  completionButtonText: {
+    color: "#24150B",
+    fontSize: 12,
+    fontWeight: "900",
   },
   toggleRow: {
     flexDirection: "row",

@@ -24,8 +24,9 @@ import {
   type TogetherRadiusKm,
 } from "@/services/togetherLocation";
 import {
+  getMissingMatchingSafetyFields,
   getUserProfile,
-  hasBirthDate,
+  type MatchingSafetyField,
 } from "@/services/user";
 import { startStartupSpan } from "@/services/startupDiagnostics";
 import { theme } from "@/theme";
@@ -58,6 +59,32 @@ function ageRangeForFilter(id: AgeFilterId): TogetherPreferredAgeRangeInput {
   return AGE_FILTER_OPTIONS.find((option) => option.id === id)?.range ?? AGE_FILTER_OPTIONS[0].range;
 }
 
+function getMissingSafetyFieldLabels(
+  fields: MatchingSafetyField[],
+  t: (key: string, fallback: string, params?: Record<string, string>) => string
+) {
+  return fields.map((field) => {
+    if (field === "birthDate") {
+      return t("profile.birthDateMissingBadge", "Дата рождения");
+    }
+    if (field === "gender") {
+      return t("profile.genderSummaryTitle", "Ваш пол");
+    }
+    return t("profile.lookingForSummaryTitle", "Кого искать");
+  });
+}
+
+function getMissingSafetyFieldsBody(
+  fields: MatchingSafetyField[],
+  t: (key: string, fallback: string, params?: Record<string, string>) => string
+) {
+  return t(
+    "together.profileSafetyFieldsBody",
+    "Для безопасного поиска нужны: {fields}. Точная дата рождения не показывается другим людям.",
+    { fields: getMissingSafetyFieldLabels(fields, t).join(", ") }
+  );
+}
+
 export default function PlayLobbyScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"PlayMatch">>();
   const { t } = useLocale();
@@ -75,6 +102,7 @@ export default function PlayLobbyScreen() {
   const [locationBusy, setLocationBusy] = React.useState(false);
   const [locationNotice, setLocationNotice] = React.useState("");
   const [profileInterestCount, setProfileInterestCount] = React.useState<number | null>(null);
+  const [missingSafetyFields, setMissingSafetyFields] = React.useState<MatchingSafetyField[]>([]);
   const [detailsOpen, setDetailsOpen] = React.useState(false);
 
   React.useEffect(() => {
@@ -120,6 +148,7 @@ export default function PlayLobbyScreen() {
         .then((profile) => {
           if (!alive) return;
           setProfileInterestCount(profile.interests.length);
+          setMissingSafetyFields(getMissingMatchingSafetyFields(profile));
           finishTogetherInitialLoad({
             outcome: "success",
             interestCount: profile.interests.length,
@@ -128,6 +157,7 @@ export default function PlayLobbyScreen() {
         .catch(() => {
           if (!alive) return;
           setProfileInterestCount(null);
+          setMissingSafetyFields(["birthDate", "gender", "preferredGenders"]);
           finishTogetherInitialLoad({ outcome: "error" });
         });
 
@@ -180,6 +210,15 @@ export default function PlayLobbyScreen() {
     setSelectedAgeFilter(id);
     void AsyncStorage.setItem(AGE_FILTER_STORAGE_KEY, id).catch(() => undefined);
   }, []);
+
+  const openProfileSafetyFields = React.useCallback(() => {
+    navigation.navigate("Profile", {
+      screen: "EditProfile",
+      params: {
+        focus: missingSafetyFields.includes("birthDate") ? "birthDate" : "preferences",
+      },
+    });
+  }, [missingSafetyFields, navigation]);
 
   const resolveQueueLocation = React.useCallback(async () => {
     const result = await requestTogetherQueueLocation(selectedRadiusKm);
@@ -262,22 +301,16 @@ export default function PlayLobbyScreen() {
         setLocationBusy(true);
         setLocationNotice("");
         const profile = await getUserProfile();
-        if (!hasBirthDate(profile)) {
+        const missingFields = getMissingMatchingSafetyFields(profile);
+        setMissingSafetyFields(missingFields);
+        if (missingFields.length) {
           Alert.alert(
             tt("together.age.birthDateRequiredTitle", "Заполните профиль"),
-            tt(
-              "together.age.birthDateRequiredBody",
-              "Дата рождения нужна для безопасности и подбора. Точная дата не показывается другим людям."
-            ),
+            getMissingSafetyFieldsBody(missingFields, tt),
             [
               {
                 text: tt("profile.completeProfile", "Заполнить профиль"),
-                onPress: () => {
-                  navigation.navigate("Profile", {
-                    screen: "EditProfile",
-                    params: { focus: "birthDate" },
-                  });
-                },
+                onPress: openProfileSafetyFields,
               },
               { text: tt("common.cancel", "Отмена"), style: "cancel" },
             ]
@@ -325,6 +358,7 @@ export default function PlayLobbyScreen() {
     [
       ageFilterLabel,
       navigation,
+      openProfileSafetyFields,
       radiusLabel,
       resolveQueueLocation,
       selectedAgeFilter,
@@ -357,6 +391,26 @@ export default function PlayLobbyScreen() {
           </View>
 
           <View style={styles.heroBottom}>
+            {missingSafetyFields.length ? (
+              <View style={styles.completionPanel}>
+                <Text style={styles.completionTitle}>
+                  {tt("profile.completeProfile", "Заполните профиль")}
+                </Text>
+                <Text style={styles.completionBody}>
+                  {getMissingSafetyFieldsBody(missingSafetyFields, tt)}
+                </Text>
+                <Pressable
+                  onPress={openProfileSafetyFields}
+                  style={styles.completionButton}
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.completionButtonText}>
+                    {tt("profile.completeProfile", "Заполнить профиль")}
+                  </Text>
+                </Pressable>
+              </View>
+            ) : null}
+
             <View style={styles.filtersPanel}>
               <View style={styles.filterBlock}>
                 <Text style={styles.filterTitle}>
@@ -564,6 +618,38 @@ const styles = StyleSheet.create({
   },
   heroBottom: {
     gap: 12,
+  },
+  completionPanel: {
+    gap: 8,
+    padding: 13,
+    borderRadius: theme.shapes.cardInner,
+    backgroundColor: "rgba(243, 201, 139, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(243, 201, 139, 0.26)",
+  },
+  completionTitle: {
+    color: theme.colors.text,
+    fontSize: 14,
+    fontWeight: "900",
+  },
+  completionBody: {
+    color: "rgba(255,255,255,0.76)",
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  completionButton: {
+    alignSelf: "flex-start",
+    minHeight: 34,
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 13,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F3C98B",
+  },
+  completionButtonText: {
+    color: "#24150B",
+    fontSize: 12,
+    fontWeight: "900",
   },
   filtersPanel: {
     gap: 12,
