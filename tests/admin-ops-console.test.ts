@@ -274,6 +274,17 @@ test("GET /admin/nearby/diagnostics returns safe Nearby counts and writes audit 
       missingAvatar: 6,
       missingDisplayName: 0,
     },
+    profileReadinessItems: [
+      {
+        amoriaId: "AM-23456",
+        displayName: "Smoke User",
+        emailMasked: "s***@example.com",
+        missingReasons: ["missing_birth_date", "missing_gender", "missing_avatar"],
+        visibilityStatus: "active",
+        createdAt: "2026-06-01T12:00:00.000Z",
+        updatedAt: "2026-06-03T11:30:00.000Z",
+      },
+    ],
     feedExclusionReasons: {
       self: 7,
       blocked: 2,
@@ -298,6 +309,7 @@ test("GET /admin/nearby/diagnostics returns safe Nearby counts and writes audit 
   assert.equal(bodyText.includes("mediaId"), false);
   assert.equal(bodyText.includes("objectKey"), false);
   assert.equal(bodyText.includes("signedUrl"), false);
+  assert.equal(bodyText.includes("smoke@example.com"), false);
   assert.equal(state.auditInputs[0]?.action, "admin.nearbyDiagnostics.read");
   assert.equal(state.auditInputs[0]?.targetType, "nearby_diagnostics");
   assert.deepEqual(state.auditInputs[0]?.metadata, {
@@ -306,6 +318,7 @@ test("GET /admin/nearby/diagnostics returns safe Nearby counts and writes audit 
     expiredVisibilityCount: 1,
     recentlyUpdatedCount: 4,
     profileReadinessMissing: body.profileReadinessMissing,
+    profileReadinessItemCount: 1,
     feedExclusionReasons: body.feedExclusionReasons,
   });
 });
@@ -1064,6 +1077,17 @@ function mockOpsHealth() {
           missingAvatar: 6,
           missingDisplayName: 0,
         },
+        profileReadinessItems: [
+          {
+            amoriaId: "AM-23456",
+            displayName: "Smoke User",
+            emailMasked: "s***@example.com",
+            missingReasons: ["missing_birth_date", "missing_gender", "missing_avatar"],
+            visibilityStatus: "active",
+            createdAt: new Date("2026-06-01T12:00:00.000Z"),
+            updatedAt: new Date("2026-06-03T11:30:00.000Z"),
+          },
+        ],
         feedExclusionReasons: {
           self: 7,
           blocked: 2,

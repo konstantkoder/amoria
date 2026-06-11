@@ -285,6 +285,18 @@ nav button:hover {
   margin-bottom: 14px;
 }
 
+.tab-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0 0 12px;
+}
+
+.tab-row button.active {
+  background: #145c64;
+  color: #fff;
+}
+
 .wide-field {
   min-width: 220px;
 }

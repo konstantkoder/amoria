@@ -56,6 +56,29 @@ export const nearbyAdminFeedExclusionReasons = [
 export type NearbyAdminFeedExclusionReason =
   (typeof nearbyAdminFeedExclusionReasons)[number];
 
+export const nearbyAdminProfileMissingReasons = [
+  "missing_birth_date",
+  "missing_gender",
+  "missing_preferred_genders",
+  "missing_avatar",
+  "missing_display_name",
+] as const;
+
+export type NearbyAdminProfileMissingReason =
+  (typeof nearbyAdminProfileMissingReasons)[number];
+
+export type NearbyAdminVisibilityStatusBucket = "active" | "off" | "expired" | "none";
+
+export type NearbyAdminProfileReadinessItem = {
+  amoriaId: string;
+  displayName: string | null;
+  emailMasked: string | null;
+  missingReasons: NearbyAdminProfileMissingReason[];
+  visibilityStatus: NearbyAdminVisibilityStatusBucket;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
 export type NearbyAdminDiagnostics = {
   checkedAt: Date;
   activeVisibilityCount: number;
@@ -69,6 +92,7 @@ export type NearbyAdminDiagnostics = {
     missingAvatar: number;
     missingDisplayName: number;
   };
+  profileReadinessItems: NearbyAdminProfileReadinessItem[];
   feedExclusionReasons: Record<NearbyAdminFeedExclusionReason, number>;
 };
 
@@ -164,13 +188,17 @@ export async function getNearbyAdminDiagnostics(
   const [userRows, visibilityRows, blockRows] = await Promise.all([
     db.select({
       id: users.id,
+      amoriaId: users.amoriaId,
       displayName: users.displayName,
+      email: users.email,
       avatarUrl: users.avatarUrl,
       gender: users.gender,
       preferredGenders: users.preferredGenders,
       birthDate: users.birthDate,
       preferredAgeMin: users.preferredAgeMin,
       preferredAgeMax: users.preferredAgeMax,
+      createdAt: users.createdAt,
+      updatedAt: users.updatedAt,
     }).from(users),
     db.select({
       userId: nearbyProfileVisibility.userId,
@@ -256,13 +284,17 @@ export async function deleteOwnedNearbyStatus(
 type NearbyAdminUserSnapshot = Pick<
   UserRow,
   | "id"
+  | "amoriaId"
   | "displayName"
+  | "email"
   | "avatarUrl"
   | "gender"
   | "preferredGenders"
   | "birthDate"
   | "preferredAgeMin"
   | "preferredAgeMax"
+  | "createdAt"
+  | "updatedAt"
 >;
 
 type NearbyAdminVisibilitySnapshot = Pick<
@@ -294,6 +326,7 @@ function buildNearbyAdminDiagnostics(
     missingAvatar: 0,
     missingDisplayName: 0,
   };
+  const profileReadinessItems: NearbyAdminProfileReadinessItem[] = [];
   const feedExclusionReasons = emptyFeedExclusionCounts();
   const visibilityByUserId = new Map(input.visibilities.map((row) => [row.userId, row]));
   const userById = new Map(input.users.map((row) => [row.id, row]));
@@ -321,20 +354,35 @@ function buildNearbyAdminDiagnostics(
   }
 
   for (const user of input.users) {
-    if (!user.birthDate) {
+    const missingReasons = getNearbyAdminProfileMissingReasons(user);
+    if (missingReasons.includes("missing_birth_date")) {
       profileReadinessMissing.missingBirthDate += 1;
     }
-    if (!toProfileGender(user.gender)) {
+    if (missingReasons.includes("missing_gender")) {
       profileReadinessMissing.missingGender += 1;
     }
-    if (!Array.isArray(user.preferredGenders)) {
+    if (missingReasons.includes("missing_preferred_genders")) {
       profileReadinessMissing.missingPreferredGenders += 1;
     }
-    if (!hasText(user.avatarUrl)) {
+    if (missingReasons.includes("missing_avatar")) {
       profileReadinessMissing.missingAvatar += 1;
     }
-    if (!hasText(user.displayName)) {
+    if (missingReasons.includes("missing_display_name")) {
       profileReadinessMissing.missingDisplayName += 1;
+    }
+    if (missingReasons.length) {
+      const visibility = visibilityByUserId.get(user.id);
+      profileReadinessItems.push({
+        amoriaId: user.amoriaId,
+        displayName: safeAdminDisplayName(user.displayName),
+        emailMasked: maskEmail(user.email),
+        missingReasons,
+        visibilityStatus: visibility
+          ? effectiveNearbyAdminVisibilityStatus(visibility, input.checkedAt)
+          : "none",
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+      });
     }
   }
 
@@ -370,8 +418,50 @@ function buildNearbyAdminDiagnostics(
     expiredVisibilityCount,
     recentlyUpdatedCount,
     profileReadinessMissing,
+    profileReadinessItems: profileReadinessItems
+      .sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime())
+      .slice(0, 200),
     feedExclusionReasons,
   };
+}
+
+function getNearbyAdminProfileMissingReasons(
+  user: NearbyAdminUserSnapshot,
+): NearbyAdminProfileMissingReason[] {
+  const reasons: NearbyAdminProfileMissingReason[] = [];
+  if (!user.birthDate) {
+    reasons.push("missing_birth_date");
+  }
+  if (!toProfileGender(user.gender)) {
+    reasons.push("missing_gender");
+  }
+  if (!Array.isArray(user.preferredGenders)) {
+    reasons.push("missing_preferred_genders");
+  }
+  if (!hasText(user.avatarUrl)) {
+    reasons.push("missing_avatar");
+  }
+  if (!hasText(user.displayName)) {
+    reasons.push("missing_display_name");
+  }
+  return reasons;
+}
+
+function safeAdminDisplayName(value: string | null): string | null {
+  const normalized = String(value ?? "").trim().replace(/\s+/g, " ");
+  if (!normalized) return null;
+  if (/@|https?:\/\/|www\./i.test(normalized)) return null;
+  return normalized.slice(0, 40);
+}
+
+function maskEmail(value: string | null): string | null {
+  const normalized = String(value ?? "").trim();
+  const match = /^([^@\s]+)@([^@\s]+)$/.exec(normalized);
+  if (!match) return null;
+
+  const [local, domain] = [match[1], match[2]];
+  const first = local.slice(0, 1);
+  return `${first || "*"}***@${domain}`;
 }
 
 type NearbyFeedExclusionInput = {

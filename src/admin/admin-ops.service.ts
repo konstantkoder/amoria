@@ -110,6 +110,15 @@ export type AdminNearbyDiagnosticsResponse = {
     missingAvatar: number;
     missingDisplayName: number;
   };
+  profileReadinessItems: Array<{
+    amoriaId: string;
+    displayName: string | null;
+    emailMasked: string | null;
+    missingReasons: nearbyRepo.NearbyAdminProfileMissingReason[];
+    visibilityStatus: nearbyRepo.NearbyAdminVisibilityStatusBucket;
+    createdAt: string;
+    updatedAt: string;
+  }>;
   feedExclusionReasons: Record<nearbyRepo.NearbyAdminFeedExclusionReason, number>;
 };
 
@@ -374,6 +383,7 @@ export async function getNearbyDiagnosticsForAdmin(
       expiredVisibilityCount: diagnostics.expiredVisibilityCount,
       recentlyUpdatedCount: diagnostics.recentlyUpdatedCount,
       profileReadinessMissing: diagnostics.profileReadinessMissing,
+      profileReadinessItemCount: diagnostics.profileReadinessItems.length,
       feedExclusionReasons: diagnostics.feedExclusionReasons,
     },
     ...requestContext,
@@ -388,6 +398,15 @@ export async function getNearbyDiagnosticsForAdmin(
     expiredVisibilityCount: diagnostics.expiredVisibilityCount,
     recentlyUpdatedCount: diagnostics.recentlyUpdatedCount,
     profileReadinessMissing: diagnostics.profileReadinessMissing,
+    profileReadinessItems: diagnostics.profileReadinessItems.map((item) => ({
+      amoriaId: item.amoriaId,
+      displayName: item.displayName,
+      emailMasked: item.emailMasked,
+      missingReasons: item.missingReasons,
+      visibilityStatus: item.visibilityStatus,
+      createdAt: item.createdAt.toISOString(),
+      updatedAt: item.updatedAt.toISOString(),
+    })),
     feedExclusionReasons: diagnostics.feedExclusionReasons,
   };
 }

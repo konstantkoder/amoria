@@ -18,6 +18,7 @@ import {
   MediaItem,
   NearbyDiagnostics,
   NearbyFeedExclusionReason,
+  NearbyProfileMissingReason,
   OpsHealth,
   PublicMediaProbeResult,
   ReportDetail,
@@ -1852,11 +1853,17 @@ function OpsHealthScreen() {
 
 function NearbyDiagnosticsScreen() {
   const { language, t } = useI18n();
+  const [missingFilter, setMissingFilter] = useState<NearbyProfileMissingReason | "all">("all");
   const {
     data: nearbyDiagnostics,
     error: nearbyError,
     reload: reloadNearby,
   } = useLoad<NearbyDiagnostics>("/admin/nearby/diagnostics");
+  const profileReadinessItems = nearbyDiagnostics?.profileReadinessItems ?? [];
+  const filteredProfileReadinessItems =
+    missingFilter === "all"
+      ? profileReadinessItems
+      : profileReadinessItems.filter((item) => item.missingReasons.includes(missingFilter));
 
   return (
     <section className="panel">
@@ -1883,6 +1890,43 @@ function NearbyDiagnosticsScreen() {
             <Fact label={t("ops.missingAvatar")} value={formatCount(nearbyDiagnostics.profileReadinessMissing.missingAvatar)} />
             <Fact label={t("ops.missingDisplayName")} value={formatCount(nearbyDiagnostics.profileReadinessMissing.missingDisplayName)} />
           </dl>
+          <h3>{t("ops.nearbyReadinessDrilldown")}</h3>
+          <div className="tab-row">
+            {nearbyProfileMissingFilters.map((filter) => (
+              <button
+                key={filter}
+                type="button"
+                className={missingFilter === filter ? "active" : "secondary"}
+                onClick={() => setMissingFilter(filter)}
+              >
+                {filter === "all" ? t("ops.filterAll") : formatNearbyProfileMissingReason(filter, t)}
+              </button>
+            ))}
+          </div>
+          {filteredProfileReadinessItems.length ? (
+            <DataTable
+              columns={[
+                t("common.amoriaId"),
+                t("common.displayName"),
+                t("ops.maskedEmail"),
+                t("common.reason"),
+                t("common.status"),
+                t("common.created"),
+                t("common.updated"),
+              ]}
+              rows={filteredProfileReadinessItems.map((item) => [
+                item.amoriaId,
+                item.displayName ?? "",
+                item.emailMasked ?? "",
+                item.missingReasons.map((reason) => formatNearbyProfileMissingReason(reason, t)).join(", "),
+                formatNearbyVisibilityStatus(item.visibilityStatus, t),
+                formatDate(item.createdAt, language),
+                formatDate(item.updatedAt, language),
+              ])}
+            />
+          ) : (
+            <EmptyState label={t("ops.nearbyDrilldownEmpty")} />
+          )}
           <h3>{t("ops.nearbyExclusions")}</h3>
           <DataTable
             columns={[t("common.reason"), t("common.count")]}
@@ -2080,6 +2124,14 @@ const nearbyFeedExclusionReasons: NearbyFeedExclusionReason[] = [
   "missing_preferred_genders",
 ];
 
+const nearbyProfileMissingFilters: Array<NearbyProfileMissingReason | "all"> = [
+  "all",
+  "missing_birth_date",
+  "missing_gender",
+  "missing_preferred_genders",
+  "missing_avatar",
+];
+
 function formatNearbyFeedExclusionReason(
   reason: NearbyFeedExclusionReason,
   t: (key: TranslationKey) => string,
@@ -2105,6 +2157,40 @@ function formatNearbyFeedExclusionReason(
       return t("ops.reasonMissingGender");
     case "missing_preferred_genders":
       return t("ops.reasonMissingPreferredGenders");
+  }
+}
+
+function formatNearbyProfileMissingReason(
+  reason: NearbyProfileMissingReason,
+  t: (key: TranslationKey) => string,
+): string {
+  switch (reason) {
+    case "missing_birth_date":
+      return t("ops.missingBirthDate");
+    case "missing_gender":
+      return t("ops.missingGender");
+    case "missing_preferred_genders":
+      return t("ops.missingPreferredGenders");
+    case "missing_avatar":
+      return t("ops.missingAvatar");
+    case "missing_display_name":
+      return t("ops.missingDisplayName");
+  }
+}
+
+function formatNearbyVisibilityStatus(
+  status: NearbyDiagnostics["profileReadinessItems"][number]["visibilityStatus"],
+  t: (key: TranslationKey) => string,
+): string {
+  switch (status) {
+    case "active":
+      return t("status.active");
+    case "off":
+      return t("ops.visibilityOff");
+    case "expired":
+      return t("ops.visibilityExpired");
+    case "none":
+      return t("ops.visibilityNone");
   }
 }
 

@@ -61,6 +61,14 @@ const nearbyFeedExclusionReasonValues = [
   "missing_preferred_genders",
 ] as const;
 
+const nearbyProfileMissingReasonValues = [
+  "missing_birth_date",
+  "missing_gender",
+  "missing_preferred_genders",
+  "missing_avatar",
+  "missing_display_name",
+] as const;
+
 const adminTogetherQueueQuerySchema = z
   .object({
     status: z.string().trim().max(40).optional(),
@@ -421,6 +429,33 @@ const adminNearbyFeedExclusionReasonsSchema = {
   },
 } as const;
 
+const adminNearbyProfileReadinessItemSchema = {
+  type: "object",
+  required: [
+    "amoriaId",
+    "displayName",
+    "emailMasked",
+    "missingReasons",
+    "visibilityStatus",
+    "createdAt",
+    "updatedAt",
+  ],
+  additionalProperties: false,
+  properties: {
+    amoriaId: { type: "string" },
+    displayName: { type: ["string", "null"] },
+    emailMasked: { type: ["string", "null"] },
+    missingReasons: {
+      type: "array",
+      minItems: 1,
+      items: { type: "string", enum: nearbyProfileMissingReasonValues },
+    },
+    visibilityStatus: { type: "string", enum: ["active", "off", "expired", "none"] },
+    createdAt: { type: "string", format: "date-time" },
+    updatedAt: { type: "string", format: "date-time" },
+  },
+} as const;
+
 export const adminNearbyDiagnosticsRouteSchema = {
   response: {
     200: {
@@ -434,6 +469,7 @@ export const adminNearbyDiagnosticsRouteSchema = {
         "expiredVisibilityCount",
         "recentlyUpdatedCount",
         "profileReadinessMissing",
+        "profileReadinessItems",
         "feedExclusionReasons",
       ],
       additionalProperties: false,
@@ -446,6 +482,11 @@ export const adminNearbyDiagnosticsRouteSchema = {
         expiredVisibilityCount: { type: "integer", minimum: 0 },
         recentlyUpdatedCount: { type: "integer", minimum: 0 },
         profileReadinessMissing: adminNearbyProfileReadinessMissingSchema,
+        profileReadinessItems: {
+          type: "array",
+          maxItems: 200,
+          items: adminNearbyProfileReadinessItemSchema,
+        },
         feedExclusionReasons: adminNearbyFeedExclusionReasonsSchema,
       },
     },

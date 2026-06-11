@@ -128,6 +128,13 @@ export type NearbyFeedExclusionReason =
   | "missing_gender"
   | "missing_preferred_genders";
 
+export type NearbyProfileMissingReason =
+  | "missing_birth_date"
+  | "missing_gender"
+  | "missing_preferred_genders"
+  | "missing_avatar"
+  | "missing_display_name";
+
 export type NearbyDiagnostics = {
   ok: true;
   status: "ok";
@@ -143,6 +150,15 @@ export type NearbyDiagnostics = {
     missingAvatar: number;
     missingDisplayName: number;
   };
+  profileReadinessItems: Array<{
+    amoriaId: string;
+    displayName: string | null;
+    emailMasked: string | null;
+    missingReasons: NearbyProfileMissingReason[];
+    visibilityStatus: "active" | "off" | "expired" | "none";
+    createdAt: string;
+    updatedAt: string;
+  }>;
   feedExclusionReasons: Record<NearbyFeedExclusionReason, number>;
 };
 
