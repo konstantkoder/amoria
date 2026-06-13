@@ -76,6 +76,7 @@ type BirthDateParts = {
   month: string;
   year: string;
 };
+type BirthDateInputName = keyof BirthDateParts;
 
 type BirthDateValidationResult =
   | { ok: true; value: string }
@@ -213,6 +214,10 @@ export default function EditProfileScreen() {
   const [birthDay, setBirthDay] = React.useState("");
   const [birthMonth, setBirthMonth] = React.useState("");
   const [birthYear, setBirthYear] = React.useState("");
+  const [focusedBirthDateInput, setFocusedBirthDateInput] =
+    React.useState<BirthDateInputName | null>(null);
+  const [keyboardVisible, setKeyboardVisible] = React.useState(false);
+  const [birthDateKeyboardActive, setBirthDateKeyboardActive] = React.useState(false);
   const [gender, setGender] = React.useState<ProfileGender | null | undefined>(
     undefined
   );
@@ -235,8 +240,13 @@ export default function EditProfileScreen() {
   const birthDateYRef = React.useRef(0);
   const preferencesYRef = React.useRef(0);
   const focusTarget = route.params?.focus;
+  const showBirthDateDone = Boolean(focusedBirthDateInput) ||
+    (keyboardVisible && birthDateKeyboardActive);
 
   const dismissKeyboard = React.useCallback(() => {
+    setFocusedBirthDateInput(null);
+    setKeyboardVisible(false);
+    setBirthDateKeyboardActive(false);
     displayNameInputRef.current?.blur();
     aboutInputRef.current?.blur();
     interestsInputRef.current?.blur();
@@ -244,6 +254,35 @@ export default function EditProfileScreen() {
     birthMonthInputRef.current?.blur();
     birthYearInputRef.current?.blur();
     Keyboard.dismiss();
+  }, []);
+
+  const focusBirthDateInput = React.useCallback((inputName: BirthDateInputName) => {
+    setFocusedBirthDateInput(inputName);
+    setBirthDateKeyboardActive(true);
+  }, []);
+
+  const blurBirthDateInput = React.useCallback((inputName: BirthDateInputName) => {
+    setFocusedBirthDateInput((current) => (current === inputName ? null : current));
+  }, []);
+
+  const clearBirthDateKeyboardActive = React.useCallback(() => {
+    setBirthDateKeyboardActive(false);
+  }, []);
+
+  React.useEffect(() => {
+    const showSubscription = Keyboard.addListener("keyboardDidShow", () => {
+      setKeyboardVisible(true);
+    });
+    const hideSubscription = Keyboard.addListener("keyboardDidHide", () => {
+      setKeyboardVisible(false);
+      setFocusedBirthDateInput(null);
+      setBirthDateKeyboardActive(false);
+    });
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
   }, []);
 
   const handleBirthDayChange = React.useCallback((value: string) => {
@@ -266,10 +305,9 @@ export default function EditProfileScreen() {
     const nextValue = digitsOnly(value, 4);
     setBirthYear(nextValue);
     if (nextValue.length === 4) {
-      birthYearInputRef.current?.blur();
-      Keyboard.dismiss();
+      dismissKeyboard();
     }
-  }, []);
+  }, [dismissKeyboard]);
 
   const applyProfile = React.useCallback((profile: UserProfile) => {
     setDisplayName(profile.displayName ?? "");
@@ -528,6 +566,7 @@ export default function EditProfileScreen() {
             maxLength={30}
             returnKeyType="next"
             blurOnSubmit={false}
+            onFocus={clearBirthDateKeyboardActive}
             onSubmitEditing={() => aboutInputRef.current?.focus()}
           />
 
@@ -543,6 +582,7 @@ export default function EditProfileScreen() {
             placeholder={t("editProfile.aboutPlaceholder")}
             placeholderTextColor={theme.colors.muted}
             style={[styles.input, styles.multilineInput]}
+            onFocus={clearBirthDateKeyboardActive}
           />
 
           <View
@@ -575,6 +615,7 @@ export default function EditProfileScreen() {
                 returnKeyType="done"
                 autoCapitalize="none"
                 autoCorrect={false}
+                onFocus={clearBirthDateKeyboardActive}
                 onSubmitEditing={() => addInterest()}
               />
               <TouchableOpacity
@@ -662,6 +703,8 @@ export default function EditProfileScreen() {
                 returnKeyType="next"
                 blurOnSubmit={false}
                 selectTextOnFocus
+                onFocus={() => focusBirthDateInput("day")}
+                onBlur={() => blurBirthDateInput("day")}
                 onSubmitEditing={() => birthMonthInputRef.current?.focus()}
               />
               <TextInput
@@ -679,6 +722,8 @@ export default function EditProfileScreen() {
                 returnKeyType="next"
                 blurOnSubmit={false}
                 selectTextOnFocus
+                onFocus={() => focusBirthDateInput("month")}
+                onBlur={() => blurBirthDateInput("month")}
                 onSubmitEditing={() => birthYearInputRef.current?.focus()}
               />
               <TextInput
@@ -695,16 +740,20 @@ export default function EditProfileScreen() {
                 maxLength={4}
                 returnKeyType="done"
                 selectTextOnFocus
+                onFocus={() => focusBirthDateInput("year")}
+                onBlur={() => blurBirthDateInput("year")}
                 onSubmitEditing={dismissKeyboard}
               />
             </View>
-            <TouchableOpacity
-              style={styles.keyboardDoneButton}
-              onPress={dismissKeyboard}
-              activeOpacity={0.86}
-            >
-              <Text style={styles.keyboardDoneButtonText}>{t("common.done")}</Text>
-            </TouchableOpacity>
+            {showBirthDateDone ? (
+              <TouchableOpacity
+                style={styles.keyboardDoneButton}
+                onPress={dismissKeyboard}
+                activeOpacity={0.86}
+              >
+                <Text style={styles.keyboardDoneButtonText}>{t("common.done")}</Text>
+              </TouchableOpacity>
+            ) : null}
             <Text style={styles.helperText}>
               {t("editProfile.birthDateSafetyBody")}
             </Text>

@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   InteractionManager,
   Keyboard,
+  Platform,
   StyleSheet,
   Text,
   TextInput,
@@ -63,6 +64,7 @@ const RootStack = createNativeStackNavigator<RootStackParamList>();
 const ProfileStack = createNativeStackNavigator<ProfileStackParamList>();
 const TAB_ACTIVE_TINT = "#F3C98B";
 const TAB_INACTIVE_TINT = "#8E94B4";
+const ANDROID_BOTTOM_TAB_MIN_INSET = 14;
 
 function BottomTabIconShell({
   focused,
@@ -276,6 +278,9 @@ function MainTabs() {
   const { user } = useAuth();
   const uid = user?.id ?? "";
   const [threads, setThreads] = React.useState<ThreadDto[]>([]);
+  const bottomTabInset = Platform.OS === "android"
+    ? Math.max(insets.bottom, ANDROID_BOTTOM_TAB_MIN_INSET)
+    : insets.bottom;
 
   React.useEffect(() => {
     let alive = true;
@@ -354,8 +359,8 @@ function MainTabs() {
           tabBarStyle: {
             backgroundColor: theme.colors.background,
             borderTopColor: "rgba(255,255,255,0.08)",
-            height: 60 + insets.bottom,
-            paddingBottom: 5 + insets.bottom,
+            height: 60 + bottomTabInset,
+            paddingBottom: 5 + bottomTabInset,
             paddingTop: 4,
           },
           tabBarItemStyle: {

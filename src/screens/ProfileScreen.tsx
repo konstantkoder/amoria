@@ -66,6 +66,50 @@ type PendingAvatar = {
 };
 type AvatarForCrop = Omit<PendingAvatar, "crop">;
 
+let profileAvatarCacheVersion = 0;
+
+function nextProfileAvatarCacheVersion() {
+  profileAvatarCacheVersion += 1;
+  return profileAvatarCacheVersion;
+}
+
+function getProfileAvatarCacheKey(profile: UserProfile | null, cacheVersion: number) {
+  return `${profile?.updatedAt ?? 0}:${cacheVersion}`;
+}
+
+function samePublicAvatarReference(left: unknown, right: unknown) {
+  const leftInfo = getPublicMediaUrlInfo(left, "avatar URL");
+  const rightInfo = getPublicMediaUrlInfo(right, "avatar URL");
+  if (leftInfo.mediaId && rightInfo.mediaId) {
+    return leftInfo.mediaId === rightInfo.mediaId;
+  }
+
+  return Boolean(leftInfo.url && rightInfo.url && leftInfo.url === rightInfo.url);
+}
+
+function withVisibleAvatarUrl(
+  profile: UserProfile | null,
+  avatarUrl: string
+): UserProfile | null {
+  const stableAvatarUrl = String(avatarUrl ?? "").trim();
+  if (!profile || !stableAvatarUrl) return profile;
+  return {
+    ...profile,
+    avatarUrl: stableAvatarUrl,
+  };
+}
+
+function reconcileRefreshedAvatarProfile(
+  refreshedProfile: UserProfile,
+  uploadedAvatarUrl: string
+) {
+  if (samePublicAvatarReference(refreshedProfile.avatarUrl, uploadedAvatarUrl)) {
+    return refreshedProfile;
+  }
+
+  return withVisibleAvatarUrl(refreshedProfile, uploadedAvatarUrl) ?? refreshedProfile;
+}
+
 function isValidCrop(crop: NormalizedMediaCrop) {
   return (
     Number.isFinite(crop.x) &&
@@ -256,7 +300,7 @@ export default function ProfileScreen() {
   const [nameDraft, setNameDraft] = React.useState("");
   const [nameSaving, setNameSaving] = React.useState(false);
   const [nameError, setNameError] = React.useState("");
-  const [avatarCacheKey, setAvatarCacheKey] = React.useState(0);
+  const [avatarCacheKey, setAvatarCacheKey] = React.useState(profileAvatarCacheVersion);
   const nameInputRef = React.useRef<TextInput>(null);
   const reportedMediaFailuresRef = React.useRef<Set<string>>(new Set());
 
@@ -291,6 +335,10 @@ export default function ProfileScreen() {
 
   const photos = profile?.photos ?? [];
   const avatarUrl = profile?.avatarUrl ?? "";
+  const avatarDisplayCacheKey = React.useMemo(
+    () => getProfileAvatarCacheKey(profile, avatarCacheKey),
+    [avatarCacheKey, profile]
+  );
   const avatarPreviewUri = pendingAvatar?.uri ?? "";
   const goalLabel = profile?.goal
     ? translatedOptionLabel(t, GOAL_LABEL_KEYS[profile.goal], GOAL_LABEL_FALLBACKS[profile.goal])
@@ -498,12 +546,16 @@ export default function ProfileScreen() {
         return;
       }
 
-      const nextProfile = await updateUserAvatarUrl(avatarDownloadUrl);
-      setProfile(nextProfile);
-      const refreshedProfile = await refreshUserProfile().catch(() => nextProfile);
-      setProfile(refreshedProfile);
-      setAvatarCacheKey(Date.now());
+      const nextCacheVersion = nextProfileAvatarCacheVersion();
+      setAvatarCacheKey(nextCacheVersion);
+      setProfile((current) => withVisibleAvatarUrl(current ?? currentProfile, avatarDownloadUrl));
       setPendingAvatar(null);
+
+      const nextProfile = await updateUserAvatarUrl(avatarDownloadUrl);
+      const confirmedAvatarUrl = nextProfile.avatarUrl || avatarDownloadUrl;
+      setProfile(withVisibleAvatarUrl(nextProfile, confirmedAvatarUrl));
+      const refreshedProfile = await refreshUserProfile().catch(() => nextProfile);
+      setProfile(reconcileRefreshedAvatarProfile(refreshedProfile, confirmedAvatarUrl));
       Alert.alert(t("common.done"), t("photos.photoUpdated"));
     } catch (error) {
       const safeError = sanitizeErrorForReport(error);
@@ -660,7 +712,7 @@ export default function ProfileScreen() {
                   avatarUrl={avatarUrl}
                   label={displayName}
                   size={108}
-                  cacheKey={avatarCacheKey}
+                  cacheKey={avatarDisplayCacheKey}
                   onLoadError={(urlInfo) => {
                     reportProfileMediaLoadFailed("loadAvatar", {
                       urlInfo,

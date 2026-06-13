@@ -1,6 +1,6 @@
 import React from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 
@@ -15,6 +15,8 @@ import {
   type MainTabParamList,
   type RootStackNavigationProp,
 } from "@/navigation/appRoutes";
+
+const ANDROID_BOTTOM_TAB_MIN_INSET = 14;
 
 type Props = {
   title?: string;
@@ -60,8 +62,12 @@ function getLastMainTab(navigation: any): keyof MainTabParamList | undefined {
 
 function MainTabFooter({ activeTab }: { activeTab?: keyof MainTabParamList }) {
   const navigation = useNavigation<any>();
+  const insets = useSafeAreaInsets();
   const { t } = useLocale();
   const inferredActiveTab = activeTab ?? getLastMainTab(navigation);
+  const bottomSystemGap = Platform.OS === "android"
+    ? Math.max(ANDROID_BOTTOM_TAB_MIN_INSET - insets.bottom, 0)
+    : 0;
 
   const navigateToTab = (screen: keyof MainTabParamList) => {
     const targetNavigation = findTabsNavigator(navigation);
@@ -95,7 +101,7 @@ function MainTabFooter({ activeTab }: { activeTab?: keyof MainTabParamList }) {
   ];
 
   return (
-    <View style={styles.mainTabs}>
+    <View style={[styles.mainTabs, bottomSystemGap ? { marginBottom: bottomSystemGap } : null]}>
       {tabs.map((tab) => {
         const active = inferredActiveTab === tab.screen;
         return (

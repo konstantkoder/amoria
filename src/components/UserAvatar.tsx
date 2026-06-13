@@ -60,6 +60,10 @@ export default function UserAvatar({
     () => (sharedUrl ? withCacheKey(sharedUrl, cacheKey) : ""),
     [cacheKey, sharedUrl]
   );
+  const imageKey = React.useMemo(
+    () => `${sharedUrl}:${String(cacheKey ?? "")}`,
+    [cacheKey, sharedUrl]
+  );
   const hasRawAvatarUrl = Boolean(String(avatarUrl ?? "").trim());
   const initials = getInitials(label);
 
@@ -87,7 +91,7 @@ export default function UserAvatar({
         ]}
       >
         <Image
-          key={imageUrl}
+          key={imageKey}
           source={{ uri: imageUrl }}
           style={StyleSheet.absoluteFill}
           resizeMode="cover"
