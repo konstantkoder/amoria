@@ -77,7 +77,16 @@ async function loadFreshCachedBackendSession(): Promise<BackendSession | null> {
   return session;
 }
 
+async function loadSessionSavedAfter(startedAtMs: number): Promise<BackendSession | null> {
+  const savedAtMs = getBackendSessionSavedAtMs();
+  if (!savedAtMs || savedAtMs <= startedAtMs) return null;
+
+  markStartupEvent("profile.refresh_ignored_newer_session");
+  return loadBackendSession();
+}
+
 async function refreshBackendUserFromNetwork(): Promise<BackendSession | null> {
+  const refreshStartedAtMs = Date.now();
   const currentAccessToken = await getBackendAccessToken();
   const currentRefreshToken = await getRefreshToken();
   if (!currentAccessToken && !currentRefreshToken) return null;
@@ -85,12 +94,16 @@ async function refreshBackendUserFromNetwork(): Promise<BackendSession | null> {
   try {
     if (!currentAccessToken) {
       const refreshedSession = await refreshSession();
+      const newerSession = await loadSessionSavedAfter(refreshStartedAtMs);
+      if (newerSession) return newerSession;
       return saveAuthResponse(refreshedSession);
     }
 
     const user = await getMeFromBackend();
     const accessToken = await getBackendAccessToken();
     if (!accessToken) return null;
+    const newerSession = await loadSessionSavedAfter(refreshStartedAtMs);
+    if (newerSession) return newerSession;
 
     const nextSession: BackendSession = {
       accessToken,

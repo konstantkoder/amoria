@@ -31,6 +31,7 @@ import {
   getPublicMediaUrlInfo,
   normalizePublicMediaUrl,
 } from "@/services/media/mediaUrl";
+import { emitProfileUpdated } from "@/services/session/authEvents";
 import { uploadUserAvatar } from "@/services/storage";
 
 const AMORIA_ID_RE = /^AM-?[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{5}$/;
@@ -374,6 +375,7 @@ async function updateBackendSupportedProfileFields(
     const accessToken = await getBackendAccessToken();
     if (!accessToken) return null;
     await saveBackendSession({ accessToken, user });
+    emitProfileUpdated();
     return mapBackendUserProfile(user);
   } catch (error) {
     if (isBackendAuthError(error)) {

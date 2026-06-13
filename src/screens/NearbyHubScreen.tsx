@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  DeviceEventEmitter,
   FlatList,
   Image,
   Pressable,
@@ -39,6 +40,7 @@ import {
   updateUserFields,
   type MatchingSafetyField,
 } from "@/services/user";
+import { PROFILE_UPDATED_EVENT } from "@/services/session/authEvents";
 import type { ProfileGender, UserProfile } from "@/models/User";
 import { theme } from "@/theme";
 
@@ -385,7 +387,7 @@ export default function NearbyHubScreen() {
     try {
       const [me, currentProfile] = await Promise.all([
         nearbyApi.getNearbyMe(),
-        getUserProfile(),
+        getUserProfile({ allowCached: false }),
       ]);
       if (!mountedRef.current) return;
       visibilityStatus = me.visibility.status;
@@ -417,6 +419,16 @@ export default function NearbyHubScreen() {
       }
     }
   }, [refreshFeed, t]);
+
+  useEffect(() => {
+    const subscription = DeviceEventEmitter.addListener(PROFILE_UPDATED_EVENT, () => {
+      void loadInitial();
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [loadInitial]);
 
   const refreshNearby = useCallback(() => {
     if (refreshDisabled || manualRefreshBusyRef.current) return;

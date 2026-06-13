@@ -3,6 +3,7 @@ import { DeviceEventEmitter } from "react-native";
 import type { AuthResponse } from "@/services/api/types";
 
 export const AUTH_SESSION_CHANGED_EVENT = "amoria.authSessionChanged";
+export const PROFILE_UPDATED_EVENT = "amoria.profileUpdated";
 
 export type AuthSessionChangedEvent = {
   signedIn?: boolean;
@@ -19,4 +20,8 @@ export function emitAuthUpdated(authResponse: AuthResponse): void {
 
 export function emitAuthSignedOut(): void {
   emitAuthSessionChanged({ signedIn: false });
+}
+
+export function emitProfileUpdated(): void {
+  DeviceEventEmitter.emit(PROFILE_UPDATED_EVENT);
 }

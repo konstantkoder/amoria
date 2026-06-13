@@ -501,9 +501,8 @@ export default function EditProfileScreen() {
         mysteryMode,
       };
 
-      await updateUserFields(profilePatch);
-      const refreshedProfile = await getUserProfile();
-      applyProfile(refreshedProfile);
+      const updatedProfile = await updateUserFields(profilePatch);
+      applyProfile(updatedProfile);
       dismissKeyboard();
       Alert.alert(t("common.done"), t("editProfile.saveSuccessBody"));
     } catch (error) {
