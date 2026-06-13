@@ -2,7 +2,7 @@ import "react-native-gesture-handler";
 import "react-native-reanimated";
 
 import React from "react";
-import { ActivityIndicator, LogBox, View } from "react-native";
+import { ActivityIndicator, AppState, LogBox, Platform, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import {
@@ -12,6 +12,7 @@ import {
 } from "@react-navigation/native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import * as NavigationBar from "expo-navigation-bar";
 
 import LoginScreen from "@/screens/LoginScreen";
 import AppNavigator from "@/navigation/AppNavigator";
@@ -36,6 +37,32 @@ LogBox.ignoreLogs([
 
 const Stack = createNativeStackNavigator<AppStackParamList>();
 const navigationRef = createNavigationContainerRef<AppStackParamList>();
+const ANDROID_NAV_HIDDEN_ROUTES = new Set([
+  "Tabs",
+  "Together",
+  "Nearby",
+  "Inbox",
+  "PlayMatch",
+  "PlayCanvas",
+  "PlayStorySparks",
+  "PlayResult",
+  "PlayHistory",
+  "PlaySessionDetail",
+]);
+const ANDROID_NAV_VISIBLE_ROUTES = new Set([
+  "Login",
+  "Profile",
+  "ProfileMain",
+  "EditProfile",
+  "PhotoManager",
+  "UserProfile",
+  "DMChat",
+  "Settings",
+  "PrivacyPolicy",
+  "LocationInfo",
+  "CreateAnnouncement",
+  "AnnouncementDetail",
+]);
 
 const navTheme = {
   ...DefaultTheme,
@@ -49,11 +76,63 @@ const navTheme = {
   },
 };
 
+function getFocusedRouteNames(state: any): string[] {
+  const activeRoute = state?.routes?.[state?.index ?? 0];
+  if (!activeRoute?.name) return [];
+  return [
+    activeRoute.name,
+    ...getFocusedRouteNames(activeRoute.state),
+  ];
+}
+
+function shouldHideAndroidNavigationBar(state: any, isSignedIn: boolean) {
+  if (!isSignedIn) return false;
+
+  const routeNames = getFocusedRouteNames(state);
+  if (routeNames.some((name) => ANDROID_NAV_VISIBLE_ROUTES.has(name))) {
+    return false;
+  }
+  return routeNames.some((name) => ANDROID_NAV_HIDDEN_ROUTES.has(name));
+}
+
+function setAndroidNavigationBarHidden(hidden: boolean) {
+  if (Platform.OS !== "android") return;
+
+  void NavigationBar.setVisibilityAsync(hidden ? "hidden" : "visible").catch(() => {});
+}
+
 type AppNavigationProps = {
   isSignedIn: boolean;
 };
 
 function AppNavigation({ isSignedIn }: AppNavigationProps) {
+  const lastAndroidNavHiddenRef = React.useRef<boolean | null>(null);
+
+  const syncAndroidNavigationBar = React.useCallback(() => {
+    if (Platform.OS !== "android" || !navigationRef.isReady()) return;
+
+    const hidden = shouldHideAndroidNavigationBar(navigationRef.getRootState(), isSignedIn);
+    if (lastAndroidNavHiddenRef.current === hidden) return;
+    lastAndroidNavHiddenRef.current = hidden;
+    setAndroidNavigationBarHidden(hidden);
+  }, [isSignedIn]);
+
+  React.useEffect(() => {
+    syncAndroidNavigationBar();
+  }, [syncAndroidNavigationBar]);
+
+  React.useEffect(() => {
+    if (Platform.OS !== "android") return undefined;
+
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") {
+        lastAndroidNavHiddenRef.current = null;
+        syncAndroidNavigationBar();
+      }
+    });
+    return () => subscription.remove();
+  }, [syncAndroidNavigationBar]);
+
   return (
     <NavigationContainer
       ref={navigationRef}
@@ -61,7 +140,9 @@ function AppNavigation({ isSignedIn }: AppNavigationProps) {
       onReady={() => {
         (globalThis as any).__NAV = navigationRef;
         markStartupTimingFromStart("first_screen.ready", { signedIn: isSignedIn });
+        syncAndroidNavigationBar();
       }}
+      onStateChange={syncAndroidNavigationBar}
     >
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {isSignedIn ? (

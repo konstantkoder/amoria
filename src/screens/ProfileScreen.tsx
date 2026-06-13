@@ -668,7 +668,6 @@ export default function ProfileScreen() {
         title={t("screen.profile")}
         background="profile"
         overlayOpacity={0.16}
-        showMainTabs
       >
         <View style={styles.loader}>
           <ActivityIndicator color={theme.colors.primary} />
@@ -683,7 +682,6 @@ export default function ProfileScreen() {
       title={t("screen.profile")}
       background="profile"
       overlayOpacity={0.16}
-      showMainTabs
     >
       <ScrollView
         style={styles.scroll}

@@ -523,7 +523,6 @@ export default function EditProfileScreen() {
         background="profile"
         overlayOpacity={0.16}
         showBack
-        showMainTabs
       >
         <View style={styles.loader}>
           <ActivityIndicator color={theme.colors.primary} />
@@ -539,7 +538,6 @@ export default function EditProfileScreen() {
       background="profile"
       overlayOpacity={0.16}
       showBack
-      showMainTabs
     >
       <KeyboardAvoidingView
         style={styles.keyboardAvoider}

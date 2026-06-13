@@ -1,22 +1,17 @@
 import React from "react";
-import { Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 
 import ScreenBackground, {
   type ScreenBackgroundVariant,
 } from "@/components/ScreenBackground";
-import { AmoriaTogetherIcon } from "@/components/icons/AmoriaTogetherIcon";
 import MenuButton from "@/components/MenuButton";
-import { useLocale } from "@/contexts/LocaleContext";
 import { openDrawer } from "@/navigation/drawerController";
 import {
-  type MainTabParamList,
   type RootStackNavigationProp,
 } from "@/navigation/appRoutes";
-
-const ANDROID_BOTTOM_TAB_MIN_INSET = 14;
 
 type Props = {
   title?: string;
@@ -26,116 +21,9 @@ type Props = {
   blurRadius?: number;
   showHeader?: boolean;
   showBack?: boolean;
-  showMainTabs?: boolean;
-  activeMainTab?: keyof MainTabParamList;
   onBack?: () => void;
   children: React.ReactNode;
 };
-
-function findTabsNavigator(navigation: any) {
-  let current = navigation;
-  for (let depth = 0; depth < 6 && current; depth += 1) {
-    const routeNames = current.getState?.().routeNames;
-    if (Array.isArray(routeNames) && routeNames.includes("Tabs")) {
-      return current;
-    }
-    current = current.getParent?.();
-  }
-  return navigation;
-}
-
-function getMainTabFromRouteState(state: any): keyof MainTabParamList | undefined {
-  const activeRoute = state?.routes?.[state?.index ?? 0];
-  const activeName = activeRoute?.name;
-  if (activeName === "Together" || activeName === "Nearby" || activeName === "Inbox") {
-    return activeName;
-  }
-  return undefined;
-}
-
-function getLastMainTab(navigation: any): keyof MainTabParamList | undefined {
-  const targetNavigation = findTabsNavigator(navigation);
-  const state = targetNavigation.getState?.();
-  const tabsRoute = state?.routes?.find((route: any) => route?.name === "Tabs");
-  return getMainTabFromRouteState(tabsRoute?.state);
-}
-
-function MainTabFooter({ activeTab }: { activeTab?: keyof MainTabParamList }) {
-  const navigation = useNavigation<any>();
-  const insets = useSafeAreaInsets();
-  const { t } = useLocale();
-  const inferredActiveTab = activeTab ?? getLastMainTab(navigation);
-  const bottomSystemGap = Platform.OS === "android"
-    ? Math.max(ANDROID_BOTTOM_TAB_MIN_INSET - insets.bottom, 0)
-    : 0;
-
-  const navigateToTab = (screen: keyof MainTabParamList) => {
-    const targetNavigation = findTabsNavigator(navigation);
-    targetNavigation.navigate("Tabs", { screen });
-  };
-
-  const tabs: Array<{
-    screen: keyof MainTabParamList;
-    label: string;
-    icon: keyof typeof Ionicons.glyphMap;
-    activeIcon: keyof typeof Ionicons.glyphMap;
-  }> = [
-    {
-      screen: "Together",
-      label: t("tabs.together"),
-      icon: "sparkles-outline",
-      activeIcon: "sparkles",
-    },
-    {
-      screen: "Nearby",
-      label: t("tabs.nearby"),
-      icon: "location-outline",
-      activeIcon: "location",
-    },
-    {
-      screen: "Inbox",
-      label: t("tabs.chats"),
-      icon: "chatbubbles-outline",
-      activeIcon: "chatbubbles",
-    },
-  ];
-
-  return (
-    <View style={[styles.mainTabs, bottomSystemGap ? { marginBottom: bottomSystemGap } : null]}>
-      {tabs.map((tab) => {
-        const active = inferredActiveTab === tab.screen;
-        return (
-          <TouchableOpacity
-            key={tab.screen}
-            onPress={() => navigateToTab(tab.screen)}
-            activeOpacity={0.85}
-            style={styles.mainTabItem}
-          >
-            <View
-              style={[
-                styles.mainTabIconShell,
-                active ? styles.mainTabIconShellActive : styles.mainTabIconShellInactive,
-              ]}
-            >
-              {tab.screen === "Together" ? (
-                <AmoriaTogetherIcon active={active} size={active ? 23 : 21} />
-              ) : (
-                <Ionicons
-                  name={active ? tab.activeIcon : tab.icon}
-                  size={active ? 23 : 21}
-                  color={active ? "#F3C98B" : "#8E94B4"}
-                />
-              )}
-            </View>
-            <Text style={[styles.mainTabLabel, active ? styles.mainTabLabelActive : null]}>
-              {tab.label}
-            </Text>
-          </TouchableOpacity>
-        );
-      })}
-    </View>
-  );
-}
 
 export default function ScreenShell({
   title,
@@ -145,8 +33,6 @@ export default function ScreenShell({
   blurRadius,
   showHeader = true,
   showBack,
-  showMainTabs,
-  activeMainTab,
   onBack,
   children,
 }: Props) {
@@ -199,7 +85,6 @@ export default function ScreenShell({
 
       <SafeAreaView style={styles.bodySafe} edges={["left", "right", "bottom"]}>
         <View style={styles.content}>{children}</View>
-        {showMainTabs ? <MainTabFooter activeTab={activeMainTab} /> : null}
       </SafeAreaView>
     </ScreenBackground>
   );
@@ -255,47 +140,4 @@ const styles = StyleSheet.create({
   },
   bodySafe: { flex: 1, paddingHorizontal: 12, paddingTop: 8, backgroundColor: "transparent" },
   content: { flex: 1, backgroundColor: "transparent" },
-  mainTabs: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-around",
-    minHeight: 64,
-    paddingTop: 5,
-    paddingBottom: 4,
-    marginTop: 8,
-    borderRadius: 24,
-    backgroundColor: "rgba(7, 11, 21, 0.94)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.14)",
-  },
-  mainTabItem: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 2,
-  },
-  mainTabIconShell: {
-    minWidth: 48,
-    minHeight: 34,
-    borderRadius: 999,
-    borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  mainTabIconShellActive: {
-    backgroundColor: "rgba(185, 130, 114, 0.23)",
-    borderColor: "rgba(243, 201, 139, 0.48)",
-  },
-  mainTabIconShellInactive: {
-    backgroundColor: "rgba(255,255,255,0.04)",
-    borderColor: "rgba(255,255,255,0.08)",
-  },
-  mainTabLabel: {
-    color: "#8E94B4",
-    fontSize: 11,
-    fontWeight: "800",
-  },
-  mainTabLabelActive: {
-    color: "#F3C98B",
-  },
 });
