@@ -3,6 +3,7 @@ import type {
   NearbyFeedResponse,
   NearbyMeResponse,
   NearbyProfileFeedResponse,
+  NearbySummaryResponse,
   NearbyStatusDto,
   PatchNearbyProfileStatusRequest,
   UpdateNearbyVisibilityRequest,
@@ -54,6 +55,10 @@ export function listFeed(
 
 export function getNearbyMe(): Promise<NearbyMeResponse> {
   return request<NearbyMeResponse>("GET", "/nearby/me");
+}
+
+export function getNearbySummary(): Promise<NearbySummaryResponse> {
+  return request<NearbySummaryResponse>("GET", "/nearby/summary");
 }
 
 export function updateVisibility(

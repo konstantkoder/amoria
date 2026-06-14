@@ -5,6 +5,7 @@ import {
   FlatList,
   Image,
   Pressable,
+  ScrollView,
   StyleSheet,
   Switch,
   Text,
@@ -25,6 +26,8 @@ import type {
   AgeGroup,
   NearbyProfileFeedItemDto,
   NearbyProfileStatusKind,
+  NearbySummaryFeatureDto,
+  NearbySummaryResponse,
   NearbyProfileVisibilityDto,
 } from "@/services/api/types";
 import { setNearbyEnabled } from "@/services/locationPrivacy";
@@ -256,10 +259,12 @@ export default function NearbyHubScreen() {
   const reportedMissingPreferenceRef = useRef<Set<MissingNearbyPreferenceField>>(new Set());
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [visibility, setVisibility] = useState<NearbyProfileVisibilityDto | null>(null);
+  const [summary, setSummary] = useState<NearbySummaryResponse | null>(null);
   const [items, setItems] = useState<NearbyProfileFeedItemDto[]>([]);
   const [radiusKm, setRadiusKm] = useState(DEFAULT_RADIUS_KM);
   const [loading, setLoading] = useState(true);
   const [feedLoading, setFeedLoading] = useState(false);
+  const [summaryLoading, setSummaryLoading] = useState(false);
   const [toggleBusy, setToggleBusy] = useState(false);
   const [preferenceBusy, setPreferenceBusy] = useState(false);
   const [errorText, setErrorText] = useState("");
@@ -326,6 +331,22 @@ export default function NearbyHubScreen() {
     });
   }, [missingPreferenceField, profileReady]);
 
+  const refreshSummary = useCallback(async () => {
+    setSummaryLoading(true);
+    try {
+      const response = await nearbyApi.getNearbySummary();
+      if (!mountedRef.current) return;
+      setSummary(response);
+    } catch {
+      if (!mountedRef.current) return;
+      setSummary(null);
+    } finally {
+      if (mountedRef.current) {
+        setSummaryLoading(false);
+      }
+    }
+  }, []);
+
   const refreshFeed = useCallback(
     async (
       baseVisibility: NearbyProfileVisibilityDto | null,
@@ -388,6 +409,7 @@ export default function NearbyHubScreen() {
   );
 
   const loadInitial = useCallback(async () => {
+    void refreshSummary();
     const finishNearbyInitialLoad = startStartupSpan("nearby.initial_load", {
       focused: true,
     });
@@ -430,7 +452,7 @@ export default function NearbyHubScreen() {
         });
       }
     }
-  }, [refreshFeed, t]);
+  }, [refreshFeed, refreshSummary, t]);
 
   useEffect(() => {
     const subscription = DeviceEventEmitter.addListener(PROFILE_UPDATED_EVENT, () => {
@@ -445,6 +467,7 @@ export default function NearbyHubScreen() {
   const refreshNearby = useCallback(() => {
     if (refreshDisabled || manualRefreshBusyRef.current) return;
     manualRefreshBusyRef.current = true;
+    void refreshSummary();
 
     const currentVisibility = visibilityRef.current;
     if (
@@ -461,7 +484,7 @@ export default function NearbyHubScreen() {
     void loadInitial().finally(() => {
       manualRefreshBusyRef.current = false;
     });
-  }, [loadInitial, refreshDisabled, refreshFeed]);
+  }, [loadInitial, refreshDisabled, refreshFeed, refreshSummary]);
 
   useFocusEffect(
     useCallback(() => {
@@ -498,6 +521,7 @@ export default function NearbyHubScreen() {
       await setNearbyEnabled(true).catch(() => {});
       if (!mountedRef.current) return;
       setVisibility(response.visibility);
+      void refreshSummary();
       await refreshFeed(response.visibility, response.visibility.radiusKm ?? radiusRef.current);
     } catch (error) {
       if (!mountedRef.current) return;
@@ -507,7 +531,7 @@ export default function NearbyHubScreen() {
         setToggleBusy(false);
       }
     }
-  }, [profile, radiusKm, refreshFeed, t, visibility]);
+  }, [profile, radiusKm, refreshFeed, refreshSummary, t, visibility]);
 
   const disableVisibility = useCallback(async () => {
     setToggleBusy(true);
@@ -524,6 +548,7 @@ export default function NearbyHubScreen() {
       if (!mountedRef.current) return;
       setVisibility(response.visibility);
       setItems([]);
+      void refreshSummary();
     } catch (error) {
       if (!mountedRef.current) return;
       setErrorText(getBackendErrorText(error, t));
@@ -532,7 +557,7 @@ export default function NearbyHubScreen() {
         setToggleBusy(false);
       }
     }
-  }, [t]);
+  }, [refreshSummary, t]);
 
   const handleToggle = useCallback(
     (value: boolean) => {
@@ -672,6 +697,8 @@ export default function NearbyHubScreen() {
             )}
           </Text>
         </View>
+
+        <NearbySummaryStrip summary={summary} loading={summaryLoading} t={t} />
 
         <View style={styles.controlPanel}>
           <View style={styles.toggleRow}>
@@ -893,6 +920,8 @@ export default function NearbyHubScreen() {
       radiusKm,
       refreshDisabled,
       refreshNearby,
+      summary,
+      summaryLoading,
       t,
       toggleBusy,
     ]
@@ -1152,6 +1181,98 @@ export default function NearbyHubScreen() {
   );
 }
 
+function NearbySummaryStrip({
+  summary,
+  loading,
+  t,
+}: {
+  summary: NearbySummaryResponse | null;
+  loading: boolean;
+  t: (key: string, params?: Record<string, string>) => string;
+}) {
+  const metrics = [
+    {
+      key: "active",
+      label: copyOrFallback(t, "nearby.summaryActive", "Сейчас рядом"),
+      value: summary ? String(summary.activeNearbyCount) : null,
+      disabled: false,
+    },
+    {
+      key: "today",
+      label: copyOrFallback(t, "nearby.summaryToday", "Сегодня"),
+      value: summary ? String(summary.nearbyTodayCount) : null,
+      disabled: false,
+    },
+    {
+      key: "interestChats",
+      label: copyOrFallback(t, "nearby.summaryInterestChats", "Чаты по интересам"),
+      value: summary
+        ? getNearbySummaryFeatureValue(summary.interestChats, t)
+        : null,
+      disabled: !summary?.interestChats.available,
+    },
+    {
+      key: "activities",
+      label: copyOrFallback(t, "nearby.summaryActivities", "Активности"),
+      value: summary
+        ? getNearbySummaryFeatureValue(summary.activitiesNearby, t)
+        : null,
+      disabled: !summary?.activitiesNearby.available,
+    },
+  ];
+
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={styles.summaryStrip}
+      contentContainerStyle={styles.summaryStripContent}
+    >
+      {metrics.map((metric) => (
+        <View
+          key={metric.key}
+          style={[
+            styles.summaryMetric,
+            metric.disabled ? styles.summaryMetricDisabled : null,
+          ]}
+        >
+          <Text style={styles.summaryMetricLabel} numberOfLines={1} ellipsizeMode="tail">
+            {metric.label}
+          </Text>
+          {loading && !summary ? (
+            <View style={styles.summaryMetricLoader}>
+              <ActivityIndicator size="small" color="#F3C98B" />
+            </View>
+          ) : (
+            <Text
+              style={[
+                styles.summaryMetricValue,
+                metric.disabled ? styles.summaryMetricValueDisabled : null,
+              ]}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+              maxFontSizeMultiplier={1}
+            >
+              {metric.value ?? copyOrFallback(t, "nearby.summaryUnavailable", "—")}
+            </Text>
+          )}
+        </View>
+      ))}
+    </ScrollView>
+  );
+}
+
+function getNearbySummaryFeatureValue(
+  feature: NearbySummaryFeatureDto,
+  t: (key: string, params?: Record<string, string>) => string
+) {
+  if (feature.available && typeof feature.count === "number") {
+    return String(feature.count);
+  }
+
+  return copyOrFallback(t, "nearby.summarySoon", "скоро");
+}
+
 function NearbyProfileCard({
   item,
   onOpen,
@@ -1395,6 +1516,52 @@ const styles = StyleSheet.create({
     color: "#D6D8E8",
     fontSize: 14,
     lineHeight: 20,
+  },
+  summaryStrip: {
+    marginTop: -2,
+  },
+  summaryStripContent: {
+    gap: 6,
+    paddingHorizontal: 4,
+    paddingRight: 10,
+  },
+  summaryMetric: {
+    width: 112,
+    minHeight: 48,
+    justifyContent: "center",
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    backgroundColor: "rgba(10, 16, 24, 0.66)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.10)",
+  },
+  summaryMetricDisabled: {
+    opacity: 0.72,
+  },
+  summaryMetricLabel: {
+    color: "#BAC1D3",
+    fontSize: 10,
+    lineHeight: 12,
+    fontWeight: "800",
+    textTransform: "uppercase",
+  },
+  summaryMetricValue: {
+    marginTop: 2,
+    color: theme.colors.text,
+    fontSize: 16,
+    lineHeight: 19,
+    fontWeight: "900",
+  },
+  summaryMetricValueDisabled: {
+    color: "#D8DCE9",
+    fontSize: 13,
+    lineHeight: 17,
+  },
+  summaryMetricLoader: {
+    height: 21,
+    alignItems: "flex-start",
+    justifyContent: "center",
   },
   controlPanel: {
     borderRadius: 16,
