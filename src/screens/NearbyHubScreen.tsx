@@ -56,6 +56,7 @@ const RADIUS_OPTIONS = [5, 25, 100, 250] as const;
 const FEED_LIMIT = 30;
 const DEFAULT_RADIUS_KM = 25;
 const DEFAULT_STATUS_KIND: NearbyProfileStatusKind = "open_to_suggestions";
+const NEARBY_TILE_AVATAR_SIZE = 58;
 const NORMAL_GRID_MIN_WIDTH = 360;
 const NARROW_GRID_MIN_WIDTH = 300;
 
@@ -1542,23 +1543,25 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
     borderRadius: 8,
-    padding: 4,
-    gap: 3,
-    backgroundColor: "rgba(12, 18, 28, 0.68)",
+    alignItems: "center",
+    paddingHorizontal: 6,
+    paddingVertical: 8,
+    gap: 4,
+    backgroundColor: "rgba(12, 18, 28, 0.56)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
+    borderColor: "rgba(255,255,255,0.08)",
   },
   cardPressed: {
     opacity: 0.82,
   },
   cardMedia: {
-    width: "100%",
-    aspectRatio: 1,
-    borderRadius: 6,
+    width: NEARBY_TILE_AVATAR_SIZE,
+    height: NEARBY_TILE_AVATAR_SIZE,
+    borderRadius: NEARBY_TILE_AVATAR_SIZE / 2,
     overflow: "hidden",
     backgroundColor: "rgba(255,255,255,0.08)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
+    borderColor: "rgba(255,255,255,0.14)",
   },
   cardMediaImage: {
     width: "100%",
@@ -1577,23 +1580,29 @@ const styles = StyleSheet.create({
   },
   cardMediaInitials: {
     color: theme.colors.text,
-    fontSize: 22,
-    lineHeight: 26,
+    fontSize: 19,
+    lineHeight: 23,
     fontWeight: "900",
   },
   cardName: {
     color: theme.colors.text,
+    alignSelf: "stretch",
+    textAlign: "center",
     fontSize: 12,
     lineHeight: 15,
     fontWeight: "900",
   },
   cardMeta: {
     color: "#B9C0D3",
+    alignSelf: "stretch",
+    textAlign: "center",
     fontSize: 9,
     lineHeight: 11,
   },
   profileLine: {
     color: "#DDE3F2",
+    alignSelf: "stretch",
+    textAlign: "center",
     fontSize: 9,
     lineHeight: 11,
     fontWeight: "700",
