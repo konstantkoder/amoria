@@ -56,7 +56,8 @@ const RADIUS_OPTIONS = [5, 25, 100, 250] as const;
 const FEED_LIMIT = 30;
 const DEFAULT_RADIUS_KM = 25;
 const DEFAULT_STATUS_KIND: NearbyProfileStatusKind = "open_to_suggestions";
-const NEARBY_TILE_AVATAR_SIZE = 54;
+const NEARBY_CIRCLE_MIN_SIZE = 86;
+const NEARBY_CIRCLE_MAX_SIZE = 104;
 const NORMAL_GRID_MIN_WIDTH = 360;
 const NARROW_GRID_MIN_WIDTH = 300;
 
@@ -273,6 +274,16 @@ export default function NearbyHubScreen() {
   const ageFilter = getAgeFilter(profile);
   const columns =
     width >= NORMAL_GRID_MIN_WIDTH ? 3 : width >= NARROW_GRID_MIN_WIDTH ? 2 : 1;
+  const circleSize = useMemo(() => {
+    const listPadding = 2;
+    const slotPadding = columns * 4;
+    const columnWidth = (width - listPadding - slotPadding) / columns;
+    const maxSize =
+      columns === 3 ? NEARBY_CIRCLE_MAX_SIZE : columns === 2 ? 116 : 132;
+    const minSize =
+      columns === 3 ? NEARBY_CIRCLE_MIN_SIZE : columns === 2 ? 94 : 104;
+    return Math.round(Math.min(maxSize, Math.max(minSize, columnWidth - 8)));
+  }, [columns, width]);
   const refreshDisabled = feedLoading || toggleBusy || preferenceBusy;
 
   useEffect(() => {
@@ -1105,11 +1116,12 @@ export default function NearbyHubScreen() {
         <NearbyProfileCard
           item={item}
           onOpen={() => openProfile(item)}
+          circleSize={circleSize}
           t={t}
         />
       </View>
     ),
-    [columns, openProfile, t]
+    [circleSize, columns, openProfile, t]
   );
 
   return (
@@ -1143,43 +1155,44 @@ export default function NearbyHubScreen() {
 function NearbyProfileCard({
   item,
   onOpen,
+  circleSize,
   t,
 }: {
   item: NearbyProfileFeedItemDto;
   onOpen: () => void;
+  circleSize: number;
   t: (key: string, params?: Record<string, string>) => string;
 }) {
   const details = [
     item.ageGroup,
     copyOrFallback(t, `nearby.distance.${item.distanceBucket}`, item.distanceBucket),
   ].filter(Boolean);
-  const statusLabel = [
-    item.nearbyStatus ??
-      (item.statusKind ? copyOrFallback(t, `nearby.statusKind.${item.statusKind}`, "") : ""),
-    item.mood ? copyOrFallback(t, `profile.mood.${item.mood}`, item.mood) : "",
-  ].find(Boolean);
 
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={item.displayName}
       onPress={onOpen}
-      style={({ pressed }) => [styles.card, pressed ? styles.cardPressed : null]}
+      style={({ pressed }) => [
+        styles.card,
+        {
+          width: circleSize,
+          height: circleSize,
+          borderRadius: circleSize / 2,
+        },
+        pressed ? styles.cardPressed : null,
+      ]}
     >
       <NearbyCardMedia item={item} />
 
-      <Text style={styles.cardName} numberOfLines={1}>
-        {item.displayName}
-      </Text>
-      <Text style={styles.cardMeta} numberOfLines={1}>
-        {details.join(" · ")}
-      </Text>
-
-      {statusLabel ? (
-        <Text style={styles.profileLine} numberOfLines={1}>
-          {statusLabel}
+      <View style={styles.cardTextOverlay} pointerEvents="none">
+        <Text style={styles.cardName} numberOfLines={1}>
+          {item.displayName}
         </Text>
-      ) : null}
+        <Text style={styles.cardMeta} numberOfLines={1}>
+          {details.join(" · ")}
+        </Text>
+      </View>
     </Pressable>
   );
 }
@@ -1321,7 +1334,7 @@ function NearbyCardMedia({ item }: { item: NearbyProfileFeedItemDto }) {
       {initials ? (
         <Text style={styles.cardMediaInitials}>{initials}</Text>
       ) : (
-        <Ionicons name="person-outline" size={30} color={theme.colors.text} />
+        <Ionicons name="person-outline" size={34} color={theme.colors.text} />
       )}
     </View>
   );
@@ -1541,28 +1554,19 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
   card: {
-    width: "100%",
-    maxWidth: 124,
     minWidth: 0,
-    borderRadius: 30,
     alignItems: "center",
-    paddingHorizontal: 5,
-    paddingVertical: 7,
-    gap: 3,
-    backgroundColor: "rgba(255,255,255,0.035)",
+    justifyContent: "center",
+    overflow: "hidden",
+    backgroundColor: "rgba(243, 201, 139, 0.13)",
   },
   cardPressed: {
-    backgroundColor: "rgba(255,255,255,0.075)",
     opacity: 0.86,
+    transform: [{ scale: 0.98 }],
   },
   cardMedia: {
-    width: NEARBY_TILE_AVATAR_SIZE,
-    height: NEARBY_TILE_AVATAR_SIZE,
-    borderRadius: NEARBY_TILE_AVATAR_SIZE / 2,
+    ...StyleSheet.absoluteFillObject,
     overflow: "hidden",
-    backgroundColor: "rgba(255,255,255,0.08)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.18)",
   },
   cardMediaImage: {
     width: "100%",
@@ -1581,32 +1585,39 @@ const styles = StyleSheet.create({
   },
   cardMediaInitials: {
     color: theme.colors.text,
-    fontSize: 19,
-    lineHeight: 23,
+    fontSize: 26,
+    lineHeight: 30,
     fontWeight: "900",
+  },
+  cardTextOverlay: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: 8,
+    paddingTop: 11,
+    paddingBottom: 8,
+    backgroundColor: "rgba(3, 6, 12, 0.58)",
   },
   cardName: {
     color: theme.colors.text,
-    alignSelf: "stretch",
     textAlign: "center",
     fontSize: 12,
     lineHeight: 15,
     fontWeight: "900",
+    textShadowColor: "rgba(0,0,0,0.75)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   cardMeta: {
-    color: "#B9C0D3",
-    alignSelf: "stretch",
-    textAlign: "center",
-    fontSize: 9,
-    lineHeight: 11,
-  },
-  profileLine: {
-    color: "#DDE3F2",
-    alignSelf: "stretch",
+    color: "#E4E8F4",
     textAlign: "center",
     fontSize: 9,
     lineHeight: 11,
     fontWeight: "700",
+    textShadowColor: "rgba(0,0,0,0.75)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   buttonDisabled: {
     opacity: 0.58,
