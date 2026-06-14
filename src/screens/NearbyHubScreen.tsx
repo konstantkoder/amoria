@@ -56,7 +56,7 @@ const RADIUS_OPTIONS = [5, 25, 100, 250] as const;
 const FEED_LIMIT = 30;
 const DEFAULT_RADIUS_KM = 25;
 const DEFAULT_STATUS_KIND: NearbyProfileStatusKind = "open_to_suggestions";
-const NEARBY_TILE_AVATAR_SIZE = 58;
+const NEARBY_TILE_AVATAR_SIZE = 54;
 const NORMAL_GRID_MIN_WIDTH = 360;
 const NARROW_GRID_MIN_WIDTH = 300;
 
@@ -1336,6 +1336,7 @@ const styles = StyleSheet.create({
     alignItems: "stretch",
   },
   cardSlot: {
+    alignItems: "center",
     paddingHorizontal: 2,
     marginBottom: 6,
   },
@@ -1540,19 +1541,19 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
   card: {
-    flex: 1,
+    width: "100%",
+    maxWidth: 124,
     minWidth: 0,
-    borderRadius: 8,
+    borderRadius: 30,
     alignItems: "center",
-    paddingHorizontal: 6,
-    paddingVertical: 8,
-    gap: 4,
-    backgroundColor: "rgba(12, 18, 28, 0.56)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
+    paddingHorizontal: 5,
+    paddingVertical: 7,
+    gap: 3,
+    backgroundColor: "rgba(255,255,255,0.035)",
   },
   cardPressed: {
-    opacity: 0.82,
+    backgroundColor: "rgba(255,255,255,0.075)",
+    opacity: 0.86,
   },
   cardMedia: {
     width: NEARBY_TILE_AVATAR_SIZE,
@@ -1561,7 +1562,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     backgroundColor: "rgba(255,255,255,0.08)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.14)",
+    borderColor: "rgba(255,255,255,0.18)",
   },
   cardMediaImage: {
     width: "100%",
