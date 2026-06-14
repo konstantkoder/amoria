@@ -1163,10 +1163,9 @@ function NearbyProfileCard({
   circleSize: number;
   t: (key: string, params?: Record<string, string>) => string;
 }) {
-  const details = [
-    item.ageGroup,
-    copyOrFallback(t, `nearby.distance.${item.distanceBucket}`, item.distanceBucket),
-  ].filter(Boolean);
+  const ageGroupLabel = item.ageGroup ? getAgeFilterLabel(item.ageGroup, t) : "";
+  const nameTextWidth = Math.round(circleSize * 0.78);
+  const metaTextWidth = Math.round(circleSize * 0.56);
 
   return (
     <Pressable
@@ -1187,12 +1186,26 @@ function NearbyProfileCard({
       <View style={styles.cardPhotoTint} pointerEvents="none" />
 
       <View style={styles.cardTextOverlay} pointerEvents="none">
-        <Text style={styles.cardName} numberOfLines={1}>
+        <Text
+          style={[styles.cardName, { width: nameTextWidth }]}
+          numberOfLines={1}
+          ellipsizeMode="tail"
+          maxFontSizeMultiplier={1}
+        >
           {item.displayName}
         </Text>
-        <Text style={styles.cardMeta} numberOfLines={1}>
-          {details.join(" · ")}
-        </Text>
+        {ageGroupLabel ? (
+          <Text
+            style={[styles.cardMeta, { width: metaTextWidth }]}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+            adjustsFontSizeToFit
+            minimumFontScale={0.82}
+            maxFontSizeMultiplier={1}
+          >
+            {ageGroupLabel}
+          </Text>
+        ) : null}
       </View>
     </Pressable>
   );
