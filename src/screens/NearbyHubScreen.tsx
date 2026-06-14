@@ -1184,6 +1184,7 @@ function NearbyProfileCard({
       ]}
     >
       <NearbyCardMedia item={item} />
+      <View style={styles.cardPhotoTint} pointerEvents="none" />
 
       <View style={styles.cardTextOverlay} pointerEvents="none">
         <Text style={styles.cardName} numberOfLines={1}>
@@ -1589,15 +1590,16 @@ const styles = StyleSheet.create({
     lineHeight: 30,
     fontWeight: "900",
   },
+  cardPhotoTint: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.08)",
+  },
   cardTextOverlay: {
     position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    paddingHorizontal: 8,
-    paddingTop: 11,
-    paddingBottom: 8,
-    backgroundColor: "rgba(3, 6, 12, 0.58)",
+    left: 6,
+    right: 6,
+    bottom: 8,
+    alignItems: "center",
   },
   cardName: {
     color: theme.colors.text,
@@ -1605,9 +1607,9 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 15,
     fontWeight: "900",
-    textShadowColor: "rgba(0,0,0,0.75)",
+    textShadowColor: "rgba(0,0,0,0.86)",
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
+    textShadowRadius: 3,
   },
   cardMeta: {
     color: "#E4E8F4",
@@ -1615,9 +1617,9 @@ const styles = StyleSheet.create({
     fontSize: 9,
     lineHeight: 11,
     fontWeight: "700",
-    textShadowColor: "rgba(0,0,0,0.75)",
+    textShadowColor: "rgba(0,0,0,0.86)",
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
+    textShadowRadius: 3,
   },
   buttonDisabled: {
     opacity: 0.58,
