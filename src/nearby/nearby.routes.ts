@@ -6,6 +6,7 @@ import {
   createNearbyStatusRouteSchema,
   deleteNearbyStatusRouteSchema,
   getNearbyMeRouteSchema,
+  getNearbySummaryRouteSchema,
   legacyNearbyStatusFeedRouteSchema,
   nearbyProfileFeedRouteSchema,
   patchNearbyProfileStatusRouteSchema,
@@ -34,6 +35,15 @@ export async function nearbyRoutes(fastify: FastifyInstance): Promise<void> {
       schema: withErrorResponses(getNearbyMeRouteSchema),
     },
     async (request) => nearbyService.getNearbyMe(currentUserId(request)),
+  );
+
+  fastify.get(
+    "/summary",
+    {
+      preHandler: authMiddleware,
+      schema: withErrorResponses(getNearbySummaryRouteSchema),
+    },
+    async (request) => nearbyService.getNearbySummary(currentUserId(request)),
   );
 
   fastify.put(

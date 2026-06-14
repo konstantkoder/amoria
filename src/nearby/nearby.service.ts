@@ -19,6 +19,7 @@ import type {
   NearbyProfileFeedQuery,
   NearbyProfileFeedResponse,
   NearbyProfileStatusKind,
+  NearbySummaryResponse,
   NearbyProfileVisibilityDto,
   PatchNearbyProfileStatusBody,
   OkResponse,
@@ -40,6 +41,7 @@ type NearbyServiceDeps = {
     | "createNearbyStatus"
     | "deleteOwnedNearbyStatus"
     | "findNearbyProfileVisibility"
+    | "getNearbySummaryCounts"
     | "listNearbyFeedRows"
     | "listNearbyProfileFeedRows"
     | "upsertNearbyProfileVisibility"
@@ -138,6 +140,25 @@ export async function getNearbyMe(userId: string): Promise<NearbyMeResponse> {
   const row = await deps.repo.findNearbyProfileVisibility(userId);
   return {
     visibility: toVisibilityDto(row),
+  };
+}
+
+export async function getNearbySummary(_userId: string): Promise<NearbySummaryResponse> {
+  const checkedAt = deps.now();
+  const counts = await deps.repo.getNearbySummaryCounts(checkedAt);
+
+  return {
+    activeNearbyCount: counts.activeNearbyCount,
+    nearbyTodayCount: counts.nearbyTodayCount,
+    interestChats: {
+      available: false,
+      count: null,
+    },
+    activitiesNearby: {
+      available: false,
+      count: null,
+    },
+    checkedAt: checkedAt.toISOString(),
   };
 }
 

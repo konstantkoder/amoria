@@ -165,6 +165,16 @@ const nearbyProfileVisibilitySchema = {
   },
 } as const;
 
+const nearbySummaryFeatureSchema = {
+  type: "object",
+  required: ["available", "count"],
+  additionalProperties: false,
+  properties: {
+    available: { type: "boolean" },
+    count: { type: ["integer", "null"], minimum: 0 },
+  },
+} as const;
+
 const nearbyProfilePhotoPreviewSchema = {
   type: "object",
   required: ["mediaId", "url"],
@@ -293,6 +303,29 @@ export const getNearbyMeRouteSchema = {
       additionalProperties: false,
       properties: {
         visibility: nearbyProfileVisibilitySchema,
+      },
+    },
+  },
+} as const satisfies FastifySchema;
+
+export const getNearbySummaryRouteSchema = {
+  response: {
+    200: {
+      type: "object",
+      required: [
+        "activeNearbyCount",
+        "nearbyTodayCount",
+        "interestChats",
+        "activitiesNearby",
+        "checkedAt",
+      ],
+      additionalProperties: false,
+      properties: {
+        activeNearbyCount: { type: "integer", minimum: 0 },
+        nearbyTodayCount: { type: "integer", minimum: 0 },
+        interestChats: nearbySummaryFeatureSchema,
+        activitiesNearby: nearbySummaryFeatureSchema,
+        checkedAt: { type: "string", format: "date-time" },
       },
     },
   },

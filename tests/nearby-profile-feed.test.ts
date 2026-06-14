@@ -169,6 +169,55 @@ test("Nearby profile visibility can be turned off and then feed returns no cards
   });
 });
 
+test("Nearby summary returns safe aggregate counters only", async (t) => {
+  t.after(restoreDeps);
+  mockNearby({
+    visibilities: [
+      visibilityRow(viewerId),
+      visibilityRow(matchId, { updatedAt: new Date("2026-06-03T10:00:00.000Z") }),
+      visibilityRow(offId, {
+        status: "off",
+        latitude: null,
+        longitude: null,
+        radiusKm: null,
+        updatedAt: new Date("2026-06-03T09:00:00.000Z"),
+        expiresAt: null,
+      }),
+      visibilityRow(expiredId, {
+        updatedAt: new Date("2026-06-03T08:00:00.000Z"),
+        expiresAt: new Date("2026-06-03T11:59:00.000Z"),
+      }),
+      visibilityRow(blockedId, { updatedAt: new Date("2026-05-31T12:00:00.000Z") }),
+    ],
+  });
+  const app = buildApp();
+  t.after(async () => {
+    await app.close();
+  });
+
+  const response = await app.inject({
+    method: "GET",
+    url: "/nearby/summary",
+    headers: authHeaders(viewerId),
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.json(), {
+    activeNearbyCount: 3,
+    nearbyTodayCount: 4,
+    interestChats: {
+      available: false,
+      count: null,
+    },
+    activitiesNearby: {
+      available: false,
+      count: null,
+    },
+    checkedAt: now.toISOString(),
+  });
+  assertNoPrivateNearbyFields(response.json());
+});
+
 test("Nearby profile feed returns only real compatible opted-in profiles with safe card fields", async (t) => {
   t.after(restoreDeps);
   mockNearby({
@@ -309,6 +358,24 @@ function mockNearby(input: {
       },
       deleteOwnedNearbyStatus: async () => false,
       findNearbyProfileVisibility: async (userId) => visibilities.get(userId),
+      getNearbySummaryCounts: async (checkedAt = now) => {
+        const todaySince = new Date(checkedAt.getTime() - 24 * 60 * 60 * 1000);
+        let activeNearbyCount = 0;
+        let nearbyTodayCount = 0;
+        for (const visibility of visibilities.values()) {
+          if (
+            visibility.status === "active" &&
+            visibility.expiresAt &&
+            visibility.expiresAt > checkedAt
+          ) {
+            activeNearbyCount += 1;
+          }
+          if (visibility.updatedAt >= todaySince) {
+            nearbyTodayCount += 1;
+          }
+        }
+        return { activeNearbyCount, nearbyTodayCount };
+      },
       listNearbyFeedRows: async () => [] as NearbyFeedRow[],
       upsertNearbyProfileVisibility: async (visibilityInput: NewNearbyProfileVisibilityRow) => {
         const row = visibilityRow(visibilityInput.userId, {
