@@ -30,8 +30,11 @@ const adminTogetherQueueWaitingReasonValues = [
   "candidate_cancelled",
   "location_required",
   "age_mismatch",
+  "gender_mismatch",
   "missing_user_age",
   "missing_age_preference",
+  "missing_gender",
+  "missing_preferred_genders",
   "unknown",
 ] as const;
 

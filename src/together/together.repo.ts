@@ -17,9 +17,11 @@ import {
   type SQL,
 } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
+import { PROFILE_GENDERS } from "../config/constants";
 import { db } from "../db/client";
 import {
   type NewTogetherEventRow,
+  type ProfileGender,
   type TogetherEventRow,
   type TogetherQueueRow,
   type TogetherRevealRow,
@@ -55,6 +57,8 @@ export type EnqueueInput = {
   userAge: number;
   preferredAgeMin: number;
   preferredAgeMax: number | null;
+  gender: ProfileGender;
+  preferredGenders: ProfileGender[];
 };
 
 export type EventInsertResult = {
@@ -112,8 +116,11 @@ export type AdminTogetherQueueWaitingReason =
   | "candidate_cancelled"
   | "location_required"
   | "age_mismatch"
+  | "gender_mismatch"
   | "missing_user_age"
   | "missing_age_preference"
+  | "missing_gender"
+  | "missing_preferred_genders"
   | "unknown";
 
 export type AdminTogetherQueueQuery = {
@@ -178,12 +185,16 @@ export async function findUserAgeProfile(userId: string): Promise<{
   birthDate: string | null;
   preferredAgeMin: number;
   preferredAgeMax: number | null;
+  gender: string | null;
+  preferredGenders: ProfileGender[];
 } | undefined> {
   const [row] = await db
     .select({
       birthDate: users.birthDate,
       preferredAgeMin: users.preferredAgeMin,
       preferredAgeMax: users.preferredAgeMax,
+      gender: users.gender,
+      preferredGenders: users.preferredGenders,
     })
     .from(users)
     .where(eq(users.id, userId))
@@ -232,21 +243,11 @@ export async function enqueueAndMatch(input: EnqueueInput): Promise<TogetherQueu
         .where(eq(togetherQueue.id, existing.id))
         .returning();
       const activeExisting = rejoined ?? existing;
-      const peers = await tx
-        .select()
-        .from(togetherQueue)
-        .where(
-          and(
-            eq(togetherQueue.activity, input.activity),
-            eq(togetherQueue.status, "waiting"),
-            ne(togetherQueue.userId, input.userId),
-            gt(togetherQueue.expiresAt, now),
-          ),
-        )
-        .orderBy(asc(togetherQueue.createdAt))
-        .limit(50)
-        .for("update", { skipLocked: true });
-      const peer = peers.find((candidate) => areQueueEntriesCompatible(activeExisting, candidate));
+      const activeExistingWithProfile = withQueueGenderProfile(activeExisting, input);
+      const peers = await listQueueCandidatesForMatching(tx, input, now);
+      const peer = peers.find((candidate) =>
+        areQueueEntriesCompatible(activeExistingWithProfile, candidate),
+      );
 
       if (!peer) {
         return activeExisting;
@@ -265,20 +266,7 @@ export async function enqueueAndMatch(input: EnqueueInput): Promise<TogetherQueu
         .where(eq(togetherQueue.id, existing.id));
     }
 
-    const peers = await tx
-      .select()
-      .from(togetherQueue)
-      .where(
-        and(
-          eq(togetherQueue.activity, input.activity),
-          eq(togetherQueue.status, "waiting"),
-          ne(togetherQueue.userId, input.userId),
-          gt(togetherQueue.expiresAt, now),
-        ),
-      )
-      .orderBy(asc(togetherQueue.createdAt))
-      .limit(50)
-      .for("update", { skipLocked: true });
+    const peers = await listQueueCandidatesForMatching(tx, input, now);
     const peer = peers.find((candidate) => areQueueEntriesCompatible(input, candidate));
 
     const [entry] = await tx
@@ -305,6 +293,38 @@ export async function enqueueAndMatch(input: EnqueueInput): Promise<TogetherQueu
 
     return createMatchedSessionForEntries(tx, input, entry, peer, now);
   });
+}
+
+async function listQueueCandidatesForMatching(
+  tx: DbTransaction,
+  input: EnqueueInput,
+  now: Date,
+): Promise<QueueCandidateForMatching[]> {
+  const rows = await tx
+    .select({
+      entry: togetherQueue,
+      gender: users.gender,
+      preferredGenders: users.preferredGenders,
+    })
+    .from(togetherQueue)
+    .innerJoin(users, eq(users.id, togetherQueue.userId))
+    .where(
+      and(
+        eq(togetherQueue.activity, input.activity),
+        eq(togetherQueue.status, "waiting"),
+        ne(togetherQueue.userId, input.userId),
+        gt(togetherQueue.expiresAt, now),
+      ),
+    )
+    .orderBy(asc(togetherQueue.createdAt))
+    .limit(50)
+    .for("update", { skipLocked: true });
+
+  return rows.map((row) => ({
+    ...row.entry,
+    gender: row.gender,
+    preferredGenders: row.preferredGenders,
+  }));
 }
 
 async function createMatchedSessionForEntries(
@@ -858,6 +878,8 @@ export async function listQueueEntriesForAdmin(
       userId: togetherQueue.userId,
       amoriaId: users.amoriaId,
       displayName: users.displayName,
+      gender: users.gender,
+      preferredGenders: users.preferredGenders,
       activity: togetherQueue.activity,
       status: togetherQueue.status,
       radiusKm: togetherQueue.radiusKm,
@@ -909,6 +931,8 @@ export async function cancelQueueEntryForAdmin(
         userId: togetherQueue.userId,
         amoriaId: users.amoriaId,
         displayName: users.displayName,
+        gender: users.gender,
+        preferredGenders: users.preferredGenders,
         activity: togetherQueue.activity,
         status: togetherQueue.status,
         radiusKm: togetherQueue.radiusKm,
@@ -976,6 +1000,8 @@ export async function cancelQueueEntryForAdmin(
             ...cancelled,
             amoriaId: entry.amoriaId,
             displayName: entry.displayName,
+            gender: entry.gender,
+            preferredGenders: entry.preferredGenders,
           },
           now,
           [entry],
@@ -1155,6 +1181,8 @@ function toAdminTogetherQueueEntry(row: {
   userId: string;
   amoriaId?: string | null;
   displayName?: string | null;
+  gender?: string | null;
+  preferredGenders?: unknown;
   activity: string;
   status: string;
   radiusKm: number | null;
@@ -1202,6 +1230,8 @@ function toAdminTogetherQueueEntry(row: {
 type QueueDiagnosticRow = {
   entryId: string;
   userId: string;
+  gender?: string | null;
+  preferredGenders?: unknown;
   activity: string;
   status: string;
   radiusKm: number | null;
@@ -1227,6 +1257,8 @@ async function listQueueDiagnosticsForAdmin(now: Date): Promise<QueueDiagnosticR
     .select({
       entryId: togetherQueue.id,
       userId: togetherQueue.userId,
+      gender: users.gender,
+      preferredGenders: users.preferredGenders,
       activity: togetherQueue.activity,
       status: togetherQueue.status,
       radiusKm: togetherQueue.radiusKm,
@@ -1246,6 +1278,7 @@ async function listQueueDiagnosticsForAdmin(now: Date): Promise<QueueDiagnosticR
       matchedSessionId: togetherQueue.matchedSessionId,
     })
     .from(togetherQueue)
+    .innerJoin(users, eq(users.id, togetherQueue.userId))
     .where(gt(togetherQueue.createdAt, lowerBound))
     .orderBy(desc(togetherQueue.createdAt))
     .limit(500);
@@ -1292,6 +1325,13 @@ type QueueAgeInput = {
   preferredAgeMin?: number | null;
   preferredAgeMax?: number | null;
 };
+
+type QueueGenderInput = {
+  gender?: string | null;
+  preferredGenders?: unknown;
+};
+
+type QueueCandidateForMatching = TogetherQueueRow & QueueGenderInput;
 
 function queueCancelledUpdate(now: Date, input: QueueCancelInput) {
   return {
@@ -1357,11 +1397,12 @@ function areQueueEntriesGeoCompatible(
 }
 
 function areQueueEntriesCompatible(
-  current: QueueGeoInput & QueueAgeInput,
-  candidate: QueueGeoInput & QueueAgeInput,
+  current: QueueGeoInput & QueueAgeInput & QueueGenderInput,
+  candidate: QueueGeoInput & QueueAgeInput & QueueGenderInput,
 ): boolean {
   return areQueueEntriesGeoCompatible(current, candidate) &&
-    areQueueEntriesAgeCompatible(current, candidate);
+    areQueueEntriesAgeCompatible(current, candidate) &&
+    areQueueEntriesGenderCompatible(current, candidate);
 }
 
 function areQueueEntriesAgeCompatible(
@@ -1380,6 +1421,35 @@ function areQueueEntriesAgeCompatible(
   );
 }
 
+function areQueueEntriesGenderCompatible(
+  current: QueueGenderInput,
+  candidate: QueueGenderInput,
+): boolean {
+  const currentPreferredGenders = getQueuePreferredGenders(current);
+  const candidatePreferredGenders = getQueuePreferredGenders(candidate);
+  if (!currentPreferredGenders || !candidatePreferredGenders) {
+    return false;
+  }
+
+  const currentGender = toProfileGender(current.gender);
+  const candidateGender = toProfileGender(candidate.gender);
+  if (!currentGender || !candidateGender) {
+    return false;
+  }
+
+  return (
+    genderAllowed(candidateGender, currentPreferredGenders) &&
+    genderAllowed(currentGender, candidatePreferredGenders)
+  );
+}
+
+function genderAllowed(
+  gender: ProfileGender | null,
+  preferredGenders: ProfileGender[],
+): boolean {
+  return preferredGenders.length === 0 || (gender !== null && preferredGenders.includes(gender));
+}
+
 function isSameQueueSearch(current: EnqueueInput, existing: TogetherQueueRow): boolean {
   return (
     existing.activity === current.activity &&
@@ -1389,6 +1459,17 @@ function isSameQueueSearch(current: EnqueueInput, existing: TogetherQueueRow): b
     sameNullableNumber(existing.preferredAgeMin, current.preferredAgeMin) &&
     sameNullableNumber(existing.preferredAgeMax, current.preferredAgeMax)
   );
+}
+
+function withQueueGenderProfile(
+  entry: TogetherQueueRow,
+  input: Pick<EnqueueInput, "gender" | "preferredGenders">,
+): QueueCandidateForMatching {
+  return {
+    ...entry,
+    gender: input.gender,
+    preferredGenders: input.preferredGenders,
+  };
 }
 
 function sameNullableNumber(left: number | null, right: number | null): boolean {
@@ -1416,6 +1497,22 @@ function hasAdultUserAge(value: QueueAgeInput): value is QueueAgeInput & { userA
     Number.isInteger(value.userAge) &&
     value.userAge >= DEFAULT_PREFERRED_AGE_RANGE.min
   );
+}
+
+function hasProfileGender(value: QueueGenderInput): boolean {
+  return toProfileGender(value.gender) !== null;
+}
+
+function getQueuePreferredGenders(value: QueueGenderInput): ProfileGender[] | null {
+  return isValidPreferredGenders(value.preferredGenders) ? value.preferredGenders : null;
+}
+
+function isValidPreferredGenders(value: unknown): value is ProfileGender[] {
+  return Array.isArray(value) && value.every((item) => toProfileGender(item) !== null);
+}
+
+function toProfileGender(value: unknown): ProfileGender | null {
+  return PROFILE_GENDERS.includes(value as ProfileGender) ? value as ProfileGender : null;
 }
 
 function getQueuePreferredAgeRange(value: QueueAgeInput): PreferredAgeRange | null {
@@ -1494,6 +1591,12 @@ function getAdminQueueWaitingReason(
   if (!getQueuePreferredAgeRange(row)) {
     return "missing_age_preference";
   }
+  if (!hasProfileGender(row)) {
+    return "missing_gender";
+  }
+  if (!getQueuePreferredGenders(row)) {
+    return "missing_preferred_genders";
+  }
 
   const candidates = diagnostics.filter((candidate) => candidate.entryId !== row.entryId);
   if (candidates.length === 0) {
@@ -1528,8 +1631,22 @@ function getAdminQueueWaitingReason(
     areQueueEntriesGeoCompatible(row, candidate),
   );
 
-  if (geoCompatibleCandidates.some((candidate) => areQueueEntriesAgeCompatible(row, candidate))) {
+  const ageCompatibleCandidates = geoCompatibleCandidates.filter((candidate) =>
+    areQueueEntriesAgeCompatible(row, candidate),
+  );
+
+  if (ageCompatibleCandidates.some((candidate) => areQueueEntriesGenderCompatible(row, candidate))) {
     return "unknown";
+  }
+
+  if (ageCompatibleCandidates.length > 0) {
+    if (ageCompatibleCandidates.some((candidate) => !hasProfileGender(candidate))) {
+      return "missing_gender";
+    }
+    if (ageCompatibleCandidates.some((candidate) => !getQueuePreferredGenders(candidate))) {
+      return "missing_preferred_genders";
+    }
+    return "gender_mismatch";
   }
 
   if (geoCompatibleCandidates.length > 0) {
@@ -1625,6 +1742,8 @@ export const __geoForTests = {
 
 export const __queueForTests = {
   areQueueEntriesAgeCompatible,
+  areQueueEntriesCompatible,
+  areQueueEntriesGenderCompatible,
   getAdminQueueWaitingReason,
   isSameQueueSearch,
   replacementCancelSource,

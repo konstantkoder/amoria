@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type {
   NewTogetherEventRow,
+  ProfileGender,
   TogetherEventRow,
   TogetherQueueRow,
   TogetherRevealRow,
@@ -45,6 +46,10 @@ const defaultQueueAge = {
   preferredAgeMin: 18,
   preferredAgeMax: null,
 } as const;
+const defaultQueueGender = {
+  gender: "woman" as ProfileGender,
+  preferredGenders: [] as ProfileGender[],
+};
 
 let restoreDeps: (() => void) | null = null;
 
@@ -453,6 +458,153 @@ test("queue rejects underage users before Together matching", async (t) => {
   assert.equal(response.body.includes("2012-01-01"), false);
 });
 
+test("queue rejects users without gender before Together matching", async (t) => {
+  t.after(restoreRepoMock);
+  const app = buildApp();
+  t.after(async () => {
+    await app.close();
+  });
+
+  let enqueueCalled = false;
+  mockRepo({
+    findUserAgeProfile: async () => ({
+      birthDate: "1995-01-01",
+      preferredAgeMin: 18,
+      preferredAgeMax: null,
+      gender: null,
+      preferredGenders: [],
+    }),
+    enqueueAndMatch: async () => {
+      enqueueCalled = true;
+      return queueRow();
+    },
+  });
+
+  const response = await app.inject({
+    method: "POST",
+    url: "/together/queue",
+    headers: {
+      Authorization: `Bearer ${signAccessToken(userAId)}`,
+    },
+    payload: {
+      activity: "draw",
+      location: warsawLocation,
+    },
+  });
+
+  assert.equal(response.statusCode, 400);
+  assert.equal(enqueueCalled, false);
+  assert.equal(response.json().error.code, "validation_error");
+  assert.equal(response.json().error.details.gender, "required");
+  assert.equal(response.body.includes("1995-01-01"), false);
+});
+
+test("queue rejects corrupt preferred genders before Together matching", async (t) => {
+  t.after(restoreRepoMock);
+  const app = buildApp();
+  t.after(async () => {
+    await app.close();
+  });
+
+  let enqueueCalled = false;
+  let preferredGenders: unknown = "man";
+  mockRepo({
+    findUserAgeProfile: async () => ({
+      birthDate: "1995-01-01",
+      preferredAgeMin: 18,
+      preferredAgeMax: null,
+      gender: "woman",
+      preferredGenders,
+    }),
+    enqueueAndMatch: async () => {
+      enqueueCalled = true;
+      return queueRow();
+    },
+  });
+
+  const nonArrayResponse = await app.inject({
+    method: "POST",
+    url: "/together/queue",
+    headers: {
+      Authorization: `Bearer ${signAccessToken(userAId)}`,
+    },
+    payload: {
+      activity: "draw",
+      location: warsawLocation,
+    },
+  });
+
+  preferredGenders = ["planet"];
+  const invalidValueResponse = await app.inject({
+    method: "POST",
+    url: "/together/queue",
+    headers: {
+      Authorization: `Bearer ${signAccessToken(userAId)}`,
+    },
+    payload: {
+      activity: "draw",
+      location: warsawLocation,
+    },
+  });
+
+  assert.equal(nonArrayResponse.statusCode, 400);
+  assert.equal(invalidValueResponse.statusCode, 400);
+  assert.equal(enqueueCalled, false);
+  assert.equal(nonArrayResponse.json().error.code, "validation_error");
+  assert.equal(nonArrayResponse.json().error.details.preferredGenders, "required");
+  assert.equal(invalidValueResponse.json().error.code, "validation_error");
+  assert.equal(invalidValueResponse.json().error.details.preferredGenders, "invalid");
+});
+
+test("queue allows empty preferred genders as everyone", async (t) => {
+  t.after(restoreRepoMock);
+  const app = buildApp();
+  t.after(async () => {
+    await app.close();
+  });
+
+  let enqueuedProfile:
+    | { gender?: string; preferredGenders?: ProfileGender[] }
+    | undefined;
+  mockRepo({
+    findUserAgeProfile: async () => ({
+      birthDate: "1995-01-01",
+      preferredAgeMin: 18,
+      preferredAgeMax: null,
+      gender: "nonbinary",
+      preferredGenders: [],
+    }),
+    enqueueAndMatch: async (input: {
+      gender: ProfileGender;
+      preferredGenders: ProfileGender[];
+    }) => {
+      enqueuedProfile = {
+        gender: input.gender,
+        preferredGenders: input.preferredGenders,
+      };
+      return queueRow();
+    },
+  });
+
+  const response = await app.inject({
+    method: "POST",
+    url: "/together/queue",
+    headers: {
+      Authorization: `Bearer ${signAccessToken(userAId)}`,
+    },
+    payload: {
+      activity: "draw",
+      location: warsawLocation,
+    },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(enqueuedProfile, {
+    gender: "nonbinary",
+    preferredGenders: [],
+  });
+});
+
 test("queue stores Together preferred age range with adult age snapshot", async (t) => {
   t.after(restoreRepoMock);
   const app = buildApp();
@@ -757,6 +909,60 @@ test("Together age matching requires mutual adult age compatibility", () => {
   );
 });
 
+test("Together matching requires mutual gender preference compatibility", () => {
+  const { areQueueEntriesCompatible } = togetherRepo.__queueForTests;
+  const current = {
+    latitude: 52.2297,
+    longitude: 21.0122,
+    radiusKm: 25,
+    userAge: 31,
+    preferredAgeMin: 18,
+    preferredAgeMax: null,
+    gender: "woman",
+    preferredGenders: ["man"] as ProfileGender[],
+  };
+  const compatible = {
+    latitude: 52.25,
+    longitude: 21.02,
+    radiusKm: 25,
+    userAge: 29,
+    preferredAgeMin: 25,
+    preferredAgeMax: 34,
+    gender: "man",
+    preferredGenders: ["woman"] as ProfileGender[],
+  };
+
+  assert.equal(areQueueEntriesCompatible(current, compatible), true);
+  assert.equal(
+    areQueueEntriesCompatible(
+      {
+        ...current,
+        preferredGenders: [] as ProfileGender[],
+      },
+      {
+        ...compatible,
+        gender: "nonbinary",
+        preferredGenders: [] as ProfileGender[],
+      },
+    ),
+    true,
+  );
+  assert.equal(
+    areQueueEntriesCompatible(current, {
+      ...compatible,
+      preferredGenders: ["nonbinary"] as ProfileGender[],
+    }),
+    false,
+  );
+  assert.equal(
+    areQueueEntriesCompatible(current, {
+      ...compatible,
+      gender: null,
+    }),
+    false,
+  );
+});
+
 test("no-limit queue rejoin keeps equivalent active waiting attempt", () => {
   const { isSameQueueSearch } = togetherRepo.__queueForTests;
   const existing = queueRow({
@@ -778,6 +984,7 @@ test("no-limit queue rejoin keeps equivalent active waiting attempt", () => {
         promptText: "Draw together",
         expiresAt: new Date("2026-01-01T00:05:10.000Z"),
         ...defaultQueueAge,
+        ...defaultQueueGender,
         radiusKm: null,
         latitude: 52.2297,
         longitude: 21.0122,
@@ -795,6 +1002,7 @@ test("no-limit queue rejoin keeps equivalent active waiting attempt", () => {
         promptText: "Draw together",
         expiresAt: new Date("2026-01-01T00:05:10.000Z"),
         ...defaultQueueAge,
+        ...defaultQueueGender,
         radiusKm: 25,
         latitude: 52.2297,
         longitude: 21.0122,
@@ -821,6 +1029,7 @@ test("different same-user queue search classifies replacement cancel source", ()
     promptText: "Draw together",
     expiresAt: new Date("2026-01-01T00:05:10.000Z"),
     ...defaultQueueAge,
+    ...defaultQueueGender,
     latitude: 52.2297,
     longitude: 21.0122,
   };
@@ -848,6 +1057,7 @@ test("admin queue waiting diagnostics explain why a waiting row has not matched"
     latitude: 45.4929,
     longitude: 15.5553,
     ...defaultQueueAge,
+    ...defaultQueueGender,
     createdAt,
     expiresAt: waitingUntil,
     matchedSessionId: null,
@@ -907,8 +1117,69 @@ test("admin queue waiting diagnostics explain why a waiting row has not matched"
     "age_mismatch",
   );
   assert.equal(
+    getAdminQueueWaitingReason(
+      { ...base, gender: "woman", preferredGenders: ["woman"] },
+      [
+        { ...base, gender: "woman", preferredGenders: ["woman"] },
+        {
+          ...base,
+          entryId: "00000000-0000-4000-8000-000000000606",
+          userId: userBId,
+          gender: "man",
+          preferredGenders: ["woman"],
+        },
+      ],
+      now,
+    ),
+    "gender_mismatch",
+  );
+  assert.equal(
+    getAdminQueueWaitingReason(
+      base,
+      [
+        base,
+        {
+          ...base,
+          entryId: "00000000-0000-4000-8000-000000000607",
+          userId: userBId,
+          gender: null,
+        },
+      ],
+      now,
+    ),
+    "missing_gender",
+  );
+  assert.equal(
+    getAdminQueueWaitingReason(
+      base,
+      [
+        base,
+        {
+          ...base,
+          entryId: "00000000-0000-4000-8000-000000000608",
+          userId: userBId,
+          preferredGenders: null,
+        },
+      ],
+      now,
+    ),
+    "missing_preferred_genders",
+  );
+  assert.equal(
     getAdminQueueWaitingReason({ ...base, latitude: null }, [{ ...base, latitude: null }], now),
     "missing_coordinates_old_entry",
+  );
+  assert.equal(
+    getAdminQueueWaitingReason({ ...base, gender: null }, [{ ...base, gender: null }], now),
+    "missing_gender",
+  );
+  assert.equal(
+    getAdminQueueWaitingReason(
+      { ...base, preferredGenders: null },
+      [{ ...base, preferredGenders: null }],
+      now,
+    ),
+    "missing_preferred_genders",
   );
   assert.equal(
     getAdminQueueWaitingReason(
@@ -2568,6 +2839,7 @@ function mockRepo(
       birthDate: "1995-01-01",
       preferredAgeMin: 18,
       preferredAgeMax: null,
+      ...defaultQueueGender,
     }),
     updateUserAgePreference: async () => undefined,
   };

@@ -1,11 +1,13 @@
 import { AppError, validationError } from "../common/errors";
 import {
+  PROFILE_GENDERS,
   TOGETHER_HEARTBEAT_TIMEOUT_MS,
   TOGETHER_QUEUE_TTL_MS,
   TOGETHER_RADIUS_KM_VALUES,
 } from "../config/constants";
 import type {
   JsonValue,
+  ProfileGender,
   TogetherEventRow,
   TogetherQueueRow,
   TogetherRevealRow,
@@ -128,6 +130,8 @@ export async function enqueue(
   const location = normalizeQueueLocation(input);
   const userAgeProfile = await deps.repo.findUserAgeProfile(userId);
   const userAge = requireAdultAgeFromBirthDate(userAgeProfile?.birthDate);
+  const gender = requireProfileGender(userAgeProfile?.gender);
+  const preferredGenders = requirePreferredGenders(userAgeProfile?.preferredGenders);
   const storedPreference = userAgeProfile
     ? {
         min: userAgeProfile.preferredAgeMin ?? DEFAULT_PREFERRED_AGE_RANGE.min,
@@ -151,6 +155,8 @@ export async function enqueue(
     userAge,
     preferredAgeMin: preferredAgeRange.min,
     preferredAgeMax: preferredAgeRange.max,
+    gender,
+    preferredGenders,
     ...location,
   });
 
@@ -201,6 +207,34 @@ function normalizeQueueLocation(
 
 function isFiniteCoordinate(value: unknown, min: number, max: number): value is number {
   return typeof value === "number" && Number.isFinite(value) && value >= min && value <= max;
+}
+
+function requireProfileGender(value: string | null | undefined): ProfileGender {
+  const gender = toProfileGender(value);
+  if (!gender) {
+    throw validationError("Gender is required before Together matching", { gender: "required" });
+  }
+  return gender;
+}
+
+function requirePreferredGenders(value: unknown): ProfileGender[] {
+  if (!Array.isArray(value)) {
+    throw validationError("Preferred genders are required before Together matching", {
+      preferredGenders: "required",
+    });
+  }
+
+  if (!value.every((item) => toProfileGender(item) !== null)) {
+    throw validationError("Preferred genders are invalid before Together matching", {
+      preferredGenders: "invalid",
+    });
+  }
+
+  return value as ProfileGender[];
+}
+
+function toProfileGender(value: unknown): ProfileGender | null {
+  return PROFILE_GENDERS.includes(value as ProfileGender) ? value as ProfileGender : null;
 }
 
 export async function getQueueEntry(
