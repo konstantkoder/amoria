@@ -12,6 +12,7 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import * as Location from "expo-location";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 
@@ -698,7 +699,12 @@ export default function NearbyHubScreen() {
 
         <NearbyPulseBlock summary={summary} loading={summaryLoading} t={t} />
 
-        <View style={styles.controlPanel}>
+        <LinearGradient
+          colors={["rgba(255,255,255,0.14)", "rgba(255,255,255,0.055)"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.controlPanel}
+        >
           <View style={styles.toggleRow}>
             <View style={styles.toggleText}>
               <Text style={styles.sectionTitle}>
@@ -745,6 +751,15 @@ export default function NearbyHubScreen() {
                     radiusKm === option ? styles.segmentActive : null,
                   ]}
                 >
+                  {radiusKm === option ? (
+                    <LinearGradient
+                      pointerEvents="none"
+                      colors={["rgba(255, 78, 138, 0.92)", "rgba(255, 122, 60, 0.78)"]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.segmentActiveGradient}
+                    />
+                  ) : null}
                   <Text
                     style={[
                       styles.segmentText,
@@ -776,6 +791,15 @@ export default function NearbyHubScreen() {
                     preferenceBusy ? styles.segmentDisabled : null,
                   ]}
                 >
+                  {genderFilter === option ? (
+                    <LinearGradient
+                      pointerEvents="none"
+                      colors={["rgba(255, 78, 138, 0.92)", "rgba(255, 122, 60, 0.78)"]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.segmentActiveGradient}
+                    />
+                  ) : null}
                   <Text
                     style={[
                       styles.segmentText,
@@ -809,6 +833,15 @@ export default function NearbyHubScreen() {
                     preferenceBusy ? styles.segmentDisabled : null,
                   ]}
                 >
+                  {ageFilter === option.id ? (
+                    <LinearGradient
+                      pointerEvents="none"
+                      colors={["rgba(255, 78, 138, 0.92)", "rgba(255, 122, 60, 0.78)"]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.segmentActiveGradient}
+                    />
+                  ) : null}
                   <Text
                     style={[
                       styles.segmentText,
@@ -843,17 +876,28 @@ export default function NearbyHubScreen() {
                 refreshDisabled ? styles.buttonDisabled : null,
               ]}
             >
+              <LinearGradient
+                pointerEvents="none"
+                colors={
+                  refreshDisabled
+                    ? ["rgba(255,255,255,0.10)", "rgba(255,255,255,0.06)"]
+                    : ["rgba(255, 78, 138, 0.96)", "rgba(255, 122, 60, 0.88)"]
+                }
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.refreshButtonGradient}
+              />
               {feedLoading ? (
-                <ActivityIndicator color="#24150B" size="small" />
+                <ActivityIndicator color="#FFFFFF" size="small" />
               ) : (
-                <Ionicons name="refresh-outline" size={16} color="#24150B" />
+                <Ionicons name="refresh-outline" size={16} color="#FFFFFF" />
               )}
               <Text style={styles.refreshButtonText}>
                 {copyOrFallback(t, "nearby.refreshAction", "Обновить")}
               </Text>
             </Pressable>
           ) : null}
-        </View>
+        </LinearGradient>
 
         {missingSafetyFields.length ? (
           <View style={styles.completionPanel}>
@@ -1207,7 +1251,12 @@ function NearbyPulseBlock({
   ];
 
   return (
-    <View style={styles.pulseBlock}>
+    <LinearGradient
+      colors={["rgba(255,255,255,0.16)", "rgba(255, 78, 138, 0.08)", "rgba(255,255,255,0.055)"]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.pulseBlock}
+    >
       <View style={styles.pulseHeaderRow}>
         <Text style={styles.pulseTitle}>{t("nearby.pulseTitle")}</Text>
         {loading && !summary ? (
@@ -1226,7 +1275,7 @@ function NearbyPulseBlock({
           </View>
         ))}
       </View>
-    </View>
+    </LinearGradient>
   );
 }
 
@@ -1257,46 +1306,57 @@ function NearbyProfileCard({
   const metaTextWidth = Math.round(circleSize * 0.56);
 
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={item.displayName}
-      onPress={onOpen}
-      style={({ pressed }) => [
-        styles.card,
+    <View
+      style={[
+        styles.cardGlow,
         {
           width: circleSize,
           height: circleSize,
           borderRadius: circleSize / 2,
         },
-        pressed ? styles.cardPressed : null,
       ]}
     >
-      <NearbyCardMedia item={item} />
-      <View style={styles.cardPhotoTint} pointerEvents="none" />
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={item.displayName}
+        onPress={onOpen}
+        style={({ pressed }) => [
+          styles.card,
+          {
+            width: circleSize,
+            height: circleSize,
+            borderRadius: circleSize / 2,
+          },
+          pressed ? styles.cardPressed : null,
+        ]}
+      >
+        <NearbyCardMedia item={item} />
+        <View style={styles.cardPhotoTint} pointerEvents="none" />
 
-      <View style={styles.cardTextOverlay} pointerEvents="none">
-        <Text
-          style={[styles.cardName, { width: nameTextWidth }]}
-          numberOfLines={1}
-          ellipsizeMode="tail"
-          maxFontSizeMultiplier={1}
-        >
-          {item.displayName}
-        </Text>
-        {ageGroupLabel ? (
+        <View style={styles.cardTextOverlay} pointerEvents="none">
           <Text
-            style={[styles.cardMeta, { width: metaTextWidth }]}
+            style={[styles.cardName, { width: nameTextWidth }]}
             numberOfLines={1}
             ellipsizeMode="tail"
-            adjustsFontSizeToFit
-            minimumFontScale={0.82}
             maxFontSizeMultiplier={1}
           >
-            {ageGroupLabel}
+            {item.displayName}
           </Text>
-        ) : null}
-      </View>
-    </Pressable>
+          {ageGroupLabel ? (
+            <Text
+              style={[styles.cardMeta, { width: metaTextWidth }]}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+              adjustsFontSizeToFit
+              minimumFontScale={0.82}
+              maxFontSizeMultiplier={1}
+            >
+              {ageGroupLabel}
+            </Text>
+          ) : null}
+        </View>
+      </Pressable>
+    </View>
   );
 }
 
@@ -1487,14 +1547,20 @@ const styles = StyleSheet.create({
   },
   pulseBlock: {
     borderRadius: 16,
-    padding: 12,
-    gap: 10,
-    backgroundColor: "rgba(13, 18, 27, 0.88)",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 8,
+    backgroundColor: "rgba(255,255,255,0.08)",
     borderWidth: 1,
-    borderColor: "rgba(243, 201, 139, 0.22)",
+    borderColor: "rgba(255,255,255,0.18)",
+    shadowColor: "#FF4E8A",
+    shadowOpacity: 0.16,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 3,
   },
   pulseHeaderRow: {
-    minHeight: 22,
+    minHeight: 20,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -1502,46 +1568,51 @@ const styles = StyleSheet.create({
   },
   pulseTitle: {
     color: theme.colors.text,
-    fontSize: 15,
-    lineHeight: 20,
+    fontSize: 14,
+    lineHeight: 18,
     fontWeight: "900",
   },
   pulseMetricRow: {
     flexDirection: "row",
-    gap: 8,
+    gap: 6,
   },
   pulseMetric: {
     flex: 1,
     minWidth: 0,
-    minHeight: 58,
+    minHeight: 48,
     justifyContent: "center",
-    borderRadius: 10,
+    borderRadius: 9,
     paddingHorizontal: 8,
-    paddingVertical: 8,
-    backgroundColor: "rgba(255,255,255,0.06)",
+    paddingVertical: 6,
+    backgroundColor: "rgba(255,255,255,0.075)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
+    borderColor: "rgba(255,255,255,0.12)",
   },
   pulseMetricValue: {
     color: theme.colors.text,
-    fontSize: 20,
-    lineHeight: 24,
+    fontSize: 18,
+    lineHeight: 22,
     fontWeight: "900",
   },
   pulseMetricLabel: {
-    marginTop: 3,
-    color: "#BAC1D3",
-    fontSize: 11,
-    lineHeight: 14,
+    marginTop: 1,
+    color: "#DDE3F6",
+    fontSize: 10,
+    lineHeight: 13,
     fontWeight: "800",
   },
   controlPanel: {
     borderRadius: 16,
     padding: 12,
     gap: 12,
-    backgroundColor: "rgba(10, 16, 24, 0.86)",
+    backgroundColor: "rgba(255,255,255,0.08)",
     borderWidth: 1,
-    borderColor: "rgba(245, 205, 139, 0.24)",
+    borderColor: "rgba(255,255,255,0.16)",
+    shadowColor: "#FF7A3C",
+    shadowOpacity: 0.12,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 3,
   },
   completionPanel: {
     flexDirection: "row",
@@ -1622,29 +1693,43 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   segment: {
+    position: "relative",
+    overflow: "hidden",
     minHeight: 32,
     justifyContent: "center",
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    backgroundColor: "rgba(255,255,255,0.07)",
+    backgroundColor: "rgba(255,255,255,0.085)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
+    borderColor: "rgba(255,255,255,0.14)",
   },
   segmentActive: {
-    backgroundColor: "rgba(185, 130, 114, 0.24)",
-    borderColor: "rgba(245, 205, 139, 0.42)",
+    backgroundColor: "rgba(255, 122, 60, 0.32)",
+    borderColor: "rgba(255, 214, 170, 0.58)",
+    shadowColor: "#FF4E8A",
+    shadowOpacity: 0.22,
+    shadowRadius: 9,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
+  },
+  segmentActiveGradient: {
+    ...StyleSheet.absoluteFillObject,
   },
   segmentDisabled: {
     opacity: 0.55,
   },
   segmentText: {
+    zIndex: 1,
     color: "#D9DEEC",
     fontSize: 12,
     fontWeight: "700",
   },
   segmentTextActive: {
-    color: "#F3C98B",
+    color: "#FFFFFF",
+    textShadowColor: "rgba(80, 18, 28, 0.32)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   summaryRow: {
     flexDirection: "row",
@@ -1662,6 +1747,8 @@ const styles = StyleSheet.create({
     lineHeight: 17,
   },
   refreshButton: {
+    position: "relative",
+    overflow: "hidden",
     minHeight: 40,
     flexDirection: "row",
     alignItems: "center",
@@ -1669,12 +1756,26 @@ const styles = StyleSheet.create({
     gap: 8,
     borderRadius: 12,
     paddingHorizontal: 14,
-    backgroundColor: "#F3C98B",
+    backgroundColor: theme.colors.primary,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.20)",
+    shadowColor: "#FF4E8A",
+    shadowOpacity: 0.28,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 7 },
+    elevation: 4,
+  },
+  refreshButtonGradient: {
+    ...StyleSheet.absoluteFillObject,
   },
   refreshButtonText: {
-    color: "#24150B",
+    zIndex: 1,
+    color: "#FFFFFF",
     fontSize: 13,
     fontWeight: "900",
+    textShadowColor: "rgba(80, 18, 28, 0.28)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   errorPanel: {
     flexDirection: "row",
@@ -1706,12 +1807,22 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "900",
   },
+  cardGlow: {
+    shadowColor: "#FF4E8A",
+    shadowOpacity: 0.22,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
+    backgroundColor: "rgba(255, 78, 138, 0.10)",
+  },
   card: {
     minWidth: 0,
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
     backgroundColor: "rgba(243, 201, 139, 0.13)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 214, 170, 0.46)",
   },
   cardPressed: {
     opacity: 0.86,
