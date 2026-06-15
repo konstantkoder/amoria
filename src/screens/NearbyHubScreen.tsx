@@ -5,7 +5,6 @@ import {
   FlatList,
   Image,
   Pressable,
-  ScrollView,
   StyleSheet,
   Switch,
   Text,
@@ -26,7 +25,6 @@ import type {
   AgeGroup,
   NearbyProfileFeedItemDto,
   NearbyProfileStatusKind,
-  NearbySummaryFeatureDto,
   NearbySummaryResponse,
   NearbyProfileVisibilityDto,
 } from "@/services/api/types";
@@ -698,7 +696,7 @@ export default function NearbyHubScreen() {
           </Text>
         </View>
 
-        <NearbySummaryStrip summary={summary} loading={summaryLoading} t={t} />
+        <NearbyPulseBlock summary={summary} loading={summaryLoading} t={t} />
 
         <View style={styles.controlPanel}>
           <View style={styles.toggleRow}>
@@ -1181,7 +1179,7 @@ export default function NearbyHubScreen() {
   );
 }
 
-function NearbySummaryStrip({
+function NearbyPulseBlock({
   summary,
   loading,
   t,
@@ -1192,85 +1190,55 @@ function NearbySummaryStrip({
 }) {
   const metrics = [
     {
-      key: "active",
-      label: copyOrFallback(t, "nearby.summaryActive", "Сейчас рядом"),
-      value: summary ? String(summary.activeNearbyCount) : null,
-      disabled: false,
+      key: "people",
+      label: t("nearby.pulsePeople"),
+      value: summary?.totalUsersCount,
     },
     {
-      key: "today",
-      label: copyOrFallback(t, "nearby.summaryToday", "Сегодня"),
-      value: summary ? String(summary.nearbyTodayCount) : null,
-      disabled: false,
+      key: "online",
+      label: t("nearby.pulseOnline"),
+      value: summary?.onlineNowCount,
     },
     {
-      key: "interestChats",
-      label: copyOrFallback(t, "nearby.summaryInterestChats", "Чаты по интересам"),
-      value: summary
-        ? getNearbySummaryFeatureValue(summary.interestChats, t)
-        : null,
-      disabled: !summary?.interestChats.available,
-    },
-    {
-      key: "activities",
-      label: copyOrFallback(t, "nearby.summaryActivities", "Активности"),
-      value: summary
-        ? getNearbySummaryFeatureValue(summary.activitiesNearby, t)
-        : null,
-      disabled: !summary?.activitiesNearby.available,
+      key: "nearby",
+      label: t("nearby.pulseNearby"),
+      value: summary?.activeNearbyCount,
     },
   ];
 
   return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      style={styles.summaryStrip}
-      contentContainerStyle={styles.summaryStripContent}
-    >
-      {metrics.map((metric) => (
-        <View
-          key={metric.key}
-          style={[
-            styles.summaryMetric,
-            metric.disabled ? styles.summaryMetricDisabled : null,
-          ]}
-        >
-          <Text style={styles.summaryMetricLabel} numberOfLines={1} ellipsizeMode="tail">
-            {metric.label}
-          </Text>
-          {loading && !summary ? (
-            <View style={styles.summaryMetricLoader}>
-              <ActivityIndicator size="small" color="#F3C98B" />
-            </View>
-          ) : (
-            <Text
-              style={[
-                styles.summaryMetricValue,
-                metric.disabled ? styles.summaryMetricValueDisabled : null,
-              ]}
-              numberOfLines={1}
-              ellipsizeMode="tail"
-              maxFontSizeMultiplier={1}
-            >
-              {metric.value ?? copyOrFallback(t, "nearby.summaryUnavailable", "—")}
+    <View style={styles.pulseBlock}>
+      <View style={styles.pulseHeaderRow}>
+        <Text style={styles.pulseTitle}>{t("nearby.pulseTitle")}</Text>
+        {loading && !summary ? (
+          <ActivityIndicator size="small" color="#F3C98B" />
+        ) : null}
+      </View>
+      <View style={styles.pulseMetricRow}>
+        {metrics.map((metric) => (
+          <View key={metric.key} style={styles.pulseMetric}>
+            <Text style={styles.pulseMetricValue} numberOfLines={1} maxFontSizeMultiplier={1}>
+              {formatPulseCount(metric.value, t)}
             </Text>
-          )}
-        </View>
-      ))}
-    </ScrollView>
+            <Text style={styles.pulseMetricLabel} numberOfLines={1} ellipsizeMode="tail">
+              {metric.label}
+            </Text>
+          </View>
+        ))}
+      </View>
+    </View>
   );
 }
 
-function getNearbySummaryFeatureValue(
-  feature: NearbySummaryFeatureDto,
+function formatPulseCount(
+  value: number | null | undefined,
   t: (key: string, params?: Record<string, string>) => string
 ) {
-  if (feature.available && typeof feature.count === "number") {
-    return String(feature.count);
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(Math.max(0, Math.floor(value)));
   }
 
-  return copyOrFallback(t, "nearby.summarySoon", "скоро");
+  return t("nearby.summaryUnavailable");
 }
 
 function NearbyProfileCard({
@@ -1517,51 +1485,55 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
   },
-  summaryStrip: {
-    marginTop: -2,
-  },
-  summaryStripContent: {
-    gap: 6,
-    paddingHorizontal: 4,
-    paddingRight: 10,
-  },
-  summaryMetric: {
-    width: 112,
-    minHeight: 48,
-    justifyContent: "center",
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    backgroundColor: "rgba(10, 16, 24, 0.66)",
+  pulseBlock: {
+    borderRadius: 16,
+    padding: 12,
+    gap: 10,
+    backgroundColor: "rgba(13, 18, 27, 0.88)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
+    borderColor: "rgba(243, 201, 139, 0.22)",
   },
-  summaryMetricDisabled: {
-    opacity: 0.72,
+  pulseHeaderRow: {
+    minHeight: 22,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
   },
-  summaryMetricLabel: {
-    color: "#BAC1D3",
-    fontSize: 10,
-    lineHeight: 12,
-    fontWeight: "800",
-    textTransform: "uppercase",
-  },
-  summaryMetricValue: {
-    marginTop: 2,
+  pulseTitle: {
     color: theme.colors.text,
-    fontSize: 16,
-    lineHeight: 19,
+    fontSize: 15,
+    lineHeight: 20,
     fontWeight: "900",
   },
-  summaryMetricValueDisabled: {
-    color: "#D8DCE9",
-    fontSize: 13,
-    lineHeight: 17,
+  pulseMetricRow: {
+    flexDirection: "row",
+    gap: 8,
   },
-  summaryMetricLoader: {
-    height: 21,
-    alignItems: "flex-start",
+  pulseMetric: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: 58,
     justifyContent: "center",
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  pulseMetricValue: {
+    color: theme.colors.text,
+    fontSize: 20,
+    lineHeight: 24,
+    fontWeight: "900",
+  },
+  pulseMetricLabel: {
+    marginTop: 3,
+    color: "#BAC1D3",
+    fontSize: 11,
+    lineHeight: 14,
+    fontWeight: "800",
   },
   controlPanel: {
     borderRadius: 16,
