@@ -93,7 +93,7 @@ export type OkResponse = {
 
 type ProfileGalleryDeps = {
   repo: typeof galleryRepo;
-  usersRepo: typeof usersRepo;
+  usersRepo: Pick<typeof usersRepo, "findUserById" | "updateUserProfile">;
   findMediaFileById: typeof findMediaFileById;
   findMediaFileByOwner: typeof findMediaFileByOwner;
   deleteMediaFileByOwner: typeof deleteMediaFileByOwner;

@@ -453,5 +453,6 @@ function userRow(input: Partial<UserRow>): UserRow {
     createdAt: now,
     updatedAt: now,
     ...input,
+    lastSeenAt: input.lastSeenAt ?? null,
   };
 }

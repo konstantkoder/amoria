@@ -625,7 +625,7 @@ function mockGallery(input: {
 
   restoreDeps = galleryService.__setProfileGalleryServiceDepsForTests({
     repo: repo as GalleryRepo,
-    usersRepo: usersRepo as UsersRepo,
+    usersRepo,
     hashPassword: async (password: string) => `hash:${password}`,
     verifyPassword: async (password: string, passwordHash: string) => passwordHash === `hash:${password}`,
     isBlockedEitherWay: async () => input.blocked === true,
@@ -765,5 +765,6 @@ function userRow(userId: string, overrides: Partial<UserRow> = {}): UserRow {
     createdAt: now,
     updatedAt: now,
     ...overrides,
+    lastSeenAt: overrides.lastSeenAt ?? null,
   };
 }

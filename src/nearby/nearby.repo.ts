@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gt, gte, isNull, ne, sql } from "drizzle-orm";
+import { and, count, desc, eq, gt, isNull, ne, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { PROFILE_GENDERS } from "../config/constants";
 import { db } from "../db/client";
@@ -97,9 +97,12 @@ export type NearbyAdminDiagnostics = {
 };
 
 export type NearbySummaryCounts = {
+  totalUsersCount: number;
+  onlineNowCount: number;
   activeNearbyCount: number;
-  nearbyTodayCount: number;
 };
+
+const ONLINE_NOW_WINDOW_MS = 5 * 60 * 1000;
 
 export async function createNearbyStatus(input: NewNearbyStatusRow): Promise<NearbyStatusRow> {
   const [created] = await db.insert(nearbyStatuses).values(input).returning();
@@ -141,9 +144,14 @@ export async function upsertNearbyProfileVisibility(
 export async function getNearbySummaryCounts(
   checkedAt = new Date(),
 ): Promise<NearbySummaryCounts> {
-  const todaySince = new Date(checkedAt.getTime() - 24 * 60 * 60 * 1000);
+  const onlineSince = new Date(checkedAt.getTime() - ONLINE_NOW_WINDOW_MS);
 
-  const [activeRows, todayRows] = await Promise.all([
+  const [totalRows, onlineRows, activeRows] = await Promise.all([
+    db.select({ value: count() }).from(users),
+    db
+      .select({ value: count() })
+      .from(users)
+      .where(gt(users.lastSeenAt, onlineSince)),
     db
       .select({ value: count() })
       .from(nearbyProfileVisibility)
@@ -153,15 +161,12 @@ export async function getNearbySummaryCounts(
           gt(nearbyProfileVisibility.expiresAt, checkedAt),
         ),
       ),
-    db
-      .select({ value: count() })
-      .from(nearbyProfileVisibility)
-      .where(gte(nearbyProfileVisibility.updatedAt, todaySince)),
   ]);
 
   return {
+    totalUsersCount: Number(totalRows[0]?.value ?? 0),
+    onlineNowCount: Number(onlineRows[0]?.value ?? 0),
     activeNearbyCount: Number(activeRows[0]?.value ?? 0),
-    nearbyTodayCount: Number(todayRows[0]?.value ?? 0),
   };
 }
 

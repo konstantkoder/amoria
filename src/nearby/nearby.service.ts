@@ -148,16 +148,9 @@ export async function getNearbySummary(_userId: string): Promise<NearbySummaryRe
   const counts = await deps.repo.getNearbySummaryCounts(checkedAt);
 
   return {
+    totalUsersCount: counts.totalUsersCount,
+    onlineNowCount: counts.onlineNowCount,
     activeNearbyCount: counts.activeNearbyCount,
-    nearbyTodayCount: counts.nearbyTodayCount,
-    interestChats: {
-      available: false,
-      count: null,
-    },
-    activitiesNearby: {
-      available: false,
-      count: null,
-    },
     checkedAt: checkedAt.toISOString(),
   };
 }

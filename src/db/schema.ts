@@ -37,9 +37,11 @@ export const users = pgTable("users", {
   birthDate: date("birth_date", { mode: "string" }),
   preferredAgeMin: integer("preferred_age_min").default(18).notNull(),
   preferredAgeMax: integer("preferred_age_max"),
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
+  index("users_last_seen_at_idx").on(table.lastSeenAt),
   check(
     "users_preferred_age_min_check",
     sql`${table.preferredAgeMin} >= 18 AND ${table.preferredAgeMin} <= 120`,

@@ -141,6 +141,13 @@
       "when": 1780484463314,
       "tag": "0019_thin_violations",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1781522978875,
+      "tag": "0020_magical_black_cat",
+      "breakpoints": true
     }
   ]
 }

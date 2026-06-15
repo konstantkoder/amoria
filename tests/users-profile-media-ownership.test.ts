@@ -192,6 +192,7 @@ function userRow(overrides: Partial<UserRow>): UserRow {
     createdAt: now,
     updatedAt: now,
     ...overrides,
+    lastSeenAt: overrides.lastSeenAt ?? null,
   };
 }
 

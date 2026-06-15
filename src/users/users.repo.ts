@@ -1,6 +1,8 @@
-import { eq } from "drizzle-orm";
+import { and, eq, isNull, lt, or } from "drizzle-orm";
 import { db } from "../db/client";
 import { type UserRow, users } from "../db/schema";
+
+const USER_LAST_SEEN_WRITE_THROTTLE_MS = 60 * 1000;
 
 export async function findUserById(userId: string): Promise<UserRow | undefined> {
   return db.query.users.findFirst({
@@ -45,6 +47,20 @@ export async function updateUserProfile(
     .returning();
 
   return updated;
+}
+
+export async function touchUserLastSeenAt(userId: string, seenAt = new Date()): Promise<void> {
+  const staleBefore = new Date(seenAt.getTime() - USER_LAST_SEEN_WRITE_THROTTLE_MS);
+
+  await db
+    .update(users)
+    .set({ lastSeenAt: seenAt })
+    .where(
+      and(
+        eq(users.id, userId),
+        or(isNull(users.lastSeenAt), lt(users.lastSeenAt, staleBefore)),
+      ),
+    );
 }
 
 export async function updateUserAvatar(userId: string, avatarUrl: string): Promise<UserRow | undefined> {

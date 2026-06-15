@@ -165,16 +165,6 @@ const nearbyProfileVisibilitySchema = {
   },
 } as const;
 
-const nearbySummaryFeatureSchema = {
-  type: "object",
-  required: ["available", "count"],
-  additionalProperties: false,
-  properties: {
-    available: { type: "boolean" },
-    count: { type: ["integer", "null"], minimum: 0 },
-  },
-} as const;
-
 const nearbyProfilePhotoPreviewSchema = {
   type: "object",
   required: ["mediaId", "url"],
@@ -313,18 +303,16 @@ export const getNearbySummaryRouteSchema = {
     200: {
       type: "object",
       required: [
+        "totalUsersCount",
+        "onlineNowCount",
         "activeNearbyCount",
-        "nearbyTodayCount",
-        "interestChats",
-        "activitiesNearby",
         "checkedAt",
       ],
       additionalProperties: false,
       properties: {
+        totalUsersCount: { type: "integer", minimum: 0 },
+        onlineNowCount: { type: "integer", minimum: 0 },
         activeNearbyCount: { type: "integer", minimum: 0 },
-        nearbyTodayCount: { type: "integer", minimum: 0 },
-        interestChats: nearbySummaryFeatureSchema,
-        activitiesNearby: nearbySummaryFeatureSchema,
         checkedAt: { type: "string", format: "date-time" },
       },
     },

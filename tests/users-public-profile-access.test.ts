@@ -308,7 +308,7 @@ function mockUsers(input: {
   } satisfies Partial<UsersRepo>;
 
   restoreDeps = usersService.__setUsersServiceDepsForTests({
-    repo: repo as UsersRepo,
+    repo,
     findOwnedMediaFileByUrl: async (userId, avatarUrl) => {
       if (userId === userBId && avatarUrl === userBStoredAvatarUrl) {
         return mediaRow({
@@ -375,6 +375,7 @@ function userRow(overrides: Partial<UserRow>): UserRow {
     createdAt: now,
     updatedAt: now,
     ...overrides,
+    lastSeenAt: overrides.lastSeenAt ?? null,
   };
 }
 

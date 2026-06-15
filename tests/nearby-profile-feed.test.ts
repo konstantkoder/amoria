@@ -203,16 +203,9 @@ test("Nearby summary returns safe aggregate counters only", async (t) => {
 
   assert.equal(response.statusCode, 200);
   assert.deepEqual(response.json(), {
+    totalUsersCount: 1,
+    onlineNowCount: 1,
     activeNearbyCount: 3,
-    nearbyTodayCount: 4,
-    interestChats: {
-      available: false,
-      count: null,
-    },
-    activitiesNearby: {
-      available: false,
-      count: null,
-    },
     checkedAt: now.toISOString(),
   });
   assertNoPrivateNearbyFields(response.json());
@@ -359,9 +352,14 @@ function mockNearby(input: {
       deleteOwnedNearbyStatus: async () => false,
       findNearbyProfileVisibility: async (userId) => visibilities.get(userId),
       getNearbySummaryCounts: async (checkedAt = now) => {
-        const todaySince = new Date(checkedAt.getTime() - 24 * 60 * 60 * 1000);
+        const onlineSince = new Date(checkedAt.getTime() - 5 * 60 * 1000);
         let activeNearbyCount = 0;
-        let nearbyTodayCount = 0;
+        let onlineNowCount = 0;
+        for (const user of users.values()) {
+          if (user.lastSeenAt && user.lastSeenAt > onlineSince) {
+            onlineNowCount += 1;
+          }
+        }
         for (const visibility of visibilities.values()) {
           if (
             visibility.status === "active" &&
@@ -370,11 +368,8 @@ function mockNearby(input: {
           ) {
             activeNearbyCount += 1;
           }
-          if (visibility.updatedAt >= todaySince) {
-            nearbyTodayCount += 1;
-          }
         }
-        return { activeNearbyCount, nearbyTodayCount };
+        return { totalUsersCount: users.size, onlineNowCount, activeNearbyCount };
       },
       listNearbyFeedRows: async () => [] as NearbyFeedRow[],
       upsertNearbyProfileVisibility: async (visibilityInput: NewNearbyProfileVisibilityRow) => {
@@ -471,6 +466,7 @@ function userRow(userId: string, overrides: Partial<UserRow> = {}): UserRow {
     createdAt: now,
     updatedAt: now,
     ...overrides,
+    lastSeenAt: overrides.lastSeenAt ?? now,
   };
 }
 

@@ -122,7 +122,10 @@ type UserProfileUpdate = Partial<Pick<
 const avatarMediaTypes = new Set(["avatar", "profile_avatar"]);
 
 type UsersServiceDeps = {
-  repo: typeof usersRepo;
+  repo: Pick<
+    typeof usersRepo,
+    "findUserById" | "findUserByAmoriaId" | "updateUserProfile"
+  >;
   findOwnedMediaFileByUrl: typeof findOwnedMediaFileByUrl;
   findOwnedMediaFilesByIds: typeof findOwnedMediaFilesByIds;
   headObject: typeof headObject;

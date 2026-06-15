@@ -93,16 +93,10 @@ export type NearbyMeResponse = {
   visibility: NearbyProfileVisibilityDto;
 };
 
-export type NearbySummaryFeatureDto = {
-  available: boolean;
-  count: number | null;
-};
-
 export type NearbySummaryResponse = {
+  totalUsersCount: number;
+  onlineNowCount: number;
   activeNearbyCount: number;
-  nearbyTodayCount: number;
-  interestChats: NearbySummaryFeatureDto;
-  activitiesNearby: NearbySummaryFeatureDto;
   checkedAt: string;
 };
 
