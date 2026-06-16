@@ -58,8 +58,8 @@ const RADIUS_OPTIONS = [5, 25, 100, 250] as const;
 const FEED_LIMIT = 30;
 const DEFAULT_RADIUS_KM = 25;
 const DEFAULT_STATUS_KIND: NearbyProfileStatusKind = "open_to_suggestions";
-const NEARBY_CIRCLE_MIN_SIZE = 104;
-const NEARBY_CIRCLE_MAX_SIZE = 124;
+const NEARBY_CIRCLE_MIN_SIZE = 96;
+const NEARBY_CIRCLE_MAX_SIZE = 112;
 const NORMAL_GRID_MIN_WIDTH = 360;
 const NARROW_GRID_MIN_WIDTH = 300;
 
@@ -283,9 +283,9 @@ export default function NearbyHubScreen() {
     const slotPadding = columns * 4;
     const columnWidth = (width - listPadding - slotPadding) / columns;
     const maxSize =
-      columns === 3 ? NEARBY_CIRCLE_MAX_SIZE : columns === 2 ? 132 : 148;
+      columns === 3 ? NEARBY_CIRCLE_MAX_SIZE : columns === 2 ? 128 : 148;
     const minSize =
-      columns === 3 ? NEARBY_CIRCLE_MIN_SIZE : columns === 2 ? 112 : 124;
+      columns === 3 ? NEARBY_CIRCLE_MIN_SIZE : columns === 2 ? 112 : 128;
     return Math.round(Math.min(maxSize, Math.max(minSize, columnWidth - 4)));
   }, [columns, width]);
   const refreshDisabled = feedLoading || toggleBusy || preferenceBusy;
@@ -700,7 +700,7 @@ export default function NearbyHubScreen() {
         <NearbyStatsCards summary={summary} loading={summaryLoading} t={t} />
 
         <LinearGradient
-          colors={["rgba(20, 18, 42, 0.92)", "rgba(12, 16, 35, 0.88)", "rgba(28, 16, 48, 0.82)"]}
+          colors={["rgba(4, 8, 20, 0.78)", "rgba(4, 8, 20, 0.78)"]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.controlPanel}
@@ -754,7 +754,7 @@ export default function NearbyHubScreen() {
                   {radiusKm === option ? (
                     <LinearGradient
                       pointerEvents="none"
-                      colors={["#FF8A45", "#FF4F8B", "#C83DFF"]}
+                      colors={["#FF8848", "#E8428A", "#A01878"]}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 1 }}
                       style={styles.segmentActiveGradient}
@@ -794,7 +794,7 @@ export default function NearbyHubScreen() {
                   {genderFilter === option ? (
                     <LinearGradient
                       pointerEvents="none"
-                      colors={["#FF8A45", "#FF4F8B", "#C83DFF"]}
+                      colors={["#FF8848", "#E8428A", "#A01878"]}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 1 }}
                       style={styles.segmentActiveGradient}
@@ -836,7 +836,7 @@ export default function NearbyHubScreen() {
                   {ageFilter === option.id ? (
                     <LinearGradient
                       pointerEvents="none"
-                      colors={["#FF8A45", "#FF4F8B", "#C83DFF"]}
+                      colors={["#FF8848", "#E8428A", "#A01878"]}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 1 }}
                       style={styles.segmentActiveGradient}
@@ -856,7 +856,7 @@ export default function NearbyHubScreen() {
           </View>
 
           <View style={styles.summaryRow}>
-            <Ionicons name="filter-outline" size={16} color="#FF8A57" />
+            <Ionicons name="filter-outline" size={16} color="#F3C98B" />
             <Text style={styles.summaryText}>
               {copyOrFallback(
                 t,
@@ -878,11 +878,7 @@ export default function NearbyHubScreen() {
             >
               <LinearGradient
                 pointerEvents="none"
-                colors={
-                  refreshDisabled
-                    ? ["rgba(255,255,255,0.12)", "rgba(255,255,255,0.07)"]
-                    : ["#C83DFF", "#FF4F8B", "#FF8A45"]
-                }
+                colors={["#A01878", "#E8428A", "#FF8848"]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.refreshButtonGradient}
@@ -890,7 +886,7 @@ export default function NearbyHubScreen() {
               {feedLoading ? (
                 <ActivityIndicator color="#FFFFFF" size="small" />
               ) : (
-                <Ionicons name="refresh-outline" size={17} color="#FFFFFF" />
+                <Ionicons name="refresh-outline" size={20} color="#FFFFFF" />
               )}
               <Text style={styles.refreshButtonText}>
                 {copyOrFallback(t, "nearby.refreshAction", "Обновить")}
@@ -1263,16 +1259,16 @@ function NearbyStatsCards({
       {metrics.map((metric) => (
         <LinearGradient
           key={metric.key}
-          colors={["rgba(28, 27, 55, 0.86)", "rgba(10, 15, 33, 0.82)"]}
+          colors={["rgba(13, 25, 52, 0.58)", "rgba(13, 25, 52, 0.58)"]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.statCard}
         >
           <View style={styles.statIconFrame}>
             {loading && !summary ? (
-              <ActivityIndicator size="small" color="#FF8A57" />
+              <ActivityIndicator size="small" color="#F3C98B" />
             ) : (
-              <Ionicons name={metric.icon} size={17} color="#FFD8E7" />
+              <Ionicons name={metric.icon} size={20} color="#F3C98B" />
             )}
           </View>
           <View style={styles.statCopy}>
@@ -1312,7 +1308,7 @@ function NearbyProfileCard({
   t: (key: string, params?: Record<string, string>) => string;
 }) {
   const ageGroupLabel = item.ageGroup ? getAgeFilterLabel(item.ageGroup, t) : "";
-  const innerSize = circleSize - 6;
+  const innerSize = circleSize - 4;
   const nameTextWidth = Math.round(innerSize * 0.78);
   const metaTextWidth = Math.round(innerSize * 0.58);
   const hasStatus = Boolean(item.statusKind);
@@ -1354,14 +1350,13 @@ function NearbyProfileCard({
           style={styles.cardPhotoVignette}
         />
 
-        <View style={styles.cardStatusDotFrame} pointerEvents="none">
-          <View
-            style={[
-              styles.cardStatusDot,
-              hasStatus ? styles.cardStatusDotActive : styles.cardStatusDotMuted,
-            ]}
-          />
-        </View>
+        <View
+          style={[
+            styles.cardStatusDot,
+            hasStatus ? styles.cardStatusDotActive : styles.cardStatusDotMuted,
+          ]}
+          pointerEvents="none"
+        />
 
         <View style={styles.cardTextOverlay} pointerEvents="none">
           <Text
@@ -1577,66 +1572,70 @@ const styles = StyleSheet.create({
   },
   statsGrid: {
     flexDirection: "row",
-    gap: 7,
+    gap: 10,
   },
   statCard: {
     flex: 1,
     minWidth: 0,
-    minHeight: 72,
-    borderRadius: 15,
-    paddingHorizontal: 9,
-    paddingVertical: 10,
-    backgroundColor: "rgba(10, 15, 33, 0.82)",
+    height: 82,
+    minHeight: 82,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    backgroundColor: "rgba(13, 25, 52, 0.58)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.13)",
-    shadowColor: "#000000",
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
+    borderColor: "rgba(137, 181, 226, 0.24)",
+    shadowColor: "#000",
+    shadowOpacity: 0.30,
+    shadowRadius: 20,
     shadowOffset: { width: 0, height: 7 },
-    elevation: 3,
+    elevation: 8,
   },
   statIconFrame: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 44,
+    height: 44,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.075)",
-    borderWidth: 1,
-    borderColor: "rgba(255, 117, 160, 0.20)",
+    backgroundColor: "rgba(255,255,255,0.06)",
   },
   statCopy: {
-    marginTop: 7,
+    flex: 1,
+    minWidth: 0,
+    marginTop: 0,
     gap: 1,
   },
   statLabel: {
     color: "#C9CEE1",
-    fontSize: 10,
-    lineHeight: 12,
+    fontSize: 12,
+    lineHeight: 14,
     fontWeight: "800",
-    textTransform: "uppercase",
   },
   statValue: {
     color: "#FFFFFF",
-    fontSize: 22,
-    lineHeight: 26,
+    fontSize: 26,
+    lineHeight: 30,
     fontWeight: "900",
     textShadowColor: "rgba(255, 79, 139, 0.22)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 5,
   },
   controlPanel: {
-    borderRadius: 20,
-    padding: 14,
+    marginTop: 20,
+    borderRadius: 26,
+    padding: 20,
     gap: 13,
-    backgroundColor: "rgba(10, 14, 34, 0.88)",
+    backgroundColor: "rgba(4, 8, 20, 0.78)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
-    shadowColor: "#000000",
-    shadowOpacity: 0.46,
-    shadowRadius: 18,
+    borderColor: "rgba(255,255,255,0.18)",
+    shadowColor: "#000",
+    shadowOpacity: 0.30,
+    shadowRadius: 22,
     shadowOffset: { width: 0, height: 12 },
-    elevation: 4,
+    elevation: 10,
   },
   completionPanel: {
     flexDirection: "row",
@@ -1693,9 +1692,9 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   sectionTitle: {
-    color: theme.colors.text,
-    fontSize: 15,
-    fontWeight: "900",
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "800",
   },
   privacyNote: {
     color: "#AEB6CE",
@@ -1703,12 +1702,12 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   filterGroup: {
-    gap: 8,
+    gap: 12,
   },
   filterLabel: {
-    color: "#FFB2C9",
-    fontSize: 12,
-    fontWeight: "900",
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "800",
     textTransform: "uppercase",
   },
   segmentRow: {
@@ -1719,20 +1718,21 @@ const styles = StyleSheet.create({
   segment: {
     position: "relative",
     overflow: "hidden",
-    minHeight: 32,
+    height: 46,
+    minHeight: 46,
     justifyContent: "center",
-    borderRadius: 999,
-    paddingHorizontal: 11,
+    borderRadius: 15,
+    paddingHorizontal: 16,
     paddingVertical: 6,
-    backgroundColor: "rgba(4, 7, 20, 0.48)",
+    backgroundColor: "rgba(18, 25, 45, 0.76)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.15)",
+    borderColor: "rgba(255,255,255,0.18)",
   },
   segmentActive: {
     backgroundColor: "rgba(255, 79, 139, 0.30)",
-    borderColor: "rgba(255, 213, 225, 0.54)",
-    shadowColor: "#FF4F8B",
-    shadowOpacity: 0.28,
+    borderColor: "rgba(255,184,104,0.75)",
+    shadowColor: "rgba(255,105,72,0.30)",
+    shadowOpacity: 1,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 5 },
     elevation: 3,
@@ -1745,12 +1745,14 @@ const styles = StyleSheet.create({
   },
   segmentText: {
     zIndex: 1,
-    color: "#C7CEDF",
-    fontSize: 12,
-    fontWeight: "800",
+    color: "rgba(226,232,255,0.84)",
+    fontSize: 15,
+    fontWeight: "700",
   },
   segmentTextActive: {
     color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "800",
     textShadowColor: "rgba(95, 20, 52, 0.34)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
@@ -1776,18 +1778,19 @@ const styles = StyleSheet.create({
     position: "relative",
     overflow: "hidden",
     alignSelf: "stretch",
-    minHeight: 48,
+    height: 58,
+    minHeight: 58,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    borderRadius: 16,
+    borderRadius: 20,
     paddingHorizontal: 14,
-    backgroundColor: "#FF4F8B",
+    backgroundColor: "#E8428A",
     borderWidth: 1,
-    borderColor: "rgba(255, 236, 244, 0.48)",
-    shadowColor: "#FF4F8B",
-    shadowOpacity: 0.42,
+    borderColor: "rgba(255,184,104,0.75)",
+    shadowColor: "rgba(255,105,72,0.34)",
+    shadowOpacity: 1,
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 9 },
     elevation: 5,
@@ -1798,8 +1801,8 @@ const styles = StyleSheet.create({
   refreshButtonText: {
     zIndex: 1,
     color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "900",
+    fontSize: 18,
+    fontWeight: "800",
     textShadowColor: "rgba(79, 18, 53, 0.35)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
@@ -1837,7 +1840,7 @@ const styles = StyleSheet.create({
   cardGlow: {
     alignItems: "center",
     justifyContent: "center",
-    padding: 3,
+    padding: 2,
     shadowColor: "#FF4F8B",
     shadowOpacity: 0.32,
     shadowRadius: 12,
@@ -1891,27 +1894,19 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0,0,0,0.14)",
   },
-  cardStatusDotFrame: {
+  cardStatusDot: {
     position: "absolute",
     top: 9,
     right: 9,
     width: 16,
     height: 16,
     borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(6, 8, 18, 0.86)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.64)",
-  },
-  cardStatusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.88)",
   },
   cardStatusDotActive: {
-    backgroundColor: "#62FFB2",
-    shadowColor: "#62FFB2",
+    backgroundColor: "#20E69A",
+    shadowColor: "#20E69A",
     shadowOpacity: 0.9,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 0 },
@@ -1929,9 +1924,9 @@ const styles = StyleSheet.create({
   cardName: {
     color: theme.colors.text,
     textAlign: "center",
-    fontSize: 13,
-    lineHeight: 16,
-    fontWeight: "900",
+    fontSize: 14,
+    lineHeight: 17,
+    fontWeight: "800",
     textShadowColor: "rgba(0,0,0,0.96)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
@@ -1939,8 +1934,8 @@ const styles = StyleSheet.create({
   cardMeta: {
     color: "#FFFFFF",
     textAlign: "center",
-    fontSize: 10,
-    lineHeight: 12,
+    fontSize: 12,
+    lineHeight: 14,
     fontWeight: "800",
     textShadowColor: "rgba(0,0,0,0.96)",
     textShadowOffset: { width: 0, height: 1 },
