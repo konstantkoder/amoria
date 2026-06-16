@@ -58,8 +58,8 @@ const RADIUS_OPTIONS = [5, 25, 100, 250] as const;
 const FEED_LIMIT = 30;
 const DEFAULT_RADIUS_KM = 25;
 const DEFAULT_STATUS_KIND: NearbyProfileStatusKind = "open_to_suggestions";
-const NEARBY_CIRCLE_MIN_SIZE = 86;
-const NEARBY_CIRCLE_MAX_SIZE = 104;
+const NEARBY_CIRCLE_MIN_SIZE = 104;
+const NEARBY_CIRCLE_MAX_SIZE = 124;
 const NORMAL_GRID_MIN_WIDTH = 360;
 const NARROW_GRID_MIN_WIDTH = 300;
 
@@ -283,10 +283,10 @@ export default function NearbyHubScreen() {
     const slotPadding = columns * 4;
     const columnWidth = (width - listPadding - slotPadding) / columns;
     const maxSize =
-      columns === 3 ? NEARBY_CIRCLE_MAX_SIZE : columns === 2 ? 116 : 132;
+      columns === 3 ? NEARBY_CIRCLE_MAX_SIZE : columns === 2 ? 132 : 148;
     const minSize =
-      columns === 3 ? NEARBY_CIRCLE_MIN_SIZE : columns === 2 ? 94 : 104;
-    return Math.round(Math.min(maxSize, Math.max(minSize, columnWidth - 8)));
+      columns === 3 ? NEARBY_CIRCLE_MIN_SIZE : columns === 2 ? 112 : 124;
+    return Math.round(Math.min(maxSize, Math.max(minSize, columnWidth - 4)));
   }, [columns, width]);
   const refreshDisabled = feedLoading || toggleBusy || preferenceBusy;
 
@@ -697,10 +697,10 @@ export default function NearbyHubScreen() {
           </Text>
         </View>
 
-        <NearbyPulseBlock summary={summary} loading={summaryLoading} t={t} />
+        <NearbyStatsCards summary={summary} loading={summaryLoading} t={t} />
 
         <LinearGradient
-          colors={["rgba(255,255,255,0.115)", "rgba(243,201,139,0.045)", "rgba(255,255,255,0.035)"]}
+          colors={["rgba(20, 18, 42, 0.92)", "rgba(12, 16, 35, 0.88)", "rgba(28, 16, 48, 0.82)"]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.controlPanel}
@@ -729,10 +729,10 @@ export default function NearbyHubScreen() {
                 value={active}
                 onValueChange={handleToggle}
                 trackColor={{
-                  false: "rgba(255,255,255,0.20)",
-                  true: "rgba(245, 205, 139, 0.42)",
+                  false: "rgba(255,255,255,0.18)",
+                  true: "rgba(255, 88, 141, 0.44)",
                 }}
-                thumbColor={active ? "#F3C98B" : "#F5F5FF"}
+                thumbColor={active ? "#FF8A57" : "#F5F5FF"}
               />
             )}
           </View>
@@ -754,7 +754,7 @@ export default function NearbyHubScreen() {
                   {radiusKm === option ? (
                     <LinearGradient
                       pointerEvents="none"
-                      colors={["rgba(243, 201, 139, 0.42)", "rgba(207, 164, 93, 0.30)"]}
+                      colors={["#FF8A45", "#FF4F8B", "#C83DFF"]}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 1 }}
                       style={styles.segmentActiveGradient}
@@ -794,7 +794,7 @@ export default function NearbyHubScreen() {
                   {genderFilter === option ? (
                     <LinearGradient
                       pointerEvents="none"
-                      colors={["rgba(243, 201, 139, 0.42)", "rgba(207, 164, 93, 0.30)"]}
+                      colors={["#FF8A45", "#FF4F8B", "#C83DFF"]}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 1 }}
                       style={styles.segmentActiveGradient}
@@ -836,7 +836,7 @@ export default function NearbyHubScreen() {
                   {ageFilter === option.id ? (
                     <LinearGradient
                       pointerEvents="none"
-                      colors={["rgba(243, 201, 139, 0.42)", "rgba(207, 164, 93, 0.30)"]}
+                      colors={["#FF8A45", "#FF4F8B", "#C83DFF"]}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 1 }}
                       style={styles.segmentActiveGradient}
@@ -856,7 +856,7 @@ export default function NearbyHubScreen() {
           </View>
 
           <View style={styles.summaryRow}>
-            <Ionicons name="filter-outline" size={16} color="#F3C98B" />
+            <Ionicons name="filter-outline" size={16} color="#FF8A57" />
             <Text style={styles.summaryText}>
               {copyOrFallback(
                 t,
@@ -880,8 +880,8 @@ export default function NearbyHubScreen() {
                 pointerEvents="none"
                 colors={
                   refreshDisabled
-                    ? ["rgba(255,255,255,0.10)", "rgba(255,255,255,0.06)"]
-                    : ["rgba(243, 201, 139, 0.96)", "rgba(207, 164, 93, 0.88)"]
+                    ? ["rgba(255,255,255,0.12)", "rgba(255,255,255,0.07)"]
+                    : ["#C83DFF", "#FF4F8B", "#FF8A45"]
                 }
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
@@ -890,7 +890,7 @@ export default function NearbyHubScreen() {
               {feedLoading ? (
                 <ActivityIndicator color="#FFFFFF" size="small" />
               ) : (
-                <Ionicons name="refresh-outline" size={16} color="#2A1A0F" />
+                <Ionicons name="refresh-outline" size={17} color="#FFFFFF" />
               )}
               <Text style={styles.refreshButtonText}>
                 {copyOrFallback(t, "nearby.refreshAction", "Обновить")}
@@ -1223,7 +1223,7 @@ export default function NearbyHubScreen() {
   );
 }
 
-function NearbyPulseBlock({
+function NearbyStatsCards({
   summary,
   loading,
   t,
@@ -1232,50 +1232,60 @@ function NearbyPulseBlock({
   loading: boolean;
   t: (key: string, params?: Record<string, string>) => string;
 }) {
-  const metrics = [
+  const metrics: Array<{
+    key: string;
+    label: string;
+    value: number | undefined;
+    icon: React.ComponentProps<typeof Ionicons>["name"];
+  }> = [
     {
       key: "people",
-      label: t("nearby.pulsePeople"),
+      label: copyOrFallback(t, "nearby.pulsePeople", "Людей"),
       value: summary?.totalUsersCount,
+      icon: "people-outline",
     },
     {
       key: "online",
-      label: t("nearby.pulseOnline"),
+      label: copyOrFallback(t, "nearby.pulseOnline", "Онлайн"),
       value: summary?.onlineNowCount,
+      icon: "radio-outline",
     },
     {
       key: "nearby",
-      label: t("nearby.pulseNearby"),
+      label: copyOrFallback(t, "nearby.pulseNearby", "Рядом"),
       value: summary?.activeNearbyCount,
+      icon: "location-outline",
     },
   ];
 
   return (
-    <LinearGradient
-      colors={["rgba(255,255,255,0.13)", "rgba(243,201,139,0.055)", "rgba(255,255,255,0.045)"]}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={styles.pulseBlock}
-    >
-      <View style={styles.pulseHeaderRow}>
-        <Text style={styles.pulseTitle}>{t("nearby.pulseTitle")}</Text>
-        {loading && !summary ? (
-          <ActivityIndicator size="small" color="#F3C98B" />
-        ) : null}
-      </View>
-      <View style={styles.pulseMetricRow}>
-        {metrics.map((metric) => (
-          <View key={metric.key} style={styles.pulseMetric}>
-            <Text style={styles.pulseMetricValue} numberOfLines={1} maxFontSizeMultiplier={1}>
-              {formatPulseCount(metric.value, t)}
-            </Text>
-            <Text style={styles.pulseMetricLabel} numberOfLines={1} ellipsizeMode="tail">
+    <View style={styles.statsGrid}>
+      {metrics.map((metric) => (
+        <LinearGradient
+          key={metric.key}
+          colors={["rgba(28, 27, 55, 0.86)", "rgba(10, 15, 33, 0.82)"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.statCard}
+        >
+          <View style={styles.statIconFrame}>
+            {loading && !summary ? (
+              <ActivityIndicator size="small" color="#FF8A57" />
+            ) : (
+              <Ionicons name={metric.icon} size={17} color="#FFD8E7" />
+            )}
+          </View>
+          <View style={styles.statCopy}>
+            <Text style={styles.statLabel} numberOfLines={1} ellipsizeMode="tail">
               {metric.label}
             </Text>
+            <Text style={styles.statValue} numberOfLines={1} maxFontSizeMultiplier={1}>
+              {formatPulseCount(metric.value, t)}
+            </Text>
           </View>
-        ))}
-      </View>
-    </LinearGradient>
+        </LinearGradient>
+      ))}
+    </View>
   );
 }
 
@@ -1302,11 +1312,13 @@ function NearbyProfileCard({
   t: (key: string, params?: Record<string, string>) => string;
 }) {
   const ageGroupLabel = item.ageGroup ? getAgeFilterLabel(item.ageGroup, t) : "";
-  const nameTextWidth = Math.round(circleSize * 0.78);
-  const metaTextWidth = Math.round(circleSize * 0.56);
+  const innerSize = circleSize - 6;
+  const nameTextWidth = Math.round(innerSize * 0.78);
+  const metaTextWidth = Math.round(innerSize * 0.58);
+  const hasStatus = Boolean(item.statusKind);
 
   return (
-    <View
+    <LinearGradient
       style={[
         styles.cardGlow,
         {
@@ -1315,6 +1327,9 @@ function NearbyProfileCard({
           borderRadius: circleSize / 2,
         },
       ]}
+      colors={["#FF8A45", "#FF4F8B", "#C83DFF", "#62E4FF"]}
+      start={{ x: 0.08, y: 0 }}
+      end={{ x: 0.92, y: 1 }}
     >
       <Pressable
         accessibilityRole="button"
@@ -1323,15 +1338,30 @@ function NearbyProfileCard({
         style={({ pressed }) => [
           styles.card,
           {
-            width: circleSize,
-            height: circleSize,
-            borderRadius: circleSize / 2,
+            width: innerSize,
+            height: innerSize,
+            borderRadius: innerSize / 2,
           },
           pressed ? styles.cardPressed : null,
         ]}
       >
         <NearbyCardMedia item={item} />
         <View style={styles.cardPhotoTint} pointerEvents="none" />
+        <LinearGradient
+          pointerEvents="none"
+          colors={["rgba(0,0,0,0.00)", "rgba(0,0,0,0.12)", "rgba(0,0,0,0.74)"]}
+          locations={[0, 0.48, 1]}
+          style={styles.cardPhotoVignette}
+        />
+
+        <View style={styles.cardStatusDotFrame} pointerEvents="none">
+          <View
+            style={[
+              styles.cardStatusDot,
+              hasStatus ? styles.cardStatusDotActive : styles.cardStatusDotMuted,
+            ]}
+          />
+        </View>
 
         <View style={styles.cardTextOverlay} pointerEvents="none">
           <Text
@@ -1356,7 +1386,7 @@ function NearbyProfileCard({
           ) : null}
         </View>
       </Pressable>
-    </View>
+    </LinearGradient>
   );
 }
 
@@ -1545,74 +1575,68 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
   },
-  pulseBlock: {
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 8,
-    backgroundColor: "rgba(255,255,255,0.055)",
-    borderWidth: 0,
-    borderColor: "transparent",
-    shadowColor: "#CFA45D",
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 1,
-  },
-  pulseHeaderRow: {
-    minHeight: 20,
+  statsGrid: {
     flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 10,
+    gap: 7,
   },
-  pulseTitle: {
-    color: theme.colors.text,
-    fontSize: 14,
-    lineHeight: 18,
-    fontWeight: "900",
-  },
-  pulseMetricRow: {
-    flexDirection: "row",
-    gap: 6,
-  },
-  pulseMetric: {
+  statCard: {
     flex: 1,
     minWidth: 0,
-    minHeight: 48,
-    justifyContent: "center",
-    borderRadius: 9,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    backgroundColor: "rgba(255,255,255,0.065)",
+    minHeight: 72,
+    borderRadius: 15,
+    paddingHorizontal: 9,
+    paddingVertical: 10,
+    backgroundColor: "rgba(10, 15, 33, 0.82)",
     borderWidth: 1,
-    borderColor: "rgba(243, 201, 139, 0.08)",
+    borderColor: "rgba(255,255,255,0.13)",
+    shadowColor: "#000000",
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 7 },
+    elevation: 3,
   },
-  pulseMetricValue: {
-    color: theme.colors.text,
-    fontSize: 18,
-    lineHeight: 22,
-    fontWeight: "900",
+  statIconFrame: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.075)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 117, 160, 0.20)",
   },
-  pulseMetricLabel: {
-    marginTop: 1,
-    color: "#DDE3F6",
+  statCopy: {
+    marginTop: 7,
+    gap: 1,
+  },
+  statLabel: {
+    color: "#C9CEE1",
     fontSize: 10,
-    lineHeight: 13,
+    lineHeight: 12,
     fontWeight: "800",
+    textTransform: "uppercase",
+  },
+  statValue: {
+    color: "#FFFFFF",
+    fontSize: 22,
+    lineHeight: 26,
+    fontWeight: "900",
+    textShadowColor: "rgba(255, 79, 139, 0.22)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 5,
   },
   controlPanel: {
-    borderRadius: 16,
-    padding: 12,
-    gap: 12,
-    backgroundColor: "rgba(255,255,255,0.05)",
-    borderWidth: 0,
-    borderColor: "transparent",
-    shadowColor: "#B78A4A",
-    shadowOpacity: 0.045,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 1,
+    borderRadius: 20,
+    padding: 14,
+    gap: 13,
+    backgroundColor: "rgba(10, 14, 34, 0.88)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+    shadowColor: "#000000",
+    shadowOpacity: 0.46,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 4,
   },
   completionPanel: {
     flexDirection: "row",
@@ -1671,10 +1695,10 @@ const styles = StyleSheet.create({
   sectionTitle: {
     color: theme.colors.text,
     fontSize: 15,
-    fontWeight: "800",
+    fontWeight: "900",
   },
   privacyNote: {
-    color: "#BDC3D6",
+    color: "#AEB6CE",
     fontSize: 12,
     lineHeight: 16,
   },
@@ -1682,9 +1706,9 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   filterLabel: {
-    color: "#F3C98B",
+    color: "#FFB2C9",
     fontSize: 12,
-    fontWeight: "800",
+    fontWeight: "900",
     textTransform: "uppercase",
   },
   segmentRow: {
@@ -1698,20 +1722,20 @@ const styles = StyleSheet.create({
     minHeight: 32,
     justifyContent: "center",
     borderRadius: 999,
-    paddingHorizontal: 10,
+    paddingHorizontal: 11,
     paddingVertical: 6,
-    backgroundColor: "rgba(255,255,255,0.07)",
+    backgroundColor: "rgba(4, 7, 20, 0.48)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
+    borderColor: "rgba(255,255,255,0.15)",
   },
   segmentActive: {
-    backgroundColor: "rgba(243, 201, 139, 0.18)",
-    borderColor: "rgba(243, 201, 139, 0.38)",
-    shadowColor: "#CFA45D",
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 1,
+    backgroundColor: "rgba(255, 79, 139, 0.30)",
+    borderColor: "rgba(255, 213, 225, 0.54)",
+    shadowColor: "#FF4F8B",
+    shadowOpacity: 0.28,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 3,
   },
   segmentActiveGradient: {
     ...StyleSheet.absoluteFillObject,
@@ -1721,61 +1745,64 @@ const styles = StyleSheet.create({
   },
   segmentText: {
     zIndex: 1,
-    color: "#D9DEEC",
+    color: "#C7CEDF",
     fontSize: 12,
-    fontWeight: "700",
+    fontWeight: "800",
   },
   segmentTextActive: {
-    color: "#FFF4DE",
-    textShadowColor: "rgba(43, 28, 12, 0.26)",
+    color: "#FFFFFF",
+    textShadowColor: "rgba(95, 20, 52, 0.34)",
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 1,
+    textShadowRadius: 2,
   },
   summaryRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    borderRadius: 12,
+    borderRadius: 14,
     paddingHorizontal: 10,
     paddingVertical: 9,
-    backgroundColor: "rgba(255,255,255,0.06)",
+    backgroundColor: "rgba(0,0,0,0.20)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
   },
   summaryText: {
     flex: 1,
-    color: "#E9ECF7",
+    color: "#DDE2F2",
     fontSize: 13,
     lineHeight: 17,
   },
   refreshButton: {
     position: "relative",
     overflow: "hidden",
-    minHeight: 40,
+    alignSelf: "stretch",
+    minHeight: 48,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    borderRadius: 12,
+    borderRadius: 16,
     paddingHorizontal: 14,
-    backgroundColor: "#E7B86A",
+    backgroundColor: "#FF4F8B",
     borderWidth: 1,
-    borderColor: "rgba(255, 244, 222, 0.30)",
-    shadowColor: "#CFA45D",
-    shadowOpacity: 0.16,
-    shadowRadius: 9,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 2,
+    borderColor: "rgba(255, 236, 244, 0.48)",
+    shadowColor: "#FF4F8B",
+    shadowOpacity: 0.42,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 9 },
+    elevation: 5,
   },
   refreshButtonGradient: {
     ...StyleSheet.absoluteFillObject,
   },
   refreshButtonText: {
     zIndex: 1,
-    color: "#2A1A0F",
-    fontSize: 13,
+    color: "#FFFFFF",
+    fontSize: 14,
     fontWeight: "900",
-    textShadowColor: "rgba(255,255,255,0.18)",
+    textShadowColor: "rgba(79, 18, 53, 0.35)",
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 1,
+    textShadowRadius: 2,
   },
   errorPanel: {
     flexDirection: "row",
@@ -1808,21 +1835,24 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
   cardGlow: {
-    shadowColor: "#CFA45D",
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 1,
-    backgroundColor: "rgba(243, 201, 139, 0.035)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 3,
+    shadowColor: "#FF4F8B",
+    shadowOpacity: 0.32,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 4,
+    backgroundColor: "rgba(255, 79, 139, 0.22)",
   },
   card: {
     minWidth: 0,
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
-    backgroundColor: "rgba(243, 201, 139, 0.13)",
+    backgroundColor: "rgba(9, 12, 28, 0.92)",
     borderWidth: 1,
-    borderColor: "rgba(243, 201, 139, 0.24)",
+    borderColor: "rgba(255,255,255,0.20)",
   },
   cardPressed: {
     opacity: 0.86,
@@ -1845,44 +1875,76 @@ const styles = StyleSheet.create({
   cardMediaFallback: {
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(243, 201, 139, 0.13)",
+    backgroundColor: "rgba(30, 22, 52, 0.96)",
   },
   cardMediaInitials: {
     color: theme.colors.text,
-    fontSize: 26,
-    lineHeight: 30,
+    fontSize: 28,
+    lineHeight: 32,
     fontWeight: "900",
   },
   cardPhotoTint: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.08)",
+    backgroundColor: "rgba(0,0,0,0.03)",
+  },
+  cardPhotoVignette: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.14)",
+  },
+  cardStatusDotFrame: {
+    position: "absolute",
+    top: 9,
+    right: 9,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(6, 8, 18, 0.86)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.64)",
+  },
+  cardStatusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  cardStatusDotActive: {
+    backgroundColor: "#62FFB2",
+    shadowColor: "#62FFB2",
+    shadowOpacity: 0.9,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 0 },
+  },
+  cardStatusDotMuted: {
+    backgroundColor: "#AAB2C6",
   },
   cardTextOverlay: {
     position: "absolute",
-    left: 6,
-    right: 6,
-    bottom: 8,
+    left: 7,
+    right: 7,
+    bottom: 9,
     alignItems: "center",
   },
   cardName: {
     color: theme.colors.text,
     textAlign: "center",
-    fontSize: 12,
-    lineHeight: 15,
+    fontSize: 13,
+    lineHeight: 16,
     fontWeight: "900",
-    textShadowColor: "rgba(0,0,0,0.86)",
+    textShadowColor: "rgba(0,0,0,0.96)",
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
+    textShadowRadius: 4,
   },
   cardMeta: {
-    color: "#E4E8F4",
+    color: "#FFFFFF",
     textAlign: "center",
-    fontSize: 9,
-    lineHeight: 11,
-    fontWeight: "700",
-    textShadowColor: "rgba(0,0,0,0.86)",
+    fontSize: 10,
+    lineHeight: 12,
+    fontWeight: "800",
+    textShadowColor: "rgba(0,0,0,0.96)",
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
+    textShadowRadius: 4,
   },
   buttonDisabled: {
     opacity: 0.58,
