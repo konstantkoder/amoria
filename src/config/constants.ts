@@ -23,6 +23,15 @@ export const CHAT_SOURCE_TYPES = ["announcement", "nearby", "together"] as const
 export const CHAT_MESSAGE_TEXT_MAX_LENGTH = 2000;
 export const CHAT_CLIENT_MESSAGE_ID_MAX_LENGTH = 200;
 
+export const NEARBY_ROOM_TYPE_KEYS = [
+  "coffee_nearby",
+  "walk_nearby",
+  "bike_nearby",
+  "cinema_today",
+  "talk_nearby",
+  "evening_nearby",
+] as const;
+
 export const TOGETHER_QUEUE_TTL_MS = 5 * 60 * 1000;
 export const TOGETHER_HEARTBEAT_TIMEOUT_MS = 60 * 1000;
 export const TOGETHER_ACTIVITIES = ["draw", "story_sparks"] as const;

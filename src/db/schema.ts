@@ -660,6 +660,107 @@ export const threadReads = pgTable(
   (table) => [primaryKey({ columns: [table.threadId, table.userId] })],
 );
 
+export const nearbyRoomTypes = pgTable(
+  "nearby_room_types",
+  {
+    key: text("key").primaryKey(),
+    title: text("title").notNull(),
+    status: text("status").default("active").notNull(),
+    adminApproved: boolean("admin_approved").default(true).notNull(),
+    sortOrder: integer("sort_order").default(0).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    check(
+      "nearby_room_types_status_check",
+      sql`${table.status} IN ('active', 'disabled')`,
+    ),
+  ],
+);
+
+export const nearbyRooms = pgTable(
+  "nearby_rooms",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    typeKey: text("type_key")
+      .notNull()
+      .references(() => nearbyRoomTypes.key, { onDelete: "restrict" }),
+    threadId: uuid("thread_id").references(() => threads.id, { onDelete: "set null" }),
+    status: text("status").default("active").notNull(),
+    geoBucket: text("geo_bucket").notNull(),
+    createdByAdminUserId: uuid("created_by_admin_user_id").references(() => adminUsers.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("nearby_rooms_type_status_idx").on(table.typeKey, table.status),
+    index("nearby_rooms_geo_status_idx").on(table.geoBucket, table.status),
+    check(
+      "nearby_rooms_status_check",
+      sql`${table.status} IN ('active', 'closed', 'disabled')`,
+    ),
+  ],
+);
+
+export const nearbyRoomMemberships = pgTable(
+  "nearby_room_memberships",
+  {
+    roomId: uuid("room_id")
+      .notNull()
+      .references(() => nearbyRooms.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    status: text("status").default("active").notNull(),
+    role: text("role").default("member").notNull(),
+    joinedAt: timestamp("joined_at", { withTimezone: true }).defaultNow().notNull(),
+    leftAt: timestamp("left_at", { withTimezone: true }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.roomId, table.userId] }),
+    index("nearby_room_memberships_user_status_idx").on(table.userId, table.status),
+    check(
+      "nearby_room_memberships_status_check",
+      sql`${table.status} IN ('active', 'left', 'removed')`,
+    ),
+    check(
+      "nearby_room_memberships_role_check",
+      sql`${table.role} IN ('member', 'moderator', 'admin')`,
+    ),
+  ],
+);
+
+export const roomModerationActions = pgTable(
+  "room_moderation_actions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    roomId: uuid("room_id")
+      .notNull()
+      .references(() => nearbyRooms.id, { onDelete: "cascade" }),
+    adminUserId: uuid("admin_user_id").references(() => adminUsers.id, {
+      onDelete: "set null",
+    }),
+    action: text("action").notNull(),
+    targetUserId: uuid("target_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    targetMessageId: uuid("target_message_id").references(() => messages.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("room_moderation_actions_room_created_at_idx").on(table.roomId, table.createdAt),
+    index("room_moderation_actions_admin_created_at_idx").on(
+      table.adminUserId,
+      table.createdAt,
+    ),
+  ],
+);
+
 export const refreshTokens = pgTable("refresh_tokens", {
   id: uuid("id").defaultRandom().primaryKey(),
   userId: uuid("user_id")
@@ -1038,6 +1139,14 @@ export type MessageRow = typeof messages.$inferSelect;
 export type NewMessageRow = typeof messages.$inferInsert;
 export type ThreadReadRow = typeof threadReads.$inferSelect;
 export type NewThreadReadRow = typeof threadReads.$inferInsert;
+export type NearbyRoomTypeRow = typeof nearbyRoomTypes.$inferSelect;
+export type NewNearbyRoomTypeRow = typeof nearbyRoomTypes.$inferInsert;
+export type NearbyRoomRow = typeof nearbyRooms.$inferSelect;
+export type NewNearbyRoomRow = typeof nearbyRooms.$inferInsert;
+export type NearbyRoomMembershipRow = typeof nearbyRoomMemberships.$inferSelect;
+export type NewNearbyRoomMembershipRow = typeof nearbyRoomMemberships.$inferInsert;
+export type RoomModerationActionRow = typeof roomModerationActions.$inferSelect;
+export type NewRoomModerationActionRow = typeof roomModerationActions.$inferInsert;
 export type RefreshTokenRow = typeof refreshTokens.$inferSelect;
 export type NewRefreshTokenRow = typeof refreshTokens.$inferInsert;
 
