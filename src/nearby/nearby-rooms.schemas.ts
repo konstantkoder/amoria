@@ -1,5 +1,14 @@
 import type { FastifySchema } from "fastify";
 
+const roomIdParamsSchema = {
+  type: "object",
+  required: ["roomId"],
+  additionalProperties: false,
+  properties: {
+    roomId: { type: "string", format: "uuid" },
+  },
+} as const;
+
 const nearbyRoomCardSchema = {
   type: "object",
   required: [
@@ -27,6 +36,15 @@ const nearbyRoomCardSchema = {
   },
 } as const;
 
+const nearbyRoomActionResponseSchema = {
+  type: "object",
+  required: ["room"],
+  additionalProperties: false,
+  properties: {
+    room: nearbyRoomCardSchema,
+  },
+} as const;
+
 export const nearbyRoomsRouteSchema = {
   response: {
     200: {
@@ -41,5 +59,19 @@ export const nearbyRoomsRouteSchema = {
         nextCursor: { type: "null" },
       },
     },
+  },
+} as const satisfies FastifySchema;
+
+export const nearbyRoomJoinRouteSchema = {
+  params: roomIdParamsSchema,
+  response: {
+    200: nearbyRoomActionResponseSchema,
+  },
+} as const satisfies FastifySchema;
+
+export const nearbyRoomLeaveRouteSchema = {
+  params: roomIdParamsSchema,
+  response: {
+    200: nearbyRoomActionResponseSchema,
   },
 } as const satisfies FastifySchema;

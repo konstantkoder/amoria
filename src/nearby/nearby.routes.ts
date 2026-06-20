@@ -18,7 +18,11 @@ import {
   updateNearbyVisibilityRouteSchema,
 } from "./nearby.schemas";
 import * as nearbyService from "./nearby.service";
-import { nearbyRoomsRouteSchema } from "./nearby-rooms.schemas";
+import {
+  nearbyRoomJoinRouteSchema,
+  nearbyRoomLeaveRouteSchema,
+  nearbyRoomsRouteSchema,
+} from "./nearby-rooms.schemas";
 import * as nearbyRoomsService from "./nearby-rooms.service";
 
 function currentUserId(request: { auth?: { userId: string } }): string {
@@ -37,6 +41,26 @@ export async function nearbyRoutes(fastify: FastifyInstance): Promise<void> {
       schema: withErrorResponses(nearbyRoomsRouteSchema),
     },
     async (request) => nearbyRoomsService.listNearbyRooms(currentUserId(request)),
+  );
+
+  fastify.post<{ Params: { roomId: string } }>(
+    "/rooms/:roomId/join",
+    {
+      preHandler: authMiddleware,
+      schema: withErrorResponses(nearbyRoomJoinRouteSchema),
+    },
+    async (request) =>
+      nearbyRoomsService.joinNearbyRoom(currentUserId(request), request.params.roomId),
+  );
+
+  fastify.post<{ Params: { roomId: string } }>(
+    "/rooms/:roomId/leave",
+    {
+      preHandler: authMiddleware,
+      schema: withErrorResponses(nearbyRoomLeaveRouteSchema),
+    },
+    async (request) =>
+      nearbyRoomsService.leaveNearbyRoom(currentUserId(request), request.params.roomId),
   );
 
   fastify.get(

@@ -19,6 +19,10 @@ export type NearbyRoomsResponse = {
   nextCursor: null;
 };
 
+export type NearbyRoomActionResponse = {
+  room: NearbyRoomCardDto;
+};
+
 export type AdminNearbyRoomTypeDto = {
   key: string;
   title: string;

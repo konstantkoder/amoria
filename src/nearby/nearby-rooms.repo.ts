@@ -88,6 +88,95 @@ export async function listPublicNearbyRoomsForUser(
     );
 }
 
+export async function findNearbyRoomForUser(
+  roomId: string,
+  viewerUserId: string,
+): Promise<NearbyRoomListRow | undefined> {
+  const [row] = await db
+    .select({
+      id: nearbyRooms.id,
+      typeKey: nearbyRooms.typeKey,
+      title: nearbyRoomTypes.title,
+      roomTypeStatus: nearbyRoomTypes.status,
+      adminApproved: nearbyRoomTypes.adminApproved,
+      sortOrder: nearbyRoomTypes.sortOrder,
+      status: nearbyRooms.status,
+      geoBucket: nearbyRooms.geoBucket,
+      threadId: nearbyRooms.threadId,
+      memberCount: activeMemberCount,
+      viewerMembershipStatus: viewerMembershipStatus(viewerUserId),
+      createdAt: nearbyRooms.createdAt,
+      updatedAt: nearbyRooms.updatedAt,
+    })
+    .from(nearbyRooms)
+    .innerJoin(nearbyRoomTypes, eq(nearbyRoomTypes.key, nearbyRooms.typeKey))
+    .where(eq(nearbyRooms.id, roomId))
+    .limit(1);
+
+  return row;
+}
+
+export async function createNearbyRoomMembership(
+  roomId: string,
+  userId: string,
+  joinedAt: Date,
+): Promise<void> {
+  await db
+    .insert(nearbyRoomMemberships)
+    .values({
+      roomId,
+      userId,
+      status: "active",
+      role: "member",
+      joinedAt,
+      leftAt: null,
+    })
+    .onConflictDoNothing({
+      target: [nearbyRoomMemberships.roomId, nearbyRoomMemberships.userId],
+    });
+}
+
+export async function reactivateNearbyRoomMembership(
+  roomId: string,
+  userId: string,
+  joinedAt: Date,
+): Promise<void> {
+  await db
+    .update(nearbyRoomMemberships)
+    .set({
+      status: "active",
+      joinedAt,
+      leftAt: null,
+    })
+    .where(
+      and(
+        eq(nearbyRoomMemberships.roomId, roomId),
+        eq(nearbyRoomMemberships.userId, userId),
+        eq(nearbyRoomMemberships.status, "left"),
+      ),
+    );
+}
+
+export async function markNearbyRoomMembershipLeft(
+  roomId: string,
+  userId: string,
+  leftAt: Date,
+): Promise<void> {
+  await db
+    .update(nearbyRoomMemberships)
+    .set({
+      status: "left",
+      leftAt,
+    })
+    .where(
+      and(
+        eq(nearbyRoomMemberships.roomId, roomId),
+        eq(nearbyRoomMemberships.userId, userId),
+        eq(nearbyRoomMemberships.status, "active"),
+      ),
+    );
+}
+
 export async function listNearbyRoomTypesForAdmin(): Promise<NearbyRoomTypeRow[]> {
   return db
     .select()
