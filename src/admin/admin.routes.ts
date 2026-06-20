@@ -22,9 +22,13 @@ import {
 } from "./admin-media.schemas";
 import * as adminMediaService from "./admin-media.service";
 import {
+  adminCreateNearbyRoomRouteSchema,
+  adminNearbyRoomActionRouteSchema,
   adminNearbyRoomDetailRouteSchema,
   adminNearbyRoomsRouteSchema,
   adminNearbyRoomTypesRouteSchema,
+  parseAdminCreateNearbyRoomBody,
+  parseAdminNearbyRoomActionBody,
 } from "./admin-nearby-rooms.schemas";
 import * as adminNearbyRoomsService from "./admin-nearby-rooms.service";
 import {
@@ -240,6 +244,22 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
       ),
   );
 
+  fastify.post(
+    "/nearby-rooms",
+    {
+      preHandler: [authMiddleware, requireAdmin(["owner", "moderator"])],
+      schema: withErrorResponses(adminCreateNearbyRoomRouteSchema),
+    },
+    async (request, reply) => {
+      const response = await adminNearbyRoomsService.createNearbyRoomForAdmin(
+        currentAdmin(request),
+        parseAdminCreateNearbyRoomBody(request.body),
+        adminRequestContext(request),
+      );
+      return reply.status(201).send(response);
+    },
+  );
+
   fastify.get<{ Params: { roomId: string } }>(
     "/nearby-rooms/:roomId",
     {
@@ -250,6 +270,21 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
       adminNearbyRoomsService.getNearbyRoomForAdmin(
         currentAdmin(request),
         request.params.roomId,
+        adminRequestContext(request),
+      ),
+  );
+
+  fastify.post<{ Params: { roomId: string } }>(
+    "/nearby-rooms/:roomId/actions",
+    {
+      preHandler: [authMiddleware, requireAdmin(["owner", "moderator"])],
+      schema: withErrorResponses(adminNearbyRoomActionRouteSchema),
+    },
+    async (request) =>
+      adminNearbyRoomsService.actionNearbyRoomForAdmin(
+        currentAdmin(request),
+        request.params.roomId,
+        parseAdminNearbyRoomActionBody(request.body),
         adminRequestContext(request),
       ),
   );

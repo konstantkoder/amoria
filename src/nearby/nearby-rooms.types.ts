@@ -59,3 +59,14 @@ export type AdminNearbyRoomsResponse = {
 export type AdminNearbyRoomDetailResponse = {
   room: AdminNearbyRoomDto;
 };
+
+export type AdminCreateNearbyRoomBody = {
+  typeKey: string;
+  geoBucket: string;
+};
+
+export type AdminNearbyRoomAction = "close" | "disable" | "reopen";
+
+export type AdminNearbyRoomActionBody = {
+  action: AdminNearbyRoomAction;
+};

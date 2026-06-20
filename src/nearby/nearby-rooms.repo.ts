@@ -5,6 +5,7 @@ import {
   nearbyRoomMemberships,
   nearbyRoomTypes,
   nearbyRooms,
+  roomModerationActions,
   threads,
 } from "../db/schema";
 import {
@@ -39,6 +40,13 @@ export type AdminNearbyRoomRow = {
   memberCount: number;
   createdAt: Date;
   updatedAt: Date;
+};
+
+export type CreateNearbyRoomInput = {
+  typeKey: string;
+  geoBucket: string;
+  createdByAdminUserId: string;
+  createdAt: Date;
 };
 
 const activeMemberCount = sql<number>`(
@@ -199,6 +207,18 @@ export async function listNearbyRoomTypesForAdmin(): Promise<NearbyRoomTypeRow[]
     .orderBy(asc(nearbyRoomTypes.sortOrder), asc(nearbyRoomTypes.key));
 }
 
+export async function findNearbyRoomTypeByKey(
+  typeKey: string,
+): Promise<NearbyRoomTypeRow | undefined> {
+  const [row] = await db
+    .select()
+    .from(nearbyRoomTypes)
+    .where(eq(nearbyRoomTypes.key, typeKey))
+    .limit(1);
+
+  return row;
+}
+
 export async function listNearbyRoomsForAdmin(): Promise<AdminNearbyRoomRow[]> {
   return db
     .select({
@@ -244,4 +264,67 @@ export async function findNearbyRoomForAdmin(
     .limit(1);
 
   return row;
+}
+
+export async function createNearbyRoomForAdmin(
+  input: CreateNearbyRoomInput,
+): Promise<AdminNearbyRoomRow> {
+  const [created] = await db
+    .insert(nearbyRooms)
+    .values({
+      typeKey: input.typeKey,
+      geoBucket: input.geoBucket,
+      createdByAdminUserId: input.createdByAdminUserId,
+      status: "active",
+      threadId: null,
+      createdAt: input.createdAt,
+      updatedAt: input.createdAt,
+    })
+    .returning({ id: nearbyRooms.id });
+
+  if (!created) {
+    throw new Error("Failed to create nearby room");
+  }
+
+  const row = await findNearbyRoomForAdmin(created.id);
+  if (!row) {
+    throw new Error("Created nearby room was not found");
+  }
+
+  return row;
+}
+
+export async function updateNearbyRoomStatusForAdmin(
+  roomId: string,
+  status: "active" | "closed" | "disabled",
+  updatedAt: Date,
+): Promise<AdminNearbyRoomRow | undefined> {
+  const [updated] = await db
+    .update(nearbyRooms)
+    .set({
+      status,
+      updatedAt,
+    })
+    .where(eq(nearbyRooms.id, roomId))
+    .returning({ id: nearbyRooms.id });
+
+  if (!updated) {
+    return undefined;
+  }
+
+  return findNearbyRoomForAdmin(updated.id);
+}
+
+export async function createRoomModerationActionForAdmin(input: {
+  roomId: string;
+  adminUserId: string;
+  action: string;
+  createdAt: Date;
+}): Promise<void> {
+  await db.insert(roomModerationActions).values({
+    roomId: input.roomId,
+    adminUserId: input.adminUserId,
+    action: input.action,
+    createdAt: input.createdAt,
+  });
 }
