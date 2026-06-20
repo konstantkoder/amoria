@@ -5,7 +5,12 @@ import {
   nearbyRoomMemberships,
   nearbyRoomTypes,
   nearbyRooms,
+  threads,
 } from "../db/schema";
+import {
+  NEARBY_ROOM_THREAD_SOURCE_TYPE,
+  NEARBY_ROOM_THREAD_TYPE,
+} from "./nearby-room-chat.types";
 
 export type NearbyRoomListRow = {
   id: string;
@@ -43,6 +48,16 @@ const activeMemberCount = sql<number>`(
     and ${nearbyRoomMemberships.status} = 'active'
 )`;
 
+const safeRoomThreadId = sql<string | null>`(
+  select ${threads.id}
+  from ${threads}
+  where ${threads.id} = ${nearbyRooms.threadId}
+    and ${threads.type} = ${NEARBY_ROOM_THREAD_TYPE}
+    and ${threads.sourceType} = ${NEARBY_ROOM_THREAD_SOURCE_TYPE}
+    and ${threads.sourceId} = ${nearbyRooms.id}
+  limit 1
+)`;
+
 function viewerMembershipStatus(viewerUserId: string) {
   return sql<string | null>`(
     select ${nearbyRoomMemberships.status}
@@ -66,7 +81,7 @@ export async function listPublicNearbyRoomsForUser(
       sortOrder: nearbyRoomTypes.sortOrder,
       status: nearbyRooms.status,
       geoBucket: nearbyRooms.geoBucket,
-      threadId: nearbyRooms.threadId,
+      threadId: safeRoomThreadId,
       memberCount: activeMemberCount,
       viewerMembershipStatus: viewerMembershipStatus(viewerUserId),
       createdAt: nearbyRooms.createdAt,
@@ -102,7 +117,7 @@ export async function findNearbyRoomForUser(
       sortOrder: nearbyRoomTypes.sortOrder,
       status: nearbyRooms.status,
       geoBucket: nearbyRooms.geoBucket,
-      threadId: nearbyRooms.threadId,
+      threadId: safeRoomThreadId,
       memberCount: activeMemberCount,
       viewerMembershipStatus: viewerMembershipStatus(viewerUserId),
       createdAt: nearbyRooms.createdAt,

@@ -272,7 +272,7 @@ export async function findThreadForMember(
       threadMembers,
       and(eq(threadMembers.threadId, threads.id), eq(threadMembers.userId, userId)),
     )
-    .where(eq(threads.id, threadId))
+    .where(and(eq(threads.id, threadId), eq(threads.type, "direct")))
     .limit(1);
 
   return row?.thread;
@@ -281,8 +281,12 @@ export async function findThreadForMember(
 export async function isThreadMember(threadId: string, userId: string): Promise<boolean> {
   const [row] = await db
     .select({ threadId: threadMembers.threadId })
-    .from(threadMembers)
-    .where(and(eq(threadMembers.threadId, threadId), eq(threadMembers.userId, userId)))
+    .from(threads)
+    .innerJoin(
+      threadMembers,
+      and(eq(threadMembers.threadId, threads.id), eq(threadMembers.userId, userId)),
+    )
+    .where(and(eq(threads.id, threadId), eq(threads.type, "direct")))
     .limit(1);
 
   return Boolean(row);
@@ -315,7 +319,7 @@ export async function listThreadsForUser(userId: string, limit: number): Promise
       threadMembers,
       and(eq(threadMembers.threadId, threads.id), eq(threadMembers.userId, userId)),
     )
-    .where(notExists(blockedPeerSubquery))
+    .where(and(eq(threads.type, "direct"), notExists(blockedPeerSubquery)))
     .orderBy(sql`${threads.lastMessageAt} desc nulls last`, desc(threads.updatedAt))
     .limit(limit);
 

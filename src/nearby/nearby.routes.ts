@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { unauthorized } from "../common/errors";
 import { withErrorResponses } from "../common/http";
 import { authMiddleware } from "../common/security/auth-middleware";
+import { wsHub } from "../realtime/ws.hub";
 import {
   createNearbyStatusRouteSchema,
   deleteNearbyStatusRouteSchema,
@@ -18,6 +19,14 @@ import {
   updateNearbyVisibilityRouteSchema,
 } from "./nearby.schemas";
 import * as nearbyService from "./nearby.service";
+import {
+  getNearbyRoomMessagesRouteSchema,
+  openNearbyRoomChatRouteSchema,
+  parseNearbyRoomMessagesQuery,
+  parseSendNearbyRoomMessageBody,
+  sendNearbyRoomMessageRouteSchema,
+} from "./nearby-room-chat.schemas";
+import * as nearbyRoomChatService from "./nearby-room-chat.service";
 import {
   nearbyRoomJoinRouteSchema,
   nearbyRoomLeaveRouteSchema,
@@ -61,6 +70,54 @@ export async function nearbyRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request) =>
       nearbyRoomsService.leaveNearbyRoom(currentUserId(request), request.params.roomId),
+  );
+
+  fastify.post<{ Params: { roomId: string } }>(
+    "/rooms/:roomId/open",
+    {
+      preHandler: authMiddleware,
+      schema: withErrorResponses(openNearbyRoomChatRouteSchema),
+    },
+    async (request) =>
+      nearbyRoomChatService.openNearbyRoomChat(
+        currentUserId(request),
+        request.params.roomId,
+      ),
+  );
+
+  fastify.get<{ Params: { roomId: string } }>(
+    "/rooms/:roomId/messages",
+    {
+      preHandler: authMiddleware,
+      schema: withErrorResponses(getNearbyRoomMessagesRouteSchema),
+    },
+    async (request) =>
+      nearbyRoomChatService.getNearbyRoomMessages(
+        currentUserId(request),
+        request.params.roomId,
+        parseNearbyRoomMessagesQuery(request.query),
+      ),
+  );
+
+  fastify.post<{ Params: { roomId: string } }>(
+    "/rooms/:roomId/messages",
+    {
+      preHandler: authMiddleware,
+      schema: withErrorResponses(sendNearbyRoomMessageRouteSchema),
+    },
+    async (request) => {
+      const result = await nearbyRoomChatService.sendNearbyRoomMessage(
+        currentUserId(request),
+        request.params.roomId,
+        parseSendNearbyRoomMessageBody(request.body),
+      );
+
+      if (result.created) {
+        wsHub.broadcastThreadMessage(result.threadId, result.response.message);
+      }
+
+      return result.response;
+    },
   );
 
   fastify.get(

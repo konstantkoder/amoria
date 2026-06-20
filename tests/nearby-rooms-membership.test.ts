@@ -90,8 +90,8 @@ test("POST /nearby/rooms/:roomId/join joins an active existing room with real me
     memberCount: 2,
     status: "active",
     canJoin: false,
-    canOpen: false,
-    threadId: null,
+    canOpen: true,
+    threadId,
   });
   assertNoPrivateNearbyFields(response.json());
 });
@@ -298,8 +298,8 @@ test("GET /nearby/rooms returns safe join/open flags and real active member coun
         id: activeMemberRoomId,
         memberCount: 1,
         canJoin: false,
-        canOpen: false,
-        threadId: null,
+        canOpen: true,
+        threadId,
       },
       {
         id: leftRoomId,
@@ -460,5 +460,4 @@ function assertNoPrivateNearbyFields(value: unknown) {
   assert.equal(serialized.includes("latitude"), false);
   assert.equal(serialized.includes("longitude"), false);
   assert.equal(serialized.includes("birthDate"), false);
-  assert.equal(serialized.includes(threadId), false);
 }

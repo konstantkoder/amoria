@@ -138,9 +138,7 @@ function canJoinRoom(row: nearbyRoomsRepo.NearbyRoomListRow): boolean {
 }
 
 function hasSafeRoomThread(row: nearbyRoomsRepo.NearbyRoomListRow): boolean {
-  void row;
-  // Room threads are not exposed until chat DTOs and message sends support non-DM peers.
-  return false;
+  return Boolean(row.threadId);
 }
 
 export function toAdminNearbyRoomTypeDto(
