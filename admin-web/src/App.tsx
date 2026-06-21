@@ -2146,6 +2146,7 @@ function NearbyRoomsScreen({
                     </option>
                   ))}
                 </select>
+                <span className="muted">{t("nearbyRooms.typeKeyHelp")}</span>
               </label>
               <label>
                 {t("nearbyRooms.geoBucket")}
@@ -2153,8 +2154,10 @@ function NearbyRoomsScreen({
                   value={geoBucket}
                   onChange={(event) => setGeoBucket(event.target.value)}
                   maxLength={200}
+                  placeholder="zagreb-center"
                   required
                 />
+                <span className="muted">{t("nearbyRooms.geoBucketHelp")}</span>
               </label>
               <button disabled={creating || loading || !typeKey}>
                 {creating ? t("nearbyRooms.creating") : t("nearbyRooms.create")}
