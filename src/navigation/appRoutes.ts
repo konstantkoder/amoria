@@ -100,6 +100,11 @@ export type UserProfileRouteParams = {
   nearbyCanMessage?: boolean;
 };
 
+export type NearbyRoomChatRouteParams = {
+  roomId: string;
+  title: string;
+};
+
 export type RootStackParamList = {
   Tabs: TabsNavigatorParams | undefined;
   /** @deprecated Kept for old links/DM source context; unreachable from active bottom tabs. */
@@ -113,6 +118,7 @@ export type RootStackParamList = {
   PlayHistory: undefined;
   PlaySessionDetail: PlaySessionDetailRouteParams;
   DMChat: DmChatRouteParams;
+  NearbyRoomChat: NearbyRoomChatRouteParams;
   UserProfile: UserProfileRouteParams;
   Profile: NavigatorScreenParams<ProfileStackParamList> | undefined;
   Settings: undefined;
@@ -135,6 +141,10 @@ export type AnnouncementDetailRouteProp = RouteProp<
   "AnnouncementDetail"
 >;
 export type DmChatRouteProp = RouteProp<RootStackParamList, "DMChat">;
+export type NearbyRoomChatRouteProp = RouteProp<
+  RootStackParamList,
+  "NearbyRoomChat"
+>;
 export type EditProfileRouteProp = RouteProp<
   ProfileStackParamList,
   "EditProfile"

@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   DeviceEventEmitter,
   FlatList,
   Image,
@@ -734,17 +733,13 @@ export default function NearbyHubScreen() {
       setRoomActionBusyId(room.id);
       setRoomErrorText("");
       try {
-        await nearbyApi.openNearbyRoom(room.id);
+        const response = await nearbyApi.openNearbyRoom(room.id);
         await refreshRooms();
         if (!mountedRef.current) return;
-        Alert.alert(
-          copyOrFallback(t, "nearby.rooms.title", "Местные чаты"),
-          copyOrFallback(
-            t,
-            "nearby.rooms.chatNotConnected",
-            "Chat screen is not connected yet"
-          )
-        );
+        navigation.navigate("NearbyRoomChat", {
+          roomId: response.roomId,
+          title: response.title || room.title,
+        });
       } catch (error) {
         if (!mountedRef.current) return;
         setRoomErrorText(getBackendErrorText(error, t));
@@ -754,7 +749,7 @@ export default function NearbyHubScreen() {
         }
       }
     },
-    [refreshRooms, roomActionBusyId, t]
+    [navigation, refreshRooms, roomActionBusyId, t]
   );
 
   const header = useMemo(
