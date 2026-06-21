@@ -174,6 +174,8 @@ export function App() {
       (!item.ownerOnly || adminMe?.adminUser.roles.includes("owner")) &&
       (!item.roles || item.roles.some((role) => adminMe?.adminUser.roles.includes(role))),
   );
+  const canManageNearbyRooms =
+    adminMe?.adminUser.roles.some((role) => role === "owner" || role === "moderator") ?? false;
   const activeScreen = visibleScreens.some((item) => item.key === screen) ? screen : "dashboard";
   const activeLabel = screens.find((item) => item.key === activeScreen)?.labelKey ?? "nav.dashboard";
 
@@ -281,7 +283,9 @@ export function App() {
           ) : null}
           {activeScreen === "opsHealth" ? <OpsHealthScreen /> : null}
           {activeScreen === "nearbyDiagnostics" ? <NearbyDiagnosticsScreen /> : null}
-          {activeScreen === "nearbyRooms" ? <NearbyRoomsScreen setMessage={setMessage} /> : null}
+          {activeScreen === "nearbyRooms" ? (
+            <NearbyRoomsScreen canManageRooms={canManageNearbyRooms} setMessage={setMessage} />
+          ) : null}
           {activeScreen === "bootstrap" ? <BootstrapScreen /> : null}
         </main>
       </div>
@@ -1947,7 +1951,13 @@ function NearbyDiagnosticsScreen() {
   );
 }
 
-function NearbyRoomsScreen({ setMessage }: { setMessage: (message: string | null) => void }) {
+function NearbyRoomsScreen({
+  canManageRooms,
+  setMessage,
+}: {
+  canManageRooms: boolean;
+  setMessage: (message: string | null) => void;
+}) {
   const { language, t, tx } = useI18n();
   const [roomTypes, setRoomTypes] = useState<AdminNearbyRoomType[]>([]);
   const [rooms, setRooms] = useState<AdminNearbyRoom[]>([]);
@@ -2116,38 +2126,44 @@ function NearbyRoomsScreen({ setMessage }: { setMessage: (message: string | null
       </div>
 
       <div className="panel">
-        <h2>{t("nearbyRooms.createTitle")}</h2>
-        <form className="stack-form" onSubmit={submitCreate}>
-          <label>
-            {t("nearbyRooms.typeKey")}
-            <select
-              value={typeKey}
-              onChange={(event) => setTypeKey(event.target.value)}
-              required
-            >
-              {roomTypes.map((roomType) => (
-                <option
-                  key={roomType.key}
-                  value={roomType.key}
+        {canManageRooms ? (
+          <>
+            <h2>{t("nearbyRooms.createTitle")}</h2>
+            <form className="stack-form" onSubmit={submitCreate}>
+              <label>
+                {t("nearbyRooms.typeKey")}
+                <select
+                  value={typeKey}
+                  onChange={(event) => setTypeKey(event.target.value)}
+                  required
                 >
-                  {formatNearbyRoomTypeSelectLabel(roomType, t)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            {t("nearbyRooms.geoBucket")}
-            <input
-              value={geoBucket}
-              onChange={(event) => setGeoBucket(event.target.value)}
-              maxLength={200}
-              required
-            />
-          </label>
-          <button disabled={creating || loading || !typeKey}>
-            {creating ? t("nearbyRooms.creating") : t("nearbyRooms.create")}
-          </button>
-        </form>
+                  {roomTypes.map((roomType) => (
+                    <option
+                      key={roomType.key}
+                      value={roomType.key}
+                    >
+                      {formatNearbyRoomTypeSelectLabel(roomType, t)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                {t("nearbyRooms.geoBucket")}
+                <input
+                  value={geoBucket}
+                  onChange={(event) => setGeoBucket(event.target.value)}
+                  maxLength={200}
+                  required
+                />
+              </label>
+              <button disabled={creating || loading || !typeKey}>
+                {creating ? t("nearbyRooms.creating") : t("nearbyRooms.create")}
+              </button>
+            </form>
+          </>
+        ) : (
+          <p className="muted">{t("nearbyRooms.readOnlyNote")}</p>
+        )}
 
         <h3>{t("nearbyRooms.detailTitle")}</h3>
         {detailLoading ? <div className="empty">{t("common.loading")}</div> : null}
@@ -2163,24 +2179,26 @@ function NearbyRoomsScreen({ setMessage }: { setMessage: (message: string | null
               <Fact label={t("common.created")} value={formatDate(selected.createdAt, language)} />
               <Fact label={t("common.updated")} value={formatDate(selected.updatedAt, language)} />
             </dl>
-            <div className="tab-row">
-              {nearbyRoomActions.map((action) => (
-                <button
-                  key={action}
-                  type="button"
-                  className={action === "disable" ? "" : "secondary"}
-                  disabled={
-                    busyAction !== null ||
-                    loading ||
-                    detailLoading ||
-                    isNearbyRoomActionCurrent(selected, action)
-                  }
-                  onClick={() => void submitRoomAction(action)}
-                >
-                  {busyAction === action ? t("nearbyRooms.applying") : formatNearbyRoomAction(action, t)}
-                </button>
-              ))}
-            </div>
+            {canManageRooms ? (
+              <div className="tab-row">
+                {nearbyRoomActions.map((action) => (
+                  <button
+                    key={action}
+                    type="button"
+                    className={action === "disable" ? "" : "secondary"}
+                    disabled={
+                      busyAction !== null ||
+                      loading ||
+                      detailLoading ||
+                      isNearbyRoomActionCurrent(selected, action)
+                    }
+                    onClick={() => void submitRoomAction(action)}
+                  >
+                    {busyAction === action ? t("nearbyRooms.applying") : formatNearbyRoomAction(action, t)}
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </>
         ) : null}
         {!detailLoading && !selected ? <EmptyState label={t("empty.selectRow")} /> : null}

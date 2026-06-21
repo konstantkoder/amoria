@@ -339,6 +339,7 @@ export const ru: Record<TranslationKey, string> = {
   "nearbyRooms.empty": "Комнаты Рядом не загружены.",
   "nearbyRooms.geoBucket": "Geo Bucket",
   "nearbyRooms.memberCount": "Участники",
+  "nearbyRooms.readOnlyNote": "Доступ только для чтения. Создавать или изменять комнаты могут только owner/moderator.",
   "nearbyRooms.roomId": "Room ID",
   "nearbyRooms.threadId": "Thread ID",
   "nearbyRooms.title": "Комнаты Рядом",

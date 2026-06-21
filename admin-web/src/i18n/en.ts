@@ -337,6 +337,7 @@ export const en = {
   "nearbyRooms.empty": "No Nearby rooms loaded.",
   "nearbyRooms.geoBucket": "Geo Bucket",
   "nearbyRooms.memberCount": "Members",
+  "nearbyRooms.readOnlyNote": "Read-only access. Only owner/moderator can create or change rooms.",
   "nearbyRooms.roomId": "Room ID",
   "nearbyRooms.threadId": "Thread ID",
   "nearbyRooms.title": "Nearby Rooms",
