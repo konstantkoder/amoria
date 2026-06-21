@@ -1566,7 +1566,7 @@ function formatNearbyRoomStatus(
 function getNearbyRoomAction(
   room: NearbyRoomCard,
   t: (key: string, params?: Record<string, string>) => string
-): { kind: "join" | "open" | "joined" | "unavailable"; label: string } {
+): { kind: "join" | "open" | "unavailable"; label: string } {
   if (room.canJoin) {
     return {
       kind: "join",
@@ -1583,8 +1583,8 @@ function getNearbyRoomAction(
 
   if (room.status === "active") {
     return {
-      kind: "joined",
-      label: copyOrFallback(t, "nearby.rooms.joined", "Уже внутри"),
+      kind: "open",
+      label: copyOrFallback(t, "nearby.rooms.continue", "Продолжить"),
     };
   }
 
