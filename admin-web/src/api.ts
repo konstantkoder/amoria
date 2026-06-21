@@ -162,6 +162,31 @@ export type NearbyDiagnostics = {
   feedExclusionReasons: Record<NearbyFeedExclusionReason, number>;
 };
 
+export type AdminNearbyRoomType = {
+  key: string;
+  title: string;
+  status: string;
+  adminApproved: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AdminNearbyRoom = {
+  id: string;
+  typeKey: string;
+  roomType: AdminNearbyRoomType;
+  status: string;
+  geoBucket: string;
+  memberCount: number;
+  threadId: string | null;
+  createdByAdminUserId: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AdminNearbyRoomAction = "close" | "disable" | "reopen";
+
 export type UserSearchItem = {
   id: string;
   amoriaId: string;

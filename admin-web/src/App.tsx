@@ -9,6 +9,9 @@ import {
 } from "react";
 import {
   AdminMe,
+  AdminNearbyRoom,
+  AdminNearbyRoomAction,
+  AdminNearbyRoomType,
   AdminReleaseDashboard,
   AdminUserItem,
   ApiError,
@@ -61,6 +64,7 @@ type Screen =
   | "togetherSessions"
   | "opsHealth"
   | "nearbyDiagnostics"
+  | "nearbyRooms"
   | "bootstrap";
 
 type ScreenItem = {
@@ -95,6 +99,7 @@ const screens: ScreenItem[] = [
   { key: "auditLog", labelKey: "nav.auditLog" },
   { key: "opsHealth", labelKey: "nav.opsHealth" },
   { key: "nearbyDiagnostics", labelKey: "nav.nearbyDiagnostics", roles: ["owner", "ops"] },
+  { key: "nearbyRooms", labelKey: "nav.nearbyRooms", roles: ["owner", "moderator", "support", "ops"] },
   { key: "bootstrap", labelKey: "nav.bootstrap" },
 ];
 
@@ -276,6 +281,7 @@ export function App() {
           ) : null}
           {activeScreen === "opsHealth" ? <OpsHealthScreen /> : null}
           {activeScreen === "nearbyDiagnostics" ? <NearbyDiagnosticsScreen /> : null}
+          {activeScreen === "nearbyRooms" ? <NearbyRoomsScreen setMessage={setMessage} /> : null}
           {activeScreen === "bootstrap" ? <BootstrapScreen /> : null}
         </main>
       </div>
@@ -1941,6 +1947,270 @@ function NearbyDiagnosticsScreen() {
   );
 }
 
+function NearbyRoomsScreen({ setMessage }: { setMessage: (message: string | null) => void }) {
+  const { language, t, tx } = useI18n();
+  const [roomTypes, setRoomTypes] = useState<AdminNearbyRoomType[]>([]);
+  const [rooms, setRooms] = useState<AdminNearbyRoom[]>([]);
+  const [selected, setSelected] = useState<AdminNearbyRoom | null>(null);
+  const [typeKey, setTypeKey] = useState("");
+  const [geoBucket, setGeoBucket] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [busyAction, setBusyAction] = useState<AdminNearbyRoomAction | null>(null);
+
+  async function load(preferredRoomId: string | null = selected?.id ?? null): Promise<boolean> {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const [typesResponse, roomsResponse] = await Promise.all([
+        apiGet<{ items: AdminNearbyRoomType[]; nextCursor: null }>("/admin/nearby-room-types"),
+        apiGet<{ items: AdminNearbyRoom[]; nextCursor: null }>("/admin/nearby-rooms"),
+      ]);
+
+      setRoomTypes(typesResponse.items);
+      setRooms(roomsResponse.items);
+      setTypeKey((current) => {
+        if (current && typesResponse.items.some((item) => item.key === current)) {
+          return current;
+        }
+
+        return typesResponse.items.find(isAvailableNearbyRoomType)?.key ?? typesResponse.items[0]?.key ?? "";
+      });
+
+      const nextRoomId =
+        preferredRoomId && roomsResponse.items.some((item) => item.id === preferredRoomId)
+          ? preferredRoomId
+          : roomsResponse.items[0]?.id ?? null;
+
+      if (!nextRoomId) {
+        setSelected(null);
+        return true;
+      }
+
+      return await loadDetail(nextRoomId);
+    } catch (error) {
+      setError(errorMessage(error, t));
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function loadDetail(roomId: string): Promise<boolean> {
+    setDetailLoading(true);
+    setError(null);
+
+    try {
+      const response = await apiGet<{ room: AdminNearbyRoom }>(`/admin/nearby-rooms/${roomId}`);
+      setSelected(response.room);
+      return true;
+    } catch (error) {
+      setError(errorMessage(error, t));
+      return false;
+    } finally {
+      setDetailLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void load(null);
+  }, []);
+
+  async function submitCreate(event: FormEvent) {
+    event.preventDefault();
+    setCreating(true);
+    setError(null);
+    setMessage(null);
+
+    try {
+      const response = await apiPost<{ room: AdminNearbyRoom }>("/admin/nearby-rooms", {
+        typeKey,
+        geoBucket: geoBucket.trim(),
+      });
+      const reloaded = await load(response.room.id);
+      if (reloaded) {
+        setGeoBucket("");
+        setMessage(tx("nearbyRooms.created", { id: response.room.id }));
+      }
+    } catch (error) {
+      setError(errorMessage(error, t));
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  async function submitRoomAction(action: AdminNearbyRoomAction) {
+    if (!selected) {
+      return;
+    }
+
+    setBusyAction(action);
+    setError(null);
+    setMessage(null);
+
+    try {
+      const response = await apiPost<{ room: AdminNearbyRoom }>(
+        `/admin/nearby-rooms/${selected.id}/actions`,
+        { action },
+      );
+      const reloaded = await load(response.room.id);
+      if (reloaded) {
+        setMessage(tx("nearbyRooms.actionApplied", {
+          action: formatNearbyRoomAction(action, t),
+          id: response.room.id,
+        }));
+      }
+    } catch (error) {
+      setError(errorMessage(error, t));
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  return (
+    <section className="grid-two">
+      <div className="panel">
+        <div className="panel-header">
+          <h2>{t("nearbyRooms.title")}</h2>
+          <button className="secondary" onClick={() => void load()}>{t("common.refresh")}</button>
+        </div>
+        {error ? <div className="error">{error}</div> : null}
+        {loading ? <div className="empty">{t("common.loading")}</div> : null}
+        {!loading && rooms.length ? (
+          <table>
+            <thead>
+              <tr>
+                <th>{t("nearbyRooms.titleAndType")}</th>
+                <th>{t("nearbyRooms.geoBucket")}</th>
+                <th>{t("common.status")}</th>
+                <th>{t("nearbyRooms.memberCount")}</th>
+                <th>{t("nearbyRooms.threadId")}</th>
+                <th>{t("common.updated")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rooms.map((room) => (
+                <tr
+                  key={room.id}
+                  onClick={() => void loadDetail(room.id)}
+                  className={selected?.id === room.id ? "selected" : ""}
+                >
+                  <td>
+                    <div>{room.roomType.title}</div>
+                    <div className="muted">{room.typeKey}</div>
+                  </td>
+                  <td>{room.geoBucket}</td>
+                  <td>{formatStatus(room.status, t)}</td>
+                  <td>{formatCount(room.memberCount)}</td>
+                  <td>{room.threadId ?? ""}</td>
+                  <td>{formatDate(room.updatedAt, language)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : null}
+        {!loading && !rooms.length ? <EmptyState label={t("nearbyRooms.empty")} /> : null}
+      </div>
+
+      <div className="panel">
+        <h2>{t("nearbyRooms.createTitle")}</h2>
+        <form className="stack-form" onSubmit={submitCreate}>
+          <label>
+            {t("nearbyRooms.typeKey")}
+            <select
+              value={typeKey}
+              onChange={(event) => setTypeKey(event.target.value)}
+              required
+            >
+              {roomTypes.map((roomType) => (
+                <option
+                  key={roomType.key}
+                  value={roomType.key}
+                >
+                  {formatNearbyRoomTypeSelectLabel(roomType, t)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            {t("nearbyRooms.geoBucket")}
+            <input
+              value={geoBucket}
+              onChange={(event) => setGeoBucket(event.target.value)}
+              maxLength={200}
+              required
+            />
+          </label>
+          <button disabled={creating || loading || !typeKey}>
+            {creating ? t("nearbyRooms.creating") : t("nearbyRooms.create")}
+          </button>
+        </form>
+
+        <h3>{t("nearbyRooms.detailTitle")}</h3>
+        {detailLoading ? <div className="empty">{t("common.loading")}</div> : null}
+        {!detailLoading && selected ? (
+          <>
+            <dl className="facts compact">
+              <Fact label={t("nearbyRooms.roomId")} value={selected.id} />
+              <Fact label={t("common.type")} value={`${selected.roomType.title} · ${selected.typeKey}`} />
+              <Fact label={t("nearbyRooms.geoBucket")} value={selected.geoBucket} />
+              <Fact label={t("common.status")} value={formatStatus(selected.status, t)} />
+              <Fact label={t("nearbyRooms.memberCount")} value={formatCount(selected.memberCount)} />
+              <Fact label={t("nearbyRooms.threadId")} value={selected.threadId ?? ""} />
+              <Fact label={t("common.created")} value={formatDate(selected.createdAt, language)} />
+              <Fact label={t("common.updated")} value={formatDate(selected.updatedAt, language)} />
+            </dl>
+            <div className="tab-row">
+              {nearbyRoomActions.map((action) => (
+                <button
+                  key={action}
+                  type="button"
+                  className={action === "disable" ? "" : "secondary"}
+                  disabled={
+                    busyAction !== null ||
+                    loading ||
+                    detailLoading ||
+                    isNearbyRoomActionCurrent(selected, action)
+                  }
+                  onClick={() => void submitRoomAction(action)}
+                >
+                  {busyAction === action ? t("nearbyRooms.applying") : formatNearbyRoomAction(action, t)}
+                </button>
+              ))}
+            </div>
+          </>
+        ) : null}
+        {!detailLoading && !selected ? <EmptyState label={t("empty.selectRow")} /> : null}
+
+        <h3>{t("nearbyRooms.typesTitle")}</h3>
+        {loading ? <div className="empty">{t("common.loading")}</div> : null}
+        {!loading && roomTypes.length ? (
+          <DataTable
+            columns={[
+              t("nearbyRooms.typeKey"),
+              t("common.type"),
+              t("common.status"),
+              t("nearbyRooms.adminApproved"),
+              t("common.updated"),
+            ]}
+            rows={roomTypes.map((roomType) => [
+              roomType.key,
+              roomType.title,
+              formatStatus(roomType.status, t),
+              roomType.adminApproved ? t("common.yes") : t("common.no"),
+              formatDate(roomType.updatedAt, language),
+            ])}
+          />
+        ) : null}
+        {!loading && !roomTypes.length ? <EmptyState label={t("nearbyRooms.typesEmpty")} /> : null}
+      </div>
+    </section>
+  );
+}
+
 function BootstrapScreen() {
   const { t } = useI18n();
   return (
@@ -2132,6 +2402,46 @@ const nearbyProfileMissingFilters: Array<NearbyProfileMissingReason | "all"> = [
   "missing_avatar",
 ];
 
+const nearbyRoomActions: AdminNearbyRoomAction[] = ["close", "disable", "reopen"];
+
+function isAvailableNearbyRoomType(roomType: AdminNearbyRoomType): boolean {
+  return roomType.status === "active" && roomType.adminApproved;
+}
+
+function formatNearbyRoomTypeSelectLabel(
+  roomType: AdminNearbyRoomType,
+  t: (key: TranslationKey) => string,
+): string {
+  const availability = roomType.adminApproved ? t("common.yes") : t("common.no");
+  return `${roomType.title} (${roomType.key}, ${formatStatus(roomType.status, t)}, ${t("nearbyRooms.adminApproved")}: ${availability})`;
+}
+
+function isNearbyRoomActionCurrent(room: AdminNearbyRoom, action: AdminNearbyRoomAction): boolean {
+  if (action === "close") {
+    return room.status === "closed";
+  }
+
+  if (action === "disable") {
+    return room.status === "disabled";
+  }
+
+  return room.status === "active";
+}
+
+function formatNearbyRoomAction(
+  action: AdminNearbyRoomAction,
+  t: (key: TranslationKey) => string,
+): string {
+  switch (action) {
+    case "close":
+      return t("action.close");
+    case "disable":
+      return t("action.disable");
+    case "reopen":
+      return t("action.reopen");
+  }
+}
+
 function formatNearbyFeedExclusionReason(
   reason: NearbyFeedExclusionReason,
   t: (key: TranslationKey) => string,
@@ -2288,6 +2598,8 @@ function formatStatus(status: string, t: (key: TranslationKey) => string): strin
       return t("status.approved");
     case "archived":
       return t("status.archived");
+    case "closed":
+      return t("status.closed");
     case "disabled":
       return t("status.disabled");
     case "dismissed":
