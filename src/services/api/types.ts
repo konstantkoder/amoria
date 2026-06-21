@@ -352,6 +352,51 @@ export type NearbyProfileFeedResponse = {
   nextCursor: string | null;
 };
 
+export type NearbyRoomCard = {
+  id: string;
+  typeKey: string;
+  title: string;
+  geoBucket: string;
+  memberCount: number;
+  status: string;
+  canJoin: boolean;
+  canOpen: boolean;
+  threadId: string | null;
+};
+
+export type NearbyRoomsResponse = {
+  items: NearbyRoomCard[];
+  nextCursor: null;
+};
+
+export type NearbyRoomActionResponse = {
+  room: NearbyRoomCard;
+};
+
+export type NearbyRoomOpenResponse = {
+  roomId: string;
+  threadId: string;
+  title: string;
+};
+
+export type NearbyRoomMessage = {
+  id: string;
+  roomId: string;
+  threadId: string;
+  fromUserId: string;
+  text: string;
+  createdAt: string;
+  clientMessageId: string;
+};
+
+export type NearbyRoomMessagesResponse = {
+  items: NearbyRoomMessage[];
+};
+
+export type SendNearbyRoomMessageResponse = {
+  message: NearbyRoomMessage;
+};
+
 export type ThreadPeerDto = {
   id: string;
   displayName: string;

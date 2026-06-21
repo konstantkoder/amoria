@@ -3,8 +3,13 @@ import type {
   NearbyFeedResponse,
   NearbyMeResponse,
   NearbyProfileFeedResponse,
+  NearbyRoomActionResponse,
+  NearbyRoomMessagesResponse,
+  NearbyRoomOpenResponse,
+  NearbyRoomsResponse,
   NearbySummaryResponse,
   NearbyStatusDto,
+  SendNearbyRoomMessageResponse,
   PatchNearbyProfileStatusRequest,
   UpdateNearbyVisibilityRequest,
 } from "@/services/api/types";
@@ -77,6 +82,61 @@ export function listProfileFeed(limit = 30): Promise<NearbyProfileFeedResponse> 
   return request<NearbyProfileFeedResponse>(
     "GET",
     `/nearby/feed${buildQuery({ limit })}`
+  );
+}
+
+export function listNearbyRooms(): Promise<NearbyRoomsResponse> {
+  return request<NearbyRoomsResponse>("GET", "/nearby/rooms");
+}
+
+export function joinNearbyRoom(
+  roomId: string
+): Promise<NearbyRoomActionResponse> {
+  return request<NearbyRoomActionResponse>(
+    "POST",
+    `/nearby/rooms/${encodeURIComponent(roomId)}/join`
+  );
+}
+
+export function leaveNearbyRoom(
+  roomId: string
+): Promise<NearbyRoomActionResponse> {
+  return request<NearbyRoomActionResponse>(
+    "POST",
+    `/nearby/rooms/${encodeURIComponent(roomId)}/leave`
+  );
+}
+
+export function openNearbyRoom(
+  roomId: string
+): Promise<NearbyRoomOpenResponse> {
+  return request<NearbyRoomOpenResponse>(
+    "POST",
+    `/nearby/rooms/${encodeURIComponent(roomId)}/open`
+  );
+}
+
+export function listNearbyRoomMessages(
+  roomId: string
+): Promise<NearbyRoomMessagesResponse> {
+  return request<NearbyRoomMessagesResponse>(
+    "GET",
+    `/nearby/rooms/${encodeURIComponent(roomId)}/messages`
+  );
+}
+
+export function sendNearbyRoomMessage(
+  roomId: string,
+  text: string,
+  clientMessageId: string
+): Promise<SendNearbyRoomMessageResponse> {
+  return request<SendNearbyRoomMessageResponse>(
+    "POST",
+    `/nearby/rooms/${encodeURIComponent(roomId)}/messages`,
+    {
+      text,
+      clientMessageId,
+    }
   );
 }
 
