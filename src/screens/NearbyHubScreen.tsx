@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   DeviceEventEmitter,
   FlatList,
   Image,
@@ -26,6 +27,7 @@ import type {
   AgeGroup,
   NearbyProfileFeedItemDto,
   NearbyProfileStatusKind,
+  NearbyRoomCard,
   NearbySummaryResponse,
   NearbyProfileVisibilityDto,
 } from "@/services/api/types";
@@ -62,6 +64,7 @@ const NEARBY_CIRCLE_MIN_SIZE = 96;
 const NEARBY_CIRCLE_MAX_SIZE = 112;
 const NORMAL_GRID_MIN_WIDTH = 360;
 const NARROW_GRID_MIN_WIDTH = 300;
+const ROOM_CARD_LIMIT = 4;
 
 const GENDER_FILTERS: GenderFilter[] = ["all", "woman", "man", "nonbinary"];
 const AGE_FILTER_OPTIONS: Array<{
@@ -260,13 +263,17 @@ export default function NearbyHubScreen() {
   const [visibility, setVisibility] = useState<NearbyProfileVisibilityDto | null>(null);
   const [summary, setSummary] = useState<NearbySummaryResponse | null>(null);
   const [items, setItems] = useState<NearbyProfileFeedItemDto[]>([]);
+  const [rooms, setRooms] = useState<NearbyRoomCard[]>([]);
   const [radiusKm, setRadiusKm] = useState(DEFAULT_RADIUS_KM);
   const [loading, setLoading] = useState(true);
   const [feedLoading, setFeedLoading] = useState(false);
+  const [roomsLoading, setRoomsLoading] = useState(false);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [toggleBusy, setToggleBusy] = useState(false);
   const [preferenceBusy, setPreferenceBusy] = useState(false);
+  const [roomActionBusyId, setRoomActionBusyId] = useState<string | null>(null);
   const [errorText, setErrorText] = useState("");
+  const [roomErrorText, setRoomErrorText] = useState("");
   const [locationIssue, setLocationIssue] = useState<LocationIssue | null>(null);
 
   const active = visibility?.status === "active";
@@ -288,7 +295,7 @@ export default function NearbyHubScreen() {
       columns === 3 ? NEARBY_CIRCLE_MIN_SIZE : columns === 2 ? 112 : 128;
     return Math.round(Math.min(maxSize, Math.max(minSize, columnWidth - 4)));
   }, [columns, width]);
-  const refreshDisabled = feedLoading || toggleBusy || preferenceBusy;
+  const refreshDisabled = feedLoading || roomsLoading || toggleBusy || preferenceBusy || Boolean(roomActionBusyId);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -345,6 +352,24 @@ export default function NearbyHubScreen() {
       }
     }
   }, []);
+
+  const refreshRooms = useCallback(async () => {
+    setRoomsLoading(true);
+    setRoomErrorText("");
+    try {
+      const response = await nearbyApi.listNearbyRooms();
+      if (!mountedRef.current) return;
+      setRooms(response.items ?? []);
+    } catch (error) {
+      if (!mountedRef.current) return;
+      setRooms([]);
+      setRoomErrorText(getBackendErrorText(error, t));
+    } finally {
+      if (mountedRef.current) {
+        setRoomsLoading(false);
+      }
+    }
+  }, [t]);
 
   const refreshFeed = useCallback(
     async (
@@ -409,6 +434,7 @@ export default function NearbyHubScreen() {
 
   const loadInitial = useCallback(async () => {
     void refreshSummary();
+    void refreshRooms();
     const finishNearbyInitialLoad = startStartupSpan("nearby.initial_load", {
       focused: true,
     });
@@ -451,7 +477,7 @@ export default function NearbyHubScreen() {
         });
       }
     }
-  }, [refreshFeed, refreshSummary, t]);
+  }, [refreshFeed, refreshRooms, refreshSummary, t]);
 
   useEffect(() => {
     const subscription = DeviceEventEmitter.addListener(PROFILE_UPDATED_EVENT, () => {
@@ -467,6 +493,7 @@ export default function NearbyHubScreen() {
     if (refreshDisabled || manualRefreshBusyRef.current) return;
     manualRefreshBusyRef.current = true;
     void refreshSummary();
+    void refreshRooms();
 
     const currentVisibility = visibilityRef.current;
     if (
@@ -483,7 +510,7 @@ export default function NearbyHubScreen() {
     void loadInitial().finally(() => {
       manualRefreshBusyRef.current = false;
     });
-  }, [loadInitial, refreshDisabled, refreshFeed, refreshSummary]);
+  }, [loadInitial, refreshDisabled, refreshFeed, refreshRooms, refreshSummary]);
 
   useFocusEffect(
     useCallback(() => {
@@ -680,6 +707,55 @@ export default function NearbyHubScreen() {
       handleRadiusChange(next);
     }
   }, [handleRadiusChange, radiusKm, refreshDisabled]);
+
+  const handleJoinRoom = useCallback(
+    async (room: NearbyRoomCard) => {
+      if (roomActionBusyId) return;
+      setRoomActionBusyId(room.id);
+      setRoomErrorText("");
+      try {
+        await nearbyApi.joinNearbyRoom(room.id);
+        await refreshRooms();
+      } catch (error) {
+        if (!mountedRef.current) return;
+        setRoomErrorText(getBackendErrorText(error, t));
+      } finally {
+        if (mountedRef.current) {
+          setRoomActionBusyId(null);
+        }
+      }
+    },
+    [refreshRooms, roomActionBusyId, t]
+  );
+
+  const handleOpenRoom = useCallback(
+    async (room: NearbyRoomCard) => {
+      if (roomActionBusyId) return;
+      setRoomActionBusyId(room.id);
+      setRoomErrorText("");
+      try {
+        await nearbyApi.openNearbyRoom(room.id);
+        await refreshRooms();
+        if (!mountedRef.current) return;
+        Alert.alert(
+          copyOrFallback(t, "nearby.rooms.title", "Местные чаты"),
+          copyOrFallback(
+            t,
+            "nearby.rooms.chatNotConnected",
+            "Chat screen is not connected yet"
+          )
+        );
+      } catch (error) {
+        if (!mountedRef.current) return;
+        setRoomErrorText(getBackendErrorText(error, t));
+      } finally {
+        if (mountedRef.current) {
+          setRoomActionBusyId(null);
+        }
+      }
+    },
+    [refreshRooms, roomActionBusyId, t]
+  );
 
   const header = useMemo(
     () => (
@@ -1191,6 +1267,35 @@ export default function NearbyHubScreen() {
     [circleSize, columns, openProfile, t]
   );
 
+  const visibleRooms = useMemo(
+    () => rooms.slice(0, ROOM_CARD_LIMIT),
+    [rooms]
+  );
+
+  const roomFooter = useMemo(() => {
+    if (!visibleRooms.length && !roomErrorText) return null;
+
+    return (
+      <NearbyRoomCardsSection
+        rooms={visibleRooms}
+        loading={roomsLoading}
+        errorText={roomErrorText}
+        busyRoomId={roomActionBusyId}
+        onJoin={(room) => void handleJoinRoom(room)}
+        onOpen={(room) => void handleOpenRoom(room)}
+        t={t}
+      />
+    );
+  }, [
+    handleJoinRoom,
+    handleOpenRoom,
+    roomActionBusyId,
+    roomErrorText,
+    roomsLoading,
+    t,
+    visibleRooms,
+  ]);
+
   return (
     <ScreenShell
       title={copyOrFallback(t, "tabs.nearby", "Рядом")}
@@ -1206,9 +1311,10 @@ export default function NearbyHubScreen() {
         renderItem={renderCard}
         ListHeaderComponent={header}
         ListEmptyComponent={renderEmpty}
+        ListFooterComponent={roomFooter}
         columnWrapperStyle={columns > 1 ? styles.columnWrap : undefined}
         contentContainerStyle={styles.listContent}
-        refreshing={feedLoading}
+        refreshing={feedLoading || (roomsLoading && !loading)}
         onRefresh={() => {
           if (active && !refreshDisabled) {
             refreshNearby();
@@ -1285,6 +1391,151 @@ function NearbyStatsCards({
   );
 }
 
+function NearbyRoomCardsSection({
+  rooms,
+  loading,
+  errorText,
+  busyRoomId,
+  onJoin,
+  onOpen,
+  t,
+}: {
+  rooms: NearbyRoomCard[];
+  loading: boolean;
+  errorText: string;
+  busyRoomId: string | null;
+  onJoin: (room: NearbyRoomCard) => void;
+  onOpen: (room: NearbyRoomCard) => void;
+  t: (key: string, params?: Record<string, string>) => string;
+}) {
+  return (
+    <View style={styles.roomsSection}>
+      <View style={styles.roomsHeader}>
+        <View>
+          <Text style={styles.roomsTitle}>
+            {copyOrFallback(t, "nearby.rooms.title", "Местные чаты")}
+          </Text>
+          <Text style={styles.roomsSubtitle}>
+            {copyOrFallback(
+              t,
+              "nearby.rooms.subtitle",
+              "Коллективные комнаты поблизости."
+            )}
+          </Text>
+        </View>
+        {loading ? <ActivityIndicator size="small" color="#F3C98B" /> : null}
+      </View>
+
+      {errorText ? (
+        <View style={styles.roomsError}>
+          <Ionicons name="alert-circle-outline" size={16} color="#FFD2DA" />
+          <Text style={styles.roomsErrorText}>{errorText}</Text>
+        </View>
+      ) : null}
+
+      {rooms.length ? (
+        <View style={styles.roomCardGrid}>
+          {rooms.map((room) => (
+            <NearbyRoomCardView
+              key={room.id}
+              room={room}
+              busy={busyRoomId === room.id}
+              disabled={Boolean(busyRoomId)}
+              onJoin={() => onJoin(room)}
+              onOpen={() => onOpen(room)}
+              t={t}
+            />
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function NearbyRoomCardView({
+  room,
+  busy,
+  disabled,
+  onJoin,
+  onOpen,
+  t,
+}: {
+  room: NearbyRoomCard;
+  busy: boolean;
+  disabled: boolean;
+  onJoin: () => void;
+  onOpen: () => void;
+  t: (key: string, params?: Record<string, string>) => string;
+}) {
+  const action = getNearbyRoomAction(room, t);
+  const canAct = action.kind === "join" || action.kind === "open";
+
+  return (
+    <LinearGradient
+      colors={["rgba(9, 14, 32, 0.82)", "rgba(18, 20, 42, 0.74)"]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.roomCard}
+    >
+      <View style={styles.roomCardTop}>
+        <View style={styles.roomIconFrame}>
+          <Ionicons name="chatbubbles-outline" size={18} color="#F3C98B" />
+        </View>
+        <View style={styles.roomCopy}>
+          <Text style={styles.roomTitle} numberOfLines={1} ellipsizeMode="tail">
+            {room.title}
+          </Text>
+          <Text style={styles.roomBucket} numberOfLines={1} ellipsizeMode="tail">
+            {room.geoBucket}
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.roomMetaRow}>
+        <View style={styles.roomMetaPill}>
+          <Ionicons name="people-outline" size={13} color="#E8EBFF" />
+          <Text style={styles.roomMetaText}>
+            {copyOrFallback(t, "nearby.rooms.members", "{count} участн.", {
+              count: String(Math.max(0, room.memberCount)),
+            })}
+          </Text>
+        </View>
+        <View style={styles.roomMetaPill}>
+          <Text style={styles.roomMetaText}>
+            {formatNearbyRoomStatus(room.status, t)}
+          </Text>
+        </View>
+      </View>
+
+      <Pressable
+        disabled={!canAct || disabled || busy}
+        onPress={action.kind === "join" ? onJoin : action.kind === "open" ? onOpen : undefined}
+        style={[
+          styles.roomActionButton,
+          canAct ? styles.roomActionButtonEnabled : styles.roomActionButtonDisabled,
+          disabled || busy ? styles.buttonDisabled : null,
+        ]}
+      >
+        {busy ? (
+          <ActivityIndicator size="small" color="#FFFFFF" />
+        ) : (
+          <Text
+            style={[
+              styles.roomActionText,
+              canAct ? styles.roomActionTextEnabled : styles.roomActionTextDisabled,
+            ]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.82}
+          >
+            {action.label}
+          </Text>
+        )}
+      </Pressable>
+    </LinearGradient>
+  );
+}
+
 function formatPulseCount(
   value: number | null | undefined,
   t: (key: string, params?: Record<string, string>) => string
@@ -1294,6 +1545,53 @@ function formatPulseCount(
   }
 
   return t("nearby.summaryUnavailable");
+}
+
+function formatNearbyRoomStatus(
+  status: string,
+  t: (key: string, params?: Record<string, string>) => string
+) {
+  if (status === "active") {
+    return copyOrFallback(t, "nearby.rooms.status.active", "активен");
+  }
+  if (status === "closed") {
+    return copyOrFallback(t, "nearby.rooms.status.closed", "закрыт");
+  }
+  if (status === "disabled") {
+    return copyOrFallback(t, "nearby.rooms.status.disabled", "выключен");
+  }
+  return status;
+}
+
+function getNearbyRoomAction(
+  room: NearbyRoomCard,
+  t: (key: string, params?: Record<string, string>) => string
+): { kind: "join" | "open" | "joined" | "unavailable"; label: string } {
+  if (room.canJoin) {
+    return {
+      kind: "join",
+      label: copyOrFallback(t, "nearby.rooms.join", "Войти"),
+    };
+  }
+
+  if (room.canOpen) {
+    return {
+      kind: "open",
+      label: copyOrFallback(t, "nearby.rooms.open", "Открыть"),
+    };
+  }
+
+  if (room.status === "active") {
+    return {
+      kind: "joined",
+      label: copyOrFallback(t, "nearby.rooms.joined", "Уже внутри"),
+    };
+  }
+
+  return {
+    kind: "unavailable",
+    label: copyOrFallback(t, "nearby.rooms.unavailable", "Недоступно"),
+  };
 }
 
 function NearbyProfileCard({
@@ -1836,6 +2134,152 @@ const styles = StyleSheet.create({
     color: "#FFD2DA",
     fontSize: 12,
     fontWeight: "900",
+  },
+  roomsSection: {
+    marginTop: 14,
+    marginHorizontal: 2,
+    gap: 10,
+  },
+  roomsHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    paddingHorizontal: 2,
+  },
+  roomsTitle: {
+    color: theme.colors.text,
+    fontSize: 17,
+    lineHeight: 21,
+    fontWeight: "900",
+  },
+  roomsSubtitle: {
+    color: "rgba(226,232,255,0.70)",
+    fontSize: 12,
+    lineHeight: 16,
+    marginTop: 2,
+  },
+  roomsError: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 7,
+    borderRadius: 14,
+    padding: 10,
+    backgroundColor: "rgba(255, 77, 103, 0.13)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 210, 218, 0.20)",
+  },
+  roomsErrorText: {
+    flex: 1,
+    color: "#FFD2DA",
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  roomCardGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  roomCard: {
+    flexGrow: 1,
+    flexBasis: "48%",
+    minWidth: 150,
+    minHeight: 148,
+    borderRadius: 18,
+    padding: 12,
+    gap: 10,
+    backgroundColor: "rgba(9, 14, 32, 0.82)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.14)",
+    shadowColor: "#000",
+    shadowOpacity: 0.22,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 5,
+  },
+  roomCardTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 9,
+  },
+  roomIconFrame: {
+    width: 34,
+    height: 34,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.07)",
+    borderWidth: 1,
+    borderColor: "rgba(243, 201, 139, 0.20)",
+  },
+  roomCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  roomTitle: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    lineHeight: 18,
+    fontWeight: "900",
+  },
+  roomBucket: {
+    color: "rgba(226,232,255,0.68)",
+    fontSize: 11,
+    lineHeight: 14,
+    fontWeight: "700",
+    marginTop: 2,
+  },
+  roomMetaRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  roomMetaPill: {
+    minHeight: 26,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    borderRadius: 13,
+    paddingHorizontal: 8,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.10)",
+  },
+  roomMetaText: {
+    color: "#E8EBFF",
+    fontSize: 11,
+    lineHeight: 14,
+    fontWeight: "800",
+  },
+  roomActionButton: {
+    height: 34,
+    minHeight: 34,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 13,
+    paddingHorizontal: 10,
+    marginTop: 2,
+  },
+  roomActionButtonEnabled: {
+    backgroundColor: "rgba(232, 66, 138, 0.92)",
+    borderWidth: 1,
+    borderColor: "rgba(255,184,104,0.58)",
+  },
+  roomActionButtonDisabled: {
+    backgroundColor: "rgba(255,255,255,0.07)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.10)",
+  },
+  roomActionText: {
+    fontSize: 12,
+    lineHeight: 15,
+    fontWeight: "900",
+  },
+  roomActionTextEnabled: {
+    color: "#FFFFFF",
+  },
+  roomActionTextDisabled: {
+    color: "rgba(226,232,255,0.66)",
   },
   cardGlow: {
     alignItems: "center",
