@@ -1408,13 +1408,13 @@ function NearbyRoomCardsSection({
       <View style={styles.roomsHeader}>
         <View>
           <Text style={styles.roomsTitle}>
-            {copyOrFallback(t, "nearby.rooms.title", "Местные чаты")}
+            {copyOrFallback(t, "nearby.rooms.title", "Активности рядом")}
           </Text>
           <Text style={styles.roomsSubtitle}>
             {copyOrFallback(
               t,
               "nearby.rooms.subtitle",
-              "Коллективные комнаты поблизости."
+              "Реальные активности и чаты поблизости."
             )}
           </Text>
         </View>
@@ -1547,13 +1547,13 @@ function formatNearbyRoomStatus(
   t: (key: string, params?: Record<string, string>) => string
 ) {
   if (status === "active") {
-    return copyOrFallback(t, "nearby.rooms.status.active", "активен");
+    return copyOrFallback(t, "nearby.rooms.status.active", "активна");
   }
   if (status === "closed") {
-    return copyOrFallback(t, "nearby.rooms.status.closed", "закрыт");
+    return copyOrFallback(t, "nearby.rooms.status.closed", "закрыта");
   }
   if (status === "disabled") {
-    return copyOrFallback(t, "nearby.rooms.status.disabled", "выключен");
+    return copyOrFallback(t, "nearby.rooms.status.disabled", "выключена");
   }
   return status;
 }
@@ -1565,7 +1565,7 @@ function getNearbyRoomAction(
   if (room.canJoin) {
     return {
       kind: "join",
-      label: copyOrFallback(t, "nearby.rooms.join", "Войти"),
+      label: copyOrFallback(t, "nearby.rooms.join", "Присоединиться"),
     };
   }
 

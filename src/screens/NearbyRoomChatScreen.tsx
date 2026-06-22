@@ -109,7 +109,7 @@ export default function NearbyRoomChatScreen() {
   const myId = String(user?.id ?? "").trim();
   const roomId = String(route.params?.roomId ?? "").trim();
   const title = String(route.params?.title ?? "").trim();
-  const screenTitle = title || tt(t, "nearby.rooms.title", "Местные чаты");
+  const screenTitle = title || tt(t, "nearby.rooms.title", "Активности рядом");
 
   const mountedRef = useRef(true);
   const inputRef = useRef<TextInput>(null);
@@ -156,7 +156,7 @@ export default function NearbyRoomChatScreen() {
             : tt(
                 t,
                 "nearby.rooms.loadFailed",
-                "Не удалось загрузить сообщения комнаты."
+                "Не удалось загрузить сообщения чата активности."
               )
         );
       } finally {
@@ -242,7 +242,7 @@ export default function NearbyRoomChatScreen() {
             {screenTitle}
           </Text>
           <Text style={styles.headerSubtitle} numberOfLines={1}>
-            {tt(t, "nearby.rooms.collectiveChat", "Коллективный чат")}
+            {tt(t, "nearby.rooms.collectiveChat", "Чат активности")}
           </Text>
         </View>
       </View>
@@ -262,11 +262,11 @@ export default function NearbyRoomChatScreen() {
         <View style={styles.centerState}>
           <CoreStateCard
             icon="alert-circle-outline"
-            title={tt(t, "nearby.rooms.unavailableTitle", "Комната недоступна")}
+            title={tt(t, "nearby.rooms.unavailableTitle", "Активность недоступна")}
             body={tt(
               t,
               "nearby.rooms.missingRoomId",
-              "Не удалось открыть комнату без корректного идентификатора."
+              "Не удалось открыть активность без корректного идентификатора."
             )}
             primaryAction={{ label: tt(t, "common.back", "Назад"), onPress: handleBack }}
           />
@@ -313,7 +313,7 @@ export default function NearbyRoomChatScreen() {
             body={tt(
               t,
               "nearby.rooms.emptyBody",
-              "Напишите первым в этот местный чат."
+              "Напишите первым в чат активности."
             )}
           />
         </View>
@@ -341,7 +341,7 @@ export default function NearbyRoomChatScreen() {
               ref={inputRef}
               value={text}
               onChangeText={setText}
-              placeholder={tt(t, "nearby.rooms.messagePlaceholder", "Сообщение в комнату")}
+              placeholder={tt(t, "nearby.rooms.messagePlaceholder", "Сообщение в чат активности")}
               placeholderTextColor={theme.colors.muted}
               style={styles.input}
               multiline
