@@ -245,6 +245,13 @@ function getBackendErrorText(
   );
 }
 
+function isNearbyActivityPreferenceRequiredError(error: unknown) {
+  return (
+    error instanceof ApiError &&
+    error.code === "nearby_activity_preference_required"
+  );
+}
+
 export default function NearbyHubScreen() {
   const navigation = useNavigation<NearbyTabNavigationProp>();
   const { width } = useWindowDimensions();
@@ -273,6 +280,8 @@ export default function NearbyHubScreen() {
   const [roomActionBusyId, setRoomActionBusyId] = useState<string | null>(null);
   const [errorText, setErrorText] = useState("");
   const [roomErrorText, setRoomErrorText] = useState("");
+  const [roomPreferenceGateVisible, setRoomPreferenceGateVisible] =
+    useState(false);
   const [locationIssue, setLocationIssue] = useState<LocationIssue | null>(null);
 
   const active = visibility?.status === "active";
@@ -355,6 +364,7 @@ export default function NearbyHubScreen() {
   const refreshRooms = useCallback(async () => {
     setRoomsLoading(true);
     setRoomErrorText("");
+    setRoomPreferenceGateVisible(false);
     try {
       const response = await nearbyApi.listNearbyRooms();
       if (!mountedRef.current) return;
@@ -716,11 +726,16 @@ export default function NearbyHubScreen() {
       if (roomActionBusyId) return;
       setRoomActionBusyId(room.id);
       setRoomErrorText("");
+      setRoomPreferenceGateVisible(false);
       try {
         await nearbyApi.joinNearbyRoom(room.id);
         await refreshRooms();
       } catch (error) {
         if (!mountedRef.current) return;
+        if (isNearbyActivityPreferenceRequiredError(error)) {
+          setRoomPreferenceGateVisible(true);
+          return;
+        }
         setRoomErrorText(getBackendErrorText(error, t));
       } finally {
         if (mountedRef.current) {
@@ -736,6 +751,7 @@ export default function NearbyHubScreen() {
       if (roomActionBusyId) return;
       setRoomActionBusyId(room.id);
       setRoomErrorText("");
+      setRoomPreferenceGateVisible(false);
       try {
         const response = await nearbyApi.openNearbyRoom(room.id);
         await refreshRooms();
@@ -746,6 +762,10 @@ export default function NearbyHubScreen() {
         });
       } catch (error) {
         if (!mountedRef.current) return;
+        if (isNearbyActivityPreferenceRequiredError(error)) {
+          setRoomPreferenceGateVisible(true);
+          return;
+        }
         setRoomErrorText(getBackendErrorText(error, t));
       } finally {
         if (mountedRef.current) {
@@ -1272,24 +1292,30 @@ export default function NearbyHubScreen() {
   );
 
   const roomFooter = useMemo(() => {
-    if (!visibleRooms.length && !roomErrorText) return null;
+    if (!visibleRooms.length && !roomErrorText && !roomPreferenceGateVisible) {
+      return null;
+    }
 
     return (
       <NearbyRoomCardsSection
         rooms={visibleRooms}
         loading={roomsLoading}
         errorText={roomErrorText}
+        preferenceGateVisible={roomPreferenceGateVisible}
         busyRoomId={roomActionBusyId}
         onJoin={(room) => void handleJoinRoom(room)}
         onOpen={(room) => void handleOpenRoom(room)}
+        onOpenPreferences={openActivityPreferences}
         t={t}
       />
     );
   }, [
     handleJoinRoom,
     handleOpenRoom,
+    openActivityPreferences,
     roomActionBusyId,
     roomErrorText,
+    roomPreferenceGateVisible,
     roomsLoading,
     t,
     visibleRooms,
@@ -1453,17 +1479,21 @@ function NearbyRoomCardsSection({
   rooms,
   loading,
   errorText,
+  preferenceGateVisible,
   busyRoomId,
   onJoin,
   onOpen,
+  onOpenPreferences,
   t,
 }: {
   rooms: NearbyRoomCard[];
   loading: boolean;
   errorText: string;
+  preferenceGateVisible: boolean;
   busyRoomId: string | null;
   onJoin: (room: NearbyRoomCard) => void;
   onOpen: (room: NearbyRoomCard) => void;
+  onOpenPreferences: () => void;
   t: (key: string, params?: Record<string, string>) => string;
 }) {
   return (
@@ -1488,6 +1518,50 @@ function NearbyRoomCardsSection({
         <View style={styles.roomsError}>
           <Ionicons name="alert-circle-outline" size={16} color="#FFD2DA" />
           <Text style={styles.roomsErrorText}>{errorText}</Text>
+        </View>
+      ) : null}
+
+      {preferenceGateVisible ? (
+        <View style={styles.roomsPreferenceGate}>
+          <View style={styles.roomsPreferenceGateHeader}>
+            <View style={styles.roomsPreferenceGateIcon}>
+              <Ionicons name="options-outline" size={18} color="#F3C98B" />
+            </View>
+            <View style={styles.roomsPreferenceGateCopy}>
+              <Text style={styles.roomsPreferenceGateTitle}>
+                {copyOrFallback(
+                  t,
+                  "nearby.activityPreferences.requiredTitle",
+                  "Сначала выберите активности рядом"
+                )}
+              </Text>
+              <Text style={styles.roomsPreferenceGateBody}>
+                {copyOrFallback(
+                  t,
+                  "nearby.activityPreferences.requiredBody",
+                  "Чтобы присоединиться к этой активности, отметьте её во второй анкете."
+                )}
+              </Text>
+            </View>
+          </View>
+          <Pressable
+            onPress={onOpenPreferences}
+            style={styles.roomsPreferenceGateButton}
+            accessibilityRole="button"
+          >
+            <Text
+              style={styles.roomsPreferenceGateButtonText}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.82}
+            >
+              {copyOrFallback(
+                t,
+                "nearby.activityPreferences.requiredButton",
+                "Выбрать активности"
+              )}
+            </Text>
+          </Pressable>
         </View>
       ) : null}
 
@@ -2293,6 +2367,58 @@ const styles = StyleSheet.create({
     color: "#FFD2DA",
     fontSize: 12,
     lineHeight: 16,
+  },
+  roomsPreferenceGate: {
+    gap: 10,
+    borderRadius: 16,
+    padding: 12,
+    backgroundColor: "rgba(243, 201, 139, 0.11)",
+    borderWidth: 1,
+    borderColor: "rgba(243, 201, 139, 0.24)",
+  },
+  roomsPreferenceGateHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 9,
+  },
+  roomsPreferenceGateIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.18)",
+  },
+  roomsPreferenceGateCopy: {
+    flex: 1,
+    minWidth: 0,
+    gap: 3,
+  },
+  roomsPreferenceGateTitle: {
+    color: theme.colors.text,
+    fontSize: 13,
+    lineHeight: 17,
+    fontWeight: "900",
+  },
+  roomsPreferenceGateBody: {
+    color: "rgba(255,255,255,0.74)",
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  roomsPreferenceGateButton: {
+    minHeight: 36,
+    alignSelf: "stretch",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 13,
+    paddingHorizontal: 12,
+    backgroundColor: "rgba(243, 201, 139, 0.94)",
+  },
+  roomsPreferenceGateButtonText: {
+    color: "#24150B",
+    fontSize: 12,
+    lineHeight: 15,
+    fontWeight: "900",
   },
   roomCardGrid: {
     flexDirection: "row",
