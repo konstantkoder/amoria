@@ -301,6 +301,46 @@ test("Nearby profile feed returns only real compatible opted-in profiles with sa
   assert.equal(JSON.stringify(body).includes("locked"), false);
 });
 
+test("Nearby people feed does not require activity questionnaire", async (t) => {
+  t.after(restoreDeps);
+  mockNearby({
+    visibilities: [
+      visibilityRow(viewerId, { latitude: 45.815, longitude: 15.982, radiusKm: 25 }),
+      visibilityRow(matchId, { latitude: 45.83, longitude: 16.01, radiusKm: 25 }),
+    ],
+    users: [
+      userRow(viewerId, {
+        birthDate: "1995-01-01",
+        gender: "man",
+        preferredGenders: ["woman"],
+        preferredAgeMin: 25,
+        preferredAgeMax: 35,
+      }),
+      userRow(matchId, {
+        displayName: "Feed Match",
+        birthDate: "1996-02-02",
+        gender: "woman",
+        preferredGenders: ["man"],
+      }),
+    ],
+  });
+  const app = buildApp();
+  t.after(async () => {
+    await app.close();
+  });
+
+  const response = await app.inject({
+    method: "GET",
+    url: "/nearby/feed",
+    headers: authHeaders(viewerId),
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.json().items.length, 1);
+  assert.equal(response.json().items[0].userId, matchId);
+  assertNoPrivateNearbyFields(response.json());
+});
+
 function mockNearby(input: {
   blocks?: Set<string>;
   users?: UserRow[];

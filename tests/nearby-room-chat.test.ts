@@ -24,9 +24,18 @@ const nearbyRoomChatService =
 
 type NearbyRoomsRepo = typeof import("../src/nearby/nearby-rooms.repo");
 type NearbyRoomChatRepo = typeof import("../src/nearby/nearby-room-chat.repo");
+type ActivityPreferencesRepo =
+  typeof import("../src/nearby/nearby-activity-preferences.repo");
 
 type MembershipState = {
   status: string;
+};
+
+type PreferenceState = {
+  userId: string;
+  activityKey: string;
+  status: "active" | "disabled";
+  source: string;
 };
 
 type RoomState = {
@@ -237,6 +246,47 @@ test("POST /nearby/rooms/:roomId/messages rejects non-member", async (t) => {
   assert.equal(state.room(roomId)?.threadId, null);
 });
 
+test("nearby room open, messages, and send require matching active preference", async (t) => {
+  t.after(restoreDeps);
+  const state = mockNearbyRoomChat({
+    room: roomState({ threadId }),
+    threads: [threadRow()],
+    messages: [messageRow()],
+    preferences: [],
+  });
+  const app = buildApp();
+  t.after(async () => {
+    await app.close();
+  });
+
+  const open = await app.inject({
+    method: "POST",
+    url: `/nearby/rooms/${roomId}/open`,
+    headers: authHeaders(activeMemberId),
+  });
+  const messages = await app.inject({
+    method: "GET",
+    url: `/nearby/rooms/${roomId}/messages`,
+    headers: authHeaders(activeMemberId),
+  });
+  const send = await app.inject({
+    method: "POST",
+    url: `/nearby/rooms/${roomId}/messages`,
+    headers: authHeaders(activeMemberId),
+    payload: {
+      clientMessageId: "room-message-without-preference",
+      text: "No preference",
+    },
+  });
+
+  for (const response of [open, messages, send]) {
+    assert.equal(response.statusCode, 403);
+    assert.equal(response.json().error.code, "nearby_activity_preference_required");
+  }
+  assert.equal(state.isThreadMember(threadId, activeMemberId), false);
+  assert.equal(state.messages(threadId).length, 1);
+});
+
 test("GET /nearby/rooms exposes threadId only when active member can open safe room thread", async (t) => {
   t.after(restoreDeps);
   mockNearbyRoomChat({
@@ -272,6 +322,7 @@ function mockNearbyRoomChat(input: {
   threads?: ThreadRow[];
   messages?: MessageRow[];
   nextThreadId?: string;
+  preferences?: PreferenceState[];
 } = {}) {
   restoreDeps();
 
@@ -292,6 +343,7 @@ function mockNearbyRoomChat(input: {
     messages.set(message.threadId, threadMessages);
   }
   let nextMessageIndex = 0;
+  const preferences = input.preferences ?? [activityPreference()];
 
   const roomRepo = {
     listPublicNearbyRoomsForUser: async (viewerUserId: string) =>
@@ -308,6 +360,20 @@ function mockNearbyRoomChat(input: {
       return room ? toRow(room, viewerUserId, threads) : undefined;
     },
   } satisfies Partial<NearbyRoomsRepo>;
+
+  const activityPreferencesRepo = {
+    hasActiveUserActivityPreferenceForActivity: async (
+      userId: string,
+      activityKey: string,
+    ) =>
+      preferences.some(
+        (preference) =>
+          preference.userId === userId &&
+          preference.activityKey === activityKey &&
+          preference.status === "active" &&
+          preference.source === "nearby_questionnaire",
+      ),
+  } satisfies Partial<ActivityPreferencesRepo>;
 
   const chatRepo = {
     findOrCreateNearbyRoomThread: async (nextRoomId: string, userId: string, created: Date) => {
@@ -377,10 +443,20 @@ function mockNearbyRoomChat(input: {
   restoreRoomsDeps = nearbyRoomsService.__setNearbyRoomsServiceDepsForTests({
     now: () => now,
     repo: roomRepo as NearbyRoomsRepo,
+    activityPreferencesRepo:
+      activityPreferencesRepo as Pick<
+        ActivityPreferencesRepo,
+        "hasActiveUserActivityPreferenceForActivity"
+      >,
   });
   restoreRoomChatDeps = nearbyRoomChatService.__setNearbyRoomChatServiceDepsForTests({
     now: () => now,
     roomRepo: roomRepo as Pick<NearbyRoomsRepo, "findNearbyRoomForUser">,
+    activityPreferencesRepo:
+      activityPreferencesRepo as Pick<
+        ActivityPreferencesRepo,
+        "hasActiveUserActivityPreferenceForActivity"
+      >,
     chatRepo: chatRepo as NearbyRoomChatRepo,
   });
 
@@ -420,6 +496,16 @@ function roomState(overrides: Partial<RoomState> = {}): RoomState {
     memberships: new Map([[activeMemberId, { status: "active" }]]),
     createdAt,
     updatedAt: createdAt,
+    ...overrides,
+  };
+}
+
+function activityPreference(overrides: Partial<PreferenceState> = {}): PreferenceState {
+  return {
+    userId: activeMemberId,
+    activityKey: "coffee_nearby",
+    status: "active",
+    source: "nearby_questionnaire",
     ...overrides,
   };
 }

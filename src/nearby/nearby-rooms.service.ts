@@ -1,4 +1,9 @@
 import { AppError, forbidden } from "../common/errors";
+import * as activityPreferencesRepo from "./nearby-activity-preferences.repo";
+import {
+  type NearbyActivityPreferenceChecker,
+  requireNearbyActivityPreferenceForRoom,
+} from "./nearby-activity-participation";
 import * as nearbyRoomsRepo from "./nearby-rooms.repo";
 import type {
   NearbyRoomActionResponse,
@@ -18,11 +23,13 @@ type NearbyRoomsServiceDeps = {
     | "markNearbyRoomMembershipLeft"
     | "reactivateNearbyRoomMembership"
   >;
+  activityPreferencesRepo: NearbyActivityPreferenceChecker;
 };
 
 const defaultDeps: NearbyRoomsServiceDeps = {
   now: () => new Date(),
   repo: nearbyRoomsRepo,
+  activityPreferencesRepo,
 };
 
 const blockedMembershipStatuses = new Set(["removed", "banned"]);
@@ -58,6 +65,11 @@ export async function joinNearbyRoom(
   const row = await deps.repo.findNearbyRoomForUser(roomId, userId);
   requireRoom(row);
   requireJoinableRoom(row);
+  await requireNearbyActivityPreferenceForRoom(
+    deps.activityPreferencesRepo,
+    userId,
+    row.typeKey,
+  );
 
   if (blockedMembershipStatuses.has(row.viewerMembershipStatus ?? "")) {
     throw forbidden("Nearby room membership is restricted");

@@ -10,6 +10,26 @@ import type { NearbyActivityPreferenceInput } from "./nearby-activity-preference
 
 const QUESTIONNAIRE_SOURCE = "nearby_questionnaire" as const;
 
+export async function hasActiveUserActivityPreferenceForActivity(
+  userId: string,
+  activityKey: NearbyActivityKey,
+): Promise<boolean> {
+  const [row] = await db
+    .select({ userId: userActivityPreferences.userId })
+    .from(userActivityPreferences)
+    .where(
+      and(
+        eq(userActivityPreferences.userId, userId),
+        eq(userActivityPreferences.activityKey, activityKey),
+        eq(userActivityPreferences.source, QUESTIONNAIRE_SOURCE),
+        eq(userActivityPreferences.status, "active"),
+      ),
+    )
+    .limit(1);
+
+  return Boolean(row);
+}
+
 export async function listActiveUserActivityPreferences(
   userId: string,
 ): Promise<UserActivityPreferenceRow[]> {

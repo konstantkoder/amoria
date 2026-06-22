@@ -1,5 +1,10 @@
 import { AppError, forbidden } from "../common/errors";
 import type { MessageRow, ThreadRow } from "../db/schema";
+import * as activityPreferencesRepo from "./nearby-activity-preferences.repo";
+import {
+  type NearbyActivityPreferenceChecker,
+  requireNearbyActivityPreferenceForRoom,
+} from "./nearby-activity-participation";
 import * as nearbyRoomsRepo from "./nearby-rooms.repo";
 import * as roomChatRepo from "./nearby-room-chat.repo";
 import type {
@@ -20,6 +25,7 @@ export type SendNearbyRoomMessageResult = {
 type NearbyRoomChatServiceDeps = {
   now: () => Date;
   roomRepo: Pick<typeof nearbyRoomsRepo, "findNearbyRoomForUser">;
+  activityPreferencesRepo: NearbyActivityPreferenceChecker;
   chatRepo: Pick<
     typeof roomChatRepo,
     | "addNearbyRoomThreadMember"
@@ -33,6 +39,7 @@ type NearbyRoomChatServiceDeps = {
 const defaultDeps: NearbyRoomChatServiceDeps = {
   now: () => new Date(),
   roomRepo: nearbyRoomsRepo,
+  activityPreferencesRepo,
   chatRepo: roomChatRepo,
 };
 
@@ -141,6 +148,12 @@ async function requireActiveRoomMember(
   if (room.roomTypeStatus !== "active" || !room.adminApproved) {
     throw forbidden("Nearby room type is not available");
   }
+
+  await requireNearbyActivityPreferenceForRoom(
+    deps.activityPreferencesRepo,
+    userId,
+    room.typeKey,
+  );
 
   if (room.viewerMembershipStatus !== "active") {
     throw forbidden("Nearby room active membership is required");

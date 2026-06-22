@@ -16,11 +16,20 @@ const nearbyRoomsService =
   require("../src/nearby/nearby-rooms.service") as typeof import("../src/nearby/nearby-rooms.service");
 
 type NearbyRoomsRepo = typeof import("../src/nearby/nearby-rooms.repo");
+type ActivityPreferencesRepo =
+  typeof import("../src/nearby/nearby-activity-preferences.repo");
 
 type MembershipState = {
   status: string;
   joinedAt: Date;
   leftAt: Date | null;
+};
+
+type PreferenceState = {
+  userId: string;
+  activityKey: string;
+  status: "active" | "disabled";
+  source: string;
 };
 
 type RoomState = {
@@ -94,6 +103,86 @@ test("POST /nearby/rooms/:roomId/join joins an active existing room with real me
     threadId,
   });
   assertNoPrivateNearbyFields(response.json());
+});
+
+test("GET /nearby/rooms allows passive listing without activity preferences", async (t) => {
+  t.after(restoreDeps);
+  mockNearbyRooms({ preferences: [] });
+  const app = buildApp();
+  t.after(async () => {
+    await app.close();
+  });
+
+  const response = await app.inject({
+    method: "GET",
+    url: "/nearby/rooms",
+    headers: authHeaders(viewerId),
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.json().items.length, 1);
+  assert.equal(response.json().items[0].id, activeRoomId);
+});
+
+test("POST /nearby/rooms/:roomId/join rejects without matching active preference", async (t) => {
+  t.after(restoreDeps);
+  const state = mockNearbyRooms({ preferences: [] });
+  const app = buildApp();
+  t.after(async () => {
+    await app.close();
+  });
+
+  const response = await app.inject({
+    method: "POST",
+    url: `/nearby/rooms/${activeRoomId}/join`,
+    headers: authHeaders(viewerId),
+  });
+
+  assert.equal(response.statusCode, 403);
+  assert.equal(response.json().error.code, "nearby_activity_preference_required");
+  assert.equal(state.membership(activeRoomId, viewerId), undefined);
+});
+
+test("POST /nearby/rooms/:roomId/join rejects disabled preference", async (t) => {
+  t.after(restoreDeps);
+  const state = mockNearbyRooms({
+    preferences: [activityPreference({ status: "disabled" })],
+  });
+  const app = buildApp();
+  t.after(async () => {
+    await app.close();
+  });
+
+  const response = await app.inject({
+    method: "POST",
+    url: `/nearby/rooms/${activeRoomId}/join`,
+    headers: authHeaders(viewerId),
+  });
+
+  assert.equal(response.statusCode, 403);
+  assert.equal(response.json().error.code, "nearby_activity_preference_required");
+  assert.equal(state.membership(activeRoomId, viewerId), undefined);
+});
+
+test("POST /nearby/rooms/:roomId/join rejects preference for another activity", async (t) => {
+  t.after(restoreDeps);
+  const state = mockNearbyRooms({
+    preferences: [activityPreference({ activityKey: "bike_nearby" })],
+  });
+  const app = buildApp();
+  t.after(async () => {
+    await app.close();
+  });
+
+  const response = await app.inject({
+    method: "POST",
+    url: `/nearby/rooms/${activeRoomId}/join`,
+    headers: authHeaders(viewerId),
+  });
+
+  assert.equal(response.statusCode, 403);
+  assert.equal(response.json().error.code, "nearby_activity_preference_required");
+  assert.equal(state.membership(activeRoomId, viewerId), undefined);
 });
 
 test("POST /nearby/rooms/:roomId/join rejects disabled room or type", async (t) => {
@@ -342,11 +431,12 @@ test("nearby room join and leave require authentication", async (t) => {
   assert.equal(leave.statusCode, 401);
 });
 
-function mockNearbyRooms(input: { rooms?: RoomState[] } = {}) {
+function mockNearbyRooms(input: { rooms?: RoomState[]; preferences?: PreferenceState[] } = {}) {
   restoreDeps();
   const rooms = new Map<string, RoomState>(
     (input.rooms ?? [roomState()]).map((room) => [room.id, room]),
   );
+  const preferences = input.preferences ?? [activityPreference()];
 
   const repo = {
     listPublicNearbyRoomsForUser: async (viewerUserId: string) =>
@@ -383,9 +473,28 @@ function mockNearbyRooms(input: { rooms?: RoomState[] } = {}) {
     },
   } satisfies Partial<NearbyRoomsRepo>;
 
+  const activityPreferencesRepo = {
+    hasActiveUserActivityPreferenceForActivity: async (
+      userId: string,
+      activityKey: string,
+    ) =>
+      preferences.some(
+        (preference) =>
+          preference.userId === userId &&
+          preference.activityKey === activityKey &&
+          preference.status === "active" &&
+          preference.source === "nearby_questionnaire",
+      ),
+  } satisfies Partial<ActivityPreferencesRepo>;
+
   restoreRoomsDeps = nearbyRoomsService.__setNearbyRoomsServiceDepsForTests({
     now: () => now,
     repo: repo as NearbyRoomsRepo,
+    activityPreferencesRepo:
+      activityPreferencesRepo as Pick<
+        ActivityPreferencesRepo,
+        "hasActiveUserActivityPreferenceForActivity"
+      >,
   });
 
   return {
@@ -425,6 +534,16 @@ function membership(
     status,
     joinedAt: earlier,
     leftAt: null,
+    ...overrides,
+  };
+}
+
+function activityPreference(overrides: Partial<PreferenceState> = {}): PreferenceState {
+  return {
+    userId: viewerId,
+    activityKey: "coffee_nearby",
+    status: "active",
+    source: "nearby_questionnaire",
     ...overrides,
   };
 }
