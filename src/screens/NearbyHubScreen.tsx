@@ -698,6 +698,10 @@ export default function NearbyHubScreen() {
     });
   }, [navigation]);
 
+  const openActivityPreferences = useCallback(() => {
+    navigation.navigate("NearbyActivityPreferences");
+  }, [navigation]);
+
   const widenRadius = useCallback(() => {
     if (refreshDisabled) return;
     const currentIndex = RADIUS_OPTIONS.findIndex((value) => value === radiusKm);
@@ -1291,6 +1295,19 @@ export default function NearbyHubScreen() {
     visibleRooms,
   ]);
 
+  const listFooter = useMemo(
+    () => (
+      <View style={styles.footerStack}>
+        {roomFooter}
+        <NearbyActivityPreferencesCard
+          onPress={openActivityPreferences}
+          t={t}
+        />
+      </View>
+    ),
+    [openActivityPreferences, roomFooter, t]
+  );
+
   return (
     <ScreenShell
       title={copyOrFallback(t, "tabs.nearby", "Рядом")}
@@ -1306,7 +1323,7 @@ export default function NearbyHubScreen() {
         renderItem={renderCard}
         ListHeaderComponent={header}
         ListEmptyComponent={renderEmpty}
-        ListFooterComponent={roomFooter}
+        ListFooterComponent={listFooter}
         columnWrapperStyle={columns > 1 ? styles.columnWrap : undefined}
         contentContainerStyle={styles.listContent}
         refreshing={feedLoading || (roomsLoading && !loading)}
@@ -1317,6 +1334,52 @@ export default function NearbyHubScreen() {
         }}
       />
     </ScreenShell>
+  );
+}
+
+function NearbyActivityPreferencesCard({
+  onPress,
+  t,
+}: {
+  onPress: () => void;
+  t: (key: string, params?: Record<string, string>) => string;
+}) {
+  return (
+    <View style={styles.activityPreferencesCard}>
+      <View style={styles.activityPreferencesIcon}>
+        <Ionicons name="sparkles-outline" size={18} color="#F3C98B" />
+      </View>
+      <View style={styles.activityPreferencesCopy}>
+        <Text style={styles.activityPreferencesTitle}>
+          {copyOrFallback(
+            t,
+            "nearby.activityPreferences.cardTitle",
+            "Выберите активности рядом"
+          )}
+        </Text>
+        <Text style={styles.activityPreferencesBody}>
+          {copyOrFallback(
+            t,
+            "nearby.activityPreferences.cardBody",
+            "Отметьте, что вам интересно: велосипед, каяки, рыбалка, кофе…"
+          )}
+        </Text>
+      </View>
+      <Pressable
+        onPress={onPress}
+        style={styles.activityPreferencesButton}
+        accessibilityRole="button"
+      >
+        <Text
+          style={styles.activityPreferencesButtonText}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.82}
+        >
+          {copyOrFallback(t, "nearby.activityPreferences.cardButton", "Выбрать")}
+        </Text>
+      </Pressable>
+    </View>
   );
 }
 
@@ -1826,6 +1889,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 1,
     paddingBottom: 18,
   },
+  footerStack: {
+    gap: 12,
+  },
   columnWrap: {
     alignItems: "stretch",
   },
@@ -2128,6 +2194,64 @@ const styles = StyleSheet.create({
   retryButtonText: {
     color: "#FFD2DA",
     fontSize: 12,
+    fontWeight: "900",
+  },
+  activityPreferencesCard: {
+    marginTop: 14,
+    marginHorizontal: 2,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderRadius: 18,
+    padding: 12,
+    backgroundColor: "rgba(10, 16, 28, 0.76)",
+    borderWidth: 1,
+    borderColor: "rgba(243, 201, 139, 0.22)",
+    shadowColor: "#000",
+    shadowOpacity: 0.20,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 4,
+  },
+  activityPreferencesIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.07)",
+    borderWidth: 1,
+    borderColor: "rgba(243, 201, 139, 0.20)",
+  },
+  activityPreferencesCopy: {
+    flex: 1,
+    minWidth: 0,
+    gap: 3,
+  },
+  activityPreferencesTitle: {
+    color: theme.colors.text,
+    fontSize: 14,
+    lineHeight: 18,
+    fontWeight: "900",
+  },
+  activityPreferencesBody: {
+    color: "rgba(226,232,255,0.72)",
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  activityPreferencesButton: {
+    minWidth: 78,
+    minHeight: 36,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 13,
+    paddingHorizontal: 12,
+    backgroundColor: "rgba(243, 201, 139, 0.94)",
+  },
+  activityPreferencesButtonText: {
+    color: "#24150B",
+    fontSize: 12,
+    lineHeight: 15,
     fontWeight: "900",
   },
   roomsSection: {

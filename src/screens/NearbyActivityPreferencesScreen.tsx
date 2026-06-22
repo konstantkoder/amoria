@@ -1,0 +1,519 @@
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
+
+import ScreenShell from "@/components/ScreenShell";
+import { useLocale } from "@/contexts/LocaleContext";
+import type { RootStackNavigationProp } from "@/navigation/appRoutes";
+import { ApiError } from "@/services/api/apiClient";
+import * as nearbyApi from "@/services/api/nearbyApi";
+import type {
+  NearbyActivityDefinition,
+  NearbyActivityKey,
+  NearbyActivityPreferencesResponse,
+} from "@/services/api/types";
+import { theme } from "@/theme";
+
+function copyOrFallback(
+  t: (key: string, params?: Record<string, string>) => string,
+  key: string,
+  fallback: string,
+  params?: Record<string, string>
+) {
+  const value = t(key, params);
+  if (value !== key) return value;
+  return Object.entries(params ?? {}).reduce(
+    (text, [paramKey, paramValue]) =>
+      text.replace(new RegExp(`\\{${paramKey}\\}`, "g"), paramValue),
+    fallback
+  );
+}
+
+function getErrorText(
+  error: unknown,
+  t: (key: string, params?: Record<string, string>) => string
+) {
+  if (error instanceof ApiError) return error.message;
+  return copyOrFallback(
+    t,
+    "nearby.activityPreferences.errorGeneric",
+    "Activity preferences are temporarily unavailable. Try again."
+  );
+}
+
+function getActivityLabel(
+  activity: NearbyActivityDefinition,
+  t: (key: string, params?: Record<string, string>) => string
+) {
+  return copyOrFallback(
+    t,
+    `nearby.activityPreferences.activity.${activity.activityKey}`,
+    activity.title
+  );
+}
+
+function getActivePreferenceKeys(response: NearbyActivityPreferencesResponse) {
+  return new Set(
+    response.preferences
+      .filter((preference) => preference.status === "active")
+      .map((preference) => preference.activityKey)
+  );
+}
+
+function sameSelectedKeys(
+  first: ReadonlySet<NearbyActivityKey>,
+  second: ReadonlySet<NearbyActivityKey>
+) {
+  if (first.size !== second.size) return false;
+  for (const key of first) {
+    if (!second.has(key)) return false;
+  }
+  return true;
+}
+
+export default function NearbyActivityPreferencesScreen() {
+  const navigation = useNavigation<RootStackNavigationProp<"NearbyActivityPreferences">>();
+  const { t } = useLocale();
+  const mountedRef = useRef(true);
+  const [activities, setActivities] = useState<NearbyActivityDefinition[]>([]);
+  const [selectedKeys, setSelectedKeys] = useState<Set<NearbyActivityKey>>(
+    () => new Set()
+  );
+  const [savedKeys, setSavedKeys] = useState<Set<NearbyActivityKey>>(
+    () => new Set()
+  );
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [errorText, setErrorText] = useState("");
+  const [saved, setSaved] = useState(false);
+
+  const applyResponse = useCallback((response: NearbyActivityPreferencesResponse) => {
+    const activeKeys = getActivePreferenceKeys(response);
+    setActivities(response.availableActivities ?? []);
+    setSelectedKeys(activeKeys);
+    setSavedKeys(new Set(activeKeys));
+  }, []);
+
+  const loadPreferences = useCallback(async () => {
+    setLoading(true);
+    setErrorText("");
+    setSaved(false);
+    try {
+      const response = await nearbyApi.getActivityPreferences();
+      if (!mountedRef.current) return;
+      applyResponse(response);
+    } catch (error) {
+      if (!mountedRef.current) return;
+      setActivities([]);
+      setSelectedKeys(new Set());
+      setSavedKeys(new Set());
+      setErrorText(getErrorText(error, t));
+    } finally {
+      if (mountedRef.current) {
+        setLoading(false);
+      }
+    }
+  }, [applyResponse, t]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    void loadPreferences();
+    return () => {
+      mountedRef.current = false;
+    };
+  }, [loadPreferences]);
+
+  const hasChanges = useMemo(
+    () => !sameSelectedKeys(selectedKeys, savedKeys),
+    [savedKeys, selectedKeys]
+  );
+
+  const toggleActivity = useCallback((activityKey: NearbyActivityKey) => {
+    setSaved(false);
+    setSelectedKeys((current) => {
+      const next = new Set(current);
+      if (next.has(activityKey)) {
+        next.delete(activityKey);
+      } else {
+        next.add(activityKey);
+      }
+      return next;
+    });
+  }, []);
+
+  const savePreferences = useCallback(async () => {
+    if (saving || loading || !hasChanges) return;
+    setSaving(true);
+    setErrorText("");
+    setSaved(false);
+    try {
+      const preferences = activities
+        .filter((activity) => selectedKeys.has(activity.activityKey))
+        .map((activity) => ({ activityKey: activity.activityKey }));
+      const response = await nearbyApi.updateActivityPreferences(preferences);
+      if (!mountedRef.current) return;
+      applyResponse(response);
+      setSaved(true);
+    } catch (error) {
+      if (!mountedRef.current) return;
+      setErrorText(getErrorText(error, t));
+    } finally {
+      if (mountedRef.current) {
+        setSaving(false);
+      }
+    }
+  }, [activities, applyResponse, hasChanges, loading, saving, selectedKeys, t]);
+
+  const canSave = !loading && !saving && hasChanges;
+
+  return (
+    <ScreenShell
+      title={copyOrFallback(
+        t,
+        "screen.nearbyActivityPreferences",
+        "Nearby activities"
+      )}
+      background="now"
+      overlayOpacity={0.2}
+      blurRadius={0}
+      showBack
+    >
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.introPanel}>
+          <Text style={styles.title}>
+            {copyOrFallback(
+              t,
+              "nearby.activityPreferences.title",
+              "Choose nearby activities"
+            )}
+          </Text>
+          <Text style={styles.body}>
+            {copyOrFallback(
+              t,
+              "nearby.activityPreferences.body",
+              "Mark what you are interested in nearby. This is optional and does not change your people feed."
+            )}
+          </Text>
+        </View>
+
+        {loading ? (
+          <View style={styles.statePanel}>
+            <ActivityIndicator color="#F3C98B" />
+            <Text style={styles.stateText}>
+              {copyOrFallback(
+                t,
+                "nearby.activityPreferences.loading",
+                "Loading activities..."
+              )}
+            </Text>
+          </View>
+        ) : null}
+
+        {!loading && errorText ? (
+          <View style={styles.errorPanel}>
+            <Ionicons name="alert-circle-outline" size={18} color="#FFD2DA" />
+            <Text style={styles.errorText}>{errorText}</Text>
+            {!activities.length ? (
+              <Pressable onPress={loadPreferences} style={styles.retryButton}>
+                <Text style={styles.retryButtonText}>
+                  {copyOrFallback(t, "common.retry", "Retry")}
+                </Text>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
+
+        {!loading && activities.length ? (
+          <View style={styles.activityList}>
+            {activities.map((activity) => {
+              const selected = selectedKeys.has(activity.activityKey);
+              return (
+                <Pressable
+                  key={activity.activityKey}
+                  onPress={() => toggleActivity(activity.activityKey)}
+                  disabled={saving}
+                  style={[
+                    styles.activityRow,
+                    selected ? styles.activityRowSelected : null,
+                    saving ? styles.rowDisabled : null,
+                  ]}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: selected, disabled: saving }}
+                >
+                  <View
+                    style={[
+                      styles.checkCircle,
+                      selected ? styles.checkCircleSelected : null,
+                    ]}
+                  >
+                    {selected ? (
+                      <Ionicons name="checkmark" size={16} color="#24150B" />
+                    ) : null}
+                  </View>
+                  <Text
+                    style={[
+                      styles.activityLabel,
+                      selected ? styles.activityLabelSelected : null,
+                    ]}
+                  >
+                    {getActivityLabel(activity, t)}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        ) : null}
+
+        {!loading && !activities.length && !errorText ? (
+          <View style={styles.statePanel}>
+            <Text style={styles.stateText}>
+              {copyOrFallback(
+                t,
+                "nearby.activityPreferences.empty",
+                "No activities are available yet."
+              )}
+            </Text>
+          </View>
+        ) : null}
+
+        {saved ? (
+          <View style={styles.successPanel}>
+            <Ionicons name="checkmark-circle-outline" size={18} color="#B9F6D2" />
+            <View style={styles.successCopy}>
+              <Text style={styles.successTitle}>
+                {copyOrFallback(
+                  t,
+                  "nearby.activityPreferences.savedTitle",
+                  "Saved"
+                )}
+              </Text>
+              <Text style={styles.successBody}>
+                {copyOrFallback(
+                  t,
+                  "nearby.activityPreferences.savedBody",
+                  "Your activity choices were saved."
+                )}
+              </Text>
+            </View>
+          </View>
+        ) : null}
+
+        <Pressable
+          onPress={savePreferences}
+          disabled={!canSave}
+          style={[styles.saveButton, !canSave ? styles.buttonDisabled : null]}
+          accessibilityRole="button"
+        >
+          {saving ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <Text style={styles.saveButtonText}>
+              {copyOrFallback(t, "nearby.activityPreferences.save", "Save")}
+            </Text>
+          )}
+        </Pressable>
+
+        <Pressable
+          onPress={() => navigation.goBack()}
+          style={styles.backButton}
+          accessibilityRole="button"
+        >
+          <Text style={styles.backButtonText}>
+            {copyOrFallback(t, "common.back", "Back")}
+          </Text>
+        </Pressable>
+      </ScrollView>
+    </ScreenShell>
+  );
+}
+
+const styles = StyleSheet.create({
+  content: {
+    gap: 12,
+    paddingHorizontal: 1,
+    paddingBottom: 18,
+  },
+  introPanel: {
+    borderRadius: 20,
+    padding: 16,
+    gap: 6,
+    backgroundColor: "rgba(4, 8, 20, 0.78)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.16)",
+  },
+  title: {
+    color: theme.colors.text,
+    fontSize: 21,
+    lineHeight: 26,
+    fontWeight: "900",
+  },
+  body: {
+    color: "rgba(226,232,255,0.76)",
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  statePanel: {
+    minHeight: 86,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 9,
+    borderRadius: 18,
+    padding: 16,
+    backgroundColor: "rgba(10, 16, 24, 0.72)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.10)",
+  },
+  stateText: {
+    color: "#C5CADB",
+    fontSize: 13,
+    lineHeight: 18,
+    textAlign: "center",
+  },
+  errorPanel: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    borderRadius: 14,
+    padding: 11,
+    backgroundColor: "rgba(255, 77, 103, 0.16)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 210, 218, 0.24)",
+  },
+  errorText: {
+    flex: 1,
+    color: "#FFD2DA",
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  retryButton: {
+    minHeight: 30,
+    justifyContent: "center",
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    backgroundColor: "rgba(255, 210, 218, 0.18)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 210, 218, 0.30)",
+  },
+  retryButtonText: {
+    color: "#FFD2DA",
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  activityList: {
+    gap: 8,
+  },
+  activityRow: {
+    minHeight: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: "rgba(10, 16, 28, 0.76)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+  },
+  activityRowSelected: {
+    backgroundColor: "rgba(243, 201, 139, 0.13)",
+    borderColor: "rgba(243, 201, 139, 0.42)",
+  },
+  rowDisabled: {
+    opacity: 0.58,
+  },
+  checkCircle: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(226,232,255,0.36)",
+    backgroundColor: "rgba(255,255,255,0.06)",
+  },
+  checkCircleSelected: {
+    backgroundColor: "#F3C98B",
+    borderColor: "#F3C98B",
+  },
+  activityLabel: {
+    flex: 1,
+    color: "rgba(226,232,255,0.86)",
+    fontSize: 15,
+    lineHeight: 19,
+    fontWeight: "800",
+  },
+  activityLabelSelected: {
+    color: theme.colors.text,
+  },
+  successPanel: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    borderRadius: 14,
+    padding: 11,
+    backgroundColor: "rgba(31, 185, 110, 0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(185, 246, 210, 0.28)",
+  },
+  successCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  successTitle: {
+    color: "#B9F6D2",
+    fontSize: 13,
+    lineHeight: 17,
+    fontWeight: "900",
+  },
+  successBody: {
+    color: "rgba(226,232,255,0.76)",
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  saveButton: {
+    minHeight: 50,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 17,
+    paddingHorizontal: 14,
+    backgroundColor: "#E8428A",
+    borderWidth: 1,
+    borderColor: "rgba(255,184,104,0.64)",
+  },
+  saveButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    lineHeight: 20,
+    fontWeight: "900",
+  },
+  backButton: {
+    minHeight: 42,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    backgroundColor: "rgba(255,255,255,0.07)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+  },
+  backButtonText: {
+    color: "#F3C98B",
+    fontSize: 14,
+    lineHeight: 18,
+    fontWeight: "900",
+  },
+  buttonDisabled: {
+    opacity: 0.58,
+  },
+});

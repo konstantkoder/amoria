@@ -119,6 +119,7 @@ export type RootStackParamList = {
   PlaySessionDetail: PlaySessionDetailRouteParams;
   DMChat: DmChatRouteParams;
   NearbyRoomChat: NearbyRoomChatRouteParams;
+  NearbyActivityPreferences: undefined;
   UserProfile: UserProfileRouteParams;
   Profile: NavigatorScreenParams<ProfileStackParamList> | undefined;
   Settings: undefined;
