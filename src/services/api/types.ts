@@ -327,6 +327,45 @@ export type PatchNearbyProfileStatusRequest = {
   expiresInSec?: number;
 };
 
+export type NearbyActivityKey =
+  | "coffee_nearby"
+  | "walk_nearby"
+  | "bike_nearby"
+  | "cinema_today"
+  | "talk_nearby"
+  | "evening_nearby"
+  | "roller_skating_nearby"
+  | "kayaking_nearby"
+  | "fishing_nearby"
+  | "sport_nearby"
+  | "language_exchange_nearby"
+  | "local_event_nearby";
+
+export type NearbyActivityDefinition = {
+  activityKey: NearbyActivityKey;
+  title: string;
+};
+
+export type NearbyActivityPreference = {
+  activityKey: NearbyActivityKey;
+  status: "active" | "disabled";
+  geoBucket: string | null;
+  source: "nearby_questionnaire";
+  updatedAt: string;
+};
+
+export type NearbyActivityPreferencesResponse = {
+  availableActivities: NearbyActivityDefinition[];
+  preferences: NearbyActivityPreference[];
+};
+
+export type UpdateNearbyActivityPreferencesRequest = {
+  preferences: Array<{
+    activityKey: NearbyActivityKey;
+    geoBucket?: string | null;
+  }>;
+};
+
 export type NearbyProfilePhotoPreviewDto = {
   mediaId: string;
   url: string;

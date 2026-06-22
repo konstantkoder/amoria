@@ -1,5 +1,6 @@
 import { request } from "@/services/api/apiClient";
 import type {
+  NearbyActivityPreferencesResponse,
   NearbyFeedResponse,
   NearbyMeResponse,
   NearbyProfileFeedResponse,
@@ -11,6 +12,7 @@ import type {
   NearbyStatusDto,
   SendNearbyRoomMessageResponse,
   PatchNearbyProfileStatusRequest,
+  UpdateNearbyActivityPreferencesRequest,
   UpdateNearbyVisibilityRequest,
 } from "@/services/api/types";
 
@@ -76,6 +78,23 @@ export function patchProfileStatus(
   payload: PatchNearbyProfileStatusRequest
 ): Promise<NearbyMeResponse> {
   return request<NearbyMeResponse>("PATCH", "/nearby/me/status", payload);
+}
+
+export function getActivityPreferences(): Promise<NearbyActivityPreferencesResponse> {
+  return request<NearbyActivityPreferencesResponse>(
+    "GET",
+    "/nearby/activity-preferences"
+  );
+}
+
+export function updateActivityPreferences(
+  preferences: UpdateNearbyActivityPreferencesRequest["preferences"]
+): Promise<NearbyActivityPreferencesResponse> {
+  return request<NearbyActivityPreferencesResponse>(
+    "PUT",
+    "/nearby/activity-preferences",
+    { preferences } satisfies UpdateNearbyActivityPreferencesRequest
+  );
 }
 
 export function listProfileFeed(limit = 30): Promise<NearbyProfileFeedResponse> {
