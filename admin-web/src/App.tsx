@@ -9,6 +9,8 @@ import {
 } from "react";
 import {
   AdminMe,
+  AdminNearbyActivityDemand,
+  AdminNearbyActivityDemandRow,
   AdminNearbyRoom,
   AdminNearbyRoomAction,
   AdminNearbyRoomType,
@@ -35,6 +37,7 @@ import {
   apiGet,
   apiPost,
   clearTokens,
+  getAdminNearbyActivityDemand,
   loadTokens,
   login,
   logout,
@@ -1959,6 +1962,9 @@ function NearbyRoomsScreen({
   setMessage: (message: string | null) => void;
 }) {
   const { language, t, tx } = useI18n();
+  const [activityDemand, setActivityDemand] = useState<AdminNearbyActivityDemand | null>(null);
+  const [demandError, setDemandError] = useState<string | null>(null);
+  const [demandLoading, setDemandLoading] = useState(false);
   const [roomTypes, setRoomTypes] = useState<AdminNearbyRoomType[]>([]);
   const [rooms, setRooms] = useState<AdminNearbyRoom[]>([]);
   const [selected, setSelected] = useState<AdminNearbyRoom | null>(null);
@@ -1969,6 +1975,22 @@ function NearbyRoomsScreen({
   const [detailLoading, setDetailLoading] = useState(false);
   const [creating, setCreating] = useState(false);
   const [busyAction, setBusyAction] = useState<AdminNearbyRoomAction | null>(null);
+  const visibleDemandRows = activityDemand?.items.filter(hasVisibleActivityDemand) ?? [];
+
+  async function loadDemand(): Promise<boolean> {
+    setDemandLoading(true);
+    setDemandError(null);
+
+    try {
+      setActivityDemand(await getAdminNearbyActivityDemand());
+      return true;
+    } catch (error) {
+      setDemandError(errorMessage(error, t));
+      return false;
+    } finally {
+      setDemandLoading(false);
+    }
+  }
 
   async function load(preferredRoomId: string | null = selected?.id ?? null): Promise<boolean> {
     setLoading(true);
@@ -2027,6 +2049,7 @@ function NearbyRoomsScreen({
 
   useEffect(() => {
     void load(null);
+    void loadDemand();
   }, []);
 
   async function submitCreate(event: FormEvent) {
@@ -2081,7 +2104,42 @@ function NearbyRoomsScreen({
   }
 
   return (
-    <section className="grid-two">
+    <>
+      <section className="panel">
+        <div className="panel-header">
+          <h2>{t("nearbyDemand.title")}</h2>
+          <button className="secondary" onClick={() => void loadDemand()}>{t("common.refresh")}</button>
+        </div>
+        {demandError ? <div className="error">{demandError}</div> : null}
+        {demandLoading ? <div className="empty">{t("common.loading")}</div> : null}
+        {!demandLoading && visibleDemandRows.length ? (
+          <DataTable
+            columns={[
+              t("nearbyDemand.activity"),
+              t("nearbyDemand.interestedUsers"),
+              t("nearbyDemand.activeNearbyUsers"),
+              t("nearbyDemand.recentUpdates"),
+              t("nearbyDemand.geoBuckets"),
+              t("nearbyDemand.existingActiveRooms"),
+              t("nearbyDemand.lastUpdated"),
+            ]}
+            rows={visibleDemandRows.map((item) => [
+              `${item.activityTitle} · ${item.activityKey}`,
+              formatCount(item.interestedUsersCount),
+              formatCount(item.activeNearbyUsersCount),
+              formatCount(item.recentlyUpdatedUsersCount),
+              formatNearbyDemandGeoBuckets(item.geoBuckets, t),
+              formatCount(item.existingActiveRoomCount),
+              item.lastUpdatedAt ? formatDate(item.lastUpdatedAt, language) : "",
+            ])}
+          />
+        ) : null}
+        {!demandLoading && activityDemand && !visibleDemandRows.length ? (
+          <EmptyState label={t("nearbyDemand.empty")} />
+        ) : null}
+      </section>
+
+      <section className="grid-two">
       <div className="panel">
         <div className="panel-header">
           <h2>{t("nearbyRooms.title")}</h2>
@@ -2228,7 +2286,8 @@ function NearbyRoomsScreen({
         ) : null}
         {!loading && !roomTypes.length ? <EmptyState label={t("nearbyRooms.typesEmpty")} /> : null}
       </div>
-    </section>
+      </section>
+    </>
   );
 }
 
@@ -2369,6 +2428,31 @@ function isSuspiciousQueueCancel(item: TogetherQueueEntry): boolean {
 
 function formatCount(value: number | null): string {
   return value === null ? "" : String(value);
+}
+
+function hasVisibleActivityDemand(item: AdminNearbyActivityDemandRow): boolean {
+  return (
+    item.interestedUsersCount > 0 ||
+    item.activeNearbyUsersCount > 0 ||
+    item.recentlyUpdatedUsersCount > 0 ||
+    item.geoBuckets.length > 0 ||
+    item.lastUpdatedAt !== null
+  );
+}
+
+function formatNearbyDemandGeoBuckets(
+  geoBuckets: AdminNearbyActivityDemandRow["geoBuckets"],
+  t: (key: TranslationKey) => string,
+): string {
+  return geoBuckets
+    .map((bucket) => {
+      const label =
+        bucket.geoBucket === "small_bucket_hidden"
+          ? t("nearbyDemand.smallBucketHidden")
+          : bucket.geoBucket;
+      return `${label} (${formatCount(bucket.interestedUsersCount)})`;
+    })
+    .join(", ");
 }
 
 function formatDashboardCount(

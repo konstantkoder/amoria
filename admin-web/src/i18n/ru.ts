@@ -328,6 +328,17 @@ export const ru: Record<TranslationKey, string> = {
   "ops.reasonMissingGender": "Нет пола",
   "ops.reasonMissingPreferredGenders": "Нет предпочтений",
 
+  "nearbyDemand.activity": "Активность",
+  "nearbyDemand.activeNearbyUsers": "Активны рядом",
+  "nearbyDemand.empty": "Спрос на активности пока не записан.",
+  "nearbyDemand.existingActiveRooms": "Активные rooms",
+  "nearbyDemand.geoBuckets": "Гео-группы",
+  "nearbyDemand.interestedUsers": "Заинтересованы",
+  "nearbyDemand.lastUpdated": "Обновлено",
+  "nearbyDemand.recentUpdates": "Недавние обновления",
+  "nearbyDemand.smallBucketHidden": "маленькая группа скрыта",
+  "nearbyDemand.title": "Спрос на активности",
+
   "nearbyRooms.actionApplied": "{action}: активность рядом / room {id} обновлена.",
   "nearbyRooms.adminApproved": "Одобрено админом",
   "nearbyRooms.applying": "Применяем...",

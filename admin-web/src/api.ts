@@ -187,6 +187,27 @@ export type AdminNearbyRoom = {
 
 export type AdminNearbyRoomAction = "close" | "disable" | "reopen";
 
+export type AdminNearbyActivityDemandGeoBucket = {
+  geoBucket: string;
+  interestedUsersCount: number;
+};
+
+export type AdminNearbyActivityDemandRow = {
+  activityKey: string;
+  activityTitle: string;
+  interestedUsersCount: number;
+  activeNearbyUsersCount: number;
+  recentlyUpdatedUsersCount: number;
+  geoBuckets: AdminNearbyActivityDemandGeoBucket[];
+  existingActiveRoomCount: number;
+  lastUpdatedAt: string | null;
+};
+
+export type AdminNearbyActivityDemand = {
+  items: AdminNearbyActivityDemandRow[];
+  nextCursor: null;
+};
+
 export type UserSearchItem = {
   id: string;
   amoriaId: string;
@@ -497,6 +518,10 @@ export async function logout(refreshToken: string | undefined): Promise<void> {
 
 export async function apiGet<T>(path: string): Promise<T> {
   return apiFetch<T>(path);
+}
+
+export async function getAdminNearbyActivityDemand(): Promise<AdminNearbyActivityDemand> {
+  return apiGet<AdminNearbyActivityDemand>("/admin/nearby-activity-demand");
 }
 
 export async function apiPost<T>(path: string, body: unknown): Promise<T> {

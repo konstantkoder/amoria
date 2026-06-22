@@ -326,6 +326,17 @@ export const en = {
   "ops.reasonMissingGender": "Missing gender",
   "ops.reasonMissingPreferredGenders": "Missing preferences",
 
+  "nearbyDemand.activity": "Activity",
+  "nearbyDemand.activeNearbyUsers": "Active nearby users",
+  "nearbyDemand.empty": "No activity demand has been recorded yet.",
+  "nearbyDemand.existingActiveRooms": "Existing active rooms",
+  "nearbyDemand.geoBuckets": "Geo buckets",
+  "nearbyDemand.interestedUsers": "Interested users",
+  "nearbyDemand.lastUpdated": "Last updated",
+  "nearbyDemand.recentUpdates": "Recent updates",
+  "nearbyDemand.smallBucketHidden": "small bucket hidden",
+  "nearbyDemand.title": "Activity demand",
+
   "nearbyRooms.actionApplied": "{action} applied to activity room {id}.",
   "nearbyRooms.adminApproved": "Admin Approved",
   "nearbyRooms.applying": "Applying...",
