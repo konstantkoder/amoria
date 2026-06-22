@@ -16,6 +16,11 @@ import {
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
+import type {
+  NearbyActivityKey,
+  UserActivityPreferenceSource,
+  UserActivityPreferenceStatus,
+} from "../config/constants";
 
 export const users = pgTable("users", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -413,6 +418,48 @@ export const nearbyProfileVisibility = pgTable(
   ],
 );
 
+export const userActivityPreferences = pgTable(
+  "user_activity_preferences",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    activityKey: text("activity_key").$type<NearbyActivityKey>().notNull(),
+    status: text("status")
+      .$type<UserActivityPreferenceStatus>()
+      .default("active")
+      .notNull(),
+    geoBucket: text("geo_bucket"),
+    source: text("source")
+      .$type<UserActivityPreferenceSource>()
+      .default("nearby_questionnaire")
+      .notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("user_activity_preferences_user_activity_geo_unique")
+      .on(table.userId, table.activityKey, table.geoBucket)
+      .where(sql`${table.geoBucket} IS NOT NULL`),
+    uniqueIndex("user_activity_preferences_user_activity_global_unique")
+      .on(table.userId, table.activityKey)
+      .where(sql`${table.geoBucket} IS NULL`),
+    index("user_activity_preferences_user_status_idx").on(table.userId, table.status),
+    check(
+      "user_activity_preferences_activity_key_check",
+      sql`${table.activityKey} IN ('coffee_nearby', 'walk_nearby', 'bike_nearby', 'cinema_today', 'talk_nearby', 'evening_nearby', 'roller_skating_nearby', 'kayaking_nearby', 'fishing_nearby', 'sport_nearby', 'language_exchange_nearby', 'local_event_nearby')`,
+    ),
+    check(
+      "user_activity_preferences_status_check",
+      sql`${table.status} IN ('active', 'disabled')`,
+    ),
+    check(
+      "user_activity_preferences_source_check",
+      sql`${table.source} IN ('nearby_questionnaire')`,
+    ),
+  ],
+);
+
 export const togetherSessions = pgTable("together_sessions", {
   id: uuid("id").defaultRandom().primaryKey(),
   activity: text("activity").notNull(),
@@ -792,6 +839,7 @@ export const usersRelations = relations(users, ({ one, many }) => ({
     fields: [users.id],
     references: [nearbyProfileVisibility.userId],
   }),
+  activityPreferences: many(userActivityPreferences),
   togetherQueueEntries: many(togetherQueue),
   togetherSessionMembers: many(togetherSessionMembers),
   togetherEvents: many(togetherEvents),
@@ -943,6 +991,16 @@ export const nearbyProfileVisibilityRelations = relations(
   ({ one }) => ({
     user: one(users, {
       fields: [nearbyProfileVisibility.userId],
+      references: [users.id],
+    }),
+  }),
+);
+
+export const userActivityPreferencesRelations = relations(
+  userActivityPreferences,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [userActivityPreferences.userId],
       references: [users.id],
     }),
   }),
@@ -1117,6 +1175,8 @@ export type NearbyStatusRow = typeof nearbyStatuses.$inferSelect;
 export type NewNearbyStatusRow = typeof nearbyStatuses.$inferInsert;
 export type NearbyProfileVisibilityRow = typeof nearbyProfileVisibility.$inferSelect;
 export type NewNearbyProfileVisibilityRow = typeof nearbyProfileVisibility.$inferInsert;
+export type UserActivityPreferenceRow = typeof userActivityPreferences.$inferSelect;
+export type NewUserActivityPreferenceRow = typeof userActivityPreferences.$inferInsert;
 export type TogetherQueueRow = typeof togetherQueue.$inferSelect;
 export type NewTogetherQueueRow = typeof togetherQueue.$inferInsert;
 export type TogetherSessionRow = typeof togetherSessions.$inferSelect;

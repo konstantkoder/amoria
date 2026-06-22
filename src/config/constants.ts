@@ -32,6 +32,30 @@ export const NEARBY_ROOM_TYPE_KEYS = [
   "evening_nearby",
 ] as const;
 
+export const NEARBY_ACTIVITY_KEYS = [
+  "coffee_nearby",
+  "walk_nearby",
+  "bike_nearby",
+  "cinema_today",
+  "talk_nearby",
+  "evening_nearby",
+  "roller_skating_nearby",
+  "kayaking_nearby",
+  "fishing_nearby",
+  "sport_nearby",
+  "language_exchange_nearby",
+  "local_event_nearby",
+] as const;
+
+export const USER_ACTIVITY_PREFERENCE_STATUSES = ["active", "disabled"] as const;
+export const USER_ACTIVITY_PREFERENCE_SOURCES = ["nearby_questionnaire"] as const;
+
+export type NearbyActivityKey = (typeof NEARBY_ACTIVITY_KEYS)[number];
+export type UserActivityPreferenceStatus =
+  (typeof USER_ACTIVITY_PREFERENCE_STATUSES)[number];
+export type UserActivityPreferenceSource =
+  (typeof USER_ACTIVITY_PREFERENCE_SOURCES)[number];
+
 export const TOGETHER_QUEUE_TTL_MS = 5 * 60 * 1000;
 export const TOGETHER_HEARTBEAT_TIMEOUT_MS = 60 * 1000;
 export const TOGETHER_ACTIVITIES = ["draw", "story_sparks"] as const;
