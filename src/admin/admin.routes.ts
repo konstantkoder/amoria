@@ -12,6 +12,8 @@ import {
   parseAdminClientErrorsQuery,
 } from "../client-errors/client-errors.schemas";
 import * as clientErrorsService from "../client-errors/client-errors.service";
+import { adminNearbyActivityDemandRouteSchema } from "./admin-activity-demand.schemas";
+import * as adminActivityDemandService from "./admin-activity-demand.service";
 import {
   adminMediaDecisionRouteSchema,
   adminMediaDetailRouteSchema,
@@ -213,6 +215,19 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request) =>
       adminOpsService.getNearbyDiagnosticsForAdmin(
+        currentAdmin(request),
+        adminRequestContext(request),
+      ),
+  );
+
+  fastify.get(
+    "/nearby-activity-demand",
+    {
+      preHandler: [authMiddleware, requireAdmin(["owner", "moderator", "support", "ops"])],
+      schema: withErrorResponses(adminNearbyActivityDemandRouteSchema),
+    },
+    async (request) =>
+      adminActivityDemandService.getNearbyActivityDemandForAdmin(
         currentAdmin(request),
         adminRequestContext(request),
       ),
