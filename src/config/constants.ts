@@ -56,6 +56,21 @@ export type UserActivityPreferenceStatus =
 export type UserActivityPreferenceSource =
   (typeof USER_ACTIVITY_PREFERENCE_SOURCES)[number];
 
+export const NEARBY_ACTIVITY_DEFINITIONS = [
+  { key: "coffee_nearby", title: "Coffee nearby" },
+  { key: "walk_nearby", title: "Walk nearby" },
+  { key: "bike_nearby", title: "Bike nearby" },
+  { key: "cinema_today", title: "Cinema today" },
+  { key: "talk_nearby", title: "Talk nearby" },
+  { key: "evening_nearby", title: "Evening nearby" },
+  { key: "roller_skating_nearby", title: "Roller skating nearby" },
+  { key: "kayaking_nearby", title: "Kayaking nearby" },
+  { key: "fishing_nearby", title: "Fishing nearby" },
+  { key: "sport_nearby", title: "Sport nearby" },
+  { key: "language_exchange_nearby", title: "Language exchange nearby" },
+  { key: "local_event_nearby", title: "Local event nearby" },
+] as const satisfies readonly { key: NearbyActivityKey; title: string }[];
+
 export const TOGETHER_QUEUE_TTL_MS = 5 * 60 * 1000;
 export const TOGETHER_HEARTBEAT_TIMEOUT_MS = 60 * 1000;
 export const TOGETHER_ACTIVITIES = ["draw", "story_sparks"] as const;

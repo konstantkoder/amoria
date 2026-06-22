@@ -20,6 +20,12 @@ import {
 } from "./nearby.schemas";
 import * as nearbyService from "./nearby.service";
 import {
+  getNearbyActivityPreferencesRouteSchema,
+  parseUpdateNearbyActivityPreferencesBody,
+  updateNearbyActivityPreferencesRouteSchema,
+} from "./nearby-activity-preferences.schemas";
+import * as nearbyActivityPreferencesService from "./nearby-activity-preferences.service";
+import {
   getNearbyRoomMessagesRouteSchema,
   openNearbyRoomChatRouteSchema,
   parseNearbyRoomMessagesQuery,
@@ -118,6 +124,29 @@ export async function nearbyRoutes(fastify: FastifyInstance): Promise<void> {
 
       return result.response;
     },
+  );
+
+  fastify.get(
+    "/activity-preferences",
+    {
+      preHandler: authMiddleware,
+      schema: withErrorResponses(getNearbyActivityPreferencesRouteSchema),
+    },
+    async (request) =>
+      nearbyActivityPreferencesService.getActivityPreferences(currentUserId(request)),
+  );
+
+  fastify.put(
+    "/activity-preferences",
+    {
+      preHandler: authMiddleware,
+      schema: withErrorResponses(updateNearbyActivityPreferencesRouteSchema),
+    },
+    async (request) =>
+      nearbyActivityPreferencesService.updateActivityPreferences(
+        currentUserId(request),
+        parseUpdateNearbyActivityPreferencesBody(request.body),
+      ),
   );
 
   fastify.get(
