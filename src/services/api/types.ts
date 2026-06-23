@@ -339,11 +339,52 @@ export type NearbyActivityKey =
   | "fishing_nearby"
   | "sport_nearby"
   | "language_exchange_nearby"
-  | "local_event_nearby";
+  | "local_event_nearby"
+  | "lunch_nearby"
+  | "dinner_nearby"
+  | "dessert_nearby"
+  | "board_games_nearby"
+  | "chess_nearby"
+  | "book_club_nearby"
+  | "study_work_nearby"
+  | "skateboarding_nearby"
+  | "running_nearby"
+  | "gym_nearby"
+  | "yoga_nearby"
+  | "dance_nearby"
+  | "football_nearby"
+  | "basketball_nearby"
+  | "volleyball_nearby"
+  | "tennis_nearby"
+  | "table_tennis_nearby"
+  | "badminton_nearby"
+  | "beach_swim_nearby"
+  | "picnic_nearby"
+  | "hiking_nearby"
+  | "dog_walk_nearby"
+  | "concert_nearby"
+  | "museum_exhibition_nearby"
+  | "theater_nearby"
+  | "live_music_nearby"
+  | "festival_nearby"
+  | "photography_nearby"
+  | "cooking_nearby"
+  | "volunteering_nearby"
+  | "gaming_nearby";
+
+export type NearbyActivityCategory =
+  | "social"
+  | "movement"
+  | "team_sports"
+  | "nature_water"
+  | "culture_events"
+  | "hobbies";
 
 export type NearbyActivityDefinition = {
   activityKey: NearbyActivityKey;
   title: string;
+  category: NearbyActivityCategory;
+  sortOrder: number;
 };
 
 export type NearbyActivityPreference = {

@@ -16,11 +16,43 @@ import type { RootStackNavigationProp } from "@/navigation/appRoutes";
 import { ApiError } from "@/services/api/apiClient";
 import * as nearbyApi from "@/services/api/nearbyApi";
 import type {
+  NearbyActivityCategory,
   NearbyActivityDefinition,
   NearbyActivityKey,
   NearbyActivityPreferencesResponse,
 } from "@/services/api/types";
 import { theme } from "@/theme";
+
+const ACTIVITY_CATEGORY_ORDER: NearbyActivityCategory[] = [
+  "social",
+  "movement",
+  "team_sports",
+  "nature_water",
+  "culture_events",
+  "hobbies",
+];
+
+const ACTIVITY_CATEGORY_RANK = ACTIVITY_CATEGORY_ORDER.reduce(
+  (ranks, category, index) => ({
+    ...ranks,
+    [category]: index,
+  }),
+  {} as Record<NearbyActivityCategory, number>
+);
+
+const ACTIVITY_CATEGORY_FALLBACK: Record<NearbyActivityCategory, string> = {
+  social: "Social / calm",
+  movement: "Movement",
+  team_sports: "Team sports",
+  nature_water: "Nature & water",
+  culture_events: "Culture & events",
+  hobbies: "Hobbies",
+};
+
+type ActivitySection = {
+  category: NearbyActivityCategory;
+  activities: NearbyActivityDefinition[];
+};
 
 function copyOrFallback(
   t: (key: string, params?: Record<string, string>) => string,
@@ -58,6 +90,48 @@ function getActivityLabel(
     `nearby.activityPreferences.activity.${activity.activityKey}`,
     activity.title
   );
+}
+
+function getCategoryLabel(
+  category: NearbyActivityCategory,
+  t: (key: string, params?: Record<string, string>) => string
+) {
+  return copyOrFallback(
+    t,
+    `nearby.activityPreferences.category.${category}`,
+    ACTIVITY_CATEGORY_FALLBACK[category]
+  );
+}
+
+function compareActivities(
+  left: NearbyActivityDefinition,
+  right: NearbyActivityDefinition
+) {
+  const categoryDelta =
+    ACTIVITY_CATEGORY_RANK[left.category] - ACTIVITY_CATEGORY_RANK[right.category];
+  if (categoryDelta !== 0) return categoryDelta;
+
+  const sortDelta = left.sortOrder - right.sortOrder;
+  if (sortDelta !== 0) return sortDelta;
+
+  return left.title.localeCompare(right.title);
+}
+
+function groupActivitiesByCategory(
+  activities: NearbyActivityDefinition[]
+): ActivitySection[] {
+  const sections = new Map<NearbyActivityCategory, NearbyActivityDefinition[]>();
+
+  for (const activity of [...activities].sort(compareActivities)) {
+    const categoryActivities = sections.get(activity.category) ?? [];
+    categoryActivities.push(activity);
+    sections.set(activity.category, categoryActivities);
+  }
+
+  return ACTIVITY_CATEGORY_ORDER.map((category) => ({
+    category,
+    activities: sections.get(category) ?? [],
+  })).filter((section) => section.activities.length > 0);
 }
 
 function getActivePreferenceKeys(response: NearbyActivityPreferencesResponse) {
@@ -134,6 +208,10 @@ export default function NearbyActivityPreferencesScreen() {
   const hasChanges = useMemo(
     () => !sameSelectedKeys(selectedKeys, savedKeys),
     [savedKeys, selectedKeys]
+  );
+  const activitySections = useMemo(
+    () => groupActivitiesByCategory(activities),
+    [activities]
   );
 
   const toggleActivity = useCallback((activityKey: NearbyActivityKey) => {
@@ -236,42 +314,54 @@ export default function NearbyActivityPreferencesScreen() {
 
         {!loading && activities.length ? (
           <View style={styles.activityList}>
-            {activities.map((activity) => {
-              const selected = selectedKeys.has(activity.activityKey);
-              return (
-                <Pressable
-                  key={activity.activityKey}
-                  onPress={() => toggleActivity(activity.activityKey)}
-                  disabled={saving}
-                  style={[
-                    styles.activityRow,
-                    selected ? styles.activityRowSelected : null,
-                    saving ? styles.rowDisabled : null,
-                  ]}
-                  accessibilityRole="checkbox"
-                  accessibilityState={{ checked: selected, disabled: saving }}
-                >
-                  <View
-                    style={[
-                      styles.checkCircle,
-                      selected ? styles.checkCircleSelected : null,
-                    ]}
-                  >
-                    {selected ? (
-                      <Ionicons name="checkmark" size={16} color="#24150B" />
-                    ) : null}
-                  </View>
-                  <Text
-                    style={[
-                      styles.activityLabel,
-                      selected ? styles.activityLabelSelected : null,
-                    ]}
-                  >
-                    {getActivityLabel(activity, t)}
-                  </Text>
-                </Pressable>
-              );
-            })}
+            {activitySections.map((section) => (
+              <View key={section.category} style={styles.categorySection}>
+                <Text style={styles.categoryTitle}>
+                  {getCategoryLabel(section.category, t)}
+                </Text>
+                <View style={styles.categoryActivities}>
+                  {section.activities.map((activity) => {
+                    const selected = selectedKeys.has(activity.activityKey);
+                    return (
+                      <Pressable
+                        key={activity.activityKey}
+                        onPress={() => toggleActivity(activity.activityKey)}
+                        disabled={saving}
+                        style={[
+                          styles.activityRow,
+                          selected ? styles.activityRowSelected : null,
+                          saving ? styles.rowDisabled : null,
+                        ]}
+                        accessibilityRole="checkbox"
+                        accessibilityState={{
+                          checked: selected,
+                          disabled: saving,
+                        }}
+                      >
+                        <View
+                          style={[
+                            styles.checkCircle,
+                            selected ? styles.checkCircleSelected : null,
+                          ]}
+                        >
+                          {selected ? (
+                            <Ionicons name="checkmark" size={16} color="#24150B" />
+                          ) : null}
+                        </View>
+                        <Text
+                          style={[
+                            styles.activityLabel,
+                            selected ? styles.activityLabelSelected : null,
+                          ]}
+                        >
+                          {getActivityLabel(activity, t)}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            ))}
           </View>
         ) : null}
 
@@ -411,6 +501,19 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
   activityList: {
+    gap: 14,
+  },
+  categorySection: {
+    gap: 8,
+  },
+  categoryTitle: {
+    color: "#F3C98B",
+    fontSize: 13,
+    lineHeight: 17,
+    fontWeight: "900",
+    textTransform: "uppercase",
+  },
+  categoryActivities: {
     gap: 8,
   },
   activityRow: {
