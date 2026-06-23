@@ -1,19 +1,43 @@
 import type { FastifySchema } from "fastify";
 import { z } from "zod";
 import { validationError } from "../common/errors";
+import { NEARBY_ACTIVITY_KEYS } from "../config/constants";
 import type {
   AdminCreateNearbyRoomBody,
+  AdminCreateNearbyRoomFromDemandBody,
   AdminNearbyRoomActionBody,
 } from "../nearby/nearby-rooms.types";
 
 const nearbyRoomActionValues = ["close", "disable", "reopen"] as const;
+const isoDateTimePattern =
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
+
+const scheduledNearbyRoomBodyShape = {
+  title: z.string().trim().min(1).max(80).optional(),
+  description: z.string().trim().min(1).max(500).optional(),
+  locationLabel: z.string().trim().min(1).max(120).optional(),
+  startsAt: isoDateTimeStringSchema().optional(),
+  endsAt: isoDateTimeStringSchema().optional(),
+  expiresAt: isoDateTimeStringSchema().optional(),
+};
 
 const createNearbyRoomBodySchema = z
   .object({
     typeKey: z.string().trim().min(1).max(120),
     geoBucket: z.string().trim().min(1).max(200),
+    ...scheduledNearbyRoomBodyShape,
   })
-  .strict();
+  .strict()
+  .superRefine(validateScheduledNearbyRoomDateOrder);
+
+const createNearbyRoomFromDemandBodySchema = z
+  .object({
+    activityKey: z.enum(NEARBY_ACTIVITY_KEYS),
+    geoBucket: z.string().trim().min(1).max(200),
+    ...scheduledNearbyRoomBodyShape,
+  })
+  .strict()
+  .superRefine(validateScheduledNearbyRoomDateOrder);
 
 const nearbyRoomActionBodySchema = z
   .object({
@@ -36,11 +60,39 @@ const adminNearbyRoomTypeSchema = {
   },
 } as const;
 
+const adminNearbyRoomDemandSnapshotSchema = {
+  type: ["object", "null"],
+  required: [
+    "activityKey",
+    "geoBucket",
+    "interestedUsersCount",
+    "activeNearbyUsersCount",
+    "recentlyUpdatedUsersCount",
+    "capturedAt",
+  ],
+  additionalProperties: false,
+  properties: {
+    activityKey: { type: "string" },
+    geoBucket: { type: "string" },
+    interestedUsersCount: { type: "integer", minimum: 0 },
+    activeNearbyUsersCount: { type: "integer", minimum: 0 },
+    recentlyUpdatedUsersCount: { type: "integer", minimum: 0 },
+    capturedAt: { type: "string", format: "date-time" },
+  },
+} as const;
+
 const adminNearbyRoomSchema = {
   type: "object",
   required: [
     "id",
     "typeKey",
+    "title",
+    "description",
+    "locationLabel",
+    "startsAt",
+    "endsAt",
+    "expiresAt",
+    "createdFromDemandSnapshot",
     "roomType",
     "status",
     "geoBucket",
@@ -54,6 +106,13 @@ const adminNearbyRoomSchema = {
   properties: {
     id: { type: "string", format: "uuid" },
     typeKey: { type: "string" },
+    title: { type: ["string", "null"] },
+    description: { type: ["string", "null"] },
+    locationLabel: { type: ["string", "null"] },
+    startsAt: { type: ["string", "null"], format: "date-time" },
+    endsAt: { type: ["string", "null"], format: "date-time" },
+    expiresAt: { type: ["string", "null"], format: "date-time" },
+    createdFromDemandSnapshot: adminNearbyRoomDemandSnapshotSchema,
     roomType: adminNearbyRoomTypeSchema,
     status: { type: "string" },
     geoBucket: { type: "string" },
@@ -81,6 +140,18 @@ const createNearbyRoomBodyJsonSchema = {
   properties: {
     typeKey: { type: "string", minLength: 1, maxLength: 120 },
     geoBucket: { type: "string", minLength: 1, maxLength: 200 },
+    ...scheduledNearbyRoomBodyJsonSchemaProperties(),
+  },
+} as const;
+
+const createNearbyRoomFromDemandBodyJsonSchema = {
+  type: "object",
+  required: ["activityKey", "geoBucket"],
+  additionalProperties: false,
+  properties: {
+    activityKey: { type: "string", enum: NEARBY_ACTIVITY_KEYS },
+    geoBucket: { type: "string", minLength: 1, maxLength: 200 },
+    ...scheduledNearbyRoomBodyJsonSchemaProperties(),
   },
 } as const;
 
@@ -104,6 +175,12 @@ const adminNearbyRoomResponseSchema = {
 
 export function parseAdminCreateNearbyRoomBody(input: unknown): AdminCreateNearbyRoomBody {
   return parseWithValidation(createNearbyRoomBodySchema, input);
+}
+
+export function parseAdminCreateNearbyRoomFromDemandBody(
+  input: unknown,
+): AdminCreateNearbyRoomFromDemandBody {
+  return parseWithValidation(createNearbyRoomFromDemandBodySchema, input);
 }
 
 export function parseAdminNearbyRoomActionBody(input: unknown): AdminNearbyRoomActionBody {
@@ -151,6 +228,13 @@ export const adminCreateNearbyRoomRouteSchema = {
   },
 } as const satisfies FastifySchema;
 
+export const adminCreateNearbyRoomFromDemandRouteSchema = {
+  body: createNearbyRoomFromDemandBodyJsonSchema,
+  response: {
+    201: adminNearbyRoomResponseSchema,
+  },
+} as const satisfies FastifySchema;
+
 export const adminNearbyRoomDetailRouteSchema = {
   params: roomIdParamsSchema,
   response: {
@@ -178,4 +262,57 @@ function parseWithValidation<T>(schema: z.ZodType<T>, input: unknown): T {
   }
 
   throw validationError("Request validation failed", details);
+}
+
+function isoDateTimeStringSchema() {
+  return z
+    .string()
+    .trim()
+    .refine(
+      (value) => isoDateTimePattern.test(value) && !Number.isNaN(Date.parse(value)),
+      "Invalid date-time",
+    );
+}
+
+function validateScheduledNearbyRoomDateOrder(
+  input: { startsAt?: string; endsAt?: string },
+  context: z.RefinementCtx,
+): void {
+  if (!input.endsAt) {
+    return;
+  }
+
+  if (!input.startsAt) {
+    context.addIssue({
+      code: "custom",
+      message: "startsAt is required when endsAt is provided",
+      path: ["startsAt"],
+    });
+    return;
+  }
+
+  const startsAt = new Date(input.startsAt);
+  const endsAt = new Date(input.endsAt);
+  if (
+    !Number.isNaN(startsAt.getTime()) &&
+    !Number.isNaN(endsAt.getTime()) &&
+    endsAt <= startsAt
+  ) {
+    context.addIssue({
+      code: "custom",
+      message: "endsAt must be after startsAt",
+      path: ["endsAt"],
+    });
+  }
+}
+
+function scheduledNearbyRoomBodyJsonSchemaProperties() {
+  return {
+    title: { type: "string", minLength: 1, maxLength: 80 },
+    description: { type: "string", minLength: 1, maxLength: 500 },
+    locationLabel: { type: "string", minLength: 1, maxLength: 120 },
+    startsAt: { type: "string", format: "date-time" },
+    endsAt: { type: "string", format: "date-time" },
+    expiresAt: { type: "string", format: "date-time" },
+  } as const;
 }

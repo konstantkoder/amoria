@@ -7,6 +7,8 @@ export type NearbyRoomCardDto = {
   typeKey: string;
   title: string;
   geoBucket: string;
+  locationLabel: string | null;
+  startsAt: string | null;
   memberCount: number;
   status: string;
   canJoin: boolean;
@@ -36,6 +38,13 @@ export type AdminNearbyRoomTypeDto = {
 export type AdminNearbyRoomDto = {
   id: string;
   typeKey: string;
+  title: string | null;
+  description: string | null;
+  locationLabel: string | null;
+  startsAt: string | null;
+  endsAt: string | null;
+  expiresAt: string | null;
+  createdFromDemandSnapshot: AdminNearbyRoomDemandSnapshotDto | null;
   roomType: AdminNearbyRoomTypeDto;
   status: string;
   geoBucket: string;
@@ -44,6 +53,15 @@ export type AdminNearbyRoomDto = {
   createdByAdminUserId: string | null;
   createdAt: string;
   updatedAt: string;
+};
+
+export type AdminNearbyRoomDemandSnapshotDto = {
+  activityKey: string;
+  geoBucket: string;
+  interestedUsersCount: number;
+  activeNearbyUsersCount: number;
+  recentlyUpdatedUsersCount: number;
+  capturedAt: string;
 };
 
 export type AdminNearbyRoomTypesResponse = {
@@ -63,6 +81,23 @@ export type AdminNearbyRoomDetailResponse = {
 export type AdminCreateNearbyRoomBody = {
   typeKey: string;
   geoBucket: string;
+  title?: string;
+  description?: string;
+  locationLabel?: string;
+  startsAt?: string;
+  endsAt?: string;
+  expiresAt?: string;
+};
+
+export type AdminCreateNearbyRoomFromDemandBody = {
+  activityKey: string;
+  geoBucket: string;
+  title?: string;
+  description?: string;
+  locationLabel?: string;
+  startsAt?: string;
+  endsAt?: string;
+  expiresAt?: string;
 };
 
 export type AdminNearbyRoomAction = "close" | "disable" | "reopen";

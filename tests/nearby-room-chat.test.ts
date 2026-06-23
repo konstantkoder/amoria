@@ -42,6 +42,8 @@ type RoomState = {
   id: string;
   typeKey: string;
   title: string;
+  locationLabel: string | null;
+  startsAt: Date | null;
   roomTypeStatus: string;
   adminApproved: boolean;
   sortOrder: number;
@@ -487,6 +489,8 @@ function roomState(overrides: Partial<RoomState> = {}): RoomState {
     id: roomId,
     typeKey: "coffee_nearby",
     title: "Coffee nearby",
+    locationLabel: null,
+    startsAt: null,
     roomTypeStatus: "active",
     adminApproved: true,
     sortOrder: 10,
@@ -545,6 +549,8 @@ function toRow(
     id: room.id,
     typeKey: room.typeKey,
     title: room.title,
+    locationLabel: room.locationLabel,
+    startsAt: room.startsAt,
     roomTypeStatus: room.roomTypeStatus,
     adminApproved: room.adminApproved,
     sortOrder: room.sortOrder,

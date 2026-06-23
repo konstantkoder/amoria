@@ -8,6 +8,10 @@ const migrationSql = fs.readFileSync(
   path.join(process.cwd(), "src/db/migrations/0023_expanded_activity_catalog.sql"),
   "utf8",
 );
+const scheduledRoomFieldsMigrationSql = fs.readFileSync(
+  path.join(process.cwd(), "src/db/migrations/0024_scheduled_nearby_room_fields.sql"),
+  "utf8",
+);
 
 test("expanded activity catalog migration updates the preference key check", () => {
   const roomTypeInsertStart = migrationSql.indexOf('INSERT INTO "nearby_room_types"');
@@ -41,6 +45,27 @@ test("expanded activity catalog migration seeds system room types only", () => {
   assertNoFakeNearbyDataWrites(migrationSql);
 });
 
+test("scheduled nearby room fields migration only adds nullable room columns", () => {
+  for (const column of [
+    '"title" text',
+    '"description" text',
+    '"location_label" text',
+    '"starts_at" timestamp with time zone',
+    '"ends_at" timestamp with time zone',
+    '"expires_at" timestamp with time zone',
+    '"created_from_demand_snapshot" jsonb',
+  ]) {
+    assert.equal(
+      scheduledRoomFieldsMigrationSql.includes(`ADD COLUMN ${column}`),
+      true,
+      `Missing nullable column addition for ${column}`,
+    );
+  }
+
+  assert.equal(scheduledRoomFieldsMigrationSql.toLowerCase().includes("not null"), false);
+  assertNoFakeNearbyScheduledDataWrites(scheduledRoomFieldsMigrationSql);
+});
+
 function sqlLiteral(value: string): string {
   return `'${value.replaceAll("'", "''")}'`;
 }
@@ -62,4 +87,19 @@ function assertNoFakeNearbyDataWrites(sql: string): void {
   assert.equal(sql.includes("memberCount"), false);
   assert.equal(sql.includes("member_count"), false);
   assert.equal(sql.toLowerCase().includes("demand"), false);
+}
+
+function assertNoFakeNearbyScheduledDataWrites(sql: string): void {
+  for (const forbiddenStatement of [
+    'INSERT INTO "nearby_rooms"',
+    'UPDATE "nearby_rooms"',
+    'INSERT INTO "nearby_room_memberships"',
+    'UPDATE "nearby_room_memberships"',
+    'INSERT INTO "messages"',
+    'UPDATE "messages"',
+    'INSERT INTO "user_activity_preferences"',
+    'UPDATE "user_activity_preferences"',
+  ]) {
+    assert.equal(sql.includes(forbiddenStatement), false, forbiddenStatement);
+  }
 }

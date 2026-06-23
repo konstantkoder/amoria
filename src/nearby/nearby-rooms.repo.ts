@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { db } from "../db/client";
 import {
+  type JsonValue,
   type NearbyRoomTypeRow,
   nearbyRoomMemberships,
   nearbyRoomTypes,
@@ -12,11 +13,14 @@ import {
   NEARBY_ROOM_THREAD_SOURCE_TYPE,
   NEARBY_ROOM_THREAD_TYPE,
 } from "./nearby-room-chat.types";
+import type { AdminNearbyRoomDemandSnapshotDto } from "./nearby-rooms.types";
 
 export type NearbyRoomListRow = {
   id: string;
   typeKey: string;
   title: string;
+  locationLabel: string | null;
+  startsAt: Date | null;
   roomTypeStatus: string;
   adminApproved: boolean;
   sortOrder: number;
@@ -32,6 +36,13 @@ export type NearbyRoomListRow = {
 export type AdminNearbyRoomRow = {
   id: string;
   typeKey: string;
+  title: string | null;
+  description: string | null;
+  locationLabel: string | null;
+  startsAt: Date | null;
+  endsAt: Date | null;
+  expiresAt: Date | null;
+  createdFromDemandSnapshot: JsonValue | null;
   roomType: NearbyRoomTypeRow;
   status: string;
   geoBucket: string;
@@ -47,6 +58,13 @@ export type CreateNearbyRoomInput = {
   geoBucket: string;
   createdByAdminUserId: string;
   createdAt: Date;
+  title?: string | null;
+  description?: string | null;
+  locationLabel?: string | null;
+  startsAt?: Date | null;
+  endsAt?: Date | null;
+  expiresAt?: Date | null;
+  createdFromDemandSnapshot?: AdminNearbyRoomDemandSnapshotDto | null;
 };
 
 const activeMemberCount = sql<number>`(
@@ -66,6 +84,11 @@ const safeRoomThreadId = sql<string | null>`(
   limit 1
 )`;
 
+const nearbyRoomDisplayTitle = sql<string>`coalesce(
+  ${nearbyRooms.title},
+  ${nearbyRoomTypes.title}
+)`;
+
 function viewerMembershipStatus(viewerUserId: string) {
   return sql<string | null>`(
     select ${nearbyRoomMemberships.status}
@@ -83,7 +106,9 @@ export async function listPublicNearbyRoomsForUser(
     .select({
       id: nearbyRooms.id,
       typeKey: nearbyRooms.typeKey,
-      title: nearbyRoomTypes.title,
+      title: nearbyRoomDisplayTitle,
+      locationLabel: nearbyRooms.locationLabel,
+      startsAt: nearbyRooms.startsAt,
       roomTypeStatus: nearbyRoomTypes.status,
       adminApproved: nearbyRoomTypes.adminApproved,
       sortOrder: nearbyRoomTypes.sortOrder,
@@ -119,7 +144,9 @@ export async function findNearbyRoomForUser(
     .select({
       id: nearbyRooms.id,
       typeKey: nearbyRooms.typeKey,
-      title: nearbyRoomTypes.title,
+      title: nearbyRoomDisplayTitle,
+      locationLabel: nearbyRooms.locationLabel,
+      startsAt: nearbyRooms.startsAt,
       roomTypeStatus: nearbyRoomTypes.status,
       adminApproved: nearbyRoomTypes.adminApproved,
       sortOrder: nearbyRoomTypes.sortOrder,
@@ -224,6 +251,13 @@ export async function listNearbyRoomsForAdmin(): Promise<AdminNearbyRoomRow[]> {
     .select({
       id: nearbyRooms.id,
       typeKey: nearbyRooms.typeKey,
+      title: nearbyRooms.title,
+      description: nearbyRooms.description,
+      locationLabel: nearbyRooms.locationLabel,
+      startsAt: nearbyRooms.startsAt,
+      endsAt: nearbyRooms.endsAt,
+      expiresAt: nearbyRooms.expiresAt,
+      createdFromDemandSnapshot: nearbyRooms.createdFromDemandSnapshot,
       roomType: nearbyRoomTypes,
       status: nearbyRooms.status,
       geoBucket: nearbyRooms.geoBucket,
@@ -249,6 +283,13 @@ export async function findNearbyRoomForAdmin(
     .select({
       id: nearbyRooms.id,
       typeKey: nearbyRooms.typeKey,
+      title: nearbyRooms.title,
+      description: nearbyRooms.description,
+      locationLabel: nearbyRooms.locationLabel,
+      startsAt: nearbyRooms.startsAt,
+      endsAt: nearbyRooms.endsAt,
+      expiresAt: nearbyRooms.expiresAt,
+      createdFromDemandSnapshot: nearbyRooms.createdFromDemandSnapshot,
       roomType: nearbyRoomTypes,
       status: nearbyRooms.status,
       geoBucket: nearbyRooms.geoBucket,
@@ -273,6 +314,13 @@ export async function createNearbyRoomForAdmin(
     .insert(nearbyRooms)
     .values({
       typeKey: input.typeKey,
+      title: input.title ?? null,
+      description: input.description ?? null,
+      locationLabel: input.locationLabel ?? null,
+      startsAt: input.startsAt ?? null,
+      endsAt: input.endsAt ?? null,
+      expiresAt: input.expiresAt ?? null,
+      createdFromDemandSnapshot: input.createdFromDemandSnapshot ?? null,
       geoBucket: input.geoBucket,
       createdByAdminUserId: input.createdByAdminUserId,
       status: "active",

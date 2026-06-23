@@ -1,4 +1,4 @@
-import { AppError, forbidden } from "../common/errors";
+import { AppError, forbidden, validationError } from "../common/errors";
 import * as nearbyRoomsRepo from "../nearby/nearby-rooms.repo";
 import {
   toAdminNearbyRoomDto,
@@ -6,6 +6,7 @@ import {
 } from "../nearby/nearby-rooms.service";
 import type {
   AdminCreateNearbyRoomBody,
+  AdminNearbyRoomDemandSnapshotDto,
   AdminNearbyRoomDetailResponse,
   AdminNearbyRoomActionBody,
   AdminNearbyRoomsResponse,
@@ -107,12 +108,16 @@ export async function createNearbyRoomForAdmin(
     throw forbidden("Nearby room type is not available");
   }
 
-  const row = await deps.repo.createNearbyRoomForAdmin({
-    typeKey: input.typeKey,
-    geoBucket: input.geoBucket,
-    createdByAdminUserId: admin.adminUser.id,
-    createdAt: deps.now(),
-  });
+  const row = await deps.repo.createNearbyRoomForAdmin(
+    buildCreateNearbyRoomInputForAdmin({
+      ...input,
+      typeKey: input.typeKey,
+      geoBucket: input.geoBucket,
+      createdByAdminUserId: admin.adminUser.id,
+      createdAt: deps.now(),
+      createdFromDemandSnapshot: null,
+    }),
+  );
 
   await deps.audit.writeAuditLog({
     adminUserId: admin.adminUser.id,
@@ -129,6 +134,45 @@ export async function createNearbyRoomForAdmin(
 
   return {
     room: toAdminNearbyRoomDto(row),
+  };
+}
+
+export function buildCreateNearbyRoomInputForAdmin(
+  input: AdminCreateNearbyRoomBody & {
+    createdByAdminUserId: string;
+    createdAt: Date;
+    createdFromDemandSnapshot?: AdminNearbyRoomDemandSnapshotDto | null;
+  },
+): nearbyRoomsRepo.CreateNearbyRoomInput {
+  const startsAt = parseOptionalAdminDateTime("startsAt", input.startsAt);
+  const endsAt = parseOptionalAdminDateTime("endsAt", input.endsAt);
+  const expiresAt = parseOptionalAdminDateTime("expiresAt", input.expiresAt);
+
+  if (endsAt && (!startsAt || endsAt <= startsAt)) {
+    throw validationError("Request validation failed", {
+      endsAt: "must be after startsAt",
+    });
+  }
+
+  const minExpiresAt = startsAt ?? input.createdAt;
+  if (expiresAt && expiresAt <= minExpiresAt) {
+    throw validationError("Request validation failed", {
+      expiresAt: startsAt ? "must be after startsAt" : "must be in the future",
+    });
+  }
+
+  return {
+    typeKey: input.typeKey,
+    geoBucket: input.geoBucket,
+    createdByAdminUserId: input.createdByAdminUserId,
+    createdAt: input.createdAt,
+    title: normalizeOptionalText(input.title),
+    description: normalizeOptionalText(input.description),
+    locationLabel: normalizeOptionalText(input.locationLabel),
+    startsAt,
+    endsAt,
+    expiresAt,
+    createdFromDemandSnapshot: input.createdFromDemandSnapshot ?? null,
   };
 }
 
@@ -212,4 +256,24 @@ function statusForAction(action: AdminNearbyRoomActionBody["action"]): "active" 
   }
 
   return "active";
+}
+
+function parseOptionalAdminDateTime(field: string, value: string | undefined): Date | null {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    throw validationError("Request validation failed", {
+      [field]: "invalid date-time",
+    });
+  }
+
+  return parsed;
+}
+
+function normalizeOptionalText(value: string | undefined): string | null {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
 }

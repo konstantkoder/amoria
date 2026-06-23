@@ -3,12 +3,21 @@ import {
   NEARBY_ACTIVITY_KEYS,
 } from "../config/constants";
 import type { NearbyActivityKey } from "../config/constants";
+import { AppError, forbidden } from "../common/errors";
 import * as activityDemandRepo from "../nearby/nearby-activity-demand.repo";
 import type {
   NearbyActivityDemandPreferenceRow,
   NearbyActivityDemandRoomRow,
 } from "../nearby/nearby-activity-demand.repo";
+import * as nearbyRoomsRepo from "../nearby/nearby-rooms.repo";
+import { toAdminNearbyRoomDto } from "../nearby/nearby-rooms.service";
+import type {
+  AdminCreateNearbyRoomFromDemandBody,
+  AdminNearbyRoomDemandSnapshotDto,
+  AdminNearbyRoomDetailResponse,
+} from "../nearby/nearby-rooms.types";
 import * as auditService from "./admin-audit.service";
+import { buildCreateNearbyRoomInputForAdmin } from "./admin-nearby-rooms.service";
 import type {
   AdminNearbyActivityDemandGeoBucketDto,
   AdminNearbyActivityDemandResponse,
@@ -25,12 +34,17 @@ const nearbyActivityKeySet = new Set<string>(NEARBY_ACTIVITY_KEYS);
 type AdminActivityDemandDeps = {
   now: () => Date;
   repo: Pick<typeof activityDemandRepo, "listNearbyActivityDemandSourceRows">;
+  nearbyRoomsRepo: Pick<
+    typeof nearbyRoomsRepo,
+    "createNearbyRoomForAdmin" | "findNearbyRoomTypeByKey"
+  >;
   audit: Pick<typeof auditService, "writeAuditLog">;
 };
 
 const defaultDeps: AdminActivityDemandDeps = {
   now: () => new Date(),
   repo: activityDemandRepo,
+  nearbyRoomsRepo,
   audit: auditService,
 };
 
@@ -83,6 +97,60 @@ export async function getNearbyActivityDemandForAdmin(
   return {
     items,
     nextCursor: null,
+  };
+}
+
+export async function createNearbyRoomFromDemandForAdmin(
+  admin: AdminContext,
+  input: AdminCreateNearbyRoomFromDemandBody,
+  requestContext: AdminRequestContext,
+): Promise<AdminNearbyRoomDetailResponse> {
+  const roomType = await deps.nearbyRoomsRepo.findNearbyRoomTypeByKey(input.activityKey);
+  if (!roomType) {
+    throw new AppError("not_found", "Nearby room type not found", 404);
+  }
+
+  if (roomType.status !== "active" || !roomType.adminApproved) {
+    throw forbidden("Nearby room type is not available");
+  }
+
+  const capturedAt = deps.now();
+  const sourceRows = await deps.repo.listNearbyActivityDemandSourceRows(capturedAt);
+  const snapshot = buildNearbyActivityDemandSnapshot(
+    sourceRows,
+    {
+      activityKey: input.activityKey as NearbyActivityKey,
+      geoBucket: input.geoBucket,
+    },
+    capturedAt,
+  );
+  const row = await deps.nearbyRoomsRepo.createNearbyRoomForAdmin(
+    buildCreateNearbyRoomInputForAdmin({
+      ...input,
+      typeKey: input.activityKey,
+      geoBucket: input.geoBucket,
+      createdByAdminUserId: admin.adminUser.id,
+      createdAt: capturedAt,
+      createdFromDemandSnapshot: snapshot,
+    }),
+  );
+
+  await deps.audit.writeAuditLog({
+    adminUserId: admin.adminUser.id,
+    action: "admin.nearbyActivityDemand.createRoom",
+    targetType: "nearby_room",
+    targetId: row.id,
+    metadata: {
+      typeKey: row.typeKey,
+      geoBucket: row.geoBucket,
+      status: row.status,
+      createdFromDemandSnapshot: snapshot,
+    },
+    ...requestContext,
+  });
+
+  return {
+    room: toAdminNearbyRoomDto(row),
   };
 }
 
@@ -172,6 +240,50 @@ export function buildNearbyActivityDemandRows(
       lastUpdatedAt: summary.lastUpdatedAt?.toISOString() ?? null,
     };
   });
+}
+
+export function buildNearbyActivityDemandSnapshot(
+  sourceRows: {
+    preferences: NearbyActivityDemandPreferenceRow[];
+    rooms: NearbyActivityDemandRoomRow[];
+  },
+  input: { activityKey: NearbyActivityKey; geoBucket: string },
+  capturedAt: Date,
+): AdminNearbyRoomDemandSnapshotDto {
+  const recentSince = new Date(capturedAt.getTime() - RECENT_ACTIVITY_DEMAND_WINDOW_MS);
+  const targetGeoBucket = normalizeGeoBucket(input.geoBucket);
+  const interestedUserIds = new Set<string>();
+  const activeNearbyUserIds = new Set<string>();
+  const recentlyUpdatedUserIds = new Set<string>();
+
+  for (const preference of sourceRows.preferences) {
+    if (
+      !isCountableActivityPreference(preference) ||
+      preference.activityKey !== input.activityKey ||
+      normalizeGeoBucket(preference.geoBucket) !== targetGeoBucket
+    ) {
+      continue;
+    }
+
+    interestedUserIds.add(preference.userId);
+
+    if (preference.hasActiveNearbyVisibility) {
+      activeNearbyUserIds.add(preference.userId);
+    }
+
+    if (preference.updatedAt >= recentSince) {
+      recentlyUpdatedUserIds.add(preference.userId);
+    }
+  }
+
+  return {
+    activityKey: input.activityKey,
+    geoBucket: targetGeoBucket ?? "",
+    interestedUsersCount: interestedUserIds.size,
+    activeNearbyUsersCount: activeNearbyUserIds.size,
+    recentlyUpdatedUsersCount: recentlyUpdatedUserIds.size,
+    capturedAt: capturedAt.toISOString(),
+  };
 }
 
 type ActivityDemandSummary = {

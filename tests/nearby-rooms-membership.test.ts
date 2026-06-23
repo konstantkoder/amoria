@@ -36,6 +36,8 @@ type RoomState = {
   id: string;
   typeKey: string;
   title: string;
+  locationLabel: string | null;
+  startsAt: Date | null;
   roomTypeStatus: string;
   adminApproved: boolean;
   sortOrder: number;
@@ -96,6 +98,8 @@ test("POST /nearby/rooms/:roomId/join joins an active existing room with real me
     typeKey: "coffee_nearby",
     title: "Coffee nearby",
     geoBucket: "city:zagrzeb:center",
+    locationLabel: null,
+    startsAt: null,
     memberCount: 2,
     status: "active",
     canJoin: false,
@@ -122,6 +126,47 @@ test("GET /nearby/rooms allows passive listing without activity preferences", as
   assert.equal(response.statusCode, 200);
   assert.equal(response.json().items.length, 1);
   assert.equal(response.json().items[0].id, activeRoomId);
+});
+
+test("GET /nearby/rooms returns custom titles and keeps fallback titles", async (t) => {
+  t.after(restoreDeps);
+  const startsAt = new Date("2026-06-23T14:00:00.000Z");
+  mockNearbyRooms({
+    rooms: [
+      roomState({
+        title: "Tuesday 14:00 bike ride nearby",
+        locationLabel: "Riverside path",
+        startsAt,
+      }),
+      roomState({
+        id: activeMemberRoomId,
+        typeKey: "walk_nearby",
+        title: "Walk nearby",
+        sortOrder: 20,
+      }),
+    ],
+    preferences: [],
+  });
+  const app = buildApp();
+  t.after(async () => {
+    await app.close();
+  });
+
+  const response = await app.inject({
+    method: "GET",
+    url: "/nearby/rooms",
+    headers: authHeaders(viewerId),
+  });
+  const body = response.json();
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(body.items[0].title, "Tuesday 14:00 bike ride nearby");
+  assert.equal(body.items[0].locationLabel, "Riverside path");
+  assert.equal(body.items[0].startsAt, startsAt.toISOString());
+  assert.equal(body.items[1].title, "Walk nearby");
+  assert.equal(body.items[1].locationLabel, null);
+  assert.equal(body.items[1].startsAt, null);
+  assertNoPrivateNearbyFields(body);
 });
 
 test("POST /nearby/rooms/:roomId/join rejects without matching active preference", async (t) => {
@@ -513,6 +558,8 @@ function roomState(overrides: Partial<RoomState> = {}): RoomState {
     id: activeRoomId,
     typeKey: "coffee_nearby",
     title: "Coffee nearby",
+    locationLabel: null,
+    startsAt: null,
     roomTypeStatus: "active",
     adminApproved: true,
     sortOrder: 10,
@@ -553,6 +600,8 @@ function toRow(room: RoomState, viewerUserId: string): NearbyRoomListRow {
     id: room.id,
     typeKey: room.typeKey,
     title: room.title,
+    locationLabel: room.locationLabel,
+    startsAt: room.startsAt,
     roomTypeStatus: room.roomTypeStatus,
     adminApproved: room.adminApproved,
     sortOrder: room.sortOrder,

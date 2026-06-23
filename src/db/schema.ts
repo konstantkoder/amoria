@@ -738,6 +738,13 @@ export const nearbyRooms = pgTable(
     typeKey: text("type_key")
       .notNull()
       .references(() => nearbyRoomTypes.key, { onDelete: "restrict" }),
+    title: text("title"),
+    description: text("description"),
+    locationLabel: text("location_label"),
+    startsAt: timestamp("starts_at", { withTimezone: true }),
+    endsAt: timestamp("ends_at", { withTimezone: true }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    createdFromDemandSnapshot: jsonb("created_from_demand_snapshot").$type<JsonValue | null>(),
     threadId: uuid("thread_id").references(() => threads.id, { onDelete: "set null" }),
     status: text("status").default("active").notNull(),
     geoBucket: text("geo_bucket").notNull(),

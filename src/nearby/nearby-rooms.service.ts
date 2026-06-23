@@ -7,6 +7,7 @@ import {
 import * as nearbyRoomsRepo from "./nearby-rooms.repo";
 import type {
   NearbyRoomActionResponse,
+  AdminNearbyRoomDemandSnapshotDto,
   AdminNearbyRoomDto,
   AdminNearbyRoomTypeDto,
   NearbyRoomCardDto,
@@ -110,6 +111,8 @@ function toNearbyRoomCardDto(row: nearbyRoomsRepo.NearbyRoomListRow): NearbyRoom
     typeKey: row.typeKey,
     title: row.title,
     geoBucket: row.geoBucket,
+    locationLabel: row.locationLabel,
+    startsAt: row.startsAt?.toISOString() ?? null,
     memberCount: Math.max(0, Number(row.memberCount ?? 0)),
     status: row.status,
     canJoin: canJoinRoom(row),
@@ -173,6 +176,15 @@ export function toAdminNearbyRoomDto(
   return {
     id: row.id,
     typeKey: row.typeKey,
+    title: row.title,
+    description: row.description,
+    locationLabel: row.locationLabel,
+    startsAt: row.startsAt?.toISOString() ?? null,
+    endsAt: row.endsAt?.toISOString() ?? null,
+    expiresAt: row.expiresAt?.toISOString() ?? null,
+    createdFromDemandSnapshot: toAdminNearbyRoomDemandSnapshotDto(
+      row.createdFromDemandSnapshot,
+    ),
     roomType: toAdminNearbyRoomTypeDto(row.roomType),
     status: row.status,
     geoBucket: row.geoBucket,
@@ -181,5 +193,34 @@ export function toAdminNearbyRoomDto(
     createdByAdminUserId: row.createdByAdminUserId,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+function toAdminNearbyRoomDemandSnapshotDto(
+  input: unknown,
+): AdminNearbyRoomDemandSnapshotDto | null {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    return null;
+  }
+
+  const raw = input as Record<string, unknown>;
+  if (
+    typeof raw.activityKey !== "string" ||
+    typeof raw.geoBucket !== "string" ||
+    typeof raw.interestedUsersCount !== "number" ||
+    typeof raw.activeNearbyUsersCount !== "number" ||
+    typeof raw.recentlyUpdatedUsersCount !== "number" ||
+    typeof raw.capturedAt !== "string"
+  ) {
+    return null;
+  }
+
+  return {
+    activityKey: raw.activityKey,
+    geoBucket: raw.geoBucket,
+    interestedUsersCount: Math.max(0, Math.trunc(raw.interestedUsersCount)),
+    activeNearbyUsersCount: Math.max(0, Math.trunc(raw.activeNearbyUsersCount)),
+    recentlyUpdatedUsersCount: Math.max(0, Math.trunc(raw.recentlyUpdatedUsersCount)),
+    capturedAt: raw.capturedAt,
   };
 }

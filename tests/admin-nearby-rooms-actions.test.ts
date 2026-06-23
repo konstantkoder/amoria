@@ -71,6 +71,45 @@ test("POST /admin/nearby-rooms creates a real room with valid active approved ty
   assertNoPrivateNearbyFields(response.json());
 });
 
+test("POST /admin/nearby-rooms stores optional scheduled fields", async (t) => {
+  t.after(restoreDeps);
+  mockAdmin({ roles: ["owner"] });
+  const state = mockNearbyRoomAdmin();
+  const app = buildApp();
+  t.after(async () => {
+    await app.close();
+  });
+
+  const startsAt = "2026-06-23T14:00:00.000Z";
+  const response = await app.inject({
+    method: "POST",
+    url: "/admin/nearby-rooms",
+    headers: authHeaders(userId),
+    payload: {
+      typeKey: "coffee_nearby",
+      geoBucket: "city:zagreb:center",
+      title: "Tuesday 14:00 coffee nearby",
+      description: "Casual coffee meetup",
+      locationLabel: "Main square",
+      startsAt,
+    },
+  });
+
+  assert.equal(response.statusCode, 201);
+  assert.deepEqual(response.json().room, expectedRoomDto({
+    title: "Tuesday 14:00 coffee nearby",
+    description: "Casual coffee meetup",
+    locationLabel: "Main square",
+    startsAt,
+  }));
+  assert.equal(state.createdRooms.length, 1);
+  assert.equal(state.createdRooms[0]?.title, "Tuesday 14:00 coffee nearby");
+  assert.equal(state.createdRooms[0]?.description, "Casual coffee meetup");
+  assert.equal(state.createdRooms[0]?.locationLabel, "Main square");
+  assert.equal(state.createdRooms[0]?.startsAt?.toISOString(), startsAt);
+  assert.equal(state.createdRooms[0]?.createdFromDemandSnapshot, null);
+});
+
 test("POST /admin/nearby-rooms rejects invalid room type", async (t) => {
   t.after(restoreDeps);
   mockAdmin({ roles: ["owner"] });
@@ -249,6 +288,13 @@ function mockNearbyRoomAdmin(input: {
         id: roomId,
         typeKey: createInput.typeKey,
         roomType,
+        title: createInput.title ?? null,
+        description: createInput.description ?? null,
+        locationLabel: createInput.locationLabel ?? null,
+        startsAt: createInput.startsAt ?? null,
+        endsAt: createInput.endsAt ?? null,
+        expiresAt: createInput.expiresAt ?? null,
+        createdFromDemandSnapshot: createInput.createdFromDemandSnapshot ?? null,
         geoBucket: createInput.geoBucket,
         createdByAdminUserId: createInput.createdByAdminUserId,
         createdAt: createInput.createdAt,
@@ -313,6 +359,13 @@ function expectedRoomDto(overrides: Record<string, unknown> = {}) {
   return {
     id: roomId,
     typeKey: "coffee_nearby",
+    title: null,
+    description: null,
+    locationLabel: null,
+    startsAt: null,
+    endsAt: null,
+    expiresAt: null,
+    createdFromDemandSnapshot: null,
     roomType: {
       key: "coffee_nearby",
       title: "Coffee nearby",
@@ -337,6 +390,13 @@ function adminRoomRow(overrides: Partial<AdminNearbyRoomRow> = {}): AdminNearbyR
   return {
     id: roomId,
     typeKey: "coffee_nearby",
+    title: null,
+    description: null,
+    locationLabel: null,
+    startsAt: null,
+    endsAt: null,
+    expiresAt: null,
+    createdFromDemandSnapshot: null,
     roomType: roomTypeRow(),
     status: "active",
     geoBucket: "city:zagreb:center",

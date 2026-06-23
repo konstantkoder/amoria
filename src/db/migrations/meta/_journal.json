@@ -169,6 +169,13 @@
       "when": 1782230320709,
       "tag": "0023_expanded_activity_catalog",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1782234000000,
+      "tag": "0024_scheduled_nearby_room_fields",
+      "breakpoints": true
     }
   ]
 }

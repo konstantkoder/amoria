@@ -24,11 +24,13 @@ import {
 } from "./admin-media.schemas";
 import * as adminMediaService from "./admin-media.service";
 import {
+  adminCreateNearbyRoomFromDemandRouteSchema,
   adminCreateNearbyRoomRouteSchema,
   adminNearbyRoomActionRouteSchema,
   adminNearbyRoomDetailRouteSchema,
   adminNearbyRoomsRouteSchema,
   adminNearbyRoomTypesRouteSchema,
+  parseAdminCreateNearbyRoomFromDemandBody,
   parseAdminCreateNearbyRoomBody,
   parseAdminNearbyRoomActionBody,
 } from "./admin-nearby-rooms.schemas";
@@ -231,6 +233,22 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
         currentAdmin(request),
         adminRequestContext(request),
       ),
+  );
+
+  fastify.post(
+    "/nearby-activity-demand/create-room",
+    {
+      preHandler: [authMiddleware, requireAdmin(["owner", "moderator"])],
+      schema: withErrorResponses(adminCreateNearbyRoomFromDemandRouteSchema),
+    },
+    async (request, reply) => {
+      const response = await adminActivityDemandService.createNearbyRoomFromDemandForAdmin(
+        currentAdmin(request),
+        parseAdminCreateNearbyRoomFromDemandBody(request.body),
+        adminRequestContext(request),
+      );
+      return reply.status(201).send(response);
+    },
   );
 
   fastify.get(
