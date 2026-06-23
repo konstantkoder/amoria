@@ -1,6 +1,7 @@
 import type { FastifySchema } from "fastify";
 import { z } from "zod";
 import {
+  NEARBY_ACTIVITY_CATEGORIES,
   NEARBY_ACTIVITY_KEYS,
   USER_ACTIVITY_PREFERENCE_SOURCES,
   USER_ACTIVITY_PREFERENCE_STATUSES,
@@ -49,11 +50,13 @@ export function parseUpdateNearbyActivityPreferencesBody(
 
 const nearbyActivitySchema = {
   type: "object",
-  required: ["activityKey", "title"],
+  required: ["activityKey", "title", "category", "sortOrder"],
   additionalProperties: false,
   properties: {
     activityKey: { type: "string", enum: NEARBY_ACTIVITY_KEYS },
     title: { type: "string" },
+    category: { type: "string", enum: NEARBY_ACTIVITY_CATEGORIES },
+    sortOrder: { type: "integer" },
   },
 } as const;
 

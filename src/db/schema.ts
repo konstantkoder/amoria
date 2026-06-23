@@ -16,11 +16,16 @@ import {
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
-import type {
-  NearbyActivityKey,
-  UserActivityPreferenceSource,
-  UserActivityPreferenceStatus,
+import {
+  NEARBY_ACTIVITY_KEYS,
+  type NearbyActivityKey,
+  type UserActivityPreferenceSource,
+  type UserActivityPreferenceStatus,
 } from "../config/constants";
+
+const nearbyActivityKeyCheckValues = sql.raw(
+  NEARBY_ACTIVITY_KEYS.map((key) => `'${key}'`).join(", "),
+);
 
 export const users = pgTable("users", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -447,7 +452,7 @@ export const userActivityPreferences = pgTable(
     index("user_activity_preferences_user_status_idx").on(table.userId, table.status),
     check(
       "user_activity_preferences_activity_key_check",
-      sql`${table.activityKey} IN ('coffee_nearby', 'walk_nearby', 'bike_nearby', 'cinema_today', 'talk_nearby', 'evening_nearby', 'roller_skating_nearby', 'kayaking_nearby', 'fishing_nearby', 'sport_nearby', 'language_exchange_nearby', 'local_event_nearby')`,
+      sql`${table.activityKey} IN (${nearbyActivityKeyCheckValues})`,
     ),
     check(
       "user_activity_preferences_status_check",

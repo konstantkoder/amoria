@@ -162,6 +162,13 @@
       "when": 1782116270935,
       "tag": "0022_user_activity_preferences",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1782230320709,
+      "tag": "0023_expanded_activity_catalog",
+      "breakpoints": true
     }
   ]
 }

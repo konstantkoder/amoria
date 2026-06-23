@@ -62,6 +62,8 @@ function toActivityPreferencesResponse(
     availableActivities: NEARBY_ACTIVITY_DEFINITIONS.map((activity) => ({
       activityKey: activity.key,
       title: activity.title,
+      category: activity.category,
+      sortOrder: activity.sortOrder,
     })),
     preferences: rows.map(toPreferenceDto),
   };

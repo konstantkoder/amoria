@@ -12,7 +12,11 @@ process.env.UPLOADS_DIR = "./uploads-test";
 
 const { buildApp } = require("../src/app") as typeof import("../src/app");
 const { signAccessToken } = require("../src/auth/jwt") as typeof import("../src/auth/jwt");
-const { NEARBY_ACTIVITY_DEFINITIONS } =
+const {
+  NEARBY_ACTIVITY_CATEGORIES,
+  NEARBY_ACTIVITY_DEFINITIONS,
+  NEARBY_ACTIVITY_KEYS,
+} =
   require("../src/config/constants") as typeof import("../src/config/constants");
 const { closeDb } = require("../src/db/client") as typeof import("../src/db/client");
 const activityPreferencesService =
@@ -44,11 +48,36 @@ test("GET /nearby/activity-preferences returns available activities and empty pr
   });
 
   assert.equal(response.statusCode, 200);
+  assert.equal(response.json().availableActivities.length, 43);
   assert.deepEqual(response.json(), {
     availableActivities: expectedAvailableActivities(),
     preferences: [],
   });
   assertNoPrivateNearbyFields(response.json());
+});
+
+test("available activity catalog includes categories and stable sort order", () => {
+  assert.equal(NEARBY_ACTIVITY_DEFINITIONS.length, 43);
+  assert.deepEqual(
+    NEARBY_ACTIVITY_DEFINITIONS.map((activity) => activity.key),
+    [...NEARBY_ACTIVITY_KEYS],
+  );
+
+  const categories = new Set<string>(NEARBY_ACTIVITY_CATEGORIES);
+  const sortOrders = new Set<number>();
+
+  for (const [index, activity] of NEARBY_ACTIVITY_DEFINITIONS.entries()) {
+    assert.equal(categories.has(activity.category), true);
+    assert.equal(sortOrders.has(activity.sortOrder), false);
+    sortOrders.add(activity.sortOrder);
+
+    if (index > 0) {
+      assert.equal(
+        activity.sortOrder > NEARBY_ACTIVITY_DEFINITIONS[index - 1]!.sortOrder,
+        true,
+      );
+    }
+  }
 });
 
 test("PUT /nearby/activity-preferences saves valid preferences", async (t) => {
@@ -79,6 +108,40 @@ test("PUT /nearby/activity-preferences saves valid preferences", async (t) => {
   assert.equal(state.preference(viewerId, "coffee_nearby", null)?.status, "active");
   assert.equal(
     state.preference(viewerId, "walk_nearby", "city:zagreb:center")?.source,
+    "nearby_questionnaire",
+  );
+  assertNoPrivateNearbyFields(response.json());
+});
+
+test("PUT /nearby/activity-preferences accepts release catalog keys", async (t) => {
+  t.after(restoreDeps);
+  const state = mockActivityPreferences();
+  const app = buildApp();
+  t.after(async () => {
+    await app.close();
+  });
+
+  const response = await app.inject({
+    method: "PUT",
+    url: "/nearby/activity-preferences",
+    headers: authHeaders(viewerId),
+    payload: {
+      preferences: [
+        { activityKey: "volleyball_nearby" },
+        { activityKey: "museum_exhibition_nearby", geoBucket: "city:zagreb:culture" },
+      ],
+    },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.json().preferences, [
+    preferenceDto("museum_exhibition_nearby", "city:zagreb:culture"),
+    preferenceDto("volleyball_nearby", null),
+  ]);
+  assert.equal(state.preference(viewerId, "volleyball_nearby", null)?.status, "active");
+  assert.equal(
+    state.preference(viewerId, "museum_exhibition_nearby", "city:zagreb:culture")
+      ?.source,
     "nearby_questionnaire",
   );
   assertNoPrivateNearbyFields(response.json());
@@ -237,6 +300,8 @@ function expectedAvailableActivities() {
   return NEARBY_ACTIVITY_DEFINITIONS.map((activity) => ({
     activityKey: activity.key,
     title: activity.title,
+    category: activity.category,
+    sortOrder: activity.sortOrder,
   }));
 }
 
@@ -302,4 +367,7 @@ function assertNoPrivateNearbyFields(value: unknown) {
   assert.equal(serialized.includes("birth_date"), false);
   assert.equal(serialized.includes("distanceKm"), false);
   assert.equal(serialized.includes("distanceMeters"), false);
+  assert.equal(serialized.includes("memberCount"), false);
+  assert.equal(serialized.includes("roomId"), false);
+  assert.equal(serialized.includes("nearbyRooms"), false);
 }

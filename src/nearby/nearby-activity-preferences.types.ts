@@ -1,4 +1,5 @@
 import type {
+  NearbyActivityCategory,
   NearbyActivityKey,
   UserActivityPreferenceSource,
   UserActivityPreferenceStatus,
@@ -7,6 +8,8 @@ import type {
 export type NearbyActivityDto = {
   activityKey: NearbyActivityKey;
   title: string;
+  category: NearbyActivityCategory;
+  sortOrder: number;
 };
 
 export type NearbyActivityPreferenceInput = {

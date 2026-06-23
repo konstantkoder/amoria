@@ -17,6 +17,8 @@ process.env.UPLOADS_DIR = "./uploads-test";
 
 const { buildApp } = require("../src/app") as typeof import("../src/app");
 const { signAccessToken } = require("../src/auth/jwt") as typeof import("../src/auth/jwt");
+const { NEARBY_ACTIVITY_DEFINITIONS } =
+  require("../src/config/constants") as typeof import("../src/config/constants");
 const { closeDb } = require("../src/db/client") as typeof import("../src/db/client");
 const adminService = require("../src/admin/admin.service") as typeof import("../src/admin/admin.service");
 const adminActivityDemandService =
@@ -53,7 +55,7 @@ test("GET /admin/nearby-activity-demand returns zero demand when preferences are
   const coffee = demandFor(body, "coffee_nearby");
 
   assert.equal(response.statusCode, 200);
-  assert.equal(body.items.length, 12);
+  assert.equal(body.items.length, NEARBY_ACTIVITY_DEFINITIONS.length);
   assert.deepEqual(
     {
       interestedUsersCount: coffee.interestedUsersCount,
@@ -143,6 +145,49 @@ test("GET /admin/nearby-activity-demand counts active preferences as interested 
   assert.equal(coffee.recentlyUpdatedUsersCount, 1);
   assert.equal(coffee.lastUpdatedAt, now.toISOString());
   assert.equal(walk.interestedUsersCount, 1);
+});
+
+test("GET /admin/nearby-activity-demand aggregates release catalog keys", async (t) => {
+  t.after(restoreDeps);
+  mockAdmin({ roles: ["support"] });
+  mockActivityDemand({
+    preferences: [
+      preferenceRow({
+        userId: demandUserId(1),
+        activityKey: "volleyball_nearby",
+        geoBucket: "city:zagreb:sports",
+        hasActiveNearbyVisibility: true,
+      }),
+      preferenceRow({
+        userId: demandUserId(2),
+        activityKey: "museum_exhibition_nearby",
+      }),
+    ],
+    rooms: [
+      roomRow({ typeKey: "volleyball_nearby", status: "active" }),
+      roomRow({ typeKey: "museum_exhibition_nearby", status: "active" }),
+    ],
+  });
+  const app = buildApp();
+  t.after(async () => {
+    await app.close();
+  });
+
+  const response = await app.inject({
+    method: "GET",
+    url: "/admin/nearby-activity-demand",
+    headers: authHeaders(userId),
+  });
+  const volleyball = demandFor(response.json(), "volleyball_nearby");
+  const museum = demandFor(response.json(), "museum_exhibition_nearby");
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(volleyball.interestedUsersCount, 1);
+  assert.equal(volleyball.activeNearbyUsersCount, 1);
+  assert.equal(volleyball.existingActiveRoomCount, 1);
+  assert.equal(museum.interestedUsersCount, 1);
+  assert.equal(museum.existingActiveRoomCount, 1);
+  assertNoPrivateDemandFields(response.body);
 });
 
 test("GET /admin/nearby-activity-demand excludes disabled preferences", async (t) => {
