@@ -1,15 +1,17 @@
 import { en, type TranslationKey } from "./en";
+import { hr } from "./hr";
 import { ru } from "./ru";
 
 export type { TranslationKey };
 
-export type Language = "en" | "ru";
+export type Language = "en" | "ru" | "hr";
 
 const LANGUAGE_STORAGE_KEY = "amoria.admin.language";
 
-const dictionaries: Record<Language, Record<TranslationKey, string>> = {
+const dictionaries: Record<Language, Partial<Record<TranslationKey, string>>> = {
   en,
   ru,
+  hr,
 };
 
 export function loadLanguage(): Language {
@@ -22,7 +24,7 @@ export function saveLanguage(language: Language): void {
 }
 
 export function translate(language: Language, key: TranslationKey): string {
-  return dictionaries[language][key];
+  return dictionaries[language][key] ?? en[key];
 }
 
 export function interpolate(template: string, values: Record<string, string | number>): string {
@@ -30,5 +32,5 @@ export function interpolate(template: string, values: Record<string, string | nu
 }
 
 function isLanguage(value: string | null): value is Language {
-  return value === "en" || value === "ru";
+  return value === "en" || value === "ru" || value === "hr";
 }

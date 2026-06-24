@@ -175,6 +175,13 @@ export type AdminNearbyRoomType = {
 export type AdminNearbyRoom = {
   id: string;
   typeKey: string;
+  title: string | null;
+  description: string | null;
+  locationLabel: string | null;
+  startsAt: string | null;
+  endsAt: string | null;
+  expiresAt: string | null;
+  createdFromDemandSnapshot: AdminNearbyRoomDemandSnapshot | null;
   roomType: AdminNearbyRoomType;
   status: string;
   geoBucket: string;
@@ -185,7 +192,27 @@ export type AdminNearbyRoom = {
   updatedAt: string;
 };
 
+export type AdminNearbyRoomDemandSnapshot = {
+  activityKey: string;
+  geoBucket: string;
+  interestedUsersCount: number;
+  activeNearbyUsersCount: number;
+  recentlyUpdatedUsersCount: number;
+  capturedAt: string;
+};
+
 export type AdminNearbyRoomAction = "close" | "disable" | "reopen";
+
+export type CreateNearbyRoomFromDemandPayload = {
+  activityKey: string;
+  geoBucket: string;
+  title?: string;
+  description?: string;
+  locationLabel?: string;
+  startsAt?: string;
+  endsAt?: string;
+  expiresAt?: string;
+};
 
 export type AdminNearbyActivityDemandGeoBucket = {
   geoBucket: string;
@@ -522,6 +549,15 @@ export async function apiGet<T>(path: string): Promise<T> {
 
 export async function getAdminNearbyActivityDemand(): Promise<AdminNearbyActivityDemand> {
   return apiGet<AdminNearbyActivityDemand>("/admin/nearby-activity-demand");
+}
+
+export async function createNearbyRoomFromDemand(
+  payload: CreateNearbyRoomFromDemandPayload,
+): Promise<{ room: AdminNearbyRoom }> {
+  return apiPost<{ room: AdminNearbyRoom }>(
+    "/admin/nearby-activity-demand/create-room",
+    payload,
+  );
 }
 
 export async function apiPost<T>(path: string, body: unknown): Promise<T> {

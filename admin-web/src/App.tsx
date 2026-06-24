@@ -37,6 +37,8 @@ import {
   apiGet,
   apiPost,
   clearTokens,
+  createNearbyRoomFromDemand,
+  CreateNearbyRoomFromDemandPayload,
   getAdminNearbyActivityDemand,
   loadTokens,
   login,
@@ -88,6 +90,19 @@ type MediaOpenRequest = {
   mediaId: string;
   ownerAmoriaId?: string;
   reason?: string;
+};
+
+type CreateFromDemandForm = {
+  activityKey: string;
+  activityTitle: string;
+  geoBucket: string;
+  visibleGeoBuckets: AdminNearbyActivityDemandRow["geoBuckets"];
+  title: string;
+  description: string;
+  locationLabel: string;
+  startsAt: string;
+  endsAt: string;
+  expiresAt: string;
 };
 
 const screens: ScreenItem[] = [
@@ -1974,6 +1989,8 @@ function NearbyRoomsScreen({
   const [loading, setLoading] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [createFromDemandForm, setCreateFromDemandForm] = useState<CreateFromDemandForm | null>(null);
+  const [creatingFromDemand, setCreatingFromDemand] = useState(false);
   const [busyAction, setBusyAction] = useState<AdminNearbyRoomAction | null>(null);
   const visibleDemandRows = activityDemand?.items.filter(hasVisibleActivityDemand) ?? [];
 
@@ -2075,6 +2092,44 @@ function NearbyRoomsScreen({
     }
   }
 
+  function openCreateFromDemand(item: AdminNearbyActivityDemandRow) {
+    setError(null);
+    setMessage(null);
+    setCreateFromDemandForm(createDemandFormFromRow(item));
+  }
+
+  async function submitCreateFromDemand(event: FormEvent) {
+    event.preventDefault();
+    if (!createFromDemandForm) {
+      return;
+    }
+
+    if (isUnsafeDemandGeoBucket(createFromDemandForm.geoBucket)) {
+      setError(t("nearbyDemand.hiddenGeoBucketBlocked"));
+      return;
+    }
+
+    setCreatingFromDemand(true);
+    setError(null);
+    setMessage(null);
+
+    try {
+      const response = await createNearbyRoomFromDemand(
+        buildCreateFromDemandPayload(createFromDemandForm),
+      );
+      const roomsReloaded = await load(response.room.id);
+      await loadDemand();
+      if (roomsReloaded) {
+        setCreateFromDemandForm(null);
+        setMessage(tx("nearbyRooms.created", { id: response.room.id }));
+      }
+    } catch (error) {
+      setError(errorMessage(error, t));
+    } finally {
+      setCreatingFromDemand(false);
+    }
+  }
+
   async function submitRoomAction(action: AdminNearbyRoomAction) {
     if (!selected) {
       return;
@@ -2113,26 +2168,47 @@ function NearbyRoomsScreen({
         {demandError ? <div className="error">{demandError}</div> : null}
         {demandLoading ? <div className="empty">{t("common.loading")}</div> : null}
         {!demandLoading && visibleDemandRows.length ? (
-          <DataTable
-            columns={[
-              t("nearbyDemand.activity"),
-              t("nearbyDemand.interestedUsers"),
-              t("nearbyDemand.activeNearbyUsers"),
-              t("nearbyDemand.recentUpdates"),
-              t("nearbyDemand.geoBuckets"),
-              t("nearbyDemand.existingActiveRooms"),
-              t("nearbyDemand.lastUpdated"),
-            ]}
-            rows={visibleDemandRows.map((item) => [
-              `${item.activityTitle} · ${item.activityKey}`,
-              formatCount(item.interestedUsersCount),
-              formatCount(item.activeNearbyUsersCount),
-              formatCount(item.recentlyUpdatedUsersCount),
-              formatNearbyDemandGeoBuckets(item.geoBuckets, t),
-              formatCount(item.existingActiveRoomCount),
-              item.lastUpdatedAt ? formatDate(item.lastUpdatedAt, language) : "",
-            ])}
-          />
+          <table>
+            <thead>
+              <tr>
+                <th>{t("nearbyDemand.activity")}</th>
+                <th>{t("nearbyDemand.interestedUsers")}</th>
+                <th>{t("nearbyDemand.activeNearbyUsers")}</th>
+                <th>{t("nearbyDemand.recentUpdates")}</th>
+                <th>{t("nearbyDemand.geoBuckets")}</th>
+                <th>{t("nearbyDemand.existingActiveRooms")}</th>
+                <th>{t("nearbyDemand.lastUpdated")}</th>
+                {canManageRooms ? <th>{t("common.action")}</th> : null}
+              </tr>
+            </thead>
+            <tbody>
+              {visibleDemandRows.map((item) => (
+                <tr key={item.activityKey}>
+                  <td>
+                    <div>{item.activityTitle}</div>
+                    <div className="muted">{item.activityKey}</div>
+                  </td>
+                  <td>{formatCount(item.interestedUsersCount)}</td>
+                  <td>{formatCount(item.activeNearbyUsersCount)}</td>
+                  <td>{formatCount(item.recentlyUpdatedUsersCount)}</td>
+                  <td>{formatNearbyDemandGeoBuckets(item.geoBuckets, t)}</td>
+                  <td>{formatCount(item.existingActiveRoomCount)}</td>
+                  <td>{item.lastUpdatedAt ? formatDate(item.lastUpdatedAt, language) : ""}</td>
+                  {canManageRooms ? (
+                    <td>
+                      <button
+                        className="secondary"
+                        type="button"
+                        onClick={() => openCreateFromDemand(item)}
+                      >
+                        {t("nearbyDemand.createActivity")}
+                      </button>
+                    </td>
+                  ) : null}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         ) : null}
         {!demandLoading && activityDemand && !visibleDemandRows.length ? (
           <EmptyState label={t("nearbyDemand.empty")} />
@@ -2153,9 +2229,11 @@ function NearbyRoomsScreen({
               <tr>
                 <th>{t("nearbyRooms.titleAndType")}</th>
                 <th>{t("nearbyRooms.geoBucket")}</th>
+                <th>{t("nearbyRooms.locationLabel")}</th>
+                <th>{t("nearbyRooms.startsAt")}</th>
+                <th>{t("nearbyRooms.expiresAt")}</th>
                 <th>{t("common.status")}</th>
                 <th>{t("nearbyRooms.memberCount")}</th>
-                <th>{t("nearbyRooms.threadId")}</th>
                 <th>{t("common.updated")}</th>
               </tr>
             </thead>
@@ -2167,13 +2245,15 @@ function NearbyRoomsScreen({
                   className={selected?.id === room.id ? "selected" : ""}
                 >
                   <td>
-                    <div>{room.roomType.title}</div>
+                    <div>{formatNearbyRoomDisplayTitle(room)}</div>
                     <div className="muted">{room.typeKey}</div>
                   </td>
                   <td>{room.geoBucket}</td>
+                  <td>{room.locationLabel ?? ""}</td>
+                  <td>{room.startsAt ? formatDate(room.startsAt, language) : ""}</td>
+                  <td>{room.expiresAt ? formatDate(room.expiresAt, language) : ""}</td>
                   <td>{formatStatus(room.status, t)}</td>
                   <td>{formatCount(room.memberCount)}</td>
-                  <td>{room.threadId ?? ""}</td>
                   <td>{formatDate(room.updatedAt, language)}</td>
                 </tr>
               ))}
@@ -2186,6 +2266,142 @@ function NearbyRoomsScreen({
       <div className="panel">
         {canManageRooms ? (
           <>
+            {createFromDemandForm ? (
+              <div className="create-from-demand-panel">
+                <h2>{t("nearbyDemand.createActivity")}</h2>
+                <form className="stack-form" onSubmit={submitCreateFromDemand}>
+                  <label>
+                    {t("nearbyDemand.activity")}
+                    <input
+                      value={`${createFromDemandForm.activityTitle} · ${createFromDemandForm.activityKey}`}
+                      readOnly
+                    />
+                  </label>
+                  {createFromDemandForm.visibleGeoBuckets.length ? (
+                    <label>
+                      {t("nearbyRooms.geoBucket")}
+                      <select
+                        value={createFromDemandForm.geoBucket}
+                        onChange={(event) => setCreateFromDemandForm({
+                          ...createFromDemandForm,
+                          geoBucket: event.target.value,
+                        })}
+                        required
+                      >
+                        {createFromDemandForm.visibleGeoBuckets.map((bucket) => (
+                          <option key={bucket.geoBucket} value={bucket.geoBucket}>
+                            {bucket.geoBucket} ({formatCount(bucket.interestedUsersCount)})
+                          </option>
+                        ))}
+                      </select>
+                      <span className="muted">{t("nearbyDemand.visibleGeoBucketHelp")}</span>
+                    </label>
+                  ) : (
+                    <label>
+                      {t("nearbyDemand.manualGeoBucket")}
+                      <input
+                        value={createFromDemandForm.geoBucket}
+                        onChange={(event) => setCreateFromDemandForm({
+                          ...createFromDemandForm,
+                          geoBucket: event.target.value,
+                        })}
+                        maxLength={200}
+                        placeholder="zagreb-center"
+                        required
+                      />
+                      <span className="muted">{t("nearbyDemand.manualGeoBucketHelp")}</span>
+                    </label>
+                  )}
+                  <label>
+                    {t("common.title")}
+                    <input
+                      value={createFromDemandForm.title}
+                      onChange={(event) => setCreateFromDemandForm({
+                        ...createFromDemandForm,
+                        title: event.target.value,
+                      })}
+                      maxLength={80}
+                    />
+                  </label>
+                  <label>
+                    {t("nearbyRooms.description")}
+                    <textarea
+                      value={createFromDemandForm.description}
+                      onChange={(event) => setCreateFromDemandForm({
+                        ...createFromDemandForm,
+                        description: event.target.value,
+                      })}
+                      maxLength={500}
+                    />
+                  </label>
+                  <label>
+                    {t("nearbyRooms.locationLabel")}
+                    <input
+                      value={createFromDemandForm.locationLabel}
+                      onChange={(event) => setCreateFromDemandForm({
+                        ...createFromDemandForm,
+                        locationLabel: event.target.value,
+                      })}
+                      maxLength={120}
+                    />
+                  </label>
+                  <label>
+                    {t("nearbyRooms.startsAt")}
+                    <input
+                      type="datetime-local"
+                      value={createFromDemandForm.startsAt}
+                      onChange={(event) => setCreateFromDemandForm({
+                        ...createFromDemandForm,
+                        startsAt: event.target.value,
+                      })}
+                    />
+                  </label>
+                  <label>
+                    {t("nearbyRooms.endsAt")}
+                    <input
+                      type="datetime-local"
+                      value={createFromDemandForm.endsAt}
+                      onChange={(event) => setCreateFromDemandForm({
+                        ...createFromDemandForm,
+                        endsAt: event.target.value,
+                      })}
+                    />
+                  </label>
+                  <label>
+                    {t("nearbyRooms.expiresAt")}
+                    <input
+                      type="datetime-local"
+                      value={createFromDemandForm.expiresAt}
+                      onChange={(event) => setCreateFromDemandForm({
+                        ...createFromDemandForm,
+                        expiresAt: event.target.value,
+                      })}
+                    />
+                  </label>
+                  <div className="tab-row">
+                    <button
+                      disabled={
+                        creatingFromDemand ||
+                        loading ||
+                        demandLoading ||
+                        !createFromDemandForm.geoBucket.trim() ||
+                        isUnsafeDemandGeoBucket(createFromDemandForm.geoBucket)
+                      }
+                    >
+                      {creatingFromDemand ? t("nearbyRooms.creating") : t("nearbyDemand.createActivity")}
+                    </button>
+                    <button
+                      className="secondary"
+                      type="button"
+                      disabled={creatingFromDemand}
+                      onClick={() => setCreateFromDemandForm(null)}
+                    >
+                      {t("common.cancel")}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            ) : null}
             <h2>{t("nearbyRooms.createTitle")}</h2>
             <form className="stack-form" onSubmit={submitCreate}>
               <label>
@@ -2233,7 +2449,17 @@ function NearbyRoomsScreen({
             <dl className="facts compact">
               <Fact label={t("nearbyRooms.roomId")} value={selected.id} />
               <Fact label={t("common.type")} value={`${selected.roomType.title} · ${selected.typeKey}`} />
+              <Fact label={t("common.title")} value={formatNearbyRoomDisplayTitle(selected)} />
+              <Fact label={t("nearbyRooms.description")} value={selected.description ?? ""} />
+              <Fact label={t("nearbyRooms.locationLabel")} value={selected.locationLabel ?? ""} />
               <Fact label={t("nearbyRooms.geoBucket")} value={selected.geoBucket} />
+              <Fact label={t("nearbyRooms.startsAt")} value={selected.startsAt ? formatDate(selected.startsAt, language) : ""} />
+              <Fact label={t("nearbyRooms.endsAt")} value={selected.endsAt ? formatDate(selected.endsAt, language) : ""} />
+              <Fact label={t("nearbyRooms.expiresAt")} value={selected.expiresAt ? formatDate(selected.expiresAt, language) : ""} />
+              <Fact
+                label={t("nearbyRooms.createdFromDemandSnapshot")}
+                value={formatNearbyRoomDemandSnapshot(selected.createdFromDemandSnapshot, language, t)}
+              />
               <Fact label={t("common.status")} value={formatStatus(selected.status, t)} />
               <Fact label={t("nearbyRooms.memberCount")} value={formatCount(selected.memberCount)} />
               <Fact label={t("nearbyRooms.threadId")} value={selected.threadId ?? ""} />
@@ -2311,6 +2537,7 @@ function LanguageSwitcher() {
       <select value={language} onChange={(event) => setLanguage(event.target.value as Language)}>
         <option value="en">{t("language.en")}</option>
         <option value="ru">{t("language.ru")}</option>
+        <option value="hr">{t("language.hr")}</option>
       </select>
     </label>
   );
@@ -2440,6 +2667,74 @@ function hasVisibleActivityDemand(item: AdminNearbyActivityDemandRow): boolean {
   );
 }
 
+const SMALL_BUCKET_HIDDEN = "small_bucket_hidden";
+
+function createDemandFormFromRow(item: AdminNearbyActivityDemandRow): CreateFromDemandForm {
+  const visibleGeoBuckets = visibleActivityDemandGeoBuckets(item.geoBuckets);
+
+  return {
+    activityKey: item.activityKey,
+    activityTitle: item.activityTitle,
+    geoBucket: visibleGeoBuckets[0]?.geoBucket ?? "",
+    visibleGeoBuckets,
+    title: item.activityTitle,
+    description: "",
+    locationLabel: "",
+    startsAt: "",
+    endsAt: "",
+    expiresAt: "",
+  };
+}
+
+function visibleActivityDemandGeoBuckets(
+  geoBuckets: AdminNearbyActivityDemandRow["geoBuckets"],
+): AdminNearbyActivityDemandRow["geoBuckets"] {
+  return geoBuckets.filter((bucket) => bucket.geoBucket !== SMALL_BUCKET_HIDDEN);
+}
+
+function isUnsafeDemandGeoBucket(value: string): boolean {
+  return value.trim() === SMALL_BUCKET_HIDDEN;
+}
+
+function buildCreateFromDemandPayload(
+  form: CreateFromDemandForm,
+): CreateNearbyRoomFromDemandPayload {
+  const payload: CreateNearbyRoomFromDemandPayload = {
+    activityKey: form.activityKey,
+    geoBucket: form.geoBucket.trim(),
+  };
+  const title = optionalTrimmed(form.title);
+  const description = optionalTrimmed(form.description);
+  const locationLabel = optionalTrimmed(form.locationLabel);
+  const startsAt = optionalLocalDateTimeToIso(form.startsAt);
+  const endsAt = optionalLocalDateTimeToIso(form.endsAt);
+  const expiresAt = optionalLocalDateTimeToIso(form.expiresAt);
+
+  if (title) payload.title = title;
+  if (description) payload.description = description;
+  if (locationLabel) payload.locationLabel = locationLabel;
+  if (startsAt) payload.startsAt = startsAt;
+  if (endsAt) payload.endsAt = endsAt;
+  if (expiresAt) payload.expiresAt = expiresAt;
+
+  return payload;
+}
+
+function optionalTrimmed(value: string): string | undefined {
+  const trimmed = value.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+function optionalLocalDateTimeToIso(value: string): string | undefined {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  const date = new Date(trimmed);
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+}
+
 function formatNearbyDemandGeoBuckets(
   geoBuckets: AdminNearbyActivityDemandRow["geoBuckets"],
   t: (key: TranslationKey) => string,
@@ -2447,7 +2742,7 @@ function formatNearbyDemandGeoBuckets(
   return geoBuckets
     .map((bucket) => {
       const label =
-        bucket.geoBucket === "small_bucket_hidden"
+        bucket.geoBucket === SMALL_BUCKET_HIDDEN
           ? t("nearbyDemand.smallBucketHidden")
           : bucket.geoBucket;
       return `${label} (${formatCount(bucket.interestedUsersCount)})`;
@@ -2519,6 +2814,29 @@ function formatNearbyRoomTypeSelectLabel(
 ): string {
   const availability = roomType.adminApproved ? t("common.yes") : t("common.no");
   return `${roomType.title} (${roomType.key}, ${formatStatus(roomType.status, t)}, ${t("nearbyRooms.adminApproved")}: ${availability})`;
+}
+
+function formatNearbyRoomDisplayTitle(room: AdminNearbyRoom): string {
+  return room.title ?? room.roomType.title;
+}
+
+function formatNearbyRoomDemandSnapshot(
+  snapshot: AdminNearbyRoom["createdFromDemandSnapshot"],
+  language: Language,
+  t: (key: TranslationKey) => string,
+): string {
+  if (!snapshot) {
+    return "";
+  }
+
+  return [
+    `${t("nearbyDemand.activity")}: ${snapshot.activityKey}`,
+    `${t("nearbyRooms.geoBucket")}: ${snapshot.geoBucket}`,
+    `${t("nearbyDemand.interestedUsers")}: ${formatCount(snapshot.interestedUsersCount)}`,
+    `${t("nearbyDemand.activeNearbyUsers")}: ${formatCount(snapshot.activeNearbyUsersCount)}`,
+    `${t("nearbyDemand.recentUpdates")}: ${formatCount(snapshot.recentlyUpdatedUsersCount)}`,
+    `${t("nearbyRooms.demandCapturedAt")}: ${formatDate(snapshot.capturedAt, language)}`,
+  ].join(" · ");
 }
 
 function isNearbyRoomActionCurrent(room: AdminNearbyRoom, action: AdminNearbyRoomAction): boolean {
