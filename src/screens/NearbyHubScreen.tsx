@@ -255,7 +255,7 @@ function isNearbyActivityPreferenceRequiredError(error: unknown) {
 export default function NearbyHubScreen() {
   const navigation = useNavigation<NearbyTabNavigationProp>();
   const { width } = useWindowDimensions();
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const mountedRef = useRef(true);
   const visibilityRef = useRef<NearbyProfileVisibilityDto | null>(null);
   const radiusRef = useRef(DEFAULT_RADIUS_KM);
@@ -1307,6 +1307,7 @@ export default function NearbyHubScreen() {
         onOpen={(room) => void handleOpenRoom(room)}
         onOpenPreferences={openActivityPreferences}
         t={t}
+        locale={locale}
       />
     );
   }, [
@@ -1317,6 +1318,7 @@ export default function NearbyHubScreen() {
     roomErrorText,
     roomPreferenceGateVisible,
     roomsLoading,
+    locale,
     t,
     visibleRooms,
   ]);
@@ -1485,6 +1487,7 @@ function NearbyRoomCardsSection({
   onOpen,
   onOpenPreferences,
   t,
+  locale,
 }: {
   rooms: NearbyRoomCard[];
   loading: boolean;
@@ -1495,6 +1498,7 @@ function NearbyRoomCardsSection({
   onOpen: (room: NearbyRoomCard) => void;
   onOpenPreferences: () => void;
   t: (key: string, params?: Record<string, string>) => string;
+  locale: string;
 }) {
   return (
     <View style={styles.roomsSection}>
@@ -1576,6 +1580,7 @@ function NearbyRoomCardsSection({
               onJoin={() => onJoin(room)}
               onOpen={() => onOpen(room)}
               t={t}
+              locale={locale}
             />
           ))}
         </View>
@@ -1591,6 +1596,7 @@ function NearbyRoomCardView({
   onJoin,
   onOpen,
   t,
+  locale,
 }: {
   room: NearbyRoomCard;
   busy: boolean;
@@ -1598,9 +1604,12 @@ function NearbyRoomCardView({
   onJoin: () => void;
   onOpen: () => void;
   t: (key: string, params?: Record<string, string>) => string;
+  locale: string;
 }) {
   const action = getNearbyRoomAction(room, t);
   const canAct = action.kind === "join" || action.kind === "open";
+  const startsAtLabel = formatNearbyRoomStartsAt(room.startsAt, locale);
+  const locationLabel = normalizeOptionalRoomLabel(room.locationLabel);
 
   return (
     <LinearGradient
@@ -1622,6 +1631,35 @@ function NearbyRoomCardView({
           </Text>
         </View>
       </View>
+
+      {startsAtLabel || locationLabel ? (
+        <View style={styles.roomSchedule}>
+          {startsAtLabel ? (
+            <View style={styles.roomScheduleItem}>
+              <Ionicons name="time-outline" size={13} color="#F3C98B" />
+              <Text
+                style={styles.roomScheduleText}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
+                {startsAtLabel}
+              </Text>
+            </View>
+          ) : null}
+          {locationLabel ? (
+            <View style={styles.roomScheduleItem}>
+              <Ionicons name="location-outline" size={13} color="#F3C98B" />
+              <Text
+                style={styles.roomScheduleText}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
+                {locationLabel}
+              </Text>
+            </View>
+          ) : null}
+        </View>
+      ) : null}
 
       <View style={styles.roomMetaRow}>
         <View style={styles.roomMetaPill}>
@@ -1677,6 +1715,36 @@ function formatPulseCount(
   }
 
   return t("nearby.summaryUnavailable");
+}
+
+function normalizeOptionalRoomLabel(value: string | null | undefined) {
+  const label = String(value ?? "").trim();
+  return label || "";
+}
+
+function formatNearbyRoomStartsAt(
+  value: string | null | undefined,
+  locale: string
+) {
+  const rawValue = normalizeOptionalRoomLabel(value);
+  if (!rawValue) return "";
+
+  const date = new Date(rawValue);
+  if (!Number.isFinite(date.getTime())) return "";
+
+  try {
+    const formatted = new Intl.DateTimeFormat(locale, {
+      weekday: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(date);
+
+    return formatted
+      ? formatted.charAt(0).toLocaleUpperCase(locale) + formatted.slice(1)
+      : "";
+  } catch {
+    return "";
+  }
 }
 
 function formatNearbyRoomStatus(
@@ -2473,6 +2541,23 @@ const styles = StyleSheet.create({
     lineHeight: 14,
     fontWeight: "700",
     marginTop: 2,
+  },
+  roomSchedule: {
+    gap: 5,
+  },
+  roomScheduleItem: {
+    minHeight: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  roomScheduleText: {
+    flex: 1,
+    minWidth: 0,
+    color: "rgba(255,255,255,0.82)",
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: "800",
   },
   roomMetaRow: {
     flexDirection: "row",

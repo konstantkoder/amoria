@@ -437,6 +437,8 @@ export type NearbyRoomCard = {
   typeKey: string;
   title: string;
   geoBucket: string;
+  locationLabel: string | null;
+  startsAt: string | null;
   memberCount: number;
   status: string;
   canJoin: boolean;

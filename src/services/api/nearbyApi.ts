@@ -5,6 +5,7 @@ import type {
   NearbyMeResponse,
   NearbyProfileFeedResponse,
   NearbyRoomActionResponse,
+  NearbyRoomCard,
   NearbyRoomMessagesResponse,
   NearbyRoomOpenResponse,
   NearbyRoomsResponse,
@@ -26,6 +27,20 @@ type CreateNearbyStatusResponse = {
   status: NearbyStatusDto;
 };
 
+type NearbyRoomCardWire = Omit<
+  NearbyRoomCard,
+  "locationLabel" | "startsAt"
+> &
+  Partial<Pick<NearbyRoomCard, "locationLabel" | "startsAt">>;
+
+type NearbyRoomsWireResponse = Omit<NearbyRoomsResponse, "items"> & {
+  items?: NearbyRoomCardWire[] | null;
+};
+
+type NearbyRoomActionWireResponse = {
+  room: NearbyRoomCardWire;
+};
+
 function buildQuery(params: Record<string, string | number | undefined>) {
   const query = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
@@ -35,6 +50,14 @@ function buildQuery(params: Record<string, string | number | undefined>) {
 
   const value = query.toString();
   return value ? `?${value}` : "";
+}
+
+function normalizeNearbyRoomCard(room: NearbyRoomCardWire): NearbyRoomCard {
+  return {
+    ...room,
+    locationLabel: room.locationLabel ?? null,
+    startsAt: room.startsAt ?? null,
+  };
 }
 
 export async function createStatus(
@@ -104,26 +127,38 @@ export function listProfileFeed(limit = 30): Promise<NearbyProfileFeedResponse> 
   );
 }
 
-export function listNearbyRooms(): Promise<NearbyRoomsResponse> {
-  return request<NearbyRoomsResponse>("GET", "/nearby/rooms");
+export async function listNearbyRooms(): Promise<NearbyRoomsResponse> {
+  const response = await request<NearbyRoomsWireResponse>("GET", "/nearby/rooms");
+  return {
+    ...response,
+    items: (response.items ?? []).map(normalizeNearbyRoomCard),
+  };
 }
 
-export function joinNearbyRoom(
+export async function joinNearbyRoom(
   roomId: string
 ): Promise<NearbyRoomActionResponse> {
-  return request<NearbyRoomActionResponse>(
+  const response = await request<NearbyRoomActionWireResponse>(
     "POST",
     `/nearby/rooms/${encodeURIComponent(roomId)}/join`
   );
+  return {
+    ...response,
+    room: normalizeNearbyRoomCard(response.room),
+  };
 }
 
-export function leaveNearbyRoom(
+export async function leaveNearbyRoom(
   roomId: string
 ): Promise<NearbyRoomActionResponse> {
-  return request<NearbyRoomActionResponse>(
+  const response = await request<NearbyRoomActionWireResponse>(
     "POST",
     `/nearby/rooms/${encodeURIComponent(roomId)}/leave`
   );
+  return {
+    ...response,
+    room: normalizeNearbyRoomCard(response.room),
+  };
 }
 
 export function openNearbyRoom(
