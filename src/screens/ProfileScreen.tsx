@@ -904,7 +904,7 @@ export default function ProfileScreen() {
           <Text style={styles.sectionNote}>{t("profile.searchReuseNote")}</Text>
         </View>
 
-        <View style={styles.sectionCard}>
+        <View style={[styles.sectionCard, styles.photoSectionCard]}>
           <View style={styles.sectionHeader}>
             <View style={styles.sectionHeaderCopy}>
               <Text style={styles.sectionTitle}>{t("profile.photos")}</Text>
@@ -1080,6 +1080,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.11)",
     gap: 12,
+  },
+  photoSectionCard: {
+    marginTop: 6,
+    backgroundColor: "rgba(10, 16, 28, 0.78)",
+    borderColor: "rgba(243, 201, 139, 0.22)",
   },
   sectionHeader: {
     flexDirection: "row",
