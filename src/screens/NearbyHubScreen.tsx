@@ -5,6 +5,7 @@ import {
   FlatList,
   Image,
   Pressable,
+  ScrollView,
   StyleSheet,
   Switch,
   Text,
@@ -1382,14 +1383,14 @@ function NearbyActivityPreferencesCard({
           {copyOrFallback(
             t,
             "nearby.activityPreferences.cardTitle",
-            "Выберите активности рядом"
+            "Анкета активностей"
           )}
         </Text>
         <Text style={styles.activityPreferencesBody}>
           {copyOrFallback(
             t,
             "nearby.activityPreferences.cardBody",
-            "Отметьте, что вам интересно: велосипед, каяки, рыбалка, кофе…"
+            "Нужна только для участия в активностях рядом."
           )}
         </Text>
       </View>
@@ -1570,7 +1571,12 @@ function NearbyRoomCardsSection({
       ) : null}
 
       {rooms.length ? (
-        <View style={styles.roomCardGrid}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.roomRail}
+          contentContainerStyle={styles.roomRailContent}
+        >
           {rooms.map((room) => (
             <NearbyRoomCardView
               key={room.id}
@@ -1583,7 +1589,7 @@ function NearbyRoomCardsSection({
               locale={locale}
             />
           ))}
-        </View>
+        </ScrollView>
       ) : null}
     </View>
   );
@@ -1618,19 +1624,9 @@ function NearbyRoomCardView({
       end={{ x: 1, y: 1 }}
       style={styles.roomCard}
     >
-      <View style={styles.roomCardTop}>
-        <View style={styles.roomIconFrame}>
-          <Ionicons name="chatbubbles-outline" size={18} color="#F3C98B" />
-        </View>
-        <View style={styles.roomCopy}>
-          <Text style={styles.roomTitle} numberOfLines={1} ellipsizeMode="tail">
-            {room.title}
-          </Text>
-          <Text style={styles.roomBucket} numberOfLines={1} ellipsizeMode="tail">
-            {room.geoBucket}
-          </Text>
-        </View>
-      </View>
+      <Text style={styles.roomTitle} numberOfLines={2} ellipsizeMode="tail">
+        {room.title}
+      </Text>
 
       {startsAtLabel || locationLabel ? (
         <View style={styles.roomSchedule}>
@@ -1661,7 +1657,7 @@ function NearbyRoomCardView({
         </View>
       ) : null}
 
-      <View style={styles.roomMetaRow}>
+      <View style={styles.roomCompactFooter}>
         <View style={styles.roomMetaPill}>
           <Ionicons name="people-outline" size={13} color="#E8EBFF" />
           <Text style={styles.roomMetaText}>
@@ -1670,38 +1666,33 @@ function NearbyRoomCardView({
             })}
           </Text>
         </View>
-        <View style={styles.roomMetaPill}>
-          <Text style={styles.roomMetaText}>
-            {formatNearbyRoomStatus(room.status, t)}
-          </Text>
-        </View>
-      </View>
 
-      <Pressable
-        disabled={!canAct || disabled || busy}
-        onPress={action.kind === "join" ? onJoin : action.kind === "open" ? onOpen : undefined}
-        style={[
-          styles.roomActionButton,
-          canAct ? styles.roomActionButtonEnabled : styles.roomActionButtonDisabled,
-          disabled || busy ? styles.buttonDisabled : null,
-        ]}
-      >
-        {busy ? (
-          <ActivityIndicator size="small" color="#FFFFFF" />
-        ) : (
-          <Text
-            style={[
-              styles.roomActionText,
-              canAct ? styles.roomActionTextEnabled : styles.roomActionTextDisabled,
-            ]}
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={0.82}
-          >
-            {action.label}
-          </Text>
-        )}
-      </Pressable>
+        <Pressable
+          disabled={!canAct || disabled || busy}
+          onPress={action.kind === "join" ? onJoin : action.kind === "open" ? onOpen : undefined}
+          style={[
+            styles.roomActionButton,
+            canAct ? styles.roomActionButtonEnabled : styles.roomActionButtonDisabled,
+            disabled || busy ? styles.buttonDisabled : null,
+          ]}
+        >
+          {busy ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <Text
+              style={[
+                styles.roomActionText,
+                canAct ? styles.roomActionTextEnabled : styles.roomActionTextDisabled,
+              ]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.82}
+            >
+              {action.label}
+            </Text>
+          )}
+        </Pressable>
+      </View>
     </LinearGradient>
   );
 }
@@ -1745,22 +1736,6 @@ function formatNearbyRoomStartsAt(
   } catch {
     return "";
   }
-}
-
-function formatNearbyRoomStatus(
-  status: string,
-  t: (key: string, params?: Record<string, string>) => string
-) {
-  if (status === "active") {
-    return copyOrFallback(t, "nearby.rooms.status.active", "активна");
-  }
-  if (status === "closed") {
-    return copyOrFallback(t, "nearby.rooms.status.closed", "закрыта");
-  }
-  if (status === "disabled") {
-    return copyOrFallback(t, "nearby.rooms.status.disabled", "выключена");
-  }
-  return status;
 }
 
 function getNearbyRoomAction(
@@ -2052,9 +2027,9 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   headerArea: {
-    gap: 12,
+    gap: 10,
     paddingTop: 2,
-    paddingBottom: 10,
+    paddingBottom: 8,
   },
   titleBlock: {
     paddingHorizontal: 4,
@@ -2073,32 +2048,32 @@ const styles = StyleSheet.create({
   },
   statsGrid: {
     flexDirection: "row",
-    gap: 10,
+    gap: 7,
   },
   statCard: {
     flex: 1,
     minWidth: 0,
-    height: 82,
-    minHeight: 82,
+    height: 58,
+    minHeight: 58,
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
+    gap: 7,
+    borderRadius: 15,
+    paddingHorizontal: 9,
+    paddingVertical: 8,
     backgroundColor: "rgba(13, 25, 52, 0.58)",
     borderWidth: 1,
-    borderColor: "rgba(137, 181, 226, 0.24)",
+    borderColor: "rgba(137, 181, 226, 0.18)",
     shadowColor: "#000",
-    shadowOpacity: 0.30,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 7 },
-    elevation: 8,
+    shadowOpacity: 0.16,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
   },
   statIconFrame: {
-    width: 44,
-    height: 44,
-    borderRadius: 18,
+    width: 31,
+    height: 31,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(255,255,255,0.06)",
@@ -2111,32 +2086,32 @@ const styles = StyleSheet.create({
   },
   statLabel: {
     color: "#C9CEE1",
-    fontSize: 12,
-    lineHeight: 14,
+    fontSize: 10,
+    lineHeight: 12,
     fontWeight: "800",
   },
   statValue: {
     color: "#FFFFFF",
-    fontSize: 26,
-    lineHeight: 30,
+    fontSize: 20,
+    lineHeight: 23,
     fontWeight: "900",
     textShadowColor: "rgba(255, 79, 139, 0.22)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 5,
   },
   controlPanel: {
-    marginTop: 20,
-    borderRadius: 26,
-    padding: 20,
-    gap: 13,
-    backgroundColor: "rgba(4, 8, 20, 0.78)",
+    marginTop: 6,
+    borderRadius: 18,
+    padding: 12,
+    gap: 10,
+    backgroundColor: "rgba(4, 8, 20, 0.58)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.18)",
+    borderColor: "rgba(255,255,255,0.12)",
     shadowColor: "#000",
-    shadowOpacity: 0.30,
-    shadowRadius: 22,
-    shadowOffset: { width: 0, height: 12 },
-    elevation: 10,
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
   },
   completionPanel: {
     flexDirection: "row",
@@ -2186,7 +2161,7 @@ const styles = StyleSheet.create({
   toggleRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 10,
   },
   toggleText: {
     flex: 1,
@@ -2194,20 +2169,22 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     color: "#FFFFFF",
-    fontSize: 16,
+    fontSize: 14,
+    lineHeight: 18,
     fontWeight: "800",
   },
   privacyNote: {
     color: "#AEB6CE",
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: 11,
+    lineHeight: 14,
   },
   filterGroup: {
-    gap: 12,
+    gap: 7,
   },
   filterLabel: {
-    color: "#FFFFFF",
-    fontSize: 16,
+    color: "rgba(255,255,255,0.78)",
+    fontSize: 11,
+    lineHeight: 13,
     fontWeight: "800",
     textTransform: "uppercase",
   },
@@ -2219,24 +2196,24 @@ const styles = StyleSheet.create({
   segment: {
     position: "relative",
     overflow: "hidden",
-    height: 46,
-    minHeight: 46,
+    height: 32,
+    minHeight: 32,
     justifyContent: "center",
-    borderRadius: 15,
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    backgroundColor: "rgba(18, 25, 45, 0.76)",
+    borderRadius: 11,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    backgroundColor: "rgba(18, 25, 45, 0.54)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.18)",
+    borderColor: "rgba(255,255,255,0.12)",
   },
   segmentActive: {
-    backgroundColor: "rgba(255, 79, 139, 0.30)",
-    borderColor: "rgba(255,184,104,0.75)",
+    backgroundColor: "rgba(255, 79, 139, 0.22)",
+    borderColor: "rgba(255,184,104,0.58)",
     shadowColor: "rgba(255,105,72,0.30)",
-    shadowOpacity: 1,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 3,
+    shadowOpacity: 0.55,
+    shadowRadius: 5,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
   },
   segmentActiveGradient: {
     ...StyleSheet.absoluteFillObject,
@@ -2247,12 +2224,13 @@ const styles = StyleSheet.create({
   segmentText: {
     zIndex: 1,
     color: "rgba(226,232,255,0.84)",
-    fontSize: 15,
+    fontSize: 12,
+    lineHeight: 15,
     fontWeight: "700",
   },
   segmentTextActive: {
     color: "#FFFFFF",
-    fontSize: 15,
+    fontSize: 12,
     fontWeight: "800",
     textShadowColor: "rgba(95, 20, 52, 0.34)",
     textShadowOffset: { width: 0, height: 1 },
@@ -2261,40 +2239,40 @@ const styles = StyleSheet.create({
   summaryRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    borderRadius: 14,
-    paddingHorizontal: 10,
-    paddingVertical: 9,
-    backgroundColor: "rgba(0,0,0,0.20)",
+    gap: 6,
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 7,
+    backgroundColor: "rgba(0,0,0,0.13)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
+    borderColor: "rgba(255,255,255,0.06)",
   },
   summaryText: {
     flex: 1,
     color: "#DDE2F2",
-    fontSize: 13,
-    lineHeight: 17,
+    fontSize: 11,
+    lineHeight: 15,
   },
   refreshButton: {
     position: "relative",
     overflow: "hidden",
-    alignSelf: "stretch",
-    height: 58,
-    minHeight: 58,
+    alignSelf: "flex-start",
+    height: 38,
+    minHeight: 38,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
-    borderRadius: 20,
-    paddingHorizontal: 14,
+    gap: 6,
+    borderRadius: 14,
+    paddingHorizontal: 13,
     backgroundColor: "#E8428A",
     borderWidth: 1,
     borderColor: "rgba(255,184,104,0.75)",
     shadowColor: "rgba(255,105,72,0.34)",
-    shadowOpacity: 1,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 9 },
-    elevation: 5,
+    shadowOpacity: 0.45,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
   },
   refreshButtonGradient: {
     ...StyleSheet.absoluteFillObject,
@@ -2302,7 +2280,8 @@ const styles = StyleSheet.create({
   refreshButtonText: {
     zIndex: 1,
     color: "#FFFFFF",
-    fontSize: 18,
+    fontSize: 13,
+    lineHeight: 16,
     fontWeight: "800",
     textShadowColor: "rgba(79, 18, 53, 0.35)",
     textShadowOffset: { width: 0, height: 1 },
@@ -2339,26 +2318,26 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
   activityPreferencesCard: {
-    marginTop: 14,
+    marginTop: 8,
     marginHorizontal: 2,
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    borderRadius: 18,
-    padding: 12,
-    backgroundColor: "rgba(10, 16, 28, 0.76)",
+    gap: 8,
+    borderRadius: 14,
+    padding: 9,
+    backgroundColor: "rgba(10, 16, 28, 0.58)",
     borderWidth: 1,
-    borderColor: "rgba(243, 201, 139, 0.22)",
+    borderColor: "rgba(243, 201, 139, 0.16)",
     shadowColor: "#000",
-    shadowOpacity: 0.20,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 4,
+    shadowOpacity: 0.10,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 1,
   },
   activityPreferencesIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 14,
+    width: 30,
+    height: 30,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(255,255,255,0.07)",
@@ -2372,34 +2351,34 @@ const styles = StyleSheet.create({
   },
   activityPreferencesTitle: {
     color: theme.colors.text,
-    fontSize: 14,
-    lineHeight: 18,
+    fontSize: 13,
+    lineHeight: 16,
     fontWeight: "900",
   },
   activityPreferencesBody: {
     color: "rgba(226,232,255,0.72)",
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: 11,
+    lineHeight: 14,
   },
   activityPreferencesButton: {
-    minWidth: 78,
-    minHeight: 36,
+    minWidth: 70,
+    minHeight: 32,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 13,
-    paddingHorizontal: 12,
+    borderRadius: 12,
+    paddingHorizontal: 10,
     backgroundColor: "rgba(243, 201, 139, 0.94)",
   },
   activityPreferencesButtonText: {
     color: "#24150B",
     fontSize: 12,
-    lineHeight: 15,
+    lineHeight: 14,
     fontWeight: "900",
   },
   roomsSection: {
-    marginTop: 14,
+    marginTop: 10,
     marginHorizontal: 2,
-    gap: 10,
+    gap: 8,
   },
   roomsHeader: {
     flexDirection: "row",
@@ -2410,14 +2389,14 @@ const styles = StyleSheet.create({
   },
   roomsTitle: {
     color: theme.colors.text,
-    fontSize: 17,
-    lineHeight: 21,
+    fontSize: 15,
+    lineHeight: 18,
     fontWeight: "900",
   },
   roomsSubtitle: {
     color: "rgba(226,232,255,0.70)",
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: 11,
+    lineHeight: 14,
     marginTop: 2,
   },
   roomsError: {
@@ -2488,84 +2467,62 @@ const styles = StyleSheet.create({
     lineHeight: 15,
     fontWeight: "900",
   },
-  roomCardGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
+  roomRail: {
+    marginHorizontal: -2,
+  },
+  roomRailContent: {
     gap: 8,
+    paddingHorizontal: 2,
+    paddingRight: 10,
   },
   roomCard: {
-    flexGrow: 1,
-    flexBasis: "48%",
-    minWidth: 150,
-    minHeight: 148,
-    borderRadius: 18,
-    padding: 12,
-    gap: 10,
-    backgroundColor: "rgba(9, 14, 32, 0.82)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.14)",
-    shadowColor: "#000",
-    shadowOpacity: 0.22,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 5,
-  },
-  roomCardTop: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 9,
-  },
-  roomIconFrame: {
-    width: 34,
-    height: 34,
+    width: 228,
+    minHeight: 104,
     borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.07)",
+    padding: 10,
+    gap: 8,
+    backgroundColor: "rgba(9, 14, 32, 0.64)",
     borderWidth: 1,
-    borderColor: "rgba(243, 201, 139, 0.20)",
-  },
-  roomCopy: {
-    flex: 1,
-    minWidth: 0,
+    borderColor: "rgba(255,255,255,0.10)",
+    shadowColor: "#000",
+    shadowOpacity: 0.10,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 1,
   },
   roomTitle: {
     color: "#FFFFFF",
-    fontSize: 14,
-    lineHeight: 18,
+    fontSize: 13,
+    lineHeight: 16,
     fontWeight: "900",
   },
-  roomBucket: {
-    color: "rgba(226,232,255,0.68)",
-    fontSize: 11,
-    lineHeight: 14,
-    fontWeight: "700",
-    marginTop: 2,
-  },
   roomSchedule: {
-    gap: 5,
+    gap: 4,
   },
   roomScheduleItem: {
-    minHeight: 18,
+    minHeight: 16,
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 5,
   },
   roomScheduleText: {
     flex: 1,
     minWidth: 0,
     color: "rgba(255,255,255,0.82)",
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: 11,
+    lineHeight: 14,
     fontWeight: "800",
   },
-  roomMetaRow: {
+  roomCompactFooter: {
+    marginTop: "auto",
     flexDirection: "row",
-    flexWrap: "wrap",
+    alignItems: "center",
+    justifyContent: "space-between",
     gap: 6,
   },
   roomMetaPill: {
-    minHeight: 26,
+    minHeight: 25,
+    maxWidth: 118,
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
@@ -2582,13 +2539,13 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   roomActionButton: {
-    height: 34,
-    minHeight: 34,
+    height: 30,
+    minHeight: 30,
+    minWidth: 76,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 13,
-    paddingHorizontal: 10,
-    marginTop: 2,
+    borderRadius: 11,
+    paddingHorizontal: 9,
   },
   roomActionButtonEnabled: {
     backgroundColor: "rgba(232, 66, 138, 0.92)",
@@ -2601,8 +2558,8 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.10)",
   },
   roomActionText: {
-    fontSize: 12,
-    lineHeight: 15,
+    fontSize: 11,
+    lineHeight: 14,
     fontWeight: "900",
   },
   roomActionTextEnabled: {
