@@ -105,6 +105,14 @@ type CreateFromDemandForm = {
   expiresAt: string;
 };
 
+type NearbyDemandSummary = {
+  totalInterestedUsers: number;
+  totalActiveNearbyUsers: number;
+  activitiesWithDemand: number;
+  existingActiveRooms: number;
+  loadedRows: number;
+};
+
 const screens: ScreenItem[] = [
   { key: "dashboard", labelKey: "nav.dashboard" },
   { key: "users", labelKey: "nav.users" },
@@ -1992,7 +2000,9 @@ function NearbyRoomsScreen({
   const [createFromDemandForm, setCreateFromDemandForm] = useState<CreateFromDemandForm | null>(null);
   const [creatingFromDemand, setCreatingFromDemand] = useState(false);
   const [busyAction, setBusyAction] = useState<AdminNearbyRoomAction | null>(null);
-  const visibleDemandRows = activityDemand?.items.filter(hasVisibleActivityDemand) ?? [];
+  const demandRows = activityDemand?.items ?? [];
+  const visibleDemandRows = demandRows.filter(hasVisibleActivityDemand);
+  const demandSummary = summarizeNearbyDemand(demandRows);
 
   async function loadDemand(): Promise<boolean> {
     setDemandLoading(true);
@@ -2095,7 +2105,7 @@ function NearbyRoomsScreen({
   function openCreateFromDemand(item: AdminNearbyActivityDemandRow) {
     setError(null);
     setMessage(null);
-    setCreateFromDemandForm(createDemandFormFromRow(item));
+    setCreateFromDemandForm(createDemandFormFromRow(item, t));
   }
 
   async function submitCreateFromDemand(event: FormEvent) {
@@ -2165,6 +2175,17 @@ function NearbyRoomsScreen({
           <h2>{t("nearbyDemand.title")}</h2>
           <button className="secondary" onClick={() => void loadDemand()}>{t("common.refresh")}</button>
         </div>
+        <p className="muted">{t("nearbyDemand.note")}</p>
+        {!canManageRooms ? <p className="muted">{t("nearbyDemand.readOnlyNote")}</p> : null}
+        <dl className="facts compact">
+          <Fact label={t("nearbyDemand.summaryInterestedUsers")} value={formatCount(demandSummary.totalInterestedUsers)} />
+          <Fact label={t("nearbyDemand.summaryActiveNearbyUsers")} value={formatCount(demandSummary.totalActiveNearbyUsers)} />
+          <Fact label={t("nearbyDemand.summaryActivitiesWithDemand")} value={formatCount(demandSummary.activitiesWithDemand)} />
+          <Fact label={t("nearbyDemand.summaryExistingActiveRooms")} value={formatCount(demandSummary.existingActiveRooms)} />
+        </dl>
+        <p className="muted">
+          {t("nearbyDemand.debugSource")} · {tx("nearbyDemand.debugLoadedRows", { count: demandSummary.loadedRows })}
+        </p>
         {demandError ? <div className="error">{demandError}</div> : null}
         {demandLoading ? <div className="empty">{t("common.loading")}</div> : null}
         {!demandLoading && visibleDemandRows.length ? (
@@ -2178,35 +2199,41 @@ function NearbyRoomsScreen({
                 <th>{t("nearbyDemand.geoBuckets")}</th>
                 <th>{t("nearbyDemand.existingActiveRooms")}</th>
                 <th>{t("nearbyDemand.lastUpdated")}</th>
-                {canManageRooms ? <th>{t("common.action")}</th> : null}
+                <th>{t("common.action")}</th>
               </tr>
             </thead>
             <tbody>
-              {visibleDemandRows.map((item) => (
-                <tr key={item.activityKey}>
-                  <td>
-                    <div>{item.activityTitle}</div>
-                    <div className="muted">{item.activityKey}</div>
-                  </td>
-                  <td>{formatCount(item.interestedUsersCount)}</td>
-                  <td>{formatCount(item.activeNearbyUsersCount)}</td>
-                  <td>{formatCount(item.recentlyUpdatedUsersCount)}</td>
-                  <td>{formatNearbyDemandGeoBuckets(item.geoBuckets, t)}</td>
-                  <td>{formatCount(item.existingActiveRoomCount)}</td>
-                  <td>{item.lastUpdatedAt ? formatDate(item.lastUpdatedAt, language) : ""}</td>
-                  {canManageRooms ? (
+              {visibleDemandRows.map((item) => {
+                const activityTitle = formatNearbyActivityTitle(item.activityKey, item.activityTitle, t);
+
+                return (
+                  <tr key={item.activityKey}>
                     <td>
-                      <button
-                        className="secondary"
-                        type="button"
-                        onClick={() => openCreateFromDemand(item)}
-                      >
-                        {t("nearbyDemand.createActivity")}
-                      </button>
+                      <div>{activityTitle}</div>
+                      <div className="muted">{item.activityKey}</div>
                     </td>
-                  ) : null}
-                </tr>
-              ))}
+                    <td>{formatCount(item.interestedUsersCount)}</td>
+                    <td>{formatCount(item.activeNearbyUsersCount)}</td>
+                    <td>{formatCount(item.recentlyUpdatedUsersCount)}</td>
+                    <td>{formatNearbyDemandGeoBuckets(item.geoBuckets, t)}</td>
+                    <td>{formatCount(item.existingActiveRoomCount)}</td>
+                    <td>{item.lastUpdatedAt ? formatDate(item.lastUpdatedAt, language) : ""}</td>
+                    <td>
+                      {canManageRooms ? (
+                        <button
+                          className="secondary"
+                          type="button"
+                          onClick={() => openCreateFromDemand(item)}
+                        >
+                          {t("nearbyDemand.createActivity")}
+                        </button>
+                      ) : (
+                        <span className="muted">{t("nearbyDemand.readOnlyAction")}</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         ) : null}
@@ -2221,6 +2248,7 @@ function NearbyRoomsScreen({
           <h2>{t("nearbyRooms.title")}</h2>
           <button className="secondary" onClick={() => void load()}>{t("common.refresh")}</button>
         </div>
+        <p className="muted">{t("nearbyRooms.technicalSubtitle")}</p>
         {error ? <div className="error">{error}</div> : null}
         {loading ? <div className="empty">{t("common.loading")}</div> : null}
         {!loading && rooms.length ? (
@@ -2245,8 +2273,8 @@ function NearbyRoomsScreen({
                   className={selected?.id === room.id ? "selected" : ""}
                 >
                   <td>
-                    <div>{formatNearbyRoomDisplayTitle(room)}</div>
-                    <div className="muted">{room.typeKey}</div>
+                    <div>{formatNearbyRoomDisplayTitle(room, t)}</div>
+                    <div className="muted">{formatNearbyRoomTypeLabel(room, t)} · {room.typeKey}</div>
                   </td>
                   <td>{room.geoBucket}</td>
                   <td>{room.locationLabel ?? ""}</td>
@@ -2448,8 +2476,8 @@ function NearbyRoomsScreen({
           <>
             <dl className="facts compact">
               <Fact label={t("nearbyRooms.roomId")} value={selected.id} />
-              <Fact label={t("common.type")} value={`${selected.roomType.title} · ${selected.typeKey}`} />
-              <Fact label={t("common.title")} value={formatNearbyRoomDisplayTitle(selected)} />
+              <Fact label={t("common.type")} value={`${formatNearbyRoomTypeLabel(selected, t)} · ${selected.typeKey}`} />
+              <Fact label={t("common.title")} value={formatNearbyRoomDisplayTitle(selected, t)} />
               <Fact label={t("nearbyRooms.description")} value={selected.description ?? ""} />
               <Fact label={t("nearbyRooms.locationLabel")} value={selected.locationLabel ?? ""} />
               <Fact label={t("nearbyRooms.geoBucket")} value={selected.geoBucket} />
@@ -2503,7 +2531,7 @@ function NearbyRoomsScreen({
             ]}
             rows={roomTypes.map((roomType) => [
               roomType.key,
-              roomType.title,
+              formatNearbyActivityTitle(roomType.key, roomType.title, t),
               formatStatus(roomType.status, t),
               roomType.adminApproved ? t("common.yes") : t("common.no"),
               formatDate(roomType.updatedAt, language),
@@ -2657,27 +2685,107 @@ function formatCount(value: number | null): string {
   return value === null ? "" : String(value);
 }
 
+const nearbyActivityTranslationKeys: Record<string, TranslationKey> = {
+  coffee_nearby: "nearbyActivity.coffee_nearby",
+  walk_nearby: "nearbyActivity.walk_nearby",
+  bike_nearby: "nearbyActivity.bike_nearby",
+  cinema_today: "nearbyActivity.cinema_today",
+  talk_nearby: "nearbyActivity.talk_nearby",
+  evening_nearby: "nearbyActivity.evening_nearby",
+  roller_skating_nearby: "nearbyActivity.roller_skating_nearby",
+  kayaking_nearby: "nearbyActivity.kayaking_nearby",
+  fishing_nearby: "nearbyActivity.fishing_nearby",
+  sport_nearby: "nearbyActivity.sport_nearby",
+  language_exchange_nearby: "nearbyActivity.language_exchange_nearby",
+  local_event_nearby: "nearbyActivity.local_event_nearby",
+  lunch_nearby: "nearbyActivity.lunch_nearby",
+  dinner_nearby: "nearbyActivity.dinner_nearby",
+  dessert_nearby: "nearbyActivity.dessert_nearby",
+  board_games_nearby: "nearbyActivity.board_games_nearby",
+  chess_nearby: "nearbyActivity.chess_nearby",
+  book_club_nearby: "nearbyActivity.book_club_nearby",
+  study_work_nearby: "nearbyActivity.study_work_nearby",
+  skateboarding_nearby: "nearbyActivity.skateboarding_nearby",
+  running_nearby: "nearbyActivity.running_nearby",
+  gym_nearby: "nearbyActivity.gym_nearby",
+  yoga_nearby: "nearbyActivity.yoga_nearby",
+  dance_nearby: "nearbyActivity.dance_nearby",
+  football_nearby: "nearbyActivity.football_nearby",
+  basketball_nearby: "nearbyActivity.basketball_nearby",
+  volleyball_nearby: "nearbyActivity.volleyball_nearby",
+  tennis_nearby: "nearbyActivity.tennis_nearby",
+  table_tennis_nearby: "nearbyActivity.table_tennis_nearby",
+  badminton_nearby: "nearbyActivity.badminton_nearby",
+  beach_swim_nearby: "nearbyActivity.beach_swim_nearby",
+  picnic_nearby: "nearbyActivity.picnic_nearby",
+  hiking_nearby: "nearbyActivity.hiking_nearby",
+  dog_walk_nearby: "nearbyActivity.dog_walk_nearby",
+  concert_nearby: "nearbyActivity.concert_nearby",
+  museum_exhibition_nearby: "nearbyActivity.museum_exhibition_nearby",
+  theater_nearby: "nearbyActivity.theater_nearby",
+  live_music_nearby: "nearbyActivity.live_music_nearby",
+  festival_nearby: "nearbyActivity.festival_nearby",
+  photography_nearby: "nearbyActivity.photography_nearby",
+  cooking_nearby: "nearbyActivity.cooking_nearby",
+  volunteering_nearby: "nearbyActivity.volunteering_nearby",
+  gaming_nearby: "nearbyActivity.gaming_nearby",
+};
+
+function formatNearbyActivityTitle(
+  activityKey: string,
+  fallbackTitle: string | null | undefined,
+  t: (key: TranslationKey) => string,
+): string {
+  const translationKey = nearbyActivityTranslationKeys[activityKey];
+  if (translationKey) {
+    return t(translationKey);
+  }
+
+  return fallbackTitle?.trim() || activityKey;
+}
+
+function summarizeNearbyDemand(items: AdminNearbyActivityDemandRow[]): NearbyDemandSummary {
+  return items.reduce<NearbyDemandSummary>((summary, item) => ({
+    totalInterestedUsers: summary.totalInterestedUsers + item.interestedUsersCount,
+    totalActiveNearbyUsers: summary.totalActiveNearbyUsers + item.activeNearbyUsersCount,
+    activitiesWithDemand: summary.activitiesWithDemand + (item.interestedUsersCount > 0 ? 1 : 0),
+    existingActiveRooms: summary.existingActiveRooms + item.existingActiveRoomCount,
+    loadedRows: summary.loadedRows + 1,
+  }), {
+    totalInterestedUsers: 0,
+    totalActiveNearbyUsers: 0,
+    activitiesWithDemand: 0,
+    existingActiveRooms: 0,
+    loadedRows: 0,
+  });
+}
+
 function hasVisibleActivityDemand(item: AdminNearbyActivityDemandRow): boolean {
   return (
     item.interestedUsersCount > 0 ||
     item.activeNearbyUsersCount > 0 ||
     item.recentlyUpdatedUsersCount > 0 ||
     item.geoBuckets.length > 0 ||
+    item.existingActiveRoomCount > 0 ||
     item.lastUpdatedAt !== null
   );
 }
 
 const SMALL_BUCKET_HIDDEN = "small_bucket_hidden";
 
-function createDemandFormFromRow(item: AdminNearbyActivityDemandRow): CreateFromDemandForm {
+function createDemandFormFromRow(
+  item: AdminNearbyActivityDemandRow,
+  t: (key: TranslationKey) => string,
+): CreateFromDemandForm {
   const visibleGeoBuckets = visibleActivityDemandGeoBuckets(item.geoBuckets);
+  const activityTitle = formatNearbyActivityTitle(item.activityKey, item.activityTitle, t);
 
   return {
     activityKey: item.activityKey,
-    activityTitle: item.activityTitle,
+    activityTitle,
     geoBucket: visibleGeoBuckets[0]?.geoBucket ?? "",
     visibleGeoBuckets,
-    title: item.activityTitle,
+    title: activityTitle,
     description: "",
     locationLabel: "",
     startsAt: "",
@@ -2813,11 +2921,29 @@ function formatNearbyRoomTypeSelectLabel(
   t: (key: TranslationKey) => string,
 ): string {
   const availability = roomType.adminApproved ? t("common.yes") : t("common.no");
-  return `${roomType.title} (${roomType.key}, ${formatStatus(roomType.status, t)}, ${t("nearbyRooms.adminApproved")}: ${availability})`;
+  const title = formatNearbyActivityTitle(roomType.key, roomType.title, t);
+  return `${title} (${roomType.key}, ${formatStatus(roomType.status, t)}, ${t("nearbyRooms.adminApproved")}: ${availability})`;
 }
 
-function formatNearbyRoomDisplayTitle(room: AdminNearbyRoom): string {
-  return room.title ?? room.roomType.title;
+function formatNearbyRoomTypeLabel(
+  room: AdminNearbyRoom,
+  t: (key: TranslationKey) => string,
+): string {
+  return formatNearbyActivityTitle(room.typeKey, room.roomType.title, t);
+}
+
+function formatNearbyRoomDisplayTitle(
+  room: AdminNearbyRoom,
+  t: (key: TranslationKey) => string,
+): string {
+  const localizedTypeTitle = formatNearbyRoomTypeLabel(room, t);
+  const title = room.title?.trim();
+
+  if (!title || title === room.roomType.title) {
+    return localizedTypeTitle;
+  }
+
+  return title;
 }
 
 function formatNearbyRoomDemandSnapshot(
@@ -2830,7 +2956,7 @@ function formatNearbyRoomDemandSnapshot(
   }
 
   return [
-    `${t("nearbyDemand.activity")}: ${snapshot.activityKey}`,
+    `${t("nearbyDemand.activity")}: ${formatNearbyActivityTitle(snapshot.activityKey, null, t)} · ${snapshot.activityKey}`,
     `${t("nearbyRooms.geoBucket")}: ${snapshot.geoBucket}`,
     `${t("nearbyDemand.interestedUsers")}: ${formatCount(snapshot.interestedUsersCount)}`,
     `${t("nearbyDemand.activeNearbyUsers")}: ${formatCount(snapshot.activeNearbyUsersCount)}`,
