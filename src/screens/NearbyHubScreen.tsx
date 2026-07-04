@@ -60,10 +60,6 @@ const RADIUS_OPTIONS = [5, 25, 100, 250] as const;
 const FEED_LIMIT = 30;
 const DEFAULT_RADIUS_KM = 25;
 const DEFAULT_STATUS_KIND: NearbyProfileStatusKind = "open_to_suggestions";
-const NEARBY_CIRCLE_MIN_SIZE = 96;
-const NEARBY_CIRCLE_MAX_SIZE = 112;
-const NORMAL_GRID_MIN_WIDTH = 360;
-const NARROW_GRID_MIN_WIDTH = 300;
 const ROOM_CARD_LIMIT = 4;
 
 const GENDER_FILTERS: GenderFilter[] = ["all", "woman", "man", "nonbinary"];
@@ -92,6 +88,24 @@ function copyOrFallback(
     (text, [paramKey, paramValue]) => text.replace(new RegExp(`\\{${paramKey}\\}`, "g"), paramValue),
     fallback
   );
+}
+
+function getLanguageCode(locale: string) {
+  return locale.toLowerCase().split(/[-_]/)[0];
+}
+
+function getPeopleNearbyTitleFallback(locale: string) {
+  const language = getLanguageCode(locale);
+  if (language === "ru") return "Люди рядом";
+  if (language === "hr") return "Ljudi u blizini";
+  return "People nearby";
+}
+
+function getActivityConfigureFallback(locale: string) {
+  const language = getLanguageCode(locale);
+  if (language === "ru") return "Настроить";
+  if (language === "hr") return "Postavi";
+  return "Configure";
 }
 
 function getAgePreferenceLabel(
@@ -292,18 +306,29 @@ export default function NearbyHubScreen() {
   const matchingPreferencesReady = !missingPreferenceField;
   const genderFilter = getGenderFilter(profile);
   const ageFilter = getAgeFilter(profile);
-  const columns =
-    width >= NORMAL_GRID_MIN_WIDTH ? 3 : width >= NARROW_GRID_MIN_WIDTH ? 2 : 1;
-  const circleSize = useMemo(() => {
-    const listPadding = 2;
-    const slotPadding = columns * 4;
-    const columnWidth = (width - listPadding - slotPadding) / columns;
-    const maxSize =
-      columns === 3 ? NEARBY_CIRCLE_MAX_SIZE : columns === 2 ? 128 : 148;
-    const minSize =
-      columns === 3 ? NEARBY_CIRCLE_MIN_SIZE : columns === 2 ? 112 : 128;
-    return Math.round(Math.min(maxSize, Math.max(minSize, columnWidth - 4)));
-  }, [columns, width]);
+  const screenHorizontalPadding = 14;
+  const sectionGap = 14;
+  const smallGap = 8;
+  const gridGapSmall = 10;
+  const gridGapMedium = 12;
+  const cardRadius = 22;
+  const cardInnerRadius = 18;
+  const primaryColor = "#E8428A";
+  const accentColor = "#F3C98B";
+  const compactWidth = width <= 360;
+  const wideWidth = width > 430;
+  const columns = wideWidth ? 3 : 2;
+  const peopleGridHorizontalPadding = compactWidth ? screenHorizontalPadding : 16;
+  const gridGap = compactWidth ? gridGapSmall : wideWidth ? gridGapSmall : gridGapMedium;
+  const peopleCardHeight = compactWidth ? 174 : wideWidth ? 172 : 190;
+  const peopleAvatarSize = compactWidth ? 116 : wideWidth ? 112 : 132;
+  const peopleCardWidth = Math.floor(
+    Math.max(0, width - peopleGridHorizontalPadding * 2 - gridGap * (columns - 1)) / columns
+  );
+  const activityCardWidth = compactWidth ? 188 : wideWidth ? 220 : 204;
+  const activityCardHeight = compactWidth ? 108 : wideWidth ? 112 : 110;
+  const activityCardGap = wideWidth ? gridGapMedium : gridGapSmall;
+  const firstPeopleCount = columns * 2;
   const refreshDisabled = feedLoading || roomsLoading || toggleBusy || preferenceBusy || Boolean(roomActionBusyId);
 
   useEffect(() => {
@@ -1264,27 +1289,45 @@ export default function NearbyHubScreen() {
     );
   }, [emptyState, feedLoading, loading, t]);
 
+  const peopleItems = useMemo(
+    () => (active && profileReady && matchingPreferencesReady ? items : []),
+    [active, items, matchingPreferencesReady, profileReady]
+  );
+  const firstPeopleItems = useMemo(
+    () => peopleItems.slice(0, firstPeopleCount),
+    [firstPeopleCount, peopleItems]
+  );
+  const remainingPeopleItems = useMemo(
+    () => peopleItems.slice(firstPeopleCount),
+    [firstPeopleCount, peopleItems]
+  );
+
   const renderCard = useCallback(
     ({ item }: { item: NearbyProfileFeedItemDto }) => (
-      <View
-        style={[
-          styles.cardSlot,
-          columns === 3
-            ? styles.cardSlotThird
-            : columns === 2
-            ? styles.cardSlotHalf
-            : styles.cardSlotFull,
-        ]}
-      >
-        <NearbyProfileCard
-          item={item}
-          onOpen={() => openProfile(item)}
-          circleSize={circleSize}
-          t={t}
-        />
-      </View>
+      <NearbyProfileCardSlot
+        item={item}
+        onOpen={() => openProfile(item)}
+        cardWidth={peopleCardWidth}
+        cardHeight={peopleCardHeight}
+        avatarSize={peopleAvatarSize}
+        cardRadius={cardRadius}
+        cardInnerRadius={cardInnerRadius}
+        primaryColor={primaryColor}
+        accentColor={accentColor}
+        t={t}
+      />
     ),
-    [circleSize, columns, openProfile, t]
+    [
+      accentColor,
+      cardInnerRadius,
+      cardRadius,
+      openProfile,
+      peopleAvatarSize,
+      peopleCardHeight,
+      peopleCardWidth,
+      primaryColor,
+      t,
+    ]
   );
 
   const visibleRooms = useMemo(
@@ -1292,7 +1335,7 @@ export default function NearbyHubScreen() {
     [rooms]
   );
 
-  const roomFooter = useMemo(() => {
+  const activityShelf = useMemo(() => {
     if (!visibleRooms.length && !roomErrorText && !roomPreferenceGateVisible) {
       return null;
     }
@@ -1307,18 +1350,34 @@ export default function NearbyHubScreen() {
         onJoin={(room) => void handleJoinRoom(room)}
         onOpen={(room) => void handleOpenRoom(room)}
         onOpenPreferences={openActivityPreferences}
+        cardWidth={activityCardWidth}
+        cardHeight={activityCardHeight}
+        cardGap={activityCardGap}
+        horizontalPadding={screenHorizontalPadding}
+        sectionGap={sectionGap}
+        smallGap={smallGap}
+        primaryColor={primaryColor}
+        accentColor={accentColor}
         t={t}
         locale={locale}
       />
     );
   }, [
+    accentColor,
+    activityCardGap,
+    activityCardHeight,
+    activityCardWidth,
     handleJoinRoom,
     handleOpenRoom,
     openActivityPreferences,
+    primaryColor,
     roomActionBusyId,
     roomErrorText,
     roomPreferenceGateVisible,
     roomsLoading,
+    screenHorizontalPadding,
+    sectionGap,
+    smallGap,
     locale,
     t,
     visibleRooms,
@@ -1326,15 +1385,99 @@ export default function NearbyHubScreen() {
 
   const listFooter = useMemo(
     () => (
-      <View style={styles.footerStack}>
-        {roomFooter}
-        <NearbyActivityPreferencesCard
-          onPress={openActivityPreferences}
-          t={t}
-        />
+      <View>
+        {activityShelf}
+        {remainingPeopleItems.length ? (
+          <View
+            style={[
+              styles.remainingPeopleGrid,
+              {
+                gap: gridGap,
+                paddingHorizontal: peopleGridHorizontalPadding,
+              },
+            ]}
+          >
+            {remainingPeopleItems.map((item) => (
+              <NearbyProfileCardSlot
+                key={item.userId}
+                item={item}
+                onOpen={() => openProfile(item)}
+                cardWidth={peopleCardWidth}
+                cardHeight={peopleCardHeight}
+                avatarSize={peopleAvatarSize}
+                cardRadius={cardRadius}
+                cardInnerRadius={cardInnerRadius}
+                primaryColor={primaryColor}
+                accentColor={accentColor}
+                t={t}
+              />
+            ))}
+          </View>
+        ) : null}
+        <View style={{ height: smallGap }} />
       </View>
     ),
-    [openActivityPreferences, roomFooter, t]
+    [
+      accentColor,
+      activityShelf,
+      cardInnerRadius,
+      cardRadius,
+      gridGap,
+      openProfile,
+      peopleAvatarSize,
+      peopleCardHeight,
+      peopleCardWidth,
+      peopleGridHorizontalPadding,
+      primaryColor,
+      remainingPeopleItems,
+      smallGap,
+      t,
+    ]
+  );
+
+  const peopleSectionHeader = useMemo(
+    () => (
+      <Text style={styles.peopleSectionTitle}>
+        {copyOrFallback(
+          t,
+          "nearby.people.title",
+          getPeopleNearbyTitleFallback(locale)
+        )}
+      </Text>
+    ),
+    [locale, t]
+  );
+
+  const listHeader = useMemo(
+    () => (
+      <View>
+        {header}
+        {peopleSectionHeader}
+      </View>
+    ),
+    [header, peopleSectionHeader]
+  );
+
+  const columnWrapperStyle = useMemo(
+    () => [
+      styles.columnWrap,
+      {
+        gap: gridGap,
+        paddingHorizontal: peopleGridHorizontalPadding,
+        marginBottom: gridGap,
+      },
+    ],
+    [gridGap, peopleGridHorizontalPadding]
+  );
+
+  const listContentStyle = useMemo(
+    () => [
+      styles.listContent,
+      {
+        paddingBottom: sectionGap,
+      },
+    ],
+    [sectionGap]
   );
 
   return (
@@ -1345,16 +1488,16 @@ export default function NearbyHubScreen() {
       blurRadius={0}
     >
       <FlatList
-        key={columns}
-        data={active && profileReady && matchingPreferencesReady ? items : []}
+        key={`${columns}-${peopleCardWidth}`}
+        data={firstPeopleItems}
         numColumns={columns}
         keyExtractor={(item) => item.userId}
         renderItem={renderCard}
-        ListHeaderComponent={header}
+        ListHeaderComponent={listHeader}
         ListEmptyComponent={renderEmpty}
         ListFooterComponent={listFooter}
-        columnWrapperStyle={columns > 1 ? styles.columnWrap : undefined}
-        contentContainerStyle={styles.listContent}
+        columnWrapperStyle={columnWrapperStyle}
+        contentContainerStyle={listContentStyle}
         refreshing={feedLoading || (roomsLoading && !loading)}
         onRefresh={() => {
           if (active && !refreshDisabled) {
@@ -1363,52 +1506,6 @@ export default function NearbyHubScreen() {
         }}
       />
     </ScreenShell>
-  );
-}
-
-function NearbyActivityPreferencesCard({
-  onPress,
-  t,
-}: {
-  onPress: () => void;
-  t: (key: string, params?: Record<string, string>) => string;
-}) {
-  return (
-    <View style={styles.activityPreferencesCard}>
-      <View style={styles.activityPreferencesIcon}>
-        <Ionicons name="sparkles-outline" size={18} color="#F3C98B" />
-      </View>
-      <View style={styles.activityPreferencesCopy}>
-        <Text style={styles.activityPreferencesTitle}>
-          {copyOrFallback(
-            t,
-            "nearby.activityPreferences.cardTitle",
-            "Анкета активностей"
-          )}
-        </Text>
-        <Text style={styles.activityPreferencesBody}>
-          {copyOrFallback(
-            t,
-            "nearby.activityPreferences.cardBody",
-            "Нужна только для участия в активностях рядом."
-          )}
-        </Text>
-      </View>
-      <Pressable
-        onPress={onPress}
-        style={styles.activityPreferencesButton}
-        accessibilityRole="button"
-      >
-        <Text
-          style={styles.activityPreferencesButtonText}
-          numberOfLines={1}
-          adjustsFontSizeToFit
-          minimumFontScale={0.82}
-        >
-          {copyOrFallback(t, "nearby.activityPreferences.cardButton", "Выбрать")}
-        </Text>
-      </Pressable>
-    </View>
   );
 }
 
@@ -1487,6 +1584,14 @@ function NearbyRoomCardsSection({
   onJoin,
   onOpen,
   onOpenPreferences,
+  cardWidth,
+  cardHeight,
+  cardGap,
+  horizontalPadding,
+  sectionGap,
+  smallGap,
+  primaryColor,
+  accentColor,
   t,
   locale,
 }: {
@@ -1498,39 +1603,72 @@ function NearbyRoomCardsSection({
   onJoin: (room: NearbyRoomCard) => void;
   onOpen: (room: NearbyRoomCard) => void;
   onOpenPreferences: () => void;
+  cardWidth: number;
+  cardHeight: number;
+  cardGap: number;
+  horizontalPadding: number;
+  sectionGap: number;
+  smallGap: number;
+  primaryColor: string;
+  accentColor: string;
   t: (key: string, params?: Record<string, string>) => string;
   locale: string;
 }) {
   return (
-    <View style={styles.roomsSection}>
+    <View
+      style={[
+        styles.roomsSection,
+        {
+          marginTop: sectionGap,
+          marginBottom: sectionGap,
+          paddingVertical: 12,
+        },
+      ]}
+    >
       <View style={styles.roomsHeader}>
-        <View>
-          <Text style={styles.roomsTitle}>
-            {copyOrFallback(t, "nearby.rooms.title", "Активности рядом")}
-          </Text>
-          <Text style={styles.roomsSubtitle}>
-            {copyOrFallback(
-              t,
-              "nearby.rooms.subtitle",
-              "Реальные активности и чаты поблизости."
-            )}
-          </Text>
+        <Text style={styles.roomsTitle} numberOfLines={1}>
+          {copyOrFallback(t, "nearby.rooms.title", "Активности рядом")}
+        </Text>
+        <View style={styles.roomsHeaderActions}>
+          {loading ? <ActivityIndicator size="small" color={accentColor} /> : null}
+          <Pressable
+            onPress={onOpenPreferences}
+            style={styles.roomsConfigureButton}
+            accessibilityRole="button"
+          >
+            <Text
+              style={[styles.roomsConfigureText, { color: accentColor }]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.82}
+            >
+              {copyOrFallback(
+                t,
+                "nearby.activityPreferences.configure",
+                getActivityConfigureFallback(locale)
+              )}
+            </Text>
+          </Pressable>
         </View>
-        {loading ? <ActivityIndicator size="small" color="#F3C98B" /> : null}
       </View>
 
       {errorText ? (
-        <View style={styles.roomsError}>
+        <View style={[styles.roomsError, { marginHorizontal: horizontalPadding }]}>
           <Ionicons name="alert-circle-outline" size={16} color="#FFD2DA" />
           <Text style={styles.roomsErrorText}>{errorText}</Text>
         </View>
       ) : null}
 
       {preferenceGateVisible ? (
-        <View style={styles.roomsPreferenceGate}>
+        <View
+          style={[
+            styles.roomsPreferenceGate,
+            { marginHorizontal: horizontalPadding, marginTop: smallGap },
+          ]}
+        >
           <View style={styles.roomsPreferenceGateHeader}>
             <View style={styles.roomsPreferenceGateIcon}>
-              <Ionicons name="options-outline" size={18} color="#F3C98B" />
+              <Ionicons name="options-outline" size={18} color={accentColor} />
             </View>
             <View style={styles.roomsPreferenceGateCopy}>
               <Text style={styles.roomsPreferenceGateTitle}>
@@ -1575,12 +1713,23 @@ function NearbyRoomCardsSection({
           horizontal
           showsHorizontalScrollIndicator={false}
           style={styles.roomRail}
-          contentContainerStyle={styles.roomRailContent}
+          contentContainerStyle={[
+            styles.roomRailContent,
+            {
+              gap: cardGap,
+              paddingHorizontal: horizontalPadding,
+              paddingRight: horizontalPadding + cardGap,
+            },
+          ]}
         >
           {rooms.map((room) => (
             <NearbyRoomCardView
               key={room.id}
               room={room}
+              cardWidth={cardWidth}
+              cardHeight={cardHeight}
+              primaryColor={primaryColor}
+              accentColor={accentColor}
               busy={busyRoomId === room.id}
               disabled={Boolean(busyRoomId)}
               onJoin={() => onJoin(room)}
@@ -1597,6 +1746,10 @@ function NearbyRoomCardsSection({
 
 function NearbyRoomCardView({
   room,
+  cardWidth,
+  cardHeight,
+  primaryColor,
+  accentColor,
   busy,
   disabled,
   onJoin,
@@ -1605,6 +1758,10 @@ function NearbyRoomCardView({
   locale,
 }: {
   room: NearbyRoomCard;
+  cardWidth: number;
+  cardHeight: number;
+  primaryColor: string;
+  accentColor: string;
   busy: boolean;
   disabled: boolean;
   onJoin: () => void;
@@ -1618,12 +1775,7 @@ function NearbyRoomCardView({
   const locationLabel = normalizeOptionalRoomLabel(room.locationLabel);
 
   return (
-    <LinearGradient
-      colors={["rgba(9, 14, 32, 0.82)", "rgba(18, 20, 42, 0.74)"]}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={styles.roomCard}
-    >
+    <View style={[styles.roomCard, { width: cardWidth, height: cardHeight }]}>
       <Text style={styles.roomTitle} numberOfLines={2} ellipsizeMode="tail">
         {room.title}
       </Text>
@@ -1632,7 +1784,7 @@ function NearbyRoomCardView({
         <View style={styles.roomSchedule}>
           {startsAtLabel ? (
             <View style={styles.roomScheduleItem}>
-              <Ionicons name="time-outline" size={13} color="#F3C98B" />
+              <Ionicons name="time-outline" size={12} color={accentColor} />
               <Text
                 style={styles.roomScheduleText}
                 numberOfLines={1}
@@ -1644,7 +1796,7 @@ function NearbyRoomCardView({
           ) : null}
           {locationLabel ? (
             <View style={styles.roomScheduleItem}>
-              <Ionicons name="location-outline" size={13} color="#F3C98B" />
+              <Ionicons name="location-outline" size={12} color={accentColor} />
               <Text
                 style={styles.roomScheduleText}
                 numberOfLines={1}
@@ -1659,8 +1811,8 @@ function NearbyRoomCardView({
 
       <View style={styles.roomCompactFooter}>
         <View style={styles.roomMetaPill}>
-          <Ionicons name="people-outline" size={13} color="#E8EBFF" />
-          <Text style={styles.roomMetaText}>
+          <Ionicons name="people-outline" size={12} color="#E8EBFF" />
+          <Text style={styles.roomMetaText} numberOfLines={1}>
             {copyOrFallback(t, "nearby.rooms.members", "{count} участн.", {
               count: String(Math.max(0, room.memberCount)),
             })}
@@ -1672,7 +1824,9 @@ function NearbyRoomCardView({
           onPress={action.kind === "join" ? onJoin : action.kind === "open" ? onOpen : undefined}
           style={[
             styles.roomActionButton,
-            canAct ? styles.roomActionButtonEnabled : styles.roomActionButtonDisabled,
+            canAct
+              ? [styles.roomActionButtonEnabled, { backgroundColor: primaryColor }]
+              : styles.roomActionButtonDisabled,
             disabled || busy ? styles.buttonDisabled : null,
           ]}
         >
@@ -1693,7 +1847,7 @@ function NearbyRoomCardView({
           )}
         </Pressable>
       </View>
-    </LinearGradient>
+    </View>
   );
 }
 
@@ -1769,57 +1923,106 @@ function getNearbyRoomAction(
   };
 }
 
-function NearbyProfileCard({
+function NearbyProfileCardSlot({
   item,
   onOpen,
-  circleSize,
+  cardWidth,
+  cardHeight,
+  avatarSize,
+  cardRadius,
+  cardInnerRadius,
+  primaryColor,
+  accentColor,
   t,
 }: {
   item: NearbyProfileFeedItemDto;
   onOpen: () => void;
-  circleSize: number;
+  cardWidth: number;
+  cardHeight: number;
+  avatarSize: number;
+  cardRadius: number;
+  cardInnerRadius: number;
+  primaryColor: string;
+  accentColor: string;
+  t: (key: string, params?: Record<string, string>) => string;
+}) {
+  return (
+    <View style={[styles.cardSlot, { width: cardWidth, height: cardHeight }]}>
+      <NearbyProfileCard
+        item={item}
+        onOpen={onOpen}
+        cardWidth={cardWidth}
+        cardHeight={cardHeight}
+        avatarSize={avatarSize}
+        cardRadius={cardRadius}
+        cardInnerRadius={cardInnerRadius}
+        primaryColor={primaryColor}
+        accentColor={accentColor}
+        t={t}
+      />
+    </View>
+  );
+}
+
+function NearbyProfileCard({
+  item,
+  onOpen,
+  cardWidth,
+  cardHeight,
+  avatarSize,
+  cardRadius,
+  cardInnerRadius,
+  primaryColor,
+  accentColor,
+  t,
+}: {
+  item: NearbyProfileFeedItemDto;
+  onOpen: () => void;
+  cardWidth: number;
+  cardHeight: number;
+  avatarSize: number;
+  cardRadius: number;
+  cardInnerRadius: number;
+  primaryColor: string;
+  accentColor: string;
   t: (key: string, params?: Record<string, string>) => string;
 }) {
   const ageGroupLabel = item.ageGroup ? getAgeFilterLabel(item.ageGroup, t) : "";
-  const innerSize = circleSize - 4;
-  const nameTextWidth = Math.round(innerSize * 0.78);
-  const metaTextWidth = Math.round(innerSize * 0.58);
   const hasStatus = Boolean(item.statusKind);
 
   return (
-    <LinearGradient
-      style={[
-        styles.cardGlow,
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={item.displayName}
+      onPress={onOpen}
+      style={({ pressed }) => [
+        styles.card,
         {
-          width: circleSize,
-          height: circleSize,
-          borderRadius: circleSize / 2,
+          width: cardWidth,
+          height: cardHeight,
+          borderRadius: cardRadius,
+          borderColor: "rgba(255,255,255,0.13)",
         },
+        pressed ? styles.cardPressed : null,
       ]}
-      colors={["#FF8A45", "#FF4F8B", "#C83DFF", "#62E4FF"]}
-      start={{ x: 0.08, y: 0 }}
-      end={{ x: 0.92, y: 1 }}
     >
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={item.displayName}
-        onPress={onOpen}
-        style={({ pressed }) => [
-          styles.card,
+      <View
+        style={[
+          styles.cardAvatarFrame,
           {
-            width: innerSize,
-            height: innerSize,
-            borderRadius: innerSize / 2,
+            width: avatarSize,
+            height: avatarSize,
+            borderRadius: cardInnerRadius,
+            borderColor: `${primaryColor}66`,
           },
-          pressed ? styles.cardPressed : null,
         ]}
       >
         <NearbyCardMedia item={item} />
         <View style={styles.cardPhotoTint} pointerEvents="none" />
         <LinearGradient
           pointerEvents="none"
-          colors={["rgba(0,0,0,0.00)", "rgba(0,0,0,0.12)", "rgba(0,0,0,0.74)"]}
-          locations={[0, 0.48, 1]}
+          colors={["rgba(0,0,0,0.00)", "rgba(0,0,0,0.08)", "rgba(0,0,0,0.42)"]}
+          locations={[0, 0.55, 1]}
           style={styles.cardPhotoVignette}
         />
 
@@ -1830,31 +2033,31 @@ function NearbyProfileCard({
           ]}
           pointerEvents="none"
         />
+      </View>
 
-        <View style={styles.cardTextOverlay} pointerEvents="none">
+      <View style={styles.cardCopy} pointerEvents="none">
+        <Text
+          style={styles.cardName}
+          numberOfLines={1}
+          ellipsizeMode="tail"
+          maxFontSizeMultiplier={1}
+        >
+          {item.displayName}
+        </Text>
+        {ageGroupLabel ? (
           <Text
-            style={[styles.cardName, { width: nameTextWidth }]}
+            style={[styles.cardMeta, { color: accentColor }]}
             numberOfLines={1}
             ellipsizeMode="tail"
+            adjustsFontSizeToFit
+            minimumFontScale={0.82}
             maxFontSizeMultiplier={1}
           >
-            {item.displayName}
+            {ageGroupLabel}
           </Text>
-          {ageGroupLabel ? (
-            <Text
-              style={[styles.cardMeta, { width: metaTextWidth }]}
-              numberOfLines={1}
-              ellipsizeMode="tail"
-              adjustsFontSizeToFit
-              minimumFontScale={0.82}
-              maxFontSizeMultiplier={1}
-            >
-              {ageGroupLabel}
-            </Text>
-          ) : null}
-        </View>
-      </Pressable>
-    </LinearGradient>
+        ) : null}
+      </View>
+    </Pressable>
   );
 }
 
@@ -2003,28 +2206,26 @@ function NearbyCardMedia({ item }: { item: NearbyProfileFeedItemDto }) {
 
 const styles = StyleSheet.create({
   listContent: {
-    paddingHorizontal: 1,
-    paddingBottom: 18,
-  },
-  footerStack: {
-    gap: 12,
+    paddingHorizontal: 0,
   },
   columnWrap: {
     alignItems: "stretch",
   },
+  remainingPeopleGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+  },
+  peopleSectionTitle: {
+    color: "#FFFFFF",
+    fontSize: 18,
+    lineHeight: 22,
+    fontWeight: "900",
+    marginHorizontal: 14,
+    marginBottom: 8,
+  },
   cardSlot: {
     alignItems: "center",
-    paddingHorizontal: 2,
-    marginBottom: 6,
-  },
-  cardSlotThird: {
-    width: "33.3333%",
-  },
-  cardSlotHalf: {
-    width: "50%",
-  },
-  cardSlotFull: {
-    width: "100%",
+    justifyContent: "center",
   },
   headerArea: {
     gap: 10,
@@ -2317,87 +2518,48 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "900",
   },
-  activityPreferencesCard: {
-    marginTop: 8,
-    marginHorizontal: 2,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    borderRadius: 14,
-    padding: 9,
-    backgroundColor: "rgba(10, 16, 28, 0.58)",
-    borderWidth: 1,
-    borderColor: "rgba(243, 201, 139, 0.16)",
-    shadowColor: "#000",
-    shadowOpacity: 0.10,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 1,
-  },
-  activityPreferencesIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.07)",
-    borderWidth: 1,
-    borderColor: "rgba(243, 201, 139, 0.20)",
-  },
-  activityPreferencesCopy: {
-    flex: 1,
-    minWidth: 0,
-    gap: 3,
-  },
-  activityPreferencesTitle: {
-    color: theme.colors.text,
-    fontSize: 13,
-    lineHeight: 16,
-    fontWeight: "900",
-  },
-  activityPreferencesBody: {
-    color: "rgba(226,232,255,0.72)",
-    fontSize: 11,
-    lineHeight: 14,
-  },
-  activityPreferencesButton: {
-    minWidth: 70,
-    minHeight: 32,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    backgroundColor: "rgba(243, 201, 139, 0.94)",
-  },
-  activityPreferencesButtonText: {
-    color: "#24150B",
-    fontSize: 12,
-    lineHeight: 14,
-    fontWeight: "900",
-  },
   roomsSection: {
-    marginTop: 10,
-    marginHorizontal: 2,
-    gap: 8,
+    backgroundColor: "rgba(4,8,20,0.42)",
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: "rgba(255,255,255,0.07)",
   },
   roomsHeader: {
+    height: 28,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 10,
-    paddingHorizontal: 2,
+    marginHorizontal: 14,
+    marginBottom: 8,
   },
   roomsTitle: {
-    color: theme.colors.text,
-    fontSize: 15,
-    lineHeight: 18,
+    flex: 1,
+    minWidth: 0,
+    color: "#FFFFFF",
+    fontSize: 16,
+    lineHeight: 20,
     fontWeight: "900",
   },
-  roomsSubtitle: {
-    color: "rgba(226,232,255,0.70)",
-    fontSize: 11,
-    lineHeight: 14,
-    marginTop: 2,
+  roomsHeaderActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  roomsConfigureButton: {
+    height: 28,
+    minHeight: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(243, 201, 139, 0.20)",
+  },
+  roomsConfigureText: {
+    fontSize: 12,
+    lineHeight: 15,
+    fontWeight: "900",
   },
   roomsError: {
     flexDirection: "row",
@@ -2468,42 +2630,34 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
   roomRail: {
-    marginHorizontal: -2,
+    marginHorizontal: 0,
   },
-  roomRailContent: {
-    gap: 8,
-    paddingHorizontal: 2,
-    paddingRight: 10,
-  },
+  roomRailContent: {},
   roomCard: {
-    width: 228,
-    minHeight: 104,
-    borderRadius: 14,
-    padding: 10,
-    gap: 8,
-    backgroundColor: "rgba(9, 14, 32, 0.64)",
+    borderRadius: 18,
+    padding: 12,
+    backgroundColor: "rgba(9,14,32,0.78)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.10)",
-    shadowColor: "#000",
-    shadowOpacity: 0.10,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 1,
+    overflow: "hidden",
   },
   roomTitle: {
     color: "#FFFFFF",
-    fontSize: 13,
-    lineHeight: 16,
+    fontSize: 14,
+    lineHeight: 18,
     fontWeight: "900",
   },
   roomSchedule: {
-    gap: 4,
+    marginTop: 4,
+    gap: 2,
+    minHeight: 0,
+    flexShrink: 1,
   },
   roomScheduleItem: {
-    minHeight: 16,
+    minHeight: 14,
     flexDirection: "row",
     alignItems: "center",
-    gap: 5,
+    gap: 4,
   },
   roomScheduleText: {
     flex: 1,
@@ -2518,37 +2672,38 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 6,
+    gap: 8,
   },
   roomMetaPill: {
-    minHeight: 25,
-    maxWidth: 118,
+    height: 24,
+    minHeight: 24,
+    maxWidth: 82,
     flexDirection: "row",
     alignItems: "center",
-    gap: 5,
-    borderRadius: 13,
+    gap: 4,
+    borderRadius: 12,
     paddingHorizontal: 8,
     backgroundColor: "rgba(255,255,255,0.08)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.10)",
   },
   roomMetaText: {
+    flexShrink: 1,
     color: "#E8EBFF",
-    fontSize: 11,
-    lineHeight: 14,
+    fontSize: 10,
+    lineHeight: 12,
     fontWeight: "800",
   },
   roomActionButton: {
     height: 30,
     minHeight: 30,
-    minWidth: 76,
+    minWidth: 92,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 11,
-    paddingHorizontal: 9,
+    borderRadius: 12,
+    paddingHorizontal: 10,
   },
   roomActionButtonEnabled: {
-    backgroundColor: "rgba(232, 66, 138, 0.92)",
     borderWidth: 1,
     borderColor: "rgba(255,184,104,0.58)",
   },
@@ -2568,29 +2723,25 @@ const styles = StyleSheet.create({
   roomActionTextDisabled: {
     color: "rgba(226,232,255,0.66)",
   },
-  cardGlow: {
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 2,
-    shadowColor: "#FF4F8B",
-    shadowOpacity: 0.32,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 4,
-    backgroundColor: "rgba(255, 79, 139, 0.22)",
-  },
   card: {
-    minWidth: 0,
     alignItems: "center",
-    justifyContent: "center",
+    paddingTop: 10,
+    paddingHorizontal: 8,
+    paddingBottom: 9,
     overflow: "hidden",
-    backgroundColor: "rgba(9, 12, 28, 0.92)",
+    backgroundColor: "rgba(9,14,32,0.78)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.20)",
+    borderColor: "rgba(255,255,255,0.13)",
   },
   cardPressed: {
     opacity: 0.86,
     transform: [{ scale: 0.98 }],
+  },
+  cardAvatarFrame: {
+    position: "relative",
+    overflow: "hidden",
+    backgroundColor: "rgba(30, 22, 52, 0.96)",
+    borderWidth: 1,
   },
   cardMedia: {
     ...StyleSheet.absoluteFillObject,
@@ -2627,8 +2778,8 @@ const styles = StyleSheet.create({
   },
   cardStatusDot: {
     position: "absolute",
-    top: 9,
-    right: 9,
+    top: 8,
+    right: 8,
     width: 16,
     height: 16,
     borderRadius: 8,
@@ -2645,32 +2796,27 @@ const styles = StyleSheet.create({
   cardStatusDotMuted: {
     backgroundColor: "#AAB2C6",
   },
-  cardTextOverlay: {
-    position: "absolute",
-    left: 7,
-    right: 7,
-    bottom: 9,
+  cardCopy: {
+    flex: 1,
+    alignSelf: "stretch",
     alignItems: "center",
+    justifyContent: "center",
+    paddingTop: 7,
+    minWidth: 0,
   },
   cardName: {
     color: theme.colors.text,
     textAlign: "center",
     fontSize: 14,
     lineHeight: 17,
-    fontWeight: "800",
-    textShadowColor: "rgba(0,0,0,0.96)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
+    fontWeight: "900",
   },
   cardMeta: {
-    color: "#FFFFFF",
     textAlign: "center",
     fontSize: 12,
     lineHeight: 14,
     fontWeight: "800",
-    textShadowColor: "rgba(0,0,0,0.96)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
+    marginTop: 2,
   },
   buttonDisabled: {
     opacity: 0.58,
