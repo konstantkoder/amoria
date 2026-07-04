@@ -4,6 +4,7 @@ import {
   DeviceEventEmitter,
   FlatList,
   Image,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -269,7 +270,7 @@ function isNearbyActivityPreferenceRequiredError(error: unknown) {
 
 export default function NearbyHubScreen() {
   const navigation = useNavigation<NearbyTabNavigationProp>();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const { t, locale } = useLocale();
   const mountedRef = useRef(true);
   const visibilityRef = useRef<NearbyProfileVisibilityDto | null>(null);
@@ -298,6 +299,12 @@ export default function NearbyHubScreen() {
   const [roomPreferenceGateVisible, setRoomPreferenceGateVisible] =
     useState(false);
   const [locationIssue, setLocationIssue] = useState<LocationIssue | null>(null);
+  const [filtersSheetVisible, setFiltersSheetVisible] = useState(false);
+  const [filtersApplying, setFiltersApplying] = useState(false);
+  const [draftRadiusKm, setDraftRadiusKm] = useState<number>(DEFAULT_RADIUS_KM);
+  const [draftGenderFilter, setDraftGenderFilter] =
+    useState<GenderFilter>("all");
+  const [draftAgeFilter, setDraftAgeFilter] = useState<AgeFilterId>("any");
 
   const active = visibility?.status === "active";
   const profileReady = isProfileReady(profile);
@@ -415,17 +422,17 @@ export default function NearbyHubScreen() {
       if (baseVisibility?.status !== "active") {
         setItems([]);
         setFeedLoading(false);
-        return;
+        return true;
       }
       if ((options?.profileReady ?? profileReadyRef.current) === false) {
         setItems([]);
         setFeedLoading(false);
-        return;
+        return false;
       }
       if ((options?.matchingPreferencesReady ?? matchingPreferencesReadyRef.current) === false) {
         setItems([]);
         setFeedLoading(false);
-        return;
+        return false;
       }
 
       const requestId = ++feedRequestIdRef.current;
@@ -434,11 +441,11 @@ export default function NearbyHubScreen() {
       setLocationIssue(null);
       try {
         const location = await requestNearbyLocation();
-        if (!mountedRef.current || requestId !== feedRequestIdRef.current) return;
+        if (!mountedRef.current || requestId !== feedRequestIdRef.current) return false;
         if (location.ok === false) {
           setItems([]);
           setLocationIssue(location.issue);
-          return;
+          return false;
         }
 
         const nextVisibility = await nearbyApi.updateVisibility({
@@ -450,14 +457,16 @@ export default function NearbyHubScreen() {
           statusKind: baseVisibility.statusKind ?? DEFAULT_STATUS_KIND,
         });
         const response = await nearbyApi.listProfileFeed(FEED_LIMIT);
-        if (!mountedRef.current || requestId !== feedRequestIdRef.current) return;
+        if (!mountedRef.current || requestId !== feedRequestIdRef.current) return false;
         setVisibility(nextVisibility.visibility);
         setRadiusKm(nextVisibility.visibility.radiusKm ?? nextRadiusKm);
         setItems(response.items ?? []);
+        return true;
       } catch (error) {
-        if (!mountedRef.current || requestId !== feedRequestIdRef.current) return;
+        if (!mountedRef.current || requestId !== feedRequestIdRef.current) return false;
         setItems([]);
         setErrorText(getBackendErrorText(error, t));
+        return false;
       } finally {
         if (mountedRef.current && requestId === feedRequestIdRef.current) {
           setFeedLoading(false);
@@ -630,7 +639,7 @@ export default function NearbyHubScreen() {
 
   const handleRadiusChange = useCallback(
     (nextRadiusKm: number) => {
-      if (nextRadiusKm === radiusRef.current) return;
+      if (nextRadiusKm === radiusRef.current) return true;
       radiusRef.current = nextRadiusKm;
       feedRequestIdRef.current += 1;
       setRadiusKm(nextRadiusKm);
@@ -644,30 +653,53 @@ export default function NearbyHubScreen() {
           void refreshFeed(visibilityRef.current, nextRadiusKm);
         }, 320);
       }
+      return true;
     },
     [refreshFeed, visibility]
   );
 
+  const applyRadiusFilterChange = useCallback(
+    async (nextRadiusKm: number) => {
+      if (nextRadiusKm === radiusRef.current) return true;
+      if (radiusRefreshTimerRef.current) {
+        clearTimeout(radiusRefreshTimerRef.current);
+        radiusRefreshTimerRef.current = null;
+      }
+      if (visibilityRef.current?.status !== "active") {
+        return handleRadiusChange(nextRadiusKm);
+      }
+      const refreshed = await refreshFeed(visibilityRef.current, nextRadiusKm);
+      if (refreshed) {
+        radiusRef.current = nextRadiusKm;
+      }
+      return refreshed;
+    },
+    [handleRadiusChange, refreshFeed]
+  );
+
   const handleGenderFilterChange = useCallback(
     async (next: GenderFilter) => {
-      if (preferenceBusy) return;
+      if (preferenceBusy) return false;
       setPreferenceBusy(true);
       setErrorText("");
       try {
         const updated = await updateUserFields({
           preferredGenders: next === "all" ? [] : [next],
         });
-        if (!mountedRef.current) return;
+        if (!mountedRef.current) return false;
         setProfile(updated);
         if (visibility?.status === "active") {
-          await refreshFeed(visibility, radiusRef.current, {
+          const refreshed = await refreshFeed(visibility, radiusRef.current, {
             profileReady: isProfileReady(updated),
             matchingPreferencesReady: !getMissingNearbyPreferenceField(updated),
           });
+          if (!refreshed) return false;
         }
+        return true;
       } catch (error) {
-        if (!mountedRef.current) return;
+        if (!mountedRef.current) return false;
         setErrorText(getBackendErrorText(error, t));
+        return false;
       } finally {
         if (mountedRef.current) {
           setPreferenceBusy(false);
@@ -679,7 +711,7 @@ export default function NearbyHubScreen() {
 
   const handleAgeFilterChange = useCallback(
     async (next: AgeFilterId) => {
-      if (preferenceBusy) return;
+      if (preferenceBusy) return false;
       const option = AGE_FILTER_OPTIONS.find((item) => item.id === next) ?? AGE_FILTER_OPTIONS[0];
       setPreferenceBusy(true);
       setErrorText("");
@@ -688,17 +720,20 @@ export default function NearbyHubScreen() {
           preferredAgeMin: option.min,
           preferredAgeMax: option.max,
         });
-        if (!mountedRef.current) return;
+        if (!mountedRef.current) return false;
         setProfile(updated);
         if (visibility?.status === "active") {
-          await refreshFeed(visibility, radiusRef.current, {
+          const refreshed = await refreshFeed(visibility, radiusRef.current, {
             profileReady: isProfileReady(updated),
             matchingPreferencesReady: !getMissingNearbyPreferenceField(updated),
           });
+          if (!refreshed) return false;
         }
+        return true;
       } catch (error) {
-        if (!mountedRef.current) return;
+        if (!mountedRef.current) return false;
         setErrorText(getBackendErrorText(error, t));
+        return false;
       } finally {
         if (mountedRef.current) {
           setPreferenceBusy(false);
@@ -707,6 +742,79 @@ export default function NearbyHubScreen() {
     },
     [preferenceBusy, refreshFeed, t, visibility]
   );
+
+  const filterSummaryText = useMemo(() => {
+    const radiusLabel = copyOrFallback(t, "nearby.radiusKm", "{km} км", {
+      km: String(radiusKm),
+    });
+    const genderLabel = copyOrFallback(
+      t,
+      `nearby.gender.${genderFilter}`,
+      genderFilter === "all" ? "Все" : genderFilter
+    );
+    const ageLabel = getAgeFilterLabel(ageFilter, t);
+    return copyOrFallback(
+      t,
+      "nearby.filters.summary",
+      "{radius} · {gender} · {age}",
+      { radius: radiusLabel, gender: genderLabel, age: ageLabel }
+    );
+  }, [ageFilter, genderFilter, radiusKm, t]);
+
+  const openFiltersSheet = useCallback(() => {
+    setDraftRadiusKm(radiusKm);
+    setDraftGenderFilter(genderFilter);
+    setDraftAgeFilter(ageFilter);
+    setFiltersSheetVisible(true);
+  }, [ageFilter, genderFilter, radiusKm]);
+
+  const closeFiltersSheet = useCallback(() => {
+    if (filtersApplying) return;
+    setFiltersSheetVisible(false);
+  }, [filtersApplying]);
+
+  const resetDraftFilters = useCallback(() => {
+    setDraftRadiusKm(DEFAULT_RADIUS_KM);
+    setDraftGenderFilter("all");
+    setDraftAgeFilter("any");
+  }, []);
+
+  const applyDraftFilters = useCallback(async () => {
+    if (filtersApplying || preferenceBusy || toggleBusy) return;
+    setFiltersApplying(true);
+    try {
+      let applied = true;
+      if (draftRadiusKm !== radiusKm) {
+        applied = (await applyRadiusFilterChange(draftRadiusKm)) && applied;
+      }
+      if (draftGenderFilter !== genderFilter) {
+        applied = (await handleGenderFilterChange(draftGenderFilter)) && applied;
+      }
+      if (applied && draftAgeFilter !== ageFilter) {
+        applied = (await handleAgeFilterChange(draftAgeFilter)) && applied;
+      }
+      if (applied && mountedRef.current) {
+        setFiltersSheetVisible(false);
+      }
+    } finally {
+      if (mountedRef.current) {
+        setFiltersApplying(false);
+      }
+    }
+  }, [
+    ageFilter,
+    draftAgeFilter,
+    draftGenderFilter,
+    draftRadiusKm,
+    filtersApplying,
+    genderFilter,
+    applyRadiusFilterChange,
+    handleAgeFilterChange,
+    handleGenderFilterChange,
+    preferenceBusy,
+    radiusKm,
+    toggleBusy,
+  ]);
 
   const openProfile = useCallback(
     (item: NearbyProfileFeedItemDto) => {
@@ -858,163 +966,42 @@ export default function NearbyHubScreen() {
             )}
           </View>
 
-          <View style={styles.filterGroup}>
-            <Text style={styles.filterLabel}>
-              {copyOrFallback(t, "nearby.filterRadius", "Радиус")}
-            </Text>
-            <View style={styles.segmentRow}>
-              {RADIUS_OPTIONS.map((option) => (
-                <Pressable
-                  key={option}
-                  onPress={() => handleRadiusChange(option)}
-                  style={[
-                    styles.segment,
-                    radiusKm === option ? styles.segmentActive : null,
-                  ]}
-                >
-                  {radiusKm === option ? (
-                    <LinearGradient
-                      pointerEvents="none"
-                      colors={["#FF8848", "#E8428A", "#A01878"]}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={styles.segmentActiveGradient}
-                    />
-                  ) : null}
-                  <Text
-                    style={[
-                      styles.segmentText,
-                      radiusKm === option ? styles.segmentTextActive : null,
-                    ]}
-                  >
-                    {copyOrFallback(t, "nearby.radiusKm", "{km} км", {
-                      km: String(option),
-                    })}
-                  </Text>
-                </Pressable>
-              ))}
+        </LinearGradient>
+
+        {active ? (
+          <View style={styles.filterSummaryRow}>
+            <View style={styles.filterSummaryPill}>
+              <Text style={styles.filterSummaryText} numberOfLines={1}>
+                {filterSummaryText}
+              </Text>
             </View>
-          </View>
-
-          <View style={styles.filterGroup}>
-            <Text style={styles.filterLabel}>
-              {copyOrFallback(t, "nearby.filterWho", "Кого показывать")}
-            </Text>
-            <View style={styles.segmentRow}>
-              {GENDER_FILTERS.map((option) => (
-                <Pressable
-                  key={option}
-                  onPress={() => void handleGenderFilterChange(option)}
-                  disabled={preferenceBusy}
-                  style={[
-                    styles.segment,
-                    genderFilter === option ? styles.segmentActive : null,
-                    preferenceBusy ? styles.segmentDisabled : null,
-                  ]}
-                >
-                  {genderFilter === option ? (
-                    <LinearGradient
-                      pointerEvents="none"
-                      colors={["#FF8848", "#E8428A", "#A01878"]}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={styles.segmentActiveGradient}
-                    />
-                  ) : null}
-                  <Text
-                    style={[
-                      styles.segmentText,
-                      genderFilter === option ? styles.segmentTextActive : null,
-                    ]}
-                  >
-                    {copyOrFallback(
-                      t,
-                      `nearby.gender.${option}`,
-                      option === "all" ? "Все" : option
-                    )}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-          </View>
-
-          <View style={styles.filterGroup}>
-            <Text style={styles.filterLabel}>
-              {copyOrFallback(t, "nearby.filterAge", "Возраст")}
-            </Text>
-            <View style={styles.segmentRow}>
-              {AGE_FILTER_OPTIONS.map((option) => (
-                <Pressable
-                  key={option.id}
-                  onPress={() => void handleAgeFilterChange(option.id)}
-                  disabled={preferenceBusy}
-                  style={[
-                    styles.segment,
-                    ageFilter === option.id ? styles.segmentActive : null,
-                    preferenceBusy ? styles.segmentDisabled : null,
-                  ]}
-                >
-                  {ageFilter === option.id ? (
-                    <LinearGradient
-                      pointerEvents="none"
-                      colors={["#FF8848", "#E8428A", "#A01878"]}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={styles.segmentActiveGradient}
-                    />
-                  ) : null}
-                  <Text
-                    style={[
-                      styles.segmentText,
-                      ageFilter === option.id ? styles.segmentTextActive : null,
-                    ]}
-                  >
-                    {getAgeFilterLabel(option.id, t)}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-          </View>
-
-          <View style={styles.summaryRow}>
-            <Ionicons name="filter-outline" size={16} color="#F3C98B" />
-            <Text style={styles.summaryText}>
-              {copyOrFallback(
-                t,
-                "nearby.ageBackendNote",
-                "Возрастный фильтр сохраняется в профиле и применяется backend-подбором."
-              )}{" "}
-              {getAgePreferenceLabel(profile, t)}
-            </Text>
-          </View>
-
-          {active ? (
+            <Pressable
+              onPress={openFiltersSheet}
+              disabled={filtersApplying || preferenceBusy || toggleBusy}
+              style={[
+                styles.filterSummaryButton,
+                filtersApplying || preferenceBusy || toggleBusy ? styles.buttonDisabled : null,
+              ]}
+              accessibilityRole="button"
+            >
+              <Ionicons name="options-outline" size={16} color="#F3C98B" />
+              <Text style={styles.filterSummaryButtonText}>
+                {copyOrFallback(t, "nearby.filters.button", "Фильтры")}
+              </Text>
+            </Pressable>
             <Pressable
               onPress={refreshNearby}
               disabled={refreshDisabled}
               style={[
-                styles.refreshButton,
+                styles.filterRefreshButton,
                 refreshDisabled ? styles.buttonDisabled : null,
               ]}
+              accessibilityRole="button"
             >
-              <LinearGradient
-                pointerEvents="none"
-                colors={["#A01878", "#E8428A", "#FF8848"]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.refreshButtonGradient}
-              />
-              {feedLoading ? (
-                <ActivityIndicator color="#FFFFFF" size="small" />
-              ) : (
-                <Ionicons name="refresh-outline" size={20} color="#FFFFFF" />
-              )}
-              <Text style={styles.refreshButtonText}>
-                {copyOrFallback(t, "nearby.refreshAction", "Обновить")}
-              </Text>
+              <Ionicons name="refresh-outline" size={18} color="#E8EBFF" />
             </Pressable>
-          ) : null}
-        </LinearGradient>
+          </View>
+        ) : null}
 
         {missingSafetyFields.length ? (
           <View style={styles.completionPanel}>
@@ -1066,17 +1053,15 @@ export default function NearbyHubScreen() {
     ),
     [
       active,
-      ageFilter,
       errorText,
-      genderFilter,
-      handleAgeFilterChange,
-      handleGenderFilterChange,
-      handleRadiusChange,
+      filterSummaryText,
+      filtersApplying,
+      goToProfilePreferences,
+      goToProfileSetup,
       handleToggle,
       missingSafetyFields,
+      openFiltersSheet,
       preferenceBusy,
-      profile,
-      radiusKm,
       refreshDisabled,
       refreshNearby,
       summary,
@@ -1505,6 +1490,21 @@ export default function NearbyHubScreen() {
           }
         }}
       />
+      <NearbyFiltersSheet
+        visible={filtersSheetVisible}
+        screenHeight={height}
+        draftRadiusKm={draftRadiusKm}
+        draftGenderFilter={draftGenderFilter}
+        draftAgeFilter={draftAgeFilter}
+        applying={filtersApplying}
+        onChangeRadius={setDraftRadiusKm}
+        onChangeGender={setDraftGenderFilter}
+        onChangeAge={setDraftAgeFilter}
+        onApply={applyDraftFilters}
+        onReset={resetDraftFilters}
+        onClose={closeFiltersSheet}
+        t={t}
+      />
     </ScreenShell>
   );
 }
@@ -1572,6 +1572,201 @@ function NearbyStatsCards({
         </LinearGradient>
       ))}
     </View>
+  );
+}
+
+function NearbyFiltersSheet({
+  visible,
+  screenHeight,
+  draftRadiusKm,
+  draftGenderFilter,
+  draftAgeFilter,
+  applying,
+  onChangeRadius,
+  onChangeGender,
+  onChangeAge,
+  onApply,
+  onReset,
+  onClose,
+  t,
+}: {
+  visible: boolean;
+  screenHeight: number;
+  draftRadiusKm: number;
+  draftGenderFilter: GenderFilter;
+  draftAgeFilter: AgeFilterId;
+  applying: boolean;
+  onChangeRadius: (value: number) => void;
+  onChangeGender: (value: GenderFilter) => void;
+  onChangeAge: (value: AgeFilterId) => void;
+  onApply: () => void;
+  onReset: () => void;
+  onClose: () => void;
+  t: (key: string, params?: Record<string, string>) => string;
+}) {
+  const sheetMaxHeight = Math.min(screenHeight * 0.72, 520);
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <View style={styles.filterSheetBackdrop}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <View style={[styles.filterSheet, { maxHeight: sheetMaxHeight }]}>
+          <View style={styles.filterSheetHandle} />
+          <Pressable
+            onPress={onClose}
+            disabled={applying}
+            style={[
+              styles.filterSheetCloseButton,
+              applying ? styles.buttonDisabled : null,
+            ]}
+            accessibilityRole="button"
+          >
+            <Ionicons name="close" size={18} color="#FFFFFF" />
+          </Pressable>
+          <Text style={styles.filterSheetTitle}>
+            {copyOrFallback(t, "nearby.filters.title", "Фильтры Рядом")}
+          </Text>
+
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.filterSheetContent}
+          >
+            <Text style={styles.filterSheetSectionLabel}>
+              {copyOrFallback(t, "nearby.filters.radius", "Радиус")}
+            </Text>
+            <View style={styles.filterSheetChipRow}>
+              {RADIUS_OPTIONS.map((option) => {
+                const active = draftRadiusKm === option;
+                return (
+                  <Pressable
+                    key={option}
+                    disabled={applying}
+                    onPress={() => onChangeRadius(option)}
+                    style={[
+                      styles.filterSheetChip,
+                      active ? styles.filterSheetChipActive : null,
+                      applying ? styles.buttonDisabled : null,
+                    ]}
+                    accessibilityRole="button"
+                  >
+                    <Text
+                      style={[
+                        styles.filterSheetChipText,
+                        active ? styles.filterSheetChipTextActive : null,
+                      ]}
+                    >
+                      {copyOrFallback(t, "nearby.radiusKm", "{km} км", {
+                        km: String(option),
+                      })}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <Text style={styles.filterSheetSectionLabel}>
+              {copyOrFallback(t, "nearby.filters.who", "Кого показывать")}
+            </Text>
+            <View style={styles.filterSheetChipRow}>
+              {GENDER_FILTERS.map((option) => {
+                const active = draftGenderFilter === option;
+                return (
+                  <Pressable
+                    key={option}
+                    disabled={applying}
+                    onPress={() => onChangeGender(option)}
+                    style={[
+                      styles.filterSheetChip,
+                      active ? styles.filterSheetChipActive : null,
+                      applying ? styles.buttonDisabled : null,
+                    ]}
+                    accessibilityRole="button"
+                  >
+                    <Text
+                      style={[
+                        styles.filterSheetChipText,
+                        active ? styles.filterSheetChipTextActive : null,
+                      ]}
+                    >
+                      {copyOrFallback(
+                        t,
+                        `nearby.gender.${option}`,
+                        option === "all" ? "Все" : option
+                      )}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <Text style={styles.filterSheetSectionLabel}>
+              {copyOrFallback(t, "nearby.filters.age", "Возраст")}
+            </Text>
+            <View style={styles.filterSheetChipRow}>
+              {AGE_FILTER_OPTIONS.map((option) => {
+                const active = draftAgeFilter === option.id;
+                return (
+                  <Pressable
+                    key={option.id}
+                    disabled={applying}
+                    onPress={() => onChangeAge(option.id)}
+                    style={[
+                      styles.filterSheetChip,
+                      active ? styles.filterSheetChipActive : null,
+                      applying ? styles.buttonDisabled : null,
+                    ]}
+                    accessibilityRole="button"
+                  >
+                    <Text
+                      style={[
+                        styles.filterSheetChipText,
+                        active ? styles.filterSheetChipTextActive : null,
+                      ]}
+                    >
+                      {getAgeFilterLabel(option.id, t)}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </ScrollView>
+
+          <View style={styles.filterSheetFooter}>
+            <Pressable
+              onPress={onApply}
+              disabled={applying}
+              style={[
+                styles.filterSheetApplyButton,
+                applying ? styles.buttonDisabled : null,
+              ]}
+              accessibilityRole="button"
+            >
+              <Text style={styles.filterSheetApplyText}>
+                {copyOrFallback(t, "nearby.filters.apply", "Применить")}
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={onReset}
+              disabled={applying}
+              style={[
+                styles.filterSheetResetButton,
+                applying ? styles.buttonDisabled : null,
+              ]}
+              accessibilityRole="button"
+            >
+              <Text style={styles.filterSheetResetText}>
+                {copyOrFallback(t, "nearby.filters.reset", "Сбросить")}
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -2379,114 +2574,180 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 14,
   },
-  filterGroup: {
-    gap: 7,
-  },
-  filterLabel: {
-    color: "rgba(255,255,255,0.78)",
-    fontSize: 11,
-    lineHeight: 13,
-    fontWeight: "800",
-    textTransform: "uppercase",
-  },
-  segmentRow: {
+  filterSummaryRow: {
+    marginHorizontal: 14,
+    marginBottom: 12,
+    height: 42,
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 6,
+    alignItems: "center",
+    gap: 8,
   },
-  segment: {
-    position: "relative",
-    overflow: "hidden",
-    height: 32,
-    minHeight: 32,
+  filterSummaryPill: {
+    flex: 1,
+    height: 40,
+    borderRadius: 20,
+    paddingHorizontal: 12,
     justifyContent: "center",
-    borderRadius: 11,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    backgroundColor: "rgba(18, 25, 45, 0.54)",
+    backgroundColor: "rgba(10,16,28,0.70)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.10)",
+  },
+  filterSummaryText: {
+    color: "rgba(226,232,255,0.88)",
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: "800",
+  },
+  filterSummaryButton: {
+    height: 40,
+    minWidth: 94,
+    borderRadius: 20,
+    paddingHorizontal: 13,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: "rgba(243,201,139,0.14)",
+    borderWidth: 1,
+    borderColor: "rgba(243,201,139,0.34)",
+  },
+  filterSummaryButtonText: {
+    color: "#F3C98B",
+    fontSize: 12,
+    lineHeight: 15,
+    fontWeight: "900",
+  },
+  filterRefreshButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.07)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.12)",
   },
-  segmentActive: {
-    backgroundColor: "rgba(255, 79, 139, 0.22)",
-    borderColor: "rgba(255,184,104,0.58)",
-    shadowColor: "rgba(255,105,72,0.30)",
-    shadowOpacity: 0.55,
-    shadowRadius: 5,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 1,
+  filterSheetBackdrop: {
+    flex: 1,
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(0,0,0,0.38)",
   },
-  segmentActiveGradient: {
-    ...StyleSheet.absoluteFillObject,
+  filterSheet: {
+    width: "100%",
+    minHeight: 320,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 12,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    backgroundColor: "rgba(7,11,21,0.98)",
+    borderTopWidth: 1,
+    borderColor: "rgba(255,255,255,0.14)",
   },
-  segmentDisabled: {
-    opacity: 0.55,
+  filterSheetHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "rgba(255,255,255,0.24)",
+    alignSelf: "center",
+    marginBottom: 14,
   },
-  segmentText: {
-    zIndex: 1,
+  filterSheetCloseButton: {
+    position: "absolute",
+    top: 12,
+    right: 16,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.07)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+  },
+  filterSheetTitle: {
+    color: "#FFFFFF",
+    fontSize: 20,
+    lineHeight: 24,
+    fontWeight: "900",
+    marginBottom: 14,
+    paddingRight: 42,
+  },
+  filterSheetContent: {
+    paddingBottom: 4,
+  },
+  filterSheetSectionLabel: {
+    color: "#F3C98B",
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: "900",
+    textTransform: "uppercase",
+    letterSpacing: 0.7,
+    marginBottom: 8,
+  },
+  filterSheetChipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 16,
+  },
+  filterSheetChip: {
+    height: 34,
+    justifyContent: "center",
+    borderRadius: 17,
+    paddingHorizontal: 12,
+    backgroundColor: "rgba(255,255,255,0.07)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+  },
+  filterSheetChipActive: {
+    backgroundColor: "rgba(243,201,139,0.18)",
+    borderColor: "rgba(243,201,139,0.46)",
+  },
+  filterSheetChipText: {
     color: "rgba(226,232,255,0.84)",
     fontSize: 12,
     lineHeight: 15,
-    fontWeight: "700",
+    fontWeight: "900",
   },
-  segmentTextActive: {
-    color: "#FFFFFF",
-    fontSize: 12,
-    fontWeight: "800",
-    textShadowColor: "rgba(95, 20, 52, 0.34)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
+  filterSheetChipTextActive: {
+    color: "#F3C98B",
   },
-  summaryRow: {
+  filterSheetFooter: {
+    height: 52,
     flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 7,
-    backgroundColor: "rgba(0,0,0,0.13)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
+    gap: 10,
+    marginTop: 4,
   },
-  summaryText: {
+  filterSheetApplyButton: {
+    height: 48,
     flex: 1,
-    color: "#DDE2F2",
-    fontSize: 11,
-    lineHeight: 15,
-  },
-  refreshButton: {
-    position: "relative",
-    overflow: "hidden",
-    alignSelf: "flex-start",
-    height: 38,
-    minHeight: 38,
-    flexDirection: "row",
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
-    borderRadius: 14,
-    paddingHorizontal: 13,
     backgroundColor: "#E8428A",
-    borderWidth: 1,
-    borderColor: "rgba(255,184,104,0.75)",
-    shadowColor: "rgba(255,105,72,0.34)",
-    shadowOpacity: 0.45,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
   },
-  refreshButtonGradient: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  refreshButtonText: {
-    zIndex: 1,
+  filterSheetApplyText: {
     color: "#FFFFFF",
-    fontSize: 13,
-    lineHeight: 16,
-    fontWeight: "800",
-    textShadowColor: "rgba(79, 18, 53, 0.35)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
+    fontSize: 15,
+    lineHeight: 18,
+    fontWeight: "900",
+  },
+  filterSheetResetButton: {
+    height: 48,
+    width: 104,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.07)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+  },
+  filterSheetResetText: {
+    color: "#F3C98B",
+    fontSize: 14,
+    lineHeight: 17,
+    fontWeight: "900",
   },
   errorPanel: {
     flexDirection: "row",
