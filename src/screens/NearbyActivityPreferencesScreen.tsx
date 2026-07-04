@@ -213,6 +213,7 @@ export default function NearbyActivityPreferencesScreen() {
     () => groupActivitiesByCategory(activities),
     [activities]
   );
+  const selectedCount = selectedKeys.size;
 
   const toggleActivity = useCallback((activityKey: NearbyActivityKey) => {
     setSaved(false);
@@ -250,7 +251,30 @@ export default function NearbyActivityPreferencesScreen() {
     }
   }, [activities, applyResponse, hasChanges, loading, saving, selectedKeys, t]);
 
+  const cancelChanges = useCallback(() => {
+    setSelectedKeys(new Set(savedKeys));
+    setSaved(false);
+    setErrorText("");
+  }, [savedKeys]);
+
+  const handleSecondaryAction = useCallback(() => {
+    if (saving) return;
+    if (hasChanges) {
+      cancelChanges();
+      return;
+    }
+    navigation.goBack();
+  }, [cancelChanges, hasChanges, navigation, saving]);
+
   const canSave = !loading && !saving && hasChanges;
+  const primaryButtonText = saving
+    ? copyOrFallback(t, "nearby.activityPreferences.saving", "Saving…")
+    : hasChanges
+    ? copyOrFallback(t, "nearby.activityPreferences.save", "Save")
+    : copyOrFallback(t, "nearby.activityPreferences.savedButton", "Saved ✓");
+  const secondaryButtonText = hasChanges
+    ? copyOrFallback(t, "nearby.activityPreferences.cancelChanges", "Cancel")
+    : copyOrFallback(t, "nearby.activityPreferences.done", "Done");
 
   return (
     <ScreenShell
@@ -264,175 +288,190 @@ export default function NearbyActivityPreferencesScreen() {
       blurRadius={0}
       showBack
     >
-      <ScrollView
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.introPanel}>
-          <Text style={styles.title}>
-            {copyOrFallback(
-              t,
-              "nearby.activityPreferences.title",
-              "Choose nearby activities"
-            )}
-          </Text>
-          <Text style={styles.body}>
-            {copyOrFallback(
-              t,
-              "nearby.activityPreferences.body",
-              "Mark what you are interested in nearby. This is optional and does not change your people feed."
-            )}
-          </Text>
-        </View>
-
-        {loading ? (
-          <View style={styles.statePanel}>
-            <ActivityIndicator color="#F3C98B" />
-            <Text style={styles.stateText}>
+      <View style={styles.screen}>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.introPanel}>
+            <Text style={styles.title}>
               {copyOrFallback(
                 t,
-                "nearby.activityPreferences.loading",
-                "Loading activities..."
+                "nearby.activityPreferences.title",
+                "Choose nearby activities"
+              )}
+            </Text>
+            <Text style={styles.body}>
+              {copyOrFallback(
+                t,
+                "nearby.activityPreferences.body",
+                "Mark what you are interested in nearby. This is optional and does not change your people feed."
               )}
             </Text>
           </View>
-        ) : null}
 
-        {!loading && errorText ? (
-          <View style={styles.errorPanel}>
-            <Ionicons name="alert-circle-outline" size={18} color="#FFD2DA" />
-            <Text style={styles.errorText}>{errorText}</Text>
-            {!activities.length ? (
-              <Pressable onPress={loadPreferences} style={styles.retryButton}>
-                <Text style={styles.retryButtonText}>
-                  {copyOrFallback(t, "common.retry", "Retry")}
-                </Text>
-              </Pressable>
-            ) : null}
-          </View>
-        ) : null}
-
-        {!loading && activities.length ? (
-          <View style={styles.activityList}>
-            {activitySections.map((section) => (
-              <View key={section.category} style={styles.categorySection}>
-                <Text style={styles.categoryTitle}>
-                  {getCategoryLabel(section.category, t)}
-                </Text>
-                <View style={styles.categoryActivities}>
-                  {section.activities.map((activity) => {
-                    const selected = selectedKeys.has(activity.activityKey);
-                    return (
-                      <Pressable
-                        key={activity.activityKey}
-                        onPress={() => toggleActivity(activity.activityKey)}
-                        disabled={saving}
-                        style={[
-                          styles.activityRow,
-                          selected ? styles.activityRowSelected : null,
-                          saving ? styles.rowDisabled : null,
-                        ]}
-                        accessibilityRole="checkbox"
-                        accessibilityState={{
-                          checked: selected,
-                          disabled: saving,
-                        }}
-                      >
-                        <View
-                          style={[
-                            styles.checkCircle,
-                            selected ? styles.checkCircleSelected : null,
-                          ]}
-                        >
-                          {selected ? (
-                            <Ionicons name="checkmark" size={16} color="#24150B" />
-                          ) : null}
-                        </View>
-                        <Text
-                          style={[
-                            styles.activityLabel,
-                            selected ? styles.activityLabelSelected : null,
-                          ]}
-                        >
-                          {getActivityLabel(activity, t)}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </View>
-            ))}
-          </View>
-        ) : null}
-
-        {!loading && !activities.length && !errorText ? (
-          <View style={styles.statePanel}>
-            <Text style={styles.stateText}>
-              {copyOrFallback(
-                t,
-                "nearby.activityPreferences.empty",
-                "No activities are available yet."
-              )}
-            </Text>
-          </View>
-        ) : null}
-
-        {saved ? (
-          <View style={styles.successPanel}>
-            <Ionicons name="checkmark-circle-outline" size={18} color="#B9F6D2" />
-            <View style={styles.successCopy}>
-              <Text style={styles.successTitle}>
+          {loading ? (
+            <View style={styles.statePanel}>
+              <ActivityIndicator color="#F3C98B" />
+              <Text style={styles.stateText}>
                 {copyOrFallback(
                   t,
-                  "nearby.activityPreferences.savedTitle",
-                  "Saved"
-                )}
-              </Text>
-              <Text style={styles.successBody}>
-                {copyOrFallback(
-                  t,
-                  "nearby.activityPreferences.savedBody",
-                  "Your activity choices were saved."
+                  "nearby.activityPreferences.loading",
+                  "Loading activities..."
                 )}
               </Text>
             </View>
+          ) : null}
+
+          {!loading && errorText ? (
+            <View style={styles.errorPanel}>
+              <Ionicons name="alert-circle-outline" size={18} color="#FFD2DA" />
+              <Text style={styles.errorText}>{errorText}</Text>
+              {!activities.length ? (
+                <Pressable onPress={loadPreferences} style={styles.retryButton}>
+                  <Text style={styles.retryButtonText}>
+                    {copyOrFallback(t, "common.retry", "Retry")}
+                  </Text>
+                </Pressable>
+              ) : null}
+            </View>
+          ) : null}
+
+          {!loading && activities.length ? (
+            <View style={styles.activityList}>
+              {activitySections.map((section) => (
+                <View key={section.category} style={styles.categorySection}>
+                  <Text style={styles.categoryTitle}>
+                    {getCategoryLabel(section.category, t)}
+                  </Text>
+                  <View style={styles.categoryActivities}>
+                    {section.activities.map((activity) => {
+                      const selected = selectedKeys.has(activity.activityKey);
+                      return (
+                        <Pressable
+                          key={activity.activityKey}
+                          onPress={() => toggleActivity(activity.activityKey)}
+                          disabled={saving}
+                          style={[
+                            styles.activityRow,
+                            selected ? styles.activityRowSelected : null,
+                            saving ? styles.rowDisabled : null,
+                          ]}
+                          accessibilityRole="checkbox"
+                          accessibilityState={{
+                            checked: selected,
+                            disabled: saving,
+                          }}
+                        >
+                          <View
+                            style={[
+                              styles.checkCircle,
+                              selected ? styles.checkCircleSelected : null,
+                            ]}
+                          >
+                            {selected ? (
+                              <Ionicons name="checkmark" size={16} color="#24150B" />
+                            ) : null}
+                          </View>
+                          <Text
+                            style={[
+                              styles.activityLabel,
+                              selected ? styles.activityLabelSelected : null,
+                            ]}
+                          >
+                            {getActivityLabel(activity, t)}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+              ))}
+            </View>
+          ) : null}
+
+          {!loading && !activities.length && !errorText ? (
+            <View style={styles.statePanel}>
+              <Text style={styles.stateText}>
+                {copyOrFallback(
+                  t,
+                  "nearby.activityPreferences.empty",
+                  "No activities are available yet."
+                )}
+              </Text>
+            </View>
+          ) : null}
+
+          {saved ? (
+            <View style={styles.successPanel}>
+              <Ionicons name="checkmark-circle-outline" size={18} color="#B9F6D2" />
+              <Text style={styles.successBody}>
+                {copyOrFallback(
+                  t,
+                  "nearby.activityPreferences.savedReturnHint",
+                  "Saved. You can return to Nearby Activities."
+                )}
+              </Text>
+            </View>
+          ) : null}
+        </ScrollView>
+
+        {!loading && activities.length ? (
+          <View style={styles.footerPanel}>
+            <Text style={styles.selectedCountText}>
+              {copyOrFallback(
+                t,
+                "nearby.activityPreferences.selectedCount",
+                "Selected: {count}",
+                { count: String(selectedCount) }
+              )}
+            </Text>
+            <View style={styles.footerActions}>
+              <Pressable
+                onPress={savePreferences}
+                disabled={!canSave}
+                style={[
+                  styles.saveButton,
+                  !canSave ? styles.buttonDisabled : null,
+                ]}
+                accessibilityRole="button"
+              >
+                {saving ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : null}
+                <Text style={styles.saveButtonText}>{primaryButtonText}</Text>
+              </Pressable>
+              <Pressable
+                onPress={handleSecondaryAction}
+                disabled={saving}
+                style={[
+                  styles.secondaryButton,
+                  saving ? styles.buttonDisabled : null,
+                ]}
+                accessibilityRole="button"
+              >
+                <Text style={styles.secondaryButtonText}>{secondaryButtonText}</Text>
+              </Pressable>
+            </View>
           </View>
         ) : null}
-
-        <Pressable
-          onPress={savePreferences}
-          disabled={!canSave}
-          style={[styles.saveButton, !canSave ? styles.buttonDisabled : null]}
-          accessibilityRole="button"
-        >
-          {saving ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
-          ) : (
-            <Text style={styles.saveButtonText}>
-              {copyOrFallback(t, "nearby.activityPreferences.save", "Save")}
-            </Text>
-          )}
-        </Pressable>
-
-        <Pressable
-          onPress={() => navigation.goBack()}
-          style={styles.backButton}
-          accessibilityRole="button"
-        >
-          <Text style={styles.backButtonText}>
-            {copyOrFallback(t, "common.back", "Back")}
-          </Text>
-        </Pressable>
-      </ScrollView>
+      </View>
     </ScreenShell>
   );
 }
 
 const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+  },
+  scroll: {
+    flex: 1,
+  },
   content: {
     gap: 12,
     paddingHorizontal: 1,
-    paddingBottom: 18,
+    paddingBottom: 12,
   },
   introPanel: {
     borderRadius: 20,
@@ -569,25 +608,39 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(185, 246, 210, 0.28)",
   },
-  successCopy: {
-    flex: 1,
-    gap: 2,
-  },
-  successTitle: {
-    color: "#B9F6D2",
-    fontSize: 13,
-    lineHeight: 17,
-    fontWeight: "900",
-  },
   successBody: {
+    flex: 1,
     color: "rgba(226,232,255,0.76)",
     fontSize: 12,
     lineHeight: 16,
   },
-  saveButton: {
+  footerPanel: {
+    marginTop: 10,
+    borderRadius: 18,
+    padding: 12,
+    gap: 10,
+    backgroundColor: "rgba(4, 8, 20, 0.92)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.14)",
+  },
+  selectedCountText: {
+    color: "#F3C98B",
+    fontSize: 13,
+    lineHeight: 17,
+    fontWeight: "900",
+  },
+  footerActions: {
     minHeight: 50,
+    flexDirection: "row",
+    gap: 10,
+  },
+  saveButton: {
+    flex: 1,
+    minHeight: 50,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    gap: 8,
     borderRadius: 17,
     paddingHorizontal: 14,
     backgroundColor: "#E8428A",
@@ -600,17 +653,18 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     fontWeight: "900",
   },
-  backButton: {
-    minHeight: 42,
+  secondaryButton: {
+    minWidth: 104,
+    minHeight: 50,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 14,
+    borderRadius: 17,
     paddingHorizontal: 14,
     backgroundColor: "rgba(255,255,255,0.07)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.12)",
   },
-  backButtonText: {
+  secondaryButtonText: {
     color: "#F3C98B",
     fontSize: 14,
     lineHeight: 18,
