@@ -19,6 +19,7 @@ const { buildApp } = require("../src/app") as typeof import("../src/app");
 const { signAccessToken } = require("../src/auth/jwt") as typeof import("../src/auth/jwt");
 const { closeDb } = require("../src/db/client") as typeof import("../src/db/client");
 const nearbyService = require("../src/nearby/nearby.service") as typeof import("../src/nearby/nearby.service");
+const ageHelpers = require("../src/users/age") as typeof import("../src/users/age");
 
 const now = new Date("2026-06-03T12:00:00.000Z");
 const viewerId = "00000000-0000-4000-8000-000000000001";
@@ -242,11 +243,11 @@ test("Nearby profile feed returns only real compatible opted-in profiles with sa
         gender: "man",
         preferredGenders: ["woman"],
         preferredAgeMin: 25,
-        preferredAgeMax: 35,
+        preferredAgeMax: 45,
       }),
       userRow(matchId, {
         displayName: "Real Match",
-        birthDate: "1996-02-02",
+        birthDate: "1986-02-02",
         gender: "woman",
         preferredGenders: ["man"],
         goal: "dating",
@@ -283,7 +284,8 @@ test("Nearby profile feed returns only real compatible opted-in profiles with sa
     userId: matchId,
     displayName: "Real Match",
     avatarUrl: `/media/public/avatar-${matchId}`,
-    ageGroup: "25-34",
+    age: 40,
+    ageGroup: "35-44",
     distanceBucket: "1_5km",
     goal: "dating",
     mood: "curious",
@@ -299,6 +301,24 @@ test("Nearby profile feed returns only real compatible opted-in profiles with sa
   });
   assertNoPrivateNearbyFields(body);
   assert.equal(JSON.stringify(body).includes("locked"), false);
+});
+
+test("Nearby profile feed mapper returns null age when birthDate is missing", async (t) => {
+  t.after(restoreDeps);
+  mockNearby();
+  const user = userRow(matchId, { birthDate: null });
+  const item = nearbyService.__toNearbyProfileFeedItemForTests(
+    {
+      visibility: visibilityRow(matchId),
+      user,
+      distanceKm: 2,
+    },
+    publicProfileForUser(user),
+  );
+
+  assert.equal(item.age, null);
+  assert.equal(item.ageGroup, null);
+  assertNoPrivateNearbyFields(item);
 });
 
 test("Nearby people feed does not require activity questionnaire", async (t) => {
@@ -362,29 +382,7 @@ function mockNearby(input: {
     usersRepo: {
       findUserById: async (userId) => users.get(userId),
     },
-    toPublicUserProfile: async (user) => {
-      const profile: PublicUserProfile = {
-        id: user.id,
-        displayName: user.displayName,
-        amoriaId: user.amoriaId,
-        about: user.about,
-        avatarUrl: `/media/public/avatar-${user.id}`,
-        photos: [1, 2, 3, 4].map((index) => ({
-          mediaId: `${user.id.slice(0, 35)}${index}`,
-          url: `/media/public/photo-${user.id}-${index}`,
-          position: index - 1,
-        })),
-        goal: user.goal as PublicUserProfile["goal"],
-        mood: user.mood as PublicUserProfile["mood"],
-        interests: user.interests,
-        ageGroup: user.birthDate?.startsWith("1970") ? "55+" : "25-34",
-        lockedGallery: {
-          enabled: true,
-          count: 2,
-        },
-      };
-      return profile;
-    },
+    toPublicUserProfile: async (user) => publicProfileForUser(user),
     repo: {
       createNearbyStatus: async () => {
         throw new Error("legacy status create is not used in these tests");
@@ -528,6 +526,30 @@ function visibilityRow(
   };
 }
 
+function publicProfileForUser(user: UserRow): PublicUserProfile {
+  const age = ageHelpers.calculateAge(user.birthDate, now);
+  return {
+    id: user.id,
+    displayName: user.displayName,
+    amoriaId: user.amoriaId,
+    about: user.about,
+    avatarUrl: `/media/public/avatar-${user.id}`,
+    photos: [1, 2, 3, 4].map((index) => ({
+      mediaId: `${user.id.slice(0, 35)}${index}`,
+      url: `/media/public/photo-${user.id}-${index}`,
+      position: index - 1,
+    })),
+    goal: user.goal as PublicUserProfile["goal"],
+    mood: user.mood as PublicUserProfile["mood"],
+    interests: user.interests,
+    ageGroup: ageHelpers.getAgeGroup(age),
+    lockedGallery: {
+      enabled: true,
+      count: 2,
+    },
+  };
+}
+
 function approximateDistanceKm(
   latA: number,
   lngA: number,
@@ -542,6 +564,8 @@ function assertNoPrivateNearbyFields(value: unknown) {
   assert.equal(serialized.includes("latitude"), false);
   assert.equal(serialized.includes("longitude"), false);
   assert.equal(serialized.includes("birthDate"), false);
+  assert.equal(serialized.includes("preferredAgeMin"), false);
+  assert.equal(serialized.includes("preferredAgeMax"), false);
   assert.equal(serialized.includes("distanceKm"), false);
   assert.equal(serialized.includes("distanceMeters"), false);
   assert.equal(serialized.includes("objectKey"), false);

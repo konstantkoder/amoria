@@ -16,6 +16,7 @@ import type {
   NearbyFeedResponse,
   NearbyMeResponse,
   NearbyProfileDistanceBucket,
+  NearbyProfileFeedItemDto,
   NearbyProfileFeedQuery,
   NearbyProfileFeedResponse,
   NearbyProfileStatusKind,
@@ -255,25 +256,7 @@ export async function getProfileFeed(
     }
 
     const profile = await deps.toPublicUserProfile(row.user);
-    items.push({
-      userId: profile.id,
-      displayName: profile.displayName,
-      avatarUrl: profile.avatarUrl,
-      ageGroup: profile.ageGroup,
-      distanceBucket: toDistanceBucket(row.distanceKm),
-      goal: profile.goal,
-      mood: profile.mood,
-      interests: profile.interests,
-      publicPhotos: profile.photos
-        .slice(0, NEARBY_PROFILE_PUBLIC_PHOTO_PREVIEW_LIMIT)
-        .map((photo) => ({
-          mediaId: photo.mediaId,
-          url: photo.url,
-        })),
-      nearbyStatus: row.visibility.nearbyStatus,
-      statusKind: row.visibility.statusKind as NearbyProfileStatusKind | null,
-      canMessage: true,
-    });
+    items.push(toNearbyProfileFeedItem(row, profile));
 
     if (items.length >= query.limit) {
       break;
@@ -293,6 +276,44 @@ export async function deleteStatus(userId: string, statusId: string): Promise<Ok
   }
 
   return { ok: true };
+}
+
+export function __toNearbyProfileFeedItemForTests(
+  row: nearbyRepo.NearbyProfileFeedRow,
+  profile: usersService.PublicUserProfile,
+): NearbyProfileFeedItemDto {
+  return toNearbyProfileFeedItem(row, profile);
+}
+
+function toNearbyProfileFeedItem(
+  row: nearbyRepo.NearbyProfileFeedRow,
+  profile: usersService.PublicUserProfile,
+): NearbyProfileFeedItemDto {
+  return {
+    userId: profile.id,
+    displayName: profile.displayName,
+    avatarUrl: profile.avatarUrl,
+    age: toNearbyProfileAge(row.user.birthDate),
+    ageGroup: profile.ageGroup,
+    distanceBucket: toDistanceBucket(row.distanceKm),
+    goal: profile.goal,
+    mood: profile.mood,
+    interests: profile.interests,
+    publicPhotos: profile.photos
+      .slice(0, NEARBY_PROFILE_PUBLIC_PHOTO_PREVIEW_LIMIT)
+      .map((photo) => ({
+        mediaId: photo.mediaId,
+        url: photo.url,
+      })),
+    nearbyStatus: row.visibility.nearbyStatus,
+    statusKind: row.visibility.statusKind as NearbyProfileStatusKind | null,
+    canMessage: true,
+  };
+}
+
+function toNearbyProfileAge(birthDate: string | null | undefined): number | null {
+  const age = calculateAge(birthDate, deps.now());
+  return typeof age === "number" && Number.isFinite(age) && age >= 0 ? age : null;
 }
 
 function clamp(value: number, min: number, max: number): number {

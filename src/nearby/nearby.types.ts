@@ -109,6 +109,7 @@ export type NearbyProfileFeedItemDto = {
   userId: string;
   displayName: string;
   avatarUrl: string | null;
+  age: number | null;
   ageGroup: string | null;
   distanceBucket: NearbyProfileDistanceBucket;
   goal: string | null;
