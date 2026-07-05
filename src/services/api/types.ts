@@ -416,6 +416,7 @@ export type NearbyProfileFeedItemDto = {
   userId: string;
   displayName: string;
   avatarUrl: string | null;
+  age: number | null;
   ageGroup: AgeGroup | null;
   distanceBucket: NearbyProfileDistanceBucket;
   goal: ProfileGoal | null;
