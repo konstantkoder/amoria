@@ -3,15 +3,18 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
   type AlertButton,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
+import { Ionicons } from "@expo/vector-icons";
 
 import CoreStateCard from "@/components/CoreStateCard";
 import {
@@ -32,11 +35,13 @@ import * as announcementsApi from "@/services/api/announcementsApi";
 import { ApiError } from "@/services/api/apiClient";
 import * as chatApi from "@/services/api/chatApi";
 import { reportClientError } from "@/services/api/clientErrorsApi";
+import { unlockUserLockedGallery } from "@/services/api/publicUsersApi";
 import * as safetyApi from "@/services/api/safetyApi";
 import type { SafetyReportReason } from "@/services/api/safetyApi";
 import { getUserProfileById } from "@/services/user";
 import {
   getPublicMediaUrlInfo,
+  normalizeAuthenticatedLockedMediaUrl,
   probePublicMediaUrlInfo,
   type PublicMediaUrlInfo,
 } from "@/services/media/mediaUrl";
@@ -90,23 +95,44 @@ function translatedProfileOptionLabel(
 
 type ProfileLoadState = "loading" | "ready" | "blocked" | "not_found" | "network";
 
+function getLockedMediaUrlInfo(value: unknown, mediaId?: string): PublicMediaUrlInfo {
+  const url = normalizeAuthenticatedLockedMediaUrl(value, "peer locked photo URL");
+  if (!url) {
+    return {
+      urlKind: "invalid",
+      ...(mediaId ? { mediaId } : {}),
+    };
+  }
+
+  return {
+    url,
+    urlKind: "relative",
+    ...(mediaId ? { mediaId } : {}),
+  };
+}
+
 function PeerPublicPhoto({
   photo,
   index,
   failed,
   failedLabel,
   onLoadFailed,
+  requestHeaders,
 }: {
   photo: UserProfilePhoto;
   index: number;
   failed: boolean;
   failedLabel: string;
   onLoadFailed: (photo: UserProfilePhoto) => void;
+  requestHeaders?: Record<string, string>;
 }) {
-  const urlInfo = useMemo(
-    () => getPublicMediaUrlInfo(photo.url, "peer public photo URL"),
-    [photo.url]
-  );
+  const urlInfo = useMemo(() => {
+    if (photo.visibility === "locked") {
+      return getLockedMediaUrlInfo(photo.url, photo.mediaId);
+    }
+
+    return getPublicMediaUrlInfo(photo.url, "peer public photo URL");
+  }, [photo.mediaId, photo.url, photo.visibility]);
   const [state, setState] = useState<"idle" | "loading" | "loaded" | "error">(
     urlInfo.url ? "idle" : "error"
   );
@@ -128,7 +154,11 @@ function PeerPublicPhoto({
     <View style={styles.galleryPhoto}>
       {urlInfo.url && !imageFailed ? (
         <Image
-          source={{ uri: urlInfo.url }}
+          source={
+            requestHeaders
+              ? { uri: urlInfo.url, headers: requestHeaders }
+              : { uri: urlInfo.url }
+          }
           style={styles.galleryPhotoImage}
           resizeMode="cover"
           onLoadStart={() => setState("loading")}
@@ -165,7 +195,7 @@ function isProfileUnavailableError(error: unknown): boolean {
 export default function UserProfileScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"UserProfile">>();
   const route = useRoute<UserProfileRouteProp>();
-  const { user: authUser } = useAuth();
+  const { user: authUser, accessToken } = useAuth();
   const { t } = useLocale();
   const tt = useCallback(
     (key: string, fallback: string, params?: Record<string, string>) => {
@@ -191,14 +221,46 @@ export default function UserProfileScreen() {
   const [reloadKey, setReloadKey] = useState(0);
   const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
   const [failedPublicPhotoIds, setFailedPublicPhotoIds] = useState<string[]>([]);
+  const [failedLockedPhotoIds, setFailedLockedPhotoIds] = useState<string[]>([]);
   const [nearbyChatOpening, setNearbyChatOpening] = useState(false);
+  const [lockedGalleryModalVisible, setLockedGalleryModalVisible] = useState(false);
+  const [lockedGalleryPassword, setLockedGalleryPassword] = useState("");
+  const [lockedGalleryUnlocking, setLockedGalleryUnlocking] = useState(false);
+  const [lockedGalleryError, setLockedGalleryError] = useState("");
+  const [lockedGalleryOpened, setLockedGalleryOpened] = useState(false);
+  const [lockedGalleryUnlockToken, setLockedGalleryUnlockToken] = useState("");
+  const [unlockedLockedPhotos, setUnlockedLockedPhotos] = useState<UserProfilePhoto[]>([]);
   const reportedMediaFailuresRef = React.useRef<Set<string>>(new Set());
+  const activeUserIdRef = React.useRef(userId);
+
+  useEffect(() => {
+    activeUserIdRef.current = userId;
+  }, [userId]);
+
+  useEffect(() => {
+    if (accessToken && myId) return;
+
+    setFailedLockedPhotoIds([]);
+    setLockedGalleryModalVisible(false);
+    setLockedGalleryPassword("");
+    setLockedGalleryError("");
+    setLockedGalleryOpened(false);
+    setLockedGalleryUnlockToken("");
+    setUnlockedLockedPhotos([]);
+  }, [accessToken, myId]);
 
   useEffect(() => {
     let alive = true;
     setProfile(null);
     setAvatarLoadFailed(false);
     setFailedPublicPhotoIds([]);
+    setFailedLockedPhotoIds([]);
+    setLockedGalleryModalVisible(false);
+    setLockedGalleryPassword("");
+    setLockedGalleryError("");
+    setLockedGalleryOpened(false);
+    setLockedGalleryUnlockToken("");
+    setUnlockedLockedPhotos([]);
     reportedMediaFailuresRef.current.clear();
 
     if (!userId) {
@@ -355,10 +417,20 @@ export default function UserProfileScreen() {
       userId !== myId &&
       !isBlocked
   );
+  const lockedGalleryUnlockDisabled =
+    lockedGalleryUnlocking || lockedGalleryPassword.trim().length === 0;
+  const lockedGalleryImageHeaders = useMemo(() => {
+    if (!accessToken || !lockedGalleryUnlockToken) return undefined;
+
+    return {
+      Authorization: `Bearer ${accessToken}`,
+      "x-amoria-locked-gallery-token": lockedGalleryUnlockToken,
+    };
+  }, [accessToken, lockedGalleryUnlockToken]);
 
   const reportPeerMediaLoadFailed = useCallback(
     (
-      step: "avatarLoadFailed" | "publicPhotoLoadFailed",
+      step: "avatarLoadFailed" | "publicPhotoLoadFailed" | "lockedPhotoLoadFailed",
       input: {
         mediaId?: string;
         urlInfo?: PublicMediaUrlInfo;
@@ -379,7 +451,12 @@ export default function UserProfileScreen() {
       void probePublicMediaUrlInfo(urlInfo).then((probe) => {
         reportClientError({
           screen: "UserProfileScreen",
-          action: step === "avatarLoadFailed" ? "loadAvatar" : "loadPublicPhoto",
+          action:
+            step === "avatarLoadFailed"
+              ? "loadAvatar"
+              : step === "lockedPhotoLoadFailed"
+              ? "loadLockedPhoto"
+              : "loadPublicPhoto",
           step: "imageLoadFailed",
           message: "User profile media failed to load",
           metadata: {
@@ -389,7 +466,13 @@ export default function UserProfileScreen() {
             urlKind: probe.urlKind ?? input.urlInfo?.urlKind ?? "unknown",
             httpStatus: probe.httpStatus ?? null,
             contentType: probe.contentType ?? null,
-            visibility: input.visibility ?? (step === "avatarLoadFailed" ? "avatar" : "public"),
+            visibility:
+              input.visibility ??
+              (step === "avatarLoadFailed"
+                ? "avatar"
+                : step === "lockedPhotoLoadFailed"
+                ? "locked"
+                : "public"),
           },
         });
       });
@@ -406,6 +489,20 @@ export default function UserProfileScreen() {
         mediaId: photo.mediaId,
         urlInfo: getPublicMediaUrlInfo(photo.url, "peer public photo URL"),
         visibility: photo.visibility ?? "public",
+      });
+    },
+    [reportPeerMediaLoadFailed]
+  );
+
+  const markLockedPhotoFailed = useCallback(
+    (photo: UserProfilePhoto) => {
+      setFailedLockedPhotoIds((current) =>
+        current.includes(photo.mediaId) ? current : [...current, photo.mediaId]
+      );
+      reportPeerMediaLoadFailed("lockedPhotoLoadFailed", {
+        mediaId: photo.mediaId,
+        urlInfo: getLockedMediaUrlInfo(photo.url, photo.mediaId),
+        visibility: "locked",
       });
     },
     [reportPeerMediaLoadFailed]
@@ -485,6 +582,58 @@ export default function UserProfileScreen() {
       setNearbyChatOpening(false);
     }
   }, [canStartNearbyChat, displayName, navigation, nearbyChatOpening, tt, userId]);
+
+  const openLockedGalleryModal = useCallback(() => {
+    setLockedGalleryError("");
+    setLockedGalleryPassword("");
+    setLockedGalleryModalVisible(true);
+  }, []);
+
+  const closeLockedGalleryModal = useCallback(() => {
+    setLockedGalleryModalVisible(false);
+    setLockedGalleryPassword("");
+    setLockedGalleryError("");
+  }, []);
+
+  const handleUnlockLockedGallery = useCallback(async () => {
+    const password = lockedGalleryPassword.trim();
+    const targetUserId = userId;
+    if (!targetUserId || !password || lockedGalleryUnlocking) return;
+
+    setLockedGalleryUnlocking(true);
+    setLockedGalleryError("");
+    try {
+      const response = await unlockUserLockedGallery(targetUserId, password);
+      if (activeUserIdRef.current !== targetUserId) return;
+
+      const normalizedPhotos: UserProfilePhoto[] = response.photos.map((photo) => ({
+        mediaId: photo.mediaId,
+        url: photo.url,
+        position: photo.position,
+        visibility: "locked",
+      }));
+
+      setUnlockedLockedPhotos(normalizedPhotos);
+      setFailedLockedPhotoIds([]);
+      setLockedGalleryUnlockToken(response.unlockToken);
+      setLockedGalleryOpened(true);
+      setLockedGalleryModalVisible(false);
+      setLockedGalleryPassword("");
+      setLockedGalleryError("");
+    } catch {
+      if (activeUserIdRef.current !== targetUserId) return;
+      setLockedGalleryError(
+        tt(
+          "profile.lockedGalleryUnlockError",
+          "Пароль не подошёл или доступ недоступен."
+        )
+      );
+    } finally {
+      if (activeUserIdRef.current === targetUserId) {
+        setLockedGalleryUnlocking(false);
+      }
+    }
+  }, [lockedGalleryPassword, lockedGalleryUnlocking, tt, userId]);
 
   const openSharedStory = useCallback(() => {
     if (!sourceSessionId || !sharedStoryAvailable) return;
@@ -689,6 +838,7 @@ export default function UserProfileScreen() {
       overlayOpacity={0.16}
       showBack
     >
+      <>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}
@@ -794,20 +944,103 @@ export default function UserProfileScreen() {
           )}
         </View>
 
-        {lockedGalleryAvailable ? (
-          <View style={[styles.galleryCard, styles.lockedGalleryNotice]}>
-            <Text style={styles.cardKicker}>
-              {tt("profile.lockedGalleryKicker", "Доступ к фото")}
-            </Text>
+        {lockedGalleryAvailable && !lockedGalleryOpened ? (
+          <View style={[styles.galleryCard, styles.lockedFolderCard]}>
+            <View style={styles.lockedFolderHeader}>
+              <View style={styles.lockedFolderIcon}>
+                <Ionicons
+                  name="lock-closed-outline"
+                  size={22}
+                  color={theme.colors.textAccent}
+                />
+              </View>
+              <View style={styles.lockedFolderCopy}>
+                <Text style={styles.lockedFolderTitle}>
+                  {tt("profile.lockedGalleryFolderTitle", "Закрытая папка")}
+                </Text>
+                <Text style={styles.cardText}>
+                  {tt(
+                    "profile.lockedGalleryFolderBody",
+                    "{count} приватных фото. Открывается только если владелец дал пароль.",
+                    { count: String(lockedGallery?.count ?? 0) }
+                  )}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.lockedFolderActions}>
+              <TouchableOpacity
+                onPress={openLockedGalleryModal}
+                style={styles.lockedFolderButton}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.lockedFolderButtonText}>
+                  {tt("profile.lockedGalleryOpenWithPassword", "Открыть по паролю")}
+                </Text>
+              </TouchableOpacity>
+              {hasThread ? (
+                <TouchableOpacity
+                  onPress={openChat}
+                  style={styles.lockedFolderSecondaryButton}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.lockedFolderSecondaryButtonText}>
+                    {tt("profile.lockedGalleryAskInChat", "Попросить в чате")}
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
+              {canStartNearbyChat ? (
+                <TouchableOpacity
+                  onPress={() => void openNearbyChat()}
+                  disabled={nearbyChatOpening}
+                  style={[
+                    styles.lockedFolderSecondaryButton,
+                    nearbyChatOpening ? styles.disabledButton : null,
+                  ]}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.lockedFolderSecondaryButtonText}>
+                    {tt("profile.lockedGalleryMessage", "Написать")}
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          </View>
+        ) : null}
+
+        {lockedGalleryOpened ? (
+          <View style={[styles.galleryCard, styles.lockedGalleryOpenedCard]}>
             <Text style={styles.cardTitle}>
-              {tt("profile.lockedGalleryTitle", "Дополнительные фото")}
+              {tt("profile.lockedGalleryOpenedTitle", "Закрытая папка открыта")}
             </Text>
             <Text style={styles.cardText}>
-              {tt(
-                "profile.lockedGalleryBody",
-                "Дополнительные фото будут доступны позже в сценариях общения."
-              )}
+              {unlockedLockedPhotos.length
+                ? tt(
+                    "profile.lockedGalleryOpenedBody",
+                    "Фото доступны в этом просмотре."
+                  )
+                : tt(
+                    "profile.lockedGalleryOpenedEmpty",
+                    "Папка открыта, но фото сейчас недоступны."
+                  )}
             </Text>
+            {unlockedLockedPhotos.length ? (
+              <View style={styles.galleryGrid}>
+                {unlockedLockedPhotos.map((photo, index) => (
+                  <PeerPublicPhoto
+                    key={`locked-${photo.mediaId ?? photo.url}-${index}`}
+                    photo={photo}
+                    index={index}
+                    failed={failedLockedPhotoIds.includes(photo.mediaId)}
+                    failedLabel={tt(
+                      "profile.lockedPhotoLoadFailed",
+                      "Это закрытое фото не загрузилось."
+                    )}
+                    onLoadFailed={markLockedPhotoFailed}
+                    requestHeaders={lockedGalleryImageHeaders}
+                  />
+                ))}
+              </View>
+            ) : null}
           </View>
         ) : null}
 
@@ -862,6 +1095,77 @@ export default function UserProfileScreen() {
           </View>
         </View>
       </ScrollView>
+      <Modal
+        visible={lockedGalleryModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={closeLockedGalleryModal}
+      >
+        <View style={styles.lockedGalleryModalBackdrop}>
+          <Pressable
+            style={StyleSheet.absoluteFillObject}
+            onPress={closeLockedGalleryModal}
+          />
+          <View style={styles.lockedGallerySheet}>
+            <View style={styles.lockedGallerySheetHandle} />
+            <Text style={styles.lockedGallerySheetTitle}>
+              {tt("profile.lockedGalleryModalTitle", "Открыть закрытую папку")}
+            </Text>
+            <Text style={styles.lockedGallerySheetBody}>
+              {tt(
+                "profile.lockedGalleryModalBody",
+                "Введите пароль, который владелец профиля дал вам лично."
+              )}
+            </Text>
+            <TextInput
+              value={lockedGalleryPassword}
+              onChangeText={(value) => {
+                setLockedGalleryPassword(value);
+                if (lockedGalleryError) setLockedGalleryError("");
+              }}
+              secureTextEntry
+              autoCapitalize="none"
+              autoCorrect={false}
+              editable={!lockedGalleryUnlocking}
+              placeholder={tt("profile.lockedGalleryPasswordPlaceholder", "Пароль")}
+              placeholderTextColor="rgba(255,255,255,0.45)"
+              style={styles.lockedGalleryInput}
+              returnKeyType="done"
+              onSubmitEditing={() => void handleUnlockLockedGallery()}
+            />
+            {lockedGalleryError ? (
+              <Text style={styles.lockedGalleryError}>{lockedGalleryError}</Text>
+            ) : null}
+            <View style={styles.lockedGalleryModalActions}>
+              <TouchableOpacity
+                onPress={closeLockedGalleryModal}
+                style={styles.lockedGalleryCancelButton}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.lockedGalleryCancelText}>
+                  {tt("profile.lockedGalleryUnlockCancel", "Отмена")}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => void handleUnlockLockedGallery()}
+                disabled={lockedGalleryUnlockDisabled}
+                style={[
+                  styles.lockedGalleryUnlockButton,
+                  lockedGalleryUnlockDisabled ? styles.disabledButton : null,
+                ]}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.lockedGalleryUnlockText}>
+                  {lockedGalleryUnlocking
+                    ? tt("profile.lockedGalleryUnlocking", "Проверяем...")
+                    : tt("profile.lockedGalleryUnlockAction", "Открыть")}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+      </>
     </ScreenShell>
   );
 }
@@ -979,9 +1283,81 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.10)",
     gap: 12,
   },
-  lockedGalleryNotice: {
-    backgroundColor: "rgba(10, 14, 26, 0.58)",
-    borderColor: "rgba(255,255,255,0.08)",
+  lockedFolderCard: {
+    minHeight: 96,
+    padding: 14,
+    borderRadius: 22,
+    backgroundColor: theme.cards.warning.backgroundColor,
+    borderColor: theme.cards.warning.borderColor,
+    borderWidth: theme.cards.warning.borderWidth,
+  },
+  lockedFolderHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+  lockedFolderIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(243,201,139,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(243,201,139,0.28)",
+  },
+  lockedFolderCopy: {
+    flex: 1,
+    gap: 5,
+  },
+  lockedFolderTitle: {
+    color: theme.colors.text,
+    fontSize: 17,
+    lineHeight: 22,
+    fontWeight: "900",
+  },
+  lockedFolderActions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  lockedFolderButton: {
+    minHeight: 42,
+    borderRadius: theme.buttons.secondary.borderRadius,
+    paddingHorizontal: theme.buttons.secondary.paddingHorizontal,
+    paddingVertical: 10,
+    backgroundColor: theme.buttons.secondary.backgroundColor,
+    borderWidth: theme.buttons.secondary.borderWidth,
+    borderColor: theme.buttons.secondary.borderColor,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  lockedFolderButtonText: {
+    color: theme.buttons.secondary.textColor,
+    fontSize: theme.buttons.secondary.fontSize,
+    lineHeight: theme.buttons.secondary.lineHeight,
+    fontWeight: theme.buttons.secondary.fontWeight,
+  },
+  lockedFolderSecondaryButton: {
+    minHeight: 42,
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 13,
+    paddingVertical: 10,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  lockedFolderSecondaryButtonText: {
+    color: theme.colors.text,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: "800",
+  },
+  lockedGalleryOpenedCard: {
+    backgroundColor: "rgba(10, 14, 26, 0.88)",
+    borderColor: "rgba(243,201,139,0.24)",
   },
   galleryGrid: {
     flexDirection: "row",
@@ -1070,5 +1446,98 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
     fontSize: 12,
     fontWeight: "800",
+  },
+  lockedGalleryModalBackdrop: {
+    flex: 1,
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(0,0,0,0.42)",
+  },
+  lockedGallerySheet: {
+    width: "100%",
+    minHeight: theme.sheets.minHeight,
+    paddingHorizontal: theme.sheets.paddingHorizontal,
+    paddingTop: 16,
+    paddingBottom: 20,
+    backgroundColor: theme.sheets.backgroundColor,
+    borderTopWidth: 1,
+    borderColor: theme.sheets.borderColor,
+    borderTopLeftRadius: theme.sheets.borderTopLeftRadius,
+    borderTopRightRadius: theme.sheets.borderTopRightRadius,
+    gap: 12,
+  },
+  lockedGallerySheetHandle: {
+    alignSelf: "center",
+    width: theme.sheets.handleWidth,
+    height: theme.sheets.handleHeight,
+    borderRadius: theme.sheets.handleRadius,
+    backgroundColor: "rgba(255,255,255,0.28)",
+    marginBottom: 2,
+  },
+  lockedGallerySheetTitle: {
+    color: theme.colors.text,
+    fontSize: 18,
+    lineHeight: 23,
+    fontWeight: "900",
+  },
+  lockedGallerySheetBody: {
+    color: theme.colors.subtext,
+    fontSize: 13,
+    lineHeight: 20,
+  },
+  lockedGalleryInput: {
+    minHeight: 46,
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    backgroundColor: "rgba(255,255,255,0.07)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+    color: theme.colors.text,
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  lockedGalleryError: {
+    color: theme.colors.dangerText,
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: "700",
+  },
+  lockedGalleryModalActions: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 2,
+  },
+  lockedGalleryCancelButton: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: theme.buttons.secondary.borderRadius,
+    backgroundColor: theme.buttons.secondary.backgroundColor,
+    borderWidth: theme.buttons.secondary.borderWidth,
+    borderColor: theme.buttons.secondary.borderColor,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 12,
+  },
+  lockedGalleryCancelText: {
+    color: theme.buttons.secondary.textColor,
+    fontSize: theme.buttons.secondary.fontSize,
+    lineHeight: theme.buttons.secondary.lineHeight,
+    fontWeight: theme.buttons.secondary.fontWeight,
+  },
+  lockedGalleryUnlockButton: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: theme.buttons.primary.borderRadius,
+    backgroundColor: theme.buttons.primary.backgroundColor,
+    borderWidth: theme.buttons.primary.borderWidth,
+    borderColor: theme.buttons.primary.borderColor,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 12,
+  },
+  lockedGalleryUnlockText: {
+    color: theme.buttons.primary.textColor,
+    fontSize: theme.buttons.primary.fontSize,
+    lineHeight: theme.buttons.primary.lineHeight,
+    fontWeight: theme.buttons.primary.fontWeight,
   },
 });
