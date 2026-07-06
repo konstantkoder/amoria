@@ -12,6 +12,7 @@ import {
   View,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
+import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
@@ -29,7 +30,7 @@ import ScreenShell from "@/components/ScreenShell";
 import UserAvatar from "@/components/UserAvatar";
 import { useLocale } from "@/contexts/LocaleContext";
 import type { ProfileGender, UserProfile, UserProfilePhoto } from "@/models/User";
-import type { ProfileStackParamList } from "@/navigation/appRoutes";
+import type { ProfileStackParamList, RootStackNavigationProp } from "@/navigation/appRoutes";
 import {
   UploadFlowError,
   getUriScheme,
@@ -291,6 +292,7 @@ function ProfilePublicPhoto({
 
 export default function ProfileScreen() {
   const navigation = useNavigation<ProfileNav>();
+  const rootNavigation = navigation.getParent<RootStackNavigationProp>();
   const { t } = useLocale();
   const [profile, setProfile] = React.useState<UserProfile | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -662,6 +664,24 @@ export default function ProfileScreen() {
     [navigation, t]
   );
 
+  const openNearbyActivityPreferences = React.useCallback(() => {
+    if (rootNavigation) {
+      rootNavigation.navigate("NearbyActivityPreferences");
+      return;
+    }
+
+    reportClientError({
+      screen: "ProfileScreen",
+      action: "openNearbyActivityPreferences",
+      step: "missingRootNavigation",
+      message: "Missing root navigation while opening NearbyActivityPreferences",
+    });
+    Alert.alert(
+      t("profile.nearbyActivityQuestionnaireOpenFailedTitle"),
+      t("profile.nearbyActivityQuestionnaireOpenFailedBody")
+    );
+  }, [rootNavigation, t]);
+
   if (loading) {
     return (
       <ScreenShell
@@ -904,6 +924,32 @@ export default function ProfileScreen() {
           <Text style={styles.sectionNote}>{t("profile.searchReuseNote")}</Text>
         </View>
 
+        <View style={[styles.sectionCard, styles.nearbyActivityCard]}>
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionHeaderCopy}>
+              <Text style={styles.sectionTitle}>
+                {t("profile.nearbyActivityQuestionnaireTitle")}
+              </Text>
+              <Text style={styles.sectionSubtitle}>
+                {t("profile.nearbyActivityQuestionnaireSubtitle")}
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={[styles.sectionAction, styles.nearbyActivityAction]}
+              activeOpacity={0.86}
+              onPress={openNearbyActivityPreferences}
+            >
+              <Ionicons name="options-outline" size={18} color={theme.colors.textAccent} />
+              <Text style={[styles.sectionActionText, styles.nearbyActivityActionText]}>
+                {t("profile.nearbyActivityQuestionnaireAction")}
+              </Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.sectionNote}>
+            {t("profile.nearbyActivityQuestionnaireBody")}
+          </Text>
+        </View>
+
         <View style={[styles.sectionCard, styles.photoSectionCard]}>
           <View style={styles.sectionHeader}>
             <View style={styles.sectionHeaderCopy}>
@@ -1123,6 +1169,32 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.68)",
     fontSize: 12,
     lineHeight: 18,
+  },
+  nearbyActivityCard: {
+    backgroundColor: theme.cards.standard.backgroundColor,
+    borderColor: theme.cards.standard.borderColor,
+    borderWidth: theme.cards.standard.borderWidth,
+    borderRadius: theme.cards.standard.borderRadius,
+    padding: theme.cards.standard.padding,
+  },
+  nearbyActivityAction: {
+    minHeight: theme.buttons.secondary.minHeight,
+    height: theme.buttons.secondary.height,
+    paddingHorizontal: theme.buttons.secondary.paddingHorizontal,
+    paddingVertical: 0,
+    borderRadius: theme.buttons.secondary.borderRadius,
+    borderWidth: theme.buttons.secondary.borderWidth,
+    backgroundColor: theme.buttons.secondary.backgroundColor,
+    borderColor: theme.buttons.secondary.borderColor,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.buttons.secondary.iconTextGap,
+  },
+  nearbyActivityActionText: {
+    color: theme.buttons.secondary.textColor,
+    fontSize: theme.buttons.secondary.fontSize,
+    lineHeight: theme.buttons.secondary.lineHeight,
+    fontWeight: theme.buttons.secondary.fontWeight,
   },
   summaryRow: {
     gap: 4,

@@ -33,7 +33,6 @@ function copyOrFallback(
 
 type DrawerSection =
   | "profile"
-  | "nearbyActivityPreferences"
   | "settings"
   | "language"
   | "privacy";
@@ -54,7 +53,6 @@ function activeSectionFromRoute(route?: RouteSnapshot): DrawerSection | null {
   }
 
   if (route.name === "Profile" || route.name === "UserProfile") return "profile";
-  if (route.name === "NearbyActivityPreferences") return "nearbyActivityPreferences";
   if (route.name === "Settings" || route.name === "LocationInfo") return "settings";
   if (route.name === "PrivacyPolicy") return "privacy";
   return null;
@@ -92,11 +90,6 @@ export default function AppDrawerContent({ onClose }: Props) {
   const handleOpenProfile = React.useCallback(() => {
     onClose?.();
     navigation.navigate("Profile", { screen: "ProfileMain" });
-  }, [navigation, onClose]);
-
-  const handleOpenNearbyActivityPreferences = React.useCallback(() => {
-    onClose?.();
-    navigation.navigate("NearbyActivityPreferences");
   }, [navigation, onClose]);
 
   const handleOpenSettings = React.useCallback(() => {
@@ -204,12 +197,6 @@ export default function AppDrawerContent({ onClose }: Props) {
             icon: "person-outline",
             label: t("menu.profile"),
             onPress: handleOpenProfile,
-          })}
-          {renderButton({
-            section: "nearbyActivityPreferences",
-            icon: "options-outline",
-            label: t("screen.nearbyActivityPreferences"),
-            onPress: handleOpenNearbyActivityPreferences,
           })}
           {renderButton({
             section: "settings",
