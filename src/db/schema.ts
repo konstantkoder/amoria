@@ -759,7 +759,7 @@ export const nearbyRooms = pgTable(
     index("nearby_rooms_geo_status_idx").on(table.geoBucket, table.status),
     check(
       "nearby_rooms_status_check",
-      sql`${table.status} IN ('active', 'closed', 'disabled')`,
+      sql`${table.status} IN ('active', 'closed', 'disabled', 'archived')`,
     ),
   ],
 );

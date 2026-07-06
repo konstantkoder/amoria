@@ -74,6 +74,10 @@ export type AdminNearbyRoomsResponse = {
   nextCursor: null;
 };
 
+export type AdminNearbyRoomsQuery = {
+  includeArchived: boolean;
+};
+
 export type AdminNearbyRoomDetailResponse = {
   room: AdminNearbyRoomDto;
 };
@@ -100,7 +104,7 @@ export type AdminCreateNearbyRoomFromDemandBody = {
   expiresAt?: string;
 };
 
-export type AdminNearbyRoomAction = "close" | "disable" | "reopen";
+export type AdminNearbyRoomAction = "close" | "disable" | "reopen" | "archive";
 
 export type AdminNearbyRoomActionBody = {
   action: AdminNearbyRoomAction;

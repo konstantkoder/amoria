@@ -10,6 +10,8 @@ import type {
 import type {
   AdminNearbyRoomRow,
   CreateNearbyRoomInput,
+  ListNearbyRoomsForAdminOptions,
+  NearbyRoomListRow,
 } from "../src/nearby/nearby-rooms.repo";
 
 process.env.NODE_ENV = "test";
@@ -23,8 +25,14 @@ const { buildApp } = require("../src/app") as typeof import("../src/app");
 const { signAccessToken } = require("../src/auth/jwt") as typeof import("../src/auth/jwt");
 const { closeDb } = require("../src/db/client") as typeof import("../src/db/client");
 const adminService = require("../src/admin/admin.service") as typeof import("../src/admin/admin.service");
+const {
+  parseAdminNearbyRoomActionBody,
+  parseAdminNearbyRoomsQuery,
+} = require("../src/admin/admin-nearby-rooms.schemas") as typeof import("../src/admin/admin-nearby-rooms.schemas");
 const adminNearbyRoomsService =
   require("../src/admin/admin-nearby-rooms.service") as typeof import("../src/admin/admin-nearby-rooms.service");
+const nearbyRoomsService =
+  require("../src/nearby/nearby-rooms.service") as typeof import("../src/nearby/nearby-rooms.service");
 
 type NearbyRoomsRepo = typeof import("../src/nearby/nearby-rooms.repo");
 
@@ -32,13 +40,36 @@ const now = new Date("2026-06-20T12:00:00.000Z");
 const userId = "00000000-0000-4000-8000-000000000001";
 const adminUserId = "00000000-0000-4000-8000-0000000000a1";
 const roomId = "00000000-0000-4000-8000-000000000101";
+const archivedRoomId = "00000000-0000-4000-8000-000000000102";
 
 let restoreAdminDeps: (() => void) | null = null;
 let restoreNearbyRoomDeps: (() => void) | null = null;
+let restorePublicRoomsDeps: (() => void) | null = null;
 
 test.after(async () => {
   restoreDeps();
   await closeDb();
+});
+
+test("parseAdminNearbyRoomActionBody accepts archive and rejects delete/remove", () => {
+  assert.deepEqual(parseAdminNearbyRoomActionBody({ action: "archive" }), {
+    action: "archive",
+  });
+  assert.throws(() => parseAdminNearbyRoomActionBody({ action: "delete" }));
+  assert.throws(() => parseAdminNearbyRoomActionBody({ action: "remove" }));
+});
+
+test("parseAdminNearbyRoomsQuery accepts boolean-like includeArchived values", () => {
+  assert.deepEqual(parseAdminNearbyRoomsQuery({}), { includeArchived: false });
+  assert.deepEqual(parseAdminNearbyRoomsQuery({ includeArchived: true }), {
+    includeArchived: true,
+  });
+  assert.deepEqual(parseAdminNearbyRoomsQuery({ includeArchived: "true" }), {
+    includeArchived: true,
+  });
+  assert.deepEqual(parseAdminNearbyRoomsQuery({ includeArchived: "1" }), {
+    includeArchived: true,
+  });
 });
 
 test("POST /admin/nearby-rooms creates a real room with valid active approved type", async (t) => {
@@ -162,7 +193,7 @@ test("POST /admin/nearby-rooms rejects disabled or unapproved room type", async 
   assert.equal(state.createdRooms.length, 0);
 });
 
-test("POST /admin/nearby-rooms/:roomId/actions closes disables and reopens rooms", async (t) => {
+test("POST /admin/nearby-rooms/:roomId/actions closes disables archives and reopens rooms", async (t) => {
   t.after(restoreDeps);
   mockAdmin({ roles: ["moderator"] });
   const state = mockNearbyRoomAdmin({ rooms: [adminRoomRow()] });
@@ -173,29 +204,112 @@ test("POST /admin/nearby-rooms/:roomId/actions closes disables and reopens rooms
 
   const close = await roomAction(app, "close");
   const disable = await roomAction(app, "disable");
+  const archive = await roomAction(app, "archive");
   const reopen = await roomAction(app, "reopen");
 
   assert.equal(close.statusCode, 200);
   assert.equal(close.json().room.status, "closed");
   assert.equal(disable.statusCode, 200);
   assert.equal(disable.json().room.status, "disabled");
+  assert.equal(archive.statusCode, 200);
+  assert.equal(archive.json().room.status, "archived");
   assert.equal(reopen.statusCode, 200);
   assert.equal(reopen.json().room.status, "active");
   assert.deepEqual(
     state.moderationActions.map((action) => action.action),
-    ["close", "disable", "reopen"],
+    ["close", "disable", "archive", "reopen"],
   );
   assert.deepEqual(
     state.auditInputs.map((input) => input.action),
     [
       "admin.nearbyRooms.close",
       "admin.nearbyRooms.disable",
+      "admin.nearbyRooms.archive",
       "admin.nearbyRooms.reopen",
     ],
   );
   assert.equal(state.room(roomId)?.memberCount, 0);
   assert.equal(state.room(roomId)?.threadId, null);
   assertNoPrivateNearbyFields(reopen.json());
+});
+
+test("GET /admin/nearby-rooms hides archived by default and includes archived on query", async (t) => {
+  t.after(restoreDeps);
+  mockAdmin({ roles: ["support"] });
+  const state = mockNearbyRoomAdmin({
+    rooms: [
+      adminRoomRow(),
+      adminRoomRow({
+        id: archivedRoomId,
+        status: "archived",
+        updatedAt: new Date("2026-06-20T12:05:00.000Z"),
+      }),
+    ],
+  });
+  const app = buildApp();
+  t.after(async () => {
+    await app.close();
+  });
+
+  const defaultList = await app.inject({
+    method: "GET",
+    url: "/admin/nearby-rooms",
+    headers: authHeaders(userId),
+  });
+  const archivedList = await app.inject({
+    method: "GET",
+    url: "/admin/nearby-rooms?includeArchived=true",
+    headers: authHeaders(userId),
+  });
+
+  assert.equal(defaultList.statusCode, 200);
+  assert.deepEqual(
+    defaultList.json().items.map((item: { id: string }) => item.id),
+    [roomId],
+  );
+  assert.equal(archivedList.statusCode, 200);
+  assert.deepEqual(
+    archivedList.json().items.map((item: { id: string }) => item.id),
+    [roomId, archivedRoomId],
+  );
+  assert.deepEqual(state.listOptions, [
+    { includeArchived: false },
+    { includeArchived: true },
+  ]);
+  assert.deepEqual(
+    state.auditInputs.map((input) => input.metadata),
+    [
+      { includeArchived: false, resultCount: 1 },
+      { includeArchived: true, resultCount: 2 },
+    ],
+  );
+});
+
+test("public nearby rooms list returns active rooms and not archived rooms", async (t) => {
+  t.after(restoreDeps);
+  const activeRoom = nearbyRoomListRow();
+  const archivedRoom = nearbyRoomListRow({
+    id: archivedRoomId,
+    status: "archived",
+  });
+  restorePublicRoomsDeps = nearbyRoomsService.__setNearbyRoomsServiceDepsForTests({
+    repo: {
+      listPublicNearbyRoomsForUser: async () =>
+        [activeRoom, archivedRoom].filter((room) => room.status === "active"),
+      findNearbyRoomForUser: async () => undefined,
+      createNearbyRoomMembership: async () => undefined,
+      reactivateNearbyRoomMembership: async () => undefined,
+      markNearbyRoomMembershipLeft: async () => undefined,
+    },
+    activityPreferencesRepo: {
+      hasActiveUserActivityPreferenceForActivity: async () => false,
+    },
+  });
+
+  const response = await nearbyRoomsService.listNearbyRooms(userId);
+
+  assert.deepEqual(response.items.map((item) => item.id), [roomId]);
+  assert.deepEqual(new Set(response.items.map((item) => item.status)), new Set(["active"]));
 });
 
 test("support and ops cannot create or modify nearby rooms", async (t) => {
@@ -264,18 +378,24 @@ function mockNearbyRoomAdmin(input: {
   const state: {
     auditInputs: AdminAuditInput[];
     createdRooms: CreateNearbyRoomInput[];
+    listOptions: Required<ListNearbyRoomsForAdminOptions>[];
     moderationActions: Array<{ roomId: string; adminUserId: string; action: string }>;
     room: (nextRoomId: string) => AdminNearbyRoomRow | undefined;
   } = {
     auditInputs: [],
     createdRooms: [],
+    listOptions: [],
     moderationActions: [],
     room: (nextRoomId) => rooms.get(nextRoomId),
   };
 
   const repo = {
     listNearbyRoomTypesForAdmin: async () => [...roomTypes.values()],
-    listNearbyRoomsForAdmin: async () => [...rooms.values()],
+    listNearbyRoomsForAdmin: async (options: ListNearbyRoomsForAdminOptions = {}) => {
+      const includeArchived = Boolean(options.includeArchived);
+      state.listOptions.push({ includeArchived });
+      return [...rooms.values()].filter((room) => includeArchived || room.status !== "archived");
+    },
     findNearbyRoomTypeByKey: async (typeKey: string) => roomTypes.get(typeKey),
     findNearbyRoomForAdmin: async (nextRoomId: string) => rooms.get(nextRoomId),
     createNearbyRoomForAdmin: async (createInput: CreateNearbyRoomInput) => {
@@ -305,7 +425,7 @@ function mockNearbyRoomAdmin(input: {
     },
     updateNearbyRoomStatusForAdmin: async (
       nextRoomId: string,
-      status: "active" | "closed" | "disabled",
+      status: "active" | "closed" | "disabled" | "archived",
       updatedAt: Date,
     ) => {
       const room = rooms.get(nextRoomId);
@@ -339,13 +459,15 @@ function mockNearbyRoomAdmin(input: {
 function restoreDeps(): void {
   restoreAdminDeps?.();
   restoreNearbyRoomDeps?.();
+  restorePublicRoomsDeps?.();
   restoreAdminDeps = null;
   restoreNearbyRoomDeps = null;
+  restorePublicRoomsDeps = null;
 }
 
 async function roomAction(
   app: ReturnType<typeof buildApp>,
-  action: "close" | "disable" | "reopen",
+  action: "close" | "disable" | "reopen" | "archive",
 ) {
   return app.inject({
     method: "POST",
@@ -403,6 +525,27 @@ function adminRoomRow(overrides: Partial<AdminNearbyRoomRow> = {}): AdminNearbyR
     threadId: null,
     createdByAdminUserId: adminUserId,
     memberCount: 0,
+    createdAt: now,
+    updatedAt: now,
+    ...overrides,
+  };
+}
+
+function nearbyRoomListRow(overrides: Partial<NearbyRoomListRow> = {}): NearbyRoomListRow {
+  return {
+    id: roomId,
+    typeKey: "coffee_nearby",
+    title: "Coffee nearby",
+    geoBucket: "city:zagreb:center",
+    locationLabel: null,
+    startsAt: null,
+    roomTypeStatus: "active",
+    adminApproved: true,
+    sortOrder: 10,
+    status: "active",
+    threadId: null,
+    memberCount: 0,
+    viewerMembershipStatus: null,
     createdAt: now,
     updatedAt: now,
     ...overrides,

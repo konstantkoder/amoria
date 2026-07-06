@@ -355,8 +355,10 @@ export const en = {
   "nearbyDemand.visibleGeoBucketHelp": "Only visible demand geoBuckets can be selected.",
 
   "nearbyRooms.actionApplied": "{action} applied to activity room {id}.",
+  "nearbyRooms.action.archive": "Archive",
   "nearbyRooms.adminApproved": "Admin Approved",
   "nearbyRooms.applying": "Applying...",
+  "nearbyRooms.archiveNote": "Archive hides the activity from the default list and mobile feed, but keeps members, chat and history.",
   "nearbyRooms.create": "Create activity room",
   "nearbyRooms.created": "Nearby activity room {id} created.",
   "nearbyRooms.createTitle": "Create Activity Room",
@@ -374,6 +376,7 @@ export const en = {
   "nearbyRooms.memberCount": "Members",
   "nearbyRooms.readOnlyNote": "Read-only access. Only owner/moderator can create or change activity rooms.",
   "nearbyRooms.roomId": "Room ID",
+  "nearbyRooms.showArchived": "Show archive",
   "nearbyRooms.startsAt": "Starts at",
   "nearbyRooms.threadId": "Thread ID",
   "nearbyRooms.technicalSubtitle": "Rooms / technical",

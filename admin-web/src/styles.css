@@ -104,6 +104,15 @@ tr.selected td {
   background: #eaf3f4;
 }
 
+tr.archived td {
+  background: #f6f8f9;
+  color: #60717a;
+}
+
+tr.archived.selected td {
+  background: #eaf3f4;
+}
+
 tr.warning-row td {
   background: #fff7e6;
 }
@@ -228,6 +237,28 @@ nav button:hover {
 
 .panel-header h2 {
   margin: 0;
+}
+
+.panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #53646d;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.checkbox-label input {
+  width: auto;
+  min-height: auto;
 }
 
 .grid-two {

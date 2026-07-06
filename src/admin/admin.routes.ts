@@ -33,6 +33,7 @@ import {
   parseAdminCreateNearbyRoomFromDemandBody,
   parseAdminCreateNearbyRoomBody,
   parseAdminNearbyRoomActionBody,
+  parseAdminNearbyRoomsQuery,
 } from "./admin-nearby-rooms.schemas";
 import * as adminNearbyRoomsService from "./admin-nearby-rooms.service";
 import {
@@ -273,6 +274,7 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
     async (request) =>
       adminNearbyRoomsService.listNearbyRoomsForAdmin(
         currentAdmin(request),
+        parseAdminNearbyRoomsQuery(request.query),
         adminRequestContext(request),
       ),
   );

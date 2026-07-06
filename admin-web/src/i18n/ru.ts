@@ -357,8 +357,10 @@ export const ru: Record<TranslationKey, string> = {
   "nearbyDemand.visibleGeoBucketHelp": "Можно выбрать только видимые geoBuckets из спроса.",
 
   "nearbyRooms.actionApplied": "{action}: активность рядом / room {id} обновлена.",
+  "nearbyRooms.action.archive": "В архив",
   "nearbyRooms.adminApproved": "Одобрено админом",
   "nearbyRooms.applying": "Применяем...",
+  "nearbyRooms.archiveNote": "Архив скрывает активность из обычного списка и мобильной выдачи, но не удаляет участников, чат и историю.",
   "nearbyRooms.create": "Создать активность",
   "nearbyRooms.created": "Активность рядом / room {id} создана.",
   "nearbyRooms.createTitle": "Создать активность рядом",
@@ -376,6 +378,7 @@ export const ru: Record<TranslationKey, string> = {
   "nearbyRooms.memberCount": "Участники",
   "nearbyRooms.readOnlyNote": "Доступ только для чтения. Создавать или изменять активности могут только owner/moderator.",
   "nearbyRooms.roomId": "Room ID",
+  "nearbyRooms.showArchived": "Показать архив",
   "nearbyRooms.startsAt": "Начинается",
   "nearbyRooms.threadId": "Thread ID",
   "nearbyRooms.technicalSubtitle": "Rooms / технически",

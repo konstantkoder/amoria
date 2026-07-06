@@ -6,9 +6,10 @@ import type {
   AdminCreateNearbyRoomBody,
   AdminCreateNearbyRoomFromDemandBody,
   AdminNearbyRoomActionBody,
+  AdminNearbyRoomsQuery,
 } from "../nearby/nearby-rooms.types";
 
-const nearbyRoomActionValues = ["close", "disable", "reopen"] as const;
+const nearbyRoomActionValues = ["close", "disable", "reopen", "archive"] as const;
 const isoDateTimePattern =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
 
@@ -42,6 +43,12 @@ const createNearbyRoomFromDemandBodySchema = z
 const nearbyRoomActionBodySchema = z
   .object({
     action: z.enum(nearbyRoomActionValues),
+  })
+  .strict();
+
+const adminNearbyRoomsQuerySchema = z
+  .object({
+    includeArchived: z.preprocess(parseOptionalBooleanLike, z.boolean()).default(false),
   })
   .strict();
 
@@ -164,6 +171,19 @@ const nearbyRoomActionBodyJsonSchema = {
   },
 } as const;
 
+const adminNearbyRoomsQueryJsonSchema = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    includeArchived: {
+      anyOf: [
+        { type: "boolean" },
+        { type: "string", enum: ["true", "false", "1", "0", ""] },
+      ],
+    },
+  },
+} as const;
+
 const adminNearbyRoomResponseSchema = {
   type: "object",
   required: ["room"],
@@ -187,6 +207,10 @@ export function parseAdminNearbyRoomActionBody(input: unknown): AdminNearbyRoomA
   return parseWithValidation(nearbyRoomActionBodySchema, input);
 }
 
+export function parseAdminNearbyRoomsQuery(input: unknown): AdminNearbyRoomsQuery {
+  return parseWithValidation(adminNearbyRoomsQuerySchema, input);
+}
+
 export const adminNearbyRoomTypesRouteSchema = {
   response: {
     200: {
@@ -205,6 +229,7 @@ export const adminNearbyRoomTypesRouteSchema = {
 } as const satisfies FastifySchema;
 
 export const adminNearbyRoomsRouteSchema = {
+  querystring: adminNearbyRoomsQueryJsonSchema,
   response: {
     200: {
       type: "object",
@@ -315,4 +340,20 @@ function scheduledNearbyRoomBodyJsonSchemaProperties() {
     endsAt: { type: "string", format: "date-time" },
     expiresAt: { type: "string", format: "date-time" },
   } as const;
+}
+
+function parseOptionalBooleanLike(value: unknown): boolean | unknown {
+  if (value === undefined || value === null || value === "") {
+    return false;
+  }
+
+  if (value === true || value === "true" || value === "1") {
+    return true;
+  }
+
+  if (value === false || value === "false" || value === "0") {
+    return false;
+  }
+
+  return value;
 }

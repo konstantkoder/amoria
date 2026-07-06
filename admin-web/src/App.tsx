@@ -1997,6 +1997,7 @@ function NearbyRoomsScreen({
   const [loading, setLoading] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [includeArchivedRooms, setIncludeArchivedRooms] = useState(false);
   const [createFromDemandForm, setCreateFromDemandForm] = useState<CreateFromDemandForm | null>(null);
   const [creatingFromDemand, setCreatingFromDemand] = useState(false);
   const [busyAction, setBusyAction] = useState<AdminNearbyRoomAction | null>(null);
@@ -2024,9 +2025,12 @@ function NearbyRoomsScreen({
     setError(null);
 
     try {
+      const roomsPath = `/admin/nearby-rooms${toQuery({
+        includeArchived: includeArchivedRooms ? "true" : undefined,
+      })}`;
       const [typesResponse, roomsResponse] = await Promise.all([
         apiGet<{ items: AdminNearbyRoomType[]; nextCursor: null }>("/admin/nearby-room-types"),
-        apiGet<{ items: AdminNearbyRoom[]; nextCursor: null }>("/admin/nearby-rooms"),
+        apiGet<{ items: AdminNearbyRoom[]; nextCursor: null }>(roomsPath),
       ]);
 
       setRoomTypes(typesResponse.items);
@@ -2076,6 +2080,9 @@ function NearbyRoomsScreen({
 
   useEffect(() => {
     void load(null);
+  }, [includeArchivedRooms]);
+
+  useEffect(() => {
     void loadDemand();
   }, []);
 
@@ -2246,9 +2253,20 @@ function NearbyRoomsScreen({
       <div className="panel">
         <div className="panel-header">
           <h2>{t("nearbyRooms.title")}</h2>
-          <button className="secondary" onClick={() => void load()}>{t("common.refresh")}</button>
+          <div className="panel-actions">
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={includeArchivedRooms}
+                onChange={(event) => setIncludeArchivedRooms(event.target.checked)}
+              />
+              {t("nearbyRooms.showArchived")}
+            </label>
+            <button className="secondary" onClick={() => void load()}>{t("common.refresh")}</button>
+          </div>
         </div>
         <p className="muted">{t("nearbyRooms.technicalSubtitle")}</p>
+        <p className="muted">{t("nearbyRooms.archiveNote")}</p>
         {error ? <div className="error">{error}</div> : null}
         {loading ? <div className="empty">{t("common.loading")}</div> : null}
         {!loading && rooms.length ? (
@@ -2270,7 +2288,10 @@ function NearbyRoomsScreen({
                 <tr
                   key={room.id}
                   onClick={() => void loadDetail(room.id)}
-                  className={selected?.id === room.id ? "selected" : ""}
+                  className={[
+                    selected?.id === room.id ? "selected" : "",
+                    room.status === "archived" ? "archived" : "",
+                  ].filter(Boolean).join(" ")}
                 >
                   <td>
                     <div>{formatNearbyRoomDisplayTitle(room, t)}</div>
@@ -2910,7 +2931,7 @@ const nearbyProfileMissingFilters: Array<NearbyProfileMissingReason | "all"> = [
   "missing_avatar",
 ];
 
-const nearbyRoomActions: AdminNearbyRoomAction[] = ["close", "disable", "reopen"];
+const nearbyRoomActions: AdminNearbyRoomAction[] = ["close", "disable", "reopen", "archive"];
 
 function isAvailableNearbyRoomType(roomType: AdminNearbyRoomType): boolean {
   return roomType.status === "active" && roomType.adminApproved;
@@ -2974,6 +2995,10 @@ function isNearbyRoomActionCurrent(room: AdminNearbyRoom, action: AdminNearbyRoo
     return room.status === "disabled";
   }
 
+  if (action === "archive") {
+    return room.status === "archived";
+  }
+
   return room.status === "active";
 }
 
@@ -2988,6 +3013,8 @@ function formatNearbyRoomAction(
       return t("action.disable");
     case "reopen":
       return t("action.reopen");
+    case "archive":
+      return t("nearbyRooms.action.archive");
   }
 }
 

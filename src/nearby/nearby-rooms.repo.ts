@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ne, sql } from "drizzle-orm";
 import { db } from "../db/client";
 import {
   type JsonValue,
@@ -65,6 +65,10 @@ export type CreateNearbyRoomInput = {
   endsAt?: Date | null;
   expiresAt?: Date | null;
   createdFromDemandSnapshot?: AdminNearbyRoomDemandSnapshotDto | null;
+};
+
+export type ListNearbyRoomsForAdminOptions = {
+  includeArchived?: boolean;
 };
 
 const activeMemberCount = sql<number>`(
@@ -246,8 +250,10 @@ export async function findNearbyRoomTypeByKey(
   return row;
 }
 
-export async function listNearbyRoomsForAdmin(): Promise<AdminNearbyRoomRow[]> {
-  return db
+export async function listNearbyRoomsForAdmin(
+  options: ListNearbyRoomsForAdminOptions = {},
+): Promise<AdminNearbyRoomRow[]> {
+  const query = db
     .select({
       id: nearbyRooms.id,
       typeKey: nearbyRooms.typeKey,
@@ -268,12 +274,18 @@ export async function listNearbyRoomsForAdmin(): Promise<AdminNearbyRoomRow[]> {
       updatedAt: nearbyRooms.updatedAt,
     })
     .from(nearbyRooms)
-    .innerJoin(nearbyRoomTypes, eq(nearbyRoomTypes.key, nearbyRooms.typeKey))
+    .innerJoin(nearbyRoomTypes, eq(nearbyRoomTypes.key, nearbyRooms.typeKey));
+
+  const orderedQuery = (options.includeArchived
+    ? query
+    : query.where(ne(nearbyRooms.status, "archived")))
     .orderBy(
       asc(nearbyRoomTypes.sortOrder),
       asc(nearbyRoomTypes.key),
       desc(nearbyRooms.updatedAt),
     );
+
+  return orderedQuery;
 }
 
 export async function findNearbyRoomForAdmin(
@@ -344,7 +356,7 @@ export async function createNearbyRoomForAdmin(
 
 export async function updateNearbyRoomStatusForAdmin(
   roomId: string,
-  status: "active" | "closed" | "disabled",
+  status: "active" | "closed" | "disabled" | "archived",
   updatedAt: Date,
 ): Promise<AdminNearbyRoomRow | undefined> {
   const [updated] = await db

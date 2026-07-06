@@ -9,6 +9,7 @@ import type {
   AdminNearbyRoomDemandSnapshotDto,
   AdminNearbyRoomDetailResponse,
   AdminNearbyRoomActionBody,
+  AdminNearbyRoomsQuery,
   AdminNearbyRoomsResponse,
   AdminNearbyRoomTypesResponse,
 } from "../nearby/nearby-rooms.types";
@@ -75,14 +76,18 @@ export async function listNearbyRoomTypesForAdmin(
 
 export async function listNearbyRoomsForAdmin(
   admin: AdminContext,
+  query: AdminNearbyRoomsQuery,
   requestContext: AdminRequestContext,
 ): Promise<AdminNearbyRoomsResponse> {
-  const rows = await deps.repo.listNearbyRoomsForAdmin();
+  const rows = await deps.repo.listNearbyRoomsForAdmin({
+    includeArchived: query.includeArchived,
+  });
   await deps.audit.writeAuditLog({
     adminUserId: admin.adminUser.id,
     action: "admin.nearbyRooms.list",
     targetType: "nearby_rooms",
     metadata: {
+      includeArchived: query.includeArchived,
       resultCount: rows.length,
     },
     ...requestContext,
@@ -246,13 +251,19 @@ export async function actionNearbyRoomForAdmin(
   };
 }
 
-function statusForAction(action: AdminNearbyRoomActionBody["action"]): "active" | "closed" | "disabled" {
+function statusForAction(
+  action: AdminNearbyRoomActionBody["action"],
+): "active" | "closed" | "disabled" | "archived" {
   if (action === "close") {
     return "closed";
   }
 
   if (action === "disable") {
     return "disabled";
+  }
+
+  if (action === "archive") {
+    return "archived";
   }
 
   return "active";
