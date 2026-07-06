@@ -80,7 +80,7 @@ function getMissingSafetyFieldsBody(
 ) {
   return t(
     "together.profileSafetyFieldsBody",
-    "Для безопасного поиска нужны: {fields}. Точная дата рождения не показывается другим людям.",
+    "Для «Вместе» нужна основная анкета профиля: {fields}. Анкета активностей рядом здесь не используется. Точная дата рождения не показывается другим людям.",
     { fields: getMissingSafetyFieldLabels(fields, t).join(", ") }
   );
 }
@@ -305,11 +305,17 @@ export default function PlayLobbyScreen() {
         setMissingSafetyFields(missingFields);
         if (missingFields.length) {
           Alert.alert(
-            tt("together.age.birthDateRequiredTitle", "Заполните профиль"),
+            tt(
+              "together.profileSafetyTitle",
+              "Заполните основную анкету профиля"
+            ),
             getMissingSafetyFieldsBody(missingFields, tt),
             [
               {
-                text: tt("profile.completeProfile", "Заполнить профиль"),
+                text: tt(
+                  "together.profileSafetyAction",
+                  "Открыть основную анкету"
+                ),
                 onPress: openProfileSafetyFields,
               },
               { text: tt("common.cancel", "Отмена"), style: "cancel" },
@@ -394,7 +400,10 @@ export default function PlayLobbyScreen() {
             {missingSafetyFields.length ? (
               <View style={styles.completionPanel}>
                 <Text style={styles.completionTitle}>
-                  {tt("profile.completeProfile", "Заполните профиль")}
+                  {tt(
+                    "together.profileSafetyTitle",
+                    "Заполните основную анкету профиля"
+                  )}
                 </Text>
                 <Text style={styles.completionBody}>
                   {getMissingSafetyFieldsBody(missingSafetyFields, tt)}
@@ -405,7 +414,10 @@ export default function PlayLobbyScreen() {
                   accessibilityRole="button"
                 >
                   <Text style={styles.completionButtonText}>
-                    {tt("profile.completeProfile", "Заполнить профиль")}
+                    {tt(
+                      "together.profileSafetyAction",
+                      "Открыть основную анкету"
+                    )}
                   </Text>
                 </Pressable>
               </View>
