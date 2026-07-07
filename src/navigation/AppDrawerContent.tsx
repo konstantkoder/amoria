@@ -14,9 +14,9 @@ import { useLocale } from "@/contexts/LocaleContext";
 import { type RootStackNavigationProp } from "@/navigation/appRoutes";
 import { theme } from "@/theme";
 
-const DRAWER_ACTIVE_TINT = "#F3C98B";
-const DRAWER_ACTIVE_BACKGROUND = "rgba(185, 130, 114, 0.23)";
-const DRAWER_ACTIVE_BORDER = "rgba(245, 205, 139, 0.42)";
+const DRAWER_ACTIVE_TINT = theme.colors.textAccent;
+const DRAWER_ACTIVE_BACKGROUND = theme.colors.surfaceWarm;
+const DRAWER_ACTIVE_BORDER = theme.colors.borderWarm;
 
 type Props = {
   onClose?: () => void;
@@ -239,7 +239,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(10, 16, 31, 0.28)",
   },
   panel: {
-    backgroundColor: "rgba(20, 28, 45, 0.78)",
+    backgroundColor: "rgba(7,11,21,0.96)",
     borderRadius: 26,
     paddingHorizontal: 16,
     paddingTop: 16,
@@ -248,7 +248,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
     marginBottom: 14,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.24)",
+    borderColor: theme.colors.borderSubtle,
     flex: 1,
     alignSelf: "stretch",
     justifyContent: "flex-start",
@@ -361,8 +361,8 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.16)",
   },
   activeIconWrap: {
-    backgroundColor: "rgba(185, 130, 114, 0.16)",
-    borderColor: "rgba(245, 205, 139, 0.36)",
+    backgroundColor: theme.colors.surfaceWarm,
+    borderColor: theme.colors.borderWarm,
   },
   dangerIconWrap: {
     backgroundColor: "rgba(255, 77, 103, 0.12)",

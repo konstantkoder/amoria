@@ -236,7 +236,11 @@ export default function NearbyRoomChatScreen() {
   const headerCenter = useMemo(
     () => (
       <View style={styles.headerCenter}>
-        <Ionicons name="chatbubbles-outline" size={18} color="#F3C98B" />
+        <Ionicons
+          name="chatbubbles-outline"
+          size={18}
+          color={theme.colors.textAccent}
+        />
         <View style={styles.headerCopy}>
           <Text style={styles.headerTitle} numberOfLines={1} ellipsizeMode="tail">
             {screenTitle}
@@ -255,7 +259,7 @@ export default function NearbyRoomChatScreen() {
       <ScreenShell
         title={screenTitle}
         headerCenter={headerCenter}
-        background="togetherChat"
+        background="chatWarm"
         showBack
         onBack={handleBack}
       >
@@ -279,7 +283,7 @@ export default function NearbyRoomChatScreen() {
     <ScreenShell
       title={screenTitle}
       headerCenter={headerCenter}
-      background="togetherChat"
+      background="chatWarm"
       showBack
       onBack={handleBack}
     >

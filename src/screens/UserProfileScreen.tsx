@@ -731,7 +731,7 @@ export default function UserProfileScreen() {
     return (
       <ScreenShell
         title={tt("profile.peerTitle", "Профиль собеседника")}
-        background="profile"
+        background="profileWarm"
         showBack
       >
         <View style={styles.centerState}>
@@ -753,7 +753,7 @@ export default function UserProfileScreen() {
     return (
       <ScreenShell
         title={tt("profile.peerTitle", "Профиль собеседника")}
-        background="profile"
+        background="profileWarm"
         showBack
       >
         <View style={styles.centerState}>
@@ -775,7 +775,7 @@ export default function UserProfileScreen() {
     return (
       <ScreenShell
         title={tt("profile.peerTitle", "Профиль собеседника")}
-        background="profile"
+        background="profileWarm"
         showBack
       >
         <View style={styles.centerState}>
@@ -793,7 +793,7 @@ export default function UserProfileScreen() {
     return (
       <ScreenShell
         title={tt("profile.peerTitle", "Профиль собеседника")}
-        background="profile"
+        background="profileWarm"
         showBack
       >
         <View style={styles.centerState}>
@@ -816,7 +816,7 @@ export default function UserProfileScreen() {
     return (
       <ScreenShell
         title={tt("profile.peerTitle", "Профиль собеседника")}
-        background="profile"
+        background="profileWarm"
         showBack
       >
         <View style={styles.centerState}>
@@ -834,7 +834,7 @@ export default function UserProfileScreen() {
   return (
     <ScreenShell
       title={tt("profile.peerTitle", "Профиль собеседника")}
-      background="profile"
+      background="profileWarm"
       overlayOpacity={0.16}
       showBack
     >
@@ -1202,7 +1202,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   kicker: {
-    color: theme.colors.accent,
+    color: theme.colors.textAccent,
     fontSize: 11,
     fontWeight: "800",
     textTransform: "uppercase",
@@ -1240,9 +1240,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: theme.shapes.pill,
-    backgroundColor: "rgba(255, 78, 138, 0.16)",
+    backgroundColor: theme.colors.surfaceWarm,
     borderWidth: 1,
-    borderColor: "rgba(255, 78, 138, 0.24)",
+    borderColor: theme.colors.borderWarm,
   },
   interestText: {
     color: theme.colors.text,
@@ -1258,7 +1258,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   cardKicker: {
-    color: theme.colors.accent,
+    color: theme.colors.textAccent,
     fontSize: 11,
     fontWeight: "800",
     textTransform: "uppercase",
@@ -1302,9 +1302,9 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(243,201,139,0.12)",
+    backgroundColor: theme.colors.warningBg,
     borderWidth: 1,
-    borderColor: "rgba(243,201,139,0.28)",
+    borderColor: theme.colors.borderWarm,
   },
   lockedFolderCopy: {
     flex: 1,
@@ -1357,7 +1357,7 @@ const styles = StyleSheet.create({
   },
   lockedGalleryOpenedCard: {
     backgroundColor: "rgba(10, 14, 26, 0.88)",
-    borderColor: "rgba(243,201,139,0.24)",
+    borderColor: theme.colors.borderWarm,
   },
   galleryGrid: {
     flexDirection: "row",
@@ -1401,16 +1401,20 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   primaryButton: {
-    borderRadius: theme.shapes.cardInner,
-    paddingHorizontal: 16,
+    minHeight: theme.buttons.primary.height,
+    borderRadius: theme.buttons.primary.borderRadius,
+    paddingHorizontal: theme.buttons.primary.paddingHorizontal,
     paddingVertical: 13,
-    backgroundColor: theme.colors.primary,
+    backgroundColor: theme.buttons.primary.backgroundColor,
+    borderWidth: theme.buttons.primary.borderWidth,
+    borderColor: theme.buttons.primary.borderColor,
     alignItems: "center",
   },
   primaryButtonText: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "800",
+    color: theme.buttons.primary.textColor,
+    fontSize: theme.buttons.primary.fontSize,
+    lineHeight: theme.buttons.primary.lineHeight,
+    fontWeight: theme.buttons.primary.fontWeight,
   },
   secondaryButton: {
     alignSelf: "flex-start",

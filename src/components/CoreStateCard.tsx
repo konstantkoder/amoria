@@ -32,9 +32,9 @@ export default function CoreStateCard({
     <View style={styles.card}>
       <View style={styles.iconWrap}>
         {loading ? (
-          <ActivityIndicator color={theme.colors.accent} />
+          <ActivityIndicator color={theme.colors.textAccent} />
         ) : (
-          <Ionicons name={icon} size={30} color={theme.colors.accent} />
+          <Ionicons name={icon} size={30} color={theme.colors.textAccent} />
         )}
       </View>
 
@@ -65,12 +65,12 @@ const styles = StyleSheet.create({
   card: {
     width: "100%",
     maxWidth: 540,
-    borderRadius: theme.shapes.card,
+    borderRadius: theme.cards.standard.borderRadius,
     paddingHorizontal: 22,
     paddingVertical: 24,
-    backgroundColor: "rgba(15, 18, 34, 0.94)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
+    backgroundColor: theme.cards.standard.backgroundColor,
+    borderWidth: theme.cards.standard.borderWidth,
+    borderColor: theme.cards.standard.borderColor,
     alignItems: "center",
     gap: 14,
     shadowColor: "#000000",
@@ -85,9 +85,9 @@ const styles = StyleSheet.create({
     borderRadius: 34,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(255, 122, 60, 0.14)",
+    backgroundColor: theme.colors.surfaceWarm,
     borderWidth: 1,
-    borderColor: "rgba(255, 122, 60, 0.26)",
+    borderColor: theme.colors.borderWarm,
   },
   title: {
     color: theme.colors.text,
@@ -109,34 +109,40 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   primaryButton: {
-    borderRadius: theme.shapes.pill,
-    paddingHorizontal: 18,
+    minHeight: theme.buttons.primary.height,
+    borderRadius: theme.buttons.primary.borderRadius,
+    paddingHorizontal: theme.buttons.primary.paddingHorizontal,
     paddingVertical: 15,
-    backgroundColor: theme.colors.primary,
+    backgroundColor: theme.buttons.primary.backgroundColor,
+    borderWidth: theme.buttons.primary.borderWidth,
+    borderColor: theme.buttons.primary.borderColor,
     alignItems: "center",
-    shadowColor: theme.colors.primary,
+    shadowColor: theme.colors.textAccent,
     shadowOpacity: 0.22,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 6 },
     elevation: 4,
   },
   primaryButtonText: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "800",
+    color: theme.buttons.primary.textColor,
+    fontSize: theme.buttons.primary.fontSize,
+    lineHeight: theme.buttons.primary.lineHeight,
+    fontWeight: theme.buttons.primary.fontWeight,
   },
   secondaryButton: {
-    borderRadius: theme.shapes.pill,
-    paddingHorizontal: 18,
+    minHeight: theme.buttons.secondary.height,
+    borderRadius: theme.buttons.secondary.borderRadius,
+    paddingHorizontal: theme.buttons.secondary.paddingHorizontal,
     paddingVertical: 13,
-    backgroundColor: "rgba(255,255,255,0.04)",
-    borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
+    backgroundColor: theme.buttons.secondary.backgroundColor,
+    borderWidth: theme.buttons.secondary.borderWidth,
+    borderColor: theme.buttons.secondary.borderColor,
     alignItems: "center",
   },
   secondaryButtonText: {
-    color: theme.colors.text,
-    fontSize: 14,
-    fontWeight: "700",
+    color: theme.buttons.secondary.textColor,
+    fontSize: theme.buttons.secondary.fontSize,
+    lineHeight: theme.buttons.secondary.lineHeight,
+    fontWeight: theme.buttons.secondary.fontWeight,
   },
 });

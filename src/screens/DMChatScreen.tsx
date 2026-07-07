@@ -905,7 +905,7 @@ export default function DMChatScreen() {
       <ScreenShell
         title={screenTitle}
         headerCenter={chatHeader}
-        background="togetherChat"
+        background="chatWarm"
         showBack
         onBack={handleBack}
       >
@@ -926,7 +926,7 @@ export default function DMChatScreen() {
       <ScreenShell
         title={screenTitle}
         headerCenter={chatHeader}
-        background="togetherChat"
+        background="chatWarm"
         showBack
         onBack={handleBack}
       >
@@ -950,7 +950,7 @@ export default function DMChatScreen() {
     <ScreenShell
       title={screenTitle}
       headerCenter={chatHeader}
-      background="togetherChat"
+      background="chatWarm"
       showBack
       onBack={handleBack}
     >
@@ -1091,7 +1091,7 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.10)",
   },
   sourceEyebrow: {
-    color: theme.colors.accent,
+    color: theme.colors.textAccent,
     fontSize: 11,
     fontWeight: "800",
     textTransform: "uppercase",
@@ -1121,18 +1121,21 @@ const styles = StyleSheet.create({
     textAlign: "left",
   },
   sourceActionButton: {
-    minHeight: 44,
-    borderRadius: theme.shapes.pill,
+    minHeight: theme.buttons.primary.height,
+    borderRadius: theme.buttons.primary.borderRadius,
     alignItems: "center",
     justifyContent: "center",
     marginTop: 12,
-    paddingHorizontal: 14,
-    backgroundColor: theme.colors.primary,
+    paddingHorizontal: theme.buttons.primary.paddingHorizontal,
+    backgroundColor: theme.buttons.primary.backgroundColor,
+    borderWidth: theme.buttons.primary.borderWidth,
+    borderColor: theme.buttons.primary.borderColor,
   },
   sourceActionText: {
-    color: "#FFFFFF",
-    fontSize: 13,
-    fontWeight: "800",
+    color: theme.buttons.primary.textColor,
+    fontSize: theme.buttons.primary.fontSize,
+    lineHeight: theme.buttons.primary.lineHeight,
+    fontWeight: theme.buttons.primary.fontWeight,
     textAlign: "center",
   },
   peerCard: {
@@ -1163,7 +1166,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   peerActionText: {
-    color: theme.colors.accent,
+    color: theme.colors.textAccent,
     fontSize: 12,
     fontWeight: "800",
   },
@@ -1227,8 +1230,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   msgOwn: {
-    backgroundColor: "rgba(255, 78, 138, 0.18)",
-    borderColor: "rgba(255, 78, 138, 0.32)",
+    backgroundColor: theme.colors.surfaceWarm,
+    borderColor: theme.colors.borderWarm,
   },
   msgPeer: {
     backgroundColor: "rgba(15, 19, 34, 0.94)",
@@ -1283,21 +1286,23 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.10)",
   },
   sendBtn: {
-    backgroundColor: theme.colors.primary,
-    paddingHorizontal: 18,
-    minHeight: 48,
+    backgroundColor: theme.buttons.primary.backgroundColor,
+    paddingHorizontal: theme.buttons.primary.paddingHorizontal,
+    minHeight: theme.buttons.primary.height,
     minWidth: 82,
     justifyContent: "center",
     alignItems: "center",
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.16)",
+    borderRadius: theme.buttons.primary.borderRadius,
+    borderWidth: theme.buttons.primary.borderWidth,
+    borderColor: theme.buttons.primary.borderColor,
   },
   sendBtnDisabled: {
     opacity: 0.6,
   },
   sendTxt: {
-    color: "#fff",
-    fontWeight: "800",
+    color: theme.buttons.primary.textColor,
+    fontSize: theme.buttons.primary.fontSize,
+    lineHeight: theme.buttons.primary.lineHeight,
+    fontWeight: theme.buttons.primary.fontWeight,
   },
 });

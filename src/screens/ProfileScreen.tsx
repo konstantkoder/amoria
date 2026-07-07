@@ -686,11 +686,12 @@ export default function ProfileScreen() {
     return (
       <ScreenShell
         title={t("screen.profile")}
-        background="profile"
+        background="profileWarm"
         overlayOpacity={0.16}
+        blurRadius={0}
       >
         <View style={styles.loader}>
-          <ActivityIndicator color={theme.colors.primary} />
+          <ActivityIndicator color={theme.colors.textAccent} />
           <Text style={styles.loaderText}>{t("editProfile.loading")}</Text>
         </View>
       </ScreenShell>
@@ -700,8 +701,9 @@ export default function ProfileScreen() {
   return (
     <ScreenShell
       title={t("screen.profile")}
-      background="profile"
+      background="profileWarm"
       overlayOpacity={0.16}
+      blurRadius={0}
     >
       <ScrollView
         style={styles.scroll}
@@ -1053,7 +1055,7 @@ const styles = StyleSheet.create({
   avatarCropFrame: {
     borderRadius: 14,
     borderWidth: 2,
-    borderColor: theme.colors.accent,
+    borderColor: theme.colors.textAccent,
   },
   avatarPreviewImage: {
     width: "100%",
@@ -1077,18 +1079,22 @@ const styles = StyleSheet.create({
   },
   avatarButton: {
     alignSelf: "flex-start",
-    borderRadius: theme.shapes.pill,
-    paddingHorizontal: 13,
+    minHeight: theme.buttons.primary.height,
+    borderRadius: theme.buttons.primary.borderRadius,
+    paddingHorizontal: theme.buttons.primary.paddingHorizontal,
     paddingVertical: 9,
-    backgroundColor: theme.colors.primary,
+    backgroundColor: theme.buttons.primary.backgroundColor,
+    borderWidth: theme.buttons.primary.borderWidth,
+    borderColor: theme.buttons.primary.borderColor,
   },
   avatarButtonDisabled: {
     opacity: 0.65,
   },
   avatarButtonText: {
-    color: "#FFFFFF",
-    fontSize: 12,
-    fontWeight: "800",
+    color: theme.buttons.primary.textColor,
+    fontSize: theme.buttons.primary.fontSize,
+    lineHeight: theme.buttons.primary.lineHeight,
+    fontWeight: theme.buttons.primary.fontWeight,
   },
   avatarConfirmActions: {
     flexDirection: "row",
@@ -1130,7 +1136,7 @@ const styles = StyleSheet.create({
   photoSectionCard: {
     marginTop: 6,
     backgroundColor: "rgba(10, 16, 28, 0.78)",
-    borderColor: "rgba(243, 201, 139, 0.22)",
+    borderColor: theme.colors.borderWarm,
   },
   sectionHeader: {
     flexDirection: "row",
@@ -1161,7 +1167,7 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.12)",
   },
   sectionActionText: {
-    color: theme.colors.accent,
+    color: theme.colors.textAccent,
     fontSize: 12,
     fontWeight: "900",
   },
@@ -1205,8 +1211,8 @@ const styles = StyleSheet.create({
   summaryRowWarning: {
     borderRadius: theme.shapes.cardInner,
     paddingHorizontal: 10,
-    backgroundColor: "rgba(255,224,184,0.08)",
-    borderTopColor: "rgba(255,224,184,0.22)",
+    backgroundColor: theme.colors.warningBg,
+    borderTopColor: theme.colors.borderWarm,
   },
   summaryLabel: {
     color: "rgba(255,255,255,0.72)",
@@ -1228,11 +1234,11 @@ const styles = StyleSheet.create({
     gap: 9,
   },
   identityCardAlert: {
-    borderColor: "rgba(255, 122, 60, 0.36)",
-    backgroundColor: "rgba(30, 18, 24, 0.92)",
+    borderColor: theme.colors.borderWarm,
+    backgroundColor: theme.colors.warningBg,
   },
   identityKicker: {
-    color: theme.colors.accent,
+    color: theme.colors.textAccent,
     fontSize: 11,
     fontWeight: "800",
     textTransform: "uppercase",
@@ -1252,7 +1258,7 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius,
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
-    backgroundColor: theme.colors.card,
+    backgroundColor: theme.colors.surfaceSoft,
     color: theme.colors.text,
     paddingHorizontal: 14,
     paddingVertical: 10,
@@ -1264,15 +1270,19 @@ const styles = StyleSheet.create({
   },
   saveNameButton: {
     alignSelf: "flex-start",
-    borderRadius: theme.shapes.pill,
-    paddingHorizontal: 14,
+    minHeight: theme.buttons.primary.height,
+    borderRadius: theme.buttons.primary.borderRadius,
+    paddingHorizontal: theme.buttons.primary.paddingHorizontal,
     paddingVertical: 10,
-    backgroundColor: theme.colors.primary,
+    backgroundColor: theme.buttons.primary.backgroundColor,
+    borderWidth: theme.buttons.primary.borderWidth,
+    borderColor: theme.buttons.primary.borderColor,
   },
   saveNameButtonText: {
-    color: "#FFFFFF",
-    fontSize: 12,
-    fontWeight: "800",
+    color: theme.buttons.primary.textColor,
+    fontSize: theme.buttons.primary.fontSize,
+    lineHeight: theme.buttons.primary.lineHeight,
+    fontWeight: theme.buttons.primary.fontWeight,
   },
   identityMeta: {
     color: theme.colors.subtext,
@@ -1302,7 +1312,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: theme.shapes.pill,
-    backgroundColor: "rgba(255, 78, 138, 0.16)",
+    backgroundColor: theme.colors.surfaceWarm,
+    borderWidth: 1,
+    borderColor: theme.colors.borderWarm,
   },
   interestText: {
     color: theme.colors.text,

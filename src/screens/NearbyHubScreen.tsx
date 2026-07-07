@@ -61,10 +61,10 @@ const RADIUS_OPTIONS = [5, 25, 100, 250] as const;
 const FEED_LIMIT = 30;
 const DEFAULT_RADIUS_KM = 25;
 const DEFAULT_STATUS_KIND: NearbyProfileStatusKind = "open_to_suggestions";
-const ROOM_CARD_LIMIT = 4;
-const PRIMARY_ACTION_BG = "#F3C98B";
-const PRIMARY_ACTION_TEXT = "#24150B";
-const SECONDARY_ACTION_BG = "rgba(255,255,255,0.07)";
+const ACCENT_COLOR = theme.colors.textAccent;
+const PRIMARY_ACTION_BG = theme.colors.primaryActionBg;
+const PRIMARY_ACTION_TEXT = theme.colors.primaryActionText;
+const PRIMARY_ACTION_BORDER = theme.colors.primaryActionBorder;
 
 const GENDER_FILTERS: GenderFilter[] = ["all", "woman", "man", "nonbinary"];
 const AGE_FILTER_OPTIONS: Array<{
@@ -110,6 +110,27 @@ function getActivityConfigureFallback(locale: string) {
   if (language === "ru") return "Настроить";
   if (language === "hr") return "Postavi";
   return "Configure";
+}
+
+function getActivityButtonTitleFallback(locale: string) {
+  const language = getLanguageCode(locale);
+  if (language === "ru") return "Активности";
+  if (language === "hr") return "Aktivnosti";
+  return "Activities";
+}
+
+function getActivitiesSheetSubtitleFallback(locale: string) {
+  const language = getLanguageCode(locale);
+  if (language === "ru") return "Группы не занимают место в ленте людей.";
+  if (language === "hr") return "Grupe ostaju odvojene od liste ljudi.";
+  return "Groups stay separate from the people feed.";
+}
+
+function getActivitiesSheetEmptyFallback(locale: string) {
+  const language = getLanguageCode(locale);
+  if (language === "ru") return "Пока нет активностей рядом.";
+  if (language === "hr") return "Trenutno nema aktivnosti u blizini.";
+  return "No nearby activities right now.";
 }
 
 function getAgePreferenceLabel(
@@ -284,12 +305,12 @@ function getNearbySummaryLine(
 function getPeopleGridLayout(width: number) {
   const compact = width <= 360;
   const large = width > 430;
-  const columns = large ? 3 : 2;
-  const horizontalPadding = compact ? 14 : 16;
-  const columnGap = compact ? 14 : large ? 12 : 16;
+  const columns = compact ? 2 : 3;
+  const horizontalPadding = compact ? 14 : large ? 16 : 14;
+  const columnGap = compact ? 12 : large ? 12 : 10;
   const rowGap = 14;
-  const avatarSize = compact ? 118 : large ? 116 : 132;
-  const tileHeight = compact ? 126 : large ? 124 : 140;
+  const avatarSize = compact ? 108 : large ? 116 : 104;
+  const tileHeight = compact ? 116 : large ? 124 : 112;
   const availableWidth = Math.max(
     0,
     width - horizontalPadding * 2 - columnGap * (columns - 1)
@@ -304,16 +325,6 @@ function getPeopleGridLayout(width: number) {
     tileWidth: Math.floor(availableWidth / columns),
     tileHeight,
   };
-}
-
-function getActivityShelfLayout(width: number) {
-  if (width > 430) {
-    return { cardWidth: 220, cardHeight: 112, cardGap: 12 };
-  }
-  if (width > 360) {
-    return { cardWidth: 204, cardHeight: 110, cardGap: 10 };
-  }
-  return { cardWidth: 188, cardHeight: 108, cardGap: 10 };
 }
 
 export default function NearbyHubScreen() {
@@ -346,7 +357,7 @@ export default function NearbyHubScreen() {
   const [roomErrorText, setRoomErrorText] = useState("");
   const [roomPreferenceGateVisible, setRoomPreferenceGateVisible] =
     useState(false);
-  const [activitiesExpanded, setActivitiesExpanded] = useState(false);
+  const [activitiesSheetVisible, setActivitiesSheetVisible] = useState(false);
   const [locationIssue, setLocationIssue] = useState<LocationIssue | null>(null);
   const [filtersSheetVisible, setFiltersSheetVisible] = useState(false);
   const [filtersApplying, setFiltersApplying] = useState(false);
@@ -365,22 +376,13 @@ export default function NearbyHubScreen() {
   const sectionGap = 14;
   const smallGap = 8;
   const refreshDisabled = feedLoading || roomsLoading || toggleBusy || preferenceBusy || Boolean(roomActionBusyId);
-  const visibleRooms = useMemo(
-    () => rooms.slice(0, ROOM_CARD_LIMIT),
-    [rooms]
-  );
   const hasActivityContent = Boolean(
-    visibleRooms.length || roomErrorText || roomPreferenceGateVisible
+    rooms.length || roomErrorText || roomPreferenceGateVisible
   );
   const peopleGridLayout = useMemo(
     () => getPeopleGridLayout(width),
     [width]
   );
-  const activityShelfLayout = useMemo(
-    () => getActivityShelfLayout(width),
-    [width]
-  );
-  const firstPeopleCount = peopleGridLayout.columns * 2;
 
   useEffect(() => {
     mountedRef.current = true;
@@ -406,7 +408,7 @@ export default function NearbyHubScreen() {
 
   useEffect(() => {
     if (roomPreferenceGateVisible) {
-      setActivitiesExpanded(true);
+      setActivitiesSheetVisible(true);
     }
   }, [roomPreferenceGateVisible]);
 
@@ -811,6 +813,23 @@ export default function NearbyHubScreen() {
     );
   }, [ageFilter, genderFilter, radiusKm, t]);
 
+  const activityButtonLabel = useMemo(() => {
+    if (roomPreferenceGateVisible) {
+      return copyOrFallback(
+        t,
+        "nearby.activityPreferences.requiredButton",
+        getActivityButtonTitleFallback(locale)
+      );
+    }
+
+    const title = copyOrFallback(
+      t,
+      "nearby.rooms.title",
+      getActivityButtonTitleFallback(locale)
+    );
+    return rooms.length ? `${title} \u00B7 ${rooms.length}` : title;
+  }, [locale, roomPreferenceGateVisible, rooms.length, t]);
+
   const openFiltersSheet = useCallback(() => {
     setDraftRadiusKm(radiusKm);
     setDraftGenderFilter(genderFilter);
@@ -822,6 +841,14 @@ export default function NearbyHubScreen() {
     if (filtersApplying) return;
     setFiltersSheetVisible(false);
   }, [filtersApplying]);
+
+  const openActivitiesSheet = useCallback(() => {
+    setActivitiesSheetVisible(true);
+  }, []);
+
+  const closeActivitiesSheet = useCallback(() => {
+    setActivitiesSheetVisible(false);
+  }, []);
 
   const resetDraftFilters = useCallback(() => {
     setDraftRadiusKm(DEFAULT_RADIUS_KM);
@@ -893,6 +920,7 @@ export default function NearbyHubScreen() {
   }, [navigation]);
 
   const openActivityPreferences = useCallback(() => {
+    setActivitiesSheetVisible(false);
     navigation.navigate("NearbyActivityPreferences");
   }, [navigation]);
 
@@ -918,7 +946,7 @@ export default function NearbyHubScreen() {
         if (!mountedRef.current) return;
         if (isNearbyActivityPreferenceRequiredError(error)) {
           setRoomPreferenceGateVisible(true);
-          setActivitiesExpanded(true);
+          setActivitiesSheetVisible(true);
           return;
         }
         setRoomErrorText(getBackendErrorText(error, t));
@@ -941,6 +969,7 @@ export default function NearbyHubScreen() {
         const response = await nearbyApi.openNearbyRoom(room.id);
         await refreshRooms();
         if (!mountedRef.current) return;
+        setActivitiesSheetVisible(false);
         navigation.navigate("NearbyRoomChat", {
           roomId: response.roomId,
           title: response.title || room.title,
@@ -949,7 +978,7 @@ export default function NearbyHubScreen() {
         if (!mountedRef.current) return;
         if (isNearbyActivityPreferenceRequiredError(error)) {
           setRoomPreferenceGateVisible(true);
-          setActivitiesExpanded(true);
+          setActivitiesSheetVisible(true);
           return;
         }
         setRoomErrorText(getBackendErrorText(error, t));
@@ -971,16 +1000,16 @@ export default function NearbyHubScreen() {
             {copyOrFallback(t, "nearby.title", "Рядом")}
             </Text>
             {toggleBusy ? (
-              <ActivityIndicator color="#F3C98B" />
+              <ActivityIndicator color={ACCENT_COLOR} />
             ) : (
               <Switch
                 value={active}
                 onValueChange={handleToggle}
                 trackColor={{
                   false: "rgba(255,255,255,0.18)",
-                  true: "rgba(243,201,139,0.42)",
+                  true: theme.colors.chipActiveBorder,
                 }}
-                thumbColor={active ? "#F3C98B" : "#F5F5FF"}
+                thumbColor={active ? ACCENT_COLOR : "#F5F5FF"}
               />
             )}
           </View>
@@ -1023,16 +1052,16 @@ export default function NearbyHubScreen() {
               </Text>
             </View>
             {toggleBusy ? (
-              <ActivityIndicator color="#F3C98B" />
+              <ActivityIndicator color={ACCENT_COLOR} />
             ) : (
               <Switch
                 value={active}
                 onValueChange={handleToggle}
                 trackColor={{
                   false: "rgba(255,255,255,0.18)",
-                  true: "rgba(243,201,139,0.42)",
+                  true: theme.colors.chipActiveBorder,
                 }}
-                thumbColor={active ? "#F3C98B" : "#F5F5FF"}
+                thumbColor={active ? ACCENT_COLOR : "#F5F5FF"}
               />
             )}
           </View>
@@ -1056,11 +1085,28 @@ export default function NearbyHubScreen() {
               ]}
               accessibilityRole="button"
             >
-              <Ionicons name="options-outline" size={16} color="#F3C98B" />
+              <Ionicons name="options-outline" size={16} color={ACCENT_COLOR} />
               <Text style={styles.filterSummaryButtonText}>
                 {copyOrFallback(t, "nearby.filters.button", "Фильтры")}
               </Text>
             </Pressable>
+            {hasActivityContent ? (
+              <Pressable
+                onPress={openActivitiesSheet}
+                style={styles.activitiesEntryButton}
+                accessibilityRole="button"
+              >
+                <Ionicons name="chatbubbles-outline" size={15} color={ACCENT_COLOR} />
+                <Text
+                  style={styles.activitiesEntryButtonText}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.82}
+                >
+                  {activityButtonLabel}
+                </Text>
+              </Pressable>
+            ) : null}
             <Pressable
               onPress={refreshNearby}
               disabled={refreshDisabled}
@@ -1078,7 +1124,7 @@ export default function NearbyHubScreen() {
         {missingSafetyFields.length ? (
           <View style={styles.completionPanel}>
             <View style={styles.completionIcon}>
-              <Ionicons name="shield-checkmark-outline" size={18} color="#F3C98B" />
+              <Ionicons name="shield-checkmark-outline" size={18} color={ACCENT_COLOR} />
             </View>
             <View style={styles.completionCopy}>
               <Text style={styles.completionTitle}>
@@ -1125,13 +1171,16 @@ export default function NearbyHubScreen() {
     ),
     [
       active,
+      activityButtonLabel,
       errorText,
       filterSummaryText,
       filtersApplying,
       goToProfilePreferences,
       goToProfileSetup,
       handleToggle,
+      hasActivityContent,
       missingSafetyFields,
+      openActivitiesSheet,
       openFiltersSheet,
       preferenceBusy,
       refreshDisabled,
@@ -1305,7 +1354,7 @@ export default function NearbyHubScreen() {
     if (loading || feedLoading) {
       return (
         <View style={styles.emptyPanel}>
-          <ActivityIndicator color="#F3C98B" />
+          <ActivityIndicator color={ACCENT_COLOR} />
           <Text style={styles.emptyTitle}>
             {copyOrFallback(t, "nearby.loading", "Загружаем Рядом…")}
           </Text>
@@ -1316,7 +1365,7 @@ export default function NearbyHubScreen() {
     if (!emptyState) return null;
     return (
       <View style={styles.emptyPanel}>
-        <Ionicons name={emptyState.icon} size={30} color="#F3C98B" />
+        <Ionicons name={emptyState.icon} size={30} color={ACCENT_COLOR} />
         <Text style={styles.emptyTitle}>{emptyState.title}</Text>
         <Text style={styles.emptyBody}>{emptyState.body}</Text>
         <View style={styles.emptyActions}>
@@ -1350,14 +1399,6 @@ export default function NearbyHubScreen() {
     () => (active && profileReady && matchingPreferencesReady ? items : []),
     [active, items, matchingPreferencesReady, profileReady]
   );
-  const firstPeopleItems = useMemo(
-    () => peopleItems.slice(0, firstPeopleCount),
-    [firstPeopleCount, peopleItems]
-  );
-  const remainingPeopleItems = useMemo(
-    () => peopleItems.slice(firstPeopleCount),
-    [firstPeopleCount, peopleItems]
-  );
 
   const peopleSectionHeader = useMemo(
     () => (
@@ -1382,31 +1423,11 @@ export default function NearbyHubScreen() {
     [sectionGap]
   );
 
-  const activityShelf = hasActivityContent ? (
-    <NearbyRoomCardsSection
-      rooms={visibleRooms}
-      loading={roomsLoading}
-      errorText={roomErrorText}
-      preferenceGateVisible={roomPreferenceGateVisible}
-      expanded={activitiesExpanded}
-      busyRoomId={roomActionBusyId}
-      onJoin={(room) => void handleJoinRoom(room)}
-      onOpen={(room) => void handleOpenRoom(room)}
-      onOpenPreferences={openActivityPreferences}
-      onToggleExpanded={() => setActivitiesExpanded((current) => !current)}
-      cardWidth={activityShelfLayout.cardWidth}
-      cardHeight={activityShelfLayout.cardHeight}
-      cardGap={activityShelfLayout.cardGap}
-      t={t}
-      locale={locale}
-    />
-  ) : null;
-
   return (
     <ScreenShell
       title={copyOrFallback(t, "tabs.nearby", "Рядом")}
-      background="now"
-      overlayOpacity={0.2}
+      background="nearbyWarm"
+      overlayOpacity={0.16}
       blurRadius={0}
     >
       <ScrollView
@@ -1415,7 +1436,7 @@ export default function NearbyHubScreen() {
         refreshControl={
           <RefreshControl
             refreshing={feedLoading || (roomsLoading && !loading)}
-            tintColor="#F3C98B"
+            tintColor={ACCENT_COLOR}
             onRefresh={() => {
               if (active && !refreshDisabled) {
                 refreshNearby();
@@ -1427,28 +1448,14 @@ export default function NearbyHubScreen() {
         {header}
         {peopleSectionHeader}
         {peopleItems.length ? (
-          <>
-            <NearbyPeopleGrid
-              items={firstPeopleItems}
-              layout={peopleGridLayout}
-              onOpen={openProfile}
-              t={t}
-            />
-            {activityShelf}
-            {remainingPeopleItems.length ? (
-              <NearbyPeopleGrid
-                items={remainingPeopleItems}
-                layout={peopleGridLayout}
-                onOpen={openProfile}
-                t={t}
-              />
-            ) : null}
-          </>
+          <NearbyPeopleGrid
+            items={peopleItems}
+            layout={peopleGridLayout}
+            onOpen={openProfile}
+            t={t}
+          />
         ) : (
-          <>
-            <View style={styles.peopleEmptyWrap}>{renderEmpty()}</View>
-            {activityShelf}
-          </>
+          <View style={styles.peopleEmptyWrap}>{renderEmpty()}</View>
         )}
         <View style={{ height: smallGap }} />
       </ScrollView>
@@ -1466,6 +1473,21 @@ export default function NearbyHubScreen() {
         onReset={resetDraftFilters}
         onClose={closeFiltersSheet}
         t={t}
+      />
+      <NearbyActivitiesSheet
+        visible={activitiesSheetVisible}
+        screenHeight={height}
+        rooms={rooms}
+        loading={roomsLoading}
+        errorText={roomErrorText}
+        preferenceGateVisible={roomPreferenceGateVisible}
+        busyRoomId={roomActionBusyId}
+        onJoin={(room) => void handleJoinRoom(room)}
+        onOpen={(room) => void handleOpenRoom(room)}
+        onOpenPreferences={openActivityPreferences}
+        onClose={closeActivitiesSheet}
+        t={t}
+        locale={locale}
       />
     </ScreenShell>
   );
@@ -1518,9 +1540,9 @@ function NearbyStatsCards({
         >
           <View style={styles.statIconFrame}>
             {loading && !summary ? (
-              <ActivityIndicator size="small" color="#F3C98B" />
+              <ActivityIndicator size="small" color={ACCENT_COLOR} />
             ) : (
-              <Ionicons name={metric.icon} size={20} color="#F3C98B" />
+              <Ionicons name={metric.icon} size={20} color={ACCENT_COLOR} />
             )}
           </View>
           <View style={styles.statCopy}>
@@ -1732,7 +1754,9 @@ function NearbyFiltersSheet({
   );
 }
 
-function ActivityExpandedPanel({
+function NearbyActivitiesSheet({
+  visible,
+  screenHeight,
   rooms,
   loading,
   errorText,
@@ -1741,9 +1765,12 @@ function ActivityExpandedPanel({
   onJoin,
   onOpen,
   onOpenPreferences,
+  onClose,
   t,
   locale,
 }: {
+  visible: boolean;
+  screenHeight: number;
   rooms: NearbyRoomCard[];
   loading: boolean;
   errorText: string;
@@ -1752,62 +1779,140 @@ function ActivityExpandedPanel({
   onJoin: (room: NearbyRoomCard) => void;
   onOpen: (room: NearbyRoomCard) => void;
   onOpenPreferences: () => void;
+  onClose: () => void;
   t: (key: string, params?: Record<string, string>) => string;
   locale: string;
 }) {
+  const sheetMaxHeight = screenHeight * 0.72;
+  const showEmpty = !preferenceGateVisible && !errorText && !loading && !rooms.length;
+
   return (
-    <View style={styles.activityExpandedPanel}>
-      {preferenceGateVisible ? (
-        <View style={styles.activityPreferenceGate}>
-          <Text style={styles.activityPreferenceGateTitle}>
-            {copyOrFallback(
-              t,
-              "nearby.activityPreferences.requiredTitle",
-              "Choose nearby activities"
-            )}
-          </Text>
-          <Pressable
-            onPress={onOpenPreferences}
-            style={styles.activityPreferenceGateButton}
-            accessibilityRole="button"
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <View style={styles.activitiesSheetBackdrop}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <View style={[styles.activitiesSheet, { maxHeight: sheetMaxHeight }]}>
+          <View style={styles.filterSheetHandle} />
+          <View style={styles.activitiesSheetHeader}>
+            <View style={styles.activitiesSheetTitleCopy}>
+              <Text style={styles.activitiesSheetTitle}>
+                {copyOrFallback(
+                  t,
+                  "nearby.rooms.title",
+                  getActivityButtonTitleFallback(locale)
+                )}
+              </Text>
+              <Text style={styles.activitiesSheetSubtitle}>
+                {copyOrFallback(
+                  t,
+                  "nearby.rooms.separateSubtitle",
+                  getActivitiesSheetSubtitleFallback(locale)
+                )}
+              </Text>
+            </View>
+            <View style={styles.activitiesSheetHeaderActions}>
+              <Pressable
+                onPress={onOpenPreferences}
+                style={styles.activitiesSheetConfigureButton}
+                accessibilityRole="button"
+              >
+                <Text style={styles.activitiesSheetConfigureText}>
+                  {copyOrFallback(
+                    t,
+                    "nearby.activityPreferences.configure",
+                    getActivityConfigureFallback(locale)
+                  )}
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={onClose}
+                style={styles.activitiesSheetCloseButton}
+                accessibilityRole="button"
+              >
+                <Ionicons
+                  name="close"
+                  size={theme.buttons.icon.iconSize}
+                  color={theme.buttons.icon.iconColor}
+                />
+              </Pressable>
+            </View>
+          </View>
+
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.activitiesSheetContent}
           >
-            <Text style={styles.activityPreferenceGateButtonText}>
-              {copyOrFallback(
-                t,
-                "nearby.activityPreferences.requiredButton",
-                "Choose activities"
-              )}
-            </Text>
-          </Pressable>
-        </View>
-      ) : null}
+            {preferenceGateVisible ? (
+              <View style={styles.activityPreferenceGate}>
+                <Text style={styles.activityPreferenceGateTitle}>
+                  {copyOrFallback(
+                    t,
+                    "nearby.activityPreferences.requiredTitle",
+                    "Choose nearby activities"
+                  )}
+                </Text>
+                <Text style={styles.activityPreferenceGateBody}>
+                  {copyOrFallback(
+                    t,
+                    "nearby.activityPreferences.requiredBody",
+                    "Choose activities before joining a nearby activity."
+                  )}
+                </Text>
+                <Pressable
+                  onPress={onOpenPreferences}
+                  style={styles.activityPreferenceGateButton}
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.activityPreferenceGateButtonText}>
+                    {copyOrFallback(
+                      t,
+                      "nearby.activityPreferences.requiredButton",
+                      "Choose activities"
+                    )}
+                  </Text>
+                </Pressable>
+              </View>
+            ) : null}
 
-      {errorText ? (
-        <View style={styles.activityErrorRow}>
-          <Ionicons name="alert-circle-outline" size={16} color="#FFD2DA" />
-          <Text style={styles.activityErrorText}>{errorText}</Text>
-        </View>
-      ) : null}
+            {errorText ? (
+              <View style={styles.activityErrorRow}>
+                <Ionicons name="alert-circle-outline" size={16} color="#FFD2DA" />
+                <Text style={styles.activityErrorText}>{errorText}</Text>
+              </View>
+            ) : null}
 
-      {loading && !rooms.length ? (
-        <View style={styles.activityLoadingRow}>
-          <ActivityIndicator size="small" color="#F3C98B" />
-        </View>
-      ) : null}
+            {loading && !rooms.length ? (
+              <View style={styles.activityLoadingRow}>
+                <ActivityIndicator size="small" color={ACCENT_COLOR} />
+              </View>
+            ) : null}
 
-      {rooms.map((room) => (
-        <ActivityExpandedRow
-          key={room.id}
-          room={room}
-          busy={busyRoomId === room.id}
-          disabled={Boolean(busyRoomId)}
-          onJoin={() => onJoin(room)}
-          onOpen={() => onOpen(room)}
-          t={t}
-          locale={locale}
-        />
-      ))}
-    </View>
+            {rooms.map((room) => (
+              <ActivityExpandedRow
+                key={room.id}
+                room={room}
+                busy={busyRoomId === room.id}
+                disabled={Boolean(busyRoomId)}
+                onJoin={() => onJoin(room)}
+                onOpen={() => onOpen(room)}
+                t={t}
+                locale={locale}
+              />
+            ))}
+
+            {showEmpty ? (
+              <Text style={styles.activitiesSheetEmptyText}>
+                {getActivitiesSheetEmptyFallback(locale)}
+              </Text>
+            ) : null}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -1835,7 +1940,7 @@ function ActivityExpandedRow({
   return (
     <View style={styles.activityExpandedRow}>
       <View style={styles.activityExpandedIcon}>
-        <Ionicons name="chatbubbles-outline" size={15} color="#F3C98B" />
+        <Ionicons name="chatbubbles-outline" size={15} color={ACCENT_COLOR} />
       </View>
       <View style={styles.activityExpandedCopy}>
         <Text style={styles.activityExpandedTitle} numberOfLines={1}>
@@ -1926,339 +2031,6 @@ function NearbyPeopleGrid({
           t={t}
         />
       ))}
-    </View>
-  );
-}
-
-function NearbyRoomCardsSection({
-  rooms,
-  loading,
-  errorText,
-  preferenceGateVisible,
-  expanded,
-  busyRoomId,
-  onJoin,
-  onOpen,
-  onOpenPreferences,
-  onToggleExpanded,
-  cardWidth,
-  cardHeight,
-  cardGap,
-  t,
-  locale,
-}: {
-  rooms: NearbyRoomCard[];
-  loading: boolean;
-  errorText: string;
-  preferenceGateVisible: boolean;
-  expanded: boolean;
-  busyRoomId: string | null;
-  onJoin: (room: NearbyRoomCard) => void;
-  onOpen: (room: NearbyRoomCard) => void;
-  onOpenPreferences: () => void;
-  onToggleExpanded: () => void;
-  cardWidth: number;
-  cardHeight: number;
-  cardGap: number;
-  t: (key: string, params?: Record<string, string>) => string;
-  locale: string;
-}) {
-  return (
-    <View style={styles.roomsSection}>
-      <View style={styles.roomsHeader}>
-        <Pressable
-          onPress={onToggleExpanded}
-          style={styles.roomsHeaderTitleButton}
-          accessibilityRole="button"
-        >
-        <Text style={styles.roomsTitle} numberOfLines={1}>
-          {copyOrFallback(t, "nearby.rooms.title", "Активности рядом")}
-        </Text>
-        </Pressable>
-        <View style={styles.roomsHeaderActions}>
-          {loading ? <ActivityIndicator size="small" color="#F3C98B" /> : null}
-          <Pressable
-            onPress={onOpenPreferences}
-            style={styles.roomsConfigureButton}
-            accessibilityRole="button"
-          >
-            <Text
-              style={styles.roomsConfigureText}
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={0.82}
-            >
-              {copyOrFallback(
-                t,
-                "nearby.activityPreferences.configure",
-                getActivityConfigureFallback(locale)
-              )}
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={onToggleExpanded}
-            style={styles.roomsExpandButton}
-            accessibilityRole="button"
-          >
-            <Ionicons
-              name={expanded ? "chevron-up" : "chevron-down"}
-              size={18}
-              color="#F3C98B"
-            />
-          </Pressable>
-        </View>
-      </View>
-
-      {errorText ? (
-        <View style={styles.roomsError}>
-          <Ionicons name="alert-circle-outline" size={16} color="#FFD2DA" />
-          <Text style={styles.roomsErrorText}>{errorText}</Text>
-        </View>
-      ) : null}
-
-      {false ? (
-        <View style={styles.roomsPreferenceGate}>
-          <View style={styles.roomsPreferenceGateHeader}>
-            <View style={styles.roomsPreferenceGateIcon}>
-              <Ionicons name="options-outline" size={18} color="#F3C98B" />
-            </View>
-            <View style={styles.roomsPreferenceGateCopy}>
-              <Text style={styles.roomsPreferenceGateTitle}>
-                {copyOrFallback(
-                  t,
-                  "nearby.activityPreferences.requiredTitle",
-                  "Сначала выберите активности рядом"
-                )}
-              </Text>
-              <Text style={styles.roomsPreferenceGateBody}>
-                {copyOrFallback(
-                  t,
-                  "nearby.activityPreferences.requiredBody",
-                  "Чтобы присоединиться к этой активности, отметьте её во второй анкете."
-                )}
-              </Text>
-            </View>
-          </View>
-          <Pressable
-            onPress={onOpenPreferences}
-            style={styles.roomsPreferenceGateButton}
-            accessibilityRole="button"
-          >
-            <Text
-              style={styles.roomsPreferenceGateButtonText}
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={0.82}
-            >
-              {copyOrFallback(
-                t,
-                "nearby.activityPreferences.requiredButton",
-                "Выбрать активности"
-              )}
-            </Text>
-          </Pressable>
-        </View>
-      ) : null}
-
-      {rooms.length ? (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.roomRail}
-          contentContainerStyle={[
-            styles.roomRailContent,
-            {
-              gap: cardGap,
-              paddingHorizontal: 14,
-              paddingRight: 14 + cardGap,
-            },
-          ]}
-        >
-          {rooms.map((room) => (
-            <NearbyRoomCardView
-              key={room.id}
-              room={room}
-              cardWidth={cardWidth}
-              cardHeight={cardHeight}
-              primaryColor={PRIMARY_ACTION_BG}
-              accentColor="#F3C98B"
-              busy={busyRoomId === room.id}
-              disabled={Boolean(busyRoomId)}
-              onJoin={() => onJoin(room)}
-              onOpen={() => onOpen(room)}
-              t={t}
-              locale={locale}
-            />
-          ))}
-        </ScrollView>
-      ) : null}
-
-      {expanded ? (
-        <View style={styles.roomsExpandedPanel}>
-          {preferenceGateVisible ? (
-            <View style={styles.roomsPreferenceGate}>
-              <View style={styles.roomsPreferenceGateHeader}>
-                <View style={styles.roomsPreferenceGateIcon}>
-                  <Ionicons name="options-outline" size={18} color="#F3C98B" />
-                </View>
-                <View style={styles.roomsPreferenceGateCopy}>
-                  <Text style={styles.roomsPreferenceGateTitle}>
-                    {copyOrFallback(
-                      t,
-                      "nearby.activityPreferences.requiredTitle",
-                      "Choose nearby activities"
-                    )}
-                  </Text>
-                  <Text style={styles.roomsPreferenceGateBody}>
-                    {copyOrFallback(
-                      t,
-                      "nearby.activityPreferences.requiredBody",
-                      "Choose activities before joining a nearby activity."
-                    )}
-                  </Text>
-                </View>
-              </View>
-              <Pressable
-                onPress={onOpenPreferences}
-                style={styles.roomsPreferenceGateButton}
-                accessibilityRole="button"
-              >
-                <Text
-                  style={styles.roomsPreferenceGateButtonText}
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.82}
-                >
-                  {copyOrFallback(
-                    t,
-                    "nearby.activityPreferences.requiredButton",
-                    "Choose activities"
-                  )}
-                </Text>
-              </Pressable>
-            </View>
-          ) : null}
-          {rooms.map((room) => (
-            <ActivityExpandedRow
-              key={room.id}
-              room={room}
-              busy={busyRoomId === room.id}
-              disabled={Boolean(busyRoomId)}
-              onJoin={() => onJoin(room)}
-              onOpen={() => onOpen(room)}
-              t={t}
-              locale={locale}
-            />
-          ))}
-        </View>
-      ) : null}
-    </View>
-  );
-}
-
-function NearbyRoomCardView({
-  room,
-  cardWidth,
-  cardHeight,
-  primaryColor,
-  accentColor,
-  busy,
-  disabled,
-  onJoin,
-  onOpen,
-  t,
-  locale,
-}: {
-  room: NearbyRoomCard;
-  cardWidth: number;
-  cardHeight: number;
-  primaryColor: string;
-  accentColor: string;
-  busy: boolean;
-  disabled: boolean;
-  onJoin: () => void;
-  onOpen: () => void;
-  t: (key: string, params?: Record<string, string>) => string;
-  locale: string;
-}) {
-  const action = getNearbyRoomAction(room, t);
-  const canAct = action.kind === "join" || action.kind === "open";
-  const startsAtLabel = formatNearbyRoomStartsAt(room.startsAt, locale);
-  const locationLabel = normalizeOptionalRoomLabel(room.locationLabel);
-
-  return (
-    <View style={[styles.roomCard, { width: cardWidth, height: cardHeight }]}>
-      <Text style={styles.roomTitle} numberOfLines={2} ellipsizeMode="tail">
-        {room.title}
-      </Text>
-
-      {startsAtLabel || locationLabel ? (
-        <View style={styles.roomSchedule}>
-          {startsAtLabel ? (
-            <View style={styles.roomScheduleItem}>
-              <Ionicons name="time-outline" size={12} color={accentColor} />
-              <Text
-                style={styles.roomScheduleText}
-                numberOfLines={1}
-                ellipsizeMode="tail"
-              >
-                {startsAtLabel}
-              </Text>
-            </View>
-          ) : null}
-          {locationLabel ? (
-            <View style={styles.roomScheduleItem}>
-              <Ionicons name="location-outline" size={12} color={accentColor} />
-              <Text
-                style={styles.roomScheduleText}
-                numberOfLines={1}
-                ellipsizeMode="tail"
-              >
-                {locationLabel}
-              </Text>
-            </View>
-          ) : null}
-        </View>
-      ) : null}
-
-      <View style={styles.roomCompactFooter}>
-        <View style={styles.roomMetaPill}>
-          <Ionicons name="people-outline" size={12} color="#E8EBFF" />
-          <Text style={styles.roomMetaText} numberOfLines={1}>
-            {copyOrFallback(t, "nearby.rooms.members", "{count} участн.", {
-              count: String(Math.max(0, room.memberCount)),
-            })}
-          </Text>
-        </View>
-
-        <Pressable
-          disabled={!canAct || disabled || busy}
-          onPress={action.kind === "join" ? onJoin : action.kind === "open" ? onOpen : undefined}
-          style={[
-            styles.roomActionButton,
-            canAct
-              ? [styles.roomActionButtonEnabled, { backgroundColor: primaryColor }]
-              : styles.roomActionButtonDisabled,
-            disabled || busy ? styles.buttonDisabled : null,
-          ]}
-        >
-          {busy ? (
-            <ActivityIndicator size="small" color={PRIMARY_ACTION_TEXT} />
-          ) : (
-            <Text
-              style={[
-                styles.roomActionText,
-                canAct ? styles.roomActionTextEnabled : styles.roomActionTextDisabled,
-              ]}
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={0.82}
-            >
-              {action.label}
-            </Text>
-          )}
-        </Pressable>
-      </View>
     </View>
   );
 }
@@ -2559,41 +2331,41 @@ const styles = StyleSheet.create({
   nearbyBody: {
     alignItems: "flex-start",
   },
-  activityExpandedPanel: {
-    marginHorizontal: 14,
-    marginTop: 8,
-    gap: 8,
-  },
   activityPreferenceGate: {
     marginBottom: 8,
-    borderRadius: 16,
-    padding: 10,
-    backgroundColor: "rgba(243, 201, 139, 0.11)",
+    borderRadius: theme.cards.warning.borderRadius,
+    padding: theme.cards.warning.padding,
+    backgroundColor: theme.cards.warning.backgroundColor,
     borderWidth: 1,
-    borderColor: "rgba(243, 201, 139, 0.24)",
+    borderColor: theme.cards.warning.borderColor,
     gap: 8,
   },
   activityPreferenceGateTitle: {
-    color: "#FFFFFF",
+    color: theme.colors.textPrimary,
     fontSize: 13,
     lineHeight: 17,
     fontWeight: "900",
   },
+  activityPreferenceGateBody: {
+    color: theme.colors.textSecondary,
+    fontSize: 12,
+    lineHeight: 17,
+  },
   activityPreferenceGateButton: {
-    minHeight: 34,
+    minHeight: theme.buttons.primary.height,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 15,
-    paddingHorizontal: 12,
-    backgroundColor: PRIMARY_ACTION_BG,
-    borderWidth: 1,
-    borderColor: "rgba(255,219,159,0.55)",
+    borderRadius: theme.buttons.primary.borderRadius,
+    paddingHorizontal: theme.buttons.primary.paddingHorizontal,
+    backgroundColor: theme.buttons.primary.backgroundColor,
+    borderWidth: theme.buttons.primary.borderWidth,
+    borderColor: theme.buttons.primary.borderColor,
   },
   activityPreferenceGateButtonText: {
-    color: PRIMARY_ACTION_TEXT,
-    fontSize: 12,
-    lineHeight: 15,
-    fontWeight: "900",
+    color: theme.buttons.primary.textColor,
+    fontSize: theme.buttons.primary.fontSize,
+    lineHeight: theme.buttons.primary.lineHeight,
+    fontWeight: theme.buttons.primary.fontWeight,
   },
   activityErrorRow: {
     minHeight: 44,
@@ -2619,68 +2391,68 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   activityExpandedRow: {
-    minHeight: 56,
+    width: "100%",
+    minHeight: 76,
     marginBottom: 0,
-    borderRadius: 16,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    backgroundColor: "rgba(9,14,32,0.72)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.09)",
+    borderRadius: 18,
+    padding: 12,
+    backgroundColor: theme.cards.compact.backgroundColor,
+    borderWidth: theme.cards.compact.borderWidth,
+    borderColor: theme.cards.compact.borderColor,
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 10,
   },
   activityExpandedIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(243,201,139,0.10)",
+    backgroundColor: theme.colors.surfaceWarm,
   },
   activityExpandedCopy: {
     flex: 1,
     minWidth: 0,
   },
   activityExpandedTitle: {
-    color: "#FFFFFF",
-    fontSize: 13,
-    lineHeight: 16,
+    color: theme.colors.textPrimary,
+    fontSize: 14,
+    lineHeight: 18,
     fontWeight: "900",
   },
   activityExpandedMeta: {
     marginTop: 2,
-    color: "rgba(226,232,255,0.68)",
-    fontSize: 10,
-    lineHeight: 12,
+    color: theme.colors.textSecondary,
+    fontSize: 11,
+    lineHeight: 15,
     fontWeight: "800",
   },
   activityExpandedButton: {
-    height: 30,
-    minWidth: 86,
-    borderRadius: 15,
+    height: 34,
+    minWidth: 90,
+    borderRadius: 17,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
   },
   activityExpandedButtonEnabled: {
-    backgroundColor: PRIMARY_ACTION_BG,
-    borderWidth: 1,
-    borderColor: "rgba(255,219,159,0.55)",
+    backgroundColor: theme.buttons.primary.backgroundColor,
+    borderWidth: theme.buttons.primary.borderWidth,
+    borderColor: theme.buttons.primary.borderColor,
   },
   activityExpandedButtonDisabled: {
-    backgroundColor: SECONDARY_ACTION_BG,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
+    backgroundColor: theme.buttons.secondary.backgroundColor,
+    borderWidth: theme.buttons.secondary.borderWidth,
+    borderColor: theme.buttons.secondary.borderColor,
   },
   activityExpandedButtonText: {
-    fontSize: 11,
-    lineHeight: 14,
+    fontSize: 12,
+    lineHeight: 15,
     fontWeight: "900",
   },
   activityExpandedButtonTextEnabled: {
-    color: PRIMARY_ACTION_TEXT,
+    color: theme.buttons.primary.textColor,
   },
   activityExpandedButtonTextDisabled: {
     color: "rgba(226,232,255,0.66)",
@@ -2715,7 +2487,7 @@ const styles = StyleSheet.create({
     position: "relative",
     overflow: "hidden",
     borderWidth: 2,
-    borderColor: "rgba(243,201,139,0.72)",
+    borderColor: "rgba(255,210,170,0.72)",
     backgroundColor: "rgba(9,14,32,0.72)",
   },
   personAvatarOverlay: {
@@ -2767,12 +2539,12 @@ const styles = StyleSheet.create({
   },
   nearbyHeaderCard: {
     marginHorizontal: 14,
-    marginTop: 8,
+    marginTop: 6,
     marginBottom: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    minHeight: 64,
-    borderRadius: 22,
+    paddingHorizontal: 13,
+    paddingVertical: 10,
+    minHeight: 58,
+    borderRadius: 20,
     backgroundColor: "rgba(4,8,20,0.62)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.10)",
@@ -2785,19 +2557,19 @@ const styles = StyleSheet.create({
   },
   title: {
     color: theme.colors.text,
-    fontSize: 24,
-    lineHeight: 28,
+    fontSize: 22,
+    lineHeight: 26,
     fontWeight: "900",
   },
   subtitle: {
     color: "rgba(226,232,255,0.76)",
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: 11,
+    lineHeight: 15,
     fontWeight: "600",
-    marginTop: 4,
+    marginTop: 3,
   },
   headerCountsLine: {
-    color: "#F3C98B",
+    color: ACCENT_COLOR,
     fontSize: 11,
     lineHeight: 14,
     fontWeight: "700",
@@ -2876,9 +2648,9 @@ const styles = StyleSheet.create({
     gap: 10,
     padding: 12,
     borderRadius: theme.shapes.cardInner,
-    backgroundColor: "rgba(243, 201, 139, 0.11)",
+    backgroundColor: theme.colors.warningBg,
     borderWidth: 1,
-    borderColor: "rgba(243, 201, 139, 0.24)",
+    borderColor: theme.colors.borderWarm,
   },
   completionIcon: {
     width: 34,
@@ -2908,10 +2680,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#F3C98B",
+    backgroundColor: PRIMARY_ACTION_BG,
   },
   completionButtonText: {
-    color: "#24150B",
+    color: PRIMARY_ACTION_TEXT,
     fontSize: 12,
     fontWeight: "900",
   },
@@ -2937,14 +2709,15 @@ const styles = StyleSheet.create({
   },
   filterSummaryRow: {
     marginHorizontal: 14,
-    marginBottom: 12,
-    height: 42,
+    marginBottom: 10,
+    height: 40,
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 7,
   },
   filterSummaryPill: {
     flex: 1,
+    minWidth: 0,
     height: 40,
     borderRadius: 20,
     paddingHorizontal: 12,
@@ -2961,9 +2734,9 @@ const styles = StyleSheet.create({
   },
   filterSummaryButton: {
     height: 40,
-    minWidth: 94,
+    minWidth: 88,
     borderRadius: 20,
-    paddingHorizontal: 13,
+    paddingHorizontal: 12,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -2973,7 +2746,7 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.12)",
   },
   filterSummaryButtonText: {
-    color: "#F3C98B",
+    color: ACCENT_COLOR,
     fontSize: 12,
     lineHeight: 16,
     fontWeight: "900",
@@ -2987,6 +2760,27 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.07)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.12)",
+  },
+  activitiesEntryButton: {
+    height: 38,
+    maxWidth: 126,
+    minWidth: 38,
+    borderRadius: 19,
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: theme.colors.surfaceWarm,
+    borderWidth: 1,
+    borderColor: theme.colors.borderWarm,
+  },
+  activitiesEntryButtonText: {
+    flexShrink: 1,
+    color: theme.colors.textAccent,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: "900",
   },
   filterSheetBackdrop: {
     flex: 1,
@@ -3026,6 +2820,87 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.12)",
   },
+  activitiesSheetBackdrop: {
+    flex: 1,
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(0,0,0,0.44)",
+  },
+  activitiesSheet: {
+    width: "100%",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 18,
+    backgroundColor: theme.sheets.backgroundColor,
+    borderTopWidth: 1,
+    borderColor: theme.sheets.borderColor,
+  },
+  activitiesSheetHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    marginBottom: 12,
+  },
+  activitiesSheetTitleCopy: {
+    flex: 1,
+    minWidth: 0,
+    gap: 4,
+  },
+  activitiesSheetTitle: {
+    color: theme.colors.textPrimary,
+    fontSize: 20,
+    lineHeight: 24,
+    fontWeight: "900",
+  },
+  activitiesSheetSubtitle: {
+    color: theme.colors.textSecondary,
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: "700",
+  },
+  activitiesSheetHeaderActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  activitiesSheetConfigureButton: {
+    height: 36,
+    borderRadius: 18,
+    paddingHorizontal: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.buttons.secondary.backgroundColor,
+    borderWidth: theme.buttons.secondary.borderWidth,
+    borderColor: theme.buttons.secondary.borderColor,
+  },
+  activitiesSheetConfigureText: {
+    color: theme.buttons.secondary.textColor,
+    fontSize: 12,
+    lineHeight: 15,
+    fontWeight: theme.buttons.secondary.fontWeight,
+  },
+  activitiesSheetCloseButton: {
+    width: theme.buttons.icon.width,
+    height: theme.buttons.icon.height,
+    borderRadius: theme.buttons.icon.borderRadius,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.buttons.icon.backgroundColor,
+    borderWidth: theme.buttons.icon.borderWidth,
+    borderColor: theme.buttons.icon.borderColor,
+  },
+  activitiesSheetContent: {
+    gap: 8,
+    paddingBottom: 4,
+  },
+  activitiesSheetEmptyText: {
+    color: theme.colors.textSecondary,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "700",
+    paddingVertical: 10,
+  },
   filterSheetTitle: {
     color: "#FFFFFF",
     fontSize: 20,
@@ -3038,7 +2913,7 @@ const styles = StyleSheet.create({
     paddingBottom: 4,
   },
   filterSheetSectionLabel: {
-    color: "#F3C98B",
+    color: ACCENT_COLOR,
     fontSize: 12,
     lineHeight: 16,
     fontWeight: "900",
@@ -3062,8 +2937,8 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.12)",
   },
   filterSheetChipActive: {
-    backgroundColor: "rgba(243,201,139,0.18)",
-    borderColor: "rgba(243,201,139,0.46)",
+    backgroundColor: theme.colors.chipActiveBg,
+    borderColor: theme.colors.chipActiveBorder,
   },
   filterSheetChipText: {
     color: "rgba(226,232,255,0.84)",
@@ -3072,7 +2947,7 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
   filterSheetChipTextActive: {
-    color: "#F3C98B",
+    color: ACCENT_COLOR,
   },
   filterSheetFooter: {
     height: 52,
@@ -3088,7 +2963,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: PRIMARY_ACTION_BG,
     borderWidth: 1,
-    borderColor: "rgba(255,219,159,0.55)",
+    borderColor: PRIMARY_ACTION_BORDER,
   },
   filterSheetApplyText: {
     color: PRIMARY_ACTION_TEXT,
@@ -3107,7 +2982,7 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.12)",
   },
   filterSheetResetText: {
-    color: "#F3C98B",
+    color: ACCENT_COLOR,
     fontSize: 14,
     lineHeight: 17,
     fontWeight: "900",
@@ -3141,235 +3016,6 @@ const styles = StyleSheet.create({
     color: "#FFD2DA",
     fontSize: 12,
     fontWeight: "900",
-  },
-  roomsSection: {
-    marginTop: 14,
-    marginBottom: 14,
-    paddingVertical: 10,
-    backgroundColor: "rgba(4,8,20,0.38)",
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: "rgba(255,255,255,0.07)",
-  },
-  roomsHeader: {
-    height: 28,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginHorizontal: 14,
-    marginBottom: 8,
-  },
-  roomsHeaderTitleButton: {
-    flex: 1,
-    minWidth: 0,
-    height: 28,
-    justifyContent: "center",
-  },
-  roomsTitle: {
-    flex: 1,
-    minWidth: 0,
-    color: "#FFFFFF",
-    fontSize: 16,
-    lineHeight: 20,
-    fontWeight: "900",
-  },
-  roomsHeaderActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  roomsConfigureButton: {
-    height: 28,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 10,
-    paddingHorizontal: 8,
-    backgroundColor: "rgba(255,255,255,0.06)",
-    borderWidth: 1,
-    borderColor: "rgba(243, 201, 139, 0.20)",
-  },
-  roomsConfigureText: {
-    color: "#F3C98B",
-    fontSize: 12,
-    lineHeight: 16,
-    fontWeight: "900",
-  },
-  roomsExpandButton: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  roomsError: {
-    marginHorizontal: 14,
-    marginBottom: 8,
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 7,
-    borderRadius: 14,
-    padding: 10,
-    backgroundColor: "rgba(255, 77, 103, 0.13)",
-    borderWidth: 1,
-    borderColor: "rgba(255, 210, 218, 0.20)",
-  },
-  roomsErrorText: {
-    flex: 1,
-    color: "#FFD2DA",
-    fontSize: 12,
-    lineHeight: 16,
-  },
-  roomsPreferenceGate: {
-    minHeight: 86,
-    marginBottom: 8,
-    gap: 10,
-    borderRadius: 18,
-    padding: 12,
-    backgroundColor: "rgba(243,201,139,0.10)",
-    borderWidth: 1,
-    borderColor: "rgba(243,201,139,0.30)",
-  },
-  roomsPreferenceGateHeader: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 9,
-  },
-  roomsPreferenceGateIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(0,0,0,0.18)",
-  },
-  roomsPreferenceGateCopy: {
-    flex: 1,
-    minWidth: 0,
-    gap: 3,
-  },
-  roomsPreferenceGateTitle: {
-    color: theme.colors.text,
-    fontSize: 13,
-    lineHeight: 17,
-    fontWeight: "900",
-  },
-  roomsPreferenceGateBody: {
-    color: "rgba(255,255,255,0.74)",
-    fontSize: 12,
-    lineHeight: 17,
-  },
-  roomsPreferenceGateButton: {
-    minHeight: 36,
-    alignSelf: "stretch",
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 13,
-    paddingHorizontal: 12,
-    backgroundColor: PRIMARY_ACTION_BG,
-    borderWidth: 1,
-    borderColor: "rgba(255,219,159,0.55)",
-  },
-  roomsPreferenceGateButtonText: {
-    color: "#24150B",
-    fontSize: 12,
-    lineHeight: 15,
-    fontWeight: "900",
-  },
-  roomRail: {
-    marginHorizontal: 0,
-  },
-  roomRailContent: {},
-  roomsExpandedPanel: {
-    marginHorizontal: 14,
-    marginTop: 8,
-    gap: 8,
-  },
-  roomCard: {
-    borderRadius: 18,
-    padding: 12,
-    backgroundColor: "rgba(9,14,32,0.78)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
-    overflow: "hidden",
-  },
-  roomTitle: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    lineHeight: 18,
-    fontWeight: "900",
-  },
-  roomSchedule: {
-    marginTop: 4,
-    gap: 2,
-    minHeight: 0,
-    flexShrink: 1,
-  },
-  roomScheduleItem: {
-    minHeight: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  roomScheduleText: {
-    flex: 1,
-    minWidth: 0,
-    color: "rgba(226,232,255,0.76)",
-    fontSize: 11,
-    lineHeight: 14,
-    fontWeight: "700",
-  },
-  roomCompactFooter: {
-    height: 32,
-    marginTop: "auto",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 8,
-  },
-  roomMetaPill: {
-    height: 24,
-    maxWidth: 82,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    backgroundColor: "rgba(255,255,255,0.07)",
-  },
-  roomMetaText: {
-    flexShrink: 1,
-    color: "#E8EBFF",
-    fontSize: 10,
-    lineHeight: 12,
-    fontWeight: "800",
-  },
-  roomActionButton: {
-    height: 30,
-    minWidth: 86,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 15,
-    paddingHorizontal: 10,
-  },
-  roomActionButtonEnabled: {
-    borderWidth: 1,
-    borderColor: "rgba(255,219,159,0.55)",
-  },
-  roomActionButtonDisabled: {
-    backgroundColor: "rgba(255,255,255,0.07)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
-  },
-  roomActionText: {
-    fontSize: 11,
-    lineHeight: 14,
-    fontWeight: "900",
-  },
-  roomActionTextEnabled: {
-    color: PRIMARY_ACTION_TEXT,
-  },
-  roomActionTextDisabled: {
-    color: "rgba(226,232,255,0.66)",
   },
   card: {
     alignItems: "center",
@@ -3504,19 +3150,19 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderRadius: 12,
     paddingHorizontal: 14,
-    backgroundColor: "#F3C98B",
+    backgroundColor: PRIMARY_ACTION_BG,
   },
   emptyButtonSecondary: {
     backgroundColor: "rgba(255,255,255,0.07)",
     borderWidth: 1,
-    borderColor: "rgba(245, 205, 139, 0.34)",
+    borderColor: theme.colors.borderWarm,
   },
   emptyButtonText: {
-    color: "#24150B",
+    color: PRIMARY_ACTION_TEXT,
     fontSize: 13,
     fontWeight: "900",
   },
   emptyButtonSecondaryText: {
-    color: "#F3C98B",
+    color: ACCENT_COLOR,
   },
 });

@@ -283,8 +283,8 @@ export default function NearbyActivityPreferencesScreen() {
         "screen.nearbyActivityPreferences",
         "Nearby activities"
       )}
-      background="now"
-      overlayOpacity={0.2}
+      background="nearbyWarm"
+      overlayOpacity={0.16}
       blurRadius={0}
       showBack
     >
@@ -313,7 +313,7 @@ export default function NearbyActivityPreferencesScreen() {
 
           {loading ? (
             <View style={styles.statePanel}>
-              <ActivityIndicator color="#F3C98B" />
+              <ActivityIndicator color={theme.colors.textAccent} />
               <Text style={styles.stateText}>
                 {copyOrFallback(
                   t,
@@ -371,7 +371,11 @@ export default function NearbyActivityPreferencesScreen() {
                             ]}
                           >
                             {selected ? (
-                              <Ionicons name="checkmark" size={16} color="#24150B" />
+                              <Ionicons
+                                name="checkmark"
+                                size={16}
+                                color={theme.colors.primaryActionText}
+                              />
                             ) : null}
                           </View>
                           <Text
@@ -438,7 +442,10 @@ export default function NearbyActivityPreferencesScreen() {
                 accessibilityRole="button"
               >
                 {saving ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
+                  <ActivityIndicator
+                    size="small"
+                    color={theme.colors.primaryActionText}
+                  />
                 ) : null}
                 <Text style={styles.saveButtonText}>{primaryButtonText}</Text>
               </Pressable>
@@ -546,7 +553,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   categoryTitle: {
-    color: "#F3C98B",
+    color: theme.colors.textAccent,
     fontSize: 13,
     lineHeight: 17,
     fontWeight: "900",
@@ -568,8 +575,8 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.12)",
   },
   activityRowSelected: {
-    backgroundColor: "rgba(243, 201, 139, 0.13)",
-    borderColor: "rgba(243, 201, 139, 0.42)",
+    backgroundColor: theme.colors.chipActiveBg,
+    borderColor: theme.colors.chipActiveBorder,
   },
   rowDisabled: {
     opacity: 0.58,
@@ -585,8 +592,8 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.06)",
   },
   checkCircleSelected: {
-    backgroundColor: "#F3C98B",
-    borderColor: "#F3C98B",
+    backgroundColor: theme.colors.primaryActionBg,
+    borderColor: theme.colors.primaryActionBg,
   },
   activityLabel: {
     flex: 1,
@@ -624,7 +631,7 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.14)",
   },
   selectedCountText: {
-    color: "#F3C98B",
+    color: theme.colors.textAccent,
     fontSize: 13,
     lineHeight: 17,
     fontWeight: "900",
@@ -643,15 +650,15 @@ const styles = StyleSheet.create({
     gap: 8,
     borderRadius: 17,
     paddingHorizontal: 14,
-    backgroundColor: "#F3C98B",
+    backgroundColor: theme.buttons.primary.backgroundColor,
     borderWidth: 1,
-    borderColor: "rgba(255,219,159,0.55)",
+    borderColor: theme.buttons.primary.borderColor,
   },
   saveButtonText: {
-    color: "#24150B",
-    fontSize: 16,
-    lineHeight: 20,
-    fontWeight: "900",
+    color: theme.buttons.primary.textColor,
+    fontSize: theme.buttons.primary.fontSize,
+    lineHeight: theme.buttons.primary.lineHeight,
+    fontWeight: theme.buttons.primary.fontWeight,
   },
   secondaryButton: {
     minWidth: 104,
@@ -665,7 +672,7 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.12)",
   },
   secondaryButtonText: {
-    color: "#F3C98B",
+    color: theme.buttons.secondary.textColor,
     fontSize: 14,
     lineHeight: 18,
     fontWeight: "900",

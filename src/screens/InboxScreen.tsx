@@ -176,7 +176,7 @@ export default function InboxScreen() {
   const renderEmptyState = () => (
     <View style={styles.emptyStateCard}>
       <View style={styles.emptyStateIcon}>
-        <Ionicons name="chatbubble-ellipses-outline" size={22} color={theme.colors.accent} />
+        <Ionicons name="chatbubble-ellipses-outline" size={22} color={theme.colors.textAccent} />
       </View>
       <Text style={styles.emptyStateTitle}>
         {tt("inbox.emptyTitleCoreLoop", "Здесь появятся ваши личные разговоры")}
@@ -268,7 +268,7 @@ export default function InboxScreen() {
 
   if (!uid) {
     return (
-      <ScreenShell title={t("tabs.chats")} background="togetherChat">
+      <ScreenShell title={t("tabs.chats")} background="chatWarm">
         <View style={styles.centerState}>
           <CoreStateCard
             icon="person-circle-outline"
@@ -289,7 +289,7 @@ export default function InboxScreen() {
   }
 
   return (
-    <ScreenShell title={t("tabs.chats")} background="togetherChat">
+    <ScreenShell title={t("tabs.chats")} background="chatWarm">
       <View style={[styles.screenContent, { paddingBottom: insets.bottom + 8 }]}>
         {renderHeroCard()}
 
@@ -386,7 +386,7 @@ const styles = StyleSheet.create({
   },
   threadCardUnread: {
     backgroundColor: "rgba(23, 18, 34, 0.96)",
-    borderColor: "rgba(255, 78, 138, 0.30)",
+    borderColor: theme.colors.borderWarm,
   },
   threadHeader: {
     flexDirection: "row",
@@ -410,7 +410,7 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   sourceLabel: {
-    color: theme.colors.accent,
+    color: theme.colors.textAccent,
     fontSize: 12,
     fontWeight: "800",
   },
@@ -430,10 +430,10 @@ const styles = StyleSheet.create({
     borderRadius: 11,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: theme.colors.primary,
+    backgroundColor: theme.colors.textAccent,
   },
   unreadBadgeText: {
-    color: "#FFFFFF",
+    color: theme.colors.primaryActionText,
     fontSize: 11,
     fontWeight: "900",
   },
@@ -460,9 +460,9 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(255, 122, 60, 0.10)",
+    backgroundColor: theme.colors.surfaceWarm,
     borderWidth: 1,
-    borderColor: "rgba(255, 122, 60, 0.18)",
+    borderColor: theme.colors.borderWarm,
   },
   emptyStateTitle: {
     color: theme.colors.text,
@@ -479,16 +479,20 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   emptyPrimaryButton: {
-    borderRadius: theme.shapes.pill,
-    paddingHorizontal: 16,
+    minHeight: theme.buttons.primary.height,
+    borderRadius: theme.buttons.primary.borderRadius,
+    paddingHorizontal: theme.buttons.primary.paddingHorizontal,
     paddingVertical: 12,
-    backgroundColor: theme.colors.primary,
+    backgroundColor: theme.buttons.primary.backgroundColor,
+    borderWidth: theme.buttons.primary.borderWidth,
+    borderColor: theme.buttons.primary.borderColor,
     alignItems: "center",
     marginTop: 2,
   },
   emptyPrimaryButtonText: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "800",
+    color: theme.buttons.primary.textColor,
+    fontSize: theme.buttons.primary.fontSize,
+    lineHeight: theme.buttons.primary.lineHeight,
+    fontWeight: theme.buttons.primary.fontWeight,
   },
 });

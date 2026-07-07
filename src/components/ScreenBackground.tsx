@@ -21,7 +21,12 @@ export type ScreenBackgroundVariant =
   | "profile"
   | "aurora"
   | "sunset"
-  | "deepSpace";
+  | "deepSpace"
+  | "midnightWarm"
+  | "profileWarm"
+  | "chatWarm"
+  | "nearbyWarm"
+  | "menuWarm";
 
 type Props = {
   variant?: ScreenBackgroundVariant;
@@ -46,12 +51,52 @@ const gradientPresets = {
     start: { x: 0, y: 0 },
     end: { x: 1, y: 1 },
   },
+  midnightWarm: {
+    colors: ["#050816", "#080B14", "#14101A", "#211421"],
+    start: { x: 0, y: 0 },
+    end: { x: 1, y: 1 },
+    blobAColor: "#5B2D3D",
+    blobBColor: "#7A4A2D",
+    blobOpacity: 0.14,
+  },
+  nearbyWarm: {
+    colors: ["#050816", "#071018", "#111421", "#1B1422"],
+    start: { x: 0, y: 0 },
+    end: { x: 1, y: 1 },
+    blobAColor: "#5B2D3D",
+    blobBColor: "#7A4A2D",
+    blobOpacity: 0.14,
+  },
+  profileWarm: {
+    colors: ["#050816", "#080B16", "#15101D", "#201322"],
+    start: { x: 0, y: 0 },
+    end: { x: 1, y: 1 },
+    blobAColor: "#5B2D3D",
+    blobBColor: "#7A4A2D",
+    blobOpacity: 0.14,
+  },
+  chatWarm: {
+    colors: ["#050816", "#070B15", "#101420", "#17101D"],
+    start: { x: 0, y: 0 },
+    end: { x: 1, y: 1 },
+    blobAColor: "#5B2D3D",
+    blobBColor: "#7A4A2D",
+    blobOpacity: 0.14,
+  },
+  menuWarm: {
+    colors: ["#050816", "#080B15", "#15101B", "#221420"],
+    start: { x: 0, y: 0 },
+    end: { x: 1, y: 1 },
+    blobAColor: "#5B2D3D",
+    blobBColor: "#7A4A2D",
+    blobOpacity: 0.14,
+  },
 } as const;
 
 function isGradientVariant(
   v: ScreenBackgroundVariant,
 ): v is keyof typeof gradientPresets {
-  return v === "aurora" || v === "sunset" || v === "deepSpace";
+  return Object.prototype.hasOwnProperty.call(gradientPresets, v);
 }
 
 function mapVariantToKey(variant: ScreenBackgroundVariant): BackgroundKey {
@@ -107,6 +152,11 @@ const variantDefaults: Record<
   aurora: { overlayOpacity: 0.22, blurRadius: 0 },
   sunset: { overlayOpacity: 0.22, blurRadius: 0 },
   deepSpace: { overlayOpacity: 0.28, blurRadius: 0 },
+  midnightWarm: { overlayOpacity: 0.16, blurRadius: 0 },
+  nearbyWarm: { overlayOpacity: 0.16, blurRadius: 0 },
+  profileWarm: { overlayOpacity: 0.16, blurRadius: 0 },
+  chatWarm: { overlayOpacity: 0.16, blurRadius: 0 },
+  menuWarm: { overlayOpacity: 0.16, blurRadius: 0 },
 };
 
 export default function ScreenBackground({
@@ -122,6 +172,9 @@ export default function ScreenBackground({
   // Gradient backgrounds (for unique tab backgrounds)
   if (isGradientVariant(variant)) {
     const preset = gradientPresets[variant];
+    const blobAColor = "blobAColor" in preset ? preset.blobAColor : "#22c55e";
+    const blobBColor = "blobBColor" in preset ? preset.blobBColor : "#a855f7";
+    const blobOpacity = "blobOpacity" in preset ? preset.blobOpacity : 0.18;
 
     return (
       <View style={styles.root}>
@@ -133,8 +186,22 @@ export default function ScreenBackground({
         />
 
         {/* Decorative blobs for "image-like" depth */}
-        <View pointerEvents="none" style={[styles.blob, styles.blobA]} />
-        <View pointerEvents="none" style={[styles.blob, styles.blobB]} />
+        <View
+          pointerEvents="none"
+          style={[
+            styles.blob,
+            styles.blobA,
+            { backgroundColor: blobAColor, opacity: blobOpacity },
+          ]}
+        />
+        <View
+          pointerEvents="none"
+          style={[
+            styles.blob,
+            styles.blobB,
+            { backgroundColor: blobBColor, opacity: blobOpacity },
+          ]}
+        />
 
         <View
           pointerEvents="none"
@@ -174,7 +241,6 @@ const styles = StyleSheet.create({
     width: 420,
     height: 420,
     borderRadius: 420,
-    opacity: 0.18,
   },
   blobA: {
     top: -120,
