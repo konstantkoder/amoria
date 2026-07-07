@@ -17,7 +17,7 @@ export default function LocationInfoScreen() {
   return (
     <ScreenShell
       title={t("screen.locationInfo")}
-      background="profile"
+      background="menuWarm"
       showBack
     >
       <ScrollView showsVerticalScrollIndicator={false}>
@@ -42,13 +42,13 @@ export default function LocationInfoScreen() {
               paddingHorizontal: 14,
               paddingVertical: 10,
               borderRadius: 14,
-              backgroundColor: theme.colors.primary,
+              backgroundColor: theme.buttons.primary.backgroundColor,
               borderWidth: 1,
-              borderColor: "rgba(167,139,250,0.45)",
+              borderColor: theme.buttons.primary.borderColor,
               marginTop: 6,
             }}
           >
-            <Text style={{ color: "#FFFFFF", fontWeight: "800" }}>
+            <Text style={{ color: theme.buttons.primary.textColor, fontWeight: "800" }}>
               {t("settings.openSystemSettings")}
             </Text>
           </TouchableOpacity>

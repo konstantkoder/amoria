@@ -2,6 +2,7 @@ import React from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
+import PremiumGoldButton from "@/components/PremiumGoldButton";
 import { theme } from "@/theme";
 
 type Action = {
@@ -46,9 +47,7 @@ export default function CoreStateCard({
       {primaryAction || secondaryAction ? (
         <View style={styles.actions}>
           {primaryAction ? (
-            <Pressable onPress={primaryAction.onPress} style={styles.primaryButton}>
-              <Text style={styles.primaryButtonText}>{primaryAction.label}</Text>
-            </Pressable>
+            <PremiumGoldButton label={primaryAction.label} onPress={primaryAction.onPress} />
           ) : null}
           {secondaryAction ? (
             <Pressable onPress={secondaryAction.onPress} style={styles.secondaryButton}>
@@ -107,27 +106,6 @@ const styles = StyleSheet.create({
     width: "100%",
     gap: 10,
     marginTop: 4,
-  },
-  primaryButton: {
-    minHeight: theme.buttons.primary.height,
-    borderRadius: theme.buttons.primary.borderRadius,
-    paddingHorizontal: theme.buttons.primary.paddingHorizontal,
-    paddingVertical: 15,
-    backgroundColor: theme.buttons.primary.backgroundColor,
-    borderWidth: theme.buttons.primary.borderWidth,
-    borderColor: theme.buttons.primary.borderColor,
-    alignItems: "center",
-    shadowColor: theme.colors.textAccent,
-    shadowOpacity: 0.22,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 4,
-  },
-  primaryButtonText: {
-    color: theme.buttons.primary.textColor,
-    fontSize: theme.buttons.primary.fontSize,
-    lineHeight: theme.buttons.primary.lineHeight,
-    fontWeight: theme.buttons.primary.fontWeight,
   },
   secondaryButton: {
     minHeight: theme.buttons.secondary.height,

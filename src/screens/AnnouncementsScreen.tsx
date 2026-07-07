@@ -105,7 +105,7 @@ export default function AnnouncementsScreen() {
   return (
     <ScreenShell
       title={copyOrFallback(t, "tabs.announcements", "Announcements")}
-      background="ads"
+      background="midnightWarm"
       overlayOpacity={0.18}
       blurRadius={0}
     >

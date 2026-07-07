@@ -632,12 +632,12 @@ export default function PhotoManagerScreen() {
     return (
       <ScreenShell
         title={t("profile.photos")}
-        background="profile"
+        background="profileWarm"
         overlayOpacity={0.16}
         showBack
       >
         <View style={styles.loader}>
-          <ActivityIndicator color={theme.colors.primary} />
+          <ActivityIndicator color={theme.colors.textAccent} />
           <Text style={styles.loaderText}>{t("editProfile.loading")}</Text>
         </View>
       </ScreenShell>
@@ -647,7 +647,7 @@ export default function PhotoManagerScreen() {
   return (
     <ScreenShell
       title={t("profile.photos")}
-      background="profile"
+      background="profileWarm"
       overlayOpacity={0.16}
       showBack
     >
@@ -983,11 +983,11 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   primarySmallButton: {
-    backgroundColor: theme.colors.primary,
-    borderColor: theme.colors.primary,
+    backgroundColor: theme.buttons.primary.backgroundColor,
+    borderColor: theme.buttons.primary.borderColor,
   },
   primarySmallButtonText: {
-    color: "#FFFFFF",
+    color: theme.buttons.primary.textColor,
     fontSize: 12,
     fontWeight: "800",
   },
@@ -1002,7 +1002,9 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   addButton: {
-    backgroundColor: theme.colors.primary,
+    backgroundColor: theme.buttons.primary.backgroundColor,
+    borderWidth: 1,
+    borderColor: theme.buttons.primary.borderColor,
     borderRadius: theme.radius,
     paddingVertical: 14,
     alignItems: "center",
@@ -1012,7 +1014,7 @@ const styles = StyleSheet.create({
     opacity: 0.65,
   },
   addButtonText: {
-    color: "#FFFFFF",
+    color: theme.buttons.primary.textColor,
     fontWeight: "800",
     fontSize: 15,
   },

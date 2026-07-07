@@ -4,6 +4,7 @@ import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Device from "expo-device";
 
+import PremiumGoldButton from "@/components/PremiumGoldButton";
 import ScreenShell from "@/components/ScreenShell";
 import { useLocale } from "@/contexts/LocaleContext";
 import {
@@ -489,17 +490,19 @@ export default function PlayLobbyScreen() {
               </View>
             </View>
 
-            <Pressable
-              onPress={() => void openActivity("draw", "startDraw")}
-              style={[styles.primaryCta, locationBusy ? styles.primaryCtaDisabled : null]}
-              disabled={locationBusy}
-            >
-              <Text style={styles.primaryCtaTitle}>
-                {locationBusy
+            <PremiumGoldButton
+              label={
+                locationBusy
                   ? tt("together.geo.locationLoading", "Получаем геолокацию...")
-                  : tt("together.lobby.startDrawChallenge", "Начать")}
-              </Text>
-            </Pressable>
+                  : tt("together.lobby.startDrawChallenge", "Начать")
+              }
+              onPress={() => void openActivity("draw", "startDraw")}
+              disabled={locationBusy}
+              loading={locationBusy}
+              compact={false}
+              subtleGlow
+              style={styles.primaryCta}
+            />
             <Text style={styles.primaryCtaHint}>
               {tt(
                 "together.lobby.startDrawHint",
@@ -602,10 +605,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingTop: 20,
     paddingBottom: 18,
-    borderRadius: theme.shapes.card,
-    backgroundColor: "rgba(17, 18, 32, 0.66)",
+    borderRadius: 24,
+    backgroundColor: "rgba(7, 10, 20, 0.62)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.13)",
+    borderColor: "rgba(255,255,255,0.12)",
   },
   heroTop: {
     gap: 8,
@@ -618,13 +621,13 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
   },
   heroTitle: {
-    color: theme.colors.text,
+    color: theme.colors.textPrimary,
     fontSize: 29,
     lineHeight: 34,
     fontWeight: "800",
   },
   heroText: {
-    color: "rgba(255,255,255,0.82)",
+    color: theme.colors.textSecondary,
     fontSize: 14,
     lineHeight: 20,
   },
@@ -635,17 +638,17 @@ const styles = StyleSheet.create({
     gap: 8,
     padding: 13,
     borderRadius: theme.shapes.cardInner,
-    backgroundColor: theme.cards.warning.backgroundColor,
+    backgroundColor: "rgba(245,194,77,0.11)",
     borderWidth: 1,
-    borderColor: theme.cards.warning.borderColor,
+    borderColor: "rgba(245,194,77,0.34)",
   },
   completionTitle: {
-    color: theme.colors.text,
+    color: theme.colors.textPrimary,
     fontSize: 14,
     fontWeight: "900",
   },
   completionBody: {
-    color: "rgba(255,255,255,0.76)",
+    color: theme.colors.textSecondary,
     fontSize: 12,
     lineHeight: 17,
   },
@@ -656,10 +659,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 13,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: theme.buttons.primary.backgroundColor,
+    backgroundColor: "rgba(245,194,77,0.10)",
+    borderWidth: 1,
+    borderColor: "rgba(245,194,77,0.34)",
   },
   completionButtonText: {
-    color: theme.buttons.primary.textColor,
+    color: theme.colors.textAccent,
     fontSize: 12,
     fontWeight: "900",
   },
@@ -667,9 +672,9 @@ const styles = StyleSheet.create({
     gap: 12,
     padding: 13,
     borderRadius: theme.shapes.cardInner,
-    backgroundColor: "rgba(14, 18, 31, 0.62)",
+    backgroundColor: "rgba(7, 10, 20, 0.48)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
+    borderColor: "rgba(255,255,255,0.10)",
   },
   filterBlock: {
     gap: 8,
@@ -679,7 +684,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.10)",
   },
   filterTitle: {
-    color: "rgba(255,255,255,0.92)",
+    color: theme.colors.textPrimary,
     fontSize: 13,
     fontWeight: "900",
   },
@@ -695,51 +700,30 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.07)",
+    backgroundColor: "rgba(255,255,255,0.055)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
+    borderColor: "rgba(255,255,255,0.10)",
   },
   optionChipSelected: {
-    backgroundColor: theme.buttons.chip.activeBackgroundColor,
-    borderColor: theme.buttons.chip.activeBorderColor,
+    backgroundColor: "rgba(245,194,77,0.16)",
+    borderColor: "rgba(245,194,77,0.46)",
   },
   optionChipText: {
-    color: "rgba(255,255,255,0.86)",
+    color: theme.colors.textSecondary,
     fontSize: 12,
     fontWeight: "800",
   },
   optionChipTextSelected: {
-    color: "#FFF7EC",
+    color: theme.colors.textAccent,
   },
   primaryCta: {
     alignSelf: "center",
-    minHeight: 56,
+    minHeight: 48,
     width: "100%",
     maxWidth: 390,
-    borderRadius: theme.shapes.pill,
-    paddingHorizontal: 24,
-    paddingVertical: 15,
-    backgroundColor: theme.buttons.primary.backgroundColor,
-    borderWidth: 1,
-    borderColor: theme.buttons.primary.borderColor,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: theme.colors.textAccent,
-    shadowOpacity: 0.18,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 7 },
-    elevation: 7,
-  },
-  primaryCtaDisabled: {
-    opacity: 0.68,
-  },
-  primaryCtaTitle: {
-    color: theme.buttons.primary.textColor,
-    fontSize: 18,
-    fontWeight: "900",
   },
   primaryCtaHint: {
-    color: "rgba(33,19,10,0.72)",
+    color: theme.colors.textSecondary,
     fontSize: 12,
     lineHeight: 17,
     textAlign: "center",
@@ -760,12 +744,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 9,
-    backgroundColor: "rgba(255,255,255,0.07)",
+    backgroundColor: "rgba(245,194,77,0.08)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
+    borderColor: "rgba(245,194,77,0.26)",
   },
   detailsToggleText: {
-    color: "#FFF7EC",
+    color: theme.colors.textAccent,
     fontSize: 13,
     fontWeight: "800",
   },
@@ -783,13 +767,13 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.10)",
   },
   detailsTitle: {
-    color: theme.colors.text,
+    color: theme.colors.textPrimary,
     fontSize: 14,
     fontWeight: "900",
     marginTop: 2,
   },
   detailsText: {
-    color: "rgba(255,255,255,0.82)",
+    color: theme.colors.textSecondary,
     fontSize: 13,
     lineHeight: 18,
   },
@@ -812,7 +796,7 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.10)",
   },
   detailStepText: {
-    color: "#FFF5EA",
+    color: theme.colors.textSecondary,
     fontSize: 11,
     fontWeight: "800",
   },

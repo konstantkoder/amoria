@@ -599,7 +599,7 @@ export default function AnnouncementDetailScreen() {
 
   if (!loading && loadError) {
     return (
-      <ScreenShell title={screenTitle} background="ads" showBack onBack={handleBack}>
+      <ScreenShell title={screenTitle} background="midnightWarm" showBack onBack={handleBack}>
         <View style={styles.centerState}>
           <CoreStateCard
             icon="cloud-offline-outline"
@@ -621,7 +621,7 @@ export default function AnnouncementDetailScreen() {
 
   if (!loading && !announcement) {
     return (
-      <ScreenShell title={screenTitle} background="ads" showBack onBack={handleBack}>
+      <ScreenShell title={screenTitle} background="midnightWarm" showBack onBack={handleBack}>
         <View style={styles.centerState}>
           <CoreStateCard
             icon="document-text-outline"
@@ -643,7 +643,7 @@ export default function AnnouncementDetailScreen() {
 
   if (!loading && announcement && authorBlocked && announcementAuthorUid !== currentUid) {
     return (
-      <ScreenShell title={screenTitle} background="ads" showBack onBack={handleBack}>
+      <ScreenShell title={screenTitle} background="midnightWarm" showBack onBack={handleBack}>
         <View style={styles.centerState}>
           <CoreStateCard
             icon="eye-off-outline"
@@ -665,7 +665,7 @@ export default function AnnouncementDetailScreen() {
 
   if (!loading && announcement && unavailableAnnouncementCopy) {
     return (
-      <ScreenShell title={screenTitle} background="ads" showBack onBack={handleBack}>
+      <ScreenShell title={screenTitle} background="midnightWarm" showBack onBack={handleBack}>
         <View style={styles.centerState}>
           <CoreStateCard
             icon="shield-checkmark-outline"
@@ -682,7 +682,7 @@ export default function AnnouncementDetailScreen() {
   }
 
   return (
-    <ScreenShell title={screenTitle} background="ads" showBack onBack={handleBack}>
+    <ScreenShell title={screenTitle} background="midnightWarm" showBack onBack={handleBack}>
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={styles.content}
@@ -742,7 +742,7 @@ export default function AnnouncementDetailScreen() {
                   <Ionicons
                     name="document-text-outline"
                     size={24}
-                    color={announcement.hasPhoto ? theme.colors.accent : theme.colors.subtext}
+                    color={announcement.hasPhoto ? theme.colors.textAccent : theme.colors.subtext}
                   />
                 )}
               </View>
@@ -914,7 +914,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   summaryKicker: {
-    color: theme.colors.accent,
+    color: theme.colors.textAccent,
     fontSize: 10,
     fontWeight: "800",
     letterSpacing: 0.9,
@@ -929,12 +929,12 @@ const styles = StyleSheet.create({
     borderRadius: theme.shapes.pill,
     paddingHorizontal: 9,
     paddingVertical: 5,
-    backgroundColor: "rgba(255, 78, 138, 0.14)",
+    backgroundColor: theme.colors.chipActiveBg,
     borderWidth: 1,
-    borderColor: "rgba(255, 78, 138, 0.22)",
+    borderColor: theme.colors.chipActiveBorder,
   },
   categoryPillText: {
-    color: theme.colors.primary,
+    color: theme.colors.textAccent,
     fontSize: 11,
     fontWeight: "800",
   },
@@ -1019,7 +1019,7 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   sectionLabel: {
-    color: theme.colors.accent,
+    color: theme.colors.textAccent,
     fontSize: 11,
     fontWeight: "800",
     letterSpacing: 0.8,
@@ -1146,14 +1146,16 @@ const styles = StyleSheet.create({
     borderRadius: theme.shapes.pill,
     paddingHorizontal: 16,
     paddingVertical: 11,
-    backgroundColor: theme.colors.primary,
+    backgroundColor: theme.buttons.primary.backgroundColor,
+    borderWidth: 1,
+    borderColor: theme.buttons.primary.borderColor,
     alignItems: "center",
   },
   primaryButtonDisabled: {
     opacity: 0.65,
   },
   primaryButtonText: {
-    color: "#FFFFFF",
+    color: theme.buttons.primary.textColor,
     fontSize: 14,
     fontWeight: "800",
   },

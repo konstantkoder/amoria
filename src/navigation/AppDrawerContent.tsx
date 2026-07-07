@@ -149,7 +149,13 @@ export default function AppDrawerContent({ onClose }: Props) {
               <Ionicons
                 name={icon}
                 size={20}
-                color={tone === "danger" ? "#FFD7DF" : active ? DRAWER_ACTIVE_TINT : "#FFFFFF"}
+                color={
+                  tone === "danger"
+                    ? "#FFD7DF"
+                    : active
+                      ? DRAWER_ACTIVE_TINT
+                      : theme.colors.textSecondary
+                }
               />
             ) : null}
           </View>
@@ -236,10 +242,10 @@ export default function AppDrawerContent({ onClose }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "rgba(10, 16, 31, 0.28)",
+    backgroundColor: "rgba(7, 9, 18, 0.96)",
   },
   panel: {
-    backgroundColor: "rgba(7,11,21,0.96)",
+    backgroundColor: "rgba(7, 9, 18, 0.96)",
     borderRadius: 26,
     paddingHorizontal: 16,
     paddingTop: 16,
@@ -279,12 +285,12 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.18)",
   },
   title: {
-    color: "#FFFFFF",
+    color: theme.colors.textPrimary,
     fontSize: 20,
     fontWeight: "800",
   },
   subtitle: {
-    color: "rgba(255,255,255,0.68)",
+    color: theme.colors.textSecondary,
     fontSize: 11,
     fontWeight: "700",
     paddingHorizontal: 2,
@@ -313,7 +319,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   sectionLabel: {
-    color: "rgba(255,255,255,0.62)",
+    color: theme.colors.textSecondary,
     fontSize: 11,
     fontWeight: "800",
     letterSpacing: 0,
@@ -327,9 +333,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     paddingVertical: 12,
     borderRadius: 18,
-    backgroundColor: "rgba(12, 18, 32, 0.82)",
+    backgroundColor: "rgba(255,255,255,0.045)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.14)",
+    borderColor: "rgba(255,255,255,0.08)",
     shadowColor: "#000000",
     shadowOpacity: 0.10,
     shadowRadius: 8,
@@ -369,13 +375,13 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255, 77, 103, 0.22)",
   },
   buttonText: {
-    color: "#FFFFFF",
+    color: theme.colors.textSecondary,
     fontSize: 15,
     fontWeight: "800",
     flexShrink: 1,
   },
   activeButtonText: {
-    color: DRAWER_ACTIVE_TINT,
+    color: theme.colors.textPrimary,
   },
   activeDot: {
     width: 8,

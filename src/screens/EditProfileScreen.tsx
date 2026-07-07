@@ -520,12 +520,12 @@ export default function EditProfileScreen() {
     return (
       <ScreenShell
         title={t("editProfile.title")}
-        background="profile"
+        background="profileWarm"
         overlayOpacity={0.16}
         showBack
       >
         <View style={styles.loader}>
-          <ActivityIndicator color={theme.colors.primary} />
+          <ActivityIndicator color={theme.colors.textAccent} />
           <Text style={styles.loaderText}>{t("editProfile.loading")}</Text>
         </View>
       </ScreenShell>
@@ -535,7 +535,7 @@ export default function EditProfileScreen() {
   return (
     <ScreenShell
       title={t("editProfile.title")}
-      background="profile"
+      background="profileWarm"
       overlayOpacity={0.16}
       showBack
     >
@@ -898,10 +898,10 @@ export default function EditProfileScreen() {
             <Switch
               value={mysteryMode}
               onValueChange={setMysteryMode}
-              thumbColor={mysteryMode ? theme.colors.accent : "#999"}
+              thumbColor={mysteryMode ? theme.colors.textAccent : "#999"}
               trackColor={{
                 false: "#444",
-                true: `${theme.colors.accent}88`,
+                true: `${theme.colors.textAccent}88`,
               }}
             />
           </View>
@@ -994,10 +994,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 13,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: theme.colors.primary,
+    backgroundColor: theme.buttons.primary.backgroundColor,
+    borderWidth: 1,
+    borderColor: theme.buttons.primary.borderColor,
   },
   addInterestButtonText: {
-    color: "#FFFFFF",
+    color: theme.buttons.primary.textColor,
     fontSize: 12,
     fontWeight: "800",
   },
@@ -1031,7 +1033,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   removeInterestText: {
-    color: theme.colors.accent,
+    color: theme.colors.textAccent,
     fontSize: 12,
     fontWeight: "900",
   },
@@ -1107,7 +1109,7 @@ const styles = StyleSheet.create({
   focusedSection: {
     borderRadius: theme.radius,
     borderWidth: 1,
-    borderColor: theme.colors.accent,
+    borderColor: theme.colors.textAccent,
     paddingHorizontal: 10,
     paddingTop: 10,
     marginHorizontal: -10,
@@ -1121,13 +1123,13 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.pillBg,
   },
   goalOptionButtonActive: {
-    backgroundColor: theme.colors.primary,
+    backgroundColor: theme.colors.chipActiveBg,
   },
   preferenceOptionButtonActive: {
-    backgroundColor: theme.colors.primary,
+    backgroundColor: theme.colors.chipActiveBg,
   },
   moodOptionButtonActive: {
-    backgroundColor: theme.colors.accent,
+    backgroundColor: theme.colors.chipActiveBg,
   },
   optionButtonText: {
     color: theme.colors.pillText,
@@ -1135,7 +1137,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   optionButtonTextActive: {
-    color: "#FFFFFF",
+    color: theme.colors.textAccent,
   },
   toggleCard: {
     backgroundColor: theme.colors.card,
@@ -1156,18 +1158,20 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   saveButton: {
-    backgroundColor: theme.colors.primary,
+    backgroundColor: theme.buttons.primary.backgroundColor,
     borderRadius: theme.radius,
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 14,
     marginTop: 8,
+    borderWidth: 1,
+    borderColor: theme.buttons.primary.borderColor,
   },
   saveButtonDisabled: {
     opacity: 0.65,
   },
   saveButtonText: {
-    color: "#FFFFFF",
+    color: theme.buttons.primary.textColor,
     fontWeight: "800",
     fontSize: 15,
   },

@@ -389,7 +389,7 @@ export default function CreateAnnouncementScreen() {
   return (
     <ScreenShell
       title={copyOrFallback(t, "nearby.create.title", "Создать объявление")}
-      background="ads"
+      background="midnightWarm"
       showBack
       onBack={handleBack}
     >
@@ -476,7 +476,7 @@ export default function CreateAnnouncementScreen() {
             ) : (
               <Pressable onPress={pickPhoto} disabled={saving} style={styles.photoPlaceholder}>
                 <View style={styles.photoPlaceholderIconWrap}>
-                  <Ionicons name="image-outline" size={20} color={theme.colors.accent} />
+                  <Ionicons name="image-outline" size={20} color={theme.colors.textAccent} />
                 </View>
                 <Text style={styles.photoPlaceholderTitle}>
                   {copyOrFallback(t, "nearby.create.addPhoto", "Добавить фото")}
@@ -702,7 +702,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   introKicker: {
-    color: theme.colors.accent,
+    color: theme.colors.textAccent,
     fontSize: 10,
     fontWeight: "800",
     letterSpacing: 0.9,
@@ -817,8 +817,8 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.borderSubtle,
   },
   categoryChipActive: {
-    backgroundColor: "rgba(255,122,60,0.18)",
-    borderColor: "rgba(255,122,60,0.26)",
+    backgroundColor: theme.colors.chipActiveBg,
+    borderColor: theme.colors.chipActiveBorder,
   },
   categoryText: {
     color: theme.colors.text,
@@ -826,7 +826,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   categoryTextActive: {
-    color: theme.colors.accent,
+    color: theme.colors.textAccent,
   },
   input: {
     borderRadius: theme.shapes.cardInner,
@@ -854,7 +854,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(28, 18, 24, 0.84)",
   },
   previewKicker: {
-    color: theme.colors.accent,
+    color: theme.colors.textAccent,
     fontSize: 11,
     fontWeight: "800",
   },
@@ -902,7 +902,7 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255, 78, 138, 0.22)",
   },
   previewCategoryText: {
-    color: theme.colors.primary,
+    color: theme.colors.textAccent,
     fontSize: 11,
     fontWeight: "800",
   },
@@ -998,9 +998,11 @@ const styles = StyleSheet.create({
     borderRadius: theme.shapes.pill,
     paddingHorizontal: 18,
     paddingVertical: 14,
-    backgroundColor: theme.colors.primary,
+    backgroundColor: theme.buttons.primary.backgroundColor,
     alignItems: "center",
-    shadowColor: theme.colors.primary,
+    borderWidth: 1,
+    borderColor: theme.buttons.primary.borderColor,
+    shadowColor: theme.colors.textAccent,
     shadowOpacity: 0.18,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 5 },
@@ -1010,7 +1012,7 @@ const styles = StyleSheet.create({
     opacity: 0.65,
   },
   publishButtonText: {
-    color: "#FFFFFF",
+    color: theme.buttons.primary.textColor,
     fontSize: 15,
     fontWeight: "800",
   },

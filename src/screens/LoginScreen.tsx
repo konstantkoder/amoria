@@ -22,6 +22,8 @@ import {
   getDisplayNameValidationErrorKey,
   normalizeDisplayNameInput,
 } from "@/services/user";
+import ScreenBackground from "@/components/ScreenBackground";
+import { theme } from "@/theme";
 
 const EMAIL_RE = /^\S+@\S+\.\S+$/;
 type AuthMode = "login" | "register";
@@ -313,141 +315,143 @@ export default function LoginScreen() {
   };
 
   return (
-    <View style={styles.screen}>
-      <TouchableOpacity
-        style={[styles.languageButton, { top: insets.top + 8 }]}
-        onPress={dismissLanguagePicker}
-        activeOpacity={0.85}
-      >
-        <Text style={styles.languageButtonText}>{languageLabel}</Text>
-      </TouchableOpacity>
-      <KeyboardAvoidingView
-        style={styles.keyboardAvoidingView}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-      >
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-          <ScrollView
-            contentContainerStyle={[
-              styles.container,
-              {
-                paddingTop: insets.top + 64,
-                paddingBottom: insets.bottom + 32,
-              },
-            ]}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-          >
-            <Text style={styles.title}>
-              {isRegisterMode ? t("auth.registerTitle") : t("auth.loginTitle")}
-            </Text>
-            <View style={styles.modeSwitch}>
-              <TouchableOpacity
-                style={[
-                  styles.modeButton,
-                  !isRegisterMode ? styles.modeButtonActive : null,
-                ]}
-                onPress={() => setMode("login")}
-                activeOpacity={0.85}
-              >
-                <Text
+    <ScreenBackground variant="midnightWarm" overlayOpacity={0.16} blurRadius={0}>
+      <View style={styles.screen}>
+        <TouchableOpacity
+          style={[styles.languageButton, { top: insets.top + 8 }]}
+          onPress={dismissLanguagePicker}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.languageButtonText}>{languageLabel}</Text>
+        </TouchableOpacity>
+        <KeyboardAvoidingView
+          style={styles.keyboardAvoidingView}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+            <ScrollView
+              contentContainerStyle={[
+                styles.container,
+                {
+                  paddingTop: insets.top + 64,
+                  paddingBottom: insets.bottom + 32,
+                },
+              ]}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              <Text style={styles.title}>
+                {isRegisterMode ? t("auth.registerTitle") : t("auth.loginTitle")}
+              </Text>
+              <View style={styles.modeSwitch}>
+                <TouchableOpacity
                   style={[
-                    styles.modeButtonText,
-                    !isRegisterMode ? styles.modeButtonTextActive : null,
+                    styles.modeButton,
+                    !isRegisterMode ? styles.modeButtonActive : null,
                   ]}
+                  onPress={() => setMode("login")}
+                  activeOpacity={0.85}
                 >
-                  {t("auth.loginTitle")}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.modeButton,
-                  isRegisterMode ? styles.modeButtonActive : null,
-                ]}
-                onPress={() => setMode("register")}
-                activeOpacity={0.85}
-              >
-                <Text
+                  <Text
+                    style={[
+                      styles.modeButtonText,
+                      !isRegisterMode ? styles.modeButtonTextActive : null,
+                    ]}
+                  >
+                    {t("auth.loginTitle")}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
                   style={[
-                    styles.modeButtonText,
-                    isRegisterMode ? styles.modeButtonTextActive : null,
+                    styles.modeButton,
+                    isRegisterMode ? styles.modeButtonActive : null,
                   ]}
+                  onPress={() => setMode("register")}
+                  activeOpacity={0.85}
                 >
-                  {t("auth.registerTitle")}
-                </Text>
-              </TouchableOpacity>
-            </View>
-            {fallbackMessage ? (
-              <Text style={styles.errorText}>{fallbackMessage}</Text>
-            ) : null}
-            {isRegisterMode ? (
+                  <Text
+                    style={[
+                      styles.modeButtonText,
+                      isRegisterMode ? styles.modeButtonTextActive : null,
+                    ]}
+                  >
+                    {t("auth.registerTitle")}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              {fallbackMessage ? (
+                <Text style={styles.errorText}>{fallbackMessage}</Text>
+              ) : null}
+              {isRegisterMode ? (
+                <TextInput
+                  ref={displayNameInputRef}
+                  style={styles.input}
+                  placeholder={t("auth.displayNamePlaceholder")}
+                  placeholderTextColor="#6B7280"
+                  autoCapitalize="words"
+                  value={displayName}
+                  onChangeText={setDisplayName}
+                  maxLength={30}
+                  returnKeyType="next"
+                  blurOnSubmit={false}
+                  onSubmitEditing={() => emailInputRef.current?.focus()}
+                />
+              ) : null}
               <TextInput
-                ref={displayNameInputRef}
+                ref={emailInputRef}
                 style={styles.input}
-                placeholder={t("auth.displayNamePlaceholder")}
+                placeholder={t("auth.emailPlaceholder")}
                 placeholderTextColor="#6B7280"
-                autoCapitalize="words"
-                value={displayName}
-                onChangeText={setDisplayName}
-                maxLength={30}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoComplete="email"
+                textContentType="emailAddress"
+                value={email}
+                onChangeText={setEmail}
                 returnKeyType="next"
                 blurOnSubmit={false}
-                onSubmitEditing={() => emailInputRef.current?.focus()}
+                onSubmitEditing={() => passwordInputRef.current?.focus()}
               />
-            ) : null}
-            <TextInput
-              ref={emailInputRef}
-              style={styles.input}
-              placeholder={t("auth.emailPlaceholder")}
-              placeholderTextColor="#6B7280"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-              autoComplete="email"
-              textContentType="emailAddress"
-              value={email}
-              onChangeText={setEmail}
-              returnKeyType="next"
-              blurOnSubmit={false}
-              onSubmitEditing={() => passwordInputRef.current?.focus()}
-            />
-            <TextInput
-              ref={passwordInputRef}
-              style={styles.input}
-              placeholder={t("auth.passwordPlaceholder")}
-              placeholderTextColor="#6B7280"
-              secureTextEntry
-              autoCapitalize="none"
-              autoCorrect={false}
-              autoComplete={isRegisterMode ? "new-password" : "password"}
-              textContentType={isRegisterMode ? "newPassword" : "password"}
-              value={password}
-              onChangeText={setPassword}
-              returnKeyType="go"
-              onSubmitEditing={submitAuth}
-            />
-            {isRegisterMode ? (
-              <Text style={styles.passwordHint}>{t("auth.passwordHint")}</Text>
-            ) : null}
-            <TouchableOpacity
-              style={[styles.button, authDisabled ? styles.buttonDisabled : null]}
-              onPress={submitAuth}
-              disabled={authDisabled}
-            >
-              <Text style={styles.buttonText}>
-                {isRegisterMode ? t("auth.registerButton") : t("auth.loginButton")}
-              </Text>
-            </TouchableOpacity>
-          </ScrollView>
-        </TouchableWithoutFeedback>
-      </KeyboardAvoidingView>
-    </View>
+              <TextInput
+                ref={passwordInputRef}
+                style={styles.input}
+                placeholder={t("auth.passwordPlaceholder")}
+                placeholderTextColor="#6B7280"
+                secureTextEntry
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoComplete={isRegisterMode ? "new-password" : "password"}
+                textContentType={isRegisterMode ? "newPassword" : "password"}
+                value={password}
+                onChangeText={setPassword}
+                returnKeyType="go"
+                onSubmitEditing={submitAuth}
+              />
+              {isRegisterMode ? (
+                <Text style={styles.passwordHint}>{t("auth.passwordHint")}</Text>
+              ) : null}
+              <TouchableOpacity
+                style={[styles.button, authDisabled ? styles.buttonDisabled : null]}
+                onPress={submitAuth}
+                disabled={authDisabled}
+              >
+                <Text style={styles.buttonText}>
+                  {isRegisterMode ? t("auth.registerButton") : t("auth.loginButton")}
+                </Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
+      </View>
+    </ScreenBackground>
   );
 }
 
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "transparent",
   },
   keyboardAvoidingView: {
     flex: 1,
@@ -458,14 +462,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 999,
-    backgroundColor: "#111827",
+    backgroundColor: "rgba(255,255,255,0.07)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.35)",
+    borderColor: theme.colors.borderSubtle,
     zIndex: 2,
     elevation: 8,
   },
   languageButtonText: {
-    color: "#FFFFFF",
+    color: theme.colors.textPrimary,
     fontSize: 12,
     fontWeight: "700",
     textShadowColor: "rgba(0,0,0,0.6)",
@@ -483,13 +487,13 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginBottom: 12,
     textAlign: "center",
-    color: "#000000",
+    color: theme.colors.textPrimary,
   },
   modeSwitch: {
     flexDirection: "row",
     borderWidth: 1,
-    borderColor: "#111827",
-    borderRadius: 8,
+    borderColor: theme.colors.borderSubtle,
+    borderRadius: 14,
     overflow: "hidden",
     marginBottom: 12,
   },
@@ -497,18 +501,18 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 10,
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "rgba(255,255,255,0.045)",
   },
   modeButtonActive: {
-    backgroundColor: "#111827",
+    backgroundColor: theme.colors.surfaceWarm,
   },
   modeButtonText: {
-    color: "#111827",
+    color: theme.colors.textSecondary,
     fontSize: 14,
     fontWeight: "700",
   },
   modeButtonTextActive: {
-    color: "#FFFFFF",
+    color: theme.colors.textAccent,
   },
   errorText: {
     color: "#B91C1C",
@@ -519,28 +523,33 @@ const styles = StyleSheet.create({
   },
   input: {
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: 14,
     padding: 12,
     marginVertical: 6,
-    borderColor: "#111827",
-    color: "#000000",
-    backgroundColor: "#FFFFFF",
+    borderColor: theme.colors.borderSubtle,
+    color: theme.colors.textPrimary,
+    backgroundColor: "rgba(255,255,255,0.07)",
   },
   passwordHint: {
     marginTop: 6,
     marginBottom: 6,
     opacity: 0.75,
     fontSize: 12,
-    color: "#000000",
+    color: theme.colors.textSecondary,
   },
   button: {
     borderWidth: 1,
-    borderRadius: 10,
+    borderRadius: theme.buttons.primary.borderRadius,
     padding: 12,
     alignItems: "center",
-    borderColor: "#111827",
-    backgroundColor: "#FFFFFF",
+    borderColor: theme.buttons.primary.borderColor,
+    backgroundColor: theme.buttons.primary.backgroundColor,
   },
   buttonDisabled: { opacity: 0.55 },
-  buttonText: { fontSize: 16, fontWeight: "600", color: "#000000" },
+  buttonText: {
+    fontSize: theme.buttons.primary.fontSize,
+    lineHeight: theme.buttons.primary.lineHeight,
+    fontWeight: theme.buttons.primary.fontWeight,
+    color: theme.buttons.primary.textColor,
+  },
 });
