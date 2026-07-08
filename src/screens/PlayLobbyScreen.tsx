@@ -1,6 +1,17 @@
 import React from "react";
-import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  Alert,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Device from "expo-device";
 
@@ -89,6 +100,7 @@ function getMissingSafetyFieldsBody(
 export default function PlayLobbyScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"PlayMatch">>();
   const { t } = useLocale();
+  const { height: screenHeight } = useWindowDimensions();
   const tt = React.useCallback(
     (key: string, fallback: string, params?: Record<string, string>) => {
       const value = t(key, params);
@@ -105,6 +117,7 @@ export default function PlayLobbyScreen() {
   const [profileInterestCount, setProfileInterestCount] = React.useState<number | null>(null);
   const [missingSafetyFields, setMissingSafetyFields] = React.useState<MatchingSafetyField[]>([]);
   const [detailsOpen, setDetailsOpen] = React.useState(false);
+  const [togetherFiltersSheetVisible, setTogetherFiltersSheetVisible] = React.useState(false);
 
   React.useEffect(() => {
     let alive = true;
@@ -220,6 +233,14 @@ export default function PlayLobbyScreen() {
       },
     });
   }, [missingSafetyFields, navigation]);
+
+  const openTogetherFiltersSheet = React.useCallback(() => {
+    setTogetherFiltersSheetVisible(true);
+  }, []);
+
+  const closeTogetherFiltersSheet = React.useCallback(() => {
+    setTogetherFiltersSheetVisible(false);
+  }, []);
 
   const resolveQueueLocation = React.useCallback(async () => {
     const result = await requestTogetherQueueLocation(selectedRadiusKm);
@@ -374,6 +395,8 @@ export default function PlayLobbyScreen() {
     ]
   );
 
+  const togetherFiltersSheetMaxHeight = screenHeight * 0.68;
+
   return (
     <ScreenShell title={t("tabs.together")} background="togetherMain">
       <ScrollView
@@ -424,72 +447,6 @@ export default function PlayLobbyScreen() {
               </View>
             ) : null}
 
-            <View style={styles.filtersPanel}>
-              <View style={styles.filterBlock}>
-                <Text style={styles.filterTitle}>
-                  {tt("together.geo.radiusTitle", "Радиус поиска")}
-                </Text>
-                <View style={styles.optionRow}>
-                  {TOGETHER_RADIUS_OPTIONS.map((radiusKm) => {
-                    const selected = selectedRadiusKm === radiusKm;
-                    return (
-                      <Pressable
-                        key={radiusKm === null ? "anywhere" : String(radiusKm)}
-                        onPress={() => selectRadius(radiusKm)}
-                        style={[
-                          styles.optionChip,
-                          selected ? styles.optionChipSelected : null,
-                        ]}
-                        accessibilityRole="button"
-                      >
-                        <Text
-                          style={[
-                            styles.optionChipText,
-                            selected ? styles.optionChipTextSelected : null,
-                          ]}
-                        >
-                          {radiusLabel(radiusKm)}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </View>
-
-              <View style={styles.filterDivider} />
-
-              <View style={styles.filterBlock}>
-                <Text style={styles.filterTitle}>
-                  {tt("together.age.title", "Кого искать")}
-                </Text>
-                <View style={styles.optionRow}>
-                  {AGE_FILTER_OPTIONS.map((option) => {
-                    const selected = selectedAgeFilter === option.id;
-                    return (
-                      <Pressable
-                        key={option.id}
-                        onPress={() => selectAgeFilter(option.id)}
-                        style={[
-                          styles.optionChip,
-                          selected ? styles.optionChipSelected : null,
-                        ]}
-                        accessibilityRole="button"
-                      >
-                        <Text
-                          style={[
-                            styles.optionChipText,
-                            selected ? styles.optionChipTextSelected : null,
-                          ]}
-                        >
-                          {ageFilterLabel(option.id)}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </View>
-            </View>
-
             <PremiumGoldButton
               label={
                 locationBusy
@@ -513,6 +470,28 @@ export default function PlayLobbyScreen() {
             {locationNotice ? (
               <Text style={styles.locationNotice}>{locationNotice}</Text>
             ) : null}
+
+            <Pressable
+              onPress={openTogetherFiltersSheet}
+              style={styles.searchSettingsPill}
+              accessibilityRole="button"
+            >
+              <Ionicons name="options-outline" size={15} color={theme.colors.textAccent} />
+              <Text
+                style={styles.searchSettingsPillText}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
+                {tt(
+                  "together.searchSettingsPill",
+                  "Поиск: {radius} · {age}",
+                  {
+                    radius: radiusLabel(selectedRadiusKm),
+                    age: ageFilterLabel(selectedAgeFilter),
+                  }
+                )}
+              </Text>
+            </Pressable>
 
             <Pressable
               onPress={() => setDetailsOpen((current) => !current)}
@@ -589,6 +568,120 @@ export default function PlayLobbyScreen() {
           </View>
         </Pressable>
       </ScrollView>
+
+      <Modal
+        visible={togetherFiltersSheetVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={closeTogetherFiltersSheet}
+      >
+        <View style={styles.filtersSheetBackdrop}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={closeTogetherFiltersSheet} />
+          <View style={[styles.filtersSheet, { maxHeight: togetherFiltersSheetMaxHeight }]}>
+            <View style={styles.sheetHandle} />
+            <View style={styles.filtersSheetHeader}>
+              <View style={styles.filtersSheetTitleCopy}>
+                <Text style={styles.filtersSheetTitle}>
+                  {tt("together.searchSettingsTitle", "Настройки поиска")}
+                </Text>
+                <Text style={styles.filtersSheetSubtitle}>
+                  {tt(
+                    "together.searchSettingsSubtitle",
+                    "Это влияет только на поиск во «Вместе»."
+                  )}
+                </Text>
+              </View>
+              <Pressable
+                onPress={closeTogetherFiltersSheet}
+                style={styles.sheetCloseButton}
+                accessibilityRole="button"
+              >
+                <Ionicons
+                  name="close"
+                  size={theme.buttons.icon.iconSize}
+                  color={theme.buttons.icon.iconColor}
+                />
+              </Pressable>
+            </View>
+
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.filtersSheetContent}
+            >
+              <View style={styles.filterBlock}>
+                <Text style={styles.filterTitle}>
+                  {tt("together.geo.radiusTitle", "Радиус поиска")}
+                </Text>
+                <View style={styles.optionRow}>
+                  {TOGETHER_RADIUS_OPTIONS.map((radiusKm) => {
+                    const selected = selectedRadiusKm === radiusKm;
+                    return (
+                      <Pressable
+                        key={radiusKm === null ? "anywhere" : String(radiusKm)}
+                        onPress={() => selectRadius(radiusKm)}
+                        style={[
+                          styles.optionChip,
+                          selected ? styles.optionChipSelected : null,
+                        ]}
+                        accessibilityRole="button"
+                      >
+                        <Text
+                          style={[
+                            styles.optionChipText,
+                            selected ? styles.optionChipTextSelected : null,
+                          ]}
+                        >
+                          {radiusLabel(radiusKm)}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+
+              <View style={styles.sheetDivider} />
+
+              <View style={styles.filterBlock}>
+                <Text style={styles.filterTitle}>
+                  {tt("together.age.title", "Кого искать")}
+                </Text>
+                <View style={styles.optionRow}>
+                  {AGE_FILTER_OPTIONS.map((option) => {
+                    const selected = selectedAgeFilter === option.id;
+                    return (
+                      <Pressable
+                        key={option.id}
+                        onPress={() => selectAgeFilter(option.id)}
+                        style={[
+                          styles.optionChip,
+                          selected ? styles.optionChipSelected : null,
+                        ]}
+                        accessibilityRole="button"
+                      >
+                        <Text
+                          style={[
+                            styles.optionChipText,
+                            selected ? styles.optionChipTextSelected : null,
+                          ]}
+                        >
+                          {ageFilterLabel(option.id)}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+
+              <PremiumGoldButton
+                label={tt("together.searchSettingsDone", "Готово")}
+                onPress={closeTogetherFiltersSheet}
+                compact
+                style={styles.sheetDoneButton}
+              />
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </ScreenShell>
   );
 }
@@ -601,16 +694,17 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   hero: {
-    gap: 16,
+    gap: 14,
     paddingHorizontal: 18,
-    paddingTop: 20,
+    paddingTop: 22,
     paddingBottom: 18,
     borderRadius: 24,
-    backgroundColor: "rgba(7, 10, 20, 0.62)",
+    backgroundColor: "rgba(7, 10, 20, 0.50)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
+    borderColor: "rgba(255,255,255,0.11)",
   },
   heroTop: {
+    alignItems: "center",
     gap: 8,
   },
   kicker: {
@@ -618,29 +712,36 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "800",
     letterSpacing: 0,
+    textAlign: "center",
     textTransform: "uppercase",
   },
   heroTitle: {
+    alignSelf: "center",
     color: theme.colors.textPrimary,
-    fontSize: 29,
-    lineHeight: 34,
+    fontSize: 30,
+    lineHeight: 35,
     fontWeight: "800",
+    maxWidth: 390,
+    textAlign: "center",
   },
   heroText: {
+    alignSelf: "center",
     color: theme.colors.textSecondary,
     fontSize: 14,
     lineHeight: 20,
+    maxWidth: 390,
+    textAlign: "center",
   },
   heroBottom: {
     gap: 12,
   },
   completionPanel: {
-    gap: 8,
-    padding: 13,
+    gap: 7,
+    padding: 12,
     borderRadius: theme.shapes.cardInner,
-    backgroundColor: "rgba(245,194,77,0.11)",
+    backgroundColor: "rgba(245,194,77,0.10)",
     borderWidth: 1,
-    borderColor: "rgba(245,194,77,0.34)",
+    borderColor: "rgba(245,194,77,0.30)",
   },
   completionTitle: {
     color: theme.colors.textPrimary,
@@ -668,20 +769,8 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "900",
   },
-  filtersPanel: {
-    gap: 12,
-    padding: 13,
-    borderRadius: theme.shapes.cardInner,
-    backgroundColor: "rgba(7, 10, 20, 0.48)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
-  },
   filterBlock: {
     gap: 8,
-  },
-  filterDivider: {
-    height: 1,
-    backgroundColor: "rgba(255,255,255,0.10)",
   },
   filterTitle: {
     color: theme.colors.textPrimary,
@@ -735,8 +824,29 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     textAlign: "center",
   },
+  searchSettingsPill: {
+    alignSelf: "center",
+    minHeight: 38,
+    maxWidth: "100%",
+    borderRadius: theme.shapes.pill,
+    paddingHorizontal: 13,
+    paddingVertical: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+    backgroundColor: "rgba(255,255,255,0.055)",
+    borderWidth: 1,
+    borderColor: "rgba(245,194,77,0.30)",
+  },
+  searchSettingsPillText: {
+    flexShrink: 1,
+    color: theme.colors.textAccent,
+    fontSize: 12,
+    fontWeight: "900",
+  },
   detailsToggle: {
-    minHeight: 42,
+    minHeight: 38,
     borderRadius: theme.shapes.pill,
     paddingHorizontal: 15,
     paddingVertical: 10,
@@ -744,9 +854,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 9,
-    backgroundColor: "rgba(245,194,77,0.08)",
+    backgroundColor: "rgba(255,255,255,0.045)",
     borderWidth: 1,
-    borderColor: "rgba(245,194,77,0.26)",
+    borderColor: "rgba(255,255,255,0.09)",
   },
   detailsToggleText: {
     color: theme.colors.textAccent,
@@ -762,9 +872,9 @@ const styles = StyleSheet.create({
     gap: 9,
     padding: 13,
     borderRadius: theme.shapes.cardInner,
-    backgroundColor: "rgba(255,255,255,0.055)",
+    backgroundColor: "rgba(7, 10, 20, 0.42)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
+    borderColor: "rgba(255,255,255,0.09)",
   },
   detailsTitle: {
     color: theme.colors.textPrimary,
@@ -837,5 +947,73 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
     fontSize: 12,
     fontWeight: "800",
+  },
+  filtersSheetBackdrop: {
+    flex: 1,
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(0,0,0,0.44)",
+  },
+  filtersSheet: {
+    width: "100%",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 18,
+    backgroundColor: theme.sheets.backgroundColor,
+    borderTopWidth: 1,
+    borderColor: theme.sheets.borderColor,
+  },
+  sheetHandle: {
+    alignSelf: "center",
+    width: theme.sheets.handleWidth,
+    height: theme.sheets.handleHeight,
+    borderRadius: theme.sheets.handleRadius,
+    backgroundColor: "rgba(255,255,255,0.22)",
+    marginBottom: 12,
+  },
+  filtersSheetHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    marginBottom: 12,
+  },
+  filtersSheetTitleCopy: {
+    flex: 1,
+    minWidth: 0,
+    gap: 4,
+  },
+  filtersSheetTitle: {
+    color: theme.colors.textPrimary,
+    fontSize: 20,
+    lineHeight: 24,
+    fontWeight: "900",
+  },
+  filtersSheetSubtitle: {
+    color: theme.colors.textSecondary,
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: "700",
+  },
+  sheetCloseButton: {
+    width: theme.buttons.icon.width,
+    height: theme.buttons.icon.height,
+    borderRadius: theme.buttons.icon.borderRadius,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.buttons.icon.backgroundColor,
+    borderWidth: theme.buttons.icon.borderWidth,
+    borderColor: theme.buttons.icon.borderColor,
+  },
+  filtersSheetContent: {
+    gap: 12,
+    paddingBottom: 2,
+  },
+  sheetDivider: {
+    height: 1,
+    backgroundColor: "rgba(255,255,255,0.10)",
+  },
+  sheetDoneButton: {
+    marginTop: 2,
   },
 });
