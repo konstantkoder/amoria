@@ -977,32 +977,6 @@ export default function UserProfileScreen() {
                   {tt("profile.lockedGalleryOpenWithPassword", "Открыть по паролю")}
                 </Text>
               </TouchableOpacity>
-              {hasThread ? (
-                <TouchableOpacity
-                  onPress={openChat}
-                  style={styles.lockedFolderSecondaryButton}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.lockedFolderSecondaryButtonText}>
-                    {tt("profile.lockedGalleryAskInChat", "Попросить в чате")}
-                  </Text>
-                </TouchableOpacity>
-              ) : null}
-              {canStartNearbyChat ? (
-                <TouchableOpacity
-                  onPress={() => void openNearbyChat()}
-                  disabled={nearbyChatOpening}
-                  style={[
-                    styles.lockedFolderSecondaryButton,
-                    nearbyChatOpening ? styles.disabledButton : null,
-                  ]}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.lockedFolderSecondaryButtonText}>
-                    {tt("profile.lockedGalleryMessage", "Написать")}
-                  </Text>
-                </TouchableOpacity>
-              ) : null}
             </View>
           </View>
         ) : null}
@@ -1337,23 +1311,6 @@ const styles = StyleSheet.create({
     fontSize: theme.buttons.secondary.fontSize,
     lineHeight: theme.buttons.secondary.lineHeight,
     fontWeight: theme.buttons.secondary.fontWeight,
-  },
-  lockedFolderSecondaryButton: {
-    minHeight: 42,
-    borderRadius: theme.shapes.pill,
-    paddingHorizontal: 13,
-    paddingVertical: 10,
-    backgroundColor: "rgba(255,255,255,0.05)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  lockedFolderSecondaryButtonText: {
-    color: theme.colors.text,
-    fontSize: 12,
-    lineHeight: 16,
-    fontWeight: "800",
   },
   lockedGalleryOpenedCard: {
     backgroundColor: "rgba(10, 14, 26, 0.88)",
