@@ -3,6 +3,7 @@ import "react-native-reanimated";
 
 import React from "react";
 import { ActivityIndicator, AppState, LogBox, Platform, View } from "react-native";
+import type { AppStateStatus } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import {
@@ -26,6 +27,11 @@ import {
   markStartupEvent,
   markStartupTimingFromStart,
 } from "@/services/startupDiagnostics";
+import {
+  type ClientErrorReportInput,
+  reportClientError,
+  sanitizeErrorForReport,
+} from "@/services/api/clientErrorsApi";
 
 markStartupEvent("app.module_loaded");
 
@@ -63,6 +69,7 @@ const ANDROID_NAV_VISIBLE_ROUTES = new Set([
   "CreateAnnouncement",
   "AnnouncementDetail",
 ]);
+let reportedAndroidNavigationBarNativeFailure = false;
 
 const navTheme = {
   ...DefaultTheme,
@@ -76,13 +83,97 @@ const navTheme = {
   },
 };
 
-function getFocusedRouteNames(state: any): string[] {
-  const activeRoute = state?.routes?.[state?.index ?? 0];
-  if (!activeRoute?.name) return [];
-  return [
-    activeRoute.name,
-    ...getFocusedRouteNames(activeRoute.state),
-  ];
+function getFocusedRouteNames(state: any, depth = 0): string[] {
+  try {
+    if (!state || depth > 8 || !Array.isArray(state.routes)) return [];
+    const index = Number.isInteger(state.index) ? state.index : 0;
+    const activeRoute = state.routes[index] ?? state.routes[0];
+    if (!activeRoute?.name || typeof activeRoute.name !== "string") return [];
+    return [
+      activeRoute.name,
+      ...getFocusedRouteNames(activeRoute.state, depth + 1),
+    ];
+  } catch {
+    return [];
+  }
+}
+
+function getSafeNavigationReady() {
+  try {
+    return navigationRef.isReady();
+  } catch {
+    return false;
+  }
+}
+
+function getSafeRouteNames() {
+  try {
+    if (!getSafeNavigationReady()) return [];
+    return getFocusedRouteNames(navigationRef.getRootState());
+  } catch {
+    return [];
+  }
+}
+
+function getSafeAppMetadata(
+  isSignedIn: boolean,
+  metadata: Record<string, unknown> = {}
+) {
+  const navigationReady = getSafeNavigationReady();
+  return {
+    platform: Platform.OS,
+    isSignedIn,
+    navigationReady,
+    routeNames: navigationReady ? getSafeRouteNames() : [],
+    ...metadata,
+  };
+}
+
+function reportAppClientError(input: ClientErrorReportInput) {
+  try {
+    void reportClientError(input).catch(() => undefined);
+  } catch {
+    // Reporting must never be able to crash lifecycle or error-boundary paths.
+  }
+}
+
+function reportAppError(
+  action: string,
+  step: string,
+  error: unknown,
+  metadata: Record<string, unknown>
+) {
+  try {
+    const safeError = sanitizeErrorForReport(error);
+    reportAppClientError({
+      screen: "App",
+      action,
+      step,
+      code: safeError.code,
+      message: safeError.message,
+      stack: safeError.stack,
+      metadata,
+    });
+  } catch {
+    // Keep app-level guards non-throwing.
+  }
+}
+
+function reportAppLifecycleEvent(
+  eventName: string,
+  metadata: Record<string, unknown>
+) {
+  try {
+    reportAppClientError({
+      screen: "App",
+      action: "appLifecycle",
+      step: eventName,
+      message: `App lifecycle event: ${eventName}`,
+      metadata,
+    });
+  } catch {
+    // Lifecycle breadcrumbs are diagnostic only.
+  }
 }
 
 function shouldHideAndroidNavigationBar(state: any, isSignedIn: boolean) {
@@ -95,10 +186,20 @@ function shouldHideAndroidNavigationBar(state: any, isSignedIn: boolean) {
   return routeNames.some((name) => ANDROID_NAV_HIDDEN_ROUTES.has(name));
 }
 
-function setAndroidNavigationBarHidden(hidden: boolean) {
+function setAndroidNavigationBarHidden(
+  hidden: boolean,
+  metadata: Record<string, unknown>
+) {
   if (Platform.OS !== "android") return;
 
-  void NavigationBar.setVisibilityAsync(hidden ? "hidden" : "visible").catch(() => {});
+  void NavigationBar.setVisibilityAsync(hidden ? "hidden" : "visible").catch((error) => {
+    if (reportedAndroidNavigationBarNativeFailure) return;
+    reportedAndroidNavigationBarNativeFailure = true;
+    reportAppError("syncAndroidNavigationBar", "setVisibilityAsyncFailed", error, {
+      ...metadata,
+      requestedHidden: hidden,
+    });
+  });
 }
 
 type AppNavigationProps = {
@@ -107,14 +208,27 @@ type AppNavigationProps = {
 
 function AppNavigation({ isSignedIn }: AppNavigationProps) {
   const lastAndroidNavHiddenRef = React.useRef<boolean | null>(null);
+  const previousAppStateRef = React.useRef<AppStateStatus>(AppState.currentState);
 
   const syncAndroidNavigationBar = React.useCallback(() => {
-    if (Platform.OS !== "android" || !navigationRef.isReady()) return;
+    try {
+      if (Platform.OS !== "android" || !getSafeNavigationReady()) return;
 
-    const hidden = shouldHideAndroidNavigationBar(navigationRef.getRootState(), isSignedIn);
-    if (lastAndroidNavHiddenRef.current === hidden) return;
-    lastAndroidNavHiddenRef.current = hidden;
-    setAndroidNavigationBarHidden(hidden);
+      const hidden = shouldHideAndroidNavigationBar(navigationRef.getRootState(), isSignedIn);
+      if (lastAndroidNavHiddenRef.current === hidden) return;
+      lastAndroidNavHiddenRef.current = hidden;
+      setAndroidNavigationBarHidden(
+        hidden,
+        getSafeAppMetadata(isSignedIn, { requestedHidden: hidden })
+      );
+    } catch (error) {
+      reportAppError(
+        "syncAndroidNavigationBar",
+        "failed",
+        error,
+        getSafeAppMetadata(isSignedIn)
+      );
+    }
   }, [isSignedIn]);
 
   React.useEffect(() => {
@@ -124,14 +238,39 @@ function AppNavigation({ isSignedIn }: AppNavigationProps) {
   React.useEffect(() => {
     if (Platform.OS !== "android") return undefined;
 
-    const subscription = AppState.addEventListener("change", (state) => {
-      if (state === "active") {
-        lastAndroidNavHiddenRef.current = null;
-        syncAndroidNavigationBar();
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      const previousState = previousAppStateRef.current;
+      previousAppStateRef.current = nextState;
+      const leavingActive =
+        previousState === "active" &&
+        (nextState === "background" || nextState === "inactive");
+      const returningActive =
+        (previousState === "background" || previousState === "inactive") &&
+        nextState === "active";
+
+      if (leavingActive || returningActive) {
+        reportAppLifecycleEvent(
+          returningActive ? "resumeActive" : "leaveActive",
+          getSafeAppMetadata(isSignedIn, { previousState, nextState })
+        );
+      }
+
+      if (nextState === "active") {
+        try {
+          lastAndroidNavHiddenRef.current = null;
+          syncAndroidNavigationBar();
+        } catch (error) {
+          reportAppError(
+            "appStateChange",
+            "resumeSyncFailed",
+            error,
+            getSafeAppMetadata(isSignedIn, { previousState, nextState })
+          );
+        }
       }
     });
     return () => subscription.remove();
-  }, [syncAndroidNavigationBar]);
+  }, [isSignedIn, syncAndroidNavigationBar]);
 
   return (
     <NavigationContainer
@@ -171,6 +310,18 @@ function FullScreenLoader() {
 
 function AuthGate() {
   const { ready, user } = useAuth();
+  const isSignedIn = Boolean(user);
+  const handleErrorBoundaryError = React.useCallback(
+    (error: Error) => {
+      reportAppError(
+        "errorBoundary",
+        "componentDidCatch",
+        error,
+        getSafeAppMetadata(isSignedIn)
+      );
+    },
+    [isSignedIn]
+  );
 
   return (
     <>
@@ -178,8 +329,8 @@ function AuthGate() {
         <FullScreenLoader />
       ) : (
         <>
-          <ErrorBoundary>
-            <AppNavigation isSignedIn={Boolean(user)} />
+          <ErrorBoundary onError={handleErrorBoundaryError}>
+            <AppNavigation isSignedIn={isSignedIn} />
           </ErrorBoundary>
           <LanguagePickerHost />
         </>
