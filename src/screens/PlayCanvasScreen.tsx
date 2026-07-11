@@ -735,7 +735,7 @@ export default function PlayCanvasScreen() {
     return (
       <ScreenShell
         title={tt("play.canvas.title", "Совместная сессия")}
-        background="nightCity"
+        background="midnightWarm"
         showBack
         onBack={handleSafeBack}
       >
@@ -756,7 +756,7 @@ export default function PlayCanvasScreen() {
     return (
       <ScreenShell
         title={tt("play.canvas.title", "Совместная сессия")}
-        background="nightCity"
+        background="midnightWarm"
         showBack
         onBack={handleSafeBack}
       >
@@ -779,7 +779,7 @@ export default function PlayCanvasScreen() {
     return (
       <ScreenShell
         title={tt("play.canvas.title", "Совместная сессия")}
-        background="nightCity"
+        background="midnightWarm"
         showBack
         onBack={handleSafeBack}
       >
@@ -801,7 +801,7 @@ export default function PlayCanvasScreen() {
     return (
       <ScreenShell
         title={tt("play.canvas.title", "Совместная сессия")}
-        background="nightCity"
+        background="midnightWarm"
         showBack
         onBack={goToTogether}
       >
@@ -835,7 +835,7 @@ export default function PlayCanvasScreen() {
     return (
       <ScreenShell
         title={tt("play.canvas.title", "Совместная сессия")}
-        background="nightCity"
+        background="midnightWarm"
         showBack
         onBack={() => void leaveSessionAndExit()}
       >
@@ -865,7 +865,7 @@ export default function PlayCanvasScreen() {
     return (
       <ScreenShell
         title={tt("play.canvas.title", "Совместная сессия")}
-        background="nightCity"
+        background="midnightWarm"
         showBack
         onBack={handleCanvasBack}
       >
@@ -939,7 +939,7 @@ export default function PlayCanvasScreen() {
   return (
     <ScreenShell
       title={tt("play.canvas.title", "Совместная сессия")}
-      background="nightCity"
+      background="midnightWarm"
       showHeader={!focusMode}
       showBack
       onBack={handleCanvasBack}
@@ -1226,10 +1226,12 @@ const styles = StyleSheet.create({
     borderRadius: theme.shapes.pill,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: theme.colors.primary,
+    backgroundColor: theme.colors.primaryActionBg,
+    borderWidth: 1,
+    borderColor: theme.colors.primaryActionBorder,
   },
   primaryButtonText: {
-    color: "#FFFFFF",
+    color: theme.colors.primaryActionText,
     fontSize: 16,
     fontWeight: "800",
   },
@@ -1380,10 +1382,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 5,
-    backgroundColor: theme.colors.primary,
+    backgroundColor: theme.colors.primaryActionBg,
+    borderWidth: 1,
+    borderColor: theme.colors.primaryActionBorder,
   },
   focusActionText: {
-    color: "#FFFFFF",
+    color: theme.colors.primaryActionText,
     fontSize: 11,
     fontWeight: "800",
   },
@@ -1446,10 +1450,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: theme.colors.primary,
+    backgroundColor: theme.colors.primaryActionBg,
+    borderWidth: 1,
+    borderColor: theme.colors.primaryActionBorder,
   },
   finishButtonText: {
-    color: "#FFFFFF",
+    color: theme.colors.primaryActionText,
     fontSize: 13,
     fontWeight: "800",
   },

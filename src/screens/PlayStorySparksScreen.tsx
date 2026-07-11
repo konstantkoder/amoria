@@ -500,7 +500,7 @@ export default function PlayStorySparksScreen() {
 
   if (!uid || !sessionId) {
     return (
-      <ScreenShell title={screenTitle} background="togetherMain" showBack onBack={goToTogether}>
+      <ScreenShell title={screenTitle} background="midnightWarm" showBack onBack={goToTogether}>
         <View style={styles.centerState}>
           <CoreStateCard
             icon="person-circle-outline"
@@ -516,7 +516,7 @@ export default function PlayStorySparksScreen() {
 
   if (loading) {
     return (
-      <ScreenShell title={screenTitle} background="togetherMain" showBack onBack={handleBack}>
+      <ScreenShell title={screenTitle} background="midnightWarm" showBack onBack={handleBack}>
         <View style={styles.centerState}>
           <CoreStateCard
             loading
@@ -534,7 +534,7 @@ export default function PlayStorySparksScreen() {
 
   if (loadError || !session || !pack || !currentRound) {
     return (
-      <ScreenShell title={screenTitle} background="togetherMain" showBack onBack={goToTogether}>
+      <ScreenShell title={screenTitle} background="midnightWarm" showBack onBack={goToTogether}>
         <View style={styles.centerState}>
           <CoreStateCard
             icon="cloud-offline-outline"
@@ -550,7 +550,7 @@ export default function PlayStorySparksScreen() {
 
   if (isTerminalClosedStatus(session.status)) {
     return (
-      <ScreenShell title={screenTitle} background="togetherMain" showBack onBack={goToTogether}>
+      <ScreenShell title={screenTitle} background="midnightWarm" showBack onBack={goToTogether}>
         <View style={styles.centerState}>
           <CoreStateCard
             icon="ban-outline"
@@ -574,7 +574,7 @@ export default function PlayStorySparksScreen() {
   }
 
   return (
-    <ScreenShell title={screenTitle} background="togetherMain" showBack onBack={handleBack}>
+    <ScreenShell title={screenTitle} background="midnightWarm" showBack onBack={handleBack}>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}
@@ -830,8 +830,8 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.10)",
   },
   storyCardSelected: {
-    backgroundColor: "rgba(249,115,147,0.30)",
-    borderColor: "rgba(255,255,255,0.36)",
+    backgroundColor: "rgba(245,194,77,0.22)",
+    borderColor: "rgba(255,232,163,0.50)",
   },
   storyCardLocked: {
     opacity: 0.82,

@@ -378,7 +378,7 @@ export default function PlayHistoryScreen() {
     return (
       <ScreenShell
         title={tt("playHistory.title", "Совместные истории")}
-        background="togetherStory"
+        background="chatWarm"
         showBack
       >
         <View style={styles.centerState}>
@@ -399,7 +399,7 @@ export default function PlayHistoryScreen() {
 
   if (!loaded) {
     return (
-      <ScreenShell title={tt("playHistory.title", "Совместные истории")} background="togetherStory" showBack>
+      <ScreenShell title={tt("playHistory.title", "Совместные истории")} background="chatWarm" showBack>
         <View style={styles.centerState}>
           <CoreStateCard
             loading
@@ -417,7 +417,7 @@ export default function PlayHistoryScreen() {
 
   if (error) {
     return (
-      <ScreenShell title={tt("playHistory.title", "Совместные истории")} background="togetherStory" showBack>
+      <ScreenShell title={tt("playHistory.title", "Совместные истории")} background="chatWarm" showBack>
         <View style={styles.centerState}>
           <CoreStateCard
             icon="cloud-offline-outline"
@@ -432,7 +432,7 @@ export default function PlayHistoryScreen() {
   }
 
   return (
-    <ScreenShell title={tt("playHistory.title", "Совместные истории")} background="togetherStory" showBack>
+    <ScreenShell title={tt("playHistory.title", "Совместные истории")} background="chatWarm" showBack>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}
@@ -596,17 +596,21 @@ const styles = StyleSheet.create({
     borderRadius: theme.shapes.pill,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: theme.colors.primary,
+    backgroundColor: theme.colors.primaryActionBg,
+    borderWidth: 1,
+    borderColor: theme.colors.primaryActionBorder,
   },
   primaryButtonWide: {
     minHeight: 50,
     borderRadius: theme.shapes.pill,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: theme.colors.primary,
+    backgroundColor: theme.colors.primaryActionBg,
+    borderWidth: 1,
+    borderColor: theme.colors.primaryActionBorder,
   },
   primaryButtonText: {
-    color: "#FFFFFF",
+    color: theme.colors.primaryActionText,
     fontSize: 14,
     fontWeight: "800",
   },
@@ -618,10 +622,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "rgba(255,255,255,0.08)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.14)",
+    borderColor: "rgba(245,194,77,0.30)",
   },
   secondaryButtonText: {
-    color: theme.colors.text,
+    color: theme.colors.secondaryActionText,
     fontSize: 13,
     fontWeight: "800",
   },

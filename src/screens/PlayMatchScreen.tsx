@@ -761,7 +761,7 @@ export default function PlayMatchScreen() {
     return (
       <ScreenShell
         title={tt("tabs.together", "Вместе")}
-        background="togetherMain"
+        background="midnightWarm"
         showBack
         onBack={handleBack}
       >
@@ -807,7 +807,7 @@ export default function PlayMatchScreen() {
   return (
     <ScreenShell
       title={tt("tabs.together", "Вместе")}
-      background="togetherMain"
+      background="midnightWarm"
       showBack
       onBack={handleBack}
     >
@@ -855,12 +855,12 @@ export default function PlayMatchScreen() {
           <View style={styles.actions}>
             {isActiveSearch ? (
               <Pressable
-                style={[styles.primaryButton, exiting ? styles.buttonDisabled : null]}
+                style={[styles.stopButton, exiting ? styles.buttonDisabled : null]}
                 onPress={handleStopSearch}
                 disabled={exiting}
                 accessibilityRole="button"
               >
-                <Text style={styles.primaryButtonText}>
+                <Text style={styles.stopButtonText}>
                   {exiting
                     ? tt("common.exiting", "Выходим…")
                     : tt("play.match.stopSearch", "Остановить поиск")}
@@ -926,19 +926,25 @@ const styles = StyleSheet.create({
     borderRadius: 32,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: theme.colors.primary,
+    backgroundColor: "rgba(245,194,77,0.18)",
+    borderWidth: 1,
+    borderColor: "rgba(245,194,77,0.36)",
   },
   iconWrap_live: {
-    backgroundColor: "#37A2FF",
+    backgroundColor: "rgba(245,194,77,0.18)",
+    borderColor: "rgba(245,194,77,0.36)",
   },
   iconWrap_ready: {
-    backgroundColor: theme.colors.primary,
+    backgroundColor: theme.colors.primaryActionBg,
+    borderColor: theme.colors.primaryActionBorder,
   },
   iconWrap_paused: {
-    backgroundColor: "rgba(255,255,255,0.22)",
+    backgroundColor: "rgba(255,255,255,0.12)",
+    borderColor: "rgba(255,255,255,0.18)",
   },
   iconWrap_error: {
     backgroundColor: "#FF6B6B",
+    borderColor: "rgba(255,210,218,0.32)",
   },
   kicker: {
     color: "#FFE0B8",
@@ -993,10 +999,26 @@ const styles = StyleSheet.create({
     borderRadius: theme.shapes.pill,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: theme.colors.primary,
+    backgroundColor: theme.colors.primaryActionBg,
+    borderWidth: 1,
+    borderColor: theme.colors.primaryActionBorder,
   },
   primaryButtonText: {
-    color: "#FFFFFF",
+    color: theme.colors.primaryActionText,
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  stopButton: {
+    minHeight: 50,
+    borderRadius: theme.shapes.pill,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(255,210,218,0.24)",
+  },
+  stopButtonText: {
+    color: theme.colors.dangerText,
     fontSize: 15,
     fontWeight: "800",
   },
@@ -1007,10 +1029,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "rgba(255,255,255,0.08)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.14)",
+    borderColor: "rgba(245,194,77,0.30)",
   },
   secondaryButtonText: {
-    color: theme.colors.text,
+    color: theme.colors.secondaryActionText,
     fontSize: 14,
     fontWeight: "800",
   },

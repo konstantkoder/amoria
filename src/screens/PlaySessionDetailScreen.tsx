@@ -367,7 +367,7 @@ export default function PlaySessionDetailScreen() {
     return (
       <ScreenShell
         title={tt("playDetail.title", "Совместная история")}
-        background="togetherStory"
+        background="chatWarm"
         showBack
         onBack={handleBack}
       >
@@ -388,7 +388,7 @@ export default function PlaySessionDetailScreen() {
     return (
       <ScreenShell
         title={tt("playDetail.title", "Совместная история")}
-        background="togetherStory"
+        background="chatWarm"
         showBack
         onBack={handleBack}
       >
@@ -411,7 +411,7 @@ export default function PlaySessionDetailScreen() {
     return (
       <ScreenShell
         title={tt("playDetail.title", "Совместная история")}
-        background="togetherStory"
+        background="chatWarm"
         showBack
         onBack={handleBack}
       >
@@ -432,7 +432,7 @@ export default function PlaySessionDetailScreen() {
     return (
       <ScreenShell
         title={tt("playDetail.title", "Совместная история")}
-        background="togetherStory"
+        background="chatWarm"
         showBack
         onBack={handleBack}
       >
@@ -455,7 +455,7 @@ export default function PlaySessionDetailScreen() {
   return (
     <ScreenShell
       title={tt("playDetail.title", "Совместная история")}
-      background="togetherStory"
+      background="chatWarm"
       showBack
       onBack={handleBack}
     >
@@ -793,10 +793,12 @@ const styles = StyleSheet.create({
     borderRadius: theme.shapes.pill,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: theme.colors.primary,
+    backgroundColor: theme.colors.primaryActionBg,
+    borderWidth: 1,
+    borderColor: theme.colors.primaryActionBorder,
   },
   primaryButtonText: {
-    color: "#FFFFFF",
+    color: theme.colors.primaryActionText,
     fontSize: 15,
     fontWeight: "800",
   },
@@ -807,10 +809,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "rgba(255,255,255,0.08)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.14)",
+    borderColor: "rgba(245,194,77,0.30)",
   },
   secondaryButtonText: {
-    color: theme.colors.text,
+    color: theme.colors.secondaryActionText,
     fontSize: 14,
     fontWeight: "800",
   },

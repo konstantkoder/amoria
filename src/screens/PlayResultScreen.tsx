@@ -551,7 +551,7 @@ export default function PlayResultScreen() {
 
   if (!sessionId) {
     return (
-      <ScreenShell title={screenTitle} background="togetherStory" showBack onBack={handleBack}>
+      <ScreenShell title={screenTitle} background="chatWarm" showBack onBack={handleBack}>
         <View style={styles.centerState}>
           <CoreStateCard
             icon="alert-circle-outline"
@@ -570,7 +570,7 @@ export default function PlayResultScreen() {
 
   if (loading) {
     return (
-      <ScreenShell title={screenTitle} background="togetherStory" showBack onBack={handleBack}>
+      <ScreenShell title={screenTitle} background="chatWarm" showBack onBack={handleBack}>
         <View style={styles.centerState}>
           <CoreStateCard
             loading
@@ -588,7 +588,7 @@ export default function PlayResultScreen() {
 
   if (loadError || !session) {
     return (
-      <ScreenShell title={screenTitle} background="togetherStory" showBack onBack={handleBack}>
+      <ScreenShell title={screenTitle} background="chatWarm" showBack onBack={handleBack}>
         <View style={styles.centerState}>
           <CoreStateCard
             icon="cloud-offline-outline"
@@ -604,7 +604,7 @@ export default function PlayResultScreen() {
 
   if (!sessionActivity) {
     return (
-      <ScreenShell title={screenTitle} background="togetherStory" showBack onBack={handleBack}>
+      <ScreenShell title={screenTitle} background="chatWarm" showBack onBack={handleBack}>
         <View style={styles.centerState}>
           <CoreStateCard
             icon="alert-circle-outline"
@@ -626,7 +626,7 @@ export default function PlayResultScreen() {
 
   if (isTerminalClosedStatus(session.status)) {
     return (
-      <ScreenShell title={screenTitle} background="togetherStory" showBack onBack={handleBack}>
+      <ScreenShell title={screenTitle} background="chatWarm" showBack onBack={handleBack}>
         <View style={styles.centerState}>
           <CoreStateCard
             icon="ban-outline"
@@ -650,7 +650,7 @@ export default function PlayResultScreen() {
   }
 
   return (
-    <ScreenShell title={screenTitle} background="togetherStory" showBack onBack={handleBack}>
+    <ScreenShell title={screenTitle} background="chatWarm" showBack onBack={handleBack}>
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={styles.content}
@@ -1093,10 +1093,12 @@ const styles = StyleSheet.create({
     borderRadius: theme.shapes.pill,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: theme.colors.primary,
+    backgroundColor: theme.colors.primaryActionBg,
+    borderWidth: 1,
+    borderColor: theme.colors.primaryActionBorder,
   },
   primaryButtonText: {
-    color: "#FFFFFF",
+    color: theme.colors.primaryActionText,
     fontSize: 15,
     fontWeight: "800",
   },
@@ -1107,14 +1109,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "rgba(255,255,255,0.08)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.14)",
+    borderColor: "rgba(245,194,77,0.30)",
   },
   continueButton: {
-    backgroundColor: "rgba(255,224,184,0.14)",
-    borderColor: "rgba(255,224,184,0.34)",
+    backgroundColor: "rgba(245,194,77,0.12)",
+    borderColor: "rgba(245,194,77,0.34)",
   },
   secondaryButtonText: {
-    color: theme.colors.text,
+    color: theme.colors.secondaryActionText,
     fontSize: 14,
     fontWeight: "800",
   },
@@ -1130,11 +1132,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.14)",
+    borderColor: "rgba(245,194,77,0.30)",
     backgroundColor: "rgba(255,255,255,0.06)",
   },
   outlineButtonText: {
-    color: theme.colors.text,
+    color: theme.colors.secondaryActionText,
     fontSize: 14,
     fontWeight: "800",
   },
