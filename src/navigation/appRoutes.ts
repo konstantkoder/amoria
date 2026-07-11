@@ -61,6 +61,8 @@ export type MainTabParamList = {
 
 export type EditProfileRouteParams = {
   focus?: "about" | "goal" | "mood" | "interests" | "birthDate" | "preferences";
+  returnTo?: "Together";
+  requireMatchingSafetyFields?: boolean;
 };
 
 export type ProfileStackParamList = {

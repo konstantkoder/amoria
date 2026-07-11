@@ -37,7 +37,7 @@ import {
 } from "@/services/togetherLocation";
 import {
   getMissingMatchingSafetyFields,
-  getUserProfile,
+  refreshUserProfile,
   type MatchingSafetyField,
 } from "@/services/user";
 import { startStartupSpan } from "@/services/startupDiagnostics";
@@ -158,7 +158,7 @@ export default function PlayLobbyScreen() {
       const finishTogetherInitialLoad = startStartupSpan("together.initial_load", {
         focused: true,
       });
-      void getUserProfile()
+      void refreshUserProfile()
         .then((profile) => {
           if (!alive) return;
           setProfileInterestCount(profile.interests.length);
@@ -230,6 +230,8 @@ export default function PlayLobbyScreen() {
       screen: "EditProfile",
       params: {
         focus: missingSafetyFields.includes("birthDate") ? "birthDate" : "preferences",
+        returnTo: "Together",
+        requireMatchingSafetyFields: true,
       },
     });
   }, [missingSafetyFields, navigation]);
@@ -322,7 +324,7 @@ export default function PlayLobbyScreen() {
       try {
         setLocationBusy(true);
         setLocationNotice("");
-        const profile = await getUserProfile();
+        const profile = await refreshUserProfile();
         const missingFields = getMissingMatchingSafetyFields(profile);
         setMissingSafetyFields(missingFields);
         if (missingFields.length) {

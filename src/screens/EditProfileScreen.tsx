@@ -13,7 +13,8 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useFocusEffect, useRoute } from "@react-navigation/native";
+import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import ScreenShell from "@/components/ScreenShell";
 import {
@@ -30,12 +31,23 @@ import {
 } from "@/config/profileFields";
 import { useLocale } from "@/contexts/LocaleContext";
 import type { Goal, Mood, ProfileGender, UserProfile } from "@/models/User";
-import type { EditProfileRouteProp } from "@/navigation/appRoutes";
+import type {
+  EditProfileRouteProp,
+  ProfileStackParamList,
+  RootStackNavigationProp,
+} from "@/navigation/appRoutes";
 import { theme } from "@/theme";
 import {
+  reportClientError,
+  sanitizeErrorForReport,
+} from "@/services/api/clientErrorsApi";
+import {
   getDisplayNameValidationErrorKey,
+  getMissingMatchingSafetyFields,
   getUserProfile,
+  type MatchingSafetyField,
   normalizeDisplayNameInput,
+  refreshUserProfile,
   updateUserFields,
 } from "@/services/user";
 import { ApiError } from "@/services/api/apiClient";
@@ -77,6 +89,11 @@ type BirthDateParts = {
   year: string;
 };
 type BirthDateInputName = keyof BirthDateParts;
+type EditProfileNavigation = NativeStackNavigationProp<
+  ProfileStackParamList,
+  "EditProfile"
+>;
+type TranslateFn = (key: string, params?: Record<string, string>) => string;
 
 type BirthDateValidationResult =
   | { ok: true; value: string }
@@ -201,8 +218,35 @@ function sameGenderPreference(
   return right.every((value) => left.includes(value));
 }
 
+function translatedWithFallback(
+  t: TranslateFn,
+  key: string,
+  fallback: string,
+  params?: Record<string, string>
+) {
+  const value = t(key, params);
+  return value === key ? fallback : value;
+}
+
+function getMatchingSafetyFieldLabels(
+  fields: MatchingSafetyField[],
+  t: TranslateFn
+) {
+  return fields.map((field) => {
+    if (field === "birthDate") {
+      return translatedWithFallback(t, "profile.birthDateMissingBadge", "Дата рождения");
+    }
+    if (field === "gender") {
+      return translatedWithFallback(t, "profile.genderSummaryTitle", "Ваш пол");
+    }
+    return translatedWithFallback(t, "profile.lookingForSummaryTitle", "Кого искать");
+  });
+}
+
 export default function EditProfileScreen() {
   const route = useRoute<EditProfileRouteProp>();
+  const navigation = useNavigation<EditProfileNavigation>();
+  const rootNavigation = navigation.getParent<RootStackNavigationProp>();
   const { t } = useLocale();
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
@@ -255,6 +299,29 @@ export default function EditProfileScreen() {
     birthYearInputRef.current?.blur();
     Keyboard.dismiss();
   }, []);
+
+  const navigateBackToTogether = React.useCallback(() => {
+    try {
+      if (rootNavigation) {
+        rootNavigation.navigate("Tabs", { screen: "Together" });
+        return;
+      }
+    } catch (error) {
+      const safeError = sanitizeErrorForReport(error);
+      reportClientError({
+        screen: "EditProfileScreen",
+        action: "saveProfile",
+        step: "navigateBackToTogetherFailed",
+        code: safeError.code,
+        message: safeError.message,
+        stack: safeError.stack,
+      });
+    }
+
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    }
+  }, [navigation, rootNavigation]);
 
   const focusBirthDateInput = React.useCallback((inputName: BirthDateInputName) => {
     setFocusedBirthDateInput(inputName);
@@ -504,6 +571,78 @@ export default function EditProfileScreen() {
       const updatedProfile = await updateUserFields(profilePatch);
       applyProfile(updatedProfile);
       dismissKeyboard();
+      if (route.params?.requireMatchingSafetyFields) {
+        let refreshedProfile: UserProfile;
+        try {
+          refreshedProfile = await refreshUserProfile();
+        } catch (error) {
+          const safeError = sanitizeErrorForReport(error);
+          reportClientError({
+            screen: "EditProfileScreen",
+            action: "saveProfile",
+            step: "matchingSafetyFieldsVerifyFailedAfterSave",
+            code: safeError.code,
+            message: safeError.message,
+            stack: safeError.stack,
+            metadata: {
+              hasBirthDate: Boolean(updatedProfile.birthDate),
+              hasGender: Boolean(updatedProfile.gender),
+              hasPreferredGendersArray: Array.isArray(updatedProfile.preferredGenders),
+              preferredGendersCount: Array.isArray(updatedProfile.preferredGenders)
+                ? updatedProfile.preferredGenders.length
+                : null,
+            },
+          });
+          Alert.alert(
+            t("common.error"),
+            t("editProfile.matchingSafetyVerifyFailedBody")
+          );
+          return;
+        }
+
+        applyProfile(refreshedProfile);
+        const missing = getMissingMatchingSafetyFields(refreshedProfile);
+        if (missing.length === 0) {
+          if (route.params?.returnTo === "Together") {
+            Alert.alert(
+              t("common.done"),
+              t("editProfile.matchingSafetySaveSuccessBody"),
+              [{ text: t("common.ok"), onPress: navigateBackToTogether }]
+            );
+            return;
+          }
+
+          Alert.alert(
+            t("common.done"),
+            t("editProfile.matchingSafetySaveSuccessBody")
+          );
+          return;
+        }
+
+        const missingFieldLabels = getMatchingSafetyFieldLabels(missing, t).join(", ");
+        reportClientError({
+          screen: "EditProfileScreen",
+          action: "saveProfile",
+          step: "matchingSafetyFieldsStillMissingAfterSave",
+          message: "Backend profile still missing required matching safety fields after save",
+          metadata: {
+            missingFields: missing,
+            hasBirthDate: Boolean(refreshedProfile.birthDate),
+            hasGender: Boolean(refreshedProfile.gender),
+            hasPreferredGendersArray: Array.isArray(refreshedProfile.preferredGenders),
+            preferredGendersCount: Array.isArray(refreshedProfile.preferredGenders)
+              ? refreshedProfile.preferredGenders.length
+              : null,
+          },
+        });
+        Alert.alert(
+          t("common.error"),
+          t("editProfile.matchingSafetyStillMissingBody", {
+            fields: missingFieldLabels,
+          })
+        );
+        return;
+      }
       Alert.alert(t("common.done"), t("editProfile.saveSuccessBody"));
     } catch (error) {
       const birthDateErrorKey = getBirthDateApiErrorKey(error);
