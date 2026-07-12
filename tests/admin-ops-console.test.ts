@@ -541,12 +541,15 @@ test("GET /admin/reports enforces report role policy", async (t) => {
   assert.equal(item.reporter.displayName, "Amoria Owner");
   assert.equal(item.reporter.amoriaId, "AMOWNER1");
   assert.equal(item.reporter.id, userId);
+  assert.equal(item.reporter.email, "owner@example.test");
   assert.equal(item.targetOwner.displayName, "Target User");
   assert.equal(item.targetOwner.amoriaId, "AMTARGET");
   assert.equal(item.targetOwner.id, "00000000-0000-4000-8000-000000000099");
+  assert.equal(item.targetOwner.email, "target@example.test");
+  assert.equal(item.targetUser.email, "target@example.test");
   assert.equal(item.targetType, "user");
   assert.equal(item.targetId, "00000000-0000-4000-8000-000000000099");
-  assert.equal(item.targetContext.summary, "user:00000000-0000-4000-8000-000000000099");
+  assert.equal(item.targetContext.summary, "user:Target User (AMTARGET)");
   assert.equal(
     item.targetContext.links.some((link: { kind: string; screen: string; available: boolean }) =>
       link.kind === "target_user" && link.screen === "users" && link.available,
@@ -1338,6 +1341,12 @@ function reportRow(input: Partial<AdminReportRow>): AdminReportRow {
     targetId: "00000000-0000-4000-8000-000000000099",
     targetOwnerUserId: "00000000-0000-4000-8000-000000000099",
     targetOwner: {
+      id: "00000000-0000-4000-8000-000000000099",
+      amoriaId: "AMTARGET",
+      displayName: "Target User",
+      email: "target@example.test",
+    },
+    targetUser: {
       id: "00000000-0000-4000-8000-000000000099",
       amoriaId: "AMTARGET",
       displayName: "Target User",

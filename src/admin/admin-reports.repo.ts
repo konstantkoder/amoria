@@ -1,4 +1,4 @@
-import { and, desc, eq, type SQL } from "drizzle-orm";
+import { and, desc, eq, or, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "../db/client";
 import {
@@ -18,6 +18,7 @@ import type {
 
 const reporterUsers = alias(users, "reporter_users");
 const targetOwnerUsers = alias(users, "target_owner_users");
+const targetUsers = alias(users, "target_users");
 
 type ReportSelectRow = {
   report: SafetyReportRow;
@@ -28,6 +29,12 @@ type ReportSelectRow = {
     email: string;
   };
   targetOwner: {
+    id: string;
+    amoriaId: string;
+    displayName: string;
+    email: string;
+  } | null;
+  targetUser: {
     id: string;
     amoriaId: string;
     displayName: string;
@@ -177,10 +184,23 @@ function reportSelect() {
         displayName: targetOwnerUsers.displayName,
         email: targetOwnerUsers.email,
       },
+      targetUser: {
+        id: targetUsers.id,
+        amoriaId: targetUsers.amoriaId,
+        displayName: targetUsers.displayName,
+        email: targetUsers.email,
+      },
     })
     .from(safetyReports)
     .innerJoin(reporterUsers, eq(safetyReports.reporterUserId, reporterUsers.id))
-    .leftJoin(targetOwnerUsers, eq(safetyReports.targetOwnerUserId, targetOwnerUsers.id));
+    .leftJoin(targetOwnerUsers, eq(safetyReports.targetOwnerUserId, targetOwnerUsers.id))
+    .leftJoin(
+      targetUsers,
+      and(
+        or(eq(safetyReports.targetType, "user"), eq(safetyReports.targetType, "profile")),
+        or(eq(targetUsers.id, safetyReports.targetId), eq(targetUsers.amoriaId, safetyReports.targetId)),
+      ),
+    );
 }
 
 function toAdminReportRow(row: ReportSelectRow): AdminReportRow {
@@ -192,6 +212,7 @@ function toAdminReportRow(row: ReportSelectRow): AdminReportRow {
     targetId: row.report.targetId,
     targetOwnerUserId: row.report.targetOwnerUserId,
     targetOwner: row.targetOwner,
+    targetUser: row.targetUser,
     reason: row.report.reason,
     comment: row.report.comment,
     status: row.report.status as ReportStatus,

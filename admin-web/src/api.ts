@@ -312,6 +312,7 @@ export type ReportItem = {
   targetId: string;
   targetOwnerUserId: string | null;
   targetOwner: AdminUserSnapshot | null;
+  targetUser: AdminUserSnapshot | null;
   reason: string;
   comment: string | null;
   status: string;

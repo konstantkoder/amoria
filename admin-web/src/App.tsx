@@ -1038,8 +1038,10 @@ function ReportsScreen({
                 <th>{t("common.created")}</th>
                 <th>{t("common.status")}</th>
                 <th>{t("reports.reporter")}</th>
-                <th>{t("common.target")}</th>
-                <th>{t("reports.owner")}</th>
+                <th>{t("reports.reporterEmail")}</th>
+                <th>{t("reports.reportedTarget")}</th>
+                <th>{t("reports.reportedUser")} / {t("reports.targetOwner")}</th>
+                <th>{t("reports.targetEmail")}</th>
                 <th>{t("common.reason")}</th>
               </tr>
             </thead>
@@ -1048,9 +1050,11 @@ function ReportsScreen({
                 <tr key={item.id} onClick={() => void openDetail(item.id)} className={selected?.id === item.id ? "selected" : ""}>
                   <td>{formatDate(item.createdAt, language)}</td>
                   <td>{formatStatus(item.status, t)}</td>
-                  <td>{formatReportUser(item.reporter)}</td>
+                  <td>{formatReportUserIdentity(item.reporter)}</td>
+                  <td><ReportEmail email={formatReportUserEmail(item.reporter)} /></td>
                   <td>{item.targetContext.summary}</td>
-                  <td>{item.targetOwner ? formatReportUser(item.targetOwner) : ""}</td>
+                  <td>{item.targetUser ? formatReportUserIdentity(item.targetUser) : item.targetOwner ? formatReportUserIdentity(item.targetOwner) : "—"}</td>
+                  <td><ReportEmail email={formatReportUserEmail(item.targetUser ?? item.targetOwner)} /></td>
                   <td>{item.reason}</td>
                 </tr>
               ))}
@@ -1062,25 +1066,29 @@ function ReportsScreen({
         <h2>{t("reports.reportDetail")}</h2>
         {selected ? (
           <>
+            <h3>{t("reports.reporter")}</h3>
+            <ReportUserFacts user={selected.reporter} />
+            <p className="muted">{t("reports.adminOnlyEmailNote")}</p>
+
+            <h3>{t("reports.reportedUser")}</h3>
+            {selected.targetUser ? <ReportUserFacts user={selected.targetUser} /> : <p className="muted">{t("reports.noReportedUser")}</p>}
+
+            <h3>{t("reports.targetOwner")}</h3>
+            {selected.targetOwner ? (
+              sameAdminUser(selected.targetOwner, selected.targetUser) ? <p className="muted">{t("reports.sameAsReportedUser")}</p> : <ReportUserFacts user={selected.targetOwner} />
+            ) : <p className="muted">{t("reports.noTargetOwner")}</p>}
+
+            <h3>{t("reports.targetObject")}</h3>
             <dl className="facts compact">
               <Fact label={t("common.status")} value={formatStatus(selected.status, t)} />
               <Fact label={t("reports.targetType")} value={selected.targetType} />
               <Fact label={t("reports.targetId")} value={selected.targetId} />
+              <Fact label={t("reports.targetContext")} value={selected.targetContext.summary} />
               <Fact label={t("common.reason")} value={selected.reason} />
               <Fact label={t("reports.comment")} value={selected.comment ?? ""} />
               <Fact label={t("common.created")} value={formatDate(selected.createdAt, language)} />
               <Fact label={t("common.updated")} value={formatDate(selected.updatedAt, language)} />
             </dl>
-
-            <h3>{t("reports.reporterUser")}</h3>
-            <ReportUserFacts user={selected.reporter} />
-
-            <h3>{t("reports.targetUser")}</h3>
-            {selected.targetOwner ? (
-              <ReportUserFacts user={selected.targetOwner} />
-            ) : (
-              <p className="muted">{t("reports.noTargetOwner")}</p>
-            )}
 
             <h3>{t("reports.targetContext")}</h3>
             <p className="muted">{selected.targetContext.privacyNote}</p>
@@ -1163,7 +1171,7 @@ function ReportUserFacts({ user }: { user: ReportItem["reporter"] }) {
       <Fact label={t("common.displayName")} value={user.displayName} />
       <Fact label={t("common.amoriaId")} value={user.amoriaId} />
       <Fact label={t("reports.userId")} value={user.id} />
-      <Fact label={t("common.email")} value={user.email} />
+      <dt>{t("common.email")}</dt><dd><ReportEmail email={user.email} /></dd>
     </dl>
   );
 }
@@ -3084,8 +3092,21 @@ function errorMessage(error: unknown, t: (key: TranslationKey) => string): strin
   return error instanceof Error ? error.message : t("error.requestFailed");
 }
 
-function formatReportUser(user: ReportItem["reporter"]): string {
-  return `${user.displayName} · ${user.amoriaId} · ${user.id}`;
+function formatReportUserIdentity(user: ReportItem["reporter"]): string {
+  return `${user.displayName} · ${user.amoriaId}`;
+}
+
+function formatReportUserEmail(user: ReportItem["reporter"] | null): string {
+  return user?.email ?? "";
+}
+
+function sameAdminUser(left: ReportItem["reporter"] | null, right: ReportItem["reporter"] | null): boolean {
+  if (!left || !right) return false;
+  return left.id && right.id ? left.id === right.id : left.amoriaId === right.amoriaId;
+}
+
+function ReportEmail({ email }: { email: string }) {
+  return email ? <a href={`mailto:${email}`}>{email}</a> : <span className="muted">—</span>;
 }
 
 function formatReportContextLinkLabel(
@@ -3098,7 +3119,7 @@ function formatReportContextLinkLabel(
     case "target_owner_user":
       return t("reports.openTargetOwner");
     case "target_user":
-      return t("reports.openTargetUser");
+      return t("reports.openReportedUser");
     case "target_media":
       return t("reports.openTargetMedia");
     case "target_thread":

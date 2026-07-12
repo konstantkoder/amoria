@@ -1,6 +1,18 @@
 import type { TranslationKey } from "./en";
 
 export const hr: Partial<Record<TranslationKey, string>> = {
+  "reports.reporterEmail": "E-pošta prijavitelja",
+  "reports.targetEmail": "E-pošta cilja",
+  "reports.reportedTarget": "Prijavljeni cilj",
+  "reports.reportedUser": "Prijavljeni korisnik",
+  "reports.targetObject": "Objekt prijave",
+  "reports.targetOwner": "Vlasnik cilja",
+  "reports.noReportedUser": "Za ovaj cilj nije pronađena izravna snimka prijavljenog korisnika.",
+  "reports.sameAsReportedUser": "Isti je kao prijavljeni korisnik.",
+  "reports.openReportedUser": "Otvori prijavljenog korisnika",
+  "reports.openTargetOwner": "Otvori vlasnika cilja",
+  "reports.openReporter": "Otvori prijavitelja",
+  "reports.adminOnlyEmailNote": "E-pošta je vidljiva samo u administratorskoj konzoli radi obrade prijave i kontakta s korisnikom.",
   "language.label": "Jezik",
   "language.en": "English",
   "language.ru": "Ruski",

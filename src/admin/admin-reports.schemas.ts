@@ -132,6 +132,7 @@ const reportItemSchema = {
     "targetId",
     "targetOwnerUserId",
     "targetOwner",
+    "targetUser",
     "reason",
     "comment",
     "status",
@@ -148,6 +149,9 @@ const reportItemSchema = {
     targetId: { type: "string" },
     targetOwnerUserId: { type: ["string", "null"], format: "uuid" },
     targetOwner: {
+      anyOf: [reportUserSchema, { type: "null" }],
+    },
+    targetUser: {
       anyOf: [reportUserSchema, { type: "null" }],
     },
     reason: { type: "string" },

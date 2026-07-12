@@ -65,6 +65,7 @@ export type AdminReportRow = {
   targetId: string;
   targetOwnerUserId: string | null;
   targetOwner: AdminReportUserSnapshot | null;
+  targetUser: AdminReportUserSnapshot | null;
   reason: string;
   comment: string | null;
   status: ReportStatus;
@@ -151,7 +152,18 @@ function buildTargetContext(row: AdminReportRow): AdminReportTargetContext {
     },
   ];
 
-  if (row.targetOwner) {
+  if (row.targetUser) {
+    links.push({
+      kind: "target_user",
+      label: "Open reported user",
+      screen: "users",
+      available: true,
+      params: { amoriaId: row.targetUser.amoriaId },
+      unavailableReason: null,
+    });
+  }
+
+  if (row.targetOwner && row.targetOwner.amoriaId !== row.targetUser?.amoriaId) {
     links.push({
       kind: "target_owner_user",
       label: "Open target owner profile",
@@ -164,14 +176,6 @@ function buildTargetContext(row: AdminReportRow): AdminReportTargetContext {
 
   switch (normalizedTargetType(row.targetType)) {
     case "user":
-      links.push({
-        kind: "target_user",
-        label: "Open target user",
-        screen: "users",
-        available: true,
-        params: { q: row.targetId },
-        unavailableReason: null,
-      });
       break;
     case "media":
       links.push({
@@ -229,7 +233,9 @@ function buildTargetContext(row: AdminReportRow): AdminReportTargetContext {
   }
 
   return {
-    summary: `${row.targetType}:${row.targetId}`,
+    summary: normalizedTargetType(row.targetType) === "user" && row.targetUser
+      ? `user:${row.targetUser.displayName} (${row.targetUser.amoriaId})`
+      : `${row.targetType}:${row.targetId}`,
     privacyNote:
       "Safe admin context only: exact coordinates, exact birth dates, locked gallery media, private credentials, and signed URLs are not included.",
     links,
