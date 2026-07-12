@@ -1382,5 +1382,14 @@
   "play.canvas.example.treeHouse": "Kuća na drvetu",
   "play.canvas.example.bigWheelBike": "Bicikl s velikim kotačem",
   "play.canvas.example.wingBike": "Bicikl s krilom",
-  "play.canvas.example.balloonBike": "Bicikl s balonom"
+  "play.canvas.example.balloonBike": "Bicikl s balonom",
+  "compatibility.badgeCount": "{count} podud.",
+  "compatibility.badgeGoal": "Odgovara po cilju",
+  "compatibility.cardTitle": "Zašto biste se mogli slagati",
+  "compatibility.cardBody": "Ovo nije ocjena, nego stvarne podudarnosti iz javnih profila.",
+  "compatibility.reasonGoal": "Isti cilj: {value}",
+  "compatibility.reasonMood": "Slično raspoloženje: {value}",
+  "compatibility.reasonInterest": "Zajednički interes: {value}",
+  "compatibility.reasonAge": "Odgovara vašoj dobnoj postavci",
+  "compatibility.empty": "Još nema jasnih podudarnosti u javnom profilu."
 }

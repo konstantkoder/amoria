@@ -38,7 +38,11 @@ import { reportClientError } from "@/services/api/clientErrorsApi";
 import { unlockUserLockedGallery } from "@/services/api/publicUsersApi";
 import * as safetyApi from "@/services/api/safetyApi";
 import type { SafetyReportReason } from "@/services/api/safetyApi";
-import { getUserProfileById } from "@/services/user";
+import { getUserProfile, getUserProfileById } from "@/services/user";
+import {
+  buildProfileCompatibilityHints,
+  type CompatibilityReason,
+} from "@/services/profileCompatibility";
 import {
   getPublicMediaUrlInfo,
   normalizeAuthenticatedLockedMediaUrl,
@@ -213,6 +217,7 @@ export default function UserProfileScreen() {
   const sourceSessionId = String(sourceContext?.sourceSessionId ?? "").trim();
   const myId = authUser?.id ?? "";
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [selfProfile, setSelfProfile] = useState<UserProfile | null>(null);
   const [profileLoadState, setProfileLoadState] = useState<ProfileLoadState>("loading");
   const [sourceDetailText, setSourceDetailText] = useState("");
   const [sharedStoryAvailable, setSharedStoryAvailable] = useState(false);
@@ -232,6 +237,20 @@ export default function UserProfileScreen() {
   const [unlockedLockedPhotos, setUnlockedLockedPhotos] = useState<UserProfilePhoto[]>([]);
   const reportedMediaFailuresRef = React.useRef<Set<string>>(new Set());
   const activeUserIdRef = React.useRef(userId);
+
+  useEffect(() => {
+    let alive = true;
+    void getUserProfile({ allowCached: false })
+      .then((nextProfile) => {
+        if (alive) setSelfProfile(nextProfile);
+      })
+      .catch(() => {
+        if (alive) setSelfProfile(null);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [myId, reloadKey]);
 
   useEffect(() => {
     activeUserIdRef.current = userId;
@@ -397,6 +416,40 @@ export default function UserProfileScreen() {
         MOOD_LABEL_FALLBACKS[profile.mood as Mood]
       )
     : "";
+  const compatibility = useMemo(
+    () => buildProfileCompatibilityHints(selfProfile, profile),
+    [profile, selfProfile]
+  );
+  const compatibilityReasonText = useCallback(
+    (reason: CompatibilityReason) => {
+      if (reason.kind === "goal" && reason.value) {
+        const value = translatedProfileOptionLabel(
+          t,
+          GOAL_LABEL_KEYS[reason.value as Goal],
+          GOAL_LABEL_FALLBACKS[reason.value as Goal]
+        );
+        return tt("compatibility.reasonGoal", "Одинаковая цель: {value}", { value });
+      }
+      if (reason.kind === "mood" && reason.value) {
+        const value = translatedProfileOptionLabel(
+          t,
+          MOOD_LABEL_KEYS[reason.value as Mood],
+          MOOD_LABEL_FALLBACKS[reason.value as Mood]
+        );
+        return tt("compatibility.reasonMood", "Похожее настроение: {value}", { value });
+      }
+      if (reason.kind === "interest" && reason.value) {
+        return tt("compatibility.reasonInterest", "Общий интерес: {value}", {
+          value: reason.value,
+        });
+      }
+      return tt(
+        "compatibility.reasonAge",
+        "Подходит по возрастному фильтру"
+      );
+    },
+    [t, tt]
+  );
   const publicAgeLabel = profile?.ageGroup
     ? tt("profile.publicAgeGroup", "Возраст: {group}", { group: profile.ageGroup })
     : "";
@@ -890,6 +943,32 @@ export default function UserProfileScreen() {
           ) : null}
         </View>
 
+        {compatibility.count > 0 ? (
+          <View style={[styles.card, styles.compatibilityCard]}>
+            <View style={styles.compatibilityHeader}>
+              <Ionicons name="sparkles-outline" size={18} color={theme.colors.textAccent} />
+              <Text style={styles.cardTitle}>
+                {tt("compatibility.cardTitle", "Почему вы можете подойти")}
+              </Text>
+            </View>
+            <Text style={styles.cardText}>
+              {tt(
+                "compatibility.cardBody",
+                "Это не рейтинг, а реальные совпадения из открытой анкеты."
+              )}
+            </Text>
+            <View style={styles.compatibilityReasons}>
+              {compatibility.reasons.map((reason, index) => (
+                <View key={`${reason.kind}-${reason.value ?? ""}-${index}`} style={styles.compatibilityReason}>
+                  <Text style={styles.compatibilityReasonText}>
+                    {compatibilityReasonText(reason)}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        ) : null}
+
         {sourceTitle ? (
           <View style={styles.card}>
             <Text style={styles.cardKicker}>{tt("profile.sourceKicker", "Контекст знакомства")}</Text>
@@ -1230,6 +1309,33 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.10)",
     gap: 8,
+  },
+  compatibilityCard: {
+    borderColor: "rgba(245,194,77,0.24)",
+  },
+  compatibilityHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  compatibilityReasons: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  compatibilityReason: {
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: theme.shapes.pill,
+    backgroundColor: "rgba(245,194,77,0.10)",
+    borderWidth: 1,
+    borderColor: "rgba(245,194,77,0.22)",
+  },
+  compatibilityReasonText: {
+    color: theme.colors.textAccent,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: "700",
   },
   cardKicker: {
     color: theme.colors.textAccent,

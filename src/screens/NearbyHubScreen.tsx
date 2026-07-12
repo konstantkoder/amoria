@@ -39,6 +39,7 @@ import {
   type PublicMediaUrlInfo,
 } from "@/services/media/mediaUrl";
 import { startStartupSpan } from "@/services/startupDiagnostics";
+import { buildProfileCompatibilityHints } from "@/services/profileCompatibility";
 import {
   getMissingMatchingSafetyFields,
   getUserProfile,
@@ -1449,6 +1450,7 @@ export default function NearbyHubScreen() {
         {peopleSectionHeader}
         {peopleItems.length ? (
           <NearbyPeopleGrid
+            selfProfile={profile}
             items={peopleItems}
             layout={peopleGridLayout}
             onOpen={openProfile}
@@ -2000,11 +2002,13 @@ function formatActivityRowMeta(
 
 function NearbyPeopleGrid({
   items,
+  selfProfile,
   layout,
   onOpen,
   t,
 }: {
   items: NearbyProfileFeedItemDto[];
+  selfProfile: UserProfile | null;
   layout: ReturnType<typeof getPeopleGridLayout>;
   onOpen: (item: NearbyProfileFeedItemDto) => void;
   t: (key: string, params?: Record<string, string>) => string;
@@ -2024,6 +2028,7 @@ function NearbyPeopleGrid({
         <NearbyProfileCardSlot
           key={item.userId}
           item={item}
+          selfProfile={selfProfile}
           onOpen={() => onOpen(item)}
           tileWidth={layout.tileWidth}
           tileHeight={layout.tileHeight}
@@ -2109,6 +2114,7 @@ function getNearbyRoomAction(
 
 function NearbyProfileCardSlot({
   item,
+  selfProfile,
   onOpen,
   tileWidth,
   tileHeight,
@@ -2116,6 +2122,7 @@ function NearbyProfileCardSlot({
   t,
 }: {
   item: NearbyProfileFeedItemDto;
+  selfProfile: UserProfile | null;
   onOpen: () => void;
   tileWidth: number;
   tileHeight: number;
@@ -2123,6 +2130,11 @@ function NearbyProfileCardSlot({
   t: (key: string, params?: Record<string, string>) => string;
 }) {
   const ageLabel = getNearbyPersonAgeLabel(item, t);
+  const compatibility = buildProfileCompatibilityHints(selfProfile, item);
+  const compatibilityLabel =
+    compatibility.count === 1 && compatibility.reasons[0]?.kind === "goal"
+      ? t("compatibility.badgeGoal")
+      : t("compatibility.badgeCount", { count: String(compatibility.count) });
 
   return (
     <Pressable
@@ -2146,6 +2158,16 @@ function NearbyProfileCardSlot({
         ]}
       >
         <NearbyCardMedia item={item} />
+        {compatibility.count > 0 ? (
+          <View
+            style={[styles.compatibilityBadge, { maxWidth: avatarSize - 18 }]}
+            pointerEvents="none"
+          >
+            <Text style={styles.compatibilityBadgeText} numberOfLines={1}>
+              {compatibilityLabel}
+            </Text>
+          </View>
+        ) : null}
         <View style={styles.personAvatarOverlay} pointerEvents="none">
           <Text
             style={styles.personAvatarName}
@@ -2498,6 +2520,23 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     paddingHorizontal: 4,
     backgroundColor: "rgba(5,8,18,0.62)",
+  },
+  compatibilityBadge: {
+    position: "absolute",
+    top: 7,
+    right: 7,
+    minHeight: 22,
+    justifyContent: "center",
+    paddingHorizontal: 7,
+    borderRadius: 999,
+    backgroundColor: "rgba(7,10,20,0.62)",
+    borderWidth: 1,
+    borderColor: "rgba(245,194,77,0.34)",
+  },
+  compatibilityBadgeText: {
+    color: theme.colors.textAccent,
+    fontSize: 10,
+    fontWeight: "900",
   },
   personAvatarName: {
     color: "#FFFFFF",

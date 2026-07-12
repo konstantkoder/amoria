@@ -1706,5 +1706,14 @@
   "profile.notFoundBody": "This profile is no longer available.",
   "profile.notFoundTitle": "Profile not found",
   "profile.peerLoadingTitle": "Loading profile",
-  "profile.publicPhotosEmpty": "No public photos yet"
+  "profile.publicPhotosEmpty": "No public photos yet",
+  "compatibility.badgeCount": "{count} matches",
+  "compatibility.badgeGoal": "Matching goal",
+  "compatibility.cardTitle": "Why you may get along",
+  "compatibility.cardBody": "This is not a rating, but real matches from your public profiles.",
+  "compatibility.reasonGoal": "Same goal: {value}",
+  "compatibility.reasonMood": "Similar mood: {value}",
+  "compatibility.reasonInterest": "Shared interest: {value}",
+  "compatibility.reasonAge": "Matches your age preference",
+  "compatibility.empty": "No clear matches in the public profile yet."
 }

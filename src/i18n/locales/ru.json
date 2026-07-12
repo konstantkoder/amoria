@@ -1706,5 +1706,14 @@
   "profile.notFoundBody": "Этот профиль больше недоступен.",
   "profile.notFoundTitle": "Профиль не найден",
   "profile.peerLoadingTitle": "Загружаем профиль",
-  "profile.publicPhotosEmpty": "Публичные фото пока не добавлены"
+  "profile.publicPhotosEmpty": "Публичные фото пока не добавлены",
+  "compatibility.badgeCount": "{count} совп.",
+  "compatibility.badgeGoal": "Подходит по цели",
+  "compatibility.cardTitle": "Почему вы можете подойти",
+  "compatibility.cardBody": "Это не рейтинг, а реальные совпадения из открытой анкеты.",
+  "compatibility.reasonGoal": "Одинаковая цель: {value}",
+  "compatibility.reasonMood": "Похожее настроение: {value}",
+  "compatibility.reasonInterest": "Общий интерес: {value}",
+  "compatibility.reasonAge": "Подходит по возрастному фильтру",
+  "compatibility.empty": "Пока нет явных совпадений в открытой анкете."
 }
