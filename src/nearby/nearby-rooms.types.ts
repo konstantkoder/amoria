@@ -69,6 +69,15 @@ export type AdminNearbyRoomTypesResponse = {
   nextCursor: null;
 };
 
+export type AdminCreateNearbyRoomTypeBody = {
+  key: string;
+  title: string;
+};
+
+export type AdminNearbyRoomTypeDetailResponse = {
+  roomType: AdminNearbyRoomTypeDto;
+};
+
 export type AdminNearbyRoomsResponse = {
   items: AdminNearbyRoomDto[];
   nextCursor: null;

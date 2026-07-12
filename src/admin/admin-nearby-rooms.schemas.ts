@@ -4,10 +4,18 @@ import { validationError } from "../common/errors";
 import { NEARBY_ACTIVITY_KEYS } from "../config/constants";
 import type {
   AdminCreateNearbyRoomBody,
+  AdminCreateNearbyRoomTypeBody,
   AdminCreateNearbyRoomFromDemandBody,
   AdminNearbyRoomActionBody,
   AdminNearbyRoomsQuery,
 } from "../nearby/nearby-rooms.types";
+
+const createNearbyRoomTypeBodySchema = z
+  .object({
+    key: z.string().trim().min(3).max(120).regex(/^[a-z0-9]+(?:_[a-z0-9]+)*$/),
+    title: z.string().trim().min(1).max(80),
+  })
+  .strict();
 
 const nearbyRoomActionValues = ["close", "disable", "reopen", "archive", "delete"] as const;
 const isoDateTimePattern =
@@ -151,6 +159,16 @@ const createNearbyRoomBodyJsonSchema = {
   },
 } as const;
 
+const createNearbyRoomTypeBodyJsonSchema = {
+  type: "object",
+  required: ["key", "title"],
+  additionalProperties: false,
+  properties: {
+    key: { type: "string", minLength: 3, maxLength: 120, pattern: "^[a-z0-9]+(?:_[a-z0-9]+)*$" },
+    title: { type: "string", minLength: 1, maxLength: 80 },
+  },
+} as const;
+
 const createNearbyRoomFromDemandBodyJsonSchema = {
   type: "object",
   required: ["activityKey", "geoBucket"],
@@ -197,6 +215,12 @@ export function parseAdminCreateNearbyRoomBody(input: unknown): AdminCreateNearb
   return parseWithValidation(createNearbyRoomBodySchema, input);
 }
 
+export function parseAdminCreateNearbyRoomTypeBody(
+  input: unknown,
+): AdminCreateNearbyRoomTypeBody {
+  return parseWithValidation(createNearbyRoomTypeBodySchema, input);
+}
+
 export function parseAdminCreateNearbyRoomFromDemandBody(
   input: unknown,
 ): AdminCreateNearbyRoomFromDemandBody {
@@ -224,6 +248,18 @@ export const adminNearbyRoomTypesRouteSchema = {
         },
         nextCursor: { type: "null" },
       },
+    },
+  },
+} as const satisfies FastifySchema;
+
+export const adminCreateNearbyRoomTypeRouteSchema = {
+  body: createNearbyRoomTypeBodyJsonSchema,
+  response: {
+    201: {
+      type: "object",
+      required: ["roomType"],
+      additionalProperties: false,
+      properties: { roomType: adminNearbyRoomTypeSchema },
     },
   },
 } as const satisfies FastifySchema;

@@ -188,6 +188,26 @@ test("POST /nearby/rooms/:roomId/join rejects without matching active preference
   assert.equal(state.membership(activeRoomId, viewerId), undefined);
 });
 
+test("POST /nearby/rooms/:roomId/join allows an approved custom activity type", async (t) => {
+  t.after(restoreDeps);
+  const state = mockNearbyRooms({
+    rooms: [roomState({ typeKey: "sunset_picnic", title: "Sunset picnic" })],
+    preferences: [],
+  });
+  const app = buildApp();
+  t.after(async () => app.close());
+
+  const response = await app.inject({
+    method: "POST",
+    url: `/nearby/rooms/${activeRoomId}/join`,
+    headers: authHeaders(viewerId),
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.json().room.typeKey, "sunset_picnic");
+  assert.equal(state.membership(activeRoomId, viewerId)?.status, "active");
+});
+
 test("POST /nearby/rooms/:roomId/join rejects disabled preference", async (t) => {
   t.after(restoreDeps);
   const state = mockNearbyRooms({

@@ -22,7 +22,9 @@ export async function requireNearbyActivityPreferenceForRoom(
   activityKey: string,
 ): Promise<void> {
   if (!isNearbyActivityKey(activityKey)) {
-    throw nearbyActivityPreferenceRequired();
+    // Admin-created room types are intentionally outside the questionnaire catalog.
+    // Their active, approved room type is the participation gate instead.
+    return;
   }
 
   const hasPreference = await repo.hasActiveUserActivityPreferenceForActivity(

@@ -26,6 +26,7 @@ const { signAccessToken } = require("../src/auth/jwt") as typeof import("../src/
 const { closeDb } = require("../src/db/client") as typeof import("../src/db/client");
 const adminService = require("../src/admin/admin.service") as typeof import("../src/admin/admin.service");
 const {
+  parseAdminCreateNearbyRoomTypeBody,
   parseAdminNearbyRoomActionBody,
   parseAdminNearbyRoomsQuery,
 } = require("../src/admin/admin-nearby-rooms.schemas") as typeof import("../src/admin/admin-nearby-rooms.schemas");
@@ -60,6 +61,63 @@ test("parseAdminNearbyRoomActionBody accepts archive/delete and rejects remove",
     action: "delete",
   });
   assert.throws(() => parseAdminNearbyRoomActionBody({ action: "remove" }));
+});
+
+test("parseAdminCreateNearbyRoomTypeBody accepts slug keys and trims values", () => {
+  assert.deepEqual(
+    parseAdminCreateNearbyRoomTypeBody({ key: "  sunset_picnic  ", title: "  Sunset picnic  " }),
+    { key: "sunset_picnic", title: "Sunset picnic" },
+  );
+  assert.throws(() =>
+    parseAdminCreateNearbyRoomTypeBody({ key: "Sunset picnic", title: "Sunset picnic" }),
+  );
+});
+
+test("POST /admin/nearby-room-types creates an active approved custom activity", async (t) => {
+  t.after(restoreDeps);
+  mockAdmin({ roles: ["moderator"] });
+  const state = mockNearbyRoomAdmin();
+  const app = buildApp();
+  t.after(async () => app.close());
+
+  const response = await app.inject({
+    method: "POST",
+    url: "/admin/nearby-room-types",
+    headers: authHeaders(userId),
+    payload: { key: "sunset_picnic", title: "Sunset picnic" },
+  });
+
+  assert.equal(response.statusCode, 201);
+  assert.deepEqual(response.json().roomType, {
+    key: "sunset_picnic",
+    title: "Sunset picnic",
+    status: "active",
+    adminApproved: true,
+    sortOrder: 20,
+    createdAt: now.toISOString(),
+    updatedAt: now.toISOString(),
+  });
+  assert.equal(state.createdRoomTypes.length, 1);
+  assert.equal(state.auditInputs[0]?.action, "admin.nearbyRoomTypes.create");
+});
+
+test("POST /admin/nearby-room-types rejects duplicate keys", async (t) => {
+  t.after(restoreDeps);
+  mockAdmin({ roles: ["owner"] });
+  const state = mockNearbyRoomAdmin();
+  const app = buildApp();
+  t.after(async () => app.close());
+
+  const response = await app.inject({
+    method: "POST",
+    url: "/admin/nearby-room-types",
+    headers: authHeaders(userId),
+    payload: { key: "coffee_nearby", title: "Another coffee" },
+  });
+
+  assert.equal(response.statusCode, 400);
+  assert.equal(response.json().error.code, "validation_error");
+  assert.equal(state.createdRoomTypes.length, 0);
 });
 
 test("parseAdminNearbyRoomsQuery accepts boolean-like includeArchived values", () => {
@@ -424,12 +482,14 @@ function mockNearbyRoomAdmin(input: {
   const state: {
     auditInputs: AdminAuditInput[];
     createdRooms: CreateNearbyRoomInput[];
+    createdRoomTypes: NearbyRoomTypeRow[];
     listOptions: Required<ListNearbyRoomsForAdminOptions>[];
     moderationActions: Array<{ roomId: string; adminUserId: string; action: string }>;
     room: (nextRoomId: string) => AdminNearbyRoomRow | undefined;
   } = {
     auditInputs: [],
     createdRooms: [],
+    createdRoomTypes: [],
     listOptions: [],
     moderationActions: [],
     room: (nextRoomId) => rooms.get(nextRoomId),
@@ -445,6 +505,23 @@ function mockNearbyRoomAdmin(input: {
       );
     },
     findNearbyRoomTypeByKey: async (typeKey: string) => roomTypes.get(typeKey),
+    createNearbyRoomTypeForAdmin: async (createInput: {
+      key: string;
+      title: string;
+      sortOrder: number;
+      createdAt: Date;
+    }) => {
+      const row = roomTypeRow({
+        key: createInput.key,
+        title: createInput.title,
+        sortOrder: createInput.sortOrder,
+        createdAt: createInput.createdAt,
+        updatedAt: createInput.createdAt,
+      });
+      roomTypes.set(row.key, row);
+      state.createdRoomTypes.push(row);
+      return row;
+    },
     findNearbyRoomForAdmin: async (nextRoomId: string) => rooms.get(nextRoomId),
     createNearbyRoomForAdmin: async (createInput: CreateNearbyRoomInput) => {
       state.createdRooms.push(createInput);

@@ -2005,6 +2005,9 @@ function NearbyRoomsScreen({
   const [loading, setLoading] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [customTypeKey, setCustomTypeKey] = useState("");
+  const [customTypeTitle, setCustomTypeTitle] = useState("");
+  const [creatingCustomType, setCreatingCustomType] = useState(false);
   const [includeArchivedRooms, setIncludeArchivedRooms] = useState(false);
   const [createFromDemandForm, setCreateFromDemandForm] = useState<CreateFromDemandForm | null>(null);
   const [creatingFromDemand, setCreatingFromDemand] = useState(false);
@@ -2114,6 +2117,31 @@ function NearbyRoomsScreen({
       setError(errorMessage(error, t));
     } finally {
       setCreating(false);
+    }
+  }
+
+  async function submitCreateCustomType(event: FormEvent) {
+    event.preventDefault();
+    setCreatingCustomType(true);
+    setError(null);
+    setMessage(null);
+
+    try {
+      const response = await apiPost<{ roomType: AdminNearbyRoomType }>(
+        "/admin/nearby-room-types",
+        { key: customTypeKey.trim(), title: customTypeTitle.trim() },
+      );
+      const reloaded = await load(null);
+      if (reloaded) {
+        setTypeKey(response.roomType.key);
+        setCustomTypeKey("");
+        setCustomTypeTitle("");
+        setMessage(tx("nearbyRooms.customTypeCreated", { title: response.roomType.title }));
+      }
+    } catch (error) {
+      setError(errorMessage(error, t));
+    } finally {
+      setCreatingCustomType(false);
     }
   }
 
@@ -2464,6 +2492,36 @@ function NearbyRoomsScreen({
                 </form>
               </div>
             ) : null}
+            <h2>{t("nearbyRooms.customTypeTitle")}</h2>
+            <form className="stack-form" onSubmit={submitCreateCustomType}>
+              <label>
+                {t("nearbyRooms.customTypeKey")}
+                <input
+                  value={customTypeKey}
+                  onChange={(event) => setCustomTypeKey(event.target.value)}
+                  minLength={3}
+                  maxLength={120}
+                  pattern="[a-z0-9]+(?:_[a-z0-9]+)*"
+                  placeholder="sunset_picnic"
+                  required
+                />
+                <span className="muted">{t("nearbyRooms.customTypeKeyHelp")}</span>
+              </label>
+              <label>
+                {t("nearbyRooms.customTypeName")}
+                <input
+                  value={customTypeTitle}
+                  onChange={(event) => setCustomTypeTitle(event.target.value)}
+                  maxLength={80}
+                  required
+                />
+              </label>
+              <button disabled={creatingCustomType || loading}>
+                {creatingCustomType
+                  ? t("nearbyRooms.customTypeCreating")
+                  : t("nearbyRooms.customTypeCreate")}
+              </button>
+            </form>
             <h2>{t("nearbyRooms.createTitle")}</h2>
             <form className="stack-form" onSubmit={submitCreate}>
               <label>

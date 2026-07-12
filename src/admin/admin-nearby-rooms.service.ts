@@ -6,12 +6,14 @@ import {
 } from "../nearby/nearby-rooms.service";
 import type {
   AdminCreateNearbyRoomBody,
+  AdminCreateNearbyRoomTypeBody,
   AdminNearbyRoomDemandSnapshotDto,
   AdminNearbyRoomDetailResponse,
   AdminNearbyRoomActionBody,
   AdminNearbyRoomsQuery,
   AdminNearbyRoomsResponse,
   AdminNearbyRoomTypesResponse,
+  AdminNearbyRoomTypeDetailResponse,
 } from "../nearby/nearby-rooms.types";
 import * as auditService from "./admin-audit.service";
 import type { AdminContext, AdminRequestContext } from "./admin.types";
@@ -21,6 +23,7 @@ type AdminNearbyRoomsDeps = {
   repo: Pick<
     typeof nearbyRoomsRepo,
     | "createNearbyRoomForAdmin"
+    | "createNearbyRoomTypeForAdmin"
     | "createRoomModerationActionForAdmin"
     | "findNearbyRoomForAdmin"
     | "findNearbyRoomTypeByKey"
@@ -72,6 +75,44 @@ export async function listNearbyRoomTypesForAdmin(
     items: rows.map(toAdminNearbyRoomTypeDto),
     nextCursor: null,
   };
+}
+
+export async function createNearbyRoomTypeForAdmin(
+  admin: AdminContext,
+  input: AdminCreateNearbyRoomTypeBody,
+  requestContext: AdminRequestContext,
+): Promise<AdminNearbyRoomTypeDetailResponse> {
+  const existing = await deps.repo.findNearbyRoomTypeByKey(input.key);
+  if (existing) {
+    throw validationError("Nearby room type key already exists", {
+      key: "already exists",
+    });
+  }
+
+  const roomTypes = await deps.repo.listNearbyRoomTypesForAdmin();
+  const createdAt = deps.now();
+  const row = await deps.repo.createNearbyRoomTypeForAdmin({
+    key: input.key,
+    title: input.title,
+    sortOrder: Math.max(0, ...roomTypes.map((roomType) => roomType.sortOrder)) + 10,
+    createdAt,
+  });
+
+  await deps.audit.writeAuditLog({
+    adminUserId: admin.adminUser.id,
+    action: "admin.nearbyRoomTypes.create",
+    targetType: "nearby_room_type",
+    targetId: row.key,
+    metadata: {
+      title: row.title,
+      status: row.status,
+      adminApproved: row.adminApproved,
+      sortOrder: row.sortOrder,
+    },
+    ...requestContext,
+  });
+
+  return { roomType: toAdminNearbyRoomTypeDto(row) };
 }
 
 export async function listNearbyRoomsForAdmin(

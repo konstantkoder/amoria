@@ -238,6 +238,29 @@ export async function listNearbyRoomTypesForAdmin(): Promise<NearbyRoomTypeRow[]
     .orderBy(asc(nearbyRoomTypes.sortOrder), asc(nearbyRoomTypes.key));
 }
 
+export async function createNearbyRoomTypeForAdmin(input: {
+  key: string;
+  title: string;
+  sortOrder: number;
+  createdAt: Date;
+}): Promise<NearbyRoomTypeRow> {
+  const [row] = await db
+    .insert(nearbyRoomTypes)
+    .values({
+      key: input.key,
+      title: input.title,
+      status: "active",
+      adminApproved: true,
+      sortOrder: input.sortOrder,
+      createdAt: input.createdAt,
+      updatedAt: input.createdAt,
+    })
+    .returning();
+
+  if (!row) throw new Error("Failed to create nearby room type");
+  return row;
+}
+
 export async function findNearbyRoomTypeByKey(
   typeKey: string,
 ): Promise<NearbyRoomTypeRow | undefined> {
