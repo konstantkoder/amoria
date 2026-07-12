@@ -827,6 +827,7 @@ test("locked media content is served only through audited admin content route", 
 
   assert.equal(response.statusCode, 200);
   assert.equal(response.headers["content-type"], "image/webp");
+  assert.equal(response.headers["cache-control"], "private, no-store");
   assert.deepEqual(response.rawPayload, Buffer.from("media-bytes"));
   assert.deepEqual(state.contentReads, ["users/owner/profile/media.webp"]);
   assert.equal(state.auditInputs[0]?.action, "admin.media.locked.view");

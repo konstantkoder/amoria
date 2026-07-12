@@ -470,7 +470,10 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
         adminRequestContext(request),
       );
 
-      return reply.header("content-type", media.contentType).send(media.body);
+      return reply
+        .header("content-type", media.contentType)
+        .header("cache-control", "private, no-store")
+        .send(media.body);
     },
   );
 
