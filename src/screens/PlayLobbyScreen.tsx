@@ -15,7 +15,7 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Device from "expo-device";
 
-import PremiumGoldButton from "@/components/PremiumGoldButton";
+import GoldActionButton from "@/components/GoldActionButton";
 import ScreenShell from "@/components/ScreenShell";
 import { useLocale } from "@/contexts/LocaleContext";
 import {
@@ -449,7 +449,7 @@ export default function PlayLobbyScreen() {
               </View>
             ) : null}
 
-            <PremiumGoldButton
+            <GoldActionButton
               label={
                 locationBusy
                   ? tt("together.geo.locationLoading", "Получаем геолокацию...")
@@ -674,7 +674,7 @@ export default function PlayLobbyScreen() {
                 </View>
               </View>
 
-              <PremiumGoldButton
+              <GoldActionButton
                 label={tt("together.searchSettingsDone", "Готово")}
                 onPress={closeTogetherFiltersSheet}
                 compact

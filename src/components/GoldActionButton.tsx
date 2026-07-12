@@ -25,7 +25,7 @@ type Props = {
   style?: StyleProp<ViewStyle>;
 };
 
-export default function PremiumGoldButton({
+export default function GoldActionButton({
   label,
   onPress,
   disabled = false,

@@ -2,7 +2,7 @@ import React from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
-import PremiumGoldButton from "@/components/PremiumGoldButton";
+import GoldActionButton from "@/components/GoldActionButton";
 import { theme } from "@/theme";
 
 type Action = {
@@ -47,7 +47,7 @@ export default function CoreStateCard({
       {primaryAction || secondaryAction ? (
         <View style={styles.actions}>
           {primaryAction ? (
-            <PremiumGoldButton label={primaryAction.label} onPress={primaryAction.onPress} />
+            <GoldActionButton label={primaryAction.label} onPress={primaryAction.onPress} />
           ) : null}
           {secondaryAction ? (
             <Pressable onPress={secondaryAction.onPress} style={styles.secondaryButton}>
