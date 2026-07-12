@@ -104,7 +104,7 @@ export type AdminCreateNearbyRoomFromDemandBody = {
   expiresAt?: string;
 };
 
-export type AdminNearbyRoomAction = "close" | "disable" | "reopen" | "archive";
+export type AdminNearbyRoomAction = "close" | "disable" | "reopen" | "archive" | "delete";
 
 export type AdminNearbyRoomActionBody = {
   action: AdminNearbyRoomAction;

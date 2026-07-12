@@ -2159,6 +2159,9 @@ function NearbyRoomsScreen({
     if (!selected) {
       return;
     }
+    if (action === "delete" && !window.confirm(t("nearbyRooms.deleteConfirm"))) {
+      return;
+    }
 
     setBusyAction(action);
     setError(null);
@@ -2169,12 +2172,14 @@ function NearbyRoomsScreen({
         `/admin/nearby-rooms/${selected.id}/actions`,
         { action },
       );
-      const reloaded = await load(response.room.id);
+      const reloaded = await load(action === "delete" ? null : response.room.id);
       if (reloaded) {
-        setMessage(tx("nearbyRooms.actionApplied", {
-          action: formatNearbyRoomAction(action, t),
-          id: response.room.id,
-        }));
+        setMessage(action === "delete"
+          ? t("nearbyRooms.deleted")
+          : tx("nearbyRooms.actionApplied", {
+            action: formatNearbyRoomAction(action, t),
+            id: response.room.id,
+          }));
       }
     } catch (error) {
       setError(errorMessage(error, t));
@@ -2525,11 +2530,11 @@ function NearbyRoomsScreen({
             </dl>
             {canManageRooms ? (
               <div className="tab-row">
-                {nearbyRoomActions.map((action) => (
+                {nearbyRoomActions.filter((action) => action !== "delete" || selected.status === "archived").map((action) => (
                   <button
                     key={action}
                     type="button"
-                    className={action === "disable" ? "" : "secondary"}
+                    className={action === "delete" ? "danger" : action === "disable" ? "" : "secondary"}
                     disabled={
                       busyAction !== null ||
                       loading ||
@@ -2939,7 +2944,7 @@ const nearbyProfileMissingFilters: Array<NearbyProfileMissingReason | "all"> = [
   "missing_avatar",
 ];
 
-const nearbyRoomActions: AdminNearbyRoomAction[] = ["close", "disable", "reopen", "archive"];
+const nearbyRoomActions: AdminNearbyRoomAction[] = ["close", "disable", "reopen", "archive", "delete"];
 
 function isAvailableNearbyRoomType(roomType: AdminNearbyRoomType): boolean {
   return roomType.status === "active" && roomType.adminApproved;
@@ -3007,6 +3012,10 @@ function isNearbyRoomActionCurrent(room: AdminNearbyRoom, action: AdminNearbyRoo
     return room.status === "archived";
   }
 
+  if (action === "delete") {
+    return room.status === "deleted";
+  }
+
   return room.status === "active";
 }
 
@@ -3023,6 +3032,8 @@ function formatNearbyRoomAction(
       return t("action.reopen");
     case "archive":
       return t("nearbyRooms.action.archive");
+    case "delete":
+      return t("nearbyRooms.action.delete");
   }
 }
 

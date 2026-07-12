@@ -366,6 +366,9 @@ export const en = {
 
   "nearbyRooms.actionApplied": "{action} applied to activity room {id}.",
   "nearbyRooms.action.archive": "Archive",
+  "nearbyRooms.action.delete": "Delete from archive",
+  "nearbyRooms.deleteConfirm": "Delete this room from the archive? This hides it from the admin list, but history, audit logs, and messages are preserved.",
+  "nearbyRooms.deleted": "Room deleted from archive.",
   "nearbyRooms.adminApproved": "Admin Approved",
   "nearbyRooms.applying": "Applying...",
   "nearbyRooms.archiveNote": "Archive hides the activity from the default list and mobile feed, but keeps members, chat and history.",

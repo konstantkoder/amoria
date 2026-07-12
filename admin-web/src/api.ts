@@ -201,7 +201,7 @@ export type AdminNearbyRoomDemandSnapshot = {
   capturedAt: string;
 };
 
-export type AdminNearbyRoomAction = "close" | "disable" | "reopen" | "archive";
+export type AdminNearbyRoomAction = "close" | "disable" | "reopen" | "archive" | "delete";
 
 export type CreateNearbyRoomFromDemandPayload = {
   activityKey: string;

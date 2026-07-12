@@ -176,6 +176,20 @@
       "when": 1782234000000,
       "tag": "0024_scheduled_nearby_room_fields",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1782237600000,
+      "tag": "0025_nearby_rooms_archived_status",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1783879200000,
+      "tag": "0026_nearby_rooms_deleted_status",
+      "breakpoints": true
     }
   ]
 }

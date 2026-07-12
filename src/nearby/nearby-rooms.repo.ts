@@ -277,8 +277,8 @@ export async function listNearbyRoomsForAdmin(
     .innerJoin(nearbyRoomTypes, eq(nearbyRoomTypes.key, nearbyRooms.typeKey));
 
   const orderedQuery = (options.includeArchived
-    ? query
-    : query.where(ne(nearbyRooms.status, "archived")))
+    ? query.where(ne(nearbyRooms.status, "deleted"))
+    : query.where(and(ne(nearbyRooms.status, "archived"), ne(nearbyRooms.status, "deleted"))))
     .orderBy(
       asc(nearbyRoomTypes.sortOrder),
       asc(nearbyRoomTypes.key),
@@ -356,7 +356,7 @@ export async function createNearbyRoomForAdmin(
 
 export async function updateNearbyRoomStatusForAdmin(
   roomId: string,
-  status: "active" | "closed" | "disabled" | "archived",
+  status: "active" | "closed" | "disabled" | "archived" | "deleted",
   updatedAt: Date,
 ): Promise<AdminNearbyRoomRow | undefined> {
   const [updated] = await db

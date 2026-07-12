@@ -9,7 +9,7 @@ import type {
   AdminNearbyRoomsQuery,
 } from "../nearby/nearby-rooms.types";
 
-const nearbyRoomActionValues = ["close", "disable", "reopen", "archive"] as const;
+const nearbyRoomActionValues = ["close", "disable", "reopen", "archive", "delete"] as const;
 const isoDateTimePattern =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
 

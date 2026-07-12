@@ -41,6 +41,7 @@ const userId = "00000000-0000-4000-8000-000000000001";
 const adminUserId = "00000000-0000-4000-8000-0000000000a1";
 const roomId = "00000000-0000-4000-8000-000000000101";
 const archivedRoomId = "00000000-0000-4000-8000-000000000102";
+const deletedRoomId = "00000000-0000-4000-8000-000000000103";
 
 let restoreAdminDeps: (() => void) | null = null;
 let restoreNearbyRoomDeps: (() => void) | null = null;
@@ -51,11 +52,13 @@ test.after(async () => {
   await closeDb();
 });
 
-test("parseAdminNearbyRoomActionBody accepts archive and rejects delete/remove", () => {
+test("parseAdminNearbyRoomActionBody accepts archive/delete and rejects remove", () => {
   assert.deepEqual(parseAdminNearbyRoomActionBody({ action: "archive" }), {
     action: "archive",
   });
-  assert.throws(() => parseAdminNearbyRoomActionBody({ action: "delete" }));
+  assert.deepEqual(parseAdminNearbyRoomActionBody({ action: "delete" }), {
+    action: "delete",
+  });
   assert.throws(() => parseAdminNearbyRoomActionBody({ action: "remove" }));
 });
 
@@ -233,6 +236,47 @@ test("POST /admin/nearby-rooms/:roomId/actions closes disables archives and reop
   assertNoPrivateNearbyFields(reopen.json());
 });
 
+test("POST /admin/nearby-rooms/:roomId/actions tombstones only archived rooms", async (t) => {
+  t.after(restoreDeps);
+  mockAdmin({ roles: ["moderator"] });
+  const state = mockNearbyRoomAdmin({ rooms: [adminRoomRow({ status: "archived" })] });
+  const app = buildApp();
+  t.after(async () => app.close());
+
+  const response = await roomAction(app, "delete");
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.json().room.status, "deleted");
+  assert.equal(state.room(roomId)?.status, "deleted");
+  assert.equal(state.moderationActions[0]?.action, "delete");
+  assert.equal(state.auditInputs[0]?.action, "admin.nearbyRooms.delete");
+  assert.deepEqual(state.auditInputs[0]?.metadata, {
+    typeKey: "coffee_nearby",
+    previousStatus: "archived",
+    nextStatus: "deleted",
+    softDelete: true,
+    deletedFromArchive: true,
+  });
+});
+
+test("delete requires archived status and deleted rooms cannot be modified", async (t) => {
+  t.after(restoreDeps);
+  mockAdmin({ roles: ["moderator"] });
+  const state = mockNearbyRoomAdmin({ rooms: [adminRoomRow()] });
+  const app = buildApp();
+  t.after(async () => app.close());
+
+  for (const status of ["active", "closed", "disabled"] as const) {
+    const room = state.room(roomId);
+    if (room) room.status = status;
+    assert.equal((await roomAction(app, "delete")).statusCode, 400);
+  }
+  const room = state.room(roomId);
+  if (room) room.status = "deleted";
+  assert.equal((await roomAction(app, "reopen")).statusCode, 400);
+  assert.equal(state.moderationActions.length, 0);
+});
+
 test("GET /admin/nearby-rooms hides archived by default and includes archived on query", async (t) => {
   t.after(restoreDeps);
   mockAdmin({ roles: ["support"] });
@@ -244,6 +288,7 @@ test("GET /admin/nearby-rooms hides archived by default and includes archived on
         status: "archived",
         updatedAt: new Date("2026-06-20T12:05:00.000Z"),
       }),
+      adminRoomRow({ id: deletedRoomId, status: "deleted" }),
     ],
   });
   const app = buildApp();
@@ -292,10 +337,11 @@ test("public nearby rooms list returns active rooms and not archived rooms", asy
     id: archivedRoomId,
     status: "archived",
   });
+  const deletedRoom = nearbyRoomListRow({ id: deletedRoomId, status: "deleted" });
   restorePublicRoomsDeps = nearbyRoomsService.__setNearbyRoomsServiceDepsForTests({
     repo: {
       listPublicNearbyRoomsForUser: async () =>
-        [activeRoom, archivedRoom].filter((room) => room.status === "active"),
+        [activeRoom, archivedRoom, deletedRoom].filter((room) => room.status === "active"),
       findNearbyRoomForUser: async () => undefined,
       createNearbyRoomMembership: async () => undefined,
       reactivateNearbyRoomMembership: async () => undefined,
@@ -394,7 +440,9 @@ function mockNearbyRoomAdmin(input: {
     listNearbyRoomsForAdmin: async (options: ListNearbyRoomsForAdminOptions = {}) => {
       const includeArchived = Boolean(options.includeArchived);
       state.listOptions.push({ includeArchived });
-      return [...rooms.values()].filter((room) => includeArchived || room.status !== "archived");
+      return [...rooms.values()].filter(
+        (room) => room.status !== "deleted" && (includeArchived || room.status !== "archived"),
+      );
     },
     findNearbyRoomTypeByKey: async (typeKey: string) => roomTypes.get(typeKey),
     findNearbyRoomForAdmin: async (nextRoomId: string) => rooms.get(nextRoomId),
@@ -425,7 +473,7 @@ function mockNearbyRoomAdmin(input: {
     },
     updateNearbyRoomStatusForAdmin: async (
       nextRoomId: string,
-      status: "active" | "closed" | "disabled" | "archived",
+      status: "active" | "closed" | "disabled" | "archived" | "deleted",
       updatedAt: Date,
     ) => {
       const room = rooms.get(nextRoomId);
@@ -467,7 +515,7 @@ function restoreDeps(): void {
 
 async function roomAction(
   app: ReturnType<typeof buildApp>,
-  action: "close" | "disable" | "reopen" | "archive",
+  action: "close" | "disable" | "reopen" | "archive" | "delete",
 ) {
   return app.inject({
     method: "POST",

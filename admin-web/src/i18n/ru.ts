@@ -368,6 +368,9 @@ export const ru: Record<TranslationKey, string> = {
 
   "nearbyRooms.actionApplied": "{action}: активность рядом / room {id} обновлена.",
   "nearbyRooms.action.archive": "В архив",
+  "nearbyRooms.action.delete": "Удалить из архива",
+  "nearbyRooms.deleteConfirm": "Удалить эту комнату из архива? Это скрывает её из администраторского списка, но история, аудит и сообщения сохраняются.",
+  "nearbyRooms.deleted": "Комната удалена из архива.",
   "nearbyRooms.adminApproved": "Одобрено админом",
   "nearbyRooms.applying": "Применяем...",
   "nearbyRooms.archiveNote": "Архив скрывает активность из обычного списка и мобильной выдачи, но не удаляет участников, чат и историю.",

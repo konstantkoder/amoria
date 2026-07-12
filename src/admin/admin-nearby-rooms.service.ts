@@ -219,6 +219,13 @@ export async function actionNearbyRoomForAdmin(
     throw new AppError("not_found", "Nearby room not found", 404);
   }
 
+  if (current.status === "deleted") {
+    throw validationError("Deleted nearby room cannot be modified");
+  }
+  if (input.action === "delete" && current.status !== "archived") {
+    throw validationError("Nearby room can only be deleted from archived status");
+  }
+
   const nextStatus = statusForAction(input.action);
   const now = deps.now();
   const updated = await deps.repo.updateNearbyRoomStatusForAdmin(roomId, nextStatus, now);
@@ -242,6 +249,9 @@ export async function actionNearbyRoomForAdmin(
       typeKey: updated.typeKey,
       previousStatus: current.status,
       nextStatus: updated.status,
+      ...(input.action === "delete"
+        ? { softDelete: true, deletedFromArchive: true }
+        : {}),
     },
     ...requestContext,
   });
@@ -253,7 +263,7 @@ export async function actionNearbyRoomForAdmin(
 
 function statusForAction(
   action: AdminNearbyRoomActionBody["action"],
-): "active" | "closed" | "disabled" | "archived" {
+): "active" | "closed" | "disabled" | "archived" | "deleted" {
   if (action === "close") {
     return "closed";
   }
@@ -264,6 +274,10 @@ function statusForAction(
 
   if (action === "archive") {
     return "archived";
+  }
+
+  if (action === "delete") {
+    return "deleted";
   }
 
   return "active";
