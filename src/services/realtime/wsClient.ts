@@ -21,6 +21,22 @@ const subscribedThreads = new Set<string>();
 const subscribedTogetherSessions = new Set<string>();
 let inboxSubscribed = false;
 
+export type RealtimeConnectionState =
+  | "closed"
+  | "connecting"
+  | "open"
+  | "closing"
+  | "unknown";
+
+export function getConnectionState(): RealtimeConnectionState {
+  if (!socket) return "closed";
+  if (socket.readyState === WebSocket.CONNECTING) return "connecting";
+  if (socket.readyState === WebSocket.OPEN) return "open";
+  if (socket.readyState === WebSocket.CLOSING) return "closing";
+  if (socket.readyState === WebSocket.CLOSED) return "closed";
+  return "unknown";
+}
+
 function getWsUrl() {
   const baseUrl = String(WS_URL ?? "").trim();
   const token = getAccessToken();

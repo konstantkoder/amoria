@@ -126,7 +126,8 @@ export function translate(locale: Locale, key: string, params?: Record<string, s
 
   if (params) {
     for (const [k, v] of Object.entries(params)) {
-      out = out.replaceAll(`{${k}}`, String(v));
+      const escapedKey = k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      out = out.replace(new RegExp(`\\{${escapedKey}\\}`, "gi"), String(v));
     }
   }
   return out;

@@ -7,7 +7,6 @@ import {
   Platform,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   TextInput,
   TouchableOpacity,
@@ -1031,20 +1030,6 @@ export default function EditProfileScreen() {
             </View>
           </View>
 
-          <View style={styles.toggleCard}>
-            <Text style={styles.toggleTitle}>{t("profile.mysteryBadge")}</Text>
-            <Text style={styles.toggleBody}>{t("editProfile.mysteryDescription")}</Text>
-            <Switch
-              value={mysteryMode}
-              onValueChange={setMysteryMode}
-              thumbColor={mysteryMode ? theme.colors.textAccent : "#999"}
-              trackColor={{
-                false: "#444",
-                true: `${theme.colors.textAccent}88`,
-              }}
-            />
-          </View>
-
           <TouchableOpacity
             onPress={() => void handleSave()}
             disabled={saving}
@@ -1277,24 +1262,6 @@ const styles = StyleSheet.create({
   },
   optionButtonTextActive: {
     color: theme.colors.textAccent,
-  },
-  toggleCard: {
-    backgroundColor: theme.colors.card,
-    borderRadius: theme.radius,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
-    marginBottom: 12,
-  },
-  toggleTitle: {
-    color: theme.colors.text,
-    fontWeight: "700",
-    marginBottom: 4,
-  },
-  toggleBody: {
-    color: theme.colors.subtext,
-    marginBottom: 8,
   },
   saveButton: {
     backgroundColor: theme.buttons.primary.backgroundColor,

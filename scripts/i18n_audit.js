@@ -106,6 +106,26 @@ console.log(`hiddenBetaLocales: ${hiddenBetaLocales.length}`);
 console.log(`baseKeys: ${baseKeys.length}`);
 console.log(`activeKeys: ${activeKeys.length}`);
 
+const uppercasePlaceholderIssues = [];
+for (const file of files) {
+  const loc = file.replace(".json", "");
+  const json = readJson(path.join(DIR, file));
+  for (const [key, value] of Object.entries(json)) {
+    if (typeof value !== "string") continue;
+    const placeholders = value.match(/\{[A-Z][A-Z0-9_]*\}/g) ?? [];
+    for (const placeholder of placeholders) {
+      uppercasePlaceholderIssues.push(`${loc}.${key}: ${placeholder}`);
+    }
+  }
+}
+
+console.log(`uppercasePlaceholders: ${uppercasePlaceholderIssues.length}`);
+if (uppercasePlaceholderIssues.length) {
+  console.log(uppercasePlaceholderIssues.slice(0, 80).join("\n"));
+  if (uppercasePlaceholderIssues.length > 80) console.log("...");
+  hasErrors = true;
+}
+
 const baseActiveMissing = activeKeys.filter((key) => !(key in base));
 console.log(`\n=== ${BASE_LOCALE} release base ===`);
 console.log(`activeMissing: ${baseActiveMissing.length}`);

@@ -1,6 +1,7 @@
 import React from "react";
 import {
   Alert,
+  AppState,
   Platform,
   Pressable,
   ScrollView,
@@ -106,6 +107,15 @@ function isTerminalClosedStatus(status?: TogetherSessionStatus | string | null) 
   return status === "abandoned" || status === "cancelled";
 }
 
+function interpolateFallback(fallback: string, params?: Record<string, string>) {
+  if (!params) return fallback;
+  return Object.entries(params).reduce(
+    (value, [key, replacement]) =>
+      value.replace(new RegExp(`\\{${key}\\}`, "gi"), replacement),
+    fallback
+  );
+}
+
 export default function PlayCanvasScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"PlayCanvas">>();
   const route = useRoute<PlayCanvasRouteProp>();
@@ -114,7 +124,7 @@ export default function PlayCanvasScreen() {
   const tt = React.useCallback(
     (key: string, fallback: string, params?: Record<string, string>) => {
       const value = t(key, params);
-      return value === key ? fallback : value;
+      return value === key ? interpolateFallback(fallback, params) : value;
     },
     [t]
   );
@@ -144,6 +154,36 @@ export default function PlayCanvasScreen() {
   const leavePromiseRef = React.useRef<Promise<void> | null>(null);
   const reportedCanvasFailuresRef = React.useRef<Set<string>>(new Set());
   const heartbeatFailureCountRef = React.useRef(0);
+  const reportedUnexpectedTerminalRef = React.useRef(false);
+
+  const reportUnexpectedTerminal = React.useCallback((
+    response: TogetherSessionResponse,
+    actorUserId?: string
+  ) => {
+    if (
+      reportedUnexpectedTerminalRef.current ||
+      allowExitRef.current ||
+      actorUserId === uid
+    ) {
+      return;
+    }
+    reportedUnexpectedTerminalRef.current = true;
+    reportClientError({
+      screen: "PlayCanvasScreen",
+      action: "observeTogetherInterruption",
+      step: "unexpectedTerminalSession",
+      message: "Together draw session became terminal before completion",
+      metadata: {
+        sessionIdPresent: Boolean(sessionId),
+        activity: response.session.activity,
+        status: response.session.status,
+        appState: AppState.currentState,
+        websocketState: wsClient.getConnectionState(),
+        actorUserIdPresent: Boolean(actorUserId),
+        localActor: actorUserId === uid,
+      },
+    });
+  }, [sessionId, uid]);
 
   const goToTogether = React.useCallback(() => {
     try {
@@ -238,6 +278,7 @@ export default function PlayCanvasScreen() {
     finishPromiseRef.current = null;
     leavePromiseRef.current = null;
     heartbeatFailureCountRef.current = 0;
+    reportedUnexpectedTerminalRef.current = false;
     setLoading(true);
     setLoadError("");
     setFinishing(false);
@@ -356,6 +397,7 @@ export default function PlayCanvasScreen() {
       if (response.session.status === "finished") {
         openResultScreen();
       } else if (isTerminalClosedStatus(response.session.status)) {
+        reportUnexpectedTerminal(response, actorUserId);
         setDrawingStarted(true);
         if (actorUserId && actorUserId === uid) {
           allowExitRef.current = true;
@@ -363,7 +405,7 @@ export default function PlayCanvasScreen() {
         }
       }
     },
-    [goToTogether, openResultScreen, uid]
+    [goToTogether, openResultScreen, reportUnexpectedTerminal, uid]
   );
 
   React.useEffect(() => {
@@ -547,9 +589,12 @@ export default function PlayCanvasScreen() {
     if (session.status === "finished") {
       openResultScreen();
     } else if (isTerminalClosedStatus(session.status)) {
+      if (sessionResponse) {
+        reportUnexpectedTerminal(sessionResponse);
+      }
       setDrawingStarted(true);
     }
-  }, [openResultScreen, session]);
+  }, [openResultScreen, reportUnexpectedTerminal, session, sessionResponse]);
 
   React.useEffect(() => {
     if (session?.status !== "active") return;
