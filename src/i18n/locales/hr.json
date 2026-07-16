@@ -1214,6 +1214,7 @@
   "play.result.stateMissingBody": "Nedostaje oznaka zajedničke sesije.",
   "play.result.stateMissingTitle": "Rezultat nije pronađen",
   "play.result.stateNotFoundBody": "Ova zajednička sesija više nije dostupna.",
+  "play.metric.strokes": "Potezi",
   "play.result.strokeCount": "Potezi: {count}",
   "play.result.title": "Rezultat",
   "play.replay.empty": "Replay će se pojaviti ovdje",

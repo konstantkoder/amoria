@@ -8,6 +8,7 @@ const SRC_DIR = path.join(ROOT, "src");
 const DIR = path.join(SRC_DIR, "i18n", "locales");
 const BASE_LOCALE = "en";
 const RELEASE_LOCALES = ["en", "ru", "hr"];
+const RESULT_METRIC_LABEL_KEYS = ["play.metric.strokes"];
 
 function readJson(p) {
   return JSON.parse(fs.readFileSync(p, "utf8"));
@@ -123,6 +124,23 @@ console.log(`uppercasePlaceholders: ${uppercasePlaceholderIssues.length}`);
 if (uppercasePlaceholderIssues.length) {
   console.log(uppercasePlaceholderIssues.slice(0, 80).join("\n"));
   if (uppercasePlaceholderIssues.length > 80) console.log("...");
+  hasErrors = true;
+}
+
+const metricLabelPlaceholderIssues = [];
+for (const loc of RELEASE_LOCALES) {
+  const json = readJson(path.join(DIR, `${loc}.json`));
+  for (const key of RESULT_METRIC_LABEL_KEYS) {
+    const value = json[key];
+    if (typeof value === "string" && /\{count\}|\{COUNT\}/.test(value)) {
+      metricLabelPlaceholderIssues.push(`${loc}.${key}`);
+    }
+  }
+}
+
+console.log(`resultMetricLabelPlaceholders: ${metricLabelPlaceholderIssues.length}`);
+if (metricLabelPlaceholderIssues.length) {
+  console.log(metricLabelPlaceholderIssues.join("\n"));
   hasErrors = true;
 }
 

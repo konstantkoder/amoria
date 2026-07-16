@@ -697,7 +697,7 @@ export default function PlayResultScreen() {
               <Text style={styles.metaLabel}>
                 {sessionActivity === "story_sparks"
                   ? tt("play.result.storyRoundCount", "Раунды")
-                  : tt("play.result.strokeCount", "Штрихи")}
+                  : tt("play.metric.strokes", "Штрихов")}
               </Text>
               <Text style={styles.metaValue}>
                 {sessionActivity === "story_sparks"
