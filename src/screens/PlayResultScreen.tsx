@@ -724,7 +724,7 @@ export default function PlayResultScreen() {
             )
           ) : hasReplay ? (
             <View style={styles.replayWrap}>
-              <ReplayCanvasWebView strokes={strokes} autoplay showControls />
+              <ReplayCanvasWebView strokes={strokes} autoplay showControls={false} />
             </View>
           ) : (
             <Text style={styles.emptyText}>
