@@ -356,11 +356,15 @@ export default function NearbyRoomChatScreen() {
               disabled={!canSend}
               activeOpacity={0.86}
               style={[styles.sendButton, !canSend ? styles.sendButtonDisabled : null]}
+              accessibilityRole="button"
+              accessibilityLabel={tt(t, "common.send", "Отправить")}
             >
               {sending ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
+                <ActivityIndicator size="small" color={theme.colors.primaryActionText} />
               ) : (
-                <Text style={styles.sendText}>{tt(t, "common.send", "Отправить")}</Text>
+                <Text style={[styles.sendText, !canSend ? styles.sendTextDisabled : null]}>
+                  {tt(t, "common.send", "Отправить")}
+                </Text>
               )}
             </TouchableOpacity>
           </View>
@@ -485,14 +489,20 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 13,
-    backgroundColor: theme.colors.primary,
+    backgroundColor: theme.colors.primaryActionBg,
+    borderWidth: 1,
+    borderColor: theme.colors.primaryActionBorder,
   },
   sendButtonDisabled: {
-    opacity: 0.55,
+    backgroundColor: "rgba(245,194,77,0.12)",
+    borderColor: "rgba(245,194,77,0.28)",
   },
   sendText: {
-    color: "#FFFFFF",
+    color: theme.colors.primaryActionText,
     fontSize: 13,
     fontWeight: "900",
+  },
+  sendTextDisabled: {
+    color: "rgba(245,194,77,0.58)",
   },
 });

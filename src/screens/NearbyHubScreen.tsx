@@ -40,6 +40,10 @@ import {
   type PublicMediaUrlInfo,
 } from "@/services/media/mediaUrl";
 import { startStartupSpan } from "@/services/startupDiagnostics";
+import {
+  buildNearbyFilterSummaryLabels,
+  formatLocalizedCount,
+} from "@/services/localizedCounts";
 import { buildProfileCompatibilityHints } from "@/services/profileCompatibility";
 import {
   beginNearbyProfileRefresh,
@@ -830,7 +834,7 @@ export default function NearbyHubScreen() {
     [preferenceBusy, refreshFeed, t, visibility]
   );
 
-  const filterSummaryText = useMemo(() => {
+  const filterSummaryLabels = useMemo(() => {
     const radiusLabel = copyOrFallback(t, "nearby.radiusKm", "{km} км", {
       km: String(radiusKm),
     });
@@ -840,12 +844,7 @@ export default function NearbyHubScreen() {
       genderFilter === "all" ? "Все" : genderFilter
     );
     const ageLabel = getAgeFilterLabel(ageFilter, t);
-    return copyOrFallback(
-      t,
-      "nearby.filters.summary",
-      "{radius} · {gender} · {age}",
-      { radius: radiusLabel, gender: genderLabel, age: ageLabel }
-    );
+    return buildNearbyFilterSummaryLabels(radiusLabel, genderLabel, ageLabel);
   }, [ageFilter, genderFilter, radiusKm, t]);
 
   const activityButtonLabel = useMemo(() => {
@@ -1105,54 +1104,65 @@ export default function NearbyHubScreen() {
         ) : null}
 
         {active ? (
-          <View style={styles.filterSummaryRow}>
-            <View style={styles.filterSummaryPill}>
-              <Text style={styles.filterSummaryText} numberOfLines={1}>
-                {filterSummaryText}
-              </Text>
-            </View>
-            <Pressable
-              onPress={openFiltersSheet}
-              disabled={filtersApplying || preferenceBusy || toggleBusy}
-              style={[
-                styles.filterSummaryButton,
-                filtersApplying || preferenceBusy || toggleBusy ? styles.buttonDisabled : null,
-              ]}
-              accessibilityRole="button"
+          <View style={styles.filterControls}>
+            <ScrollView
+              horizontal
+              style={styles.filterSummaryScroll}
+              contentContainerStyle={styles.filterSummaryScrollContent}
+              showsHorizontalScrollIndicator={false}
+              nestedScrollEnabled
+              accessibilityRole="summary"
             >
-              <Ionicons name="options-outline" size={16} color={ACCENT_COLOR} />
-              <Text style={styles.filterSummaryButtonText}>
-                {copyOrFallback(t, "nearby.filters.button", "Фильтры")}
-              </Text>
-            </Pressable>
-            {hasActivityContent ? (
+              {filterSummaryLabels.map((label, index) => (
+                <View key={`${index}-${label}`} style={styles.filterSummaryPill}>
+                  <Text style={styles.filterSummaryText}>{label}</Text>
+                </View>
+              ))}
+            </ScrollView>
+            <View style={styles.filterSummaryRow}>
               <Pressable
-                onPress={openActivitiesSheet}
-                style={styles.activitiesEntryButton}
+                onPress={openFiltersSheet}
+                disabled={filtersApplying || preferenceBusy || toggleBusy}
+                style={[
+                  styles.filterSummaryButton,
+                  filtersApplying || preferenceBusy || toggleBusy ? styles.buttonDisabled : null,
+                ]}
                 accessibilityRole="button"
               >
-                <Ionicons name="chatbubbles-outline" size={15} color={ACCENT_COLOR} />
-                <Text
-                  style={styles.activitiesEntryButtonText}
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.82}
-                >
-                  {activityButtonLabel}
+                <Ionicons name="options-outline" size={16} color={ACCENT_COLOR} />
+                <Text style={styles.filterSummaryButtonText}>
+                  {copyOrFallback(t, "nearby.filters.button", "Фильтры")}
                 </Text>
               </Pressable>
-            ) : null}
-            <Pressable
-              onPress={refreshNearby}
-              disabled={refreshDisabled}
-              style={[
-                styles.filterRefreshButton,
-                refreshDisabled ? styles.buttonDisabled : null,
-              ]}
-              accessibilityRole="button"
-            >
-              <Ionicons name="refresh-outline" size={18} color="#E8EBFF" />
-            </Pressable>
+              {hasActivityContent ? (
+                <Pressable
+                  onPress={openActivitiesSheet}
+                  style={styles.activitiesEntryButton}
+                  accessibilityRole="button"
+                >
+                  <Ionicons name="chatbubbles-outline" size={15} color={ACCENT_COLOR} />
+                  <Text
+                    style={styles.activitiesEntryButtonText}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.82}
+                  >
+                    {activityButtonLabel}
+                  </Text>
+                </Pressable>
+              ) : null}
+              <Pressable
+                onPress={refreshNearby}
+                disabled={refreshDisabled}
+                style={[
+                  styles.filterRefreshButton,
+                  refreshDisabled ? styles.buttonDisabled : null,
+                ]}
+                accessibilityRole="button"
+              >
+                <Ionicons name="refresh-outline" size={18} color="#E8EBFF" />
+              </Pressable>
+            </View>
           </View>
         ) : null}
 
@@ -1208,7 +1218,7 @@ export default function NearbyHubScreen() {
       active,
       activityButtonLabel,
       errorText,
-      filterSummaryText,
+      filterSummaryLabels,
       filtersApplying,
       goToProfilePreferences,
       goToProfileSetup,
@@ -2028,9 +2038,12 @@ function formatActivityRowMeta(
   const parts = [
     formatNearbyRoomStartsAt(room.startsAt, locale),
     normalizeOptionalRoomLabel(room.locationLabel),
-    copyOrFallback(t, "nearby.rooms.members", "{count}", {
-      count: String(Math.max(0, room.memberCount)),
-    }),
+    formatLocalizedCount(
+      t,
+      locale as "en" | "ru" | "hr",
+      "nearby.rooms.members",
+      room.memberCount
+    ),
   ].filter(Boolean);
 
   return parts.join(" \u00B7 ");
@@ -2786,19 +2799,29 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 14,
   },
-  filterSummaryRow: {
+  filterControls: {
     marginHorizontal: 14,
     marginBottom: 10,
+    gap: 7,
+  },
+  filterSummaryRow: {
     height: 40,
     flexDirection: "row",
     alignItems: "center",
     gap: 7,
   },
+  filterSummaryScroll: {
+    flexGrow: 0,
+    height: 32,
+  },
+  filterSummaryScrollContent: {
+    alignItems: "center",
+    gap: 6,
+    paddingRight: 2,
+  },
   filterSummaryPill: {
-    flex: 1,
-    minWidth: 0,
-    height: 40,
-    borderRadius: 20,
+    height: 32,
+    borderRadius: 16,
     paddingHorizontal: 12,
     justifyContent: "center",
     backgroundColor: "rgba(10,16,28,0.70)",

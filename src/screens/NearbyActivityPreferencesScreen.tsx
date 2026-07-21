@@ -283,6 +283,7 @@ export default function NearbyActivityPreferencesScreen() {
         "screen.nearbyActivityPreferences",
         "Nearby activities"
       )}
+      titleNumberOfLines={2}
       background="nearbyWarm"
       overlayOpacity={0.16}
       blurRadius={0}
@@ -437,7 +438,7 @@ export default function NearbyActivityPreferencesScreen() {
                 disabled={!canSave}
                 style={[
                   styles.saveButton,
-                  !canSave ? styles.buttonDisabled : null,
+                  !canSave ? styles.saveButtonDisabled : null,
                 ]}
                 accessibilityRole="button"
               >
@@ -447,7 +448,14 @@ export default function NearbyActivityPreferencesScreen() {
                     color={theme.colors.primaryActionText}
                   />
                 ) : null}
-                <Text style={styles.saveButtonText}>{primaryButtonText}</Text>
+                <Text
+                  style={[
+                    styles.saveButtonText,
+                    !canSave ? styles.saveButtonTextDisabled : null,
+                  ]}
+                >
+                  {primaryButtonText}
+                </Text>
               </Pressable>
               <Pressable
                 onPress={handleSecondaryAction}
@@ -659,6 +667,13 @@ const styles = StyleSheet.create({
     fontSize: theme.buttons.primary.fontSize,
     lineHeight: theme.buttons.primary.lineHeight,
     fontWeight: theme.buttons.primary.fontWeight,
+  },
+  saveButtonDisabled: {
+    backgroundColor: "rgba(245,194,77,0.12)",
+    borderColor: "rgba(245,194,77,0.28)",
+  },
+  saveButtonTextDisabled: {
+    color: "rgba(245,194,77,0.64)",
   },
   secondaryButton: {
     minWidth: 104,

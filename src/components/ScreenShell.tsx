@@ -15,6 +15,7 @@ import {
 
 type Props = {
   title?: string;
+  titleNumberOfLines?: number;
   headerCenter?: React.ReactNode;
   background?: ScreenBackgroundVariant;
   overlayOpacity?: number;
@@ -27,6 +28,7 @@ type Props = {
 
 export default function ScreenShell({
   title,
+  titleNumberOfLines = 1,
   headerCenter,
   background = "default",
   overlayOpacity,
@@ -70,7 +72,7 @@ export default function ScreenShell({
 
             <View style={styles.titleWrap}>
               {headerCenter ?? (title ? (
-                <Text style={styles.title} numberOfLines={1}>
+                <Text style={styles.title} numberOfLines={titleNumberOfLines}>
                   {title}
                 </Text>
               ) : null)}
@@ -114,6 +116,8 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "800",
+    lineHeight: 20,
+    textAlign: "center",
     letterSpacing: 0.2,
     textShadowColor: "rgba(0,0,0,0.48)",
     textShadowOffset: { width: 0, height: 1 },
