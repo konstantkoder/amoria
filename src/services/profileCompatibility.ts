@@ -8,6 +8,8 @@ export type CompatibilityPeer = {
   interests?: string[];
   age?: number | null;
   ageGroup?: AgeGroup | null;
+  preferredAgeMin?: number;
+  preferredAgeMax?: number | null;
 };
 
 export type CompatibilitySelf = {
@@ -16,6 +18,7 @@ export type CompatibilitySelf = {
   interests?: string[];
   preferredAgeMin?: number;
   preferredAgeMax?: number | null;
+  age?: number | null;
 };
 
 export type CompatibilityReason = {
@@ -33,10 +36,6 @@ export function buildProfileCompatibilityHints(
   if (self.goal && peer.goal && self.goal === peer.goal) {
     reasons.push({ kind: "goal", value: peer.goal });
   }
-  if (self.mood && peer.mood && self.mood === peer.mood) {
-    reasons.push({ kind: "mood", value: peer.mood });
-  }
-
   const selfInterests = new Set(
     (self.interests ?? []).map(normalizeInterest).filter(Boolean)
   );
@@ -54,16 +53,26 @@ export function buildProfileCompatibilityHints(
     }
   }
 
-  if (typeof peer.age === "number" && Number.isFinite(peer.age)) {
-    const min = self.preferredAgeMin ?? 18;
-    const max = self.preferredAgeMax ?? null;
-    if (peer.age >= min && (max === null || peer.age <= max)) {
+  if (
+    isAgeInRange(peer.age, self.preferredAgeMin, self.preferredAgeMax) &&
+    isAgeInRange(self.age, peer.preferredAgeMin, peer.preferredAgeMax)
+  ) {
       reasons.push({ kind: "age" });
-    }
   }
 
   const limitedReasons = reasons.slice(0, 3);
   return { count: limitedReasons.length, reasons: limitedReasons };
+}
+
+function isAgeInRange(
+  age: number | null | undefined,
+  min: number | undefined,
+  max: number | null | undefined
+): boolean {
+  if (typeof age !== "number" || !Number.isFinite(age)) return false;
+  if (typeof min !== "number" || !Number.isFinite(min)) return false;
+  if (max !== null && max !== undefined && !Number.isFinite(max)) return false;
+  return age >= min && (max == null || age <= max);
 }
 
 function normalizeInterest(value: string): string {

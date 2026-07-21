@@ -394,7 +394,6 @@ export default function UserProfileScreen() {
     profile?.displayName?.trim() ||
     routePeerName ||
     tt("profile.amoriaUser", "Пользователь Amoria");
-  const amoriaId = profile?.amoriaId?.trim() ?? "";
   const avatarUrl = profile?.avatarUrl ?? "";
   const photos = profile?.photos ?? [];
   const lockedGallery = profile?.lockedGallery;
@@ -450,8 +449,8 @@ export default function UserProfileScreen() {
     },
     [t, tt]
   );
-  const publicAgeLabel = profile?.ageGroup
-    ? tt("profile.publicAgeGroup", "Возраст: {group}", { group: profile.ageGroup })
+  const publicAgeLabel = typeof profile?.age === "number" && Number.isInteger(profile.age)
+    ? tt("profile.publicAgeGroup", "Возраст: {group}", { group: String(profile.age) })
     : "";
   const profileFacts = [
     publicAgeLabel,
@@ -913,11 +912,6 @@ export default function UserProfileScreen() {
                 {tt("profile.peerTitle", "Профиль собеседника")}
               </Text>
               <Text style={styles.displayName}>{displayName}</Text>
-              {amoriaId ? (
-                <Text style={styles.amoriaIdText}>
-                  {tt("profile.amoriaId", "Amoria ID")}: {amoriaId}
-                </Text>
-              ) : null}
               {profileFacts.map((item) => (
                 <Text key={item} style={styles.amoriaIdText}>{item}</Text>
               ))}

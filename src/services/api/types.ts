@@ -96,6 +96,7 @@ export type PublicUserProfileDto = {
   goal: ProfileGoal | null;
   mood: ProfileMood | null;
   interests: string[];
+  age?: number | null;
   ageGroup?: AgeGroup | null;
   lockedGallery: LockedGallerySummaryDto;
 };

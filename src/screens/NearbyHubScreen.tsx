@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  AppState,
   DeviceEventEmitter,
   Image,
   Modal,
@@ -40,6 +41,13 @@ import {
 } from "@/services/media/mediaUrl";
 import { startStartupSpan } from "@/services/startupDiagnostics";
 import { buildProfileCompatibilityHints } from "@/services/profileCompatibility";
+import {
+  beginNearbyProfileRefresh,
+  canShowNearbyIncompleteProfile,
+  completeNearbyProfileRefresh,
+  failNearbyProfileRefresh,
+  type NearbyProfileLoadState,
+} from "@/services/nearbyProfileLoadState";
 import {
   getMissingMatchingSafetyFields,
   getUserProfile,
@@ -245,10 +253,15 @@ async function requestNearbyLocation(): Promise<
       };
     }
 
-    const lastKnown = await Location.getLastKnownPositionAsync();
-    const position = lastKnown ?? await Location.getCurrentPositionAsync({
-      accuracy: Location.Accuracy.Balanced,
-    });
+    let position: Location.LocationObject | null = null;
+    try {
+      position = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+    } catch {
+      position = await Location.getLastKnownPositionAsync();
+    }
+    if (!position) return { ok: false, issue: "readFailed" };
     const latitude = position.coords.latitude;
     const longitude = position.coords.longitude;
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
@@ -342,6 +355,7 @@ export default function NearbyHubScreen() {
   const manualRefreshBusyRef = useRef(false);
   const reportedMissingPreferenceRef = useRef<Set<MissingNearbyPreferenceField>>(new Set());
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [profileLoadState, setProfileLoadState] = useState<NearbyProfileLoadState>("loading");
   const [visibility, setVisibility] = useState<NearbyProfileVisibilityDto | null>(null);
   const [summary, setSummary] = useState<NearbySummaryResponse | null>(null);
   const [items, setItems] = useState<NearbyProfileFeedItemDto[]>([]);
@@ -368,9 +382,14 @@ export default function NearbyHubScreen() {
   const [draftAgeFilter, setDraftAgeFilter] = useState<AgeFilterId>("any");
 
   const active = visibility?.status === "active";
-  const profileReady = isProfileReady(profile);
-  const missingPreferenceField = getMissingNearbyPreferenceField(profile);
-  const missingSafetyFields = loading ? [] : getMissingMatchingSafetyFields(profile);
+  const profileStateAuthoritative = canShowNearbyIncompleteProfile(profileLoadState);
+  const profileReady = profileStateAuthoritative && isProfileReady(profile);
+  const missingPreferenceField = profileStateAuthoritative
+    ? getMissingNearbyPreferenceField(profile)
+    : null;
+  const missingSafetyFields = profileStateAuthoritative
+    ? getMissingMatchingSafetyFields(profile)
+    : [];
   const matchingPreferencesReady = !missingPreferenceField;
   const genderFilter = getGenderFilter(profile);
   const ageFilter = getAgeFilter(profile);
@@ -535,7 +554,10 @@ export default function NearbyHubScreen() {
     const finishNearbyInitialLoad = startStartupSpan("nearby.initial_load", {
       focused: true,
     });
-    setLoading(true);
+    if (!profileReadyRef.current) {
+      setLoading(true);
+    }
+    setProfileLoadState(beginNearbyProfileRefresh);
     setErrorText("");
     setLocationIssue(null);
     let outcome = "success";
@@ -548,6 +570,7 @@ export default function NearbyHubScreen() {
       if (!mountedRef.current) return;
       visibilityStatus = me.visibility.status;
       setProfile(currentProfile);
+      setProfileLoadState(completeNearbyProfileRefresh());
       setVisibility(me.visibility);
       setRadiusKm(me.visibility.radiusKm ?? DEFAULT_RADIUS_KM);
       const currentProfileReady = isProfileReady(currentProfile);
@@ -563,7 +586,7 @@ export default function NearbyHubScreen() {
     } catch (error) {
       if (!mountedRef.current) return;
       outcome = "error";
-      setItems([]);
+      setProfileLoadState(failNearbyProfileRefresh);
       setErrorText(getBackendErrorText(error, t));
     } finally {
       if (mountedRef.current) {
@@ -614,6 +637,17 @@ export default function NearbyHubScreen() {
       void loadInitial();
     }, [loadInitial])
   );
+
+  useEffect(() => {
+    let previousState = AppState.currentState;
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      if (previousState.match(/inactive|background/) && nextState === "active") {
+        void loadInitial();
+      }
+      previousState = nextState;
+    });
+    return () => subscription.remove();
+  }, [loadInitial]);
 
   const enableVisibility = useCallback(async () => {
     const missingFields = getMissingMatchingSafetyFields(profile);
@@ -1195,6 +1229,7 @@ export default function NearbyHubScreen() {
 
   const emptyState = useMemo(() => {
     if (loading || feedLoading) return null;
+    if (!canShowNearbyIncompleteProfile(profileLoadState)) return null;
 
     if (!profileReady) {
       return {
@@ -1343,6 +1378,7 @@ export default function NearbyHubScreen() {
     locationIssue,
     missingPreferenceField,
     profileReady,
+    profileLoadState,
     radiusKm,
     refreshDisabled,
     refreshNearby,
@@ -2131,10 +2167,14 @@ function NearbyProfileCardSlot({
 }) {
   const ageLabel = getNearbyPersonAgeLabel(item, t);
   const compatibility = buildProfileCompatibilityHints(selfProfile, item);
-  const compatibilityLabel =
-    compatibility.count === 1 && compatibility.reasons[0]?.kind === "goal"
-      ? t("compatibility.badgeGoal")
-      : t("compatibility.badgeCount", { count: String(compatibility.count) });
+  const primaryReason = compatibility.reasons[0];
+  const compatibilityLabel = primaryReason?.kind === "goal"
+    ? t("compatibility.badgeGoal")
+    : primaryReason?.kind === "interest" && primaryReason.value
+      ? t("compatibility.reasonInterest", { value: primaryReason.value })
+      : primaryReason?.kind === "age"
+        ? t("compatibility.reasonAge")
+        : "";
 
   return (
     <Pressable
@@ -2158,7 +2198,7 @@ function NearbyProfileCardSlot({
         ]}
       >
         <NearbyCardMedia item={item} />
-        {compatibility.count > 0 ? (
+        {compatibilityLabel ? (
           <View
             style={[styles.compatibilityBadge, { maxWidth: avatarSize - 18 }]}
             pointerEvents="none"

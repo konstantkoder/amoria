@@ -17,8 +17,10 @@ import {
 } from "@/services/api/authApi";
 import {
   clearBackendSession,
+  loadBackendSession,
   saveBackendSession,
 } from "@/services/api/sessionStorage";
+import { mergeAuthUserWithStoredProfile } from "@/services/authProfileMerge";
 import {
   getAccessToken,
   getRefreshToken,
@@ -55,9 +57,10 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 async function persistAuthResponse(response: AuthResponse): Promise<void> {
   setAccessToken(response.accessToken);
   await setRefreshToken(response.refreshToken);
+  const storedSession = await loadBackendSession();
   await saveBackendSession({
     accessToken: response.accessToken,
-    user: response.user,
+    user: mergeAuthUserWithStoredProfile(storedSession?.user, response.user),
   });
 }
 

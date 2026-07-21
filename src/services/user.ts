@@ -33,6 +33,10 @@ import {
 } from "@/services/media/mediaUrl";
 import { emitProfileUpdated } from "@/services/session/authEvents";
 import { uploadUserAvatar } from "@/services/storage";
+import {
+  normalizePreferredProfileGenders,
+  normalizeProfileGender,
+} from "@/services/profileGender";
 
 const AMORIA_ID_RE = /^AM-?[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{5}$/;
 const LEGACY_NICKNAME_RE = /^nick\.[a-z]+(\.[a-z]+)?\.\d{3}$/;
@@ -52,7 +56,6 @@ const MOOD_VALUES: Mood[] = [
   "curious",
   "adventurous",
 ];
-const GENDER_VALUES: ProfileGender[] = ["woman", "man", "nonbinary"];
 const AGE_GROUP_VALUES: AgeGroup[] = ["18-24", "25-34", "35-44", "45-54", "55+"];
 const MIN_ADULT_AGE = 18;
 const MAX_PROFILE_AGE = 120;
@@ -173,20 +176,11 @@ function normalizeMood(value: unknown): Mood | undefined {
 }
 
 function normalizeGender(value: unknown): ProfileGender | null | undefined {
-  if (value === null) return null;
-  return GENDER_VALUES.includes(value as ProfileGender) ? (value as ProfileGender) : undefined;
+  return normalizeProfileGender(value);
 }
 
 function normalizePreferredGenders(value: unknown): ProfileGender[] | undefined {
-  if (!Array.isArray(value)) return undefined;
-  const normalized: ProfileGender[] = [];
-  for (const item of value) {
-    const gender = normalizeGender(item);
-    if (gender && !normalized.includes(gender)) {
-      normalized.push(gender);
-    }
-  }
-  return normalized;
+  return normalizePreferredProfileGenders(value);
 }
 
 function normalizeAgeGroup(value: unknown): AgeGroup | undefined {
