@@ -19,6 +19,7 @@ const { buildApp } = require("../src/app") as typeof import("../src/app");
 const { signAccessToken } = require("../src/auth/jwt") as typeof import("../src/auth/jwt");
 const { closeDb } = require("../src/db/client") as typeof import("../src/db/client");
 const nearbyService = require("../src/nearby/nearby.service") as typeof import("../src/nearby/nearby.service");
+const nearbyRepo = require("../src/nearby/nearby.repo") as typeof import("../src/nearby/nearby.repo");
 const ageHelpers = require("../src/users/age") as typeof import("../src/users/age");
 
 const now = new Date("2026-06-03T12:00:00.000Z");
@@ -80,7 +81,7 @@ test("Nearby profile visibility can be created, updated, patched, and read witho
       enabled: true,
       latitude: 45.82,
       longitude: 15.99,
-      radiusKm: 10,
+      radiusKm: 5,
       nearbyStatus: "Short walk",
       statusKind: "walk",
       expiresInSec: 7200,
@@ -88,7 +89,7 @@ test("Nearby profile visibility can be created, updated, patched, and read witho
   });
 
   assert.equal(updateResponse.statusCode, 200);
-  assert.equal(updateResponse.json().visibility.radiusKm, 10);
+  assert.equal(updateResponse.json().visibility.radiusKm, 5);
   assert.equal(updateResponse.json().visibility.statusKind, "walk");
   assertNoPrivateNearbyFields(updateResponse.json());
 
@@ -116,6 +117,39 @@ test("Nearby profile visibility can be created, updated, patched, and read witho
   assert.equal(meResponse.statusCode, 200);
   assert.equal(meResponse.json().visibility.status, "active");
   assertNoPrivateNearbyFields(meResponse.json());
+});
+
+test("Nearby visibility rejects unsupported radius values", async (t) => {
+  t.after(restoreDeps);
+  mockNearby();
+  const app = buildApp();
+  t.after(async () => app.close());
+  const response = await app.inject({
+    method: "PUT",
+    url: "/nearby/me/visibility",
+    headers: authHeaders(viewerId),
+    payload: { enabled: true, latitude: 45.815, longitude: 15.982, radiusKm: 10 },
+  });
+  assert.equal(response.statusCode, 400);
+});
+
+test("Nearby radius boundaries use kilometers deterministically", () => {
+  const latitude = 45;
+  const longitude = 16;
+  const latitudeOffset = (distanceKm: number) => distanceKm / 111.195;
+  assert.equal(nearbyRepo.__isWithinNearbyRadiusForTests(latitude, longitude, latitude, longitude, 5), true);
+  assert.equal(nearbyRepo.__isWithinNearbyRadiusForTests(latitude, longitude, latitude + latitudeOffset(4.9), longitude, 5), true);
+  assert.equal(nearbyRepo.__isWithinNearbyRadiusForTests(latitude, longitude, latitude + latitudeOffset(5.1), longitude, 5), false);
+  assert.equal(nearbyRepo.__isWithinNearbyRadiusForTests(latitude, longitude, latitude + latitudeOffset(25), longitude, 5), false);
+  assert.equal(nearbyRepo.__isWithinNearbyRadiusForTests(latitude, longitude, latitude + latitudeOffset(25), longitude, 250), true);
+});
+
+test("Nearby gender normalization preserves Other and rejects unknown legacy values", () => {
+  assert.equal(nearbyService.__normalizeNearbyGenderForTests("man"), "man");
+  assert.equal(nearbyService.__normalizeNearbyGenderForTests("woman"), "woman");
+  assert.equal(nearbyService.__normalizeNearbyGenderForTests("nonbinary"), "nonbinary");
+  assert.equal(nearbyService.__normalizeNearbyGenderForTests("other"), null);
+  assert.equal(nearbyService.__normalizeNearbyGenderForTests("legacy-unknown"), null);
 });
 
 test("Nearby profile visibility can be turned off and then feed returns no cards", async (t) => {
@@ -542,6 +576,7 @@ function publicProfileForUser(user: UserRow): PublicUserProfile {
     goal: user.goal as PublicUserProfile["goal"],
     mood: user.mood as PublicUserProfile["mood"],
     interests: user.interests,
+    age,
     ageGroup: ageHelpers.getAgeGroup(age),
     lockedGallery: {
       enabled: true,

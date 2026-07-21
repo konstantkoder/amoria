@@ -90,6 +90,7 @@ test("authenticated user can load peer public profile without internal fields", 
   assert.deepEqual(blockCheck, [userAId, userBId]);
   assert.deepEqual(Object.keys(body).sort(), [
     "about",
+    "age",
     "ageGroup",
     "amoriaId",
     "avatarUrl",
@@ -104,7 +105,7 @@ test("authenticated user can load peer public profile without internal fields", 
   assert.equal(body.id, userBId);
   assert.equal(body.email, undefined);
   assert.equal(body.birthDate, undefined);
-  assert.equal(body.age, undefined);
+  assert.equal(body.age, 31);
   assert.equal(body.ageGroup, "25-34");
   assert.equal(body.goal, "dating");
   assert.equal(body.mood, "curious");

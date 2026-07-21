@@ -76,6 +76,7 @@ export type PublicUserProfile = Pick<
   | "mood"
   | "interests"
 > & {
+  age: number | null;
   ageGroup: AgeGroup | null;
   lockedGallery: profileGalleryService.LockedGallerySummary;
 };
@@ -202,6 +203,7 @@ export async function toPublicUserProfile(user: UserRow): Promise<PublicUserProf
     goal: toProfileGoal(user.goal),
     mood: toProfileMood(user.mood),
     interests: user.interests,
+    age,
     ageGroup: getAgeGroup(age),
     lockedGallery: gallery.lockedGallery,
   };

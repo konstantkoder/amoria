@@ -27,7 +27,13 @@ const nearbyProfileDistanceBuckets = [
 ] as const;
 
 const coordinateSchema = z.coerce.number().finite();
-const radiusKmSchema = z.coerce.number().int().min(1).max(250);
+const nearbyRadiusOptions = [5, 25, 100, 250] as const;
+const radiusKmSchema = z.coerce.number().pipe(z.union([
+  z.literal(5),
+  z.literal(25),
+  z.literal(100),
+  z.literal(250),
+]));
 const expiresInSecSchema = z.coerce.number().int().min(60).max(86400);
 const nearbyProfileStatusTextSchema = z.string().trim().max(NEARBY_PROFILE_STATUS_MAX_LENGTH);
 
@@ -330,7 +336,7 @@ export const updateNearbyVisibilityRouteSchema = {
       enabled: { type: "boolean" },
       latitude: { type: "number", minimum: -90, maximum: 90 },
       longitude: { type: "number", minimum: -180, maximum: 180 },
-      radiusKm: { type: "integer", minimum: 1, maximum: 250 },
+      radiusKm: { type: "integer", enum: nearbyRadiusOptions },
       nearbyStatus: {
         anyOf: [
           { type: "string", maxLength: NEARBY_PROFILE_STATUS_MAX_LENGTH },

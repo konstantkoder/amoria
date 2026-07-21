@@ -694,6 +694,16 @@ function approximateDistanceKm(
   return earthRadiusKm * 2 * Math.asin(Math.min(1, Math.sqrt(haversine)));
 }
 
+export function __isWithinNearbyRadiusForTests(
+  latA: number,
+  lngA: number,
+  latB: number,
+  lngB: number,
+  radiusKm: number,
+): boolean {
+  return approximateDistanceKm(latA, lngA, latB, lngB) <= radiusKm;
+}
+
 function toRadians(value: number): number {
   return value * (Math.PI / 180);
 }

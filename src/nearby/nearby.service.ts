@@ -433,6 +433,10 @@ function toProfileGender(value: string | null): ProfileGender | null {
   return PROFILE_GENDERS.includes(value as ProfileGender) ? value as ProfileGender : null;
 }
 
+export function __normalizeNearbyGenderForTests(value: string | null): ProfileGender | null {
+  return toProfileGender(value);
+}
+
 function toDistanceBucket(distanceKm: number): NearbyProfileDistanceBucket {
   if (distanceKm < 1) return "under_1km";
   if (distanceKm < 5) return "1_5km";
