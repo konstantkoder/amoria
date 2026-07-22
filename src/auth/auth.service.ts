@@ -1,4 +1,4 @@
-import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { createHash, createHmac, randomBytes, randomUUID } from "node:crypto";
 import { AppError } from "../common/errors";
 import {
   normalizeDisplayName,
@@ -19,12 +19,14 @@ import {
 import {
   createRefreshToken,
   createUser,
+  findRecentRefreshReplacement,
   findUserByEmail,
   revokeAllRefreshTokensForUser,
   revokeRefreshTokenByHash,
   rotateRefreshToken,
   uniqueConstraint,
 } from "./auth.repo";
+import { env } from "../config/env";
 import { signAccessTokenWithExpiry } from "./jwt";
 import { hashPassword, verifyPassword } from "./passwords";
 import { generateAmoriaId } from "../users/amoria-id";
@@ -33,6 +35,7 @@ import type { UserRow } from "../db/schema";
 const amoriaIdRetries = 8;
 const refreshTokenBytes = 32;
 const refreshTokenExpiresMs = REFRESH_TOKEN_EXPIRES_IN_DAYS * 24 * 60 * 60 * 1000;
+export const REFRESH_RETRY_GRACE_MS = 30_000;
 
 function invalidRefresh(): AppError {
   return new AppError("invalid_refresh", "Invalid refresh token", 401);
@@ -44,6 +47,14 @@ function hashRefreshToken(refreshToken: string): string {
 
 function generateRefreshToken(): string {
   return randomBytes(refreshTokenBytes).toString("base64url");
+}
+
+export function deriveRotatedRefreshToken(refreshToken: string, replacementId: string): string {
+  return createHmac("sha256", env.JWT_SECRET)
+    .update(refreshToken, "utf8")
+    .update("\0", "utf8")
+    .update(replacementId, "utf8")
+    .digest("base64url");
 }
 
 function refreshTokenExpiresAt(now: Date): Date {
@@ -148,22 +159,35 @@ export async function refresh(
   context: AuthRequestContext = {},
 ): Promise<AuthResponse> {
   const refreshToken = normalizeRefreshToken(input.refreshToken);
-  const nextRefreshToken = generateRefreshToken();
+  const tokenHash = hashRefreshToken(refreshToken);
+  const replacementId = randomUUID();
+  const nextRefreshToken = deriveRotatedRefreshToken(refreshToken, replacementId);
   const now = new Date();
   const rotated = await rotateRefreshToken({
-    tokenHash: hashRefreshToken(refreshToken),
-    newTokenId: randomUUID(),
+    tokenHash,
+    newTokenId: replacementId,
     newTokenHash: hashRefreshToken(nextRefreshToken),
     newTokenExpiresAt: refreshTokenExpiresAt(now),
     now,
     metadata: context,
   });
 
-  if (!rotated) {
-    throw invalidRefresh();
+  if (rotated) {
+    return buildAuthResponse(rotated.user, nextRefreshToken);
   }
 
-  return buildAuthResponse(rotated.user, nextRefreshToken);
+  const retry = await findRecentRefreshReplacement({
+    tokenHash,
+    retryAfter: new Date(now.getTime() - REFRESH_RETRY_GRACE_MS),
+    now,
+    metadata: context,
+  });
+  if (!retry) throw invalidRefresh();
+
+  return buildAuthResponse(
+    retry.user,
+    deriveRotatedRefreshToken(refreshToken, retry.refreshToken.id),
+  );
 }
 
 export async function logout(input: LogoutBody): Promise<OkResponse> {

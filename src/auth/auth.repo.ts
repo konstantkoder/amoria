@@ -1,4 +1,4 @@
-import { and, eq, gt, isNull } from "drizzle-orm";
+import { and, eq, gt, gte, isNotNull, isNull } from "drizzle-orm";
 import { db } from "../db/client";
 import {
   type NewRefreshTokenRow,
@@ -108,6 +108,40 @@ export async function rotateRefreshToken(input: {
       refreshToken: created,
     };
   });
+}
+
+export async function findRecentRefreshReplacement(input: {
+  tokenHash: string;
+  retryAfter: Date;
+  now: Date;
+  metadata: RefreshTokenMetadata;
+}): Promise<{ user: UserRow; refreshToken: RefreshTokenRow } | undefined> {
+  const original = await db.query.refreshTokens.findFirst({
+    where: and(
+      eq(refreshTokens.tokenHash, input.tokenHash),
+      isNotNull(refreshTokens.revokedAt),
+      isNotNull(refreshTokens.replacedByTokenId),
+      gte(refreshTokens.lastUsedAt, input.retryAfter),
+    ),
+  });
+
+  if (!original?.replacedByTokenId) return undefined;
+  if (original.deviceId && original.deviceId !== (input.metadata.deviceId ?? null)) return undefined;
+  if (original.userAgent && original.userAgent !== (input.metadata.userAgent ?? null)) return undefined;
+
+  const replacement = await db.query.refreshTokens.findFirst({
+    where: and(
+      eq(refreshTokens.id, original.replacedByTokenId),
+      isNull(refreshTokens.revokedAt),
+      gt(refreshTokens.expiresAt, input.now),
+    ),
+  });
+  if (!replacement) return undefined;
+
+  const user = await db.query.users.findFirst({
+    where: eq(users.id, replacement.userId),
+  });
+  return user ? { user, refreshToken: replacement } : undefined;
 }
 
 export async function revokeRefreshTokenByHash(tokenHash: string, now: Date): Promise<void> {
