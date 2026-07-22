@@ -41,11 +41,18 @@ import {
   safeStartupErrorMetadata,
   startStartupSpan,
 } from "@/services/startupDiagnostics";
+import {
+  classifyRefreshFailure,
+  isAuthBootstrapReady,
+  type AuthBootstrapState,
+} from "@/services/authBootstrapState";
 
 type AuthContextValue = {
   ready: boolean;
   user: AuthUserDto | null;
   accessToken: string | null;
+  startupState: AuthBootstrapState;
+  retryStartup: () => void;
   login: (input: LoginRequest) => Promise<AuthUserDto>;
   register: (input: RegisterRequest) => Promise<AuthUserDto>;
   logout: () => Promise<void>;
@@ -54,24 +61,27 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-async function persistAuthResponse(response: AuthResponse): Promise<void> {
+async function persistAuthResponse(response: AuthResponse): Promise<AuthUserDto> {
   setAccessToken(response.accessToken);
   await setRefreshToken(response.refreshToken);
   const storedSession = await loadBackendSession();
+  const mergedUser = mergeAuthUserWithStoredProfile(storedSession?.user, response.user);
   await saveBackendSession({
     accessToken: response.accessToken,
-    user: mergeAuthUserWithStoredProfile(storedSession?.user, response.user),
+    user: mergedUser,
   });
+  return mergedUser;
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [ready, setReady] = useState(false);
+  const [startupState, setStartupState] = useState<AuthBootstrapState>("loading");
+  const [bootstrapAttempt, setBootstrapAttempt] = useState(0);
   const [user, setUser] = useState<AuthUserDto | null>(null);
   const [accessToken, setAccessTokenState] = useState<string | null>(null);
 
   const applyAuthResponse = useCallback(async (response: AuthResponse) => {
-    await persistAuthResponse(response);
-    setUser(response.user);
+    const mergedUser = await persistAuthResponse(response);
+    setUser(mergedUser);
     setAccessTokenState(response.accessToken);
   }, []);
 
@@ -87,7 +97,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const bootstrap = async () => {
       const finishAuthBootstrap = startStartupSpan("auth.bootstrap");
       let outcome = "guest";
-      setReady(false);
+      setStartupState("loading");
 
       try {
         const refreshToken = await getRefreshToken();
@@ -96,7 +106,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (!alive) return;
           setUser(null);
           setAccessTokenState(null);
-          setReady(true);
+          setStartupState("guest");
           finishAuthBootstrap({ outcome, signedIn: false });
           return;
         }
@@ -115,16 +125,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!alive) return;
         await applyAuthResponse(response);
         outcome = "signed_in";
+        if (alive) setStartupState("authenticated");
       } catch (error) {
-        outcome = "refresh_failed";
-        console.error("[auth] bootstrap refresh failed", safeStartupErrorMetadata(error));
-        await clearBackendSession();
+        const failureState = classifyRefreshFailure(error);
+        outcome = failureState === "guest" ? "refresh_invalid" : "refresh_recoverable";
+        // Keep sanitized diagnostics in Metro without raising a user-visible LogBox overlay.
+        console.log("[auth] bootstrap refresh failed", safeStartupErrorMetadata(error));
+        if (failureState === "guest") {
+          await clearBackendSession();
+        }
         if (!alive) return;
         setUser(null);
         setAccessTokenState(null);
+        setStartupState(failureState);
       } finally {
         if (alive) {
-          setReady(true);
           finishAuthBootstrap({ outcome, signedIn: outcome === "signed_in" });
         }
       }
@@ -135,7 +150,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       alive = false;
     };
-  }, [applyAuthResponse]);
+  }, [applyAuthResponse, bootstrapAttempt]);
+
+  const retryStartup = useCallback(() => {
+    setBootstrapAttempt((attempt) => attempt + 1);
+  }, []);
 
   useEffect(() => {
     const subscription = DeviceEventEmitter.addListener(
@@ -216,15 +235,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<AuthContextValue>(
     () => ({
-      ready,
+      ready: isAuthBootstrapReady(startupState),
       user,
       accessToken,
+      startupState,
+      retryStartup,
       login,
       register,
       logout,
       logoutAll,
     }),
-    [accessToken, login, logout, logoutAll, ready, register, user]
+    [accessToken, login, logout, logoutAll, register, retryStartup, startupState, user]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

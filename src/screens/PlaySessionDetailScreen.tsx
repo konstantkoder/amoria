@@ -712,10 +712,9 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   replayWrap: {
-    height: 320,
-    overflow: "hidden",
+    minHeight: 320,
     borderRadius: 18,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: theme.colors.backgroundSoft,
   },
   storyArtifact: {
     gap: 12,

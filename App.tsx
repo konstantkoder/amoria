@@ -2,7 +2,7 @@ import "react-native-gesture-handler";
 import "react-native-reanimated";
 
 import React from "react";
-import { ActivityIndicator, AppState, LogBox, Platform, View } from "react-native";
+import { AppState, LogBox, Platform } from "react-native";
 import type { AppStateStatus } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
@@ -23,6 +23,7 @@ import { LocaleProvider, useLocale } from "@/contexts/LocaleContext";
 import { theme } from "@/theme/theme";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import LanguagePickerHost from "@/components/LanguagePickerHost";
+import StartupScreen from "@/components/StartupScreen";
 import {
   markStartupEvent,
   markStartupTimingFromStart,
@@ -300,16 +301,8 @@ function AppNavigation({ isSignedIn }: AppNavigationProps) {
   );
 }
 
-function FullScreenLoader() {
-  return (
-    <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-      <ActivityIndicator color={theme.colors.primary} />
-    </View>
-  );
-}
-
 function AuthGate() {
-  const { ready, user } = useAuth();
+  const { ready, user, startupState, retryStartup } = useAuth();
   const isSignedIn = Boolean(user);
   const handleErrorBoundaryError = React.useCallback(
     (error: Error) => {
@@ -326,7 +319,10 @@ function AuthGate() {
   return (
     <>
       {!ready ? (
-        <FullScreenLoader />
+        <StartupScreen
+          recovery={startupState === "recoverable_error"}
+          onRetry={retryStartup}
+        />
       ) : (
         <>
           <ErrorBoundary onError={handleErrorBoundaryError}>
@@ -344,7 +340,7 @@ function AppBootstrap() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       {!ready ? (
-        <FullScreenLoader />
+        <StartupScreen />
       ) : (
         <AuthProvider>
           <AuthGate />

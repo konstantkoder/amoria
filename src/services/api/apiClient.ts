@@ -16,6 +16,13 @@ import {
   markStartupEvent,
   recordStartupApiRequest,
 } from "@/services/startupDiagnostics";
+import {
+  AUTH_REFRESH_TIMEOUT_MS,
+  boundedFetch,
+  MEDIA_REQUEST_TIMEOUT_MS,
+  RequestTimeoutError,
+} from "@/services/api/boundedFetch";
+import { isProvenInvalidRefresh } from "@/services/authBootstrapState";
 
 type HttpMethod = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
 
@@ -26,6 +33,7 @@ export type ApiRequestOptions = {
   headers?: Record<string, string>;
   auth?: boolean;
   retryOnUnauthorized?: boolean;
+  timeoutMs?: number;
 };
 
 type RequestOptions = Omit<ApiRequestOptions, "method" | "body">;
@@ -110,6 +118,7 @@ function isLanHostname(hostname: string): boolean {
 }
 
 function getApiNetworkErrorKind(error: unknown): string | undefined {
+  if (error instanceof RequestTimeoutError) return "timeout";
   if (error instanceof ApiError) return undefined;
 
   const errorName = typeof (error as { name?: unknown })?.name === "string"
@@ -252,11 +261,11 @@ async function rawRequest<TResponse>(
   }
 
   try {
-    const response = await fetch(buildUrl(path), {
+    const response = await boundedFetch(buildUrl(path), {
       method,
       headers,
       ...(body != null ? { body } : {}),
-    });
+    }, options.timeoutMs ?? (isFormData(bodyValue) ? MEDIA_REQUEST_TIMEOUT_MS : undefined));
     status = response.status;
 
     const data = await parseJsonResponse(response);
@@ -303,7 +312,11 @@ async function refreshSessionOnce(): Promise<AuthResponse> {
     "POST",
     "/auth/refresh",
     { refreshToken },
-    { auth: false, retryOnUnauthorized: false }
+    {
+      auth: false,
+      retryOnUnauthorized: false,
+      timeoutMs: AUTH_REFRESH_TIMEOUT_MS,
+    }
   );
 
   if (!isAuthResponse(response)) {
@@ -324,7 +337,9 @@ export function refreshSession(): Promise<AuthResponse> {
   if (!refreshSessionPromise) {
     refreshSessionPromise = refreshSessionOnce()
       .catch(async (error) => {
-        await clearTokensAfterRefreshFailure();
+        if (isProvenInvalidRefresh(error)) {
+          await clearTokensAfterRefreshFailure();
+        }
         throw error;
       })
       .finally(() => {

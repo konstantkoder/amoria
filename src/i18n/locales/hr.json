@@ -1,4 +1,8 @@
 {
+  "startup.loadingTitle": "Pripremamo vaš prostor",
+  "startup.loadingBody": "Sigurno obnavljamo vašu Amoria sesiju.",
+  "startup.recoveryTitle": "Povezivanje nije uspjelo",
+  "startup.recoveryBody": "Vaša je sesija sigurna. Provjerite vezu i pokušajte ponovno.",
   "tabs.feed": "Novosti",
   "tabs.now": "Sada",
   "tabs.ads": "Oglasi",

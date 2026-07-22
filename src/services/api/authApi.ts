@@ -1,4 +1,5 @@
 import { request } from "@/services/api/apiClient";
+import { AUTH_REFRESH_TIMEOUT_MS } from "@/services/api/boundedFetch";
 import type {
   AuthResponse,
   LoginRequest,
@@ -70,7 +71,11 @@ export function refresh(refreshToken: string): Promise<AuthResponse> {
     "POST",
     "/auth/refresh",
     { refreshToken },
-    { auth: false, retryOnUnauthorized: false }
+    {
+      auth: false,
+      retryOnUnauthorized: false,
+      timeoutMs: AUTH_REFRESH_TIMEOUT_MS,
+    }
   );
 }
 

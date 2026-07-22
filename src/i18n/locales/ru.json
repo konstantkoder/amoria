@@ -1,4 +1,8 @@
 {
+  "startup.loadingTitle": "Готовим ваше пространство",
+  "startup.loadingBody": "Безопасно восстанавливаем вашу сессию Amoria.",
+  "startup.recoveryTitle": "Не удалось подключиться",
+  "startup.recoveryBody": "Ваша сессия сохранена. Проверьте подключение и попробуйте снова.",
   "tabs.together": "Вместе",
   "tabs.connections": "Чаты",
   "tabs.nearby": "Рядом",

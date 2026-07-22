@@ -7,9 +7,13 @@
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#050816"
     },
     "orientation": "portrait",
+    "androidStatusBar": {
+      "backgroundColor": "#050816",
+      "barStyle": "light-content"
+    },
     "platforms": [
       "ios",
       "android",

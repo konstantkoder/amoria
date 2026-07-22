@@ -1,4 +1,8 @@
 {
+  "startup.loadingTitle": "Preparing your space",
+  "startup.loadingBody": "Securely restoring your Amoria session.",
+  "startup.recoveryTitle": "We could not connect",
+  "startup.recoveryBody": "Your session is still safe. Check your connection and try again.",
   "tabs.together": "Together",
   "tabs.connections": "Chats",
   "tabs.nearby": "Nearby",
