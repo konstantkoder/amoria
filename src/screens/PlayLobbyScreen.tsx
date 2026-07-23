@@ -22,7 +22,11 @@ import {
   type ReleasePlayActivity,
   type RootStackNavigationProp,
 } from "@/navigation/appRoutes";
-import type { TogetherPreferredAgeRangeInput } from "@/services/api/types";
+import type {
+  TogetherPreferredAgeRangeInput,
+  TurnBasedMomentDto,
+} from "@/services/api/types";
+import * as togetherApi from "@/services/api/togetherApi";
 import {
   reportClientError,
   sanitizeErrorForReport,
@@ -118,6 +122,8 @@ export default function PlayLobbyScreen() {
   const [missingSafetyFields, setMissingSafetyFields] = React.useState<MatchingSafetyField[]>([]);
   const [detailsOpen, setDetailsOpen] = React.useState(false);
   const [togetherFiltersSheetVisible, setTogetherFiltersSheetVisible] = React.useState(false);
+  const [turnBasedMoment, setTurnBasedMoment] = React.useState<TurnBasedMomentDto | null>(null);
+  const [turnBasedBusy, setTurnBasedBusy] = React.useState(false);
 
   React.useEffect(() => {
     let alive = true;
@@ -174,6 +180,11 @@ export default function PlayLobbyScreen() {
           setMissingSafetyFields(["birthDate", "gender", "preferredGenders"]);
           finishTogetherInitialLoad({ outcome: "error" });
         });
+      void togetherApi.getCurrentTurnBased()
+        .then((response) => {
+          if (alive) setTurnBasedMoment(response.moment);
+        })
+        .catch(() => undefined);
 
       return () => {
         alive = false;
@@ -300,6 +311,41 @@ export default function PlayLobbyScreen() {
     );
     return null;
   }, [selectedRadiusKm, tt]);
+
+  const openTurnBasedMoment = React.useCallback((moment: TurnBasedMomentDto) => {
+    setTurnBasedMoment(moment);
+    const params = { mode: "turn_based" as const, momentId: moment.id };
+    if (["start_draw", "resume_draw", "continue_draw"].includes(moment.action)) {
+      navigation.navigate("PlayCanvas", { ...params, sessionId: moment.drawSessionId });
+    } else if (moment.action === "continue_story" && moment.storySessionId) {
+      navigation.navigate("PlayStorySparks", { ...params, sessionId: moment.storySessionId });
+    } else if (moment.action === "review_draw") {
+      navigation.navigate("PlayResult", { ...params, sessionId: moment.drawSessionId });
+    } else if (moment.action === "review_story" && moment.storySessionId) {
+      navigation.navigate("PlayResult", { ...params, sessionId: moment.storySessionId });
+    }
+  }, [navigation]);
+
+  const startTurnBased = React.useCallback(async () => {
+    try {
+      setTurnBasedBusy(true);
+      const location = await resolveQueueLocation();
+      if (!location) return;
+      const response = await togetherApi.startTurnBased(
+        location,
+        ageRangeForFilter(selectedAgeFilter),
+        `turn-start-${Date.now()}`
+      );
+      if (response.moment) openTurnBasedMoment(response.moment);
+    } catch (error) {
+      Alert.alert(
+        tt("together.turnBased.errorTitle", "Could not start"),
+        sanitizeErrorForReport(error).message
+      );
+    } finally {
+      setTurnBasedBusy(false);
+    }
+  }, [openTurnBasedMoment, resolveQueueLocation, selectedAgeFilter, tt]);
 
   const openActivity = React.useCallback(
     async (activity: string, action: "startDraw" | "startStorySparks") => {
@@ -552,27 +598,39 @@ export default function PlayLobbyScreen() {
           </View>
         </View>
 
-        <Pressable
-          onPress={() => navigation.navigate("PlayHistory")}
-          style={styles.historyCard}
-        >
-          <View style={styles.historyTextWrap}>
-            <Text style={styles.historyTitle}>
-              {tt("together.lobby.historyTitle", "Совместные истории")}
-            </Text>
-            <Text style={styles.historyText}>
-              {tt(
-                "together.lobby.historyBodyCore",
-                "Возвращайся к сохранённым рисункам, историям на двоих и разговорам, которые выросли из них."
-              )}
-            </Text>
-          </View>
-          <View style={styles.historyBadge}>
-            <Text style={styles.historyBadgeText}>
-              {tt("together.lobby.historyBadge", "Истории")}
-            </Text>
-          </View>
-        </Pressable>
+        <View style={styles.turnBasedCard}>
+          <Text style={styles.turnBasedTitle}>
+            {tt("together.turnBased.title", "Take turns, create together")}
+          </Text>
+          <Text style={styles.turnBasedBody}>
+            {turnBasedMoment?.action === "waiting_for_partner"
+              ? tt("together.turnBased.waiting", "Your drawing is waiting for someone nearby.")
+              : turnBasedMoment?.action === "waiting_for_story_turn"
+                ? tt("together.turnBased.storyWaiting", "The story is with your partner. We’ll keep your place.")
+                : tt("together.turnBased.body", "Draw when you have time. A nearby partner adds their part later.")}
+          </Text>
+          {turnBasedMoment && !["waiting_for_partner", "waiting_for_story_turn"].includes(turnBasedMoment.action) ? (
+            <PrimaryActionButton
+              label={tt("together.turnBased.continue", "Continue your turn")}
+              onPress={() => openTurnBasedMoment(turnBasedMoment)}
+              compact={false}
+            />
+          ) : (
+            <Pressable
+              style={styles.turnBasedSecondary}
+              onPress={() => turnBasedMoment ? openTurnBasedMoment(turnBasedMoment) : void startTurnBased()}
+              disabled={turnBasedBusy}
+            >
+              <Text style={styles.turnBasedSecondaryText}>
+                {turnBasedBusy
+                  ? tt("common.loading", "Loading…")
+                  : turnBasedMoment
+                    ? tt("together.turnBased.refresh", "Check progress")
+                    : tt("together.turnBased.start", "Start turn-based")}
+              </Text>
+            </Pressable>
+          )}
+        </View>
       </ScrollView>
 
       <Modal
@@ -934,6 +992,36 @@ const styles = StyleSheet.create({
     color: theme.colors.textSecondary,
     fontSize: 11,
     fontWeight: "800",
+  },
+  turnBasedCard: {
+    backgroundColor: "rgba(10,14,26,0.78)",
+    borderColor: "rgba(167,139,196,0.36)",
+    borderWidth: 1,
+    borderRadius: 22,
+    padding: 16,
+    gap: 10,
+  },
+  turnBasedTitle: {
+    color: "#F9FAFF",
+    fontSize: 18,
+    lineHeight: 24,
+    fontWeight: "800",
+  },
+  turnBasedBody: {
+    color: theme.colors.textSecondary,
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  turnBasedSecondary: {
+    minHeight: 46,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.buttons.secondary.backgroundColor,
+  },
+  turnBasedSecondaryText: {
+    color: theme.buttons.secondary.textColor,
+    fontWeight: "700",
   },
   historyCard: {
     padding: 14,

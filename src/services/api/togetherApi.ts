@@ -2,7 +2,6 @@ import { request } from "@/services/api/apiClient";
 import type {
   TogetherActivity,
   TogetherEventType,
-  TogetherHistoryResponse,
   TogetherPreferredAgeRangeInput,
   TogetherQueueCancelInput,
   TogetherQueueLocationInput,
@@ -11,6 +10,7 @@ import type {
   TogetherRevealResponse,
   TogetherSessionEventsResponse,
   TogetherSessionResponse,
+  TurnBasedMomentResponse,
 } from "@/services/api/types";
 
 export type { TogetherEventType } from "@/services/api/types";
@@ -20,17 +20,6 @@ export type TogetherEventInput = {
   type: TogetherEventType;
   payload: unknown;
 };
-
-function buildQuery(params: Record<string, string | number | undefined>) {
-  const query = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) {
-    if (value == null || value === "") continue;
-    query.set(key, String(value));
-  }
-
-  const value = query.toString();
-  return value ? `?${value}` : "";
-}
 
 export function joinQueue(
   activity: TogetherActivity = "draw",
@@ -126,14 +115,29 @@ export function reveal(
   );
 }
 
-export async function history(limit = 30): Promise<TogetherHistoryResponse> {
-  const response = await request<Partial<TogetherHistoryResponse>>(
-    "GET",
-    `/together/history${buildQuery({ limit })}`
-  );
-
-  return {
-    items: response.items ?? [],
-    nextCursor: null,
-  };
+export function startTurnBased(
+  location: TogetherQueueLocationInput,
+  preferredAgeRange: TogetherPreferredAgeRangeInput,
+  clientRequestId: string
+): Promise<TurnBasedMomentResponse> {
+  return request<TurnBasedMomentResponse>("POST", "/together/turn-based/start", {
+    location, preferredAgeRange, clientRequestId,
+  });
+}
+export function getCurrentTurnBased(): Promise<TurnBasedMomentResponse> {
+  return request<TurnBasedMomentResponse>("GET", "/together/turn-based/current");
+}
+export function getTurnBasedMoment(id: string): Promise<TurnBasedMomentResponse> {
+  return request<TurnBasedMomentResponse>("GET", `/together/turn-based/moments/${encodeURIComponent(id)}`);
+}
+export function submitTurnBasedDraw(id: string, clientActionId: string): Promise<TurnBasedMomentResponse> {
+  return request<TurnBasedMomentResponse>("POST", `/together/turn-based/moments/${encodeURIComponent(id)}/submit-draw`, { clientActionId });
+}
+export function renewTurnBasedLease(id: string): Promise<TurnBasedMomentResponse> {
+  return request<TurnBasedMomentResponse>("POST", `/together/turn-based/moments/${encodeURIComponent(id)}/lease`);
+}
+export function cancelTurnBased(id: string, clientActionId: string, reason?: string): Promise<TurnBasedMomentResponse> {
+  return request<TurnBasedMomentResponse>("POST", `/together/turn-based/moments/${encodeURIComponent(id)}/cancel`, {
+    clientActionId, ...(reason ? { reason } : {}),
+  });
 }

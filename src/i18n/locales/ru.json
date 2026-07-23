@@ -1727,5 +1727,14 @@
   "compatibility.reasonMood": "Похожее настроение: {value}",
   "compatibility.reasonInterest": "Общий интерес: {value}",
   "compatibility.reasonAge": "Подходит по возрастному фильтру",
-  "compatibility.empty": "Пока нет явных совпадений в открытой анкете."
+  "compatibility.empty": "Пока нет явных совпадений в открытой анкете.",
+  "together.turnBased.title": "Создавайте вместе по очереди",
+  "together.turnBased.body": "Рисуйте, когда удобно. Позже человек рядом добавит свою часть.",
+  "together.turnBased.start": "Начать по очереди",
+  "together.turnBased.continue": "Продолжить свой ход",
+  "together.turnBased.waiting": "Ваш рисунок ждёт человека рядом.",
+  "together.turnBased.storyWaiting": "Сейчас ход партнёра. Мы сохраним ваше место.",
+  "together.turnBased.refresh": "Проверить",
+  "together.turnBased.errorTitle": "Не удалось начать",
+  "common.loading": "Загрузка…"
 }

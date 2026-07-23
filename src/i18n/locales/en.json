@@ -1727,5 +1727,14 @@
   "compatibility.reasonMood": "Similar mood: {value}",
   "compatibility.reasonInterest": "Shared interest: {value}",
   "compatibility.reasonAge": "Matches your age preference",
-  "compatibility.empty": "No clear matches in the public profile yet."
+  "compatibility.empty": "No clear matches in the public profile yet.",
+  "together.turnBased.title": "Take turns, create together",
+  "together.turnBased.body": "Draw when you have time. A nearby partner adds their part later.",
+  "together.turnBased.start": "Start turn-based",
+  "together.turnBased.continue": "Continue your turn",
+  "together.turnBased.waiting": "Your drawing is waiting for someone nearby.",
+  "together.turnBased.storyWaiting": "The story is with your partner. We’ll keep your place.",
+  "together.turnBased.refresh": "Check progress",
+  "together.turnBased.errorTitle": "Could not start",
+  "common.loading": "Loading…"
 }

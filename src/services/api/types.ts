@@ -675,6 +675,7 @@ export type StorySparksArtifactDto = {
 
 export type TogetherSessionDto = {
   id: string;
+  mode: "live" | "turn_based";
   activity: TogetherActivity;
   status: TogetherSessionStatus;
   promptText: string;
@@ -708,34 +709,27 @@ export type TogetherRevealResponse = {
   revealState: TogetherRevealStateDto;
 };
 
-export type TogetherHistoryItem = {
-  sessionId: string;
-  activity: TogetherActivity;
-  status?: TogetherSessionStatus;
-  promptText: string;
-  promptKey?: string | null;
-  peer: {
-    id: string;
-    displayName: string;
-    avatarUrl: string | null;
-  };
-  outcome: TogetherRevealOutcome;
-  myDecision?: TogetherRevealDecision | null;
-  threadId?: string | null;
-  canOpenChat?: boolean;
-  peerDecisionKnown?: boolean;
-  nextSessionId?: string | null;
-  nextActivity?: TogetherActivity | null;
-  createdAt: string;
-  endedAt?: string | null;
-  endedReason?: string | null;
-  storyArtifact?: StorySparksArtifactDto;
+export type TurnBasedStatus =
+  | "starter_turn" | "waiting_for_partner" | "partner_turn"
+  | "awaiting_draw_reveal" | "story_turn" | "awaiting_story_reveal"
+  | "completed" | "expired" | "cancelled" | "blocked" | "reported";
+export type TurnBasedAction =
+  | "start_draw" | "resume_draw" | "waiting_for_partner" | "continue_draw"
+  | "review_draw" | "waiting_for_draw_decision" | "continue_story"
+  | "waiting_for_story_turn" | "review_story" | "waiting_for_story_decision"
+  | "completed" | "expired" | "cancelled" | "blocked" | "reported";
+export type TurnBasedMomentDto = {
+  id: string; mode: "turn_based"; status: TurnBasedStatus; stage: "draw" | "story" | "done";
+  role: "starter" | "partner"; action: TurnBasedAction; drawSessionId: string;
+  storySessionId: string | null; currentTurnUserId: string | null; isMyTurn: boolean;
+  currentRoundId: StorySparksRoundId | null; currentRoundIndex: number | null;
+  currentRoundChoiceIndex: number | null; partnerPresent: boolean;
+  claimExpiresAt: string | null; waitingExpiresAt: string | null; turnExpiresAt: string | null;
+  decisionExpiresAt: string | null; artifactPurged: boolean; createdAt: string; updatedAt: string;
+  storyPack?: StorySparksPackDto;
 };
+export type TurnBasedMomentResponse = { moment: TurnBasedMomentDto | null };
 
-export type TogetherHistoryResponse = {
-  items: TogetherHistoryItem[];
-  nextCursor: null;
-};
 
 export type AvatarUploadResponse = {
   avatarUrl: string;

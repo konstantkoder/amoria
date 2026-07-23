@@ -336,17 +336,8 @@ export default function DMChatScreen() {
       return;
     }
 
-    if (backTarget === "history") {
-      navigation.navigate("PlayHistory");
-      return;
-    }
-
-    if (backTarget === "sessionDetail") {
-      if (backSessionId) {
-        navigation.navigate("PlaySessionDetail", { sessionId: backSessionId });
-      } else {
-        navigation.navigate("Tabs", { screen: "Together" });
-      }
+    if (backTarget === "history" || backTarget === "sessionDetail") {
+      navigation.navigate("Tabs", { screen: "Together" });
       return;
     }
 
@@ -356,7 +347,7 @@ export default function DMChatScreen() {
     }
 
     navigation.navigate("Tabs", { screen: "Together" });
-  }, [backSessionId, backTarget, navigation]);
+  }, [backTarget, navigation]);
 
   useFocusEffect(
     useCallback(() => {

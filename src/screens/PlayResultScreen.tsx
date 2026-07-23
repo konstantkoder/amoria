@@ -128,6 +128,8 @@ export default function PlayResultScreen() {
   );
 
   const sessionId = route.params.sessionId.trim();
+  const isTurnBased = route.params.mode === "turn_based";
+  const momentId = route.params.momentId;
   const uid = authUser?.id ?? "";
   const remembered = React.useMemo(() => getRememberedTogetherSession(sessionId), [sessionId]);
   const [sessionResponse, setSessionResponse] = React.useState<TogetherSessionResponse | null>(remembered);
@@ -258,7 +260,7 @@ export default function PlayResultScreen() {
         threadId,
         peerId: nextPeer.id,
         peerName: nextPeer.displayName,
-        backTarget: "history",
+        backTarget: "inbox",
         sourceContext: {
           source: "together",
           sourceSessionId: sessionId,
@@ -278,7 +280,10 @@ export default function PlayResultScreen() {
       if (!nextSessionId || storyNavigationRef.current) return;
       storyNavigationRef.current = true;
       try {
-        navigation.replace("PlayStorySparks", { sessionId: nextSessionId });
+        navigation.replace("PlayStorySparks", {
+          sessionId: nextSessionId,
+          ...(isTurnBased ? { mode: "turn_based", momentId } : {}),
+        });
       } catch (error) {
         storyNavigationRef.current = false;
         const safeError = sanitizeErrorForReport(error);
@@ -303,7 +308,7 @@ export default function PlayResultScreen() {
         );
       }
     },
-    [navigation, sessionId, tt]
+    [isTurnBased, momentId, navigation, sessionId, tt]
   );
 
   React.useEffect(() => {
@@ -532,14 +537,6 @@ export default function PlayResultScreen() {
   const handleContinueStoryPress = React.useCallback(() => {
     void submitDecision("continue_story");
   }, [submitDecision]);
-
-  const goToDetail = React.useCallback(() => {
-    if (!sessionId) return;
-    navigation.navigate("PlaySessionDetail", {
-      sessionId,
-      ...(sessionActivity === "draw" ? { focus: "replay" as const } : {}),
-    });
-  }, [navigation, sessionActivity, sessionId]);
 
   const startNewSession = React.useCallback(() => {
     navigation.navigate("PlayMatch", {
@@ -847,11 +844,13 @@ export default function PlayResultScreen() {
         </View>
 
         <View style={styles.bottomActions}>
-          <Pressable style={styles.outlineButton} onPress={goToDetail}>
+          {false ? (
+          <Pressable style={styles.outlineButton} onPress={startNewSession}>
             <Text style={styles.outlineButtonText}>
               {tt("play.result.openSharedStory", "Открыть общую историю")}
             </Text>
           </Pressable>
+          ) : null}
           <Pressable style={styles.outlineButton} onPress={startNewSession}>
             <Text style={styles.outlineButtonText}>
               {tt("playHistory.startNewSession", "Начать новую совместную сессию")}

@@ -22,8 +22,6 @@ import PlayMatchScreen from "@/screens/PlayMatchScreen";
 import PlayCanvasScreen from "@/screens/PlayCanvasScreen";
 import PlayStorySparksScreen from "@/screens/PlayStorySparksScreen";
 import PlayResultScreen from "@/screens/PlayResultScreen";
-import PlayHistoryScreen from "@/screens/PlayHistoryScreen";
-import PlaySessionDetailScreen from "@/screens/PlaySessionDetailScreen";
 import DMChatScreen from "@/screens/DMChatScreen";
 import NearbyRoomChatScreen from "@/screens/NearbyRoomChatScreen";
 import NearbyActivityPreferencesScreen from "@/screens/NearbyActivityPreferencesScreen";
@@ -478,8 +476,6 @@ export default function AppNavigator() {
         <RootStack.Screen name="PlayCanvas" component={PlayCanvasScreen} />
         <RootStack.Screen name="PlayStorySparks" component={PlayStorySparksScreen} />
         <RootStack.Screen name="PlayResult" component={PlayResultScreen} />
-        <RootStack.Screen name="PlayHistory" component={PlayHistoryScreen} />
-        <RootStack.Screen name="PlaySessionDetail" component={PlaySessionDetailScreen} />
         <RootStack.Screen name="DMChat" component={DMChatScreen} />
         <RootStack.Screen name="NearbyRoomChat" component={NearbyRoomChatScreen} />
         <RootStack.Screen

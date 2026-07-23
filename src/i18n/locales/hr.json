@@ -1425,5 +1425,14 @@
   "compatibility.reasonMood": "Slično raspoloženje: {value}",
   "compatibility.reasonInterest": "Zajednički interes: {value}",
   "compatibility.reasonAge": "Odgovara vašoj dobnoj postavci",
-  "compatibility.empty": "Još nema jasnih podudarnosti u javnom profilu."
+  "compatibility.empty": "Još nema jasnih podudarnosti u javnom profilu.",
+  "together.turnBased.title": "Stvarajte zajedno, naizmjenično",
+  "together.turnBased.body": "Crtajte kad vam odgovara. Netko u blizini kasnije dodaje svoj dio.",
+  "together.turnBased.start": "Pokreni naizmjenično",
+  "together.turnBased.continue": "Nastavi svoj potez",
+  "together.turnBased.waiting": "Vaš crtež čeka nekoga u blizini.",
+  "together.turnBased.storyWaiting": "Priča je kod partnera. Sačuvat ćemo vaše mjesto.",
+  "together.turnBased.refresh": "Provjeri napredak",
+  "together.turnBased.errorTitle": "Nije moguće pokrenuti",
+  "common.loading": "Učitavanje…"
 }

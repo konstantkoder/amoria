@@ -280,8 +280,6 @@ assert(
       "PlayCanvas",
       "PlayStorySparks",
       "PlayResult",
-      "PlayHistory",
-      "PlaySessionDetail",
       "DMChat",
       "NearbyRoomChat",
       "NearbyActivityPreferences",
@@ -291,7 +289,7 @@ assert(
       "PrivacyPolicy",
       "LocationInfo",
     ]),
-  "root routes are unchanged and no fake route was introduced"
+  "root routes match the release surface and archive routes are removed"
 );
 
 console.log("appWideVisualSystem.test.ts: PASS");

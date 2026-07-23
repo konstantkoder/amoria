@@ -128,6 +128,7 @@ const HTML = `<!doctype html>
   <script>
     const canvas = document.getElementById("canvas");
     const ctx = canvas.getContext("2d");
+    let paintContext = ctx;
 
     const state = {
       localUid: "",
@@ -239,22 +240,22 @@ const HTML = `<!doctype html>
     }
 
     function withViewportTransform(callback) {
-      ctx.save();
-      ctx.translate(state.panX, state.panY);
-      ctx.scale(state.zoom, state.zoom);
+      paintContext.save();
+      paintContext.translate(state.panX, state.panY);
+      paintContext.scale(state.zoom, state.zoom);
       callback();
-      ctx.restore();
-      ctx.globalCompositeOperation = "source-over";
+      paintContext.restore();
+      paintContext.globalCompositeOperation = "source-over";
     }
 
     function setStrokePaint(stroke) {
       const erase = normalizeTool(stroke && stroke.tool) === "erase";
-      ctx.globalCompositeOperation = erase ? "destination-out" : "source-over";
-      ctx.strokeStyle = erase ? "rgba(0,0,0,1)" : stroke.color;
-      ctx.fillStyle = erase ? "rgba(0,0,0,1)" : stroke.color;
-      ctx.lineWidth = stroke.width;
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
+      paintContext.globalCompositeOperation = erase ? "destination-out" : "source-over";
+      paintContext.strokeStyle = erase ? "rgba(0,0,0,1)" : stroke.color;
+      paintContext.fillStyle = erase ? "rgba(0,0,0,1)" : stroke.color;
+      paintContext.lineWidth = stroke.width;
+      paintContext.lineCap = "round";
+      paintContext.lineJoin = "round";
     }
 
     function drawStroke(stroke) {
@@ -266,28 +267,53 @@ const HTML = `<!doctype html>
 
         if (points.length === 1) {
           const point = points[0];
-          ctx.beginPath();
-          ctx.arc(point.x, point.y, Math.max(stroke.width / 2, 1), 0, Math.PI * 2);
-          ctx.fill();
+          paintContext.beginPath();
+          paintContext.arc(point.x, point.y, Math.max(stroke.width / 2, 1), 0, Math.PI * 2);
+          paintContext.fill();
           return;
         }
 
-        ctx.beginPath();
-        ctx.moveTo(points[0].x, points[0].y);
+        paintContext.beginPath();
+        paintContext.moveTo(points[0].x, points[0].y);
         for (let i = 1; i < points.length; i += 1) {
-          ctx.lineTo(points[i].x, points[i].y);
+          paintContext.lineTo(points[i].x, points[i].y);
         }
-        ctx.stroke();
+        paintContext.stroke();
       });
     }
 
     function redraw() {
       ctx.clearRect(0, 0, state.canvasWidth, state.canvasHeight);
-      for (let i = 0; i < state.strokeOrder.length; i += 1) {
-        const stroke = state.strokesMap[state.strokeOrder[i]];
-        drawStroke(stroke);
+      const layerOrder = [];
+      const layers = {};
+      const strokes = state.strokeOrder.map(function(id) { return state.strokesMap[id]; });
+      if (state.currentStroke) strokes.push(state.currentStroke);
+      for (let i = 0; i < strokes.length; i += 1) {
+        const uid = String(strokes[i] && strokes[i].uid ? strokes[i].uid : "legacy");
+        if (!layers[uid]) {
+          const layerCanvas = document.createElement("canvas");
+          layerCanvas.width = canvas.width;
+          layerCanvas.height = canvas.height;
+          const layerContext = layerCanvas.getContext("2d");
+          const ratio = state.canvasWidth > 0 ? canvas.width / state.canvasWidth : 1;
+          layerContext.setTransform(ratio, 0, 0, ratio, 0, 0);
+          layers[uid] = { canvas: layerCanvas, context: layerContext, strokes: [] };
+          layerOrder.push(uid);
+        }
+        layers[uid].strokes.push(strokes[i]);
       }
-      if (state.currentStroke) drawStroke(state.currentStroke);
+      for (let layerIndex = 0; layerIndex < layerOrder.length; layerIndex += 1) {
+        const layer = layers[layerOrder[layerIndex]];
+        paintContext = layer.context;
+        for (let strokeIndex = 0; strokeIndex < layer.strokes.length; strokeIndex += 1) {
+          drawStroke(layer.strokes[strokeIndex]);
+        }
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.drawImage(layer.canvas, 0, 0);
+        ctx.restore();
+      }
+      paintContext = ctx;
     }
 
     function upsertStrokes(strokes) {

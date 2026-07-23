@@ -130,6 +130,8 @@ export default function PlayCanvasScreen() {
   );
 
   const sessionId = route.params.sessionId.trim();
+  const isTurnBased = route.params.mode === "turn_based";
+  const momentId = route.params.momentId;
   const uid = authUser?.id ?? "";
   const [sessionResponse, setSessionResponse] = React.useState<TogetherSessionResponse | null>(null);
   const [strokes, setStrokes] = React.useState<SharedCanvasStroke[]>(() =>
@@ -307,7 +309,10 @@ export default function PlayCanvasScreen() {
         if (!mountedRef.current) return;
         if (response.session.activity === "story_sparks") {
           allowExitRef.current = true;
-          navigation.replace("PlayStorySparks", { sessionId });
+          navigation.replace("PlayStorySparks", {
+            sessionId,
+            ...(isTurnBased ? { mode: "turn_based", momentId } : {}),
+          });
           return;
         }
         if (response.session.activity !== "draw") {
@@ -339,7 +344,7 @@ export default function PlayCanvasScreen() {
     return () => {
       mountedRef.current = false;
     };
-  }, [navigation, sessionId, tt, uid]);
+  }, [isTurnBased, momentId, navigation, sessionId, tt, uid]);
 
   const session = sessionResponse?.session ?? null;
   const participants = sessionResponse?.participants ?? [];
@@ -382,8 +387,11 @@ export default function PlayCanvasScreen() {
     if (!mountedRef.current || navigationHandledRef.current || !sessionId) return;
     navigationHandledRef.current = true;
     allowExitRef.current = true;
-    navigation.replace("PlayResult", { sessionId });
-  }, [navigation, sessionId]);
+    navigation.replace("PlayResult", {
+      sessionId,
+      ...(isTurnBased ? { mode: "turn_based", momentId } : {}),
+    });
+  }, [isTurnBased, momentId, navigation, sessionId]);
 
   const applySessionResponse = React.useCallback(
     (response: TogetherSessionResponse, actorUserId?: string) => {
@@ -471,6 +479,23 @@ export default function PlayCanvasScreen() {
 
     const task = (async () => {
       if (mountedRef.current) setFinishing(true);
+      if (isTurnBased && momentId) {
+        const response = await togetherApi.submitTurnBasedDraw(
+          momentId,
+          `draw-submit-${Date.now()}`
+        );
+        allowExitRef.current = true;
+        if (response.moment?.action === "review_draw") {
+          navigation.replace("PlayResult", {
+            sessionId,
+            mode: "turn_based",
+            momentId,
+          });
+        } else {
+          navigation.navigate("Tabs", { screen: "Together" });
+        }
+        return;
+      }
       if (session?.status === "active") {
         const response = await togetherApi.finish(sessionId);
         applySessionResponse(response, uid);
@@ -493,10 +518,15 @@ export default function PlayCanvasScreen() {
         )
       );
     });
-  }, [applySessionResponse, openResultScreen, reportCanvasFailure, session?.status, sessionId, tt, uid]);
+  }, [applySessionResponse, isTurnBased, momentId, navigation, openResultScreen, reportCanvasFailure, session?.status, sessionId, tt, uid]);
 
   const leaveSessionAndExit = React.useCallback(async () => {
     if (!sessionId) {
+      goToTogether();
+      return;
+    }
+    if (isTurnBased) {
+      allowExitRef.current = true;
       goToTogether();
       return;
     }
@@ -543,10 +573,10 @@ export default function PlayCanvasScreen() {
 
     leavePromiseRef.current = task;
     await task;
-  }, [applySessionResponse, goToTogether, session?.status, sessionId, tt, uid]);
+  }, [applySessionResponse, goToTogether, isTurnBased, session?.status, sessionId, tt, uid]);
 
   React.useEffect(() => {
-    if (!uid || !sessionId || session?.status !== "active" || finishing || leaving) return;
+    if (isTurnBased || !uid || !sessionId || session?.status !== "active" || finishing || leaving) return;
 
     let cancelled = false;
     const sendHeartbeat = async () => {
@@ -582,7 +612,15 @@ export default function PlayCanvasScreen() {
       cancelled = true;
       clearInterval(timer);
     };
-  }, [applySessionResponse, finishing, leaving, reportCanvasFailure, session?.status, sessionId, tt, uid]);
+  }, [applySessionResponse, finishing, isTurnBased, leaving, reportCanvasFailure, session?.status, sessionId, tt, uid]);
+
+  React.useEffect(() => {
+    if (!isTurnBased || !momentId || session?.status !== "active") return;
+    const renew = () => { void togetherApi.renewTurnBasedLease(momentId).catch(() => undefined); };
+    renew();
+    const timer = setInterval(renew, 60_000);
+    return () => clearInterval(timer);
+  }, [isTurnBased, momentId, session?.status]);
 
   React.useEffect(() => {
     if (!session) return;
@@ -597,10 +635,10 @@ export default function PlayCanvasScreen() {
   }, [openResultScreen, reportUnexpectedTerminal, session, sessionResponse]);
 
   React.useEffect(() => {
-    if (session?.status !== "active") return;
+    if (isTurnBased || session?.status !== "active") return;
     if (drawRemaining > 0) return;
     void completeSession();
-  }, [completeSession, drawRemaining, session?.status]);
+  }, [completeSession, drawRemaining, isTurnBased, session?.status]);
 
   React.useEffect(() => {
     const unsubscribe = navigation.addListener(

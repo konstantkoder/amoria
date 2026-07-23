@@ -88,10 +88,8 @@ export type PlayMatchRouteParams = {
 
 export type PlaySessionRouteParams = {
   sessionId: string;
-};
-
-export type PlaySessionDetailRouteParams = PlaySessionRouteParams & {
-  focus?: "replay";
+  mode?: "live" | "turn_based";
+  momentId?: string;
 };
 
 export type UserProfileRouteParams = {
@@ -117,8 +115,6 @@ export type RootStackParamList = {
   PlayCanvas: PlaySessionRouteParams;
   PlayStorySparks: PlaySessionRouteParams;
   PlayResult: PlaySessionRouteParams;
-  PlayHistory: undefined;
-  PlaySessionDetail: PlaySessionDetailRouteParams;
   DMChat: DmChatRouteParams;
   NearbyRoomChat: NearbyRoomChatRouteParams;
   NearbyActivityPreferences: undefined;
@@ -160,7 +156,3 @@ export type PlayStorySparksRouteProp = RouteProp<
   "PlayStorySparks"
 >;
 export type PlayResultRouteProp = RouteProp<RootStackParamList, "PlayResult">;
-export type PlaySessionDetailRouteProp = RouteProp<
-  RootStackParamList,
-  "PlaySessionDetail"
->;

@@ -689,7 +689,7 @@ export default function UserProfileScreen() {
 
   const openSharedStory = useCallback(() => {
     if (!sourceSessionId || !sharedStoryAvailable) return;
-    navigation.navigate("PlaySessionDetail", { sessionId: sourceSessionId });
+    navigation.navigate("Tabs", { screen: "Together" });
   }, [navigation, sharedStoryAvailable, sourceSessionId]);
 
   const reportUser = useCallback(
@@ -971,7 +971,7 @@ export default function UserProfileScreen() {
           </View>
         ) : null}
 
-        {sharedStoryAvailable && sourceSessionId ? (
+        {false && sharedStoryAvailable && sourceSessionId ? (
           <View style={styles.card}>
             <Text style={styles.cardKicker}>{tt("profile.sharedStoryKicker", "Общая история")}</Text>
             <Text style={styles.cardTitle}>

@@ -28,6 +28,7 @@ import type {
   StorySparksRoundDto,
   TogetherEventDto,
   TogetherSessionResponse,
+  TurnBasedMomentDto,
 } from "@/services/api/types";
 import * as wsClient from "@/services/realtime/wsClient";
 import { getTogetherPeer, rememberTogetherSession } from "@/services/togetherCanvasState";
@@ -88,6 +89,8 @@ export default function PlayStorySparksScreen() {
   );
 
   const sessionId = route.params.sessionId.trim();
+  const isTurnBased = route.params.mode === "turn_based";
+  const momentId = route.params.momentId;
   const uid = authUser?.id ?? "";
   const [sessionResponse, setSessionResponse] = React.useState<TogetherSessionResponse | null>(null);
   const [events, setEvents] = React.useState<TogetherEventDto[]>([]);
@@ -96,6 +99,7 @@ export default function PlayStorySparksScreen() {
   const [savingRoundId, setSavingRoundId] = React.useState<string | null>(null);
   const [leaving, setLeaving] = React.useState(false);
   const [actionError, setActionError] = React.useState("");
+  const [turnBasedMoment, setTurnBasedMoment] = React.useState<TurnBasedMomentDto | null>(null);
   const mountedRef = React.useRef(true);
   const finishPromiseRef = React.useRef<Promise<void> | null>(null);
   const navigatedRef = React.useRef(false);
@@ -165,7 +169,10 @@ export default function PlayStorySparksScreen() {
       if (response.session.status === "finished" && !navigatedRef.current) {
         navigatedRef.current = true;
         try {
-          navigation.replace("PlayResult", { sessionId: response.session.id });
+          navigation.replace("PlayResult", {
+            sessionId: response.session.id,
+            ...(isTurnBased ? { mode: "turn_based", momentId } : {}),
+          });
         } catch (error) {
           reportStoryFailure("failedFinishNavigation", "Failed to open Story Sparks result", error, {
             status: response.session.status,
@@ -173,7 +180,7 @@ export default function PlayStorySparksScreen() {
         }
       }
     },
-    [navigation, reportStoryFailure]
+    [isTurnBased, momentId, navigation, reportStoryFailure]
   );
 
   const reloadEvents = React.useCallback(async () => {
@@ -235,11 +242,16 @@ export default function PlayStorySparksScreen() {
         );
         setLoading(false);
       });
+    if (isTurnBased && momentId) {
+      void togetherApi.getTurnBasedMoment(momentId)
+        .then((response) => { if (mountedRef.current) setTurnBasedMoment(response.moment); })
+        .catch(() => undefined);
+    }
 
     return () => {
       mountedRef.current = false;
     };
-  }, [applySessionResponse, reportStoryFailure, routeUnexpectedActivity, sessionId, tt, uid]);
+  }, [applySessionResponse, isTurnBased, momentId, reportStoryFailure, routeUnexpectedActivity, sessionId, tt, uid]);
 
   React.useEffect(() => {
     if (!uid || !sessionId) return;
@@ -290,6 +302,10 @@ export default function PlayStorySparksScreen() {
         }
         applySessionResponse(session);
         setEvents(sessionEvents.items);
+        if (isTurnBased && momentId) {
+          const moment = await togetherApi.getTurnBasedMoment(momentId);
+          if (!cancelled && mountedRef.current) setTurnBasedMoment(moment.moment);
+        }
       } catch (error) {
         reportStoryFailure("peerEventHydrateFailure", "Failed to poll Story Sparks backend state", error);
       }
@@ -310,6 +326,8 @@ export default function PlayStorySparksScreen() {
     sessionId,
     sessionResponse?.session.status,
     uid,
+    isTurnBased,
+    momentId,
   ]);
 
   const session = sessionResponse?.session ?? null;
@@ -374,9 +392,9 @@ export default function PlayStorySparksScreen() {
   }, [applySessionResponse, completedRoundCount, reportStoryFailure, session?.status, sessionId, tt]);
 
   React.useEffect(() => {
-    if (!readyToFinish) return;
+    if (isTurnBased || !readyToFinish) return;
     void completeSession();
-  }, [completeSession, readyToFinish]);
+  }, [completeSession, isTurnBased, readyToFinish]);
 
   const chooseCard = React.useCallback(
     async (cardId: string) => {
@@ -390,6 +408,7 @@ export default function PlayStorySparksScreen() {
         myChoice ||
         savingRoundId ||
         leaving
+        || (isTurnBased && !turnBasedMoment?.isMyTurn)
       ) {
         return;
       }
@@ -438,12 +457,18 @@ export default function PlayStorySparksScreen() {
       sessionId,
       tt,
       uid,
+      isTurnBased,
+      turnBasedMoment?.isMyTurn,
     ]
   );
 
   const leaveSession = React.useCallback(async () => {
     if (leaving) return;
     if (!sessionId) {
+      goToTogether();
+      return;
+    }
+    if (isTurnBased) {
       goToTogether();
       return;
     }
@@ -469,7 +494,7 @@ export default function PlayStorySparksScreen() {
       goToTogether();
       if (mountedRef.current) setLeaving(false);
     }
-  }, [goToTogether, leaving, reportStoryFailure, session?.status, sessionId, tt]);
+  }, [goToTogether, isTurnBased, leaving, reportStoryFailure, session?.status, sessionId, tt]);
 
   const handleBack = React.useCallback(() => {
     if (session?.status !== "active") {
