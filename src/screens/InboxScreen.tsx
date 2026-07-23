@@ -268,7 +268,7 @@ export default function InboxScreen() {
 
   if (!uid) {
     return (
-      <ScreenShell title={t("tabs.chats")} background="chatWarm">
+      <ScreenShell title={t("tabs.chats")} background="inboxWarm">
         <View style={styles.centerState}>
           <CoreStateCard
             icon="person-circle-outline"
@@ -289,7 +289,7 @@ export default function InboxScreen() {
   }
 
   return (
-    <ScreenShell title={t("tabs.chats")} background="chatWarm">
+    <ScreenShell title={t("tabs.chats")} background="inboxWarm">
       <View style={[styles.screenContent, { paddingBottom: insets.bottom + 8 }]}>
         {renderHeroCard()}
 

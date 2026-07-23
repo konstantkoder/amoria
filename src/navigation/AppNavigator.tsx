@@ -63,7 +63,7 @@ import { startStartupSpan } from "@/services/startupDiagnostics";
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const RootStack = createNativeStackNavigator<RootStackParamList>();
 const ProfileStack = createNativeStackNavigator<ProfileStackParamList>();
-const TAB_ACTIVE_TINT = "#F3C98B";
+const TAB_ACTIVE_TINT = "#F6F2EC";
 const TAB_INACTIVE_TINT = "#8E94B4";
 
 function BottomTabIconShell({
@@ -85,10 +85,22 @@ function BottomTabIconShell({
   );
 }
 
-function TogetherTabIcon({ focused, size }: { focused: boolean; size: number }) {
+function TogetherTabIcon({
+  focused,
+  size,
+  color,
+}: {
+  focused: boolean;
+  size: number;
+  color: string;
+}) {
   return (
     <BottomTabIconShell focused={focused}>
-      <AmoriaTogetherIcon active={focused} size={focused ? size + 2 : size} />
+      <AmoriaTogetherIcon
+        active={focused}
+        size={focused ? size + 2 : size}
+        color={color}
+      />
     </BottomTabIconShell>
   );
 }
@@ -371,7 +383,9 @@ function MainTabs() {
           },
           tabBarIcon: ({ color, size, focused }) => {
             if (isTogetherTab) {
-              return <TogetherTabIcon focused={focused} size={size} />;
+              return (
+                <TogetherTabIcon focused={focused} size={size} color={color} />
+              );
             }
 
             const icon = icons[route.name];
@@ -494,10 +508,10 @@ const styles = StyleSheet.create({
   },
   tabIconShellActive: {
     minHeight: 41,
-    backgroundColor: "rgba(185, 130, 114, 0.23)",
-    borderColor: "rgba(243, 201, 139, 0.48)",
-    shadowColor: TAB_ACTIVE_TINT,
-    shadowOpacity: 0.18,
+    backgroundColor: "rgba(185,130,114,0.16)",
+    borderColor: "rgba(246,242,236,0.28)",
+    shadowColor: "#F6F2EC",
+    shadowOpacity: 0.12,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 5 },
     elevation: 7,

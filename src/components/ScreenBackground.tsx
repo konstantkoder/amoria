@@ -25,6 +25,7 @@ export type ScreenBackgroundVariant =
   | "midnightWarm"
   | "profileWarm"
   | "chatWarm"
+  | "inboxWarm"
   | "nearbyWarm"
   | "menuWarm";
 
@@ -82,6 +83,14 @@ const gradientPresets = {
     blobAColor: "#9B3F68",
     blobBColor: "#B66A3C",
     blobOpacity: 0.16,
+  },
+  inboxWarm: {
+    colors: ["#050816", "#070D19", "#11182A", "#1A2438"],
+    start: { x: 0, y: 0 },
+    end: { x: 1, y: 1 },
+    blobAColor: "#6B5C9A",
+    blobBColor: "#4A647A",
+    blobOpacity: 0.14,
   },
   menuWarm: {
     colors: ["#050816", "#0C0814", "#241121", "#3A1830"],
@@ -156,6 +165,7 @@ const variantDefaults: Record<
   nearbyWarm: { overlayOpacity: 0.16, blurRadius: 0 },
   profileWarm: { overlayOpacity: 0.16, blurRadius: 0 },
   chatWarm: { overlayOpacity: 0.16, blurRadius: 0 },
+  inboxWarm: { overlayOpacity: 0.16, blurRadius: 0 },
   menuWarm: { overlayOpacity: 0.16, blurRadius: 0 },
 };
 

@@ -7,19 +7,21 @@ const inactiveSource = require("../../../assets/icons/amoria_tab_icon_inactive_5
 type AmoriaTogetherIconProps = {
   size?: number;
   active?: boolean;
+  color?: string;
   style?: StyleProp<ImageStyle>;
 };
 
 export function AmoriaTogetherIcon({
   size = 24,
   active = true,
+  color,
   style,
 }: AmoriaTogetherIconProps) {
   return (
     <Image
       source={active ? activeSource : inactiveSource}
       resizeMode="contain"
-      style={[styles.icon, { width: size, height: size }, style]}
+      style={[styles.icon, { width: size, height: size, tintColor: color }, style]}
     />
   );
 }
