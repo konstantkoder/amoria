@@ -17,7 +17,7 @@ import {
   type SQL,
 } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
-import { PROFILE_GENDERS } from "../config/constants";
+import { PROFILE_GENDERS, TOGETHER_ARTIFACT_PURGE_DELAY_MS, TURN_BASED_REVEAL_TTL_MS } from "../config/constants";
 import { db } from "../db/client";
 import {
   type NewTogetherEventRow,
@@ -667,6 +667,7 @@ export async function finishActiveSession(sessionId: string, finishedAt: Date): 
       status: "finished",
       finishedAt,
       endedReason: "completed",
+      artifactPurgeAfter: new Date(finishedAt.getTime() + TURN_BASED_REVEAL_TTL_MS + TOGETHER_ARTIFACT_PURGE_DELAY_MS),
       updatedAt: finishedAt,
     })
     .where(and(eq(togetherSessions.id, sessionId), eq(togetherSessions.status, "active")))
@@ -729,6 +730,7 @@ export async function createStoryContinuationSession(
     const [session] = await tx
       .insert(togetherSessions)
       .values({
+        mode: sourceSession.mode,
         activity: "story_sparks",
         promptText: input.promptText,
         sourceSessionId: input.sourceSessionId,
@@ -759,12 +761,20 @@ export async function closeActiveSession(
       status,
       finishedAt: endedAt,
       endedReason,
+      artifactPurgeAfter: new Date(endedAt.getTime() + TOGETHER_ARTIFACT_PURGE_DELAY_MS),
       updatedAt: endedAt,
     })
     .where(and(eq(togetherSessions.id, sessionId), eq(togetherSessions.status, "active")))
     .returning();
 
   return session;
+}
+
+export async function scheduleArtifactPurge(sessionId: string, purgeAfter: Date): Promise<void> {
+  await db.update(togetherSessions).set({
+    artifactPurgeAfter: purgeAfter,
+    updatedAt: new Date(),
+  }).where(eq(togetherSessions.id, sessionId));
 }
 
 export async function upsertReveal(

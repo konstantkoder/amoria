@@ -4,6 +4,7 @@ import {
   TOGETHER_HEARTBEAT_TIMEOUT_MS,
   TOGETHER_QUEUE_TTL_MS,
   TOGETHER_RADIUS_KM_VALUES,
+  TOGETHER_ARTIFACT_PURGE_DELAY_MS,
 } from "../config/constants";
 import type {
   JsonValue,
@@ -52,6 +53,7 @@ import {
   validateStoryChoicePayload,
   type StoryChoicePayload,
 } from "./story-sparks";
+import * as turnBasedService from "./together-turn-based.service";
 
 const PROMPTS = {
   draw: [
@@ -290,6 +292,9 @@ export async function createEvent(
       409,
     );
   }
+  if (session.mode === "turn_based") {
+    await turnBasedService.validateEventTurn(sessionId, userId, input.type);
+  }
 
   const prepared = await prepareEventForSession(session, userId, input);
   if (prepared.existingEvent) {
@@ -310,6 +315,9 @@ export async function createEvent(
     type: input.type,
     payload: prepared.payload,
   });
+  if (session.mode === "turn_based" && session.activity === "story_sparks") {
+    await turnBasedService.advanceStoryTurn(sessionId, userId, result.created);
+  }
 
   return {
     response: {
@@ -503,6 +511,9 @@ export async function finishSession(
   sessionId: string,
 ): Promise<TogetherSessionUpdateResult> {
   const session = await requireSessionMembership(userId, sessionId);
+  if (session.mode === "turn_based") {
+    throw new AppError("together_turn_out_of_order", "Use the turn-based submission action", 409);
+  }
   if (session.status !== "active") {
     return {
       response: await buildSessionResponse(session, userId),
@@ -527,6 +538,9 @@ export async function leaveSession(
   sessionId: string,
 ): Promise<TogetherSessionUpdateResult> {
   const session = await requireSessionMembership(userId, sessionId);
+  if (session.mode === "turn_based") {
+    throw new AppError("together_turn_out_of_order", "Turn-based moments remain available after leaving the screen", 409);
+  }
   if (session.status !== "active") {
     return {
       response: await buildSessionResponse(session, userId),
@@ -557,6 +571,9 @@ export async function heartbeatSession(
   sessionId: string,
 ): Promise<TogetherSessionUpdateResult> {
   const session = await requireSessionMembership(userId, sessionId);
+  if (session.mode === "turn_based") {
+    throw new AppError("together_turn_out_of_order", "Use the turn-based lease action", 409);
+  }
   if (session.status !== "active") {
     return {
       response: await buildSessionResponse(session, userId),
@@ -652,6 +669,15 @@ export async function reveal(
         500,
       );
     }
+  }
+  if (
+    preliminaryState.outcome !== "pending" &&
+    preliminaryState.outcome !== "continue_story"
+  ) {
+    await deps.repo.scheduleArtifactPurge(
+      sessionId,
+      new Date(Date.now() + TOGETHER_ARTIFACT_PURGE_DELAY_MS),
+    );
   }
 
   const broadcasts = await buildRevealBroadcastStates(session, memberUserIds);
@@ -755,6 +781,7 @@ function sanitizeCancelReason(value: unknown): string | null {
 function toSessionDto(session: TogetherSessionRow): TogetherSessionDto {
   const dto: TogetherSessionDto = {
     id: session.id,
+    mode: session.mode as "live" | "turn_based",
     activity: session.activity as TogetherActivity,
     status: session.status as TogetherSessionStatus,
     promptText: session.promptText,

@@ -7,6 +7,7 @@ import type {
   TogetherSessionResponse,
   TogetherSessionUpdateReason,
 } from "../together/together.types";
+import type { TurnBasedMomentDto } from "../together/together-turn-based.types";
 
 export type TogetherSessionUpdatedPayload = {
   sessionId: string;
@@ -217,6 +218,15 @@ class WsHub {
           this.sendJson(socket, { type: "inbox.updated" });
         }
       }
+    }
+  }
+
+  broadcastTurnBasedUpdated(userIds: string[], moment: TurnBasedMomentDto): void {
+    for (const userId of new Set(userIds)) {
+      this.broadcastToSockets(this.userSockets.get(userId), {
+        type: "together.turn_based.updated",
+        moment,
+      });
     }
   }
 

@@ -5,12 +5,10 @@ import { authMiddleware } from "../common/security/auth-middleware";
 import { wsHub } from "../realtime/ws.hub";
 import {
   deleteTogetherQueueRouteSchema,
-  getTogetherHistoryRouteSchema,
   getTogetherQueueRouteSchema,
   getTogetherSessionEventsRouteSchema,
   getTogetherSessionRouteSchema,
   parseTogetherEventBody,
-  parseTogetherHistoryQuery,
   parseTogetherQueueBody,
   parseTogetherQueueCancelBody,
   parseTogetherRevealBody,
@@ -21,6 +19,15 @@ import {
   postTogetherQueueRouteSchema,
   postTogetherRevealRouteSchema,
 } from "./together.schemas";
+import {
+  parseTurnBasedActionBody,
+  parseTurnBasedStartBody,
+  turnBasedActionRouteSchema,
+  turnBasedCurrentRouteSchema,
+  turnBasedMomentRouteSchema,
+  turnBasedStartRouteSchema,
+} from "./together-turn-based.schemas";
+import * as turnBasedService from "./together-turn-based.service";
 import * as togetherService from "./together.service";
 import type { TogetherSessionUpdateResult } from "./together.types";
 
@@ -33,6 +40,61 @@ function currentUserId(request: { auth?: { userId: string } }): string {
 }
 
 export async function togetherRoutes(fastify: FastifyInstance): Promise<void> {
+  fastify.post(
+    "/turn-based/start",
+    { preHandler: authMiddleware, schema: withErrorResponses(turnBasedStartRouteSchema) },
+    async (request) => {
+      const response = await turnBasedService.start(
+        currentUserId(request),
+        parseTurnBasedStartBody(request.body),
+      );
+      if (response.moment) await broadcastTurnBasedMoment(response.moment.id);
+      return response;
+    },
+  );
+
+  fastify.get(
+    "/turn-based/current",
+    { preHandler: authMiddleware, schema: withErrorResponses(turnBasedCurrentRouteSchema) },
+    async (request) => turnBasedService.getCurrent(currentUserId(request)),
+  );
+
+  fastify.get<{ Params: { id: string } }>(
+    "/turn-based/moments/:id",
+    { preHandler: authMiddleware, schema: withErrorResponses(turnBasedMomentRouteSchema) },
+    async (request) => turnBasedService.getMoment(currentUserId(request), request.params.id),
+  );
+
+  fastify.post<{ Params: { id: string } }>(
+    "/turn-based/moments/:id/submit-draw",
+    { preHandler: authMiddleware, schema: withErrorResponses(turnBasedActionRouteSchema) },
+    async (request) => {
+      const response = await turnBasedService.submitDraw(currentUserId(request), request.params.id, parseTurnBasedActionBody(request.body));
+      await broadcastTurnBasedMoment(request.params.id);
+      return response;
+    },
+  );
+
+  fastify.post<{ Params: { id: string } }>(
+    "/turn-based/moments/:id/lease",
+    { preHandler: authMiddleware, schema: withErrorResponses(turnBasedMomentRouteSchema) },
+    async (request) => {
+      const response = await turnBasedService.renewLease(currentUserId(request), request.params.id);
+      await broadcastTurnBasedMoment(request.params.id);
+      return response;
+    },
+  );
+
+  fastify.post<{ Params: { id: string } }>(
+    "/turn-based/moments/:id/cancel",
+    { preHandler: authMiddleware, schema: withErrorResponses(turnBasedActionRouteSchema) },
+    async (request) => {
+      const response = await turnBasedService.cancel(currentUserId(request), request.params.id, parseTurnBasedActionBody(request.body));
+      await broadcastTurnBasedMoment(request.params.id);
+      return response;
+    },
+  );
+
   fastify.post(
     "/queue",
     {
@@ -167,6 +229,9 @@ export async function togetherRoutes(fastify: FastifyInstance): Promise<void> {
         request.params.id,
         parseTogetherRevealBody(request.body),
       );
+      await turnBasedService.syncReveal(request.params.id);
+      const turnBasedMomentId = await turnBasedService.findMomentIdBySession(request.params.id);
+      if (turnBasedMomentId) await broadcastTurnBasedMoment(turnBasedMomentId);
 
       wsHub.broadcastTogetherRevealUpdated(
         request.params.id,
@@ -178,17 +243,6 @@ export async function togetherRoutes(fastify: FastifyInstance): Promise<void> {
     },
   );
 
-  fastify.get(
-    "/history",
-    {
-      preHandler: authMiddleware,
-      schema: withErrorResponses(getTogetherHistoryRouteSchema),
-    },
-    async (request) => {
-      const query = parseTogetherHistoryQuery(request.query);
-      return togetherService.getHistory(currentUserId(request), query.limit);
-    },
-  );
 }
 
 function broadcastSessionUpdate(
@@ -205,4 +259,11 @@ function broadcastSessionUpdate(
     reason: result.reason,
     actorUserId: result.actorUserId,
   });
+}
+
+async function broadcastTurnBasedMoment(momentId: string): Promise<void> {
+  const broadcasts = await turnBasedService.getMomentBroadcasts(momentId);
+  for (const broadcast of broadcasts) {
+    wsHub.broadcastTurnBasedUpdated([broadcast.userId], broadcast.moment);
+  }
 }

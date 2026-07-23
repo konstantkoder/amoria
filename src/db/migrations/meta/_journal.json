@@ -190,6 +190,13 @@
       "when": 1783879200000,
       "tag": "0026_nearby_rooms_deleted_status",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1784822400000,
+      "tag": "0027_together_turn_based",
+      "breakpoints": true
     }
   ]
 }

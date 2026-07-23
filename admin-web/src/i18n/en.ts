@@ -491,6 +491,22 @@ export const en = {
   "action.ignore": "Ignore",
   "action.reopen": "Reopen",
   "action.resolve": "Resolve",
+  "action.cancel": "Cancel",
+  "nav.togetherTurnBased": "Together Turn-based",
+  "togetherTurnBased.overview": "Overview",
+  "togetherTurnBased.moments": "Moments",
+  "togetherTurnBased.problems": "Problems",
+  "togetherTurnBased.active": "Active moments",
+  "togetherTurnBased.openProblems": "Open problems",
+  "togetherTurnBased.total": "Total moments",
+  "togetherTurnBased.stage": "Stage",
+  "togetherTurnBased.transition": "Last transition",
+  "togetherTurnBased.severity": "Severity",
+  "togetherTurnBased.code": "Code",
+  "togetherTurnBased.summary": "Summary",
+  "togetherTurnBased.returnPool": "Return to pool",
+  "togetherTurnBased.reasonPrompt": "Enter an operational reason (10-500 characters)",
+  "togetherTurnBased.actionComplete": "Turn-based action completed",
 } as const;
 
 export type TranslationKey = keyof typeof en;

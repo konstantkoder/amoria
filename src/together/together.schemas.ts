@@ -274,6 +274,7 @@ const sessionSchema = {
   type: "object",
   required: [
     "id",
+    "mode",
     "activity",
     "status",
     "promptText",
@@ -287,6 +288,7 @@ const sessionSchema = {
   additionalProperties: false,
   properties: {
     id: { type: "string", format: "uuid" },
+    mode: { type: "string", enum: ["live", "turn_based"] },
     activity: { type: "string", enum: TOGETHER_ACTIVITIES },
     status: { type: "string", enum: TOGETHER_SESSION_STATUSES },
     promptText: { type: "string" },

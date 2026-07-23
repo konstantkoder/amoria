@@ -290,6 +290,16 @@ export const NEARBY_ACTIVITY_DEFINITIONS = [
 
 export const TOGETHER_QUEUE_TTL_MS = 5 * 60 * 1000;
 export const TOGETHER_HEARTBEAT_TIMEOUT_MS = 60 * 1000;
+export const TURN_BASED_DRAFT_TTL_MS = 24 * 60 * 60 * 1000;
+export const TURN_BASED_WAITING_FOR_PARTNER_TTL_MS = 24 * 60 * 60 * 1000;
+export const TURN_BASED_PARTNER_CLAIM_TTL_MS = 15 * 60 * 1000;
+export const TURN_BASED_STORY_TURN_TTL_MS = 24 * 60 * 60 * 1000;
+export const TURN_BASED_REVEAL_TTL_MS = 72 * 60 * 60 * 1000;
+export const TOGETHER_ARTIFACT_PURGE_DELAY_MS = 24 * 60 * 60 * 1000;
+export const TURN_BASED_MAINTENANCE_INTERVAL_MS = 15 * 60 * 1000;
+export const TURN_BASED_WAITING_WARNING_MS = 12 * 60 * 60 * 1000;
+export const TURN_BASED_STORY_STALLED_WARNING_MS = 12 * 60 * 60 * 1000;
+export const TURN_BASED_REVEAL_STALLED_WARNING_MS = 24 * 60 * 60 * 1000;
 export const TOGETHER_ACTIVITIES = ["draw", "story_sparks"] as const;
 export const TOGETHER_EVENT_TYPES = ["stroke_batch", "story_choice", "system"] as const;
 export const TOGETHER_REVEAL_DECISIONS = ["open", "skip", "continue_story"] as const;

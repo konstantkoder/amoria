@@ -75,6 +75,7 @@ export type TogetherParticipantDto = {
 
 export type TogetherSessionDto = {
   id: string;
+  mode: "live" | "turn_based";
   activity: TogetherActivity;
   status: TogetherSessionStatus;
   promptText: string;

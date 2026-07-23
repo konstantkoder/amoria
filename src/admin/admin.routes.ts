@@ -69,6 +69,7 @@ import {
 } from "./admin.schemas";
 import * as adminService from "./admin.service";
 import { firstHeaderValue, type AdminContext, type AdminRequestContext } from "./admin.types";
+import * as adminTurnBased from "./admin-together-turn-based.service";
 
 function currentAdmin(request: { admin?: AdminContext }): AdminContext {
   if (!request.admin) {
@@ -87,6 +88,21 @@ function adminRequestContext(request: FastifyRequest): AdminRequestContext {
 }
 
 export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
+  fastify.get("/together/turn-based", {
+    preHandler: [authMiddleware, requireAdmin(["owner","ops","support"])],
+  }, async (request) => adminTurnBased.listMoments(currentAdmin(request), adminTurnBased.parseQuery(request.query), adminRequestContext(request)));
+  fastify.get<{Params:{id:string}}>("/together/turn-based/:id", {
+    preHandler: [authMiddleware, requireAdmin(["owner","ops","support"])],
+  }, async (request) => adminTurnBased.getMoment(currentAdmin(request),request.params.id,adminRequestContext(request)));
+  fastify.get("/together/turn-based/problems", {
+    preHandler: [authMiddleware, requireAdmin(["owner","ops","support"])],
+  }, async (request) => adminTurnBased.listProblems(currentAdmin(request),adminTurnBased.parseQuery(request.query),adminRequestContext(request)));
+  fastify.post<{Params:{id:string}}>("/together/turn-based/:id/actions", {
+    preHandler: [authMiddleware, requireAdmin(["owner","ops"])],
+  }, async (request) => adminTurnBased.actionMoment(currentAdmin(request),request.params.id,adminTurnBased.parseAction(request.body),adminRequestContext(request)));
+  fastify.post<{Params:{id:string}}>("/together/turn-based/problems/:id/actions", {
+    preHandler: [authMiddleware, requireAdmin(["owner","ops","support"])],
+  }, async (request) => adminTurnBased.actionProblem(currentAdmin(request),request.params.id,adminTurnBased.parseAction(request.body),adminRequestContext(request)));
   fastify.get(
     "/health",
     {

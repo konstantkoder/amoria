@@ -67,6 +67,7 @@ type Screen =
   | "media"
   | "togetherQueue"
   | "togetherSessions"
+  | "togetherTurnBased"
   | "opsHealth"
   | "nearbyDiagnostics"
   | "nearbyRooms"
@@ -122,6 +123,7 @@ const screens: ScreenItem[] = [
   { key: "media", labelKey: "nav.media" },
   { key: "togetherQueue", labelKey: "nav.togetherQueue", roles: ["owner", "ops"] },
   { key: "togetherSessions", labelKey: "nav.togetherSessions", roles: ["owner", "ops"] },
+  { key: "togetherTurnBased", labelKey: "nav.togetherTurnBased", roles: ["owner", "ops", "support"] },
   { key: "auditLog", labelKey: "nav.auditLog" },
   { key: "opsHealth", labelKey: "nav.opsHealth" },
   { key: "nearbyDiagnostics", labelKey: "nav.nearbyDiagnostics", roles: ["owner", "ops"] },
@@ -307,6 +309,12 @@ export function App() {
           {activeScreen === "togetherSessions" ? (
             <TogetherSessionsScreen initialSessionId={togetherSessionFilter} />
           ) : null}
+          {activeScreen === "togetherTurnBased" ? (
+            <TogetherTurnBasedScreen
+              canManage={adminMe?.adminUser.roles.some((role) => role === "owner" || role === "ops") ?? false}
+              setMessage={setMessage}
+            />
+          ) : null}
           {activeScreen === "opsHealth" ? <OpsHealthScreen /> : null}
           {activeScreen === "nearbyDiagnostics" ? <NearbyDiagnosticsScreen /> : null}
           {activeScreen === "nearbyRooms" ? (
@@ -319,6 +327,93 @@ export function App() {
   }
 
   return <I18nContext.Provider value={i18n}>{content}</I18nContext.Provider>;
+}
+
+type TurnBasedAdminMoment = {
+  id: string; status: string; stage: string; lastTransition: string;
+  updatedAt: string; openProblemCount: number;
+};
+type TurnBasedAdminProblem = {
+  id: string; code: string; severity: string; status: string;
+  summary: string; occurrenceCount: number; lastSeenAt: string;
+};
+
+function TogetherTurnBasedScreen({ canManage, setMessage }: {
+  canManage: boolean; setMessage: (message: string | null) => void;
+}) {
+  const { t, language } = useI18n();
+  const [tab, setTab] = useState<"overview" | "moments" | "problems">("overview");
+  const [status, setStatus] = useState("");
+  const [moments, setMoments] = useState<TurnBasedAdminMoment[]>([]);
+  const [problems, setProblems] = useState<TurnBasedAdminProblem[]>([]);
+  const [error, setError] = useState("");
+  async function load() {
+    setError("");
+    try {
+      const [momentResponse, problemResponse] = await Promise.all([
+        apiGet<{ items: TurnBasedAdminMoment[] }>(`/admin/together/turn-based${toQuery({ status: status || undefined, limit: 100 })}`),
+        apiGet<{ items: TurnBasedAdminProblem[] }>("/admin/together/turn-based/problems?limit=100"),
+      ]);
+      setMoments(momentResponse.items); setProblems(problemResponse.items);
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : "Error");
+    }
+  }
+  useEffect(() => { void load(); }, []);
+  async function runAction(path: string, action: string) {
+    const reason = window.prompt(t("togetherTurnBased.reasonPrompt"))?.trim();
+    if (!reason) return;
+    try {
+      await apiPost(path, { action, reason });
+      setMessage(t("togetherTurnBased.actionComplete")); await load();
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : "Error");
+    }
+  }
+  const activeCount = moments.filter((item) =>
+    ["starter_turn","waiting_for_partner","partner_turn","awaiting_draw_reveal","story_turn","awaiting_story_reveal"].includes(item.status)
+  ).length;
+  const openProblems = problems.filter((item) => item.status === "open").length;
+  return <section className="panel">
+    <div className="filters">
+      <button className={tab === "overview" ? "" : "secondary"} onClick={() => setTab("overview")}>{t("togetherTurnBased.overview")}</button>
+      <button className={tab === "moments" ? "" : "secondary"} onClick={() => setTab("moments")}>{t("togetherTurnBased.moments")} ({moments.length})</button>
+      <button className={tab === "problems" ? "" : "secondary"} onClick={() => setTab("problems")}>{t("togetherTurnBased.problems")} ({openProblems})</button>
+    </div>
+    {error ? <div className="error">{error}</div> : null}
+    {tab === "overview" ? <div className="dashboard-grid">
+      <article className="metric-card"><span>{t("togetherTurnBased.active")}</span><strong>{activeCount}</strong></article>
+      <article className="metric-card"><span>{t("togetherTurnBased.openProblems")}</span><strong>{openProblems}</strong></article>
+      <article className="metric-card"><span>{t("togetherTurnBased.total")}</span><strong>{moments.length}</strong></article>
+    </div> : null}
+    {tab === "moments" ? <>
+      <form className="filters" onSubmit={(event) => { event.preventDefault(); void load(); }}>
+        <label>{t("common.status")}<input value={status} onChange={(event) => setStatus(event.target.value)} /></label>
+        <button>{t("common.load")}</button>
+      </form>
+      <table><thead><tr><th>{t("common.updated")}</th><th>ID</th><th>{t("common.status")}</th>
+        <th>{t("togetherTurnBased.stage")}</th><th>{t("togetherTurnBased.transition")}</th>
+        <th>{t("togetherTurnBased.problems")}</th>{canManage ? <th>{t("common.action")}</th> : null}
+      </tr></thead><tbody>{moments.map((item) => <tr key={item.id}>
+        <td>{formatDate(item.updatedAt, language)}</td><td><code>{item.id}</code></td><td>{item.status}</td>
+        <td>{item.stage}</td><td>{item.lastTransition}</td><td>{item.openProblemCount}</td>
+        {canManage ? <td><button className="secondary" onClick={() => void runAction(`/admin/together/turn-based/${item.id}/actions`, "return_to_pool")}>{t("togetherTurnBased.returnPool")}</button>
+          <button className="danger" onClick={() => void runAction(`/admin/together/turn-based/${item.id}/actions`, "cancel_moment")}>{t("action.cancel")}</button></td> : null}
+      </tr>)}</tbody></table>
+    </> : null}
+    {tab === "problems" ? <table><thead><tr><th>{t("common.updated")}</th><th>{t("common.status")}</th>
+      <th>{t("togetherTurnBased.severity")}</th><th>{t("togetherTurnBased.code")}</th>
+      <th>{t("togetherTurnBased.summary")}</th><th>{t("common.action")}</th>
+    </tr></thead><tbody>{problems.map((item) => <tr key={item.id}>
+      <td>{formatDate(item.lastSeenAt, language)}</td><td>{item.status}</td><td>{item.severity}</td>
+      <td>{item.code} × {item.occurrenceCount}</td><td>{item.summary}</td><td>
+        <button className="secondary" onClick={() => void runAction(`/admin/together/turn-based/problems/${item.id}/actions`, item.status === "open" ? "resolve" : "reopen")}>
+          {item.status === "open" ? t("action.resolve") : t("action.reopen")}
+        </button>
+        {item.status === "open" ? <button className="secondary" onClick={() => void runAction(`/admin/together/turn-based/problems/${item.id}/actions`, "ignore")}>{t("action.ignore")}</button> : null}
+      </td>
+    </tr>)}</tbody></table> : null}
+  </section>;
 }
 
 function LoginScreen({ onLogin }: { onLogin: (tokens: Tokens) => void }) {

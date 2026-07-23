@@ -19,6 +19,7 @@ export type ErrorCode =
   | "together_session_closed"
   | "together_continuation_failed"
   | "together_queue_not_waiting"
+  | "together_turn_out_of_order"
   | "nearby_activity_preference_required"
   | "not_found"
   | "email_taken"

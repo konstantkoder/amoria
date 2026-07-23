@@ -2842,6 +2842,7 @@ function mockRepo(
       ...defaultQueueGender,
     }),
     updateUserAgePreference: async () => undefined,
+    scheduleArtifactPurge: async () => undefined,
   };
 
   const repo = new Proxy(
@@ -2878,6 +2879,7 @@ function restoreRepoMock(): void {
 function sessionRow(overrides: Partial<TogetherSessionRow> = {}): TogetherSessionRow {
   return {
     id: sessionId,
+    mode: "live",
     activity: "draw",
     status: "active",
     promptText: "Draw together",
@@ -2886,6 +2888,9 @@ function sessionRow(overrides: Partial<TogetherSessionRow> = {}): TogetherSessio
     finishedAt: null,
     endedReason: null,
     deadlineAt: null,
+    artifactPurgeAfter: null,
+    artifactPurgedAt: null,
+    eventCountSnapshot: null,
     updatedAt: createdAt,
     ...overrides,
   };

@@ -467,6 +467,7 @@ export const userActivityPreferences = pgTable(
 
 export const togetherSessions = pgTable("together_sessions", {
   id: uuid("id").defaultRandom().primaryKey(),
+  mode: text("mode").default("live").notNull(),
   activity: text("activity").notNull(),
   status: text("status").default("active").notNull(),
   promptText: text("prompt_text").notNull(),
@@ -475,12 +476,107 @@ export const togetherSessions = pgTable("together_sessions", {
   finishedAt: timestamp("finished_at", { withTimezone: true }),
   endedReason: text("ended_reason"),
   deadlineAt: timestamp("deadline_at", { withTimezone: true }),
+  artifactPurgeAfter: timestamp("artifact_purge_after", { withTimezone: true }),
+  artifactPurgedAt: timestamp("artifact_purged_at", { withTimezone: true }),
+  eventCountSnapshot: integer("event_count_snapshot"),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
   uniqueIndex("together_story_sparks_source_unique")
     .on(table.sourceSessionId)
     .where(sql`${table.activity} = 'story_sparks' AND ${table.sourceSessionId} IS NOT NULL`),
+  check("together_sessions_mode_check", sql`${table.mode} IN ('live', 'turn_based')`),
 ]);
+
+export const togetherTurnBasedMoments = pgTable(
+  "together_turn_based_moments",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    status: text("status").notNull(),
+    stage: text("stage").notNull(),
+    starterUserId: uuid("starter_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    partnerUserId: uuid("partner_user_id").references(() => users.id, { onDelete: "set null" }),
+    drawSessionId: uuid("draw_session_id").notNull().unique().references(() => togetherSessions.id, { onDelete: "cascade" }),
+    storySessionId: uuid("story_session_id").unique().references(() => togetherSessions.id, { onDelete: "set null" }),
+    currentTurnUserId: uuid("current_turn_user_id").references(() => users.id, { onDelete: "set null" }),
+    currentRoundId: text("current_round_id"),
+    currentRoundIndex: integer("current_round_index"),
+    currentRoundChoiceIndex: integer("current_round_choice_index"),
+    latitude: doublePrecision("latitude").notNull(),
+    longitude: doublePrecision("longitude").notNull(),
+    radiusKm: integer("radius_km"),
+    starterAge: integer("starter_age").notNull(),
+    preferredAgeMin: integer("preferred_age_min").notNull(),
+    preferredAgeMax: integer("preferred_age_max"),
+    starterGender: text("starter_gender").notNull(),
+    preferredGenders: jsonb("preferred_genders").$type<ProfileGender[]>().notNull(),
+    starterSubmittedAt: timestamp("starter_submitted_at", { withTimezone: true }),
+    partnerClaimedAt: timestamp("partner_claimed_at", { withTimezone: true }),
+    claimExpiresAt: timestamp("claim_expires_at", { withTimezone: true }),
+    stageCompletedAt: timestamp("stage_completed_at", { withTimezone: true }),
+    decisionExpiresAt: timestamp("decision_expires_at", { withTimezone: true }),
+    waitingExpiresAt: timestamp("waiting_expires_at", { withTimezone: true }),
+    turnExpiresAt: timestamp("turn_expires_at", { withTimezone: true }),
+    artifactPurgeAfter: timestamp("artifact_purge_after", { withTimezone: true }),
+    artifactPurgedAt: timestamp("artifact_purged_at", { withTimezone: true }),
+    lastTransition: text("last_transition").notNull(),
+    lastTransitionAt: timestamp("last_transition_at", { withTimezone: true }).defaultNow().notNull(),
+    cancelReason: text("cancel_reason"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("together_turn_based_moments_status_created_idx").on(table.status, table.createdAt),
+    index("together_turn_based_moments_partner_idx").on(table.partnerUserId),
+    check("together_turn_based_moments_status_check", sql`${table.status} IN ('starter_turn','waiting_for_partner','partner_turn','awaiting_draw_reveal','story_turn','awaiting_story_reveal','completed','expired','cancelled','blocked','reported')`),
+    check("together_turn_based_moments_stage_check", sql`${table.stage} IN ('draw','story','done')`),
+    check("together_turn_based_moments_radius_check", sql`${table.radiusKm} IS NULL OR ${table.radiusKm} IN (5,25,100,250)`),
+  ],
+);
+
+export const togetherTurnBasedParticipants = pgTable(
+  "together_turn_based_participants",
+  {
+    momentId: uuid("moment_id").notNull().references(() => togetherTurnBasedMoments.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    role: text("role").notNull(),
+    active: boolean("active").default(true).notNull(),
+    joinedAt: timestamp("joined_at", { withTimezone: true }).defaultNow().notNull(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.momentId, table.userId] }),
+    uniqueIndex("together_turn_based_participants_role_unique").on(table.momentId, table.role).where(sql`${table.active} = true`),
+    uniqueIndex("together_turn_based_participants_active_user_unique").on(table.userId).where(sql`${table.active} = true`),
+    check("together_turn_based_participants_role_check", sql`${table.role} IN ('starter','partner')`),
+  ],
+);
+
+export const togetherTurnBasedProblems = pgTable(
+  "together_turn_based_problems",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    momentId: uuid("moment_id").references(() => togetherTurnBasedMoments.id, { onDelete: "cascade" }),
+    code: text("code").notNull(),
+    severity: text("severity").notNull(),
+    status: text("status").default("open").notNull(),
+    summary: text("summary").notNull(),
+    details: jsonb("details").$type<JsonValue | null>(),
+    firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).defaultNow().notNull(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).defaultNow().notNull(),
+    occurrenceCount: integer("occurrence_count").default(1).notNull(),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    resolvedByAdminUserId: uuid("resolved_by_admin_user_id").references(() => adminUsers.id, { onDelete: "set null" }),
+    resolutionNote: text("resolution_note"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("together_turn_based_problems_status_seen_idx").on(table.status, table.lastSeenAt),
+    uniqueIndex("together_turn_based_problems_open_dedupe").on(table.momentId, table.code).where(sql`${table.status} = 'open'`),
+    check("together_turn_based_problems_severity_check", sql`${table.severity} IN ('info','warning','error','critical')`),
+    check("together_turn_based_problems_status_check", sql`${table.status} IN ('open','resolved','ignored')`),
+  ],
+);
 
 export const togetherQueue = pgTable(
   "together_queue",
@@ -1193,6 +1289,10 @@ export type TogetherQueueRow = typeof togetherQueue.$inferSelect;
 export type NewTogetherQueueRow = typeof togetherQueue.$inferInsert;
 export type TogetherSessionRow = typeof togetherSessions.$inferSelect;
 export type NewTogetherSessionRow = typeof togetherSessions.$inferInsert;
+export type TogetherTurnBasedMomentRow = typeof togetherTurnBasedMoments.$inferSelect;
+export type NewTogetherTurnBasedMomentRow = typeof togetherTurnBasedMoments.$inferInsert;
+export type TogetherTurnBasedParticipantRow = typeof togetherTurnBasedParticipants.$inferSelect;
+export type TogetherTurnBasedProblemRow = typeof togetherTurnBasedProblems.$inferSelect;
 export type TogetherSessionMemberRow = typeof togetherSessionMembers.$inferSelect;
 export type NewTogetherSessionMemberRow = typeof togetherSessionMembers.$inferInsert;
 export type TogetherEventRow = typeof togetherEvents.$inferSelect;
