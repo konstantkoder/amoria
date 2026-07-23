@@ -1041,7 +1041,7 @@ export default function NearbyHubScreen() {
                 onValueChange={handleToggle}
                 trackColor={{
                   false: "rgba(255,255,255,0.18)",
-                  true: theme.colors.chipActiveBorder,
+                  true: "rgba(221,160,139,0.42)",
                 }}
                 thumbColor={active ? ACCENT_COLOR : "#F5F5FF"}
               />
@@ -1093,7 +1093,7 @@ export default function NearbyHubScreen() {
                 onValueChange={handleToggle}
                 trackColor={{
                   false: "rgba(255,255,255,0.18)",
-                  true: theme.colors.chipActiveBorder,
+                  true: "rgba(221,160,139,0.42)",
                 }}
                 thumbColor={active ? ACCENT_COLOR : "#F5F5FF"}
               />
@@ -2584,7 +2584,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     backgroundColor: "rgba(7,10,20,0.62)",
     borderWidth: 1,
-    borderColor: "rgba(245,194,77,0.34)",
+    borderColor: theme.colors.borderWarm,
   },
   compatibilityBadgeText: {
     color: theme.colors.textAccent,
@@ -2716,7 +2716,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     lineHeight: 23,
     fontWeight: "900",
-    textShadowColor: "rgba(255, 79, 139, 0.22)",
+    textShadowColor: "rgba(221,160,139,0.18)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 5,
   },

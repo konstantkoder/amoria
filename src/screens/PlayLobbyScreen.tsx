@@ -15,7 +15,7 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Device from "expo-device";
 
-import GoldActionButton from "@/components/GoldActionButton";
+import PrimaryActionButton from "@/components/PrimaryActionButton";
 import ScreenShell from "@/components/ScreenShell";
 import { useLocale } from "@/contexts/LocaleContext";
 import {
@@ -449,7 +449,7 @@ export default function PlayLobbyScreen() {
               </View>
             ) : null}
 
-            <GoldActionButton
+            <PrimaryActionButton
               label={
                 locationBusy
                   ? tt("together.geo.locationLoading", "Получаем геолокацию...")
@@ -478,7 +478,11 @@ export default function PlayLobbyScreen() {
               style={styles.searchSettingsPill}
               accessibilityRole="button"
             >
-              <Ionicons name="options-outline" size={15} color={theme.colors.textAccent} />
+              <Ionicons
+                name="options-outline"
+                size={16}
+                color={theme.buttons.secondary.textColor}
+              />
               <Text
                 style={styles.searchSettingsPillText}
                 numberOfLines={1}
@@ -674,7 +678,7 @@ export default function PlayLobbyScreen() {
                 </View>
               </View>
 
-              <GoldActionButton
+              <PrimaryActionButton
                 label={tt("together.searchSettingsDone", "Готово")}
                 onPress={closeTogetherFiltersSheet}
                 compact
@@ -764,18 +768,19 @@ const styles = StyleSheet.create({
   },
   completionButton: {
     alignSelf: "flex-start",
-    minHeight: 34,
-    borderRadius: theme.shapes.pill,
-    paddingHorizontal: 13,
+    minHeight: 36,
+    borderRadius: 18,
+    paddingHorizontal: 12,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(245,194,77,0.10)",
+    backgroundColor: theme.colors.warningBg,
     borderWidth: 1,
-    borderColor: "rgba(245,194,77,0.34)",
+    borderColor: "rgba(243,201,130,0.34)",
   },
   completionButtonText: {
-    color: theme.colors.textAccent,
+    color: theme.colors.warningText,
     fontSize: 12,
+    lineHeight: 15,
     fontWeight: "900",
   },
   filterBlock: {
@@ -792,27 +797,28 @@ const styles = StyleSheet.create({
     gap: 7,
   },
   optionChip: {
-    minHeight: 34,
-    borderRadius: theme.shapes.pill,
-    paddingHorizontal: 11,
+    minHeight: 36,
+    borderRadius: 18,
+    paddingHorizontal: 12,
     paddingVertical: 7,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.055)",
+    backgroundColor: theme.colors.chipBg,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
+    borderColor: theme.colors.borderSubtle,
   },
   optionChipSelected: {
-    backgroundColor: "rgba(245,194,77,0.16)",
-    borderColor: "rgba(245,194,77,0.46)",
+    backgroundColor: theme.colors.chipActiveBg,
+    borderColor: theme.colors.chipActiveBorder,
   },
   optionChipText: {
     color: theme.colors.textSecondary,
     fontSize: 12,
+    lineHeight: 15,
     fontWeight: "800",
   },
   optionChipTextSelected: {
-    color: theme.colors.textAccent,
+    color: "#F6F2EC",
   },
   primaryCta: {
     alignSelf: "center",
@@ -838,46 +844,46 @@ const styles = StyleSheet.create({
   },
   searchSettingsPill: {
     alignSelf: "center",
-    minHeight: 38,
+    minHeight: 36,
     maxWidth: "100%",
-    borderRadius: theme.shapes.pill,
-    paddingHorizontal: 13,
-    paddingVertical: 8,
+    borderRadius: 18,
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: theme.buttons.secondary.backgroundColor,
+    borderWidth: 1,
+    borderColor: theme.buttons.secondary.borderColor,
+  },
+  searchSettingsPillText: {
+    flexShrink: 1,
+    color: theme.buttons.secondary.textColor,
+    fontSize: 12,
+    lineHeight: 15,
+    fontWeight: "900",
+  },
+  detailsToggle: {
+    minHeight: 44,
+    borderRadius: 17,
+    paddingHorizontal: 16,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 7,
-    backgroundColor: "rgba(245,194,77,0.08)",
+    backgroundColor: theme.buttons.secondary.backgroundColor,
     borderWidth: 1,
-    borderColor: "rgba(245,194,77,0.16)",
-  },
-  searchSettingsPillText: {
-    flexShrink: 1,
-    color: theme.colors.textAccent,
-    fontSize: 12,
-    fontWeight: "900",
-  },
-  detailsToggle: {
-    minHeight: 38,
-    borderRadius: theme.shapes.pill,
-    paddingHorizontal: 15,
-    paddingVertical: 10,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 9,
-    backgroundColor: "rgba(255,245,230,0.08)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
+    borderColor: theme.buttons.secondary.borderColor,
   },
   detailsToggleText: {
-    color: theme.colors.textAccent,
-    fontSize: 13,
-    fontWeight: "800",
+    color: theme.buttons.secondary.textColor,
+    fontSize: 14,
+    lineHeight: 18,
+    fontWeight: "900",
   },
   detailsToggleIcon: {
-    color: theme.colors.textAccent,
-    fontSize: 16,
+    color: theme.buttons.secondary.textColor,
+    fontSize: 17,
     fontWeight: "900",
   },
   detailsPanel: {
@@ -920,7 +926,7 @@ const styles = StyleSheet.create({
     borderRadius: theme.shapes.pill,
     paddingHorizontal: 9,
     paddingVertical: 5,
-    backgroundColor: "rgba(245,194,77,0.08)",
+    backgroundColor: theme.colors.surfaceSoft,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.10)",
   },
@@ -961,9 +967,9 @@ const styles = StyleSheet.create({
     borderRadius: theme.shapes.pill,
     paddingHorizontal: 11,
     paddingVertical: 7,
-    backgroundColor: "rgba(245,194,77,0.08)",
+    backgroundColor: theme.colors.surfaceSoft,
     borderWidth: 1,
-    borderColor: "rgba(245,194,77,0.16)",
+    borderColor: theme.colors.borderSubtle,
   },
   historyBadgeText: {
     color: theme.colors.text,

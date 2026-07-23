@@ -11,6 +11,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useLocale } from "@/contexts/LocaleContext";
 import { theme } from "@/theme/theme";
+import { visualSystem } from "@/theme/visualSystem";
 
 type Props = {
   recovery?: boolean;
@@ -43,11 +44,17 @@ export default function StartupScreen({ recovery = false, retrying = false, onRe
             onPress={onRetry}
             style={({ pressed }) => [styles.retry, pressed && styles.retryPressed, retrying && styles.retryDisabled]}
           >
-            {retrying ? <ActivityIndicator color={theme.colors.goldText} /> : null}
+            {retrying ? (
+              <ActivityIndicator color={visualSystem.colors.primaryText} />
+            ) : null}
             <Text style={styles.retryText}>{t("common.retry")}</Text>
           </Pressable>
         ) : (
-          <ActivityIndicator color={theme.colors.gold} size="small" style={styles.indicator} />
+          <ActivityIndicator
+            color={visualSystem.colors.accent}
+            size="small"
+            style={styles.indicator}
+          />
         )}
       </View>
     </SafeAreaView>
@@ -67,7 +74,7 @@ const styles = StyleSheet.create({
     borderRadius: 180,
     top: -170,
     alignSelf: "center",
-    backgroundColor: "rgba(109, 63, 183, 0.16)",
+    backgroundColor: "rgba(117,92,154,0.16)",
   },
   content: {
     flex: 1,
@@ -81,18 +88,18 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(245, 194, 77, 0.10)",
+    backgroundColor: visualSystem.colors.accentSoft,
     borderWidth: 1,
     borderColor: theme.colors.borderWarm,
   },
   markText: {
-    color: theme.colors.goldLight,
+    color: visualSystem.colors.textWarm,
     fontSize: 34,
     fontWeight: "800",
   },
   brand: {
     marginTop: 18,
-    color: theme.colors.goldLight,
+    color: visualSystem.colors.textWarm,
     fontSize: 13,
     letterSpacing: 4.5,
     fontWeight: "800",
@@ -131,7 +138,7 @@ const styles = StyleSheet.create({
   retryPressed: { opacity: 0.9 },
   retryDisabled: { opacity: 0.62 },
   retryText: {
-    color: theme.colors.goldText,
+    color: visualSystem.colors.primaryText,
     fontSize: 15,
     fontWeight: "900",
   },

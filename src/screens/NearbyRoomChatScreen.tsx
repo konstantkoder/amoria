@@ -221,11 +221,13 @@ export default function NearbyRoomChatScreen() {
       return (
         <View style={[styles.messageWrap, own ? styles.messageWrapOwn : null]}>
           <View style={[styles.bubble, own ? styles.bubbleOwn : styles.bubbleOther]}>
-            <Text style={styles.senderLabel}>
+            <Text style={[styles.senderLabel, own ? styles.senderLabelOwn : null]}>
               {formatSenderLabel(item.fromUserId, myId, t)}
             </Text>
             <Text style={styles.messageText}>{item.text}</Text>
-            <Text style={styles.messageTime}>{formatMessageTime(item.createdAt)}</Text>
+            <Text style={[styles.messageTime, own ? styles.messageTimeOwn : null]}>
+              {formatMessageTime(item.createdAt)}
+            </Text>
           </View>
         </View>
       );
@@ -259,7 +261,7 @@ export default function NearbyRoomChatScreen() {
       <ScreenShell
         title={screenTitle}
         headerCenter={headerCenter}
-        background="chatWarm"
+        background="conversationWarm"
         showBack
         onBack={handleBack}
       >
@@ -283,7 +285,7 @@ export default function NearbyRoomChatScreen() {
     <ScreenShell
       title={screenTitle}
       headerCenter={headerCenter}
-      background="chatWarm"
+      background="conversationWarm"
       showBack
       onBack={handleBack}
     >
@@ -346,7 +348,7 @@ export default function NearbyRoomChatScreen() {
               value={text}
               onChangeText={setText}
               placeholder={tt(t, "nearby.rooms.messagePlaceholder", "Сообщение в чат активности")}
-              placeholderTextColor={theme.colors.muted}
+              placeholderTextColor="rgba(226,232,255,0.46)"
               style={styles.input}
               multiline
               maxLength={1000}
@@ -426,23 +428,27 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     paddingHorizontal: 13,
     paddingVertical: 10,
-    backgroundColor: "rgba(12, 16, 30, 0.88)",
+    backgroundColor: "rgba(12,16,30,0.88)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.10)",
     gap: 4,
   },
   bubbleOwn: {
-    backgroundColor: "rgba(232, 66, 138, 0.90)",
-    borderColor: "rgba(255,184,104,0.44)",
+    backgroundColor: "#3A233A",
+    borderColor: "#A77A9D",
   },
   bubbleOther: {
-    backgroundColor: "rgba(12, 16, 30, 0.88)",
+    backgroundColor: "rgba(12,16,30,0.88)",
+    borderColor: "rgba(255,255,255,0.10)",
   },
   senderLabel: {
     color: "rgba(255,255,255,0.68)",
     fontSize: 11,
     lineHeight: 14,
     fontWeight: "800",
+  },
+  senderLabelOwn: {
+    color: "rgba(233,221,243,0.72)",
   },
   messageText: {
     color: theme.colors.text,
@@ -456,6 +462,9 @@ const styles = StyleSheet.create({
     fontSize: 10,
     lineHeight: 12,
     fontWeight: "700",
+  },
+  messageTimeOwn: {
+    color: "rgba(233,221,243,0.60)",
   },
   inputRow: {
     flexDirection: "row",
@@ -471,38 +480,39 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     maxHeight: 118,
-    minHeight: 44,
+    minHeight: 48,
     borderRadius: 18,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.14)",
     backgroundColor: "rgba(255,255,255,0.07)",
     color: theme.colors.text,
-    paddingHorizontal: 13,
-    paddingVertical: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
     fontSize: 15,
     lineHeight: 20,
   },
   sendButton: {
     minWidth: 86,
-    minHeight: 44,
+    minHeight: 48,
     borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 13,
+    paddingHorizontal: 18,
     backgroundColor: theme.colors.primaryActionBg,
     borderWidth: 1,
     borderColor: theme.colors.primaryActionBorder,
   },
   sendButtonDisabled: {
-    backgroundColor: "rgba(245,194,77,0.12)",
-    borderColor: "rgba(245,194,77,0.28)",
+    backgroundColor: "rgba(201,120,104,0.12)",
+    borderColor: "rgba(201,120,104,0.28)",
   },
   sendText: {
     color: theme.colors.primaryActionText,
-    fontSize: 13,
+    fontSize: 15,
+    lineHeight: 18,
     fontWeight: "900",
   },
   sendTextDisabled: {
-    color: "rgba(245,194,77,0.58)",
+    color: "rgba(221,160,139,0.58)",
   },
 });

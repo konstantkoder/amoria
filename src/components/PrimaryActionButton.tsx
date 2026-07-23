@@ -3,15 +3,14 @@ import {
   ActivityIndicator,
   Animated,
   Pressable,
-  StyleProp,
+  type StyleProp,
   StyleSheet,
   Text,
-  ViewStyle,
+  type ViewStyle,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
 
-import { theme } from "@/theme";
+import { visualSystem } from "@/theme/visualSystem";
 
 type Props = {
   label: string;
@@ -25,7 +24,7 @@ type Props = {
   style?: StyleProp<ViewStyle>;
 };
 
-export default function GoldActionButton({
+export default function PrimaryActionButton({
   label,
   onPress,
   disabled = false,
@@ -38,6 +37,9 @@ export default function GoldActionButton({
 }: Props) {
   const pulse = useRef(new Animated.Value(0)).current;
   const inactive = disabled || loading;
+  const geometry = compact
+    ? visualSystem.buttons.compact
+    : visualSystem.buttons.primary;
 
   useEffect(() => {
     if (!subtleGlow || inactive) {
@@ -61,16 +63,13 @@ export default function GoldActionButton({
       ])
     );
     loop.start();
-
-    return () => {
-      loop.stop();
-    };
+    return () => loop.stop();
   }, [inactive, pulse, subtleGlow]);
 
   const glowStyle = {
     opacity: pulse.interpolate({
       inputRange: [0, 1],
-      outputRange: [0.12, 0.28],
+      outputRange: [0.08, 0.18],
     }),
     transform: [
       {
@@ -86,13 +85,16 @@ export default function GoldActionButton({
     <Animated.View
       style={[
         styles.outer,
-        compact ? styles.outerCompact : null,
+        { minHeight: geometry.minHeight, borderRadius: geometry.borderRadius },
         inactive ? styles.outerDisabled : null,
         style,
       ]}
     >
       {subtleGlow && !inactive ? (
-        <Animated.View pointerEvents="none" style={[styles.glowRing, glowStyle]} />
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.glowRing, { borderRadius: geometry.borderRadius }, glowStyle]}
+        />
       ) : null}
       <Pressable
         onPress={onPress}
@@ -101,25 +103,52 @@ export default function GoldActionButton({
         accessibilityLabel={accessibilityLabel ?? label}
         style={({ pressed }) => [
           styles.pressable,
-          compact ? styles.pressableCompact : null,
+          {
+            minHeight: geometry.minHeight,
+            borderRadius: geometry.borderRadius,
+            paddingHorizontal: geometry.paddingHorizontal,
+            gap: geometry.gap,
+          },
+          inactive ? styles.pressableDisabled : null,
           pressed && !inactive ? styles.pressed : null,
         ]}
       >
-        <LinearGradient
-          colors={[theme.colors.goldLight, theme.colors.gold, theme.colors.goldDeep]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={[styles.gradient, compact ? styles.gradientCompact : null]}
+        {loading ? (
+          <ActivityIndicator
+            size="small"
+            color={
+              inactive
+                ? visualSystem.colors.disabledText
+                : visualSystem.colors.primaryText
+            }
+          />
+        ) : iconName ? (
+          <Ionicons
+            name={iconName}
+            size={geometry.iconSize}
+            color={
+              inactive
+                ? visualSystem.colors.disabledText
+                : visualSystem.colors.primaryText
+            }
+          />
+        ) : null}
+        <Text
+          style={[
+            styles.label,
+            {
+              color: inactive
+                ? visualSystem.colors.disabledText
+                : visualSystem.colors.primaryText,
+              fontSize: geometry.fontSize,
+              lineHeight: geometry.lineHeight,
+              fontWeight: geometry.fontWeight,
+            },
+          ]}
+          numberOfLines={1}
         >
-          {loading ? (
-            <ActivityIndicator size="small" color={theme.colors.goldText} />
-          ) : iconName ? (
-            <Ionicons name={iconName} size={compact ? 16 : 18} color={theme.colors.goldText} />
-          ) : null}
-          <Text style={[styles.label, compact ? styles.labelCompact : null]} numberOfLines={1}>
-            {label}
-          </Text>
-        </LinearGradient>
+          {label}
+        </Text>
       </Pressable>
     </Animated.View>
   );
@@ -127,62 +156,37 @@ export default function GoldActionButton({
 
 const styles = StyleSheet.create({
   outer: {
-    minHeight: 48,
-    borderRadius: 18,
-    shadowColor: "#F5C24D",
-    shadowOpacity: 0.22,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 6 },
+    shadowColor: visualSystem.colors.primaryBg,
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
     elevation: 5,
   },
-  outerCompact: {
-    minHeight: 42,
-  },
   outerDisabled: {
-    opacity: 0.55,
     shadowOpacity: 0,
     elevation: 0,
   },
   glowRing: {
     ...StyleSheet.absoluteFillObject,
-    borderRadius: 20,
-    backgroundColor: "rgba(245,194,77,0.22)",
+    backgroundColor: visualSystem.colors.primaryBg,
   },
   pressable: {
-    minHeight: 48,
-    borderRadius: 18,
-    overflow: "hidden",
-  },
-  pressableCompact: {
-    minHeight: 42,
-  },
-  pressed: {
-    opacity: 0.92,
-    transform: [{ scale: 0.985 }],
-  },
-  gradient: {
-    minHeight: 48,
-    paddingHorizontal: 18,
-    borderRadius: 18,
     borderWidth: 1,
-    borderColor: "rgba(255,239,190,0.78)",
+    borderColor: visualSystem.colors.primaryBorder,
+    backgroundColor: visualSystem.colors.primaryBg,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
   },
-  gradientCompact: {
-    minHeight: 42,
-    paddingHorizontal: 14,
+  pressableDisabled: {
+    backgroundColor: visualSystem.colors.disabledBg,
+    borderColor: visualSystem.colors.disabledBorder,
+  },
+  pressed: {
+    backgroundColor: visualSystem.colors.primaryPressedBg,
+    transform: [{ scale: 0.985 }],
   },
   label: {
-    color: "#201306",
-    fontSize: 15,
-    lineHeight: 18,
-    fontWeight: "900",
     letterSpacing: 0.1,
-  },
-  labelCompact: {
-    fontSize: 14,
   },
 });

@@ -1175,7 +1175,7 @@ export default function UserProfileScreen() {
               autoCorrect={false}
               editable={!lockedGalleryUnlocking}
               placeholder={tt("profile.lockedGalleryPasswordPlaceholder", "Пароль")}
-              placeholderTextColor="rgba(255,255,255,0.45)"
+              placeholderTextColor="rgba(226,232,255,0.46)"
               style={styles.lockedGalleryInput}
               returnKeyType="done"
               onSubmitEditing={() => void handleUnlockLockedGallery()}
@@ -1305,7 +1305,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   compatibilityCard: {
-    borderColor: "rgba(245,194,77,0.24)",
+    borderColor: theme.colors.borderWarm,
   },
   compatibilityHeader: {
     flexDirection: "row",
@@ -1321,9 +1321,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 7,
     borderRadius: theme.shapes.pill,
-    backgroundColor: "rgba(245,194,77,0.10)",
+    backgroundColor: theme.colors.surfaceWarm,
     borderWidth: 1,
-    borderColor: "rgba(245,194,77,0.22)",
+    borderColor: theme.colors.borderWarm,
   },
   compatibilityReasonText: {
     color: theme.colors.textAccent,
@@ -1546,14 +1546,16 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   lockedGalleryInput: {
-    minHeight: 46,
-    borderRadius: 16,
-    paddingHorizontal: 12,
+    minHeight: 48,
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
     backgroundColor: "rgba(255,255,255,0.07)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
+    borderColor: "rgba(255,255,255,0.14)",
     color: theme.colors.text,
     fontSize: 15,
+    lineHeight: 20,
     fontWeight: "700",
   },
   lockedGalleryError: {

@@ -15,7 +15,7 @@ export default function PrivacyPolicyScreen() {
   return (
     <ScreenShell
       title={t("screen.privacy")}
-      background="menuWarm"
+      background="utilityWarm"
       showBack
     >
       <ScrollView showsVerticalScrollIndicator={false}>

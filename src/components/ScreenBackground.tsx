@@ -22,12 +22,16 @@ export type ScreenBackgroundVariant =
   | "aurora"
   | "sunset"
   | "deepSpace"
+  | "authWarm"
   | "midnightWarm"
   | "profileWarm"
   | "chatWarm"
   | "inboxWarm"
+  | "conversationWarm"
   | "nearbyWarm"
-  | "menuWarm";
+  | "menuWarm"
+  | "utilityWarm"
+  | "announcementWarm";
 
 type Props = {
   variant?: ScreenBackgroundVariant;
@@ -52,6 +56,14 @@ const gradientPresets = {
     start: { x: 0, y: 0 },
     end: { x: 1, y: 1 },
   },
+  authWarm: {
+    colors: ["#050816", "#090B17", "#171022", "#28172B"],
+    start: { x: 0, y: 0 },
+    end: { x: 1, y: 1 },
+    blobAColor: "#755C9A",
+    blobBColor: "#A6636F",
+    blobOpacity: 0.13,
+  },
   midnightWarm: {
     colors: ["#050816", "#0B0813", "#1D0E1D", "#321528"],
     start: { x: 0, y: 0 },
@@ -61,20 +73,20 @@ const gradientPresets = {
     blobOpacity: 0.16,
   },
   nearbyWarm: {
-    colors: ["#050816", "#090A14", "#1C101F", "#311728"],
+    colors: ["#050816", "#080B17", "#17101F", "#291725"],
     start: { x: 0, y: 0 },
     end: { x: 1, y: 1 },
-    blobAColor: "#9B3F68",
-    blobBColor: "#B66A3C",
-    blobOpacity: 0.16,
+    blobAColor: "#A45F69",
+    blobBColor: "#705C98",
+    blobOpacity: 0.14,
   },
   profileWarm: {
-    colors: ["#050816", "#0B0915", "#21101F", "#35182C"],
+    colors: ["#050816", "#0A0B17", "#1A1122", "#2B1829"],
     start: { x: 0, y: 0 },
     end: { x: 1, y: 1 },
-    blobAColor: "#9B3F68",
-    blobBColor: "#B66A3C",
-    blobOpacity: 0.16,
+    blobAColor: "#865B86",
+    blobBColor: "#A46661",
+    blobOpacity: 0.14,
   },
   chatWarm: {
     colors: ["#050816", "#080A14", "#1A1020", "#2D1629"],
@@ -92,13 +104,37 @@ const gradientPresets = {
     blobBColor: "#4A647A",
     blobOpacity: 0.14,
   },
-  menuWarm: {
-    colors: ["#050816", "#0C0814", "#241121", "#3A1830"],
+  conversationWarm: {
+    colors: ["#050816", "#070B16", "#101526", "#1A1C31"],
     start: { x: 0, y: 0 },
     end: { x: 1, y: 1 },
-    blobAColor: "#9B3F68",
-    blobBColor: "#B66A3C",
-    blobOpacity: 0.16,
+    blobAColor: "#665A93",
+    blobBColor: "#48657A",
+    blobOpacity: 0.12,
+  },
+  menuWarm: {
+    colors: ["#050816", "#090B15", "#15101D", "#221525"],
+    start: { x: 0, y: 0 },
+    end: { x: 1, y: 1 },
+    blobAColor: "#6F5A8F",
+    blobBColor: "#965D66",
+    blobOpacity: 0.12,
+  },
+  utilityWarm: {
+    colors: ["#050816", "#080C16", "#101722", "#182431"],
+    start: { x: 0, y: 0 },
+    end: { x: 1, y: 1 },
+    blobAColor: "#506B7D",
+    blobBColor: "#675985",
+    blobOpacity: 0.10,
+  },
+  announcementWarm: {
+    colors: ["#050816", "#090B16", "#19111F", "#2A1825"],
+    start: { x: 0, y: 0 },
+    end: { x: 1, y: 1 },
+    blobAColor: "#A05E68",
+    blobBColor: "#835B90",
+    blobOpacity: 0.13,
   },
 } as const;
 
@@ -161,12 +197,16 @@ const variantDefaults: Record<
   aurora: { overlayOpacity: 0.22, blurRadius: 0 },
   sunset: { overlayOpacity: 0.22, blurRadius: 0 },
   deepSpace: { overlayOpacity: 0.28, blurRadius: 0 },
+  authWarm: { overlayOpacity: 0.16, blurRadius: 0 },
   midnightWarm: { overlayOpacity: 0.16, blurRadius: 0 },
   nearbyWarm: { overlayOpacity: 0.16, blurRadius: 0 },
   profileWarm: { overlayOpacity: 0.16, blurRadius: 0 },
   chatWarm: { overlayOpacity: 0.16, blurRadius: 0 },
   inboxWarm: { overlayOpacity: 0.16, blurRadius: 0 },
+  conversationWarm: { overlayOpacity: 0.16, blurRadius: 0 },
   menuWarm: { overlayOpacity: 0.16, blurRadius: 0 },
+  utilityWarm: { overlayOpacity: 0.14, blurRadius: 0 },
+  announcementWarm: { overlayOpacity: 0.16, blurRadius: 0 },
 };
 
 export default function ScreenBackground({

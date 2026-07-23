@@ -315,7 +315,7 @@ export default function LoginScreen() {
   };
 
   return (
-    <ScreenBackground variant="midnightWarm" overlayOpacity={0.16} blurRadius={0}>
+    <ScreenBackground variant="authWarm" overlayOpacity={0.16} blurRadius={0}>
       <View style={styles.screen}>
         <TouchableOpacity
           style={[styles.languageButton, { top: insets.top + 8 }]}
@@ -387,7 +387,7 @@ export default function LoginScreen() {
                   ref={displayNameInputRef}
                   style={styles.input}
                   placeholder={t("auth.displayNamePlaceholder")}
-                  placeholderTextColor="#6B7280"
+                  placeholderTextColor="rgba(226,232,255,0.46)"
                   autoCapitalize="words"
                   value={displayName}
                   onChangeText={setDisplayName}
@@ -401,7 +401,7 @@ export default function LoginScreen() {
                 ref={emailInputRef}
                 style={styles.input}
                 placeholder={t("auth.emailPlaceholder")}
-                placeholderTextColor="#6B7280"
+                placeholderTextColor="rgba(226,232,255,0.46)"
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -417,7 +417,7 @@ export default function LoginScreen() {
                 ref={passwordInputRef}
                 style={styles.input}
                 placeholder={t("auth.passwordPlaceholder")}
-                placeholderTextColor="#6B7280"
+                placeholderTextColor="rgba(226,232,255,0.46)"
                 secureTextEntry
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -436,7 +436,12 @@ export default function LoginScreen() {
                 onPress={submitAuth}
                 disabled={authDisabled}
               >
-                <Text style={styles.buttonText}>
+                <Text
+                  style={[
+                    styles.buttonText,
+                    authDisabled ? styles.buttonTextDisabled : null,
+                  ]}
+                >
                   {isRegisterMode ? t("auth.registerButton") : t("auth.loginButton")}
                 </Text>
               </TouchableOpacity>
@@ -459,19 +464,22 @@ const styles = StyleSheet.create({
   languageButton: {
     position: "absolute",
     right: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 999,
-    backgroundColor: "rgba(255,255,255,0.07)",
+    minHeight: 36,
+    paddingHorizontal: 12,
+    borderRadius: 18,
+    backgroundColor: theme.buttons.secondary.backgroundColor,
     borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
+    borderColor: theme.buttons.secondary.borderColor,
+    alignItems: "center",
+    justifyContent: "center",
     zIndex: 2,
     elevation: 8,
   },
   languageButtonText: {
-    color: theme.colors.textPrimary,
+    color: theme.buttons.secondary.textColor,
     fontSize: 12,
-    fontWeight: "700",
+    lineHeight: 15,
+    fontWeight: "900",
     textShadowColor: "rgba(0,0,0,0.6)",
     textShadowRadius: 4,
     textShadowOffset: { width: 0, height: 1 },
@@ -493,18 +501,20 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
-    borderRadius: 14,
+    borderRadius: 18,
     overflow: "hidden",
     marginBottom: 12,
   },
   modeButton: {
     flex: 1,
-    paddingVertical: 10,
+    minHeight: 36,
+    paddingHorizontal: 12,
     alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.045)",
+    justifyContent: "center",
+    backgroundColor: theme.colors.chipBg,
   },
   modeButtonActive: {
-    backgroundColor: theme.colors.surfaceWarm,
+    backgroundColor: theme.colors.chipActiveBg,
   },
   modeButtonText: {
     color: theme.colors.textSecondary,
@@ -512,23 +522,27 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   modeButtonTextActive: {
-    color: theme.colors.textAccent,
+    color: "#F6F2EC",
   },
   errorText: {
-    color: "#B91C1C",
+    color: theme.colors.dangerText,
     fontSize: 13,
     fontWeight: "600",
     textAlign: "center",
     marginBottom: 10,
   },
   input: {
+    minHeight: 48,
     borderWidth: 1,
-    borderRadius: 14,
-    padding: 12,
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
     marginVertical: 6,
-    borderColor: theme.colors.borderSubtle,
+    borderColor: "rgba(255,255,255,0.14)",
     color: theme.colors.textPrimary,
     backgroundColor: "rgba(255,255,255,0.07)",
+    fontSize: 15,
+    lineHeight: 20,
   },
   passwordHint: {
     marginTop: 6,
@@ -538,18 +552,25 @@ const styles = StyleSheet.create({
     color: theme.colors.textSecondary,
   },
   button: {
+    minHeight: 48,
     borderWidth: 1,
     borderRadius: theme.buttons.primary.borderRadius,
-    padding: 12,
+    paddingHorizontal: theme.buttons.primary.paddingHorizontal,
     alignItems: "center",
     borderColor: theme.buttons.primary.borderColor,
     backgroundColor: theme.buttons.primary.backgroundColor,
   },
-  buttonDisabled: { opacity: 0.55 },
+  buttonDisabled: {
+    backgroundColor: "rgba(201,120,104,0.12)",
+    borderColor: "rgba(201,120,104,0.28)",
+  },
   buttonText: {
     fontSize: theme.buttons.primary.fontSize,
     lineHeight: theme.buttons.primary.lineHeight,
     fontWeight: theme.buttons.primary.fontWeight,
     color: theme.buttons.primary.textColor,
+  },
+  buttonTextDisabled: {
+    color: "rgba(221,160,139,0.58)",
   },
 });

@@ -21,6 +21,7 @@ const navigator = read("src/navigation/AppNavigator.tsx");
 const togetherIcon = read("src/components/icons/AmoriaTogetherIcon.tsx");
 const backgroundAssets = read("src/assets/backgrounds/index.ts");
 const theme = read("src/theme/theme.ts");
+const visualSystem = read("src/theme/visualSystem.ts");
 
 assert(
   background.includes('| "inboxWarm"'),
@@ -62,7 +63,8 @@ assert(
 );
 assert(
   navigator.includes("backgroundColor: theme.colors.background") &&
-    theme.includes('background: "#050816"'),
+    theme.includes("background: visualSystem.colors.background") &&
+    visualSystem.includes('background: "#050816"'),
   "the tab bar continues to use the #050816 theme background"
 );
 assert(

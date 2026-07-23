@@ -10,6 +10,7 @@ import {
 } from "react-native";
 
 import { LANGUAGE_LABELS, type Locale } from "@/i18n/translations";
+import { visualSystem } from "@/theme/visualSystem";
 
 type Props = {
   visible: boolean;
@@ -107,16 +108,16 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: 360,
     maxHeight: "80%",
-    backgroundColor: "#0B1220",
-    borderRadius: 18,
+    backgroundColor: visualSystem.colors.surfaceRaised,
+    borderRadius: visualSystem.cards.innerRadius,
     padding: 20,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
+    borderColor: visualSystem.colors.border,
   },
   title: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#FFFFFF",
+    color: visualSystem.colors.text,
     marginBottom: 14,
     textAlign: "center",
   },
@@ -125,37 +126,41 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   languageButton: {
-    borderRadius: 12,
+    minHeight: visualSystem.buttons.chip.minHeight,
+    borderRadius: visualSystem.buttons.chip.borderRadius,
     paddingVertical: 10,
-    paddingHorizontal: 12,
-    backgroundColor: "rgba(255,255,255,0.08)",
+    paddingHorizontal: visualSystem.buttons.chip.paddingHorizontal,
+    backgroundColor: visualSystem.colors.surfaceSoft,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
+    borderColor: visualSystem.colors.border,
   },
   languageButtonActive: {
-    backgroundColor: "rgba(255,255,255,0.18)",
-    borderColor: "rgba(255,255,255,0.6)",
+    backgroundColor: visualSystem.colors.selectedBg,
+    borderColor: visualSystem.colors.selectedBorder,
   },
   languageText: {
     fontSize: 15,
     fontWeight: "600",
-    color: "rgba(255,255,255,0.82)",
+    color: "rgba(226,232,255,0.84)",
   },
   languageTextActive: {
-    color: "#FFFFFF",
+    color: visualSystem.colors.selectedText,
   },
   closeButton: {
     marginTop: 14,
     alignSelf: "center",
     paddingHorizontal: 18,
     paddingVertical: 8,
-    borderRadius: 999,
+    minHeight: visualSystem.buttons.secondary.minHeight,
+    borderRadius: visualSystem.buttons.secondary.borderRadius,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.35)",
+    borderColor: visualSystem.colors.secondaryBorder,
+    backgroundColor: visualSystem.colors.secondaryBg,
   },
   closeText: {
-    color: "rgba(255,255,255,0.9)",
-    fontSize: 14,
-    fontWeight: "600",
+    color: visualSystem.colors.secondaryText,
+    fontSize: visualSystem.buttons.secondary.fontSize,
+    lineHeight: visualSystem.buttons.secondary.lineHeight,
+    fontWeight: visualSystem.buttons.secondary.fontWeight,
   },
 });

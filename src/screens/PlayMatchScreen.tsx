@@ -926,13 +926,13 @@ const styles = StyleSheet.create({
     borderRadius: 32,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(245,194,77,0.18)",
+    backgroundColor: theme.colors.warningBg,
     borderWidth: 1,
-    borderColor: "rgba(245,194,77,0.36)",
+    borderColor: "rgba(243,201,130,0.34)",
   },
   iconWrap_live: {
-    backgroundColor: "rgba(245,194,77,0.18)",
-    borderColor: "rgba(245,194,77,0.36)",
+    backgroundColor: theme.colors.warningBg,
+    borderColor: "rgba(243,201,130,0.34)",
   },
   iconWrap_ready: {
     backgroundColor: theme.colors.primaryActionBg,
@@ -1029,7 +1029,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "rgba(255,255,255,0.08)",
     borderWidth: 1,
-    borderColor: "rgba(245,194,77,0.30)",
+    borderColor: theme.buttons.secondary.borderColor,
   },
   secondaryButtonText: {
     color: theme.colors.secondaryActionText,

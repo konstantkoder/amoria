@@ -149,7 +149,7 @@ export default function SettingsScreen() {
   }, [auth, t]);
 
   return (
-    <ScreenShell title={t("screen.settings")} background="menuWarm" overlayOpacity={0.16}>
+    <ScreenShell title={t("screen.settings")} background="utilityWarm">
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
           <Text style={styles.sectionTitle}>

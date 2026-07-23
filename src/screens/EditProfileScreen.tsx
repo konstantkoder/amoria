@@ -696,7 +696,7 @@ export default function EditProfileScreen() {
             value={displayName}
             onChangeText={setDisplayName}
             placeholder={t("editProfile.namePlaceholder")}
-            placeholderTextColor={theme.colors.muted}
+            placeholderTextColor="rgba(226,232,255,0.46)"
             style={styles.input}
             maxLength={30}
             returnKeyType="next"
@@ -715,7 +715,7 @@ export default function EditProfileScreen() {
             returnKeyType="next"
             onSubmitEditing={() => interestsInputRef.current?.focus()}
             placeholder={t("editProfile.aboutPlaceholder")}
-            placeholderTextColor={theme.colors.muted}
+            placeholderTextColor="rgba(226,232,255,0.46)"
             style={[styles.input, styles.multilineInput]}
             onFocus={clearBirthDateKeyboardActive}
           />
@@ -744,7 +744,7 @@ export default function EditProfileScreen() {
                   setInterestError("");
                 }}
                 placeholder={t("editProfile.interestsPlaceholder")}
-                placeholderTextColor={theme.colors.muted}
+                placeholderTextColor="rgba(226,232,255,0.46)"
                 style={[styles.input, styles.interestInput]}
                 maxLength={PROFILE_INTEREST_MAX_LENGTH + 8}
                 returnKeyType="done"
@@ -828,7 +828,7 @@ export default function EditProfileScreen() {
                 value={birthDay}
                 onChangeText={handleBirthDayChange}
                 placeholder={t("editProfile.birthDateDayPlaceholder")}
-                placeholderTextColor={theme.colors.muted}
+                placeholderTextColor="rgba(226,232,255,0.46)"
                 style={[styles.input, styles.birthDateInput]}
                 keyboardType="number-pad"
                 inputMode="numeric"
@@ -847,7 +847,7 @@ export default function EditProfileScreen() {
                 value={birthMonth}
                 onChangeText={handleBirthMonthChange}
                 placeholder={t("editProfile.birthDateMonthPlaceholder")}
-                placeholderTextColor={theme.colors.muted}
+                placeholderTextColor="rgba(226,232,255,0.46)"
                 style={[styles.input, styles.birthDateInput]}
                 keyboardType="number-pad"
                 inputMode="numeric"
@@ -866,7 +866,7 @@ export default function EditProfileScreen() {
                 value={birthYear}
                 onChangeText={handleBirthYearChange}
                 placeholder={t("editProfile.birthDateYearPlaceholder")}
-                placeholderTextColor={theme.colors.muted}
+                placeholderTextColor="rgba(226,232,255,0.46)"
                 style={[styles.input, styles.birthDateYearInput]}
                 keyboardType="number-pad"
                 inputMode="numeric"
@@ -1035,7 +1035,12 @@ export default function EditProfileScreen() {
             disabled={saving}
             style={[styles.saveButton, saving ? styles.saveButtonDisabled : null]}
           >
-            <Text style={styles.saveButtonText}>
+            <Text
+              style={[
+                styles.saveButtonText,
+                saving ? styles.saveButtonTextDisabled : null,
+              ]}
+            >
               {saving ? t("common.saving") : t("common.save")}
             </Text>
           </TouchableOpacity>
@@ -1090,13 +1095,16 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   input: {
-    backgroundColor: theme.colors.card,
-    borderRadius: theme.radius,
+    minHeight: 48,
+    backgroundColor: "rgba(255,255,255,0.07)",
+    borderRadius: 18,
     paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingVertical: 11,
     color: theme.colors.text,
     borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
+    borderColor: "rgba(255,255,255,0.14)",
+    fontSize: 15,
+    lineHeight: 20,
     marginBottom: 14,
   },
   multilineInput: {
@@ -1274,11 +1282,15 @@ const styles = StyleSheet.create({
     borderColor: theme.buttons.primary.borderColor,
   },
   saveButtonDisabled: {
-    opacity: 0.65,
+    backgroundColor: "rgba(201,120,104,0.12)",
+    borderColor: "rgba(201,120,104,0.28)",
   },
   saveButtonText: {
     color: theme.buttons.primary.textColor,
     fontWeight: "800",
     fontSize: 15,
+  },
+  saveButtonTextDisabled: {
+    color: "rgba(221,160,139,0.58)",
   },
 });

@@ -622,7 +622,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "rgba(255,255,255,0.08)",
     borderWidth: 1,
-    borderColor: "rgba(245,194,77,0.30)",
+    borderColor: theme.buttons.secondary.borderColor,
   },
   secondaryButtonText: {
     color: theme.colors.secondaryActionText,

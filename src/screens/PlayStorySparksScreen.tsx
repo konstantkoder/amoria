@@ -830,8 +830,8 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.10)",
   },
   storyCardSelected: {
-    backgroundColor: "rgba(245,194,77,0.22)",
-    borderColor: "rgba(255,232,163,0.50)",
+    backgroundColor: theme.colors.chipActiveBg,
+    borderColor: theme.colors.chipActiveBorder,
   },
   storyCardLocked: {
     opacity: 0.82,

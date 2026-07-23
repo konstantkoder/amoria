@@ -724,7 +724,7 @@ export default function PhotoManagerScreen() {
               onChangeText={setCurrentAccountPassword}
               secureTextEntry
               placeholder={tt("photos.accountPasswordPlaceholder", "Пароль от аккаунта")}
-              placeholderTextColor="rgba(255,255,255,0.45)"
+              placeholderTextColor="rgba(226,232,255,0.46)"
               style={styles.input}
               autoCapitalize="none"
               autoCorrect={false}
@@ -744,7 +744,7 @@ export default function PhotoManagerScreen() {
                 onChangeText={setNewFolderPassword}
                 secureTextEntry
                 placeholder={tt("photos.lockedFolderPasswordPlaceholder", "Новый пароль папки")}
-                placeholderTextColor="rgba(255,255,255,0.45)"
+                placeholderTextColor="rgba(226,232,255,0.46)"
                 style={styles.input}
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -795,7 +795,12 @@ export default function PhotoManagerScreen() {
             busy || galleryLimitReached ? styles.addButtonDisabled : null,
           ]}
         >
-          <Text style={styles.addButtonText}>
+          <Text
+            style={[
+              styles.addButtonText,
+              busy || galleryLimitReached ? styles.addButtonTextDisabled : null,
+            ]}
+          >
             {busy
               ? t("common.saving")
               : galleryLimitReached
@@ -992,14 +997,16 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   input: {
-    borderRadius: theme.shapes.cardInner,
+    minHeight: 48,
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.16)",
-    backgroundColor: "rgba(255,255,255,0.06)",
+    borderColor: "rgba(255,255,255,0.14)",
+    backgroundColor: "rgba(255,255,255,0.07)",
     color: theme.colors.text,
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: 11,
     fontSize: 15,
+    lineHeight: 20,
   },
   addButton: {
     backgroundColor: theme.buttons.primary.backgroundColor,
@@ -1011,12 +1018,16 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   addButtonDisabled: {
-    opacity: 0.65,
+    backgroundColor: "rgba(201,120,104,0.12)",
+    borderColor: "rgba(201,120,104,0.28)",
   },
   addButtonText: {
     color: theme.buttons.primary.textColor,
     fontWeight: "800",
     fontSize: 15,
+  },
+  addButtonTextDisabled: {
+    color: "rgba(221,160,139,0.58)",
   },
   limitText: {
     color: theme.colors.subtext,

@@ -669,11 +669,11 @@ const styles = StyleSheet.create({
     fontWeight: theme.buttons.primary.fontWeight,
   },
   saveButtonDisabled: {
-    backgroundColor: "rgba(245,194,77,0.12)",
-    borderColor: "rgba(245,194,77,0.28)",
+    backgroundColor: "rgba(201,120,104,0.12)",
+    borderColor: "rgba(201,120,104,0.28)",
   },
   saveButtonTextDisabled: {
-    color: "rgba(245,194,77,0.64)",
+    color: "rgba(221,160,139,0.58)",
   },
   secondaryButton: {
     minWidth: 104,

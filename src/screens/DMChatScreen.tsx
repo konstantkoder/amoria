@@ -885,9 +885,13 @@ export default function DMChatScreen() {
               {item.text}
             </Text>
             {failed ? (
-              <Text style={[styles.msgStatus, styles.msgFailedText]}>{t("common.failed")}</Text>
+              <Text style={[styles.msgStatus, styles.msgFailedText]}>
+                {t("common.failed")}
+              </Text>
             ) : pending ? (
-              <Text style={styles.msgStatus}>{t("common.sending")}</Text>
+              <Text style={[styles.msgStatus, isOwn ? styles.msgStatusOwn : null]}>
+                {t("common.sending")}
+              </Text>
             ) : null}
           </View>
         </TouchableOpacity>
@@ -905,7 +909,7 @@ export default function DMChatScreen() {
       <ScreenShell
         title={screenTitle}
         headerCenter={chatHeader}
-        background="chatWarm"
+        background="conversationWarm"
         showBack
         onBack={handleBack}
       >
@@ -926,7 +930,7 @@ export default function DMChatScreen() {
       <ScreenShell
         title={screenTitle}
         headerCenter={chatHeader}
-        background="chatWarm"
+        background="conversationWarm"
         showBack
         onBack={handleBack}
       >
@@ -950,7 +954,7 @@ export default function DMChatScreen() {
     <ScreenShell
       title={screenTitle}
       headerCenter={chatHeader}
-      background="chatWarm"
+      background="conversationWarm"
       showBack
       onBack={handleBack}
     >
@@ -1024,7 +1028,7 @@ export default function DMChatScreen() {
               value={text}
               onChangeText={handleTextChange}
               placeholder={t("dm.messagePlaceholder")}
-              placeholderTextColor={theme.colors.muted}
+              placeholderTextColor="rgba(226,232,255,0.46)"
               style={styles.input}
               multiline
               maxLength={1000}
@@ -1034,7 +1038,14 @@ export default function DMChatScreen() {
               disabled={!canSend}
               style={[styles.sendBtn, !canSend ? styles.sendBtnDisabled : null]}
             >
-              <Text style={styles.sendTxt}>{t("common.send")}</Text>
+              <Text
+                style={[
+                  styles.sendTxt,
+                  !canSend ? styles.sendTxtDisabled : null,
+                ]}
+              >
+                {t("common.send")}
+              </Text>
             </TouchableOpacity>
           </View>
         </KeyboardStickyView>
@@ -1230,11 +1241,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   msgOwn: {
-    backgroundColor: theme.colors.surfaceWarm,
-    borderColor: theme.colors.borderWarm,
+    backgroundColor: "#2F2A4A",
+    borderColor: "#8D7AC5",
   },
   msgPeer: {
-    backgroundColor: "rgba(15, 19, 34, 0.94)",
+    backgroundColor: "rgba(12,16,30,0.88)",
     borderColor: "rgba(255,255,255,0.10)",
   },
   msgText: {
@@ -1242,7 +1253,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   msgTextOwn: {
-    color: "#FFFFFF",
+    color: "#F9FAFF",
   },
   msgTextPeer: {
     color: theme.colors.text,
@@ -1258,6 +1269,9 @@ const styles = StyleSheet.create({
     marginTop: 5,
     fontSize: 11,
     color: theme.colors.muted,
+  },
+  msgStatusOwn: {
+    color: "rgba(233,221,243,0.60)",
   },
   msgFailedText: {
     color: "#dc2626",
@@ -1277,13 +1291,15 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 48,
     maxHeight: 120,
-    backgroundColor: "rgba(255,255,255,0.08)",
+    backgroundColor: "rgba(255,255,255,0.07)",
     color: theme.colors.text,
     borderRadius: 18,
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: 11,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
+    borderColor: "rgba(255,255,255,0.14)",
+    fontSize: 15,
+    lineHeight: 20,
   },
   sendBtn: {
     backgroundColor: theme.buttons.primary.backgroundColor,
@@ -1297,12 +1313,16 @@ const styles = StyleSheet.create({
     borderColor: theme.buttons.primary.borderColor,
   },
   sendBtnDisabled: {
-    opacity: 0.6,
+    backgroundColor: "rgba(201,120,104,0.12)",
+    borderColor: "rgba(201,120,104,0.28)",
   },
   sendTxt: {
     color: theme.buttons.primary.textColor,
     fontSize: theme.buttons.primary.fontSize,
     lineHeight: theme.buttons.primary.lineHeight,
     fontWeight: theme.buttons.primary.fontWeight,
+  },
+  sendTxtDisabled: {
+    color: "rgba(221,160,139,0.58)",
   },
 });

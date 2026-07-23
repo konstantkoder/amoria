@@ -825,7 +825,7 @@ export default function ProfileScreen() {
               value={nameDraft}
               onChangeText={setNameDraft}
               placeholder={t("profile.enterName")}
-              placeholderTextColor={theme.colors.muted}
+              placeholderTextColor="rgba(226,232,255,0.46)"
               autoCapitalize="words"
               editable={!nameSaving}
               style={styles.nameInput}
@@ -1255,13 +1255,16 @@ const styles = StyleSheet.create({
     lineHeight: 19,
   },
   nameInput: {
-    borderRadius: theme.radius,
+    minHeight: 48,
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
-    backgroundColor: theme.colors.surfaceSoft,
+    borderColor: "rgba(255,255,255,0.14)",
+    backgroundColor: "rgba(255,255,255,0.07)",
     color: theme.colors.text,
     paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingVertical: 11,
+    fontSize: 15,
+    lineHeight: 20,
   },
   nameError: {
     color: theme.colors.danger,

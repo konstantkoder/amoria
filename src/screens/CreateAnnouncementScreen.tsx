@@ -389,7 +389,7 @@ export default function CreateAnnouncementScreen() {
   return (
     <ScreenShell
       title={copyOrFallback(t, "nearby.create.title", "Создать объявление")}
-      background="midnightWarm"
+      background="announcementWarm"
       showBack
       onBack={handleBack}
     >
@@ -527,7 +527,7 @@ export default function CreateAnnouncementScreen() {
               "nearby.create.titlePlaceholder",
               "Например: Прогулка вечером по центру"
             )}
-            placeholderTextColor={theme.colors.muted}
+            placeholderTextColor="rgba(226,232,255,0.46)"
             style={styles.input}
             maxLength={80}
           />
@@ -543,7 +543,7 @@ export default function CreateAnnouncementScreen() {
               "nearby.create.descriptionPlaceholder",
               "Что за план, кого ищешь и почему это звучит хорошо именно сейчас?"
             )}
-            placeholderTextColor={theme.colors.muted}
+            placeholderTextColor="rgba(226,232,255,0.46)"
             style={[styles.input, styles.textArea]}
             multiline
             textAlignVertical="top"
@@ -561,7 +561,7 @@ export default function CreateAnnouncementScreen() {
               "nearby.create.cityPlaceholder",
               "Например: Центр, Варшава или Mokotow"
             )}
-            placeholderTextColor={theme.colors.muted}
+            placeholderTextColor="rgba(226,232,255,0.46)"
             style={styles.input}
             maxLength={60}
           />
@@ -829,14 +829,16 @@ const styles = StyleSheet.create({
     color: theme.colors.textAccent,
   },
   input: {
-    borderRadius: theme.shapes.cardInner,
-    paddingHorizontal: 13,
+    minHeight: 48,
+    borderRadius: 18,
+    paddingHorizontal: 14,
     paddingVertical: 11,
-    backgroundColor: "rgba(255,255,255,0.04)",
+    backgroundColor: "rgba(255,255,255,0.07)",
     borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
+    borderColor: "rgba(255,255,255,0.14)",
     color: theme.colors.text,
-    fontSize: 13,
+    fontSize: 15,
+    lineHeight: 20,
   },
   textArea: {
     minHeight: 108,

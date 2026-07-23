@@ -599,7 +599,7 @@ export default function AnnouncementDetailScreen() {
 
   if (!loading && loadError) {
     return (
-      <ScreenShell title={screenTitle} background="midnightWarm" showBack onBack={handleBack}>
+      <ScreenShell title={screenTitle} background="announcementWarm" showBack onBack={handleBack}>
         <View style={styles.centerState}>
           <CoreStateCard
             icon="cloud-offline-outline"
@@ -621,7 +621,7 @@ export default function AnnouncementDetailScreen() {
 
   if (!loading && !announcement) {
     return (
-      <ScreenShell title={screenTitle} background="midnightWarm" showBack onBack={handleBack}>
+      <ScreenShell title={screenTitle} background="announcementWarm" showBack onBack={handleBack}>
         <View style={styles.centerState}>
           <CoreStateCard
             icon="document-text-outline"
@@ -643,7 +643,7 @@ export default function AnnouncementDetailScreen() {
 
   if (!loading && announcement && authorBlocked && announcementAuthorUid !== currentUid) {
     return (
-      <ScreenShell title={screenTitle} background="midnightWarm" showBack onBack={handleBack}>
+      <ScreenShell title={screenTitle} background="announcementWarm" showBack onBack={handleBack}>
         <View style={styles.centerState}>
           <CoreStateCard
             icon="eye-off-outline"
@@ -665,7 +665,7 @@ export default function AnnouncementDetailScreen() {
 
   if (!loading && announcement && unavailableAnnouncementCopy) {
     return (
-      <ScreenShell title={screenTitle} background="midnightWarm" showBack onBack={handleBack}>
+      <ScreenShell title={screenTitle} background="announcementWarm" showBack onBack={handleBack}>
         <View style={styles.centerState}>
           <CoreStateCard
             icon="shield-checkmark-outline"
@@ -682,7 +682,7 @@ export default function AnnouncementDetailScreen() {
   }
 
   return (
-    <ScreenShell title={screenTitle} background="midnightWarm" showBack onBack={handleBack}>
+    <ScreenShell title={screenTitle} background="announcementWarm" showBack onBack={handleBack}>
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={styles.content}

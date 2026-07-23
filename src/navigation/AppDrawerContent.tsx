@@ -12,11 +12,13 @@ import { useNavigation, useNavigationState } from "@react-navigation/native";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocale } from "@/contexts/LocaleContext";
 import { type RootStackNavigationProp } from "@/navigation/appRoutes";
+import ScreenBackground from "@/components/ScreenBackground";
 import { theme } from "@/theme";
+import { visualSystem } from "@/theme/visualSystem";
 
-const DRAWER_ACTIVE_TINT = theme.colors.textAccent;
-const DRAWER_ACTIVE_BACKGROUND = theme.colors.surfaceWarm;
-const DRAWER_ACTIVE_BORDER = theme.colors.borderWarm;
+const DRAWER_ACTIVE_TINT = visualSystem.colors.secondaryText;
+const DRAWER_ACTIVE_BACKGROUND = "rgba(167,139,196,0.16)";
+const DRAWER_ACTIVE_BORDER = "rgba(167,139,196,0.40)";
 
 type Props = {
   onClose?: () => void;
@@ -171,8 +173,9 @@ export default function AppDrawerContent({ onClose }: Props) {
   );
 
   return (
-    <View style={styles.container}>
-      <View style={styles.panel}>
+    <ScreenBackground variant="menuWarm">
+      <View style={styles.container}>
+        <View style={styles.panel}>
         <View style={styles.headerRow}>
           <View style={styles.titleWrap}>
             <View style={styles.titlePill}>
@@ -234,18 +237,19 @@ export default function AppDrawerContent({ onClose }: Props) {
             tone: "danger",
           })}
         </ScrollView>
+        </View>
       </View>
-    </View>
+    </ScreenBackground>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "rgba(7, 9, 18, 0.96)",
+    backgroundColor: "transparent",
   },
   panel: {
-    backgroundColor: "rgba(7, 9, 18, 0.96)",
+    backgroundColor: "rgba(10,14,26,0.88)",
     borderRadius: 26,
     paddingHorizontal: 16,
     paddingTop: 16,
@@ -254,7 +258,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
     marginBottom: 14,
     borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
+    borderColor: "rgba(255,255,255,0.12)",
     flex: 1,
     alignSelf: "stretch",
     justifyContent: "flex-start",
@@ -298,12 +302,12 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
   },
   closeButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.12)",
+    backgroundColor: "rgba(255,255,255,0.07)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.18)",
   },
@@ -333,7 +337,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     paddingVertical: 12,
     borderRadius: 18,
-    backgroundColor: "rgba(255,255,255,0.045)",
+    backgroundColor: "rgba(255,255,255,0.05)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.08)",
     shadowColor: "#000000",
@@ -367,8 +371,8 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.16)",
   },
   activeIconWrap: {
-    backgroundColor: theme.colors.surfaceWarm,
-    borderColor: theme.colors.borderWarm,
+    backgroundColor: "rgba(167,139,196,0.16)",
+    borderColor: "rgba(167,139,196,0.40)",
   },
   dangerIconWrap: {
     backgroundColor: "rgba(255, 77, 103, 0.12)",
@@ -381,14 +385,14 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   activeButtonText: {
-    color: theme.colors.textPrimary,
+    color: "#E9DDF3",
   },
   activeDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
     marginLeft: "auto",
-    backgroundColor: DRAWER_ACTIVE_TINT,
+    backgroundColor: "#DDA08B",
   },
   localeBadge: {
     marginLeft: "auto",

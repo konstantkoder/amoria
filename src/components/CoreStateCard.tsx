@@ -2,7 +2,7 @@ import React from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
-import GoldActionButton from "@/components/GoldActionButton";
+import PrimaryActionButton from "@/components/PrimaryActionButton";
 import { theme } from "@/theme";
 
 type Action = {
@@ -47,10 +47,19 @@ export default function CoreStateCard({
       {primaryAction || secondaryAction ? (
         <View style={styles.actions}>
           {primaryAction ? (
-            <GoldActionButton label={primaryAction.label} onPress={primaryAction.onPress} />
+            <PrimaryActionButton
+              label={primaryAction.label}
+              onPress={primaryAction.onPress}
+            />
           ) : null}
           {secondaryAction ? (
-            <Pressable onPress={secondaryAction.onPress} style={styles.secondaryButton}>
+            <Pressable
+              onPress={secondaryAction.onPress}
+              style={({ pressed }) => [
+                styles.secondaryButton,
+                pressed ? styles.secondaryButtonPressed : null,
+              ]}
+            >
               <Text style={styles.secondaryButtonText}>{secondaryAction.label}</Text>
             </Pressable>
           ) : null}
@@ -122,5 +131,8 @@ const styles = StyleSheet.create({
     fontSize: theme.buttons.secondary.fontSize,
     lineHeight: theme.buttons.secondary.lineHeight,
     fontWeight: theme.buttons.secondary.fontWeight,
+  },
+  secondaryButtonPressed: {
+    backgroundColor: theme.buttons.secondary.pressedBackgroundColor,
   },
 });

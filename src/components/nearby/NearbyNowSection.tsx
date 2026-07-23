@@ -752,7 +752,7 @@ export default function NearbyNowSection({
         value={message}
         onChangeText={setMessage}
         placeholder={t("now.placeholder")}
-        placeholderTextColor="#6B7280"
+        placeholderTextColor="rgba(226,232,255,0.46)"
         multiline
         style={styles.input}
       />
@@ -1157,14 +1157,15 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   input: {
-    borderRadius: 12,
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
-    backgroundColor: "rgba(5, 8, 22, 0.36)",
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    color: theme.colors.pillText,
-    fontSize: 13,
+    borderColor: "rgba(255,255,255,0.14)",
+    backgroundColor: "rgba(255,255,255,0.07)",
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    color: theme.colors.text,
+    fontSize: 15,
+    lineHeight: 20,
     minHeight: 68,
     textAlignVertical: "top",
   },

@@ -1,13 +1,11 @@
 import type { Mood } from "@/models/User";
+import { visualSystem } from "@/theme/visualSystem";
 
 type MoodKey = Mood | "default";
 
 type MoodPalette = {
-  /** фон/подсветка вокруг */
   glow: string;
-  /** фон бэйджа настроения */
   badgeBg: string;
-  /** цвет текста бэйджа */
   badgeText: string;
 };
 
@@ -46,118 +44,117 @@ const moodPalettes: Record<MoodKey, MoodPalette> = {
 
 export const theme = {
   colors: {
-    // общий фон приложения — ночной космос
-    background: "#050816",
+    background: visualSystem.colors.background,
     backgroundAlt: "#120824",
-    backgroundSoft: "#1A1025",
-    screenBackground: "#050816",
+    backgroundSoft: visualSystem.colors.backgroundElevated,
+    screenBackground: visualSystem.colors.background,
     screenGradientTop: "#070B15",
     screenGradientBottom: "#120B1C",
 
-    // карточки и панели
-    card: "#181828",
-    cardElevated: "#1F2030",
-    surfaceBase: "rgba(7,11,21,0.78)",
-    surfaceRaised: "rgba(12,16,30,0.88)",
-    surfaceSoft: "rgba(255,255,255,0.06)",
-    surfaceWarm: "rgba(245,194,77,0.10)",
+    card: visualSystem.colors.backgroundRaised,
+    cardElevated: visualSystem.colors.backgroundElevated,
+    surfaceBase: visualSystem.colors.surface,
+    surfaceRaised: visualSystem.colors.surfaceRaised,
+    surfaceSoft: visualSystem.colors.surfaceSoft,
+    surfaceWarm: visualSystem.colors.accentSoft,
 
-    // текст
-    text: "#F9FAFF",
-    subtext: "#A3A8C3",
-    muted: "#6B6F86",
-    textPrimary: "#F9FAFF",
-    textSecondary: "rgba(226,232,255,0.76)",
-    textMuted: "rgba(226,232,255,0.56)",
-    textAccent: "#F5C24D",
+    text: visualSystem.colors.text,
+    subtext: visualSystem.colors.textSecondary,
+    muted: visualSystem.colors.textMuted,
+    textPrimary: visualSystem.colors.text,
+    textSecondary: visualSystem.colors.textSecondary,
+    textMuted: visualSystem.colors.textMuted,
+    textAccent: visualSystem.colors.accent,
 
-    // основные акценты (кнопки, лайки и т. п.)
-    primary: "#FF4E8A",        // розово-малиновый
-    primaryMuted: "#3A1221",
-    accent: "#FF7A3C",         // тёплый оранжево-розовый
-    accentSoft: "rgba(255, 122, 60, 0.14)",
+    primary: visualSystem.colors.primaryBg,
+    primaryMuted: "#2D171B",
+    accent: visualSystem.colors.secondaryAccent,
+    accentSoft: "rgba(167,139,196,0.14)",
     success: "#46E0C8",
     danger: "#FF4D67",
-    goldLight: "#FFE8A3",
-    gold: "#F5C24D",
-    goldDeep: "#C88618",
-    goldText: "#201306",
-    goldBorder: "rgba(255,232,163,0.72)",
-    goldGlow: "rgba(245,194,77,0.30)",
-    primaryActionBg: "#F5C24D",
-    primaryActionText: "#201306",
-    primaryActionBorder: "rgba(255,232,163,0.72)",
-    primaryActionPressedBg: "#E0A72D",
-    secondaryActionBg: "rgba(255,255,255,0.07)",
-    secondaryActionText: "#F5C24D",
-    ghostActionText: "rgba(245,194,77,0.94)",
-    chipBg: "rgba(255,255,255,0.07)",
-    chipActiveBg: "rgba(245,194,77,0.16)",
-    chipActiveBorder: "rgba(245,194,77,0.46)",
-    dangerBg: "rgba(255,77,103,0.16)",
-    dangerText: "#FFD2DA",
-    successBg: "rgba(31,185,110,0.15)",
-    successText: "#B9F6D2",
-    warningBg: "rgba(245,194,77,0.13)",
-    warningText: "#F5C24D",
 
-    // табы
-    tabActive: "#FF4E8A",
-    tabInactive: "#757B9A",
+    /** @deprecated Compatibility alias; use semantic visual-system roles. */
+    goldLight: visualSystem.colors.textWarm,
+    /** @deprecated Compatibility alias; use semantic visual-system roles. */
+    gold: visualSystem.colors.accent,
+    /** @deprecated Compatibility alias; use semantic visual-system roles. */
+    goldDeep: visualSystem.colors.secondaryAccent,
+    /** @deprecated Compatibility alias; use semantic visual-system roles. */
+    goldText: visualSystem.colors.primaryText,
+    /** @deprecated Compatibility alias; use semantic visual-system roles. */
+    goldBorder: visualSystem.colors.accentBorder,
+    /** @deprecated Compatibility alias; use semantic visual-system roles. */
+    goldGlow: visualSystem.colors.accentSoft,
 
-    // плашки / pill-кнопки
+    primaryActionBg: visualSystem.colors.primaryBg,
+    primaryActionText: visualSystem.colors.primaryText,
+    primaryActionBorder: visualSystem.colors.primaryBorder,
+    primaryActionPressedBg: visualSystem.colors.primaryPressedBg,
+    secondaryActionBg: visualSystem.colors.secondaryBg,
+    secondaryActionText: visualSystem.colors.secondaryText,
+    ghostActionText: visualSystem.colors.accent,
+    chipBg: visualSystem.colors.surfaceSoft,
+    chipActiveBg: visualSystem.colors.selectedBg,
+    chipActiveBorder: visualSystem.colors.selectedBorder,
+    dangerBg: visualSystem.colors.dangerBg,
+    dangerText: visualSystem.colors.dangerText,
+    successBg: visualSystem.colors.successBg,
+    successText: visualSystem.colors.successText,
+    warningBg: visualSystem.colors.warningBg,
+    warningText: visualSystem.colors.warningText,
+
+    tabActive: visualSystem.colors.navActive,
+    tabInactive: visualSystem.colors.navInactive,
+
     pillBg: "rgba(255, 255, 255, 0.05)",
     pillText: "#F5F5FF",
 
-    // бордеры/разделители
-    borderSubtle: "rgba(255,255,255,0.10)",
-    borderStrong: "rgba(255,255,255,0.18)",
-    borderWarm: "rgba(245,194,77,0.38)",
+    borderSubtle: visualSystem.colors.border,
+    borderStrong: visualSystem.colors.borderStrong,
+    borderWarm: visualSystem.colors.accentBorder,
     shadowColor: "#000000",
   },
 
-  // оставляем радиус как число — для совместимости со старыми стилями
   radius: 20,
   spacing: 16,
   layout: {
     screenPadding: 14,
     sectionGap: 14,
     smallGap: 8,
-
     compactBreakpoint: 360,
     largeBreakpoint: 430,
   },
 
-  // дополнительные формы (можно использовать в новых компонентах)
   shapes: {
     card: 24,
-    cardInner: 18,
+    cardInner: visualSystem.cards.innerRadius,
     pill: 999,
   },
   radii: {
     hero: 24,
-    card: 22,
-    inner: 18,
-    button: 18,
-    chip: 17,
-    iconButton: 20,
+    card: visualSystem.cards.radius,
+    inner: visualSystem.cards.innerRadius,
+    button: visualSystem.buttons.primary.borderRadius,
+    chip: visualSystem.buttons.chip.borderRadius,
+    iconButton: visualSystem.buttons.icon.borderRadius,
     sheetTop: 24,
   },
   buttons: {
     primary: {
-      height: 48,
-      minHeight: 48,
-      paddingHorizontal: 18,
-      borderRadius: 18,
+      height: visualSystem.buttons.primary.minHeight,
+      minHeight: visualSystem.buttons.primary.minHeight,
+      paddingHorizontal: visualSystem.buttons.primary.paddingHorizontal,
+      borderRadius: visualSystem.buttons.primary.borderRadius,
       borderWidth: 1,
-      backgroundColor: "#F5C24D",
-      borderColor: "rgba(255,232,163,0.72)",
-      textColor: "#201306",
-      fontSize: 15,
-      lineHeight: 18,
-      fontWeight: "900" as const,
-      iconSize: 18,
-      iconTextGap: 8,
+      backgroundColor: visualSystem.colors.primaryBg,
+      pressedBackgroundColor: visualSystem.colors.primaryPressedBg,
+      borderColor: visualSystem.colors.primaryBorder,
+      textColor: visualSystem.colors.primaryText,
+      fontSize: visualSystem.buttons.primary.fontSize,
+      lineHeight: visualSystem.buttons.primary.lineHeight,
+      fontWeight: visualSystem.buttons.primary.fontWeight,
+      iconSize: visualSystem.buttons.primary.iconSize,
+      iconTextGap: visualSystem.buttons.primary.gap,
       pressedScale: 0.98,
       pressedOpacity: 0.92,
       animationDurationMs: 120,
@@ -165,19 +162,20 @@ export const theme = {
     },
 
     secondary: {
-      height: 44,
-      minHeight: 44,
-      paddingHorizontal: 16,
-      borderRadius: 17,
+      height: visualSystem.buttons.secondary.minHeight,
+      minHeight: visualSystem.buttons.secondary.minHeight,
+      paddingHorizontal: visualSystem.buttons.secondary.paddingHorizontal,
+      borderRadius: visualSystem.buttons.secondary.borderRadius,
       borderWidth: 1,
-      backgroundColor: "rgba(255,255,255,0.07)",
-      borderColor: "rgba(245,194,77,0.30)",
-      textColor: "#F5C24D",
-      fontSize: 14,
-      lineHeight: 18,
-      fontWeight: "900" as const,
-      iconSize: 17,
-      iconTextGap: 7,
+      backgroundColor: visualSystem.colors.secondaryBg,
+      pressedBackgroundColor: visualSystem.colors.secondaryPressedBg,
+      borderColor: visualSystem.colors.secondaryBorder,
+      textColor: visualSystem.colors.secondaryText,
+      fontSize: visualSystem.buttons.secondary.fontSize,
+      lineHeight: visualSystem.buttons.secondary.lineHeight,
+      fontWeight: visualSystem.buttons.secondary.fontWeight,
+      iconSize: visualSystem.buttons.secondary.iconSize,
+      iconTextGap: visualSystem.buttons.secondary.gap,
       pressedScale: 0.985,
       pressedOpacity: 0.88,
       animationDurationMs: 120,
@@ -185,63 +183,67 @@ export const theme = {
     },
 
     ghost: {
-      height: 36,
-      paddingHorizontal: 8,
-      borderRadius: 12,
+      height: visualSystem.buttons.compact.minHeight,
+      minHeight: visualSystem.buttons.compact.minHeight,
+      paddingHorizontal: visualSystem.buttons.compact.paddingHorizontal,
+      borderRadius: visualSystem.buttons.compact.borderRadius,
       backgroundColor: "transparent",
-      textColor: "rgba(245,194,77,0.94)",
-      fontSize: 13,
-      lineHeight: 17,
-      fontWeight: "900" as const,
+      textColor: visualSystem.colors.secondaryText,
+      fontSize: visualSystem.buttons.compact.fontSize,
+      lineHeight: visualSystem.buttons.compact.lineHeight,
+      fontWeight: visualSystem.buttons.compact.fontWeight,
+      iconSize: visualSystem.buttons.compact.iconSize,
+      iconTextGap: visualSystem.buttons.compact.gap,
       pressedOpacity: 0.62,
       disabledOpacity: 0.45,
     },
 
     icon: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      backgroundColor: "rgba(255,255,255,0.08)",
-      borderColor: "rgba(255,255,255,0.14)",
+      width: visualSystem.buttons.icon.width,
+      height: visualSystem.buttons.icon.height,
+      borderRadius: visualSystem.buttons.icon.borderRadius,
+      backgroundColor: visualSystem.colors.surfaceSoft,
+      pressedBackgroundColor: visualSystem.colors.surfacePressed,
+      borderColor: visualSystem.colors.border,
       borderWidth: 1,
-      iconSize: 18,
-      iconColor: "#F9FAFF",
+      iconSize: visualSystem.buttons.icon.iconSize,
+      iconColor: visualSystem.colors.textWarm,
       pressedScale: 0.96,
       pressedOpacity: 0.82,
-      disabledOpacity: 0.50,
+      disabledOpacity: 0.5,
     },
 
     chip: {
-      height: 34,
-      minHeight: 34,
-      paddingHorizontal: 12,
-      borderRadius: 17,
+      height: visualSystem.buttons.chip.minHeight,
+      minHeight: visualSystem.buttons.chip.minHeight,
+      paddingHorizontal: visualSystem.buttons.chip.paddingHorizontal,
+      borderRadius: visualSystem.buttons.chip.borderRadius,
       borderWidth: 1,
-      backgroundColor: "rgba(255,255,255,0.07)",
-      borderColor: "rgba(255,255,255,0.12)",
-      activeBackgroundColor: "rgba(245,194,77,0.16)",
-      activeBorderColor: "rgba(245,194,77,0.46)",
-      textColor: "rgba(226,232,255,0.86)",
-      activeTextColor: "#F5C24D",
-      fontSize: 12,
-      lineHeight: 15,
-      fontWeight: "900" as const,
-      iconSize: 14,
+      backgroundColor: visualSystem.colors.surfaceSoft,
+      borderColor: visualSystem.colors.border,
+      activeBackgroundColor: visualSystem.colors.selectedBg,
+      activeBorderColor: visualSystem.colors.selectedBorder,
+      textColor: "rgba(226,232,255,0.84)",
+      activeTextColor: visualSystem.colors.selectedText,
+      fontSize: visualSystem.buttons.chip.fontSize,
+      lineHeight: visualSystem.buttons.chip.lineHeight,
+      fontWeight: visualSystem.buttons.chip.fontWeight,
+      iconSize: visualSystem.buttons.compact.iconSize,
       pressedScale: 0.98,
       pressedOpacity: 0.86,
     },
 
     danger: {
-      height: 44,
-      paddingHorizontal: 16,
-      borderRadius: 17,
+      height: visualSystem.buttons.secondary.minHeight,
+      paddingHorizontal: visualSystem.buttons.secondary.paddingHorizontal,
+      borderRadius: visualSystem.buttons.secondary.borderRadius,
       borderWidth: 1,
-      backgroundColor: "rgba(255,77,103,0.16)",
-      borderColor: "rgba(255,210,218,0.28)",
-      textColor: "#FFD2DA",
-      fontSize: 14,
-      lineHeight: 18,
-      fontWeight: "900" as const,
+      backgroundColor: visualSystem.colors.dangerBg,
+      borderColor: visualSystem.colors.dangerBorder,
+      textColor: visualSystem.colors.dangerText,
+      fontSize: visualSystem.buttons.secondary.fontSize,
+      lineHeight: visualSystem.buttons.secondary.lineHeight,
+      fontWeight: visualSystem.buttons.secondary.fontWeight,
       pressedScale: 0.985,
       pressedOpacity: 0.84,
     },
@@ -249,62 +251,57 @@ export const theme = {
   cards: {
     hero: {
       minHeight: 128,
-      padding: 16,
+      padding: visualSystem.cards.padding,
       borderRadius: 24,
-      backgroundColor: "rgba(12,16,30,0.82)",
-      borderColor: "rgba(255,255,255,0.12)",
+      backgroundColor: visualSystem.colors.surface,
+      borderColor: visualSystem.colors.border,
       borderWidth: 1,
     },
-
     standard: {
       minHeight: 88,
       padding: 14,
-      borderRadius: 22,
-      backgroundColor: "rgba(9,14,32,0.72)",
-      borderColor: "rgba(255,255,255,0.10)",
+      borderRadius: visualSystem.cards.radius,
+      backgroundColor: visualSystem.colors.surface,
+      borderColor: visualSystem.colors.border,
       borderWidth: 1,
     },
-
     compact: {
       minHeight: 64,
-      padding: 12,
-      borderRadius: 18,
-      backgroundColor: "rgba(9,14,32,0.68)",
-      borderColor: "rgba(255,255,255,0.10)",
+      padding: visualSystem.cards.compactPadding,
+      borderRadius: visualSystem.cards.innerRadius,
+      backgroundColor: visualSystem.colors.surface,
+      borderColor: visualSystem.colors.border,
       borderWidth: 1,
     },
-
     warning: {
       minHeight: 86,
-      padding: 12,
-      borderRadius: 18,
-      backgroundColor: "rgba(245,194,77,0.13)",
-      borderColor: "rgba(245,194,77,0.38)",
+      padding: visualSystem.cards.compactPadding,
+      borderRadius: visualSystem.cards.innerRadius,
+      backgroundColor: visualSystem.colors.warningBg,
+      borderColor: visualSystem.colors.warningBorder,
       borderWidth: 1,
     },
-
     error: {
       minHeight: 76,
-      padding: 12,
-      borderRadius: 18,
-      backgroundColor: "rgba(255,77,103,0.16)",
-      borderColor: "rgba(255,210,218,0.24)",
+      padding: visualSystem.cards.compactPadding,
+      borderRadius: visualSystem.cards.innerRadius,
+      backgroundColor: visualSystem.colors.dangerBg,
+      borderColor: visualSystem.colors.dangerBorder,
       borderWidth: 1,
     },
-
     success: {
       minHeight: 64,
       padding: 11,
       borderRadius: 16,
-      backgroundColor: "rgba(31,185,110,0.15)",
-      borderColor: "rgba(185,246,210,0.28)",
+      backgroundColor: visualSystem.colors.successBg,
+      borderColor: visualSystem.colors.successBorder,
       borderWidth: 1,
     },
   },
   sheets: {
     backdropColor: "rgba(0,0,0,0.38)",
     backgroundColor: "rgba(7,11,21,0.98)",
-    borderColor: "rgba(255,255,255,0.14)",
+    borderColor: visualSystem.colors.border,
     minHeight: 320,
     maxHeightRatio: 0.72,
     maxHeight: 520,
@@ -317,14 +314,9 @@ export const theme = {
     handleHeight: 4,
     handleRadius: 2,
   },
-
-  // палитра по настроениям
   mood: moodPalettes,
 };
 
-/**
- * Вспомогательная функция, чтобы быстро получить цвета по настроению.
- */
 export function getMoodTheme(mood?: Mood | null): MoodPalette {
   if (!mood) return moodPalettes.default;
   return moodPalettes[mood] ?? moodPalettes.default;

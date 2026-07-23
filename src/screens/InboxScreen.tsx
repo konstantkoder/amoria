@@ -430,7 +430,7 @@ const styles = StyleSheet.create({
     borderRadius: 11,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: theme.colors.textAccent,
+    backgroundColor: theme.colors.primaryActionBg,
   },
   unreadBadgeText: {
     color: theme.colors.primaryActionText,

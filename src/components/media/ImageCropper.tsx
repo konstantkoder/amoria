@@ -547,7 +547,13 @@ export default function ImageCropper({
               !canConfirmCrop ? styles.primaryButtonDisabled : null,
             ]}
           >
-            <Text numberOfLines={2} style={styles.primaryText}>
+            <Text
+              numberOfLines={2}
+              style={[
+                styles.primaryText,
+                !canConfirmCrop ? styles.primaryTextDisabled : null,
+              ]}
+            >
               {doneLabel}
             </Text>
           </Pressable>
@@ -697,23 +703,28 @@ const styles = StyleSheet.create({
     borderTopColor: "rgba(255,255,255,0.1)",
   },
   primaryButton: {
-    minHeight: 46,
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    minHeight: 48,
+    borderRadius: 18,
+    paddingHorizontal: 18,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: theme.colors.primary,
+    backgroundColor: theme.colors.primaryActionBg,
+    borderWidth: 1,
+    borderColor: theme.colors.primaryActionBorder,
   },
   primaryButtonDisabled: {
-    opacity: 0.42,
+    backgroundColor: "rgba(201,120,104,0.12)",
+    borderColor: "rgba(201,120,104,0.28)",
   },
   primaryText: {
-    color: "#FFFFFF",
-    fontSize: 14,
+    color: theme.colors.primaryActionText,
+    fontSize: 15,
     lineHeight: 18,
     fontWeight: "900",
     textAlign: "center",
+  },
+  primaryTextDisabled: {
+    color: "rgba(221,160,139,0.58)",
   },
   secondaryActions: {
     flexDirection: "row",
@@ -721,21 +732,20 @@ const styles = StyleSheet.create({
   },
   secondaryButton: {
     flex: 1,
-    minHeight: 46,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    minHeight: 44,
+    borderRadius: 17,
+    paddingHorizontal: 16,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.08)",
+    backgroundColor: theme.buttons.secondary.backgroundColor,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.16)",
+    borderColor: theme.buttons.secondary.borderColor,
   },
   secondaryText: {
-    color: "#FFFFFF",
-    fontSize: 13,
-    lineHeight: 17,
-    fontWeight: "800",
+    color: theme.buttons.secondary.textColor,
+    fontSize: 14,
+    lineHeight: 18,
+    fontWeight: "900",
     textAlign: "center",
   },
   previewFrame: {

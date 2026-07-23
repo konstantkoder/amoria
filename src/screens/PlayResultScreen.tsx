@@ -1109,11 +1109,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "rgba(255,255,255,0.08)",
     borderWidth: 1,
-    borderColor: "rgba(245,194,77,0.30)",
+    borderColor: theme.buttons.secondary.borderColor,
   },
   continueButton: {
-    backgroundColor: "rgba(245,194,77,0.12)",
-    borderColor: "rgba(245,194,77,0.34)",
+    backgroundColor: theme.buttons.secondary.backgroundColor,
+    borderColor: theme.buttons.secondary.borderColor,
   },
   secondaryButtonText: {
     color: theme.colors.secondaryActionText,
@@ -1132,7 +1132,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "rgba(245,194,77,0.30)",
+    borderColor: theme.buttons.secondary.borderColor,
     backgroundColor: "rgba(255,255,255,0.06)",
   },
   outlineButtonText: {
