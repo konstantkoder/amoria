@@ -20,6 +20,8 @@ export type ErrorCode =
   | "together_continuation_failed"
   | "together_queue_not_waiting"
   | "together_turn_out_of_order"
+  | "together_turn_invalid_transition"
+  | "together_event_id_conflict"
   | "nearby_activity_preference_required"
   | "not_found"
   | "email_taken"

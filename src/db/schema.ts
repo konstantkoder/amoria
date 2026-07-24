@@ -501,6 +501,7 @@ export const togetherTurnBasedMoments = pgTable(
     currentRoundId: text("current_round_id"),
     currentRoundIndex: integer("current_round_index"),
     currentRoundChoiceIndex: integer("current_round_choice_index"),
+    clientRequestId: text("client_request_id"),
     latitude: doublePrecision("latitude").notNull(),
     longitude: doublePrecision("longitude").notNull(),
     radiusKm: integer("radius_km"),
@@ -527,6 +528,8 @@ export const togetherTurnBasedMoments = pgTable(
   (table) => [
     index("together_turn_based_moments_status_created_idx").on(table.status, table.createdAt),
     index("together_turn_based_moments_partner_idx").on(table.partnerUserId),
+    uniqueIndex("together_turn_based_moments_start_request_unique").on(table.starterUserId, table.clientRequestId).where(sql`${table.clientRequestId} IS NOT NULL`),
+    check("together_turn_based_moments_client_request_id_length_check", sql`${table.clientRequestId} IS NULL OR char_length(${table.clientRequestId}) BETWEEN 1 AND 128`),
     check("together_turn_based_moments_status_check", sql`${table.status} IN ('starter_turn','waiting_for_partner','partner_turn','awaiting_draw_reveal','story_turn','awaiting_story_reveal','completed','expired','cancelled','blocked','reported')`),
     check("together_turn_based_moments_stage_check", sql`${table.stage} IN ('draw','story','done')`),
     check("together_turn_based_moments_radius_check", sql`${table.radiusKm} IS NULL OR ${table.radiusKm} IN (5,25,100,250)`),
@@ -542,6 +545,7 @@ export const togetherTurnBasedParticipants = pgTable(
     active: boolean("active").default(true).notNull(),
     joinedAt: timestamp("joined_at", { withTimezone: true }).defaultNow().notNull(),
     completedAt: timestamp("completed_at", { withTimezone: true }),
+    dismissedAt: timestamp("dismissed_at", { withTimezone: true }),
   },
   (table) => [
     primaryKey({ columns: [table.momentId, table.userId] }),
@@ -556,6 +560,8 @@ export const togetherTurnBasedProblems = pgTable(
   {
     id: uuid("id").defaultRandom().primaryKey(),
     momentId: uuid("moment_id").references(() => togetherTurnBasedMoments.id, { onDelete: "cascade" }),
+    sessionId: uuid("session_id").references(() => togetherSessions.id, { onDelete: "set null" }),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
     code: text("code").notNull(),
     severity: text("severity").notNull(),
     status: text("status").default("open").notNull(),
@@ -572,7 +578,9 @@ export const togetherTurnBasedProblems = pgTable(
   },
   (table) => [
     index("together_turn_based_problems_status_seen_idx").on(table.status, table.lastSeenAt),
-    uniqueIndex("together_turn_based_problems_open_dedupe").on(table.momentId, table.code).where(sql`${table.status} = 'open'`),
+    index("together_turn_based_problems_session_idx").on(table.sessionId),
+    index("together_turn_based_problems_user_idx").on(table.userId),
+    uniqueIndex("together_turn_based_problems_open_dedupe").on(sql`COALESCE(${table.momentId}::text,'global')`, table.code).where(sql`${table.status} = 'open'`),
     check("together_turn_based_problems_severity_check", sql`${table.severity} IN ('info','warning','error','critical')`),
     check("together_turn_based_problems_status_check", sql`${table.status} IN ('open','resolved','ignored')`),
   ],

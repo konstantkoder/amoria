@@ -40,11 +40,13 @@ type ClientErrorsServiceDeps = {
     | "listClientErrorReports"
     | "updateClientErrorReportStatus"
   >;
+  linkTurnBasedClientError?: typeof clientErrorsRepo.linkTurnBasedClientError;
   audit: Pick<typeof adminAuditService, "writeAuditLog">;
 };
 
 const defaultDeps: ClientErrorsServiceDeps = {
   repo: clientErrorsRepo,
+  linkTurnBasedClientError: clientErrorsRepo.linkTurnBasedClientError,
   audit: adminAuditService,
 };
 
@@ -71,6 +73,7 @@ export async function createClientErrorReport(
   const user = context.userId
     ? await deps.repo.findUserSnapshotById(context.userId)
     : undefined;
+  const sanitizedMetadata = sanitizeClientErrorMetadata(input.metadata);
   const created = await deps.repo.createClientErrorReport({
     userId: user?.id ?? null,
     amoriaId: user?.amoriaId ?? null,
@@ -82,7 +85,7 @@ export async function createClientErrorReport(
     code: cleanOptional(input.code, 120),
     message: truncateString(cleanRequired(input.message, maxMessageLength * 4), maxMessageLength),
     stack: cleanOptional(input.stack, maxStackLength * 2, maxStackLength),
-    metadata: sanitizeClientErrorMetadata(input.metadata),
+    metadata: sanitizedMetadata,
     platform: cleanOptional(input.platform, 60),
     appVersion: cleanOptional(input.appVersion, 60),
     buildNumber: cleanOptional(input.buildNumber, 60),
@@ -91,11 +94,42 @@ export async function createClientErrorReport(
     requestId: cleanOptional(input.requestId, 120),
     backendUrl: cleanOptional(input.backendUrl, 500),
   });
+  const association = turnBasedAssociation(sanitizedMetadata);
+  if (association && deps.linkTurnBasedClientError) {
+    await deps.linkTurnBasedClientError({
+      ...association,
+      userId: user?.id ?? null,
+      summary: `Client error on ${cleanRequired(input.screen, 120)} during ${cleanRequired(input.action, 120)}`.slice(0, 300),
+    });
+  }
 
   return {
     ok: true,
     id: created.id,
   };
+}
+
+function turnBasedAssociation(metadata: JsonValue | null): {
+  momentId: string;
+  sessionId: string | null;
+  details: Record<string, string | number | boolean | null>;
+} | null {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return null;
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  const momentId = typeof metadata.momentId === "string" && uuid.test(metadata.momentId)
+    ? metadata.momentId : null;
+  if (!momentId) return null;
+  const sessionId = typeof metadata.sessionId === "string" && uuid.test(metadata.sessionId)
+    ? metadata.sessionId : null;
+  const keys = ["stage","status","action","role","isMyTurn","httpStatus","errorCode"] as const;
+  const details: Record<string,string|number|boolean|null> = {};
+  for (const key of keys) {
+    const value = metadata[key];
+    if (value === null || ["string","number","boolean"].includes(typeof value)) {
+      details[key] = value as string|number|boolean|null;
+    }
+  }
+  return { momentId, sessionId, details };
 }
 
 export async function listClientErrorReportsForAdmin(

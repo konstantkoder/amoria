@@ -95,6 +95,16 @@ export async function togetherRoutes(fastify: FastifyInstance): Promise<void> {
     },
   );
 
+  fastify.post<{ Params: { id: string } }>(
+    "/turn-based/moments/:id/dismiss",
+    { preHandler: authMiddleware, schema: withErrorResponses(turnBasedMomentRouteSchema) },
+    async (request) => {
+      const response = await turnBasedService.dismiss(currentUserId(request), request.params.id);
+      await broadcastTurnBasedMoment(request.params.id);
+      return response;
+    },
+  );
+
   fastify.post(
     "/queue",
     {

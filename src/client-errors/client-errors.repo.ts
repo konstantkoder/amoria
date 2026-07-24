@@ -1,5 +1,5 @@
 import { and, desc, eq, gte, inArray, lte, type SQL } from "drizzle-orm";
-import { db } from "../db/client";
+import { db, pool } from "../db/client";
 import {
   type ClientErrorReportRow,
   type NewClientErrorReportRow,
@@ -36,6 +36,26 @@ export async function createClientErrorReport(
   }
 
   return created;
+}
+
+export async function linkTurnBasedClientError(input: {
+  momentId: string;
+  sessionId: string | null;
+  userId: string | null;
+  summary: string;
+  details: Record<string, string | number | boolean | null>;
+}): Promise<void> {
+  await pool.query(`
+    INSERT INTO together_turn_based_problems(moment_id,session_id,user_id,code,severity,summary,details)
+    SELECT m.id,
+      CASE WHEN $2::uuid IN (m.draw_session_id,m.story_session_id) THEN $2::uuid ELSE NULL END,
+      $3::uuid,'client_error_linked','warning',$4,$5::jsonb
+    FROM together_turn_based_moments m WHERE m.id=$1::uuid
+    ON CONFLICT(COALESCE(moment_id::text,'global'),code) WHERE status='open'
+    DO UPDATE SET last_seen_at=now(),
+      occurrence_count=together_turn_based_problems.occurrence_count+1,
+      details=EXCLUDED.details,updated_at=now()`,
+  [input.momentId,input.sessionId,input.userId,input.summary,JSON.stringify(input.details)]);
 }
 
 export async function listClientErrorReports(

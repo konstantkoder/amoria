@@ -331,7 +331,10 @@ export function App() {
 
 type TurnBasedAdminMoment = {
   id: string; status: string; stage: string; lastTransition: string;
-  updatedAt: string; openProblemCount: number;
+  updatedAt: string; openProblemCount: number; starterAmoriaId:string;
+  partnerAmoriaId:string|null;currentTurnRole:string|null;coarseGeoBucket:string;
+  radiusKm:number|null;eventCount:number;artifactPurgeAfter:string|null;
+  artifactPurgedAt:string|null;safeActions:string[];
 };
 type TurnBasedAdminProblem = {
   id: string; code: string; severity: string; status: string;
@@ -344,17 +347,31 @@ function TogetherTurnBasedScreen({ canManage, setMessage }: {
   const { t, language } = useI18n();
   const [tab, setTab] = useState<"overview" | "moments" | "problems">("overview");
   const [status, setStatus] = useState("");
+  const [stage, setStage] = useState("");
+  const [problemCode, setProblemCode] = useState("");
+  const [participantUserId, setParticipantUserId] = useState("");
+  const [momentId, setMomentId] = useState("");
+  const [problemStatus, setProblemStatus] = useState("");
+  const [problemSeverity, setProblemSeverity] = useState("");
   const [moments, setMoments] = useState<TurnBasedAdminMoment[]>([]);
   const [problems, setProblems] = useState<TurnBasedAdminProblem[]>([]);
+  const [overview, setOverview] = useState<Record<string,number>>({});
+  const [detail, setDetail] = useState<unknown>(null);
   const [error, setError] = useState("");
   async function load() {
     setError("");
     try {
       const [momentResponse, problemResponse] = await Promise.all([
-        apiGet<{ items: TurnBasedAdminMoment[] }>(`/admin/together/turn-based${toQuery({ status: status || undefined, limit: 100 })}`),
-        apiGet<{ items: TurnBasedAdminProblem[] }>("/admin/together/turn-based/problems?limit=100"),
+        apiGet<{ items: TurnBasedAdminMoment[]; overview:Record<string,number> }>(`/admin/together/turn-based${toQuery({
+          status:status||undefined,stage:stage||undefined,problemCode:problemCode||undefined,
+          participantUserId:participantUserId||undefined,momentId:momentId||undefined,limit:100,
+        })}`),
+        apiGet<{ items: TurnBasedAdminProblem[] }>(`/admin/together/turn-based/problems${toQuery({
+          status:problemStatus||undefined,severity:problemSeverity||undefined,
+          code:problemCode||undefined,momentId:momentId||undefined,limit:100,
+        })}`),
       ]);
-      setMoments(momentResponse.items); setProblems(problemResponse.items);
+      setMoments(momentResponse.items); setOverview(momentResponse.overview); setProblems(problemResponse.items);
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "Error");
     }
@@ -370,6 +387,10 @@ function TogetherTurnBasedScreen({ canManage, setMessage }: {
       setError(nextError instanceof Error ? nextError.message : "Error");
     }
   }
+  async function openDetail(id:string) {
+    try { setDetail(await apiGet(`/admin/together/turn-based/${id}`)); }
+    catch(nextError){setError(nextError instanceof Error?nextError.message:"Error");}
+  }
   const activeCount = moments.filter((item) =>
     ["starter_turn","waiting_for_partner","partner_turn","awaiting_draw_reveal","story_turn","awaiting_story_reveal"].includes(item.status)
   ).length;
@@ -382,26 +403,42 @@ function TogetherTurnBasedScreen({ canManage, setMessage }: {
     </div>
     {error ? <div className="error">{error}</div> : null}
     {tab === "overview" ? <div className="dashboard-grid">
-      <article className="metric-card"><span>{t("togetherTurnBased.active")}</span><strong>{activeCount}</strong></article>
-      <article className="metric-card"><span>{t("togetherTurnBased.openProblems")}</span><strong>{openProblems}</strong></article>
-      <article className="metric-card"><span>{t("togetherTurnBased.total")}</span><strong>{moments.length}</strong></article>
+      {Object.entries({
+        activeMoments:overview.activeMoments??activeCount,waitingForPartner:overview.waitingForPartner??0,
+        currentUserTurns:overview.currentUserTurns??0,awaitingDecisions:overview.awaitingDecisions??0,
+        activeStorySparks:overview.activeStorySparks??0,openProblems:overview.openProblems??openProblems,
+        expiredLast24Hours:overview.expiredLast24Hours??0,artifactsAwaitingCleanup:overview.artifactsAwaitingCleanup??0,
+      }).map(([label,value])=><article className="metric-card" key={label}><span>{label}</span><strong>{value}</strong></article>)}
     </div> : null}
     {tab === "moments" ? <>
       <form className="filters" onSubmit={(event) => { event.preventDefault(); void load(); }}>
         <label>{t("common.status")}<input value={status} onChange={(event) => setStatus(event.target.value)} /></label>
+        <label>stage<input value={stage} onChange={(event)=>setStage(event.target.value)}/></label>
+        <label>problem code<input value={problemCode} onChange={(event)=>setProblemCode(event.target.value)}/></label>
+        <label>participant / Amoria ID<input value={participantUserId} onChange={(event)=>setParticipantUserId(event.target.value)}/></label>
+        <label>moment ID<input value={momentId} onChange={(event)=>setMomentId(event.target.value)}/></label>
         <button>{t("common.load")}</button>
       </form>
       <table><thead><tr><th>{t("common.updated")}</th><th>ID</th><th>{t("common.status")}</th>
-        <th>{t("togetherTurnBased.stage")}</th><th>{t("togetherTurnBased.transition")}</th>
-        <th>{t("togetherTurnBased.problems")}</th>{canManage ? <th>{t("common.action")}</th> : null}
+        <th>{t("togetherTurnBased.stage")}</th><th>participants</th><th>turn</th><th>geo/radius</th>
+        <th>events</th><th>purge</th><th>{t("togetherTurnBased.problems")}</th>{canManage ? <th>{t("common.action")}</th> : null}
       </tr></thead><tbody>{moments.map((item) => <tr key={item.id}>
-        <td>{formatDate(item.updatedAt, language)}</td><td><code>{item.id}</code></td><td>{item.status}</td>
-        <td>{item.stage}</td><td>{item.lastTransition}</td><td>{item.openProblemCount}</td>
-        {canManage ? <td><button className="secondary" onClick={() => void runAction(`/admin/together/turn-based/${item.id}/actions`, "return_to_pool")}>{t("togetherTurnBased.returnPool")}</button>
-          <button className="danger" onClick={() => void runAction(`/admin/together/turn-based/${item.id}/actions`, "cancel_moment")}>{t("action.cancel")}</button></td> : null}
+        <td>{formatDate(item.updatedAt, language)}</td><td><button className="secondary" onClick={()=>void openDetail(item.id)}><code>{item.id}</code></button></td><td>{item.status}</td>
+        <td>{item.stage}</td><td>{item.starterAmoriaId} / {item.partnerAmoriaId??"-"}</td><td>{item.currentTurnRole??"-"}</td>
+        <td>{item.coarseGeoBucket} / {item.radiusKm??"∞"}</td><td>{item.eventCount}</td>
+        <td>{item.artifactPurgedAt?"purged":item.artifactPurgeAfter?"scheduled":"held/active"}</td><td>{item.openProblemCount}</td>
+        {canManage ? <td>{item.safeActions.map((action)=><button key={action} className={action.includes("cancel")||action.includes("expire")?"danger":"secondary"}
+          onClick={()=>void runAction(`/admin/together/turn-based/${item.id}/actions`,action)}>{action}</button>)}</td> : null}
       </tr>)}</tbody></table>
+      {detail?<pre>{JSON.stringify(detail,null,2)}</pre>:null}
     </> : null}
-    {tab === "problems" ? <table><thead><tr><th>{t("common.updated")}</th><th>{t("common.status")}</th>
+    {tab === "problems" ? <><form className="filters" onSubmit={(event)=>{event.preventDefault();void load();}}>
+      <label>status<input value={problemStatus} onChange={(event)=>setProblemStatus(event.target.value)}/></label>
+      <label>severity<input value={problemSeverity} onChange={(event)=>setProblemSeverity(event.target.value)}/></label>
+      <label>code<input value={problemCode} onChange={(event)=>setProblemCode(event.target.value)}/></label>
+      <label>moment ID<input value={momentId} onChange={(event)=>setMomentId(event.target.value)}/></label>
+      <button>{t("common.load")}</button>
+    </form><table><thead><tr><th>{t("common.updated")}</th><th>{t("common.status")}</th>
       <th>{t("togetherTurnBased.severity")}</th><th>{t("togetherTurnBased.code")}</th>
       <th>{t("togetherTurnBased.summary")}</th><th>{t("common.action")}</th>
     </tr></thead><tbody>{problems.map((item) => <tr key={item.id}>
@@ -412,7 +449,7 @@ function TogetherTurnBasedScreen({ canManage, setMessage }: {
         </button>
         {item.status === "open" ? <button className="secondary" onClick={() => void runAction(`/admin/together/turn-based/problems/${item.id}/actions`, "ignore")}>{t("action.ignore")}</button> : null}
       </td>
-    </tr>)}</tbody></table> : null}
+    </tr>)}</tbody></table></> : null}
   </section>;
 }
 

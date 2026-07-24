@@ -73,8 +73,10 @@ export type TurnBasedMomentDto = {
   action: TurnBasedAction;
   drawSessionId: string;
   storySessionId: string | null;
-  currentTurnUserId: string | null;
   isMyTurn: boolean;
+  identityRevealed: boolean;
+  myRevealDecision: "open" | "skip" | "continue_story" | null;
+  peerDecisionPresent: boolean;
   currentRoundId: "place" | "detail" | "twist" | "ending" | null;
   currentRoundIndex: number | null;
   currentRoundChoiceIndex: number | null;

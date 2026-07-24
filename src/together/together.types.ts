@@ -91,6 +91,7 @@ export type TogetherSessionDto = {
 export type TogetherSessionResponse = {
   session: TogetherSessionDto;
   participants: TogetherParticipantDto[];
+  identityRevealed: boolean;
   stateVersion: number;
   revealState: TogetherRevealStateDto;
 };

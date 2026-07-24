@@ -126,7 +126,7 @@ type UsersServiceDeps = {
   repo: Pick<
     typeof usersRepo,
     "findUserById" | "findUserByAmoriaId" | "updateUserProfile"
-  >;
+  > & { hasUnrevealedTurnBasedPair?: typeof usersRepo.hasUnrevealedTurnBasedPair };
   findOwnedMediaFileByUrl: typeof findOwnedMediaFileByUrl;
   findOwnedMediaFilesByIds: typeof findOwnedMediaFilesByIds;
   headObject: typeof headObject;
@@ -351,6 +351,9 @@ async function assertPublicProfileVisible(
 
   if (await deps.isBlockedEitherWay(currentUserId, targetUserId)) {
     throw new AppError("profile_unavailable", "Profile is unavailable", 403);
+  }
+  if (await deps.repo.hasUnrevealedTurnBasedPair?.(currentUserId,targetUserId)) {
+    throw new AppError("profile_unavailable","Profile is unavailable",403);
   }
 }
 

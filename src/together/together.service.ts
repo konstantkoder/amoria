@@ -292,6 +292,14 @@ export async function createEvent(
       409,
     );
   }
+  if (session.mode === "turn_based" && session.activity === "story_sparks") {
+    const atomic = await turnBasedService.createStoryChoiceAtomic(sessionId, userId, input);
+    return {
+      response: { ok: true, created: atomic.created },
+      event: toEventDto(atomic.event),
+      created: atomic.created,
+    };
+  }
   if (session.mode === "turn_based") {
     await turnBasedService.validateEventTurn(sessionId, userId, input.type);
   }
@@ -315,8 +323,13 @@ export async function createEvent(
     type: input.type,
     payload: prepared.payload,
   });
-  if (session.mode === "turn_based" && session.activity === "story_sparks") {
-    await turnBasedService.advanceStoryTurn(sessionId, userId, result.created);
+  if (session.mode === "turn_based") {
+    await turnBasedService.renewClaimAfterAcceptedStroke(
+      sessionId,
+      userId,
+      result.created,
+      input.type,
+    );
   }
 
   return {
@@ -813,10 +826,24 @@ async function buildSessionResponse(
     userId,
     participants.map((participant) => participant.id),
   );
+  const identityRevealed =
+    session.mode !== "turn_based" || revealState.outcome === "open_open";
+  const safeParticipants = identityRevealed
+    ? participants
+    : participants.map((participant) =>
+        participant.id === userId
+          ? participant
+          : {
+              id: participant.id,
+              displayName: "Another participant",
+              avatarUrl: null,
+            },
+      );
 
   return {
     session: toSessionDto(session),
-    participants,
+    participants: safeParticipants,
+    identityRevealed,
     stateVersion,
     revealState,
   };

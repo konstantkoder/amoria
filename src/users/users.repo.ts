@@ -1,5 +1,6 @@
 import { and, eq, isNull, lt, or } from "drizzle-orm";
 import { db } from "../db/client";
+import { pool } from "../db/client";
 import { type UserRow, users } from "../db/schema";
 
 const USER_LAST_SEEN_WRITE_THROTTLE_MS = 60 * 1000;
@@ -14,6 +15,20 @@ export async function findUserByAmoriaId(amoriaId: string): Promise<UserRow | un
   return db.query.users.findFirst({
     where: eq(users.amoriaId, amoriaId),
   });
+}
+
+export async function hasUnrevealedTurnBasedPair(userId:string,targetUserId:string):Promise<boolean>{
+  const result=await pool.query(`
+    SELECT 1 FROM together_turn_based_moments m
+    JOIN together_turn_based_participants a ON a.moment_id=m.id AND a.user_id=$1
+    JOIN together_turn_based_participants b ON b.moment_id=m.id AND b.user_id=$2
+    WHERE NOT EXISTS(
+      SELECT 1 FROM together_reveals r
+      WHERE r.session_id=CASE WHEN m.story_session_id IS NOT NULL THEN m.story_session_id ELSE m.draw_session_id END
+        AND r.decision='open'
+      GROUP BY r.session_id HAVING count(*)=2
+    ) LIMIT 1`,[userId,targetUserId]);
+  return Boolean(result.rowCount);
 }
 
 export async function updateUserProfile(

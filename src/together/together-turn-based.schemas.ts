@@ -16,7 +16,7 @@ const start = z.object({
     radiusKm: z.union([z.literal(5), z.literal(25), z.literal(100), z.literal(250), z.null()]),
   }).strict(),
   preferredAgeRange: ageRange.optional(),
-  clientRequestId: z.string().trim().min(1).max(200),
+  clientRequestId: z.string().trim().min(1).max(128),
 }).strict();
 
 const action = z.object({
@@ -44,7 +44,7 @@ const bodyAction = { type: "object", required: ["clientActionId"], additionalPro
 } } as const;
 export const turnBasedStartRouteSchema = { body: {
   type: "object", required: ["location", "clientRequestId"], additionalProperties: false, properties: {
-    clientRequestId: { type: "string", minLength: 1, maxLength: 200 },
+    clientRequestId: { type: "string", minLength: 1, maxLength: 128 },
     location: { type: "object", required: ["latitude", "longitude", "radiusKm"], additionalProperties: false, properties: {
       latitude: { type: "number", minimum: -90, maximum: 90 },
       longitude: { type: "number", minimum: -180, maximum: 180 },

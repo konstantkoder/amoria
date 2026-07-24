@@ -667,7 +667,7 @@ export async function finishActiveSession(sessionId: string, finishedAt: Date): 
       status: "finished",
       finishedAt,
       endedReason: "completed",
-      artifactPurgeAfter: new Date(finishedAt.getTime() + TURN_BASED_REVEAL_TTL_MS + TOGETHER_ARTIFACT_PURGE_DELAY_MS),
+      artifactPurgeAfter: null,
       updatedAt: finishedAt,
     })
     .where(and(eq(togetherSessions.id, sessionId), eq(togetherSessions.status, "active")))

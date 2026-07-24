@@ -197,6 +197,13 @@
       "when": 1784822400000,
       "tag": "0027_together_turn_based",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1784908800000,
+      "tag": "0028_together_turn_based_completion",
+      "breakpoints": true
     }
   ]
 }
