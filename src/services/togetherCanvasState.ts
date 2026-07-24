@@ -33,6 +33,7 @@ export type TogetherEventDto = Partial<ApiTogetherEventDto>;
 export type CachedTogetherSession = {
   session: TogetherSessionDto;
   participants: TogetherParticipantDto[];
+  identityRevealed: boolean;
   stateVersion: number;
   revealState?: TogetherSessionResponse["revealState"];
 };

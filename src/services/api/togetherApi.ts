@@ -141,3 +141,6 @@ export function cancelTurnBased(id: string, clientActionId: string, reason?: str
     clientActionId, ...(reason ? { reason } : {}),
   });
 }
+export function dismissTurnBased(id: string): Promise<TurnBasedMomentResponse> {
+  return request<TurnBasedMomentResponse>("POST", `/together/turn-based/moments/${encodeURIComponent(id)}/dismiss`);
+}

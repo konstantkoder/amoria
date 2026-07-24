@@ -23,6 +23,7 @@ import {
   sanitizeErrorForReport,
 } from "@/services/api/clientErrorsApi";
 import * as togetherApi from "@/services/api/togetherApi";
+import { ApiError } from "@/services/api/apiClient";
 import type {
   StorySparksPackDto,
   StorySparksRoundDto,
@@ -135,12 +136,20 @@ export default function PlayStorySparksScreen() {
         message: safeError?.message ?? message,
         stack: safeError?.stack,
         metadata: {
-          sessionIdExists: Boolean(sessionId),
+          momentId: isTurnBased ? momentId ?? null : null,
+          sessionId,
+          stage: turnBasedMoment?.stage ?? "story",
+          status: turnBasedMoment?.status ?? sessionResponse?.session.status ?? null,
+          action: turnBasedMoment?.action ?? "story",
+          role: turnBasedMoment?.role ?? null,
+          isMyTurn: turnBasedMoment?.isMyTurn ?? null,
+          httpStatus: error instanceof ApiError ? error.status : null,
+          errorCode: safeError?.code ?? null,
           ...metadata,
         },
       });
     },
-    [sessionId]
+    [isTurnBased, momentId, sessionId, sessionResponse?.session.status, turnBasedMoment]
   );
 
   const routeUnexpectedActivity = React.useCallback(
@@ -259,7 +268,14 @@ export default function PlayStorySparksScreen() {
     wsClient.connect();
     wsClient.subscribeTogetherSession(sessionId);
     const unsubscribe = wsClient.onMessage((payload) => {
-      if (!alive || String(payload.sessionId ?? "") !== sessionId) return;
+      if (!alive) return;
+      if (payload.type === "together.turn_based.updated" && isTurnBased && momentId) {
+        void togetherApi.getTurnBasedMoment(momentId)
+          .then((response) => { if (alive) setTurnBasedMoment(response.moment); })
+          .catch(() => undefined);
+        return;
+      }
+      if (String(payload.sessionId ?? "") !== sessionId) return;
       const sessionUpdate = readTogetherSessionUpdate(payload);
       if (sessionUpdate) {
         applySessionResponse(sessionUpdate);
@@ -280,7 +296,7 @@ export default function PlayStorySparksScreen() {
       unsubscribe();
       wsClient.unsubscribeTogetherSession(sessionId);
     };
-  }, [applySessionResponse, sessionId, uid]);
+  }, [applySessionResponse, isTurnBased, momentId, sessionId, uid]);
 
   React.useEffect(() => {
     if (!uid || !sessionId || sessionResponse?.session.status !== "active") return;
@@ -336,7 +352,11 @@ export default function PlayStorySparksScreen() {
     () => getTogetherPeer(sessionResponse, uid),
     [sessionResponse, uid]
   );
-  const peerName = peer?.displayName?.trim() || tt("profile.amoriaUser", "Пользователь Amoria");
+  const identityRevealed =
+    !isTurnBased || Boolean(turnBasedMoment?.identityRevealed && sessionResponse?.identityRevealed);
+  const peerName = identityRevealed
+    ? peer?.displayName?.trim() || tt("profile.amoriaUser", "Пользователь Amoria")
+    : tt("together.turnBased.anonymousPeer", "Другой участник");
   const choices = React.useMemo(
     () => (pack ? buildStoryChoicesFromEvents(events, pack) : []),
     [events, pack]
@@ -426,9 +446,25 @@ export default function PlayStorySparksScreen() {
             clientRoundIndex: currentRoundIndex,
           },
         });
-        await reloadEvents();
+        if (isTurnBased && momentId) {
+          const [, refreshedMoment] = await Promise.all([
+            reloadEvents(),
+            togetherApi.getTurnBasedMoment(momentId),
+          ]);
+          if (mountedRef.current) setTurnBasedMoment(refreshedMoment.moment);
+        } else {
+          await reloadEvents();
+        }
       } catch (error) {
         if (!mountedRef.current) return;
+        if (isTurnBased && momentId && error instanceof ApiError && error.status === 409) {
+          const refreshedMoment = await togetherApi.getTurnBasedMoment(momentId).catch(() => null);
+          if (mountedRef.current && refreshedMoment) {
+            setTurnBasedMoment(refreshedMoment.moment);
+            setActionError("");
+          }
+          return;
+        }
         reportStoryFailure("failedStoryChoiceSend", "Failed to send Story Sparks choice", error, {
           roundId: currentRound.id,
           cardId,
@@ -458,6 +494,7 @@ export default function PlayStorySparksScreen() {
       tt,
       uid,
       isTurnBased,
+      momentId,
       turnBasedMoment?.isMyTurn,
     ]
   );
@@ -497,6 +534,10 @@ export default function PlayStorySparksScreen() {
   }, [goToTogether, isTurnBased, leaving, reportStoryFailure, session?.status, sessionId, tt]);
 
   const handleBack = React.useCallback(() => {
+    if (isTurnBased) {
+      goToTogether();
+      return;
+    }
     if (session?.status !== "active") {
       goToTogether();
       return;
@@ -519,7 +560,7 @@ export default function PlayStorySparksScreen() {
         },
       ]
     );
-  }, [goToTogether, leaveSession, session?.status, tt]);
+  }, [goToTogether, isTurnBased, leaveSession, session?.status, tt]);
 
   const screenTitle = tt("play.storySparks.title", "История на двоих");
 
@@ -565,7 +606,10 @@ export default function PlayStorySparksScreen() {
             icon="cloud-offline-outline"
             title={tt("play.storySparks.guardErrorTitle", "История временно недоступна")}
             body={loadError || tt("play.storySparks.guardNotFoundBody", "Сессия больше недоступна.")}
-            primaryAction={{ label: tt("common.retry", "Повторить"), onPress: () => navigation.replace("PlayStorySparks", { sessionId }) }}
+            primaryAction={{ label: tt("common.retry", "Повторить"), onPress: () => navigation.replace("PlayStorySparks", {
+              sessionId,
+              ...(isTurnBased ? { mode: "turn_based", momentId } : {}),
+            }) }}
             secondaryAction={{ label: tt("common.backToTogether", "Вернуться во Вместе"), onPress: goToTogether }}
           />
         </View>

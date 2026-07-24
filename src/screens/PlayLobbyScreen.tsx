@@ -1,6 +1,7 @@
 import React from "react";
 import {
   Alert,
+  AppState,
   Modal,
   Platform,
   Pressable,
@@ -45,6 +46,12 @@ import {
   type MatchingSafetyField,
 } from "@/services/user";
 import { startStartupSpan } from "@/services/startupDiagnostics";
+import * as wsClient from "@/services/realtime/wsClient";
+import {
+  remainingTime,
+  turnBasedCardPresentation,
+} from "@/services/togetherTurnBasedPresentation";
+import { refreshTurnBasedFlow } from "@/services/togetherTurnBasedFlow";
 import { theme } from "@/theme";
 
 function isReleasePlayActivity(
@@ -124,6 +131,7 @@ export default function PlayLobbyScreen() {
   const [togetherFiltersSheetVisible, setTogetherFiltersSheetVisible] = React.useState(false);
   const [turnBasedMoment, setTurnBasedMoment] = React.useState<TurnBasedMomentDto | null>(null);
   const [turnBasedBusy, setTurnBasedBusy] = React.useState(false);
+  const turnStartRequestIdRef = React.useRef<string | null>(null);
 
   React.useEffect(() => {
     let alive = true;
@@ -331,12 +339,16 @@ export default function PlayLobbyScreen() {
       setTurnBasedBusy(true);
       const location = await resolveQueueLocation();
       if (!location) return;
+      turnStartRequestIdRef.current ??= `turn-start-${Date.now()}-${Math.random().toString(36).slice(2,10)}`;
       const response = await togetherApi.startTurnBased(
         location,
         ageRangeForFilter(selectedAgeFilter),
-        `turn-start-${Date.now()}`
+        turnStartRequestIdRef.current
       );
-      if (response.moment) openTurnBasedMoment(response.moment);
+      if (response.moment) {
+        turnStartRequestIdRef.current = null;
+        openTurnBasedMoment(response.moment);
+      }
     } catch (error) {
       Alert.alert(
         tt("together.turnBased.errorTitle", "Could not start"),
@@ -346,6 +358,72 @@ export default function PlayLobbyScreen() {
       setTurnBasedBusy(false);
     }
   }, [openTurnBasedMoment, resolveQueueLocation, selectedAgeFilter, tt]);
+
+  const refreshTurnBased = React.useCallback(async (routeAfterRefresh = false) => {
+    setTurnBasedBusy(true);
+    const moment = await refreshTurnBasedFlow({
+      getCurrent: togetherApi.getCurrentTurnBased,
+      setMoment: setTurnBasedMoment,
+      ...(routeAfterRefresh ? { routeMoment: openTurnBasedMoment } : {}),
+      onError: () => {
+        if (!routeAfterRefresh) return;
+        Alert.alert(
+          tt("together.turnBased.errorTitle", "Could not refresh"),
+          tt("play.match.networkError", "Check your connection and try again.")
+        );
+      },
+    });
+    setTurnBasedBusy(false);
+    return moment;
+  }, [openTurnBasedMoment, tt]);
+
+  React.useEffect(() => {
+    const appState = AppState.addEventListener("change", (nextState) => {
+      if (nextState === "active") void refreshTurnBased(false);
+    });
+    const offMessage = wsClient.onMessage((message) => {
+      if (message.type === "together.turn_based.updated") void refreshTurnBased(false);
+    });
+    return () => {
+      appState.remove();
+      offMessage();
+    };
+  }, [refreshTurnBased]);
+
+  const cancelCurrentTurnBased = React.useCallback(async () => {
+    if (!turnBasedMoment) return;
+    try {
+      setTurnBasedBusy(true);
+      const response = await togetherApi.cancelTurnBased(
+        turnBasedMoment.id,
+        `turn-cancel-${Date.now()}`,
+        "Cancelled from Together"
+      );
+      setTurnBasedMoment(response.moment);
+    } catch (error) {
+      Alert.alert(tt("together.turnBased.errorTitle", "Could not cancel"), sanitizeErrorForReport(error).message);
+    } finally {
+      setTurnBasedBusy(false);
+    }
+  }, [tt, turnBasedMoment]);
+
+  const dismissCurrentTurnBased = React.useCallback(async () => {
+    if (!turnBasedMoment) return;
+    try {
+      setTurnBasedBusy(true);
+      await togetherApi.dismissTurnBased(turnBasedMoment.id);
+      setTurnBasedMoment(null);
+    } catch (error) {
+      Alert.alert(tt("together.turnBased.errorTitle", "Could not close"), sanitizeErrorForReport(error).message);
+    } finally {
+      setTurnBasedBusy(false);
+    }
+  }, [tt, turnBasedMoment]);
+
+  const turnBasedPresentation = turnBasedCardPresentation(turnBasedMoment?.action ?? null);
+  const turnBasedRemaining = remainingTime(
+    turnBasedMoment?.waitingExpiresAt ?? turnBasedMoment?.turnExpiresAt ?? turnBasedMoment?.decisionExpiresAt ?? null
+  );
 
   const openActivity = React.useCallback(
     async (activity: string, action: "startDraw" | "startStorySparks") => {
@@ -600,36 +678,62 @@ export default function PlayLobbyScreen() {
 
         <View style={styles.turnBasedCard}>
           <Text style={styles.turnBasedTitle}>
-            {tt("together.turnBased.title", "Take turns, create together")}
+            {tt(turnBasedPresentation.titleKey, turnBasedPresentation.titleFallback)}
           </Text>
-          <Text style={styles.turnBasedBody}>
-            {turnBasedMoment?.action === "waiting_for_partner"
-              ? tt("together.turnBased.waiting", "Your drawing is waiting for someone nearby.")
-              : turnBasedMoment?.action === "waiting_for_story_turn"
-                ? tt("together.turnBased.storyWaiting", "The story is with your partner. We’ll keep your place.")
-                : tt("together.turnBased.body", "Draw when you have time. A nearby partner adds their part later.")}
-          </Text>
-          {turnBasedMoment && !["waiting_for_partner", "waiting_for_story_turn"].includes(turnBasedMoment.action) ? (
+          {turnBasedPresentation.bodyKey ? <Text style={styles.turnBasedBody}>
+            {tt(turnBasedPresentation.bodyKey, turnBasedPresentation.bodyFallback ?? "")}
+          </Text> : null}
+          {turnBasedRemaining ? <Text style={styles.turnBasedBody}>
+            {tt("together.turnBased.remaining", "Time remaining: {time}", { time: turnBasedRemaining })}
+          </Text> : null}
+          {turnBasedMoment && turnBasedPresentation.primaryKey ? (
             <PrimaryActionButton
-              label={tt("together.turnBased.continue", "Continue your turn")}
+              label={tt(turnBasedPresentation.primaryKey, turnBasedPresentation.primaryFallback ?? "")}
               onPress={() => openTurnBasedMoment(turnBasedMoment)}
               compact={false}
             />
-          ) : (
+          ) : !turnBasedMoment ? (
             <Pressable
               style={styles.turnBasedSecondary}
-              onPress={() => turnBasedMoment ? openTurnBasedMoment(turnBasedMoment) : void startTurnBased()}
+              onPress={() => void startTurnBased()}
               disabled={turnBasedBusy}
             >
               <Text style={styles.turnBasedSecondaryText}>
                 {turnBasedBusy
                   ? tt("common.loading", "Loading…")
-                  : turnBasedMoment
-                    ? tt("together.turnBased.refresh", "Check progress")
-                    : tt("together.turnBased.start", "Start turn-based")}
+                  : tt("together.turnBased.start", "Start in turns")}
               </Text>
             </Pressable>
-          )}
+          ) : null}
+          {turnBasedPresentation.refresh ? <Pressable
+            style={styles.turnBasedSecondary}
+            onPress={() => void refreshTurnBased(true)}
+            disabled={turnBasedBusy}
+          ><Text style={styles.turnBasedSecondaryText}>
+            {tt("together.turnBased.refresh", "Check progress")}
+          </Text></Pressable> : null}
+          {turnBasedPresentation.startNew ? <PrimaryActionButton
+            label={tt("together.turnBased.startNew", "Start a new one")}
+            onPress={() => void (async () => {
+              await dismissCurrentTurnBased();
+              await startTurnBased();
+            })()}
+            compact={false}
+          /> : null}
+          {turnBasedPresentation.cancel ? <Pressable
+            style={styles.turnBasedSecondary}
+            onPress={() => void cancelCurrentTurnBased()}
+            disabled={turnBasedBusy}
+          ><Text style={styles.turnBasedSecondaryText}>
+            {tt("together.turnBased.cancel", "Cancel")}
+          </Text></Pressable> : null}
+          {turnBasedPresentation.dismiss ? <Pressable
+            style={styles.turnBasedSecondary}
+            onPress={() => void dismissCurrentTurnBased()}
+            disabled={turnBasedBusy}
+          ><Text style={styles.turnBasedSecondaryText}>
+            {tt("together.turnBased.close", "Close")}
+          </Text></Pressable> : null}
         </View>
       </ScrollView>
 

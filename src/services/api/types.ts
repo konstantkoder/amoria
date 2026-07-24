@@ -697,6 +697,7 @@ export type TogetherParticipantDto = {
 export type TogetherSessionResponse = {
   session: TogetherSessionDto;
   participants: TogetherParticipantDto[];
+  identityRevealed: boolean;
   stateVersion: number;
   revealState?: TogetherRevealStateDto;
 };
@@ -721,7 +722,9 @@ export type TurnBasedAction =
 export type TurnBasedMomentDto = {
   id: string; mode: "turn_based"; status: TurnBasedStatus; stage: "draw" | "story" | "done";
   role: "starter" | "partner"; action: TurnBasedAction; drawSessionId: string;
-  storySessionId: string | null; currentTurnUserId: string | null; isMyTurn: boolean;
+  storySessionId: string | null; isMyTurn: boolean; identityRevealed: boolean;
+  myRevealDecision: "open" | "skip" | "continue_story" | null;
+  peerDecisionPresent: boolean;
   currentRoundId: StorySparksRoundId | null; currentRoundIndex: number | null;
   currentRoundChoiceIndex: number | null; partnerPresent: boolean;
   claimExpiresAt: string | null; waitingExpiresAt: string | null; turnExpiresAt: string | null;

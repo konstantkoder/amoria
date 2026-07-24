@@ -12,6 +12,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import {
   type EventArg,
+  useIsFocused,
   useNavigation,
   useRoute,
 } from "@react-navigation/native";
@@ -35,6 +36,7 @@ import {
 import type {
   TogetherSessionResponse,
   TogetherSessionStatus,
+  TurnBasedMomentDto,
 } from "@/services/api/types";
 import * as wsClient from "@/services/realtime/wsClient";
 import {
@@ -50,6 +52,7 @@ import {
   getTogetherPromptKey,
   localizeTogetherPrompt,
 } from "@/services/togetherPromptLocalization";
+import { shouldRenewPartnerLease } from "@/services/togetherTurnBasedFlow";
 import { theme } from "@/theme";
 
 const DRAW_SESSION_DURATION_SEC = 420;
@@ -132,6 +135,7 @@ export default function PlayCanvasScreen() {
   const sessionId = route.params.sessionId.trim();
   const isTurnBased = route.params.mode === "turn_based";
   const momentId = route.params.momentId;
+  const isFocused = useIsFocused();
   const uid = authUser?.id ?? "";
   const [sessionResponse, setSessionResponse] = React.useState<TogetherSessionResponse | null>(null);
   const [strokes, setStrokes] = React.useState<SharedCanvasStroke[]>(() =>
@@ -149,6 +153,8 @@ export default function PlayCanvasScreen() {
   const [canvasRevision, setCanvasRevision] = React.useState(0);
   const [closedActorUserId, setClosedActorUserId] = React.useState<string | null>(null);
   const [canvasLoadFailed, setCanvasLoadFailed] = React.useState(false);
+  const [turnBasedMoment, setTurnBasedMoment] = React.useState<TurnBasedMomentDto | null>(null);
+  const [appActive, setAppActive] = React.useState(AppState.currentState === "active");
   const mountedRef = React.useRef(true);
   const navigationHandledRef = React.useRef(false);
   const allowExitRef = React.useRef(false);
@@ -248,16 +254,17 @@ export default function PlayCanvasScreen() {
       message: safeError?.message ?? message,
       stack: safeError?.stack,
       metadata: {
+        momentId: isTurnBased ? momentId ?? null : null,
         sessionId,
-        activity: sessionResponse?.session.activity ?? "draw",
-        status: sessionResponse?.session.status ?? null,
-        eventCount: strokes.length,
-        platform: Platform.OS,
-        participantCount: sessionResponse?.participants.length ?? 0,
+        stage: turnBasedMoment?.stage ?? "draw",
+        status: turnBasedMoment?.status ?? sessionResponse?.session.status ?? null,
+        action: turnBasedMoment?.action ?? "draw",
+        role: turnBasedMoment?.role ?? null,
+        isMyTurn: turnBasedMoment?.isMyTurn ?? null,
         ...extraMetadata,
       },
     });
-  }, [sessionId, sessionResponse?.participants.length, sessionResponse?.session.activity, sessionResponse?.session.status, strokes.length]);
+  }, [isTurnBased, momentId, sessionId, sessionResponse?.session.status, turnBasedMoment]);
 
   const retryCanvasEntry = React.useCallback(() => {
     if (!sessionId) {
@@ -265,8 +272,11 @@ export default function PlayCanvasScreen() {
       return;
     }
     allowExitRef.current = true;
-    navigation.replace("PlayCanvas", { sessionId });
-  }, [goToTogether, navigation, sessionId]);
+    navigation.replace("PlayCanvas", {
+      sessionId,
+      ...(isTurnBased ? { mode: "turn_based", momentId } : {}),
+    });
+  }, [goToTogether, isTurnBased, momentId, navigation, sessionId]);
 
   const startNewSession = React.useCallback(() => {
     allowExitRef.current = true;
@@ -341,6 +351,14 @@ export default function PlayCanvasScreen() {
         setLoading(false);
       });
 
+    if (isTurnBased && momentId) {
+      void togetherApi.getTurnBasedMoment(momentId)
+        .then((response) => {
+          if (mountedRef.current) setTurnBasedMoment(response.moment);
+        })
+        .catch(() => undefined);
+    }
+
     return () => {
       mountedRef.current = false;
     };
@@ -352,7 +370,11 @@ export default function PlayCanvasScreen() {
     () => getTogetherPeer(sessionResponse, uid),
     [sessionResponse, uid]
   );
-  const peerName = peer?.displayName?.trim() || tt("profile.amoriaUser", "Пользователь Amoria");
+  const identityRevealed =
+    !isTurnBased || Boolean(turnBasedMoment?.identityRevealed && sessionResponse?.identityRevealed);
+  const peerName = identityRevealed
+    ? peer?.displayName?.trim() || tt("profile.amoriaUser", "Пользователь Amoria")
+    : tt("together.turnBased.anonymousPeer", "Другой участник");
   const totalStrokeCount = strokes.length;
   const localizedPrompt = localizeTogetherPrompt(session, tt);
   const promptKey = getTogetherPromptKey(session);
@@ -615,12 +637,21 @@ export default function PlayCanvasScreen() {
   }, [applySessionResponse, finishing, isTurnBased, leaving, reportCanvasFailure, session?.status, sessionId, tt, uid]);
 
   React.useEffect(() => {
-    if (!isTurnBased || !momentId || session?.status !== "active") return;
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      setAppActive(nextState === "active");
+    });
+    return () => subscription.remove();
+  }, []);
+
+  React.useEffect(() => {
+    if (!isTurnBased || !momentId || session?.status !== "active" || !shouldRenewPartnerLease({
+      moment:turnBasedMoment,focused:isFocused,appActive,
+    })) return;
     const renew = () => { void togetherApi.renewTurnBasedLease(momentId).catch(() => undefined); };
     renew();
     const timer = setInterval(renew, 60_000);
     return () => clearInterval(timer);
-  }, [isTurnBased, momentId, session?.status]);
+  }, [appActive, isFocused, isTurnBased, momentId, session?.status, turnBasedMoment?.role, turnBasedMoment?.status]);
 
   React.useEffect(() => {
     if (!session) return;
@@ -646,6 +677,11 @@ export default function PlayCanvasScreen() {
       (event: EventArg<"beforeRemove", true, undefined>) => {
         if (allowExitRef.current || navigationHandledRef.current) return;
         if (session?.status !== "active") return;
+        if (isTurnBased) {
+          event.preventDefault();
+          void leaveSessionAndExit();
+          return;
+        }
         if (toolPaletteVisible) {
           event.preventDefault();
           setToolPaletteVisible(false);
@@ -679,7 +715,7 @@ export default function PlayCanvasScreen() {
     );
 
     return unsubscribe;
-  }, [exitFocusMode, focusMode, leaveSessionAndExit, navigation, session?.status, toolPaletteVisible, tt]);
+  }, [exitFocusMode, focusMode, isTurnBased, leaveSessionAndExit, navigation, session?.status, toolPaletteVisible, tt]);
 
   const handleCanvasBack = React.useCallback(() => {
     if (toolPaletteVisible) {
@@ -692,6 +728,10 @@ export default function PlayCanvasScreen() {
     }
     if (session?.status !== "active") {
       handleSafeBack();
+      return;
+    }
+    if (isTurnBased) {
+      void leaveSessionAndExit();
       return;
     }
     Alert.alert(
@@ -711,7 +751,7 @@ export default function PlayCanvasScreen() {
         },
       ]
     );
-  }, [exitFocusMode, focusMode, handleSafeBack, leaveSessionAndExit, session?.status, toolPaletteVisible, tt]);
+  }, [exitFocusMode, focusMode, handleSafeBack, isTurnBased, leaveSessionAndExit, session?.status, toolPaletteVisible, tt]);
 
   const handleLocalBatch = React.useCallback(
     async (localStrokes: SharedCanvasStroke[]) => {
@@ -1195,7 +1235,11 @@ export default function PlayCanvasScreen() {
                   ? tt("play.canvas.finishing", "Завершаем…")
                   : leaving
                     ? tt("common.exiting", "Выходим…")
-                  : tt("common.finish", "Завершить")}
+                  : isTurnBased && turnBasedMoment?.role === "starter"
+                    ? tt("play.canvas.turnBasedStarterSubmit", "Оставить для продолжения")
+                    : isTurnBased && turnBasedMoment?.role === "partner"
+                      ? tt("play.canvas.turnBasedPartnerSubmit", "Завершить рисунок")
+                      : tt("common.finish", "Завершить")}
               </Text>
             </Pressable>
             <Pressable

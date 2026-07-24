@@ -27,6 +27,7 @@ assert(api.includes("/together/turn-based/current"), "turn-based current API is 
 assert(api.includes("/submit-draw"), "turn-based drawing submission API is present");
 assert(api.includes("/lease"), "turn-based lease API is present");
 assert(api.includes("/cancel"), "turn-based cancel API is present");
+assert(api.includes("/dismiss"), "turn-based dismiss API is present");
 assert(lobby.includes("rgba(10,14,26,0.78)"), "turn-based card background matches contract");
 assert(lobby.includes("rgba(167,139,196,0.36)"), "turn-based card border matches contract");
 assert(lobby.includes("borderRadius: 22"), "turn-based card radius matches contract");
@@ -44,9 +45,10 @@ for (const locale of ["en", "ru", "hr"]) {
     "together.turnBased.title",
     "together.turnBased.body",
     "together.turnBased.start",
-    "together.turnBased.continue",
-    "together.turnBased.waiting",
-    "together.turnBased.storyWaiting",
+    "together.turnBased.start_draw.title",
+    "together.turnBased.waiting_for_partner.title",
+    "together.turnBased.waiting_for_story_turn.title",
+    "together.turnBased.completed.title",
   ]) {
     assert(Boolean(dictionary[key]), `${locale} includes ${key}`);
   }

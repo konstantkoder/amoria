@@ -1,12 +1,13 @@
 import React from "react";
 import {
+  AppState,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 
 import CoreStateCard from "@/components/CoreStateCard";
 import ScreenShell from "@/components/ScreenShell";
@@ -29,6 +30,7 @@ import type {
   TogetherRevealStateDto,
   StorySparksArtifactDto,
   TogetherSessionResponse,
+  TurnBasedMomentDto,
 } from "@/services/api/types";
 import * as wsClient from "@/services/realtime/wsClient";
 import {
@@ -144,6 +146,7 @@ export default function PlayResultScreen() {
   );
   const [submitting, setSubmitting] = React.useState(false);
   const [actionError, setActionError] = React.useState("");
+  const [turnBasedMoment, setTurnBasedMoment] = React.useState<TurnBasedMomentDto | null>(null);
   const mountedRef = React.useRef(true);
   const chatNavigationRef = React.useRef(false);
   const storyNavigationRef = React.useRef(false);
@@ -159,6 +162,31 @@ export default function PlayResultScreen() {
     }
     goToTogether();
   }, [goToTogether, navigation]);
+
+  const refreshTurnBasedResult = React.useCallback(async () => {
+    if (!isTurnBased || !momentId || !sessionId) return;
+    const [sessionResult, momentResult] = await Promise.all([
+      togetherApi.getSession(sessionId),
+      togetherApi.getTurnBasedMoment(momentId),
+    ]);
+    if (!mountedRef.current) return;
+    rememberTogetherSession(sessionResult);
+    setSessionResponse(sessionResult);
+    setRevealState(sessionResult.revealState ?? null);
+    setTurnBasedMoment(momentResult.moment);
+  }, [isTurnBased, momentId, sessionId]);
+
+  useFocusEffect(React.useCallback(() => {
+    void refreshTurnBasedResult().catch(() => undefined);
+    return undefined;
+  }, [refreshTurnBasedResult]));
+
+  React.useEffect(() => {
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      if (nextState === "active") void refreshTurnBasedResult().catch(() => undefined);
+    });
+    return () => subscription.remove();
+  }, [refreshTurnBasedResult]);
 
   React.useEffect(() => {
     mountedRef.current = true;
@@ -204,18 +232,27 @@ export default function PlayResultScreen() {
         );
         setLoading(false);
       });
+    if (isTurnBased && momentId) {
+      void togetherApi.getTurnBasedMoment(momentId)
+        .then((response) => { if (mountedRef.current) setTurnBasedMoment(response.moment); })
+        .catch(() => undefined);
+    }
 
     return () => {
       mountedRef.current = false;
     };
-  }, [remembered, sessionId, tt]);
+  }, [isTurnBased, momentId, remembered, sessionId, tt]);
 
   const session = sessionResponse?.session ?? null;
   const peer = React.useMemo(
     () => getTogetherPeer(sessionResponse, uid),
     [sessionResponse, uid]
   );
-  const peerName = peer?.displayName?.trim() || tt("profile.amoriaUser", "Пользователь Amoria");
+  const identityRevealed =
+    !isTurnBased || Boolean(turnBasedMoment?.identityRevealed && sessionResponse?.identityRevealed);
+  const peerName = identityRevealed
+    ? peer?.displayName?.trim() || tt("profile.amoriaUser", "Пользователь Amoria")
+    : tt("together.turnBased.anonymousPeer", "Другой участник");
   const rawSessionActivity = session?.activity as string | undefined;
   const sessionActivity =
     rawSessionActivity === "story_sparks"
@@ -237,7 +274,7 @@ export default function PlayResultScreen() {
   );
   const hasReplay = strokes.length > 0;
   const hasStoryArtifact = Boolean(storyArtifact);
-  const decision = revealState?.myDecision ?? null;
+  const decision = turnBasedMoment?.myRevealDecision ?? revealState?.myDecision ?? null;
   const outcome = revealState?.outcome ?? "pending";
   const revealThreadId = revealState?.threadId ?? null;
   const nextStorySessionId =
@@ -247,7 +284,8 @@ export default function PlayResultScreen() {
     sessionActivity !== null &&
     !decision &&
     (revealState?.canOpenChat ?? true) &&
-    outcome !== "blocked";
+    outcome !== "blocked" &&
+    (!isTurnBased || turnBasedMoment?.action === "review_draw" || turnBasedMoment?.action === "review_story");
   const canContinueStory = sessionActivity === "draw" && canRevealDecision;
   const canOpenExistingChat = outcome === "open_open" && Boolean(revealThreadId);
   const revealLabel = getRevealLabel(outcome, tt);
@@ -322,7 +360,12 @@ export default function PlayResultScreen() {
     wsClient.connect();
     wsClient.subscribeTogetherSession(sessionId);
     const unsubscribe = wsClient.onMessage((payload) => {
-      if (!alive || payload.sessionId !== sessionId) return;
+      if (!alive) return;
+      if (payload.type === "together.turn_based.updated" && isTurnBased && momentId) {
+        void refreshTurnBasedResult().catch(() => undefined);
+        return;
+      }
+      if (payload.sessionId !== sessionId) return;
       const nextRevealState = readRevealState(payload);
       if (!nextRevealState) return;
       setRevealState(nextRevealState);
@@ -333,7 +376,7 @@ export default function PlayResultScreen() {
       unsubscribe();
       wsClient.unsubscribeTogetherSession(sessionId);
     };
-  }, [sessionId]);
+  }, [isTurnBased, momentId, refreshTurnBasedResult, sessionId]);
 
   React.useEffect(() => {
     if (
@@ -428,6 +471,10 @@ export default function PlayResultScreen() {
         if (!mountedRef.current) return;
         const nextRevealState = response.revealState;
         setRevealState(nextRevealState);
+        if (isTurnBased && momentId) {
+          const refreshed = await togetherApi.getTurnBasedMoment(momentId);
+          if (mountedRef.current) setTurnBasedMoment(refreshed.moment);
+        }
         if (
           nextDecision === "continue_story" &&
           nextRevealState.outcome === "continue_story"
@@ -515,6 +562,8 @@ export default function PlayResultScreen() {
     },
     [
       canRevealDecision,
+      isTurnBased,
+      momentId,
       navigateToStorySparks,
       navigateToThread,
       peer,
@@ -591,7 +640,10 @@ export default function PlayResultScreen() {
             icon="cloud-offline-outline"
             title={tt("play.result.stateErrorTitle", "Итог временно недоступен")}
             body={loadError || tt("play.result.stateNotFoundBody", "Сессия уже исчезла или не успела сохраниться.")}
-            primaryAction={{ label: tt("common.retry", "Повторить"), onPress: () => navigation.replace("PlayResult", { sessionId }) }}
+            primaryAction={{ label: tt("common.retry", "Повторить"), onPress: () => navigation.replace("PlayResult", {
+              sessionId,
+              ...(isTurnBased ? { mode: "turn_based", momentId } : {}),
+            }) }}
             secondaryAction={{ label: tt("common.back", "Назад"), onPress: handleBack }}
           />
         </View>
