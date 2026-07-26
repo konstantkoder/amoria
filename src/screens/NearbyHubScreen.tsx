@@ -61,6 +61,7 @@ import {
 import { PROFILE_UPDATED_EVENT } from "@/services/session/authEvents";
 import type { ProfileGender, UserProfile } from "@/models/User";
 import { theme } from "@/theme";
+import { getNearbyActivityArt } from "@/assets/nearby/activityArt";
 
 type LocationIssue = "permissionDenied" | "permissionBlocked" | "readFailed";
 type GenderFilter = "all" | ProfileGender;
@@ -1041,7 +1042,7 @@ export default function NearbyHubScreen() {
                 onValueChange={handleToggle}
                 trackColor={{
                   false: "rgba(255,255,255,0.18)",
-                  true: "rgba(221,160,139,0.42)",
+                  true: "rgba(230,185,118,0.42)",
                 }}
                 thumbColor={active ? ACCENT_COLOR : "#F5F5FF"}
               />
@@ -1093,7 +1094,7 @@ export default function NearbyHubScreen() {
                 onValueChange={handleToggle}
                 trackColor={{
                   false: "rgba(255,255,255,0.18)",
-                  true: "rgba(221,160,139,0.42)",
+                  true: "rgba(230,185,118,0.42)",
                 }}
                 thumbColor={active ? ACCENT_COLOR : "#F5F5FF"}
               />
@@ -1469,11 +1470,13 @@ export default function NearbyHubScreen() {
     ],
     [sectionGap]
   );
+  const primaryPeople = peopleItems.slice(0, 4);
+  const remainingPeople = peopleItems.slice(4);
 
   return (
     <ScreenShell
       title={copyOrFallback(t, "tabs.nearby", "Рядом")}
-      background="nearbyWarm"
+      background="nearbyOldCityV4"
       overlayOpacity={0.16}
       blurRadius={0}
     >
@@ -1494,10 +1497,10 @@ export default function NearbyHubScreen() {
       >
         {header}
         {peopleSectionHeader}
-        {peopleItems.length ? (
+        {primaryPeople.length ? (
           <NearbyPeopleGrid
             selfProfile={profile}
-            items={peopleItems}
+            items={primaryPeople}
             layout={peopleGridLayout}
             onOpen={openProfile}
             t={t}
@@ -1505,6 +1508,109 @@ export default function NearbyHubScreen() {
         ) : (
           <View style={styles.peopleEmptyWrap}>{renderEmpty()}</View>
         )}
+        <View style={styles.roomsShelfSection}>
+          <View style={styles.roomsShelfHeader}>
+            <Text style={styles.roomsShelfTitle}>
+              {copyOrFallback(t, "nearby.rooms.title", "Активности рядом")}
+            </Text>
+            <Pressable
+              onPress={openActivitiesSheet}
+              style={styles.roomsShelfSeeAll}
+              accessibilityRole="button"
+            >
+              <Text style={styles.roomsShelfSeeAllText}>
+                {copyOrFallback(t, "nearby.rooms.seeAll", "Смотреть все")}
+              </Text>
+            </Pressable>
+          </View>
+          {roomsLoading && !rooms.length ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.roomsShelfContent}
+            >
+              {[0, 1, 2].map((index) => (
+                <View key={index} style={styles.roomShelfSkeleton} />
+              ))}
+            </ScrollView>
+          ) : roomErrorText ? (
+            <View style={styles.roomsShelfState}>
+              <Text style={styles.roomsShelfStateText}>{roomErrorText}</Text>
+            </View>
+          ) : roomPreferenceGateVisible ? (
+            <Pressable
+              style={styles.roomsShelfState}
+              onPress={openActivityPreferences}
+              accessibilityRole="button"
+            >
+              <Text style={styles.roomsShelfStateText}>
+                {copyOrFallback(
+                  t,
+                  "nearby.activityPreferences.requiredBody",
+                  "Choose activities before joining a nearby activity."
+                )}
+              </Text>
+            </Pressable>
+          ) : rooms.length ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              decelerationRate="fast"
+              contentContainerStyle={styles.roomsShelfContent}
+            >
+              {rooms.map((room) => {
+                const action = getNearbyRoomAction(room, t);
+                const canAct = action.kind === "join" || action.kind === "open";
+                return (
+                  <Pressable
+                    key={room.id}
+                    style={styles.roomShelfCard}
+                    disabled={!canAct || Boolean(roomActionBusyId)}
+                    onPress={
+                      action.kind === "join"
+                        ? () => void handleJoinRoom(room)
+                        : action.kind === "open"
+                          ? () => void handleOpenRoom(room)
+                          : undefined
+                    }
+                    accessibilityRole="button"
+                    accessibilityState={{ disabled: !canAct || Boolean(roomActionBusyId) }}
+                  >
+                    <Image
+                      source={getNearbyActivityArt(room.typeKey)}
+                      style={styles.roomShelfCover}
+                      resizeMode="cover"
+                      accessible={false}
+                    />
+                    <View style={styles.roomShelfCopy}>
+                      <Text style={styles.roomShelfCardTitle} numberOfLines={2}>
+                        {room.title}
+                      </Text>
+                      <Text style={styles.roomShelfMeta} numberOfLines={2}>
+                        {formatActivityRowMeta(room, t, locale)}
+                      </Text>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          ) : (
+            <View style={styles.roomsShelfState}>
+              <Text style={styles.roomsShelfStateText}>
+                {getActivitiesSheetEmptyFallback(locale)}
+              </Text>
+            </View>
+          )}
+        </View>
+        {remainingPeople.length ? (
+          <NearbyPeopleGrid
+            selfProfile={profile}
+            items={remainingPeople}
+            layout={peopleGridLayout}
+            onOpen={openProfile}
+            t={t}
+          />
+        ) : null}
         <View style={{ height: smallGap }} />
       </ScrollView>
       <NearbyFiltersSheet
@@ -1987,9 +2093,12 @@ function ActivityExpandedRow({
 
   return (
     <View style={styles.activityExpandedRow}>
-      <View style={styles.activityExpandedIcon}>
-        <Ionicons name="chatbubbles-outline" size={15} color={ACCENT_COLOR} />
-      </View>
+      <Image
+        source={getNearbyActivityArt(room.typeKey)}
+        style={styles.activityExpandedArt}
+        resizeMode="cover"
+        accessible={false}
+      />
       <View style={styles.activityExpandedCopy}>
         <Text style={styles.activityExpandedTitle} numberOfLines={1}>
           {room.title}
@@ -2403,6 +2512,94 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: 0,
   },
+  roomsShelfSection: {
+    marginTop: 16,
+    gap: 10,
+  },
+  roomsShelfHeader: {
+    minHeight: 44,
+    paddingHorizontal: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  roomsShelfTitle: {
+    flex: 1,
+    color: theme.colors.textWarm,
+    fontFamily: "serif",
+    fontSize: 18,
+    lineHeight: 23,
+    fontWeight: "600",
+  },
+  roomsShelfSeeAll: {
+    minHeight: 44,
+    paddingHorizontal: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  roomsShelfSeeAllText: {
+    color: theme.colors.gold,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: "700",
+  },
+  roomsShelfContent: {
+    paddingHorizontal: 16,
+    gap: 10,
+  },
+  roomShelfCard: {
+    width: 158,
+    height: 190,
+    borderRadius: 20,
+    overflow: "hidden",
+    backgroundColor: "rgba(5,8,22,0.88)",
+    borderWidth: 1,
+    borderColor: "rgba(230,185,118,0.22)",
+  },
+  roomShelfCover: {
+    width: "100%",
+    height: 96,
+  },
+  roomShelfCopy: {
+    flex: 1,
+    padding: 10,
+  },
+  roomShelfCardTitle: {
+    color: theme.colors.textWarm,
+    fontSize: 14,
+    lineHeight: 18,
+    fontWeight: "600",
+  },
+  roomShelfMeta: {
+    marginTop: 4,
+    color: theme.colors.textSecondary,
+    fontSize: 11,
+    lineHeight: 15,
+  },
+  roomShelfSkeleton: {
+    width: 158,
+    height: 190,
+    borderRadius: 20,
+    backgroundColor: "rgba(5,8,22,0.68)",
+    borderWidth: 1,
+    borderColor: "rgba(230,185,118,0.12)",
+  },
+  roomsShelfState: {
+    minHeight: 72,
+    marginHorizontal: 16,
+    padding: 14,
+    borderRadius: 18,
+    justifyContent: "center",
+    backgroundColor: "rgba(5,8,22,0.82)",
+    borderWidth: 1,
+    borderColor: "rgba(230,185,118,0.15)",
+  },
+  roomsShelfStateText: {
+    color: theme.colors.textSecondary,
+    fontSize: 13,
+    lineHeight: 18,
+  },
   nearbyBody: {
     alignItems: "flex-start",
   },
@@ -2450,7 +2647,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 7,
-    backgroundColor: "rgba(255, 77, 103, 0.13)",
+    backgroundColor: "rgba(217,92,75,0.13)",
     borderWidth: 1,
     borderColor: "rgba(255, 210, 218, 0.20)",
   },
@@ -2470,21 +2667,18 @@ const styles = StyleSheet.create({
     minHeight: 76,
     marginBottom: 0,
     borderRadius: 18,
-    padding: 12,
-    backgroundColor: theme.cards.compact.backgroundColor,
-    borderWidth: theme.cards.compact.borderWidth,
-    borderColor: theme.cards.compact.borderColor,
+    padding: 10,
+    backgroundColor: "rgba(5,8,22,0.84)",
+    borderWidth: 1,
+    borderColor: "rgba(230,185,118,0.15)",
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
   },
-  activityExpandedIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: theme.colors.surfaceWarm,
+  activityExpandedArt: {
+    width: 52,
+    height: 52,
+    borderRadius: 14,
   },
   activityExpandedCopy: {
     flex: 1,
@@ -2494,7 +2688,7 @@ const styles = StyleSheet.create({
     color: theme.colors.textPrimary,
     fontSize: 14,
     lineHeight: 18,
-    fontWeight: "900",
+    fontWeight: "600",
   },
   activityExpandedMeta: {
     marginTop: 2,
@@ -2504,7 +2698,7 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   activityExpandedButton: {
-    height: 34,
+    minHeight: 44,
     minWidth: 90,
     borderRadius: 17,
     alignItems: "center",
@@ -2524,7 +2718,7 @@ const styles = StyleSheet.create({
   activityExpandedButtonText: {
     fontSize: 12,
     lineHeight: 15,
-    fontWeight: "900",
+    fontWeight: "700",
   },
   activityExpandedButtonTextEnabled: {
     color: theme.buttons.primary.textColor,
@@ -2716,7 +2910,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     lineHeight: 23,
     fontWeight: "900",
-    textShadowColor: "rgba(221,160,139,0.18)",
+    textShadowColor: "rgba(230,185,118,0.18)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 5,
   },
@@ -3095,7 +3289,7 @@ const styles = StyleSheet.create({
     gap: 8,
     borderRadius: 14,
     padding: 11,
-    backgroundColor: "rgba(255, 77, 103, 0.16)",
+    backgroundColor: "rgba(217,92,75,0.16)",
     borderWidth: 1,
     borderColor: "rgba(255, 210, 218, 0.24)",
   },

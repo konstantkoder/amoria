@@ -61,8 +61,8 @@ import { startStartupSpan } from "@/services/startupDiagnostics";
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const RootStack = createNativeStackNavigator<RootStackParamList>();
 const ProfileStack = createNativeStackNavigator<ProfileStackParamList>();
-const TAB_ACTIVE_TINT = "#F6F2EC";
-const TAB_INACTIVE_TINT = "#8E94B4";
+const TAB_ACTIVE_TINT = "#F3C98B";
+const TAB_INACTIVE_TINT = "#8E9484";
 
 function BottomTabIconShell({
   focused,
@@ -96,7 +96,7 @@ function TogetherTabIcon({
     <BottomTabIconShell focused={focused}>
       <AmoriaTogetherIcon
         active={focused}
-        size={focused ? size + 2 : size}
+        size={focused ? 27 : 25}
         color={color}
       />
     </BottomTabIconShell>
@@ -364,11 +364,11 @@ function MainTabs() {
           tabBarActiveTintColor: TAB_ACTIVE_TINT,
           tabBarInactiveTintColor: TAB_INACTIVE_TINT,
           tabBarStyle: {
-            backgroundColor: theme.colors.background,
-            borderTopColor: "rgba(255,255,255,0.08)",
-            height: 60 + insets.bottom,
+            backgroundColor: "rgba(5,8,22,0.96)",
+            borderTopColor: "rgba(230,185,118,0.16)",
+            height: 68 + insets.bottom,
             paddingBottom: 5 + insets.bottom,
-            paddingTop: 4,
+            paddingTop: 6,
           },
           tabBarItemStyle: {
             marginTop: -3,
@@ -376,7 +376,8 @@ function MainTabs() {
           },
           tabBarLabelStyle: {
             fontSize: 11,
-            fontWeight: "700",
+            lineHeight: 14,
+            fontWeight: "600",
             marginTop: 0,
           },
           tabBarIcon: ({ color, size, focused }) => {
@@ -425,7 +426,7 @@ function MainTabs() {
                 tabBarBadge: freshChatsCount > 9 ? "9+" : freshChatsCount,
                 tabBarBadgeStyle: {
                   backgroundColor: theme.colors.primary,
-                  color: "#fff",
+                  color: theme.colors.primaryActionText,
                   fontSize: 11,
                   fontWeight: "800",
                 },
@@ -495,26 +496,24 @@ export default function AppNavigator() {
 
 const styles = StyleSheet.create({
   tabIconShell: {
-    minWidth: 48,
-    minHeight: 39,
+    width: 46,
+    height: 42,
     borderRadius: 999,
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
   },
   tabIconShellActive: {
-    minHeight: 41,
-    backgroundColor: "rgba(185,130,114,0.16)",
-    borderColor: "rgba(246,242,236,0.28)",
-    shadowColor: "#F6F2EC",
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 7,
-    transform: [{ translateY: -2 }],
+    backgroundColor: "rgba(230,185,118,0.08)",
+    borderColor: "rgba(230,185,118,0.18)",
+    shadowColor: "#E6B976",
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 4,
   },
   tabIconShellInactive: {
-    backgroundColor: "rgba(255,255,255,0.04)",
-    borderColor: "rgba(255,255,255,0.08)",
+    backgroundColor: "transparent",
+    borderColor: "transparent",
   },
 });

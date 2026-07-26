@@ -686,7 +686,7 @@ export default function ProfileScreen() {
     return (
       <ScreenShell
         title={t("screen.profile")}
-        background="profileWarm"
+        background="profileOnyxV4"
         overlayOpacity={0.16}
         blurRadius={0}
       >
@@ -701,7 +701,7 @@ export default function ProfileScreen() {
   return (
     <ScreenShell
       title={t("screen.profile")}
-      background="profileWarm"
+      background="profileOnyxV4"
       overlayOpacity={0.16}
       blurRadius={0}
     >
@@ -1024,11 +1024,11 @@ const styles = StyleSheet.create({
     color: theme.colors.subtext,
   },
   heroCard: {
-    backgroundColor: "rgba(8, 12, 24, 0.74)",
-    borderRadius: 24,
+    backgroundColor: "rgba(5,8,22,0.84)",
+    borderRadius: 28,
     padding: 18,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
+    borderColor: "rgba(230,185,118,0.25)",
     gap: 14,
   },
   avatarPanel: {
@@ -1046,11 +1046,13 @@ const styles = StyleSheet.create({
     gap: 7,
   },
   avatarPreviewFrame: {
-    width: 108,
-    height: 108,
-    borderRadius: 54,
+    width: 104,
+    height: 104,
+    borderRadius: 52,
     overflow: "hidden",
     backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1.5,
+    borderColor: "#E6B976",
   },
   avatarCropFrame: {
     borderRadius: 14,
@@ -1117,8 +1119,10 @@ const styles = StyleSheet.create({
   },
   displayName: {
     color: theme.colors.text,
-    fontSize: 28,
-    fontWeight: "800",
+    fontFamily: "serif",
+    fontSize: 26,
+    lineHeight: 32,
+    fontWeight: "600",
   },
   amoriaIdText: {
     color: theme.colors.subtext,
@@ -1126,11 +1130,11 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   sectionCard: {
-    backgroundColor: "rgba(8, 12, 24, 0.72)",
+    backgroundColor: "rgba(5,8,22,0.76)",
     borderRadius: 20,
-    padding: 16,
+    padding: 15,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.11)",
+    borderColor: "rgba(230,185,118,0.14)",
     gap: 12,
   },
   photoSectionCard: {

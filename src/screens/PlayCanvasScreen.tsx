@@ -2,6 +2,7 @@ import React from "react";
 import {
   Alert,
   AppState,
+  Image,
   Platform,
   Pressable,
   ScrollView,
@@ -10,6 +11,7 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import {
   type EventArg,
   useIsFocused,
@@ -54,6 +56,7 @@ import {
 } from "@/services/togetherPromptLocalization";
 import { shouldRenewPartnerLease } from "@/services/togetherTurnBasedFlow";
 import { theme } from "@/theme";
+import { getTogetherPromptArt } from "@/assets/together/promptArt";
 
 const DRAW_SESSION_DURATION_SEC = 420;
 
@@ -378,6 +381,7 @@ export default function PlayCanvasScreen() {
   const totalStrokeCount = strokes.length;
   const localizedPrompt = localizeTogetherPrompt(session, tt);
   const promptKey = getTogetherPromptKey(session);
+  const promptArt = getTogetherPromptArt(promptKey);
   const promptHints = React.useMemo(() => {
     if (!promptKey) {
       return [
@@ -858,7 +862,7 @@ export default function PlayCanvasScreen() {
     return (
       <ScreenShell
         title={tt("play.canvas.title", "Совместная сессия")}
-        background="midnightWarm"
+        background="togetherOldBridgeV4"
         showBack
         onBack={handleSafeBack}
       >
@@ -879,7 +883,7 @@ export default function PlayCanvasScreen() {
     return (
       <ScreenShell
         title={tt("play.canvas.title", "Совместная сессия")}
-        background="midnightWarm"
+        background="togetherOldBridgeV4"
         showBack
         onBack={handleSafeBack}
       >
@@ -902,7 +906,7 @@ export default function PlayCanvasScreen() {
     return (
       <ScreenShell
         title={tt("play.canvas.title", "Совместная сессия")}
-        background="midnightWarm"
+        background="togetherOldBridgeV4"
         showBack
         onBack={handleSafeBack}
       >
@@ -924,7 +928,7 @@ export default function PlayCanvasScreen() {
     return (
       <ScreenShell
         title={tt("play.canvas.title", "Совместная сессия")}
-        background="midnightWarm"
+        background="togetherOldBridgeV4"
         showBack
         onBack={goToTogether}
       >
@@ -958,7 +962,7 @@ export default function PlayCanvasScreen() {
     return (
       <ScreenShell
         title={tt("play.canvas.title", "Совместная сессия")}
-        background="midnightWarm"
+        background="togetherOldBridgeV4"
         showBack
         onBack={() => void leaveSessionAndExit()}
       >
@@ -988,7 +992,7 @@ export default function PlayCanvasScreen() {
     return (
       <ScreenShell
         title={tt("play.canvas.title", "Совместная сессия")}
-        background="midnightWarm"
+        background="togetherOldBridgeV4"
         showBack
         onBack={handleCanvasBack}
       >
@@ -998,22 +1002,39 @@ export default function PlayCanvasScreen() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.previewCard}>
-            <Text style={styles.previewEyebrow}>
-              {tt("play.canvas.previewEyebrow", "Вызов")}
-            </Text>
-            <Text style={styles.previewTitle}>{localizedPrompt}</Text>
-            <Text style={styles.previewBody}>
-              {tt(
-                "play.canvas.previewBody",
-                "Посмотрите на задание. Холст откроется чистым, а рисунок останется вашим общим ответом."
-              )}
-            </Text>
-            <View style={styles.hintRow}>
-              {promptHints.map((hint) => (
-                <View key={hint} style={styles.hintChip}>
-                  <Text style={styles.hintChipText}>{hint}</Text>
-                </View>
-              ))}
+            <View style={styles.promptImageWrap}>
+              <Image
+                source={promptArt}
+                style={styles.promptImage}
+                resizeMode="cover"
+                accessible={false}
+              />
+              <LinearGradient
+                colors={["transparent", "rgba(5,8,22,0.88)"]}
+                style={styles.promptImageGradient}
+                pointerEvents="none"
+              />
+            </View>
+            <View style={styles.previewCopy}>
+              <Text style={styles.previewEyebrow}>
+                {tt("play.canvas.previewEyebrow", "Вызов")}
+              </Text>
+              <Text style={styles.previewTitle} numberOfLines={4}>
+                {localizedPrompt}
+              </Text>
+              <Text style={styles.previewBody}>
+                {tt(
+                  "play.canvas.previewBody",
+                  "Посмотрите на задание. Холст откроется чистым, а рисунок останется вашим общим ответом."
+                )}
+              </Text>
+              <View style={styles.hintRow}>
+                {promptHints.map((hint) => (
+                  <View key={hint} style={styles.hintChip}>
+                    <Text style={styles.hintChipText} numberOfLines={2}>{hint}</Text>
+                  </View>
+                ))}
+              </View>
             </View>
           </View>
 
@@ -1062,7 +1083,7 @@ export default function PlayCanvasScreen() {
   return (
     <ScreenShell
       title={tt("play.canvas.title", "Совместная сессия")}
-      background="midnightWarm"
+      background="togetherOldBridgeV4"
       showHeader={!focusMode}
       showBack
       onBack={handleCanvasBack}
@@ -1180,6 +1201,20 @@ export default function PlayCanvasScreen() {
           </View>
         )}
 
+        {!focusMode ? (
+          <View style={styles.referenceStrip}>
+            <Image
+              source={promptArt}
+              style={styles.referenceThumbnail}
+              resizeMode="cover"
+              accessible={false}
+            />
+            <Text style={styles.referenceText} numberOfLines={2}>
+              {localizedPrompt}
+            </Text>
+          </View>
+        ) : null}
+
         <SharedCanvasWebView
           key={`${sessionId}-${canvasRevision}`}
           localUid={uid}
@@ -1271,20 +1306,43 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   previewContent: {
-    padding: 18,
-    paddingBottom: 36,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 28,
     gap: 16,
   },
   previewCard: {
-    borderRadius: theme.shapes.card,
-    padding: 20,
-    gap: 10,
-    backgroundColor: "rgba(10, 13, 26, 0.86)",
+    borderRadius: 28,
+    overflow: "hidden",
+    backgroundColor: "rgba(5,8,22,0.90)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.14)",
+    borderColor: "rgba(230,185,118,0.26)",
+  },
+  promptImageWrap: {
+    width: "100%",
+    minHeight: 176,
+    maxHeight: 220,
+    aspectRatio: 1.5,
+  },
+  promptImage: {
+    width: "100%",
+    height: "100%",
+  },
+  promptImageGradient: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: "52%",
+  },
+  previewCopy: {
+    paddingHorizontal: 18,
+    paddingTop: 16,
+    paddingBottom: 18,
+    gap: 10,
   },
   previewEyebrow: {
-    color: "#FFE0B8",
+    color: "#E6B976",
     fontSize: 12,
     fontWeight: "800",
     letterSpacing: 1,
@@ -1292,13 +1350,14 @@ const styles = StyleSheet.create({
   },
   previewTitle: {
     color: theme.colors.text,
-    fontSize: 26,
-    lineHeight: 32,
-    fontWeight: "800",
+    fontFamily: "serif",
+    fontSize: 25,
+    lineHeight: 31,
+    fontWeight: "600",
   },
   previewBody: {
     color: theme.colors.subtext,
-    fontSize: 15,
+    fontSize: 14,
     lineHeight: 21,
   },
   hintRow: {
@@ -1311,12 +1370,14 @@ const styles = StyleSheet.create({
     borderRadius: theme.shapes.pill,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    backgroundColor: "rgba(255, 224, 184, 0.12)",
+    minHeight: 34,
+    justifyContent: "center",
+    backgroundColor: "rgba(230,185,118,0.11)",
     borderWidth: 1,
-    borderColor: "rgba(255, 224, 184, 0.22)",
+    borderColor: "rgba(230,185,118,0.22)",
   },
   hintChipText: {
-    color: "#FFE0B8",
+    color: "#F3C98B",
     fontSize: 12,
     fontWeight: "800",
   },
@@ -1349,8 +1410,8 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   primaryButton: {
-    minHeight: 54,
-    borderRadius: theme.shapes.pill,
+    minHeight: 56,
+    borderRadius: 28,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: theme.colors.primaryActionBg,
@@ -1360,7 +1421,7 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     color: theme.colors.primaryActionText,
     fontSize: 16,
-    fontWeight: "800",
+    fontWeight: "700",
   },
   exitButton: {
     minHeight: 52,
@@ -1389,6 +1450,30 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(8,10,18,0.94)",
     borderBottomWidth: 1,
     borderBottomColor: "rgba(255,255,255,0.1)",
+  },
+  referenceStrip: {
+    height: 62,
+    marginHorizontal: 12,
+    marginBottom: 8,
+    padding: 6,
+    borderRadius: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: "rgba(5,8,22,0.92)",
+    borderWidth: 1,
+    borderColor: "rgba(230,185,118,0.18)",
+  },
+  referenceThumbnail: {
+    width: 72,
+    height: 48,
+    borderRadius: 12,
+  },
+  referenceText: {
+    flex: 1,
+    color: theme.colors.textWarm,
+    fontSize: 13,
+    lineHeight: 18,
   },
   headerTextWrap: {
     flex: 1,

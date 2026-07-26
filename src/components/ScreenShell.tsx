@@ -1,5 +1,5 @@
 import React from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Image, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
@@ -12,6 +12,7 @@ import { openDrawer } from "@/navigation/drawerController";
 import {
   type RootStackNavigationProp,
 } from "@/navigation/appRoutes";
+import { theme } from "@/theme";
 
 type Props = {
   title?: string;
@@ -64,10 +65,20 @@ export default function ScreenShell({
                   onPress={handleBack}
                   style={styles.iconButton}
                   activeOpacity={0.85}
+                  accessibilityRole="button"
                 >
-                  <Ionicons name="chevron-back" size={22} color="#fff" />
+                  <Ionicons name="chevron-back" size={22} color={theme.colors.textWarm} />
                 </TouchableOpacity>
-              ) : null}
+              ) : (
+                <View style={styles.brandGroup} accessible={false}>
+                  <Image
+                    source={require("../../assets/brand/amoria_startup_mark_1024.png")}
+                    style={styles.brandMark}
+                    resizeMode="contain"
+                  />
+                  <Text style={styles.wordmark}>Amoria</Text>
+                </View>
+              )}
             </View>
 
             <View style={styles.titleWrap}>
@@ -93,29 +104,20 @@ export default function ScreenShell({
 }
 
 const styles = StyleSheet.create({
-  safe: { paddingHorizontal: 12, paddingTop: 4, backgroundColor: "transparent" },
+  safe: { paddingHorizontal: 16, backgroundColor: "transparent" },
   header: {
     flexDirection: "row",
     alignItems: "center",
-    minHeight: 52,
-    paddingHorizontal: 8,
-    paddingVertical: 7,
-    borderRadius: 24,
-    backgroundColor: "rgba(7, 11, 21, 0.86)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.18)",
-    shadowColor: "#000000",
-    shadowOpacity: 0.28,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 8,
+    minHeight: 48,
+    paddingVertical: 2,
   },
   headerSide: { width: 92, flexDirection: "row", alignItems: "center" },
   titleWrap: { flex: 1, alignItems: "center", paddingHorizontal: 6 },
   title: {
-    color: "#fff",
+    color: theme.colors.textWarm,
     fontSize: 16,
-    fontWeight: "800",
+    fontFamily: Platform.select({ ios: "Georgia", default: "serif" }),
+    fontWeight: "600",
     lineHeight: 20,
     textAlign: "center",
     letterSpacing: 0.2,
@@ -128,20 +130,37 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
-    minWidth: 40,
-    minHeight: 38,
+    minWidth: 44,
+    minHeight: 44,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: "rgba(255,255,255,0.12)",
+    backgroundColor: "rgba(5,8,22,0.78)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.20)",
+    borderColor: "rgba(230,185,118,0.18)",
     shadowColor: "#000000",
     shadowOpacity: 0.22,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
     elevation: 5,
   },
-  bodySafe: { flex: 1, paddingHorizontal: 12, paddingTop: 8, backgroundColor: "transparent" },
+  brandGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  brandMark: {
+    width: 22,
+    height: 22,
+  },
+  wordmark: {
+    color: "#F3C98B",
+    fontFamily: Platform.select({ ios: "Georgia", default: "serif" }),
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: "600",
+    letterSpacing: 0.4,
+  },
+  bodySafe: { flex: 1, paddingHorizontal: 16, paddingTop: 8, backgroundColor: "transparent" },
   content: { flex: 1, backgroundColor: "transparent" },
 });

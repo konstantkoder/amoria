@@ -1,11 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Image,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
@@ -22,6 +24,7 @@ import type {
   NearbyActivityPreferencesResponse,
 } from "@/services/api/types";
 import { theme } from "@/theme";
+import { getNearbyActivityArt } from "@/assets/nearby/activityArt";
 
 const ACTIVITY_CATEGORY_ORDER: NearbyActivityCategory[] = [
   "social",
@@ -156,6 +159,9 @@ function sameSelectedKeys(
 export default function NearbyActivityPreferencesScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"NearbyActivityPreferences">>();
   const { t } = useLocale();
+  const { width: screenWidth } = useWindowDimensions();
+  const activityCardWidth =
+    screenWidth < 350 ? screenWidth - 32 : (screenWidth - 32 - 12) / 2;
   const mountedRef = useRef(true);
   const [activities, setActivities] = useState<NearbyActivityDefinition[]>([]);
   const [selectedKeys, setSelectedKeys] = useState<Set<NearbyActivityKey>>(
@@ -284,7 +290,7 @@ export default function NearbyActivityPreferencesScreen() {
         "Nearby activities"
       )}
       titleNumberOfLines={2}
-      background="nearbyWarm"
+      background="nearbyOldCityV4"
       overlayOpacity={0.16}
       blurRadius={0}
       showBack
@@ -356,6 +362,7 @@ export default function NearbyActivityPreferencesScreen() {
                           disabled={saving}
                           style={[
                             styles.activityRow,
+                            { width: activityCardWidth },
                             selected ? styles.activityRowSelected : null,
                             saving ? styles.rowDisabled : null,
                           ]}
@@ -364,7 +371,14 @@ export default function NearbyActivityPreferencesScreen() {
                             checked: selected,
                             disabled: saving,
                           }}
+                          accessibilityLabel={getActivityLabel(activity, t)}
                         >
+                          <Image
+                            source={getNearbyActivityArt(activity.activityKey)}
+                            style={styles.activityArt}
+                            resizeMode="cover"
+                            accessible={false}
+                          />
                           <View
                             style={[
                               styles.checkCircle,
@@ -379,14 +393,17 @@ export default function NearbyActivityPreferencesScreen() {
                               />
                             ) : null}
                           </View>
-                          <Text
-                            style={[
-                              styles.activityLabel,
-                              selected ? styles.activityLabelSelected : null,
-                            ]}
-                          >
-                            {getActivityLabel(activity, t)}
-                          </Text>
+                          <View style={styles.activityCopy}>
+                            <Text
+                              style={[
+                                styles.activityLabel,
+                                selected ? styles.activityLabelSelected : null,
+                              ]}
+                              numberOfLines={2}
+                            >
+                              {getActivityLabel(activity, t)}
+                            </Text>
+                          </View>
                         </Pressable>
                       );
                     })}
@@ -530,7 +547,7 @@ const styles = StyleSheet.create({
     gap: 8,
     borderRadius: 14,
     padding: 11,
-    backgroundColor: "rgba(255, 77, 103, 0.16)",
+    backgroundColor: "rgba(217,92,75,0.16)",
     borderWidth: 1,
     borderColor: "rgba(255, 210, 218, 0.24)",
   },
@@ -568,19 +585,17 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
   },
   categoryActivities: {
-    gap: 8,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
   },
   activityRow: {
-    minHeight: 48,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    backgroundColor: "rgba(10, 16, 28, 0.76)",
+    minHeight: 146,
+    borderRadius: 20,
+    overflow: "hidden",
+    backgroundColor: "rgba(5,8,22,0.86)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
+    borderColor: "rgba(230,185,118,0.15)",
   },
   activityRowSelected: {
     backgroundColor: theme.colors.chipActiveBg,
@@ -590,28 +605,39 @@ const styles = StyleSheet.create({
     opacity: 0.58,
   },
   checkCircle: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+    position: "absolute",
+    top: 8,
+    right: 8,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "rgba(226,232,255,0.36)",
-    backgroundColor: "rgba(255,255,255,0.06)",
+    borderColor: "rgba(249,250,255,0.22)",
+    backgroundColor: "rgba(5,8,22,0.72)",
   },
   checkCircleSelected: {
     backgroundColor: theme.colors.primaryActionBg,
     borderColor: theme.colors.primaryActionBg,
   },
   activityLabel: {
-    flex: 1,
     color: "rgba(226,232,255,0.86)",
-    fontSize: 15,
-    lineHeight: 19,
-    fontWeight: "800",
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "600",
   },
   activityLabelSelected: {
     color: theme.colors.text,
+  },
+  activityArt: {
+    width: "100%",
+    height: 84,
+  },
+  activityCopy: {
+    minHeight: 58,
+    padding: 10,
+    justifyContent: "center",
   },
   successPanel: {
     flexDirection: "row",
@@ -669,11 +695,11 @@ const styles = StyleSheet.create({
     fontWeight: theme.buttons.primary.fontWeight,
   },
   saveButtonDisabled: {
-    backgroundColor: "rgba(201,120,104,0.12)",
-    borderColor: "rgba(201,120,104,0.28)",
+    backgroundColor: "rgba(230,185,118,0.08)",
+    borderColor: "rgba(230,185,118,0.18)",
   },
   saveButtonTextDisabled: {
-    color: "rgba(221,160,139,0.58)",
+    color: "rgba(230,185,118,0.52)",
   },
   secondaryButton: {
     minWidth: 104,

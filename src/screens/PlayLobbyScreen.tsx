@@ -524,7 +524,7 @@ export default function PlayLobbyScreen() {
   const togetherFiltersSheetMaxHeight = screenHeight * 0.68;
 
   return (
-    <ScreenShell title={t("tabs.together")} background="togetherMain">
+    <ScreenShell title={t("tabs.together")} background="togetherOldBridgeV4">
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}
@@ -857,7 +857,7 @@ export default function PlayLobbyScreen() {
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
   content: {
-    padding: 14,
+    padding: 16,
     paddingBottom: 40,
     gap: 14,
   },
@@ -883,9 +883,10 @@ const styles = StyleSheet.create({
   heroTitle: {
     alignSelf: "center",
     color: theme.colors.textPrimary,
-    fontSize: 30,
-    lineHeight: 35,
-    fontWeight: "800",
+    fontFamily: "serif",
+    fontSize: 31,
+    lineHeight: 38,
+    fontWeight: "600",
     maxWidth: 390,
     textAlign: "center",
     textShadowColor: "rgba(7,10,20,0.72)",
@@ -915,7 +916,7 @@ const styles = StyleSheet.create({
   completionTitle: {
     color: theme.colors.textPrimary,
     fontSize: 14,
-    fontWeight: "900",
+    fontWeight: "700",
     textShadowColor: "rgba(7,10,20,0.92)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 5,
@@ -930,8 +931,8 @@ const styles = StyleSheet.create({
   },
   completionButton: {
     alignSelf: "flex-start",
-    minHeight: 36,
-    borderRadius: 18,
+    minHeight: 44,
+    borderRadius: 22,
     paddingHorizontal: 12,
     alignItems: "center",
     justifyContent: "center",
@@ -943,7 +944,7 @@ const styles = StyleSheet.create({
     color: theme.colors.warningText,
     fontSize: 12,
     lineHeight: 15,
-    fontWeight: "900",
+    fontWeight: "700",
   },
   filterBlock: {
     gap: 8,
@@ -984,7 +985,7 @@ const styles = StyleSheet.create({
   },
   primaryCta: {
     alignSelf: "center",
-    minHeight: 48,
+    minHeight: 56,
     width: "100%",
     maxWidth: 390,
   },
@@ -1006,9 +1007,9 @@ const styles = StyleSheet.create({
   },
   searchSettingsPill: {
     alignSelf: "center",
-    minHeight: 36,
+    minHeight: 44,
     maxWidth: "100%",
-    borderRadius: 18,
+    borderRadius: 22,
     paddingHorizontal: 12,
     flexDirection: "row",
     alignItems: "center",
@@ -1023,7 +1024,7 @@ const styles = StyleSheet.create({
     color: theme.buttons.secondary.textColor,
     fontSize: 12,
     lineHeight: 15,
-    fontWeight: "900",
+    fontWeight: "700",
   },
   detailsToggle: {
     minHeight: 44,
@@ -1041,12 +1042,12 @@ const styles = StyleSheet.create({
     color: theme.buttons.secondary.textColor,
     fontSize: 14,
     lineHeight: 18,
-    fontWeight: "900",
+    fontWeight: "700",
   },
   detailsToggleIcon: {
     color: theme.buttons.secondary.textColor,
     fontSize: 17,
-    fontWeight: "900",
+    fontWeight: "700",
   },
   detailsPanel: {
     gap: 9,
@@ -1057,7 +1058,7 @@ const styles = StyleSheet.create({
   detailsTitle: {
     color: theme.colors.textPrimary,
     fontSize: 14,
-    fontWeight: "900",
+    fontWeight: "700",
     marginTop: 2,
     textShadowColor: "rgba(7,10,20,0.92)",
     textShadowOffset: { width: 0, height: 1 },
@@ -1098,8 +1099,8 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   turnBasedCard: {
-    backgroundColor: "rgba(10,14,26,0.78)",
-    borderColor: "rgba(167,139,196,0.36)",
+    backgroundColor: "rgba(5,8,22,0.78)",
+    borderColor: "rgba(230,185,118,0.18)",
     borderWidth: 1,
     borderRadius: 22,
     padding: 16,
@@ -1109,7 +1110,7 @@ const styles = StyleSheet.create({
     color: "#F9FAFF",
     fontSize: 18,
     lineHeight: 24,
-    fontWeight: "800",
+    fontWeight: "600",
   },
   turnBasedBody: {
     color: theme.colors.textSecondary,

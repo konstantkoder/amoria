@@ -761,7 +761,7 @@ export default function PlayMatchScreen() {
     return (
       <ScreenShell
         title={tt("tabs.together", "Вместе")}
-        background="midnightWarm"
+        background="togetherOldBridgeV4"
         showBack
         onBack={handleBack}
       >
@@ -807,7 +807,7 @@ export default function PlayMatchScreen() {
   return (
     <ScreenShell
       title={tt("tabs.together", "Вместе")}
-      background="midnightWarm"
+      background="togetherOldBridgeV4"
       showBack
       onBack={handleBack}
     >
@@ -905,20 +905,20 @@ export default function PlayMatchScreen() {
 const styles = StyleSheet.create({
   center: {
     flex: 1,
-    padding: 18,
+    padding: 16,
     alignItems: "center",
     justifyContent: "center",
   },
   card: {
     width: "100%",
-    maxWidth: 420,
-    borderRadius: theme.shapes.card,
-    padding: 22,
+    maxWidth: 430,
+    borderRadius: 28,
+    padding: 20,
     gap: 12,
     alignItems: "center",
-    backgroundColor: "rgba(10, 13, 26, 0.86)",
+    backgroundColor: "rgba(5,8,22,0.90)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.14)",
+    borderColor: "rgba(230,185,118,0.25)",
   },
   iconWrap: {
     width: 64,
@@ -957,7 +957,8 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
     fontSize: 24,
     lineHeight: 30,
-    fontWeight: "800",
+    fontFamily: "serif",
+    fontWeight: "600",
     textAlign: "center",
   },
   body: {
@@ -995,8 +996,8 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   primaryButton: {
-    minHeight: 50,
-    borderRadius: theme.shapes.pill,
+    minHeight: 56,
+    borderRadius: 28,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: theme.colors.primaryActionBg,
@@ -1006,7 +1007,7 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     color: theme.colors.primaryActionText,
     fontSize: 15,
-    fontWeight: "800",
+    fontWeight: "700",
   },
   stopButton: {
     minHeight: 50,

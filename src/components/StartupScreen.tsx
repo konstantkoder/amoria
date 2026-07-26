@@ -1,6 +1,9 @@
 import React from "react";
 import {
+  AccessibilityInfo,
   ActivityIndicator,
+  Animated,
+  Image,
   Pressable,
   StatusBar,
   StyleSheet,
@@ -21,16 +24,71 @@ type Props = {
 
 export default function StartupScreen({ recovery = false, retrying = false, onRetry }: Props) {
   const { t } = useLocale();
+  const breathing = React.useRef(new Animated.Value(0)).current;
+  const [reduceMotion, setReduceMotion] = React.useState(false);
+
+  React.useEffect(() => {
+    let mounted = true;
+    void AccessibilityInfo.isReduceMotionEnabled().then((enabled) => {
+      if (mounted) setReduceMotion(enabled);
+    });
+    const subscription = AccessibilityInfo.addEventListener(
+      "reduceMotionChanged",
+      setReduceMotion,
+    );
+    return () => {
+      mounted = false;
+      subscription.remove();
+    };
+  }, []);
+
+  React.useEffect(() => {
+    breathing.stopAnimation();
+    breathing.setValue(0);
+    if (reduceMotion || recovery) return;
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(breathing, {
+          toValue: 1,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+        Animated.timing(breathing, {
+          toValue: 0,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    animation.start();
+    return () => animation.stop();
+  }, [breathing, recovery, reduceMotion]);
+
+  const markScale = breathing.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.98, 1.025],
+  });
+  const haloOpacity = breathing.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.16, 0.28],
+  });
 
   return (
     <SafeAreaView style={styles.screen} testID={recovery ? "startup-recovery" : "startup-loading"}>
       <StatusBar barStyle="light-content" backgroundColor={theme.colors.background} />
-      <View style={styles.glow} />
       <View style={styles.content}>
-        <View style={styles.mark}>
-          <Text style={styles.markText}>A</Text>
-        </View>
-        <Text style={styles.brand}>AMORIA</Text>
+        <Animated.View style={[styles.halo, { opacity: reduceMotion ? 0.2 : haloOpacity }]} />
+        <Animated.View
+          style={{ transform: [{ scale: reduceMotion ? 1 : markScale }] }}
+        >
+          <Image
+            source={require("../../assets/brand/amoria_startup_mark_1024.png")}
+            resizeMode="contain"
+            style={styles.mark}
+            accessible={false}
+          />
+        </Animated.View>
+        <Text style={styles.brand}>Amoria</Text>
         <Text style={styles.title}>
           {t(recovery ? "startup.recoveryTitle" : "startup.loadingTitle")}
         </Text>
@@ -67,14 +125,12 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.background,
     overflow: "hidden",
   },
-  glow: {
+  halo: {
     position: "absolute",
-    width: 360,
-    height: 360,
-    borderRadius: 180,
-    top: -170,
-    alignSelf: "center",
-    backgroundColor: "rgba(117,92,154,0.16)",
+    width: 150,
+    height: 150,
+    borderRadius: 75,
+    backgroundColor: "rgba(230,185,118,0.18)",
   },
   content: {
     flex: 1,
@@ -83,33 +139,23 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   mark: {
-    width: 70,
-    height: 70,
-    borderRadius: 24,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: visualSystem.colors.accentSoft,
-    borderWidth: 1,
-    borderColor: theme.colors.borderWarm,
-  },
-  markText: {
-    color: visualSystem.colors.textWarm,
-    fontSize: 34,
-    fontWeight: "800",
+    width: 92,
+    height: 92,
   },
   brand: {
-    marginTop: 18,
+    marginTop: 16,
     color: visualSystem.colors.textWarm,
-    fontSize: 13,
-    letterSpacing: 4.5,
-    fontWeight: "800",
+    fontSize: 28,
+    lineHeight: 34,
+    fontFamily: "serif",
+    fontWeight: "600",
   },
   title: {
-    marginTop: 30,
+    marginTop: 24,
     color: theme.colors.text,
     fontSize: 24,
     lineHeight: 31,
-    fontWeight: "800",
+    fontWeight: "600",
     textAlign: "center",
   },
   body: {
@@ -120,10 +166,10 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     textAlign: "center",
   },
-  indicator: { marginTop: 28 },
+  indicator: { marginTop: 16 },
   retry: {
     minWidth: 180,
-    minHeight: 48,
+    minHeight: 56,
     marginTop: 28,
     paddingHorizontal: 22,
     borderRadius: theme.buttons.primary.borderRadius,
@@ -140,6 +186,6 @@ const styles = StyleSheet.create({
   retryText: {
     color: visualSystem.colors.primaryText,
     fontSize: 15,
-    fontWeight: "900",
+    fontWeight: "700",
   },
 });

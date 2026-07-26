@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
   Alert,
+  Image,
   Keyboard,
   KeyboardAvoidingView,
   Platform,
@@ -12,6 +13,7 @@ import {
   TouchableWithoutFeedback,
   View,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getApiBaseUrl } from "@/config/apiConfig";
 import { useAuth } from "@/contexts/AuthContext";
@@ -27,6 +29,7 @@ import { theme } from "@/theme";
 
 const EMAIL_RE = /^\S+@\S+\.\S+$/;
 type AuthMode = "login" | "register";
+type AuthStage = "welcome" | "auth";
 
 function isBackendApiConfigured() {
   try {
@@ -190,6 +193,7 @@ export default function LoginScreen() {
   const emailInputRef = useRef<TextInput>(null);
   const passwordInputRef = useRef<TextInput>(null);
   const [mode, setMode] = useState<AuthMode>("login");
+  const [stage, setStage] = useState<AuthStage>("welcome");
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -314,8 +318,13 @@ export default function LoginScreen() {
     void login();
   };
 
+  const openAuth = (nextMode: AuthMode) => {
+    setMode(nextMode);
+    setStage("auth");
+  };
+
   return (
-    <ScreenBackground variant="authWarm" overlayOpacity={0.16} blurRadius={0}>
+    <ScreenBackground variant="startOnyxV4" overlayOpacity={0.16} blurRadius={0}>
       <View style={styles.screen}>
         <TouchableOpacity
           style={[styles.languageButton, { top: insets.top + 8 }]}
@@ -332,18 +341,62 @@ export default function LoginScreen() {
             <ScrollView
               contentContainerStyle={[
                 styles.container,
+                stage === "welcome" ? styles.welcomeContainer : styles.authContainer,
                 {
-                  paddingTop: insets.top + 64,
-                  paddingBottom: insets.bottom + 32,
+                  paddingTop: stage === "welcome" ? insets.top + 88 : insets.top + 60,
+                  paddingBottom: insets.bottom + 26,
                 },
               ]}
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
             >
-              <Text style={styles.title}>
-                {isRegisterMode ? t("auth.registerTitle") : t("auth.loginTitle")}
-              </Text>
-              <View style={styles.modeSwitch}>
+              {stage === "welcome" ? (
+                <>
+                  <View style={styles.brandGroup}>
+                    <Image
+                      source={require("../../assets/brand/amoria_startup_mark_1024.png")}
+                      resizeMode="contain"
+                      style={styles.brandMark}
+                      accessible={false}
+                    />
+                    <Text style={styles.wordmark}>Amoria</Text>
+                  </View>
+                  <Text style={styles.tagline}>{t("start.tagline")}</Text>
+                  <View style={styles.actionZone}>
+                    <TouchableOpacity
+                      accessibilityRole="button"
+                      style={styles.welcomePrimary}
+                      onPress={() => openAuth("register")}
+                      activeOpacity={0.88}
+                    >
+                      <Text style={styles.welcomePrimaryText}>{t("start.begin")}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      accessibilityRole="button"
+                      style={styles.welcomeSecondary}
+                      onPress={() => openAuth("login")}
+                      activeOpacity={0.82}
+                    >
+                      <Text style={styles.welcomeSecondaryText}>{t("start.login")}</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              ) : (
+                <>
+                  <TouchableOpacity
+                    accessibilityRole="button"
+                    accessibilityLabel={t("auth.backToWelcome")}
+                    style={styles.backButton}
+                    onPress={() => setStage("welcome")}
+                    activeOpacity={0.82}
+                  >
+                    <Ionicons name="chevron-back" size={24} color={theme.colors.goldBright} />
+                  </TouchableOpacity>
+                  <View style={styles.authCard}>
+                    <Text style={styles.title}>
+                      {isRegisterMode ? t("auth.registerTitle") : t("auth.loginTitle")}
+                    </Text>
+                    <View style={styles.modeSwitch}>
                 <TouchableOpacity
                   style={[
                     styles.modeButton,
@@ -435,6 +488,8 @@ export default function LoginScreen() {
                 style={[styles.button, authDisabled ? styles.buttonDisabled : null]}
                 onPress={submitAuth}
                 disabled={authDisabled}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: authDisabled }}
               >
                 <Text
                   style={[
@@ -445,6 +500,9 @@ export default function LoginScreen() {
                   {isRegisterMode ? t("auth.registerButton") : t("auth.loginButton")}
                 </Text>
               </TouchableOpacity>
+                  </View>
+                </>
+              )}
             </ScrollView>
           </TouchableWithoutFeedback>
         </KeyboardAvoidingView>
@@ -479,7 +537,7 @@ const styles = StyleSheet.create({
     color: theme.buttons.secondary.textColor,
     fontSize: 12,
     lineHeight: 15,
-    fontWeight: "900",
+    fontWeight: "700",
     textShadowColor: "rgba(0,0,0,0.6)",
     textShadowRadius: 4,
     textShadowOffset: { width: 0, height: 1 },
@@ -488,11 +546,89 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     padding: 24,
     alignItems: "stretch",
+  },
+  welcomeContainer: {
+    justifyContent: "flex-start",
+  },
+  authContainer: {
     justifyContent: "center",
   },
-  title: {
-    fontSize: 22,
+  brandGroup: {
+    alignItems: "center",
+  },
+  brandMark: {
+    width: 66,
+    height: 66,
+  },
+  wordmark: {
+    marginTop: 18,
+    color: theme.colors.textWarm,
+    fontFamily: "serif",
+    fontSize: 42,
+    lineHeight: 50,
+    fontWeight: "600",
+  },
+  tagline: {
+    marginTop: 52,
+    maxWidth: 300,
+    alignSelf: "center",
+    color: "rgba(249,250,255,0.76)",
+    fontSize: 17,
+    lineHeight: 25,
+    textAlign: "center",
+  },
+  actionZone: {
+    marginTop: "auto",
+    paddingTop: 48,
+  },
+  welcomePrimary: {
+    minHeight: 56,
+    borderRadius: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.colors.primaryActionBg,
+  },
+  welcomePrimaryText: {
+    color: theme.colors.primaryActionText,
+    fontSize: 16,
+    lineHeight: 20,
     fontWeight: "700",
+  },
+  welcomeSecondary: {
+    minHeight: 44,
+    marginTop: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  welcomeSecondaryText: {
+    color: theme.colors.gold,
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "700",
+  },
+  backButton: {
+    width: 44,
+    height: 44,
+    marginBottom: 8,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(5,8,22,0.78)",
+    borderWidth: 1,
+    borderColor: "rgba(230,185,118,0.24)",
+  },
+  authCard: {
+    padding: 20,
+    borderRadius: 28,
+    backgroundColor: "rgba(5,8,22,0.88)",
+    borderWidth: 1,
+    borderColor: "rgba(230,185,118,0.24)",
+  },
+  title: {
+    fontFamily: "serif",
+    fontSize: 32,
+    lineHeight: 38,
+    fontWeight: "600",
     marginBottom: 12,
     textAlign: "center",
     color: theme.colors.textPrimary,
@@ -532,15 +668,15 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   input: {
-    minHeight: 48,
+    minHeight: 50,
     borderWidth: 1,
     borderRadius: 18,
     paddingHorizontal: 14,
     paddingVertical: 11,
     marginVertical: 6,
-    borderColor: "rgba(255,255,255,0.14)",
+    borderColor: "rgba(230,185,118,0.14)",
     color: theme.colors.textPrimary,
-    backgroundColor: "rgba(255,255,255,0.07)",
+    backgroundColor: "rgba(255,255,255,0.045)",
     fontSize: 15,
     lineHeight: 20,
   },
@@ -552,7 +688,7 @@ const styles = StyleSheet.create({
     color: theme.colors.textSecondary,
   },
   button: {
-    minHeight: 48,
+    minHeight: 56,
     borderWidth: 1,
     borderRadius: theme.buttons.primary.borderRadius,
     paddingHorizontal: theme.buttons.primary.paddingHorizontal,
@@ -561,8 +697,8 @@ const styles = StyleSheet.create({
     backgroundColor: theme.buttons.primary.backgroundColor,
   },
   buttonDisabled: {
-    backgroundColor: "rgba(201,120,104,0.12)",
-    borderColor: "rgba(201,120,104,0.28)",
+    backgroundColor: "rgba(230,185,118,0.08)",
+    borderColor: "rgba(230,185,118,0.18)",
   },
   buttonText: {
     fontSize: theme.buttons.primary.fontSize,
@@ -571,6 +707,6 @@ const styles = StyleSheet.create({
     color: theme.buttons.primary.textColor,
   },
   buttonTextDisabled: {
-    color: "rgba(221,160,139,0.58)",
+    color: "rgba(230,185,118,0.52)",
   },
 });

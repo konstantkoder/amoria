@@ -19,6 +19,11 @@ export type ScreenBackgroundVariant =
   | "now"
   | "rooms"
   | "profile"
+  | "startOnyxV4"
+  | "togetherOldBridgeV4"
+  | "nearbyOldCityV4"
+  | "chatsBlackGlassV4"
+  | "profileOnyxV4"
   | "aurora"
   | "sunset"
   | "deepSpace"
@@ -168,6 +173,16 @@ function mapVariantToKey(variant: ScreenBackgroundVariant): BackgroundKey {
       return "rooms";
     case "profile":
       return "profile";
+    case "startOnyxV4":
+      return "startOnyxV4";
+    case "togetherOldBridgeV4":
+      return "togetherOldBridgeV4";
+    case "nearbyOldCityV4":
+      return "nearbyOldCityV4";
+    case "chatsBlackGlassV4":
+      return "chatsBlackGlassV4";
+    case "profileOnyxV4":
+      return "profileOnyxV4";
     case "default":
     default:
       return "hearts";
@@ -192,6 +207,11 @@ const variantDefaults: Record<
   now: { overlayOpacity: 0.18, blurRadius: 0 },
   rooms: { overlayOpacity: 0.20, blurRadius: 0 },
   profile: { overlayOpacity: 0.18, blurRadius: 0 },
+  startOnyxV4: { overlayOpacity: 0.16, blurRadius: 0 },
+  togetherOldBridgeV4: { overlayOpacity: 0.20, blurRadius: 0 },
+  nearbyOldCityV4: { overlayOpacity: 0.24, blurRadius: 0 },
+  chatsBlackGlassV4: { overlayOpacity: 0.06, blurRadius: 0 },
+  profileOnyxV4: { overlayOpacity: 0.18, blurRadius: 0 },
 
   // gradient variants (blur is ignored, но оставляем для совместимости)
   aurora: { overlayOpacity: 0.22, blurRadius: 0 },

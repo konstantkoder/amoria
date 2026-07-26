@@ -232,7 +232,7 @@ export default function InboxScreen() {
         >
           <View style={styles.threadHeader}>
             <View style={styles.peerRow}>
-              <UserAvatar avatarUrl={item.peer.avatarUrl ?? ""} label={peerName} size={34} />
+              <UserAvatar avatarUrl={item.peer.avatarUrl ?? ""} label={peerName} size={44} />
               <View style={styles.peerCopy}>
                 <Text style={styles.peerName} numberOfLines={1}>
                   {peerName}
@@ -268,7 +268,7 @@ export default function InboxScreen() {
 
   if (!uid) {
     return (
-      <ScreenShell title={t("tabs.chats")} background="inboxWarm">
+      <ScreenShell title={t("tabs.chats")} background="chatsBlackGlassV4">
         <View style={styles.centerState}>
           <CoreStateCard
             icon="person-circle-outline"
@@ -289,7 +289,7 @@ export default function InboxScreen() {
   }
 
   return (
-    <ScreenShell title={t("tabs.chats")} background="inboxWarm">
+    <ScreenShell title={t("tabs.chats")} background="chatsBlackGlassV4">
       <View style={[styles.screenContent, { paddingBottom: insets.bottom + 8 }]}>
         {renderHeroCard()}
 
@@ -348,9 +348,9 @@ const styles = StyleSheet.create({
     gap: 8,
     padding: 16,
     borderRadius: theme.shapes.card,
-    backgroundColor: "rgba(12, 16, 30, 0.88)",
+    backgroundColor: "rgba(5,8,22,0.76)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
+    borderColor: "rgba(230,185,118,0.10)",
   },
   heroHeaderRow: {
     flexDirection: "row",
@@ -377,16 +377,17 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   threadCard: {
-    backgroundColor: "rgba(14, 18, 32, 0.94)",
-    borderRadius: 22,
-    padding: 16,
+    minHeight: 72,
+    backgroundColor: "rgba(5,8,22,0.76)",
+    borderRadius: 20,
+    padding: 12,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
+    borderColor: "rgba(230,185,118,0.10)",
     gap: 10,
   },
   threadCardUnread: {
-    backgroundColor: "rgba(23, 18, 34, 0.96)",
-    borderColor: theme.colors.borderWarm,
+    backgroundColor: "rgba(230,185,118,0.045)",
+    borderColor: "rgba(230,185,118,0.34)",
   },
   threadHeader: {
     flexDirection: "row",
@@ -424,8 +425,8 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   unreadBadge: {
-    minWidth: 22,
-    height: 22,
+    minWidth: 20,
+    height: 20,
     paddingHorizontal: 7,
     borderRadius: 11,
     alignItems: "center",
@@ -435,7 +436,7 @@ const styles = StyleSheet.create({
   unreadBadgeText: {
     color: theme.colors.primaryActionText,
     fontSize: 11,
-    fontWeight: "900",
+    fontWeight: "700",
   },
   previewText: {
     color: theme.colors.subtext,

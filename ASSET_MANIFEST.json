@@ -1,0 +1,714 @@
+{
+  "package": "AMORIA_CODEX_ONE_FILE_FINAL_V5",
+  "version": 5,
+  "status": "final-approved",
+  "manifestExcludes": [
+    "ASSET_MANIFEST.json",
+    "CHECKSUMS_SHA256.txt"
+  ],
+  "fileCountExcludingManifestAndChecksums": 81,
+  "totalBytesExcludingManifestAndChecksums": 34017167,
+  "mobileExpectedHead": "8ced7d0bc44f64321143c6f8c543e172d42ee447",
+  "backendAdminExpectedHead": "8f35f7056dee66fc1981795856b72ab1a20bc538",
+  "files": [
+    {
+      "path": "00_READ_ME_FIRST.txt",
+      "sizeBytes": 2371,
+      "sha256": "c5a7d8c09696a937633753813b5cdca8d576e4470b8593c0b07f4bfd1e6f3bbb",
+      "mimeType": "text/plain"
+    },
+    {
+      "path": "01_COPY_THIS_MESSAGE_TO_CODEX.txt",
+      "sizeBytes": 1271,
+      "sha256": "8bf7bbaac305d3fc9ce08197cae49e9b125e2ddbdc37719b3be647f6475ff8ae",
+      "mimeType": "text/plain"
+    },
+    {
+      "path": "AMORIA_CODEX_FINAL_TASK_V5.txt",
+      "sizeBytes": 65513,
+      "sha256": "a2d458d1604719471b632d85a0bd7dc9fea070d8b18e93a4f58ee0b1b8623027",
+      "mimeType": "text/plain"
+    },
+    {
+      "path": "PACKAGE_INDEX.md",
+      "sizeBytes": 1663,
+      "sha256": "9cc745a156db85afcf403c0c4ab58096077976c59ec8f12eb857b804e19ac566",
+      "mimeType": "text/markdown"
+    },
+    {
+      "path": "PACKAGE_VERSION.json",
+      "sizeBytes": 557,
+      "sha256": "3559408c57f8f65936f5fa1cd4353c97dd971ff76907da324cccbdc32cfc93b0",
+      "mimeType": "application/json"
+    },
+    {
+      "path": "README_ASSETS.md",
+      "sizeBytes": 1599,
+      "sha256": "4ce220e8725ff2a883c25483edda5ebe5986c9d8501033712aaceb7e41960ef2",
+      "mimeType": "text/markdown"
+    },
+    {
+      "path": "admin-web/public/activity-art/bike.jpg",
+      "sizeBytes": 30527,
+      "sha256": "fadfb2187d16a3e920f81549737150e8c8789c0e75d752eea93c56db98a07582",
+      "mimeType": "image/jpeg",
+      "width": 768,
+      "height": 512,
+      "mode": "RGB"
+    },
+    {
+      "path": "admin-web/public/activity-art/board_games.jpg",
+      "sizeBytes": 31028,
+      "sha256": "d9760b4fd8d28de0210a1c988d1a99815eab0932b6b9c38c01069ca78e1646d7",
+      "mimeType": "image/jpeg",
+      "width": 768,
+      "height": 512,
+      "mode": "RGB"
+    },
+    {
+      "path": "admin-web/public/activity-art/cinema.jpg",
+      "sizeBytes": 33467,
+      "sha256": "38544a6d507a46062813d823189ed980802a423eb4c85718d977d60098478f65",
+      "mimeType": "image/jpeg",
+      "width": 768,
+      "height": 512,
+      "mode": "RGB"
+    },
+    {
+      "path": "admin-web/public/activity-art/coffee.jpg",
+      "sizeBytes": 32540,
+      "sha256": "36f7622fd6b79b55aae12d72d5c6b3829a9277c2fd221e4504671a144ebbcf1c",
+      "mimeType": "image/jpeg",
+      "width": 768,
+      "height": 512,
+      "mode": "RGB"
+    },
+    {
+      "path": "admin-web/public/activity-art/community.jpg",
+      "sizeBytes": 31151,
+      "sha256": "207b75b5b62db18378f2708ca6fa83dceebd632e591fd0f0528226e3f77ccad6",
+      "mimeType": "image/jpeg",
+      "width": 768,
+      "height": 512,
+      "mode": "RGB"
+    },
+    {
+      "path": "admin-web/public/activity-art/creative.jpg",
+      "sizeBytes": 36771,
+      "sha256": "6c3076c7802361f413db28f385f3d8081e686ed212e859e5908779c0be576680",
+      "mimeType": "image/jpeg",
+      "width": 768,
+      "height": 512,
+      "mode": "RGB"
+    },
+    {
+      "path": "admin-web/public/activity-art/culture.jpg",
+      "sizeBytes": 42222,
+      "sha256": "a3914447a9144a2dc81d94628e746ebf491c60b676959464d5a52f47c695fec9",
+      "mimeType": "image/jpeg",
+      "width": 768,
+      "height": 512,
+      "mode": "RGB"
+    },
+    {
+      "path": "admin-web/public/activity-art/default.jpg",
+      "sizeBytes": 17798,
+      "sha256": "e6a20952455271fd9f5b8649ccbf664f910e816a3f9f7ee14c09af1f4ebe4c7c",
+      "mimeType": "image/jpeg",
+      "width": 768,
+      "height": 512,
+      "mode": "RGB"
+    },
+    {
+      "path": "admin-web/public/activity-art/dinner.jpg",
+      "sizeBytes": 32630,
+      "sha256": "775e5d907525f36472a8e7b0d8425618bcd954c81e010a85f572b7be54090e9c",
+      "mimeType": "image/jpeg",
+      "width": 768,
+      "height": 512,
+      "mode": "RGB"
+    },
+    {
+      "path": "admin-web/public/activity-art/evening_walk.jpg",
+      "sizeBytes": 30556,
+      "sha256": "a53dff0525bcde173682250b22bf1680dee6e9e15ebe05806a41b0566369f5a1",
+      "mimeType": "image/jpeg",
+      "width": 768,
+      "height": 512,
+      "mode": "RGB"
+    },
+    {
+      "path": "admin-web/public/activity-art/festival.jpg",
+      "sizeBytes": 39040,
+      "sha256": "441233d9677946c1b436ae7eefaffc09e7993014df9240e3a095f09ecac7296e",
+      "mimeType": "image/jpeg",
+      "width": 768,
+      "height": 512,
+      "mode": "RGB"
+    },
+    {
+      "path": "admin-web/public/activity-art/gaming.jpg",
+      "sizeBytes": 37513,
+      "sha256": "583a2945dce4c3b40b69937bd9e1c2cd1c617475e1d218c171b106cb7035646a",
+      "mimeType": "image/jpeg",
+      "width": 768,
+      "height": 512,
+      "mode": "RGB"
+    },
+    {
+      "path": "admin-web/public/activity-art/live_music.jpg",
+      "sizeBytes": 35685,
+      "sha256": "b592b059bd4aef8bfb3c7ebd0323c13242e531e34408e873bb93e1031f667621",
+      "mimeType": "image/jpeg",
+      "width": 768,
+      "height": 512,
+      "mode": "RGB"
+    },
+    {
+      "path": "admin-web/public/activity-art/movement.jpg",
+      "sizeBytes": 31907,
+      "sha256": "25359f6738fb6bc3fdc6e316eef33a7204836f22cb511659a021af1bdd4c8720",
+      "mimeType": "image/jpeg",
+      "width": 768,
+      "height": 512,
+      "mode": "RGB"
+    },
+    {
+      "path": "admin-web/public/activity-art/nature.jpg",
+      "sizeBytes": 31435,
+      "sha256": "46e8f9bd391e558ebdc809dbd9253136c8a4ec16ffb996209eb3d74a9dcf0fc1",
+      "mimeType": "image/jpeg",
+      "width": 768,
+      "height": 512,
+      "mode": "RGB"
+    },
+    {
+      "path": "admin-web/public/activity-art/racket_sports.jpg",
+      "sizeBytes": 37000,
+      "sha256": "0bc8142386c3f105e3251554b9cb08942d29a038649fbd964ae2f7770d0e23f6",
+      "mimeType": "image/jpeg",
+      "width": 768,
+      "height": 512,
+      "mode": "RGB"
+    },
+    {
+      "path": "admin-web/public/activity-art/talk.jpg",
+      "sizeBytes": 30329,
+      "sha256": "b34a776437f9c80ca15170d7ab82d9ef9b0464c95004a3045d4ad5d81afd050b",
+      "mimeType": "image/jpeg",
+      "width": 768,
+      "height": 512,
+      "mode": "RGB"
+    },
+    {
+      "path": "admin-web/public/activity-art/team_sports.jpg",
+      "sizeBytes": 32320,
+      "sha256": "af14b6e2ea50c9e123511fd3ab4a22d176c65a7da9be1efaf902bc2a3b62c828",
+      "mimeType": "image/jpeg",
+      "width": 768,
+      "height": 512,
+      "mode": "RGB"
+    },
+    {
+      "path": "admin-web/public/activity-art/water.jpg",
+      "sizeBytes": 32743,
+      "sha256": "971b8bc3555fe38caaaf512f08d4cc237ebdf91f9ecdf2d56c75665f658617b3",
+      "mimeType": "image/jpeg",
+      "width": 768,
+      "height": 512,
+      "mode": "RGB"
+    },
+    {
+      "path": "assets/brand/amoria_startup_mark_1024.png",
+      "sizeBytes": 73426,
+      "sha256": "36ba969f00c49f54dbff8f4dc5d79535d7cfd3b8375dc5b042b52427b9959295",
+      "mimeType": "image/png",
+      "width": 1024,
+      "height": 1024,
+      "mode": "RGBA"
+    },
+    {
+      "path": "assets/icons/amoria_adaptive_background_1024.png",
+      "sizeBytes": 81932,
+      "sha256": "c7490c075eff7cdf00cd0e2e7c53381a3a724bf65b1c490f6752beabebdc4378",
+      "mimeType": "image/png",
+      "width": 1024,
+      "height": 1024,
+      "mode": "RGB"
+    },
+    {
+      "path": "assets/icons/amoria_adaptive_foreground_1024.png",
+      "sizeBytes": 45924,
+      "sha256": "4e9f19599442bc339398cd71ecd220c61a57ad263900426e6ce549e9fb20cef8",
+      "mimeType": "image/png",
+      "width": 1024,
+      "height": 1024,
+      "mode": "RGBA"
+    },
+    {
+      "path": "assets/icons/amoria_android_launcher_icon_1024.png",
+      "sizeBytes": 141839,
+      "sha256": "8422eaaf597e705c548c41877a7da1b81b708c7e92a6a5f5d4d9b2b403576bc6",
+      "mimeType": "image/png",
+      "width": 1024,
+      "height": 1024,
+      "mode": "RGB"
+    },
+    {
+      "path": "assets/icons/amoria_tab_icon_active_512.png",
+      "sizeBytes": 38334,
+      "sha256": "c439ea96a2949173836304994ebdc49253c50658aa7fef1b4acb1cf675a1b471",
+      "mimeType": "image/png",
+      "width": 512,
+      "height": 512,
+      "mode": "RGBA"
+    },
+    {
+      "path": "assets/icons/amoria_tab_icon_inactive_512.png",
+      "sizeBytes": 12888,
+      "sha256": "52cf58d13493d89f90a4d830c4ce97dbf469ab6e89b30b9375789c1715839457",
+      "mimeType": "image/png",
+      "width": 512,
+      "height": 512,
+      "mode": "RGBA"
+    },
+    {
+      "path": "assets/notification-icon.png",
+      "sizeBytes": 12235,
+      "sha256": "86ee0374198cc6c463a49555cd350c64e35d03c5ccebf87c9307373715163c72",
+      "mimeType": "image/png",
+      "width": 512,
+      "height": 512,
+      "mode": "RGBA"
+    },
+    {
+      "path": "assets/splash.png",
+      "sizeBytes": 89475,
+      "sha256": "f6c945c244caf90f37e73c37fe10760b6d7ad385f003206f25bd9736c1048c93",
+      "mimeType": "image/png",
+      "width": 2048,
+      "height": 2048,
+      "mode": "RGBA"
+    },
+    {
+      "path": "design-assets/ACTIVITY_ART_MAP.md",
+      "sizeBytes": 1844,
+      "sha256": "8bd5f1af82e3d3cda6aea516f9a96fb097bbc8fdd43d5fe8c15409eb6eda9399",
+      "mimeType": "text/markdown"
+    },
+    {
+      "path": "design-assets/DRAW_PROMPT_ART_MAP.md",
+      "sizeBytes": 1075,
+      "sha256": "28eda4cc9e48cec14868c11ffb0e8a26dbf2df4e459b52ec792c1ffc557a7957",
+      "mimeType": "text/markdown"
+    },
+    {
+      "path": "design-assets/NEW_PROMPT_ART_DECISION_V5.md",
+      "sizeBytes": 581,
+      "sha256": "5640b635321db35586ed727c9a007947a2d6d5b3fa663d25a14be1394ce55230",
+      "mimeType": "text/markdown"
+    },
+    {
+      "path": "design-assets/amoria_double_heart_v2.svg",
+      "sizeBytes": 608,
+      "sha256": "c9ef5ac3dc242e1d9a6f9ae45648fc3d03356657168d4a484d82c6250f976d09",
+      "mimeType": "image/svg+xml"
+    },
+    {
+      "path": "design-assets/amoria_icon_examples_v2.png",
+      "sizeBytes": 232043,
+      "sha256": "9067897b82e190d886d91b8bae7509b83b9866a5e3a83afdd0d131a7f9c5c0a6",
+      "mimeType": "image/png",
+      "width": 1800,
+      "height": 1240,
+      "mode": "RGB"
+    },
+    {
+      "path": "design-assets/previews/nearby_activity_art_preview.png",
+      "sizeBytes": 532565,
+      "sha256": "370ad5f469ac3d8bb1eb032dd3acd9db3ecb24ff2c65c9b80ba28d842c28b901",
+      "mimeType": "image/png",
+      "width": 1500,
+      "height": 805,
+      "mode": "RGB"
+    },
+    {
+      "path": "design-assets/previews/runtime_backgrounds_preview.png",
+      "sizeBytes": 370819,
+      "sha256": "e72f41a1ea81c34ab56d989c8d3f3296cba4345c3ab0038274277e74ad0ece32",
+      "mimeType": "image/png",
+      "width": 1420,
+      "height": 600,
+      "mode": "RGB"
+    },
+    {
+      "path": "design-assets/previews/together_prompt_art_preview.png",
+      "sizeBytes": 922440,
+      "sha256": "fb56d9a6519226f9238fd24fe5b1b40bed4e67a135b723e8dcc2e689581d1091",
+      "mimeType": "image/png",
+      "width": 1920,
+      "height": 720,
+      "mode": "RGB"
+    },
+    {
+      "path": "design-assets/previews/together_prompt_art_preview_v5.png",
+      "sizeBytes": 922440,
+      "sha256": "fb56d9a6519226f9238fd24fe5b1b40bed4e67a135b723e8dcc2e689581d1091",
+      "mimeType": "image/png",
+      "width": 1920,
+      "height": 720,
+      "mode": "RGB"
+    },
+    {
+      "path": "design-assets/references/00_overview_board.png",
+      "sizeBytes": 2585100,
+      "sha256": "fe7533930a9bbab1a0e0c5b86d7aa1bf8bb12c2a2620682f424714a071437451",
+      "mimeType": "image/png",
+      "width": 2300,
+      "height": 1320,
+      "mode": "RGB"
+    },
+    {
+      "path": "design-assets/references/01_start_new.png",
+      "sizeBytes": 1237142,
+      "sha256": "9dccc57e8e1ed64021213368878552774577c7f9593e273879103d15a285a674",
+      "mimeType": "image/png",
+      "width": 780,
+      "height": 1688,
+      "mode": "RGB"
+    },
+    {
+      "path": "design-assets/references/02_together_bridge_fixed.png",
+      "sizeBytes": 402317,
+      "sha256": "04428fc3ea0bf38b92bb8d9578fe86c1b8d065e56a200de6e18e8fdad2bb738d",
+      "mimeType": "image/png",
+      "width": 780,
+      "height": 1688,
+      "mode": "RGB"
+    },
+    {
+      "path": "design-assets/references/03_nearby_exact_city.png",
+      "sizeBytes": 695685,
+      "sha256": "bd88c6e9d27a2d04bc6a7c32a5ee57bca1fd1fa7c712278832a31cb38df63342",
+      "mimeType": "image/png",
+      "width": 780,
+      "height": 1688,
+      "mode": "RGB"
+    },
+    {
+      "path": "design-assets/references/04_chats_black_glass.png",
+      "sizeBytes": 698968,
+      "sha256": "68b6cc301feb23396941edeca8e301c05b0dcda1928a15bc1521fbf1e86c1310",
+      "mimeType": "image/png",
+      "width": 780,
+      "height": 1688,
+      "mode": "RGB"
+    },
+    {
+      "path": "design-assets/references/05_profile_onyx.png",
+      "sizeBytes": 856378,
+      "sha256": "885483cf2c8dd9308ed7256242a0bf784b4c7e06f6c84d870cca0a3a47999e65",
+      "mimeType": "image/png",
+      "width": 780,
+      "height": 1688,
+      "mode": "RGB"
+    },
+    {
+      "path": "design-assets/references/06_together_prompt_illustrations_v5.png",
+      "sizeBytes": 2138893,
+      "sha256": "a283cfc0456b90ea1b99dbbbc9b9833a5eead2a155caff34664f3d550eec53c1",
+      "mimeType": "image/png",
+      "width": 1536,
+      "height": 1024,
+      "mode": "RGB"
+    },
+    {
+      "path": "design-assets/references/07_together_prompt_system_v5.png",
+      "sizeBytes": 1960009,
+      "sha256": "263d9321776e05469d7372d5a4d621a391d888e86371715b689feafbe676f3c6",
+      "mimeType": "image/png",
+      "width": 1536,
+      "height": 1024,
+      "mode": "RGB"
+    },
+    {
+      "path": "design-assets/references/08_full_system_prompt_activity_v5.png",
+      "sizeBytes": 2065127,
+      "sha256": "da0d3db741816bce3f8ca1c626a25668a63533cb2b458aaf15e462bd08c4af8b",
+      "mimeType": "image/png",
+      "width": 1536,
+      "height": 1024,
+      "mode": "RGB"
+    },
+    {
+      "path": "design-assets/references/09_user_reference_bridge_city_board_a.png",
+      "sizeBytes": 2495017,
+      "sha256": "0b0bae06294f74a8a8748369c1a17803012c6704cefc180e14eabc5f5bb05d64",
+      "mimeType": "image/png",
+      "width": 1536,
+      "height": 1024,
+      "mode": "RGBA"
+    },
+    {
+      "path": "design-assets/references/10_user_reference_bridge_city_board_b.png",
+      "sizeBytes": 2821605,
+      "sha256": "6df54a6bd537d5271f30deab11d6d96ef5e539f6190dd0214f88e5ecd0b99796",
+      "mimeType": "image/png",
+      "width": 1448,
+      "height": 1086,
+      "mode": "RGBA"
+    },
+    {
+      "path": "src/assets/backgrounds/chats_black_glass_v4.png",
+      "sizeBytes": 3458944,
+      "sha256": "e422bbe116bc9c316adc325974227ca7f1499e0e6933ebaa9d4571961958c3fb",
+      "mimeType": "image/png",
+      "width": 1440,
+      "height": 2560,
+      "mode": "RGB"
+    },
+    {
+      "path": "src/assets/backgrounds/nearby_old_city_v4.jpg",
+      "sizeBytes": 130460,
+      "sha256": "83ed52819a729351f767494d06815f4372e84e76f7c4928e022c6a15a4a5954f",
+      "mimeType": "image/jpeg",
+      "width": 1440,
+      "height": 2560,
+      "mode": "RGB"
+    },
+    {
+      "path": "src/assets/backgrounds/profile_onyx_v4.png",
+      "sizeBytes": 3480067,
+      "sha256": "01a6929518df3c684f282738b82c438f7ac344384c68b0e22f298d668734a11a",
+      "mimeType": "image/png",
+      "width": 1440,
+      "height": 2560,
+      "mode": "RGB"
+    },
+    {
+      "path": "src/assets/backgrounds/start_onyx_v4.png",
+      "sizeBytes": 3473591,
+      "sha256": "6dcbbe932ed7ee22724a4fcad8a08fa706ad7bee9e5f79a8c82199957b9bc18d",
+      "mimeType": "image/png",
+      "width": 1440,
+      "height": 2560,
+      "mode": "RGB"
+    },
+    {
+      "path": "src/assets/backgrounds/together_old_bridge_v4.jpg",
+      "sizeBytes": 123375,
+      "sha256": "8ea4c522f1862562016390a940b08950b09f9278caf8de83e5a9a72032fea045",
+      "mimeType": "image/jpeg",
+      "width": 1440,
+      "height": 2560,
+      "mode": "RGB"
+    },
+    {
+      "path": "src/assets/nearby/activity-art/bike.jpg",
+      "sizeBytes": 40502,
+      "sha256": "4ef5b291cb612ef5806c918297bb9cc128f8e9be9d1d66fa440ac0c704d1dcdf",
+      "mimeType": "image/jpeg",
+      "width": 768,
+      "height": 512,
+      "mode": "RGB"
+    },
+    {
+      "path": "src/assets/nearby/activity-art/board_games.jpg",
+      "sizeBytes": 41012,
+      "sha256": "bb1f0ebfcdabd7c03d3ab09a49fd9edbb204b32600e259ca1254f399826e0ef9",
+      "mimeType": "image/jpeg",
+      "width": 768,
+      "height": 512,
+      "mode": "RGB"
+    },
+    {
+      "path": "src/assets/nearby/activity-art/cinema.jpg",
+      "sizeBytes": 43593,
+      "sha256": "e9a5a34a1f7f6c2f61bcb31889e806dc4d435fb4e25064873fc161223dce4c01",
+      "mimeType": "image/jpeg",
+      "width": 768,
+      "height": 512,
+      "mode": "RGB"
+    },
+    {
+      "path": "src/assets/nearby/activity-art/coffee.jpg",
+      "sizeBytes": 42643,
+      "sha256": "45713265a864057b581aaa79609ed401a625faa27cdbc245bb70e18ccbb59e3e",
+      "mimeType": "image/jpeg",
+      "width": 768,
+      "height": 512,
+      "mode": "RGB"
+    },
+    {
+      "path": "src/assets/nearby/activity-art/community.jpg",
+      "sizeBytes": 41076,
+      "sha256": "d9e70808b8a350fcab51d017e4d02bac7fa8794d1fb4e8192f2208830ceff72c",
+      "mimeType": "image/jpeg",
+      "width": 768,
+      "height": 512,
+      "mode": "RGB"
+    },
+    {
+      "path": "src/assets/nearby/activity-art/creative.jpg",
+      "sizeBytes": 47268,
+      "sha256": "1bf539a38eb46bf0736b1d50aba3820c46346f8fbab22995ba253f34cd67d53b",
+      "mimeType": "image/jpeg",
+      "width": 768,
+      "height": 512,
+      "mode": "RGB"
+    },
+    {
+      "path": "src/assets/nearby/activity-art/culture.jpg",
+      "sizeBytes": 53083,
+      "sha256": "acbd21eb2b3fad3ae298db32ebe5209a4126112d9119feeb01bdabddaef2b3c5",
+      "mimeType": "image/jpeg",
+      "width": 768,
+      "height": 512,
+      "mode": "RGB"
+    },
+    {
+      "path": "src/assets/nearby/activity-art/default.jpg",
+      "sizeBytes": 23156,
+      "sha256": "feb7611178a36f8f03a6a88f6869c100a692d4f8c1ff7566e793d207c255ecb2",
+      "mimeType": "image/jpeg",
+      "width": 768,
+      "height": 512,
+      "mode": "RGB"
+    },
+    {
+      "path": "src/assets/nearby/activity-art/dinner.jpg",
+      "sizeBytes": 43046,
+      "sha256": "9851cb2a8bbf2f6c290c1c0696b2cbc0ada55e5dbe6508da5f1ca7419cdd9666",
+      "mimeType": "image/jpeg",
+      "width": 768,
+      "height": 512,
+      "mode": "RGB"
+    },
+    {
+      "path": "src/assets/nearby/activity-art/evening_walk.jpg",
+      "sizeBytes": 40514,
+      "sha256": "f99924b83de6dcc9a72e92749b315355f3ebf523423eefc0b2184e52de077aba",
+      "mimeType": "image/jpeg",
+      "width": 768,
+      "height": 512,
+      "mode": "RGB"
+    },
+    {
+      "path": "src/assets/nearby/activity-art/festival.jpg",
+      "sizeBytes": 49613,
+      "sha256": "3b8b5b024dd441b41940fe50a2a432f1641b293cf6d04486d42490879842a07d",
+      "mimeType": "image/jpeg",
+      "width": 768,
+      "height": 512,
+      "mode": "RGB"
+    },
+    {
+      "path": "src/assets/nearby/activity-art/gaming.jpg",
+      "sizeBytes": 48048,
+      "sha256": "be8e9825f683ac86a54d0b870766114771929b0ccb543f402154d05aa4e6ac10",
+      "mimeType": "image/jpeg",
+      "width": 768,
+      "height": 512,
+      "mode": "RGB"
+    },
+    {
+      "path": "src/assets/nearby/activity-art/live_music.jpg",
+      "sizeBytes": 45772,
+      "sha256": "cf1002b3d1c5aae6b8be5d31a15ef3344da90337bab572a2cc448cf6d50ebb90",
+      "mimeType": "image/jpeg",
+      "width": 768,
+      "height": 512,
+      "mode": "RGB"
+    },
+    {
+      "path": "src/assets/nearby/activity-art/movement.jpg",
+      "sizeBytes": 42042,
+      "sha256": "c6d618456ae113045095d910115fcaaf9d94362291bbb71f9ac9991565c0b8a7",
+      "mimeType": "image/jpeg",
+      "width": 768,
+      "height": 512,
+      "mode": "RGB"
+    },
+    {
+      "path": "src/assets/nearby/activity-art/nature.jpg",
+      "sizeBytes": 41646,
+      "sha256": "9231561d8cb4db3848445f233027010daa2785fb298e4750f8073ec8debef32e",
+      "mimeType": "image/jpeg",
+      "width": 768,
+      "height": 512,
+      "mode": "RGB"
+    },
+    {
+      "path": "src/assets/nearby/activity-art/racket_sports.jpg",
+      "sizeBytes": 47456,
+      "sha256": "a77dddb636da1fde965adaf9ad9576c13929d447e5ad836d1728a6a05036f026",
+      "mimeType": "image/jpeg",
+      "width": 768,
+      "height": 512,
+      "mode": "RGB"
+    },
+    {
+      "path": "src/assets/nearby/activity-art/talk.jpg",
+      "sizeBytes": 40033,
+      "sha256": "0a78902ecbb1acefc24fb8bb5914dc3b4cc40ff44cf689341eeadd61a4de408d",
+      "mimeType": "image/jpeg",
+      "width": 768,
+      "height": 512,
+      "mode": "RGB"
+    },
+    {
+      "path": "src/assets/nearby/activity-art/team_sports.jpg",
+      "sizeBytes": 42349,
+      "sha256": "95a96c63ad3f0055dae37d5ee4647d800c1eabcb1498114917bd01c67d06ddad",
+      "mimeType": "image/jpeg",
+      "width": 768,
+      "height": 512,
+      "mode": "RGB"
+    },
+    {
+      "path": "src/assets/nearby/activity-art/water.jpg",
+      "sizeBytes": 42836,
+      "sha256": "6c8589691aca85be63d3b1c738b7a68d8b3ea45544a11d59cce6ce29156d81f3",
+      "mimeType": "image/jpeg",
+      "width": 768,
+      "height": 512,
+      "mode": "RGB"
+    },
+    {
+      "path": "src/assets/together/prompts/draw_default.jpg",
+      "sizeBytes": 74009,
+      "sha256": "7d93252eddd8ed5702bd79cc726b6e2fd2da6941ee045ade37352a5918cb9d28",
+      "mimeType": "image/jpeg",
+      "width": 768,
+      "height": 512,
+      "mode": "RGB"
+    },
+    {
+      "path": "src/assets/together/prompts/draw_dream_room.jpg",
+      "sizeBytes": 95628,
+      "sha256": "bdf20cd024a4117a92fe219849cf7f70052d5e172b43d28983b5e2c180c2d1c5",
+      "mimeType": "image/jpeg",
+      "width": 768,
+      "height": 512,
+      "mode": "RGB"
+    },
+    {
+      "path": "src/assets/together/prompts/draw_first_meeting.jpg",
+      "sizeBytes": 119668,
+      "sha256": "1e302e9480ceecd4ab92c49e13a78cffda1e0950aa67c11d50c1724c9de7ca18",
+      "mimeType": "image/jpeg",
+      "width": 768,
+      "height": 512,
+      "mode": "RGB"
+    },
+    {
+      "path": "src/assets/together/prompts/draw_tiny_place.jpg",
+      "sizeBytes": 109392,
+      "sha256": "f1b3abbf3cda0c02f01b8e2d623e81d5ec71bbc22a041bf965639c4457ed1817",
+      "mimeType": "image/jpeg",
+      "width": 768,
+      "height": 512,
+      "mode": "RGB"
+    }
+  ]
+}

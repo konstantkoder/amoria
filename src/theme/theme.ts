@@ -45,8 +45,10 @@ const moodPalettes: Record<MoodKey, MoodPalette> = {
 export const theme = {
   colors: {
     background: visualSystem.colors.background,
-    backgroundAlt: "#120824",
+    backgroundAlt: visualSystem.colors.backgroundRaised,
     backgroundSoft: visualSystem.colors.backgroundElevated,
+    backgroundRaised: visualSystem.colors.backgroundRaised,
+    backgroundElevated: visualSystem.colors.backgroundElevated,
     screenBackground: visualSystem.colors.background,
     screenGradientTop: "#070B15",
     screenGradientBottom: "#120B1C",
@@ -59,19 +61,25 @@ export const theme = {
     surfaceWarm: visualSystem.colors.accentSoft,
 
     text: visualSystem.colors.text,
+    textWarm: visualSystem.colors.textWarm,
     subtext: visualSystem.colors.textSecondary,
     muted: visualSystem.colors.textMuted,
     textPrimary: visualSystem.colors.text,
     textSecondary: visualSystem.colors.textSecondary,
     textMuted: visualSystem.colors.textMuted,
     textAccent: visualSystem.colors.accent,
+    glass: visualSystem.colors.surface,
+    glassStrong: visualSystem.colors.surfaceRaised,
+    glassSoft: visualSystem.colors.surfaceSoft,
+    glassPressed: visualSystem.colors.surfacePressed,
+    goldBright: "#F3C98B",
 
     primary: visualSystem.colors.primaryBg,
     primaryMuted: "#2D171B",
     accent: visualSystem.colors.secondaryAccent,
-    accentSoft: "rgba(167,139,196,0.14)",
-    success: "#46E0C8",
-    danger: "#FF4D67",
+    accentSoft: visualSystem.colors.accentSoft,
+    success: "#78C58D",
+    danger: "#D95C4B",
 
     /** @deprecated Compatibility alias; use semantic visual-system roles. */
     goldLight: visualSystem.colors.textWarm,
@@ -107,7 +115,7 @@ export const theme = {
     tabInactive: visualSystem.colors.navInactive,
 
     pillBg: "rgba(255, 255, 255, 0.05)",
-    pillText: "#F5F5FF",
+    pillText: visualSystem.colors.textWarm,
 
     borderSubtle: visualSystem.colors.border,
     borderStrong: visualSystem.colors.borderStrong,
@@ -115,23 +123,23 @@ export const theme = {
     shadowColor: "#000000",
   },
 
-  radius: 20,
+  radius: 22,
   spacing: 16,
   layout: {
-    screenPadding: 14,
-    sectionGap: 14,
+    screenPadding: 16,
+    sectionGap: 16,
     smallGap: 8,
     compactBreakpoint: 360,
     largeBreakpoint: 430,
   },
 
   shapes: {
-    card: 24,
+    card: 28,
     cardInner: visualSystem.cards.innerRadius,
     pill: 999,
   },
   radii: {
-    hero: 24,
+    hero: 28,
     card: visualSystem.cards.radius,
     inner: visualSystem.cards.innerRadius,
     button: visualSystem.buttons.primary.borderRadius,

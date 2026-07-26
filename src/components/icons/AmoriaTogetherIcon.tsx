@@ -21,7 +21,12 @@ export function AmoriaTogetherIcon({
     <Image
       source={active ? activeSource : inactiveSource}
       resizeMode="contain"
-      style={[styles.icon, { width: size, height: size, tintColor: color }, style]}
+      style={[
+        styles.icon,
+        { width: size, height: size },
+        active ? null : { tintColor: color },
+        style,
+      ]}
     />
   );
 }
