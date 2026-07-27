@@ -4,6 +4,7 @@ import {
   BackHandler,
   FlatList,
   Keyboard,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -753,36 +754,6 @@ export default function DMChatScreen() {
     ]
   );
 
-  const renderPeerCard = useCallback(
-    () =>
-      canOpenPeerProfileEntry ? (
-        <TouchableOpacity
-          onPress={() => void openPeerProfile()}
-          style={styles.peerCard}
-          activeOpacity={0.85}
-        >
-          <UserAvatar avatarUrl={peerAvatarUrl} label={peerDisplayName} size={42} />
-          <View style={styles.peerCopy}>
-            <Text style={styles.peerName}>{peerDisplayName}</Text>
-            <Text style={styles.peerMeta}>
-              {peerHydrating
-                ? tt("dm.peerProfileHydrating", "Открываем профиль…")
-                : tt("dm.openPeerProfile", "Профиль собеседника")}
-            </Text>
-          </View>
-          <Text style={styles.peerActionText}>{tt("menu.profile", "Профиль")}</Text>
-        </TouchableOpacity>
-      ) : null,
-    [
-      canOpenPeerProfileEntry,
-      openPeerProfile,
-      peerAvatarUrl,
-      peerDisplayName,
-      peerHydrating,
-      tt,
-    ]
-  );
-
   const renderSafetyCard = useCallback(
     () =>
       peerId ? (
@@ -843,12 +814,11 @@ export default function DMChatScreen() {
   const renderContextFooter = useCallback(
     () => (
       <>
-        {renderPeerCard()}
         {renderSourceCard()}
         {renderSafetyCard()}
       </>
     ),
-    [renderPeerCard, renderSafetyCard, renderSourceCard]
+    [renderSafetyCard, renderSourceCard]
   );
 
   const renderItem = useCallback(
@@ -969,7 +939,12 @@ export default function DMChatScreen() {
           />
         </View>
       ) : isEmpty ? (
-        <View style={styles.centerState}>
+        <ScrollView
+          style={styles.emptyScroll}
+          contentContainerStyle={styles.emptyContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
           {renderContextFooter()}
           <CoreStateCard
             icon="chatbubbles-outline"
@@ -991,7 +966,7 @@ export default function DMChatScreen() {
             }
             primaryAction={{ label: tt("common.back", "Назад"), onPress: handleBack }}
           />
-        </View>
+        </ScrollView>
       ) : (
         <FlatList
           ref={listRef}
@@ -1082,6 +1057,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     gap: 14,
   },
+  emptyScroll: {
+    flex: 1,
+  },
+  emptyContent: {
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    paddingBottom: 24,
+    gap: 14,
+    alignItems: "center",
+  },
   sourceCard: {
     alignSelf: "stretch",
     borderRadius: theme.shapes.cardInner,
@@ -1139,38 +1124,6 @@ const styles = StyleSheet.create({
     lineHeight: theme.buttons.primary.lineHeight,
     fontWeight: theme.buttons.primary.fontWeight,
     textAlign: "center",
-  },
-  peerCard: {
-    alignSelf: "stretch",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 11,
-    borderRadius: theme.shapes.cardInner,
-    paddingHorizontal: 15,
-    paddingVertical: 13,
-    marginBottom: 10,
-    backgroundColor: "rgba(12, 16, 30, 0.86)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
-  },
-  peerCopy: {
-    flex: 1,
-    gap: 2,
-  },
-  peerName: {
-    color: theme.colors.text,
-    fontSize: 15,
-    fontWeight: "800",
-  },
-  peerMeta: {
-    color: theme.colors.subtext,
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  peerActionText: {
-    color: theme.colors.textAccent,
-    fontSize: 12,
-    fontWeight: "800",
   },
   safetyCard: {
     alignSelf: "stretch",
