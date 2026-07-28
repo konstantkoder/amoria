@@ -1382,6 +1382,7 @@
   "safety.chatSafetyTitle": "Sigurnost razgovora",
   "safety.reason.harassment": "Uznemiravanje",
   "safety.reason.other": "Drugo",
+  "safety.moreReasons": "Više razloga…",
   "safety.reason.scam": "Prijevara",
   "safety.reason.sexualServices": "Seksualne usluge ili plaćeni susret",
   "safety.reason.spam": "Spam",

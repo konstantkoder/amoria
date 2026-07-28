@@ -4,7 +4,9 @@ import {
   Image,
   Modal,
   PanResponder,
+  Platform,
   Pressable,
+  StatusBar,
   StyleSheet,
   Text,
   View,
@@ -412,7 +414,11 @@ export default function ImageCropper({
         style={[
           styles.modal,
           {
-            paddingTop: Math.max(insets.top, 12),
+            paddingTop: Math.max(
+              insets.top,
+              Platform.OS === "android" ? StatusBar.currentHeight ?? 0 : 0,
+              12
+            ),
             paddingBottom: Math.max(insets.bottom, 12),
           },
         ]}

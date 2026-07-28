@@ -403,6 +403,7 @@
   "safety.reason.sexualServices": "Сексуальные услуги или оплатная встреча",
   "safety.reason.scam": "Мошенничество",
   "safety.reason.other": "Другое",
+  "safety.moreReasons": "Другие причины…",
   "safety.unsafeAnnouncementTitle": "Такой текст нельзя публиковать",
   "safety.unsafeAnnouncementBody": "Объявления не могут предлагать сексуальные услуги или оплатные встречи.",
   "common.screen": "Экран",

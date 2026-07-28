@@ -41,6 +41,7 @@ import {
 } from "@/services/locationPrivacy";
 import { useLocale } from "@/contexts/LocaleContext";
 import { formatAgoLong } from "@/utils/timeAgo";
+import { makeAndroidSafeReportReasonButtons } from "@/utils/safetyReportReasonAlert";
 
 type Pos = { lat: number; lng: number; accuracy?: number | null };
 type RadiusOption = number | null;
@@ -101,7 +102,7 @@ function buildReportReasonButtons(
   t: TranslateFn,
   onSelect: (reason: SafetyReportReason) => void
 ): AlertButton[] {
-  return [
+  return makeAndroidSafeReportReasonButtons([
     {
       text: t("safety.reason.spam"),
       onPress: () => onSelect("spam"),
@@ -126,7 +127,7 @@ function buildReportReasonButtons(
       text: t("common.cancel"),
       style: "cancel",
     },
-  ];
+  ], t("safety.reportTitle"), t("safety.reportBody"), t("safety.moreReasons"));
 }
 
 export default function NearbyNowSection({

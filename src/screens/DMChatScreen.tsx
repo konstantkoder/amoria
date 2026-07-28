@@ -35,6 +35,7 @@ import type { SafetyReportReason } from "@/services/api/safetyApi";
 import type { MessageDto } from "@/services/api/types";
 import * as wsClient from "@/services/realtime/wsClient";
 import { theme } from "@/theme";
+import { makeAndroidSafeReportReasonButtons } from "@/utils/safetyReportReasonAlert";
 
 type RenderMessage = MessageDto & {
   pending?: boolean;
@@ -51,7 +52,7 @@ function buildReportReasonButtons(
   tt: (key: string, fallback: string, params?: Record<string, string>) => string,
   onSelect: (reason: SafetyReportReason) => void
 ): AlertButton[] {
-  return [
+  return makeAndroidSafeReportReasonButtons([
     {
       text: tt("safety.reason.spam", "Спам"),
       onPress: () => onSelect("spam"),
@@ -76,7 +77,10 @@ function buildReportReasonButtons(
       text: tt("common.cancel", "Отмена"),
       style: "cancel",
     },
-  ];
+  ],
+  tt("safety.reportTitle", "Пожаловаться"),
+  tt("safety.reportBody", "Выбери причину жалобы."),
+  tt("safety.moreReasons", "Другие причины…"));
 }
 
 function messageTime(value: string) {

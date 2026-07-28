@@ -403,6 +403,7 @@
   "safety.reason.sexualServices": "Sexual services or paid meeting",
   "safety.reason.scam": "Scam",
   "safety.reason.other": "Other",
+  "safety.moreReasons": "More reasons…",
   "safety.unsafeAnnouncementTitle": "This text cannot be published",
   "safety.unsafeAnnouncementBody": "Announcements cannot offer sexual services or paid meetings.",
   "common.screen": "Screen",

@@ -32,6 +32,7 @@ import * as safetyApi from "@/services/api/safetyApi";
 import type { SafetyReportReason } from "@/services/api/safetyApi";
 import { theme } from "@/theme";
 import { formatAgoLong } from "@/utils/timeAgo";
+import { makeAndroidSafeReportReasonButtons } from "@/utils/safetyReportReasonAlert";
 
 type AnnouncementResponseMode = "own" | "direct_dm" | "unavailable";
 
@@ -135,7 +136,7 @@ function buildReportReasonButtons(
   t: (key: string, params?: Record<string, string>) => string,
   onSelect: (reason: SafetyReportReason) => void
 ): AlertButton[] {
-  return [
+  return makeAndroidSafeReportReasonButtons([
     {
       text: copyOrFallback(t, "safety.reason.spam", "Спам"),
       onPress: () => onSelect("spam"),
@@ -164,7 +165,10 @@ function buildReportReasonButtons(
       text: copyOrFallback(t, "common.cancel", "Отмена"),
       style: "cancel",
     },
-  ];
+  ],
+  copyOrFallback(t, "safety.reportTitle", "Пожаловаться"),
+  copyOrFallback(t, "safety.reportBody", "Выбери причину жалобы."),
+  copyOrFallback(t, "safety.moreReasons", "Другие причины…"));
 }
 
 function getAnnouncementUnavailableCopy(
