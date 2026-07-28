@@ -1476,8 +1476,8 @@ export default function NearbyHubScreen() {
   return (
     <ScreenShell
       title={copyOrFallback(t, "tabs.nearby", "Рядом")}
-      background="nearbyOldCityV4"
-      overlayOpacity={0.16}
+      background="nearbyOldCityV5"
+      overlayOpacity={0.08}
       blurRadius={0}
     >
       <ScrollView

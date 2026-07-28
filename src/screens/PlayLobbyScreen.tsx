@@ -524,7 +524,7 @@ export default function PlayLobbyScreen() {
   const togetherFiltersSheetMaxHeight = screenHeight * 0.68;
 
   return (
-    <ScreenShell title={t("tabs.together")} background="togetherOldBridgeV4">
+    <ScreenShell title={t("tabs.together")} background="togetherOldBridgeV5">
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}

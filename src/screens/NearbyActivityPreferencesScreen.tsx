@@ -160,8 +160,9 @@ export default function NearbyActivityPreferencesScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"NearbyActivityPreferences">>();
   const { t } = useLocale();
   const { width: screenWidth } = useWindowDimensions();
+  const availableGridWidth = screenWidth - 34;
   const activityCardWidth =
-    screenWidth < 350 ? screenWidth - 32 : (screenWidth - 32 - 12) / 2;
+    screenWidth < 350 ? availableGridWidth : (availableGridWidth - 12) / 2;
   const mountedRef = useRef(true);
   const [activities, setActivities] = useState<NearbyActivityDefinition[]>([]);
   const [selectedKeys, setSelectedKeys] = useState<Set<NearbyActivityKey>>(
@@ -290,8 +291,8 @@ export default function NearbyActivityPreferencesScreen() {
         "Nearby activities"
       )}
       titleNumberOfLines={2}
-      background="nearbyOldCityV4"
-      overlayOpacity={0.16}
+      background="nearbyOldCityV5"
+      overlayOpacity={0.08}
       blurRadius={0}
       showBack
     >

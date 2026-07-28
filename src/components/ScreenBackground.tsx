@@ -21,7 +21,9 @@ export type ScreenBackgroundVariant =
   | "profile"
   | "startOnyxV4"
   | "togetherOldBridgeV4"
+  | "togetherOldBridgeV5"
   | "nearbyOldCityV4"
+  | "nearbyOldCityV5"
   | "chatsBlackGlassV4"
   | "profileOnyxV4"
   | "aurora"
@@ -177,8 +179,12 @@ function mapVariantToKey(variant: ScreenBackgroundVariant): BackgroundKey {
       return "startOnyxV4";
     case "togetherOldBridgeV4":
       return "togetherOldBridgeV4";
+    case "togetherOldBridgeV5":
+      return "togetherOldBridgeV5";
     case "nearbyOldCityV4":
       return "nearbyOldCityV4";
+    case "nearbyOldCityV5":
+      return "nearbyOldCityV5";
     case "chatsBlackGlassV4":
       return "chatsBlackGlassV4";
     case "profileOnyxV4":
@@ -208,8 +214,10 @@ const variantDefaults: Record<
   rooms: { overlayOpacity: 0.20, blurRadius: 0 },
   profile: { overlayOpacity: 0.18, blurRadius: 0 },
   startOnyxV4: { overlayOpacity: 0.16, blurRadius: 0 },
-  togetherOldBridgeV4: { overlayOpacity: 0.20, blurRadius: 0 },
-  nearbyOldCityV4: { overlayOpacity: 0.24, blurRadius: 0 },
+  togetherOldBridgeV4: { overlayOpacity: 0.12, blurRadius: 0 },
+  togetherOldBridgeV5: { overlayOpacity: 0.12, blurRadius: 0 },
+  nearbyOldCityV4: { overlayOpacity: 0.08, blurRadius: 0 },
+  nearbyOldCityV5: { overlayOpacity: 0.08, blurRadius: 0 },
   chatsBlackGlassV4: { overlayOpacity: 0.06, blurRadius: 0 },
   profileOnyxV4: { overlayOpacity: 0.18, blurRadius: 0 },
 

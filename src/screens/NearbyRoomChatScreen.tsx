@@ -289,6 +289,10 @@ export default function NearbyRoomChatScreen() {
       showBack
       onBack={handleBack}
     >
+      <KeyboardStickyView
+        style={styles.chatLayout}
+        offset={{ closed: 0, opened: 0 }}
+      >
       {loading ? (
         <View style={styles.centerState}>
           <CoreStateCard
@@ -341,8 +345,7 @@ export default function NearbyRoomChatScreen() {
       )}
 
       {canShowComposer ? (
-        <KeyboardStickyView offset={{ closed: 0, opened: 0 }}>
-          <View style={styles.inputRow}>
+        <View style={styles.inputRow}>
             <TextInput
               ref={inputRef}
               value={text}
@@ -369,14 +372,17 @@ export default function NearbyRoomChatScreen() {
                 </Text>
               )}
             </TouchableOpacity>
-          </View>
-        </KeyboardStickyView>
+        </View>
       ) : null}
+      </KeyboardStickyView>
     </ScreenShell>
   );
 }
 
 const styles = StyleSheet.create({
+  chatLayout: {
+    flex: 1,
+  },
   headerCenter: {
     maxWidth: "100%",
     minHeight: 40,
