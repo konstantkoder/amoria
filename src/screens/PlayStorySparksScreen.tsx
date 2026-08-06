@@ -1,6 +1,7 @@
 import React from "react";
 import {
   Alert,
+  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -10,6 +11,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation, useRoute } from "@react-navigation/native";
 
+import { getStorySparkArt } from "@/assets/together/storySparkArt";
 import CoreStateCard from "@/components/CoreStateCard";
 import ScreenShell from "@/components/ScreenShell";
 import { useAuth } from "@/contexts/AuthContext";
@@ -687,6 +689,7 @@ export default function PlayStorySparksScreen() {
           <View style={styles.cardGrid}>
             {currentRound.cards.map((card) => {
               const selected = myChoice?.cardId === card.id;
+              const artwork = getStorySparkArt(card.id);
               return (
                 <Pressable
                   key={card.id}
@@ -698,7 +701,16 @@ export default function PlayStorySparksScreen() {
                   onPress={() => void chooseCard(card.id)}
                   disabled={Boolean(myChoice) || Boolean(savingRoundId) || leaving}
                 >
-                  <Text style={styles.cardEmoji}>{card.emoji}</Text>
+                  {artwork ? (
+                    <Image
+                      source={artwork}
+                      style={styles.storyCardArt}
+                      resizeMode="cover"
+                      accessible={false}
+                    />
+                  ) : (
+                    <Text style={styles.cardEmoji}>{card.emoji}</Text>
+                  )}
                   <View style={styles.storyCardCopy}>
                     <Text style={styles.storyCardTitle}>
                       {localizeStoryText(card.title, locale)}
@@ -909,6 +921,11 @@ const styles = StyleSheet.create({
     width: 34,
     textAlign: "center",
     fontSize: 25,
+  },
+  storyCardArt: {
+    width: 108,
+    aspectRatio: 3 / 2,
+    borderRadius: 10,
   },
   storyCardCopy: {
     flex: 1,
