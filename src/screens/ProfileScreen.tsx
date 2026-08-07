@@ -686,8 +686,7 @@ export default function ProfileScreen() {
     return (
       <ScreenShell
         title={t("screen.profile")}
-        background="profileOnyxV4"
-        overlayOpacity={0.16}
+        background="profileArchGardenV6"
         blurRadius={0}
       >
         <View style={styles.loader}>
@@ -701,8 +700,7 @@ export default function ProfileScreen() {
   return (
     <ScreenShell
       title={t("screen.profile")}
-      background="profileOnyxV4"
-      overlayOpacity={0.16}
+      background="profileArchGardenV6"
       blurRadius={0}
     >
       <ScrollView
@@ -1024,22 +1022,18 @@ const styles = StyleSheet.create({
     color: theme.colors.subtext,
   },
   heroCard: {
-    backgroundColor: "rgba(5,8,22,0.84)",
-    borderRadius: 28,
+    backgroundColor: "transparent",
     padding: 18,
-    borderWidth: 1,
-    borderColor: "rgba(230,185,118,0.25)",
+    borderWidth: 0,
     gap: 14,
   },
   avatarPanel: {
     flexDirection: "row",
     alignItems: "center",
     gap: 14,
-    borderRadius: 20,
     padding: 14,
-    backgroundColor: "rgba(255,255,255,0.06)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
+    backgroundColor: "transparent",
+    borderWidth: 0,
   },
   avatarCopy: {
     flex: 1,
@@ -1130,17 +1124,14 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   sectionCard: {
-    backgroundColor: "rgba(5,8,22,0.76)",
-    borderRadius: 20,
+    backgroundColor: "transparent",
     padding: 15,
-    borderWidth: 1,
-    borderColor: "rgba(230,185,118,0.14)",
+    borderWidth: 0,
     gap: 12,
   },
   photoSectionCard: {
     marginTop: 6,
-    backgroundColor: "rgba(10, 16, 28, 0.78)",
-    borderColor: theme.colors.borderWarm,
+    backgroundColor: "transparent",
   },
   sectionHeader: {
     flexDirection: "row",
@@ -1166,9 +1157,8 @@ const styles = StyleSheet.create({
     borderRadius: theme.shapes.pill,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: "rgba(255,255,255,0.08)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
+    backgroundColor: "transparent",
+    borderWidth: 0,
   },
   sectionActionText: {
     color: theme.colors.textAccent,
@@ -1230,11 +1220,9 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   identityCard: {
-    backgroundColor: "rgba(8, 12, 24, 0.82)",
-    borderRadius: 18,
+    backgroundColor: "transparent",
     padding: 16,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
+    borderWidth: 0,
     gap: 9,
   },
   identityCardAlert: {

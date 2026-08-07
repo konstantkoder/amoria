@@ -19,7 +19,6 @@ type Props = {
   titleNumberOfLines?: number;
   headerCenter?: React.ReactNode;
   background?: ScreenBackgroundVariant;
-  overlayOpacity?: number;
   blurRadius?: number;
   showHeader?: boolean;
   showBack?: boolean;
@@ -31,8 +30,7 @@ export default function ScreenShell({
   title,
   titleNumberOfLines = 1,
   headerCenter,
-  background = "default",
-  overlayOpacity,
+  background = "startLighthouseV6",
   blurRadius,
   showHeader = true,
   showBack,
@@ -53,7 +51,6 @@ export default function ScreenShell({
   return (
     <ScreenBackground
       variant={background}
-      overlayOpacity={overlayOpacity}
       blurRadius={blurRadius}
     >
       <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
@@ -132,17 +129,7 @@ const styles = StyleSheet.create({
     gap: 6,
     minWidth: 44,
     minHeight: 44,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: "rgba(5,8,22,0.78)",
-    borderWidth: 1,
-    borderColor: "rgba(230,185,118,0.18)",
-    shadowColor: "#000000",
-    shadowOpacity: 0.22,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 5,
+    backgroundColor: "transparent",
   },
   brandGroup: {
     flexDirection: "row",
@@ -160,6 +147,9 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     fontWeight: "600",
     letterSpacing: 0.4,
+    textShadowColor: "rgba(0,0,0,0.55)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   bodySafe: { flex: 1, paddingHorizontal: 16, paddingTop: 8, backgroundColor: "transparent" },
   content: { flex: 1, backgroundColor: "transparent" },

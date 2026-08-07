@@ -761,7 +761,7 @@ export default function PlayMatchScreen() {
     return (
       <ScreenShell
         title={tt("tabs.together", "Вместе")}
-        background="togetherOldBridgeV4"
+        background="togetherSearchLighthouseV6"
         showBack
         onBack={handleBack}
       >
@@ -807,7 +807,7 @@ export default function PlayMatchScreen() {
   return (
     <ScreenShell
       title={tt("tabs.together", "Вместе")}
-      background="togetherOldBridgeV4"
+      background="togetherSearchLighthouseV6"
       showBack
       onBack={handleBack}
     >
@@ -912,13 +912,11 @@ const styles = StyleSheet.create({
   card: {
     width: "100%",
     maxWidth: 430,
-    borderRadius: 28,
     padding: 20,
     gap: 12,
     alignItems: "center",
-    backgroundColor: "rgba(5,8,22,0.90)",
-    borderWidth: 1,
-    borderColor: "rgba(230,185,118,0.25)",
+    backgroundColor: "transparent",
+    borderWidth: 0,
   },
   iconWrap: {
     width: 64,

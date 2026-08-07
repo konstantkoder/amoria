@@ -389,7 +389,7 @@ export default function CreateAnnouncementScreen() {
   return (
     <ScreenShell
       title={copyOrFallback(t, "nearby.create.title", "Создать объявление")}
-      background="announcementWarm"
+      background="nearbyHarborV6"
       showBack
       onBack={handleBack}
     >
@@ -694,11 +694,9 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   introCard: {
-    borderRadius: theme.shapes.card,
     padding: 16,
-    backgroundColor: "rgba(17, 20, 36, 0.88)",
-    borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
+    backgroundColor: "transparent",
+    borderWidth: 0,
     gap: 6,
   },
   introKicker: {
@@ -719,11 +717,9 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   formCard: {
-    borderRadius: theme.shapes.card,
     padding: 16,
-    backgroundColor: "rgba(12, 16, 30, 0.92)",
-    borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
+    backgroundColor: "transparent",
+    borderWidth: 0,
     gap: 10,
   },
   label: {
@@ -844,16 +840,13 @@ const styles = StyleSheet.create({
     minHeight: 108,
   },
   previewCard: {
-    borderRadius: theme.shapes.card,
     padding: 16,
-    backgroundColor: "rgba(20, 18, 35, 0.84)",
-    borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
+    backgroundColor: "transparent",
+    borderWidth: 0,
     gap: 10,
   },
   previewCardWithPhoto: {
-    borderColor: "rgba(255,122,60,0.2)",
-    backgroundColor: "rgba(28, 18, 24, 0.84)",
+    backgroundColor: "transparent",
   },
   previewKicker: {
     color: theme.colors.textAccent,
@@ -899,9 +892,9 @@ const styles = StyleSheet.create({
     borderRadius: theme.shapes.pill,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    backgroundColor: "rgba(255, 78, 138, 0.14)",
+    backgroundColor: "rgba(230,185,118,0.10)",
     borderWidth: 1,
-    borderColor: "rgba(255, 78, 138, 0.22)",
+    borderColor: "rgba(230,185,118,0.18)",
   },
   previewCategoryText: {
     color: theme.colors.textAccent,
@@ -991,10 +984,8 @@ const styles = StyleSheet.create({
   publishCard: {
     gap: 8,
     padding: 16,
-    borderRadius: theme.shapes.card,
-    backgroundColor: "rgba(15, 18, 34, 0.92)",
-    borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
+    backgroundColor: "transparent",
+    borderWidth: 0,
   },
   publishButton: {
     borderRadius: theme.shapes.pill,

@@ -974,11 +974,9 @@ const styles = StyleSheet.create({
     paddingBottom: 6,
   },
   heroCard: {
-    borderRadius: theme.shapes.card,
     padding: 14,
-    backgroundColor: "rgba(9, 22, 24, 0.92)",
-    borderWidth: 1,
-    borderColor: "rgba(70,224,200,0.18)",
+    backgroundColor: "transparent",
+    borderWidth: 0,
   },
   heroKicker: {
     color: "#A9FFF0",
@@ -1024,11 +1022,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 2,
   },
   locationGateCard: {
-    borderRadius: 18,
     padding: 12,
-    backgroundColor: "rgba(10, 21, 24, 0.94)",
-    borderWidth: 1,
-    borderColor: "rgba(70,224,200,0.14)",
+    backgroundColor: "transparent",
+    borderWidth: 0,
     gap: 10,
   },
   locationGateIconWrap: {
@@ -1104,7 +1100,7 @@ const styles = StyleSheet.create({
   composerCard: {
     borderRadius: 18,
     padding: 12,
-    backgroundColor: "rgba(10, 19, 24, 0.92)",
+    backgroundColor: "rgba(5,8,22,0.42)",
     borderWidth: 1,
     borderColor: "rgba(70,224,200,0.12)",
     gap: 8,
@@ -1261,12 +1257,12 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   postCard: {
-    borderRadius: 16,
     padding: 12,
     marginBottom: 6,
-    backgroundColor: "rgba(15, 21, 30, 0.88)",
-    borderWidth: 1,
-    borderColor: "rgba(110, 231, 183, 0.12)",
+    backgroundColor: "transparent",
+    borderWidth: 0,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(230,185,118,0.14)",
     gap: 8,
   },
   postTopRow: {
@@ -1386,11 +1382,9 @@ const styles = StyleSheet.create({
     paddingTop: 6,
   },
   emptyCard: {
-    borderRadius: 16,
     padding: 12,
-    backgroundColor: "rgba(10, 19, 24, 0.82)",
-    borderWidth: 1,
-    borderColor: "rgba(70,224,200,0.14)",
+    backgroundColor: "transparent",
+    borderWidth: 0,
     gap: 4,
   },
   emptyTitle: {

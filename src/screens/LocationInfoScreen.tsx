@@ -17,7 +17,7 @@ export default function LocationInfoScreen() {
   return (
     <ScreenShell
       title={t("screen.locationInfo")}
-      background="utilityWarm"
+      background="profileArchGardenV6"
       showBack
     >
       <ScrollView showsVerticalScrollIndicator={false}>

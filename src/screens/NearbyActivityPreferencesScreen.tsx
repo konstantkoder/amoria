@@ -291,8 +291,7 @@ export default function NearbyActivityPreferencesScreen() {
         "Nearby activities"
       )}
       titleNumberOfLines={2}
-      background="nearbyOldCityV5"
-      overlayOpacity={0.08}
+      background="nearbyHarborV6"
       blurRadius={0}
       showBack
     >
@@ -507,12 +506,10 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
   introPanel: {
-    borderRadius: 20,
     padding: 16,
     gap: 6,
-    backgroundColor: "rgba(4, 8, 20, 0.78)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.16)",
+    backgroundColor: "transparent",
+    borderWidth: 0,
   },
   title: {
     color: theme.colors.text,
@@ -530,11 +527,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 9,
-    borderRadius: 18,
     padding: 16,
-    backgroundColor: "rgba(10, 16, 24, 0.72)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
+    backgroundColor: "transparent",
+    borderWidth: 0,
   },
   stateText: {
     color: "#C5CADB",
@@ -594,12 +589,12 @@ const styles = StyleSheet.create({
     minHeight: 146,
     borderRadius: 20,
     overflow: "hidden",
-    backgroundColor: "rgba(5,8,22,0.86)",
-    borderWidth: 1,
-    borderColor: "rgba(230,185,118,0.15)",
+    backgroundColor: "transparent",
+    borderWidth: 0,
   },
   activityRowSelected: {
-    backgroundColor: theme.colors.chipActiveBg,
+    backgroundColor: "transparent",
+    borderWidth: 1,
     borderColor: theme.colors.chipActiveBorder,
   },
   rowDisabled: {
@@ -616,7 +611,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderWidth: 1,
     borderColor: "rgba(249,250,255,0.22)",
-    backgroundColor: "rgba(5,8,22,0.72)",
+    backgroundColor: "rgba(5,8,22,0.22)",
   },
   checkCircleSelected: {
     backgroundColor: theme.colors.primaryActionBg,
@@ -661,7 +656,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     padding: 12,
     gap: 10,
-    backgroundColor: "rgba(4, 8, 20, 0.92)",
+    backgroundColor: "rgba(5,8,22,0.42)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.14)",
   },

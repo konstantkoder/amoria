@@ -597,7 +597,7 @@ export default function PlayResultScreen() {
 
   if (!sessionId) {
     return (
-      <ScreenShell title={screenTitle} background="chatWarm" showBack onBack={handleBack}>
+      <ScreenShell title={screenTitle} background="togetherObservatoryV6" showBack onBack={handleBack}>
         <View style={styles.centerState}>
           <CoreStateCard
             icon="alert-circle-outline"
@@ -616,7 +616,7 @@ export default function PlayResultScreen() {
 
   if (loading) {
     return (
-      <ScreenShell title={screenTitle} background="chatWarm" showBack onBack={handleBack}>
+      <ScreenShell title={screenTitle} background="togetherObservatoryV6" showBack onBack={handleBack}>
         <View style={styles.centerState}>
           <CoreStateCard
             loading
@@ -634,7 +634,7 @@ export default function PlayResultScreen() {
 
   if (loadError || !session) {
     return (
-      <ScreenShell title={screenTitle} background="chatWarm" showBack onBack={handleBack}>
+      <ScreenShell title={screenTitle} background="togetherObservatoryV6" showBack onBack={handleBack}>
         <View style={styles.centerState}>
           <CoreStateCard
             icon="cloud-offline-outline"
@@ -653,7 +653,7 @@ export default function PlayResultScreen() {
 
   if (!sessionActivity) {
     return (
-      <ScreenShell title={screenTitle} background="chatWarm" showBack onBack={handleBack}>
+      <ScreenShell title={screenTitle} background="togetherObservatoryV6" showBack onBack={handleBack}>
         <View style={styles.centerState}>
           <CoreStateCard
             icon="alert-circle-outline"
@@ -675,7 +675,7 @@ export default function PlayResultScreen() {
 
   if (isTerminalClosedStatus(session.status)) {
     return (
-      <ScreenShell title={screenTitle} background="chatWarm" showBack onBack={handleBack}>
+      <ScreenShell title={screenTitle} background="togetherObservatoryV6" showBack onBack={handleBack}>
         <View style={styles.centerState}>
           <CoreStateCard
             icon="ban-outline"
@@ -699,7 +699,7 @@ export default function PlayResultScreen() {
   }
 
   return (
-    <ScreenShell title={screenTitle} background="chatWarm" showBack onBack={handleBack}>
+    <ScreenShell title={screenTitle} background="togetherObservatoryV6" showBack onBack={handleBack}>
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={styles.content}
@@ -968,12 +968,10 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   heroCard: {
-    borderRadius: theme.shapes.card,
     padding: 18,
     gap: 12,
-    backgroundColor: "rgba(10, 13, 26, 0.86)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.14)",
+    backgroundColor: "transparent",
+    borderWidth: 0,
   },
   heroHeaderRow: {
     flexDirection: "row",
@@ -1028,9 +1026,8 @@ const styles = StyleSheet.create({
   },
   metaItem: {
     flex: 1,
-    borderRadius: 14,
     padding: 12,
-    backgroundColor: "rgba(255,255,255,0.08)",
+    backgroundColor: "transparent",
   },
   metaLabel: {
     color: theme.colors.subtext,
@@ -1045,12 +1042,10 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   replayCard: {
-    borderRadius: theme.shapes.card,
     padding: 16,
     gap: 12,
-    backgroundColor: "rgba(13, 17, 31, 0.84)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
+    backgroundColor: "transparent",
+    borderWidth: 0,
   },
   sectionTitle: {
     color: theme.colors.text,
@@ -1119,12 +1114,10 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   bridgeCard: {
-    borderRadius: theme.shapes.card,
     padding: 16,
     gap: 12,
-    backgroundColor: "rgba(16, 20, 38, 0.90)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
+    backgroundColor: "transparent",
+    borderWidth: 0,
   },
   bridgeBody: {
     color: theme.colors.subtext,

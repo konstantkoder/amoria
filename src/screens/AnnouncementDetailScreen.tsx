@@ -603,7 +603,7 @@ export default function AnnouncementDetailScreen() {
 
   if (!loading && loadError) {
     return (
-      <ScreenShell title={screenTitle} background="announcementWarm" showBack onBack={handleBack}>
+      <ScreenShell title={screenTitle} background="nearbyHarborV6" showBack onBack={handleBack}>
         <View style={styles.centerState}>
           <CoreStateCard
             icon="cloud-offline-outline"
@@ -625,7 +625,7 @@ export default function AnnouncementDetailScreen() {
 
   if (!loading && !announcement) {
     return (
-      <ScreenShell title={screenTitle} background="announcementWarm" showBack onBack={handleBack}>
+      <ScreenShell title={screenTitle} background="nearbyHarborV6" showBack onBack={handleBack}>
         <View style={styles.centerState}>
           <CoreStateCard
             icon="document-text-outline"
@@ -647,7 +647,7 @@ export default function AnnouncementDetailScreen() {
 
   if (!loading && announcement && authorBlocked && announcementAuthorUid !== currentUid) {
     return (
-      <ScreenShell title={screenTitle} background="announcementWarm" showBack onBack={handleBack}>
+      <ScreenShell title={screenTitle} background="nearbyHarborV6" showBack onBack={handleBack}>
         <View style={styles.centerState}>
           <CoreStateCard
             icon="eye-off-outline"
@@ -669,7 +669,7 @@ export default function AnnouncementDetailScreen() {
 
   if (!loading && announcement && unavailableAnnouncementCopy) {
     return (
-      <ScreenShell title={screenTitle} background="announcementWarm" showBack onBack={handleBack}>
+      <ScreenShell title={screenTitle} background="nearbyHarborV6" showBack onBack={handleBack}>
         <View style={styles.centerState}>
           <CoreStateCard
             icon="shield-checkmark-outline"
@@ -686,7 +686,7 @@ export default function AnnouncementDetailScreen() {
   }
 
   return (
-    <ScreenShell title={screenTitle} background="announcementWarm" showBack onBack={handleBack}>
+    <ScreenShell title={screenTitle} background="nearbyHarborV6" showBack onBack={handleBack}>
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={styles.content}
@@ -910,11 +910,9 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   summaryCard: {
-    borderRadius: theme.shapes.card,
     padding: 18,
-    backgroundColor: "rgba(16, 20, 38, 0.92)",
-    borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
+    backgroundColor: "transparent",
+    borderWidth: 0,
     gap: 12,
   },
   summaryKicker: {
@@ -988,11 +986,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "stretch",
     gap: 12,
-    borderRadius: theme.shapes.card,
     padding: 16,
-    backgroundColor: "rgba(14, 18, 34, 0.84)",
-    borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
+    backgroundColor: "transparent",
+    borderWidth: 0,
   },
   mediaTile: {
     width: 96,
@@ -1039,11 +1035,9 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   detailsCard: {
-    borderRadius: theme.shapes.card,
     padding: 18,
-    backgroundColor: "rgba(17, 20, 36, 0.88)",
-    borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
+    backgroundColor: "transparent",
+    borderWidth: 0,
     gap: 14,
   },
   detailStack: {
@@ -1083,11 +1077,9 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   responseCard: {
-    borderRadius: theme.shapes.card,
     padding: 18,
-    backgroundColor: "rgba(25, 19, 35, 0.9)",
-    borderWidth: 1,
-    borderColor: "rgba(255, 122, 60, 0.14)",
+    backgroundColor: "transparent",
+    borderWidth: 0,
     gap: 10,
   },
   responseTitle: {
@@ -1107,11 +1099,9 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   safetyCard: {
-    borderRadius: theme.shapes.card,
     padding: 16,
-    backgroundColor: "rgba(12, 16, 30, 0.82)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
+    backgroundColor: "transparent",
+    borderWidth: 0,
     gap: 10,
   },
   safetyTitle: {

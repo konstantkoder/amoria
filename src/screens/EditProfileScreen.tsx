@@ -658,8 +658,7 @@ export default function EditProfileScreen() {
     return (
       <ScreenShell
         title={t("editProfile.title")}
-        background="profileWarm"
-        overlayOpacity={0.16}
+        background="profileArchGardenV6"
         showBack
       >
         <View style={styles.loader}>
@@ -673,8 +672,7 @@ export default function EditProfileScreen() {
   return (
     <ScreenShell
       title={t("editProfile.title")}
-      background="profileWarm"
-      overlayOpacity={0.16}
+      background="profileArchGardenV6"
       showBack
     >
       <KeyboardAvoidingView
@@ -1071,11 +1069,9 @@ const styles = StyleSheet.create({
     color: theme.colors.subtext,
   },
   card: {
-    backgroundColor: "rgba(8, 12, 24, 0.78)",
-    borderRadius: 24,
+    backgroundColor: "transparent",
     padding: theme.spacing,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
+    borderWidth: 0,
   },
   label: {
     color: theme.colors.subtext,
@@ -1096,7 +1092,7 @@ const styles = StyleSheet.create({
   },
   input: {
     minHeight: 48,
-    backgroundColor: "rgba(255,255,255,0.07)",
+    backgroundColor: "rgba(5,8,22,0.30)",
     borderRadius: 18,
     paddingHorizontal: 14,
     paddingVertical: 11,
@@ -1155,9 +1151,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: theme.shapes.pill,
-    backgroundColor: "rgba(255, 78, 138, 0.16)",
+    backgroundColor: "rgba(230,185,118,0.10)",
     borderWidth: 1,
-    borderColor: "rgba(255, 78, 138, 0.24)",
+    borderColor: "rgba(230,185,118,0.18)",
   },
   interestText: {
     color: theme.colors.text,
@@ -1239,14 +1235,13 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   focusedSection: {
-    borderRadius: theme.radius,
-    borderWidth: 1,
-    borderColor: theme.colors.textAccent,
+    borderLeftWidth: 2,
+    borderLeftColor: theme.colors.textAccent,
     paddingHorizontal: 10,
     paddingTop: 10,
     marginHorizontal: -10,
     marginBottom: 12,
-    backgroundColor: "rgba(255,255,255,0.04)",
+    backgroundColor: "transparent",
   },
   optionButton: {
     paddingHorizontal: 12,

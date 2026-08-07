@@ -324,7 +324,7 @@ export default function LoginScreen() {
   };
 
   return (
-    <ScreenBackground variant="startOnyxV4" overlayOpacity={0.16} blurRadius={0}>
+    <ScreenBackground variant="startLighthouseV6" blurRadius={0}>
       <View style={styles.screen}>
         <TouchableOpacity
           style={[styles.languageButton, { top: insets.top + 8 }]}
@@ -610,19 +610,15 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     marginBottom: 8,
-    borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(5,8,22,0.78)",
-    borderWidth: 1,
-    borderColor: "rgba(230,185,118,0.24)",
+    backgroundColor: "transparent",
+    borderWidth: 0,
   },
   authCard: {
     padding: 20,
-    borderRadius: 28,
-    backgroundColor: "rgba(5,8,22,0.88)",
-    borderWidth: 1,
-    borderColor: "rgba(230,185,118,0.24)",
+    backgroundColor: "transparent",
+    borderWidth: 0,
   },
   title: {
     fontFamily: "serif",

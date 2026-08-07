@@ -14,7 +14,6 @@ export type { BackgroundKey };
 type Props = {
   background: BackgroundKey;
   blurRadius?: number;
-  overlayOpacity?: number;
   style?: StyleProp<ViewStyle>;
   children: React.ReactNode;
 };
@@ -22,7 +21,6 @@ type Props = {
 export default function BackgroundWrapper({
   background,
   blurRadius = 0,
-  overlayOpacity = 0.22,
   style,
   children,
 }: Props) {
@@ -33,7 +31,6 @@ export default function BackgroundWrapper({
     setUseFallback(false);
   }, [background]);
 
-  const safeOpacity = Math.min(Math.max(overlayOpacity, 0), 1);
   const bgSource = backgrounds[background];
 
   if (!bgSource) {
@@ -44,7 +41,7 @@ export default function BackgroundWrapper({
     );
   }
 
-  const fallbackSource = backgrounds.nightCity ?? bgSource;
+  const fallbackSource = backgrounds.startLighthouseV6 ?? bgSource;
   const source = useFallback ? fallbackSource : bgSource;
   const activeSource = source;
 
@@ -72,10 +69,6 @@ export default function BackgroundWrapper({
         });
       }}
     >
-      <View
-        pointerEvents="none"
-        style={[styles.overlay, { opacity: safeOpacity }]}
-      />
       {children}
     </ImageBackground>
   );
@@ -84,8 +77,4 @@ export default function BackgroundWrapper({
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#000000" },
   image: { opacity: 1, backgroundColor: "#000000" },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "#000",
-  },
 });

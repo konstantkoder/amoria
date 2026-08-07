@@ -874,7 +874,7 @@ export default function DMChatScreen() {
       <ScreenShell
         title={screenTitle}
         headerCenter={chatHeader}
-        background="conversationWarm"
+        background="chatCanalV6"
         showBack
         onBack={handleBack}
       >
@@ -895,7 +895,7 @@ export default function DMChatScreen() {
       <ScreenShell
         title={screenTitle}
         headerCenter={chatHeader}
-        background="conversationWarm"
+        background="chatCanalV6"
         showBack
         onBack={handleBack}
       >
@@ -919,7 +919,7 @@ export default function DMChatScreen() {
     <ScreenShell
       title={screenTitle}
       headerCenter={chatHeader}
-      background="conversationWarm"
+      background="chatCanalV6"
       showBack
       onBack={handleBack}
     >
@@ -1073,13 +1073,11 @@ const styles = StyleSheet.create({
   },
   sourceCard: {
     alignSelf: "stretch",
-    borderRadius: theme.shapes.cardInner,
     paddingHorizontal: 15,
     paddingVertical: 14,
     marginBottom: 10,
-    backgroundColor: "rgba(12, 16, 30, 0.90)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
+    backgroundColor: "transparent",
+    borderWidth: 0,
   },
   sourceEyebrow: {
     color: theme.colors.textAccent,
@@ -1131,13 +1129,11 @@ const styles = StyleSheet.create({
   },
   safetyCard: {
     alignSelf: "stretch",
-    borderRadius: theme.shapes.cardInner,
     paddingHorizontal: 15,
     paddingVertical: 14,
     marginBottom: 10,
-    backgroundColor: "rgba(12, 16, 30, 0.82)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
+    backgroundColor: "transparent",
+    borderWidth: 0,
     gap: 8,
   },
   safetyTitle: {
@@ -1186,15 +1182,15 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     paddingHorizontal: 14,
     paddingVertical: 11,
-    borderWidth: 1,
+    borderWidth: 0,
   },
   msgOwn: {
-    backgroundColor: "#2F2A4A",
-    borderColor: "#8D7AC5",
+    backgroundColor: "rgba(230,185,118,0.09)",
+    borderColor: "transparent",
   },
   msgPeer: {
-    backgroundColor: "rgba(12,16,30,0.88)",
-    borderColor: "rgba(255,255,255,0.10)",
+    backgroundColor: "transparent",
+    borderColor: "transparent",
   },
   msgText: {
     fontSize: 15,
@@ -1219,7 +1215,7 @@ const styles = StyleSheet.create({
     color: theme.colors.muted,
   },
   msgStatusOwn: {
-    color: "rgba(233,221,243,0.60)",
+    color: "rgba(255,248,234,0.60)",
   },
   msgFailedText: {
     color: "#dc2626",
@@ -1231,7 +1227,7 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     paddingBottom: 10,
     gap: 10,
-    backgroundColor: "rgba(8, 11, 22, 0.90)",
+    backgroundColor: "rgba(5,8,22,0.48)",
     borderTopWidth: 1,
     borderColor: "rgba(255,255,255,0.10)",
   },

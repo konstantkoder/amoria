@@ -98,7 +98,7 @@ const DRAW_EXAMPLE_VISUALS: Record<DrawExampleVisualId, DrawExampleVisual> = {
     id: "blob_bug",
     icon: "bug-outline",
     secondaryIcon: "ellipse-outline",
-    labelKey: "play.canvas.example.blobBug",
+    labelKey: "play.canvas.example.doodleBug",
     fallback: "Смешной жучок",
   },
   crown_pet: {

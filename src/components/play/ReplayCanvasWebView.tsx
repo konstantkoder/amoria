@@ -459,7 +459,7 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
     fontSize: 13,
     fontWeight: "700",
-    backgroundColor: "rgba(16, 20, 35, 0.82)",
+    backgroundColor: "transparent",
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: theme.shapes.pill,

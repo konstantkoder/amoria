@@ -261,7 +261,7 @@ export default function NearbyRoomChatScreen() {
       <ScreenShell
         title={screenTitle}
         headerCenter={headerCenter}
-        background="conversationWarm"
+        background="chatCanalV6"
         showBack
         onBack={handleBack}
       >
@@ -285,7 +285,7 @@ export default function NearbyRoomChatScreen() {
     <ScreenShell
       title={screenTitle}
       headerCenter={headerCenter}
-      background="conversationWarm"
+      background="chatCanalV6"
       showBack
       onBack={handleBack}
     >
@@ -434,18 +434,18 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     paddingHorizontal: 13,
     paddingVertical: 10,
-    backgroundColor: "rgba(12,16,30,0.88)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
+    backgroundColor: "transparent",
+    borderWidth: 0,
+    borderColor: "transparent",
     gap: 4,
   },
   bubbleOwn: {
-    backgroundColor: "#3A233A",
-    borderColor: "#A77A9D",
+    backgroundColor: "rgba(230,185,118,0.09)",
+    borderColor: "transparent",
   },
   bubbleOther: {
-    backgroundColor: "rgba(12,16,30,0.88)",
-    borderColor: "rgba(255,255,255,0.10)",
+    backgroundColor: "transparent",
+    borderColor: "transparent",
   },
   senderLabel: {
     color: "rgba(255,255,255,0.68)",
@@ -454,7 +454,7 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   senderLabelOwn: {
-    color: "rgba(233,221,243,0.72)",
+    color: "rgba(255,248,234,0.72)",
   },
   messageText: {
     color: theme.colors.text,
@@ -470,7 +470,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   messageTimeOwn: {
-    color: "rgba(233,221,243,0.60)",
+    color: "rgba(255,248,234,0.60)",
   },
   inputRow: {
     flexDirection: "row",
@@ -481,7 +481,7 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     borderTopWidth: 1,
     borderTopColor: "rgba(255,255,255,0.10)",
-    backgroundColor: "rgba(7, 11, 21, 0.92)",
+    backgroundColor: "rgba(5,8,22,0.48)",
   },
   input: {
     flex: 1,

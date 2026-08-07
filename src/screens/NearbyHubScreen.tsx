@@ -15,7 +15,6 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
 import * as Location from "expo-location";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 
@@ -1063,10 +1062,7 @@ export default function NearbyHubScreen() {
         </View>
 
         {false ? (
-        <LinearGradient
-          colors={["rgba(4, 8, 20, 0.78)", "rgba(4, 8, 20, 0.78)"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
+        <View
           style={styles.controlPanel}
         >
           <View style={styles.toggleRow}>
@@ -1101,7 +1097,7 @@ export default function NearbyHubScreen() {
             )}
           </View>
 
-        </LinearGradient>
+        </View>
         ) : null}
 
         {active ? (
@@ -1476,8 +1472,7 @@ export default function NearbyHubScreen() {
   return (
     <ScreenShell
       title={copyOrFallback(t, "tabs.nearby", "Рядом")}
-      background="nearbyOldCityV5"
-      overlayOpacity={0.08}
+      background="nearbyHarborV6"
       blurRadius={0}
     >
       <ScrollView
@@ -1685,11 +1680,8 @@ function NearbyStatsCards({
   return (
     <View style={styles.statsGrid}>
       {metrics.map((metric) => (
-        <LinearGradient
+        <View
           key={metric.key}
-          colors={["rgba(13, 25, 52, 0.58)", "rgba(13, 25, 52, 0.58)"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
           style={styles.statCard}
         >
           <View style={styles.statIconFrame}>
@@ -1707,7 +1699,7 @@ function NearbyStatsCards({
               {formatPulseCount(metric.value, t)}
             </Text>
           </View>
-        </LinearGradient>
+        </View>
       ))}
     </View>
   );
@@ -2553,9 +2545,8 @@ const styles = StyleSheet.create({
     height: 190,
     borderRadius: 20,
     overflow: "hidden",
-    backgroundColor: "rgba(5,8,22,0.88)",
-    borderWidth: 1,
-    borderColor: "rgba(230,185,118,0.22)",
+    backgroundColor: "transparent",
+    borderWidth: 0,
   },
   roomShelfCover: {
     width: "100%",
@@ -2581,7 +2572,7 @@ const styles = StyleSheet.create({
     width: 158,
     height: 190,
     borderRadius: 20,
-    backgroundColor: "rgba(5,8,22,0.68)",
+    backgroundColor: "rgba(5,8,22,0.22)",
     borderWidth: 1,
     borderColor: "rgba(230,185,118,0.12)",
   },
@@ -2589,11 +2580,9 @@ const styles = StyleSheet.create({
     minHeight: 72,
     marginHorizontal: 16,
     padding: 14,
-    borderRadius: 18,
     justifyContent: "center",
-    backgroundColor: "rgba(5,8,22,0.82)",
-    borderWidth: 1,
-    borderColor: "rgba(230,185,118,0.15)",
+    backgroundColor: "transparent",
+    borderWidth: 0,
   },
   roomsShelfStateText: {
     color: theme.colors.textSecondary,
@@ -2666,11 +2655,9 @@ const styles = StyleSheet.create({
     width: "100%",
     minHeight: 76,
     marginBottom: 0,
-    borderRadius: 18,
     padding: 10,
-    backgroundColor: "rgba(5,8,22,0.84)",
-    borderWidth: 1,
-    borderColor: "rgba(230,185,118,0.15)",
+    backgroundColor: "transparent",
+    borderWidth: 0,
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
@@ -2757,7 +2744,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     borderWidth: 2,
     borderColor: "rgba(255,210,170,0.72)",
-    backgroundColor: "rgba(9,14,32,0.72)",
+    backgroundColor: "rgba(5,8,22,0.22)",
   },
   personAvatarOverlay: {
     position: "absolute",
@@ -2766,7 +2753,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     paddingVertical: 5,
     paddingHorizontal: 4,
-    backgroundColor: "rgba(5,8,18,0.62)",
+    backgroundColor: "transparent",
   },
   compatibilityBadge: {
     position: "absolute",
@@ -2776,9 +2763,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 7,
     borderRadius: 999,
-    backgroundColor: "rgba(7,10,20,0.62)",
-    borderWidth: 1,
-    borderColor: theme.colors.borderWarm,
+    backgroundColor: "rgba(5,8,22,0.18)",
+    borderWidth: 0,
   },
   compatibilityBadgeText: {
     color: theme.colors.textAccent,
@@ -2791,6 +2777,9 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     fontWeight: "900",
     textAlign: "center",
+    textShadowColor: "rgba(0,0,0,0.68)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   personAvatarAge: {
     color: "rgba(226,232,255,0.88)",
@@ -2798,6 +2787,9 @@ const styles = StyleSheet.create({
     lineHeight: 14,
     fontWeight: "800",
     textAlign: "center",
+    textShadowColor: "rgba(0,0,0,0.68)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   columnWrap: {
     alignItems: "stretch",
@@ -2830,10 +2822,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 13,
     paddingVertical: 10,
     minHeight: 58,
-    borderRadius: 20,
-    backgroundColor: "rgba(4,8,20,0.62)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
+    backgroundColor: "transparent",
+    borderWidth: 0,
   },
   headerTopRow: {
     flexDirection: "row",
@@ -2873,25 +2863,19 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 7,
-    borderRadius: 15,
     paddingHorizontal: 9,
     paddingVertical: 8,
-    backgroundColor: "rgba(13, 25, 52, 0.58)",
-    borderWidth: 1,
-    borderColor: "rgba(137, 181, 226, 0.18)",
-    shadowColor: "#000",
-    shadowOpacity: 0.16,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
+    backgroundColor: "transparent",
+    borderWidth: 0,
+    shadowOpacity: 0,
+    elevation: 0,
   },
   statIconFrame: {
     width: 31,
     height: 31,
-    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.06)",
+    backgroundColor: "transparent",
   },
   statCopy: {
     flex: 1,
@@ -2916,17 +2900,12 @@ const styles = StyleSheet.create({
   },
   controlPanel: {
     marginTop: 6,
-    borderRadius: 18,
     padding: 12,
     gap: 10,
-    backgroundColor: "rgba(4, 8, 20, 0.58)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
-    shadowColor: "#000",
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
+    backgroundColor: "transparent",
+    borderWidth: 0,
+    shadowOpacity: 0,
+    elevation: 0,
   },
   completionPanel: {
     flexDirection: "row",
@@ -3018,9 +2997,8 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     paddingHorizontal: 12,
     justifyContent: "center",
-    backgroundColor: "rgba(10,16,28,0.70)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
+    backgroundColor: "transparent",
+    borderWidth: 0,
   },
   filterSummaryText: {
     color: "rgba(226,232,255,0.88)",
@@ -3319,9 +3297,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingBottom: 9,
     overflow: "hidden",
-    backgroundColor: "rgba(9,14,32,0.78)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.13)",
+    backgroundColor: "transparent",
+    borderWidth: 0,
   },
   cardPressed: {
     opacity: 0.86,
@@ -3330,8 +3307,8 @@ const styles = StyleSheet.create({
   cardAvatarFrame: {
     position: "relative",
     overflow: "hidden",
-    backgroundColor: "rgba(30, 22, 52, 0.96)",
-    borderWidth: 1,
+    backgroundColor: "rgba(5,8,22,0.28)",
+    borderWidth: 0,
   },
   cardMedia: {
     ...StyleSheet.absoluteFillObject,
@@ -3350,7 +3327,7 @@ const styles = StyleSheet.create({
   cardMediaFallback: {
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(30, 22, 52, 0.96)",
+    backgroundColor: "rgba(5,8,22,0.28)",
   },
   cardMediaInitials: {
     color: theme.colors.text,
@@ -3364,7 +3341,7 @@ const styles = StyleSheet.create({
   },
   cardPhotoVignette: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.14)",
+    backgroundColor: "transparent",
   },
   cardStatusDot: {
     position: "absolute",
@@ -3415,12 +3392,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginTop: 18,
-    borderRadius: 18,
     padding: 18,
     gap: 9,
-    backgroundColor: "rgba(10, 16, 24, 0.72)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
+    backgroundColor: "transparent",
+    borderWidth: 0,
   },
   emptyTitle: {
     color: theme.colors.text,

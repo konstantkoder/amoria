@@ -3,6 +3,7 @@ import {
   Alert,
   Linking,
   ScrollView,
+  StyleSheet,
   Switch,
   Text,
   TouchableOpacity,
@@ -149,7 +150,7 @@ export default function SettingsScreen() {
   }, [auth, t]);
 
   return (
-    <ScreenShell title={t("screen.settings")} background="utilityWarm">
+    <ScreenShell title={t("screen.settings")} background="profileArchGardenV6">
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
           <Text style={styles.sectionTitle}>
@@ -271,10 +272,8 @@ const styles = {
     marginBottom: 10,
   },
   card: {
-    borderRadius: 14,
-    backgroundColor: "rgba(8, 12, 24, 0.70)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.11)",
+    backgroundColor: "transparent",
+    borderWidth: 0,
     paddingHorizontal: 12,
     paddingVertical: 6,
     marginBottom: 12,
@@ -285,6 +284,8 @@ const styles = {
     justifyContent: "space-between" as const,
     gap: 12,
     paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(230,185,118,0.12)",
   },
   rowCopy: {
     flex: 1,

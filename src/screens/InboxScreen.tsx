@@ -268,7 +268,7 @@ export default function InboxScreen() {
 
   if (!uid) {
     return (
-      <ScreenShell title={t("tabs.chats")} background="chatsBlackGlassV4">
+      <ScreenShell title={t("tabs.chats")} background="chatCanalV6">
         <View style={styles.centerState}>
           <CoreStateCard
             icon="person-circle-outline"
@@ -289,7 +289,7 @@ export default function InboxScreen() {
   }
 
   return (
-    <ScreenShell title={t("tabs.chats")} background="chatsBlackGlassV4">
+    <ScreenShell title={t("tabs.chats")} background="chatCanalV6">
       <View style={[styles.screenContent, { paddingBottom: insets.bottom + 8 }]}>
         {renderHeroCard()}
 
@@ -347,10 +347,8 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     gap: 8,
     padding: 16,
-    borderRadius: theme.shapes.card,
-    backgroundColor: "rgba(5,8,22,0.76)",
-    borderWidth: 1,
-    borderColor: "rgba(230,185,118,0.10)",
+    backgroundColor: "transparent",
+    borderWidth: 0,
   },
   heroHeaderRow: {
     flexDirection: "row",
@@ -378,16 +376,16 @@ const styles = StyleSheet.create({
   },
   threadCard: {
     minHeight: 72,
-    backgroundColor: "rgba(5,8,22,0.76)",
-    borderRadius: 20,
+    backgroundColor: "transparent",
     padding: 12,
-    borderWidth: 1,
-    borderColor: "rgba(230,185,118,0.10)",
+    borderWidth: 0,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(230,185,118,0.16)",
     gap: 10,
   },
   threadCardUnread: {
-    backgroundColor: "rgba(230,185,118,0.045)",
-    borderColor: "rgba(230,185,118,0.34)",
+    backgroundColor: "transparent",
+    borderBottomColor: "rgba(230,185,118,0.28)",
   },
   threadHeader: {
     flexDirection: "row",
@@ -448,11 +446,9 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   emptyStateCard: {
-    borderRadius: theme.shapes.card,
     padding: 18,
-    backgroundColor: "rgba(14, 18, 32, 0.90)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
+    backgroundColor: "transparent",
+    borderWidth: 0,
     gap: 12,
   },
   emptyStateIcon: {
@@ -461,9 +457,8 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: theme.colors.surfaceWarm,
-    borderWidth: 1,
-    borderColor: theme.colors.borderWarm,
+    backgroundColor: "transparent",
+    borderWidth: 0,
   },
   emptyStateTitle: {
     color: theme.colors.text,

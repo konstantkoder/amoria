@@ -4,13 +4,13 @@ export const visualSystem = {
     backgroundRaised: "#0C0F1A",
     backgroundElevated: "#171726",
 
-    surface: "rgba(5,8,22,0.78)",
-    surfaceRaised: "rgba(5,8,22,0.90)",
+    surface: "rgba(5,8,22,0.14)",
+    surfaceRaised: "rgba(5,8,22,0.22)",
     surfaceSoft: "rgba(255,255,255,0.045)",
     surfacePressed: "rgba(255,255,255,0.075)",
 
-    border: "rgba(230,185,118,0.18)",
-    borderStrong: "rgba(230,185,118,0.34)",
+    border: "rgba(230,185,118,0.08)",
+    borderStrong: "rgba(230,185,118,0.16)",
 
     text: "#F9FAFF",
     textWarm: "#FFF8EA",
@@ -28,9 +28,9 @@ export const visualSystem = {
 
     secondaryAccent: "#A88F6A",
     secondaryText: "#F3C98B",
-    secondaryBg: "rgba(5,8,22,0.78)",
+    secondaryBg: "rgba(5,8,22,0.16)",
     secondaryPressedBg: "rgba(255,255,255,0.075)",
-    secondaryBorder: "rgba(230,185,118,0.34)",
+    secondaryBorder: "rgba(230,185,118,0.14)",
 
     selectedBg: "rgba(230,185,118,0.11)",
     selectedBorder: "rgba(230,185,118,0.34)",
@@ -55,18 +55,18 @@ export const visualSystem = {
     navActive: "#F3C98B",
     navInactive: "#8E9484",
 
-    nearbyOwnBubbleBg: "#3A233A",
-    nearbyOwnBubbleBorder: "#A77A9D",
-    nearbyOwnBubbleMeta: "rgba(233,221,243,0.72)",
-    nearbyOwnBubbleTime: "rgba(233,221,243,0.60)",
+    nearbyOwnBubbleBg: "rgba(230,185,118,0.09)",
+    nearbyOwnBubbleBorder: "transparent",
+    nearbyOwnBubbleMeta: "rgba(255,248,234,0.72)",
+    nearbyOwnBubbleTime: "rgba(255,248,234,0.60)",
 
-    dmOwnBubbleBg: "#2F2A4A",
-    dmOwnBubbleBorder: "#8D7AC5",
-    dmOwnBubbleMeta: "rgba(233,221,243,0.72)",
-    dmOwnBubbleTime: "rgba(233,221,243,0.60)",
+    dmOwnBubbleBg: "rgba(230,185,118,0.09)",
+    dmOwnBubbleBorder: "transparent",
+    dmOwnBubbleMeta: "rgba(255,248,234,0.72)",
+    dmOwnBubbleTime: "rgba(255,248,234,0.60)",
 
-    incomingBubbleBg: "rgba(12,16,30,0.88)",
-    incomingBubbleBorder: "rgba(255,255,255,0.10)",
+    incomingBubbleBg: "transparent",
+    incomingBubbleBorder: "transparent",
   },
 
   buttons: {

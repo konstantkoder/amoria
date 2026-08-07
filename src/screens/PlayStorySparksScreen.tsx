@@ -568,7 +568,7 @@ export default function PlayStorySparksScreen() {
 
   if (!uid || !sessionId) {
     return (
-      <ScreenShell title={screenTitle} background="midnightWarm" showBack onBack={goToTogether}>
+      <ScreenShell title={screenTitle} background="togetherObservatoryV6" showBack onBack={goToTogether}>
         <View style={styles.centerState}>
           <CoreStateCard
             icon="person-circle-outline"
@@ -584,7 +584,7 @@ export default function PlayStorySparksScreen() {
 
   if (loading) {
     return (
-      <ScreenShell title={screenTitle} background="midnightWarm" showBack onBack={handleBack}>
+      <ScreenShell title={screenTitle} background="togetherObservatoryV6" showBack onBack={handleBack}>
         <View style={styles.centerState}>
           <CoreStateCard
             loading
@@ -602,7 +602,7 @@ export default function PlayStorySparksScreen() {
 
   if (loadError || !session || !pack || !currentRound) {
     return (
-      <ScreenShell title={screenTitle} background="midnightWarm" showBack onBack={goToTogether}>
+      <ScreenShell title={screenTitle} background="togetherObservatoryV6" showBack onBack={goToTogether}>
         <View style={styles.centerState}>
           <CoreStateCard
             icon="cloud-offline-outline"
@@ -621,7 +621,7 @@ export default function PlayStorySparksScreen() {
 
   if (isTerminalClosedStatus(session.status)) {
     return (
-      <ScreenShell title={screenTitle} background="midnightWarm" showBack onBack={goToTogether}>
+      <ScreenShell title={screenTitle} background="togetherObservatoryV6" showBack onBack={goToTogether}>
         <View style={styles.centerState}>
           <CoreStateCard
             icon="ban-outline"
@@ -645,7 +645,7 @@ export default function PlayStorySparksScreen() {
   }
 
   return (
-    <ScreenShell title={screenTitle} background="midnightWarm" showBack onBack={handleBack}>
+    <ScreenShell title={screenTitle} background="togetherObservatoryV6" showBack onBack={handleBack}>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}
@@ -821,12 +821,10 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   heroCard: {
-    borderRadius: theme.shapes.card,
     padding: 18,
     gap: 12,
-    backgroundColor: "rgba(10, 13, 26, 0.86)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.14)",
+    backgroundColor: "transparent",
+    borderWidth: 0,
   },
   kicker: {
     color: "#FFE0B8",
@@ -852,9 +850,8 @@ const styles = StyleSheet.create({
   },
   metaItem: {
     flex: 1,
-    borderRadius: 14,
     padding: 12,
-    backgroundColor: "rgba(255,255,255,0.08)",
+    backgroundColor: "transparent",
   },
   metaLabel: {
     color: theme.colors.subtext,
@@ -869,20 +866,16 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   roundCard: {
-    borderRadius: theme.shapes.card,
     padding: 16,
     gap: 12,
-    backgroundColor: "rgba(13, 17, 31, 0.84)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
+    backgroundColor: "transparent",
+    borderWidth: 0,
   },
   sharedCard: {
-    borderRadius: theme.shapes.card,
     padding: 16,
     gap: 12,
-    backgroundColor: "rgba(16, 20, 38, 0.90)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
+    backgroundColor: "transparent",
+    borderWidth: 0,
   },
   sectionEyebrow: {
     color: "#FFE0B8",
@@ -906,12 +899,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    backgroundColor: "rgba(255,255,255,0.08)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
+    backgroundColor: "transparent",
+    borderWidth: 0,
   },
   storyCardSelected: {
     backgroundColor: theme.colors.chipActiveBg,
+    borderWidth: 1,
     borderColor: theme.colors.chipActiveBorder,
   },
   storyCardLocked: {

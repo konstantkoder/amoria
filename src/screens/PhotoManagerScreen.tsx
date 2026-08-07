@@ -632,8 +632,7 @@ export default function PhotoManagerScreen() {
     return (
       <ScreenShell
         title={t("profile.photos")}
-        background="profileWarm"
-        overlayOpacity={0.16}
+        background="profileArchGardenV6"
         showBack
       >
         <View style={styles.loader}>
@@ -647,8 +646,7 @@ export default function PhotoManagerScreen() {
   return (
     <ScreenShell
       title={t("profile.photos")}
-      background="profileWarm"
-      overlayOpacity={0.16}
+      background="profileArchGardenV6"
       showBack
     >
       <ScrollView
@@ -939,19 +937,15 @@ const styles = StyleSheet.create({
     color: theme.colors.subtext,
   },
   summaryCard: {
-    borderRadius: 16,
     padding: 14,
-    backgroundColor: "rgba(8, 12, 24, 0.82)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
+    backgroundColor: "transparent",
+    borderWidth: 0,
     gap: 8,
   },
   passwordCard: {
-    borderRadius: 16,
     padding: 14,
-    backgroundColor: "rgba(10, 14, 26, 0.9)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
+    backgroundColor: "transparent",
+    borderWidth: 0,
     gap: 10,
   },
   summaryTitle: {
@@ -1035,11 +1029,9 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   pendingCard: {
-    borderRadius: 18,
     padding: 10,
-    backgroundColor: "rgba(255,255,255,0.06)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
+    backgroundColor: "transparent",
+    borderWidth: 0,
     gap: 8,
   },
   pendingImageWrap: {

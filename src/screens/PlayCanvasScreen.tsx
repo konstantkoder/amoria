@@ -11,7 +11,6 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
 import {
   type EventArg,
   useIsFocused,
@@ -862,7 +861,7 @@ export default function PlayCanvasScreen() {
     return (
       <ScreenShell
         title={tt("play.canvas.title", "Совместная сессия")}
-        background="togetherOldBridgeV4"
+        background="togetherObservatoryV6"
         showBack
         onBack={handleSafeBack}
       >
@@ -883,7 +882,7 @@ export default function PlayCanvasScreen() {
     return (
       <ScreenShell
         title={tt("play.canvas.title", "Совместная сессия")}
-        background="togetherOldBridgeV4"
+        background="togetherObservatoryV6"
         showBack
         onBack={handleSafeBack}
       >
@@ -906,7 +905,7 @@ export default function PlayCanvasScreen() {
     return (
       <ScreenShell
         title={tt("play.canvas.title", "Совместная сессия")}
-        background="togetherOldBridgeV4"
+        background="togetherObservatoryV6"
         showBack
         onBack={handleSafeBack}
       >
@@ -928,7 +927,7 @@ export default function PlayCanvasScreen() {
     return (
       <ScreenShell
         title={tt("play.canvas.title", "Совместная сессия")}
-        background="togetherOldBridgeV4"
+        background="togetherObservatoryV6"
         showBack
         onBack={goToTogether}
       >
@@ -962,7 +961,7 @@ export default function PlayCanvasScreen() {
     return (
       <ScreenShell
         title={tt("play.canvas.title", "Совместная сессия")}
-        background="togetherOldBridgeV4"
+        background="togetherObservatoryV6"
         showBack
         onBack={() => void leaveSessionAndExit()}
       >
@@ -992,7 +991,7 @@ export default function PlayCanvasScreen() {
     return (
       <ScreenShell
         title={tt("play.canvas.title", "Совместная сессия")}
-        background="togetherOldBridgeV4"
+        background="togetherObservatoryV6"
         showBack
         onBack={handleCanvasBack}
       >
@@ -1008,11 +1007,6 @@ export default function PlayCanvasScreen() {
                 style={styles.promptImage}
                 resizeMode="cover"
                 accessible={false}
-              />
-              <LinearGradient
-                colors={["transparent", "rgba(5,8,22,0.88)"]}
-                style={styles.promptImageGradient}
-                pointerEvents="none"
               />
             </View>
             <View style={styles.previewCopy}>
@@ -1083,7 +1077,7 @@ export default function PlayCanvasScreen() {
   return (
     <ScreenShell
       title={tt("play.canvas.title", "Совместная сессия")}
-      background="togetherOldBridgeV4"
+      background="togetherObservatoryV6"
       showHeader={!focusMode}
       showBack
       onBack={handleCanvasBack}
@@ -1312,11 +1306,9 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   previewCard: {
-    borderRadius: 28,
     overflow: "hidden",
-    backgroundColor: "rgba(5,8,22,0.90)",
-    borderWidth: 1,
-    borderColor: "rgba(230,185,118,0.26)",
+    backgroundColor: "transparent",
+    borderWidth: 0,
   },
   promptImageWrap: {
     width: "100%",
@@ -1327,13 +1319,6 @@ const styles = StyleSheet.create({
   promptImage: {
     width: "100%",
     height: "100%",
-  },
-  promptImageGradient: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: "52%",
   },
   previewCopy: {
     paddingHorizontal: 18,
@@ -1384,11 +1369,9 @@ const styles = StyleSheet.create({
   sessionCard: {
     flexDirection: "row",
     gap: 12,
-    borderRadius: theme.shapes.card,
     padding: 16,
-    backgroundColor: "rgba(255,255,255,0.08)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
+    backgroundColor: "transparent",
+    borderWidth: 0,
   },
   sessionCardText: {
     flex: 1,
@@ -1460,7 +1443,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    backgroundColor: "rgba(5,8,22,0.92)",
+    backgroundColor: "rgba(5,8,22,0.22)",
     borderWidth: 1,
     borderColor: "rgba(230,185,118,0.18)",
   },

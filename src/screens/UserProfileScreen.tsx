@@ -787,7 +787,7 @@ export default function UserProfileScreen() {
     return (
       <ScreenShell
         title={tt("profile.peerTitle", "Профиль собеседника")}
-        background="profileWarm"
+        background="profileArchGardenV6"
         showBack
       >
         <View style={styles.centerState}>
@@ -809,7 +809,7 @@ export default function UserProfileScreen() {
     return (
       <ScreenShell
         title={tt("profile.peerTitle", "Профиль собеседника")}
-        background="profileWarm"
+        background="profileArchGardenV6"
         showBack
       >
         <View style={styles.centerState}>
@@ -831,7 +831,7 @@ export default function UserProfileScreen() {
     return (
       <ScreenShell
         title={tt("profile.peerTitle", "Профиль собеседника")}
-        background="profileWarm"
+        background="profileArchGardenV6"
         showBack
       >
         <View style={styles.centerState}>
@@ -849,7 +849,7 @@ export default function UserProfileScreen() {
     return (
       <ScreenShell
         title={tt("profile.peerTitle", "Профиль собеседника")}
-        background="profileWarm"
+        background="profileArchGardenV6"
         showBack
       >
         <View style={styles.centerState}>
@@ -872,7 +872,7 @@ export default function UserProfileScreen() {
     return (
       <ScreenShell
         title={tt("profile.peerTitle", "Профиль собеседника")}
-        background="profileWarm"
+        background="profileArchGardenV6"
         showBack
       >
         <View style={styles.centerState}>
@@ -890,8 +890,7 @@ export default function UserProfileScreen() {
   return (
     <ScreenShell
       title={tt("profile.peerTitle", "Профиль собеседника")}
-      background="profileWarm"
-      overlayOpacity={0.16}
+      background="profileArchGardenV6"
       showBack
     >
       <>
@@ -1236,11 +1235,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   heroCard: {
-    backgroundColor: "rgba(8, 12, 24, 0.78)",
-    borderRadius: theme.shapes.card,
+    backgroundColor: "transparent",
     padding: 18,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
+    borderWidth: 0,
     gap: 14,
   },
   avatarRow: {
@@ -1301,15 +1298,13 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   card: {
-    backgroundColor: "rgba(10, 14, 26, 0.88)",
-    borderRadius: theme.shapes.card,
+    backgroundColor: "transparent",
     padding: 16,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
+    borderWidth: 0,
     gap: 8,
   },
   compatibilityCard: {
-    borderColor: theme.colors.borderWarm,
+    borderColor: "transparent",
   },
   compatibilityHeader: {
     flexDirection: "row",
@@ -1354,11 +1349,9 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   galleryCard: {
-    backgroundColor: "rgba(10, 14, 26, 0.82)",
-    borderRadius: theme.shapes.card,
+    backgroundColor: "transparent",
     padding: 14,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
+    borderWidth: 0,
     gap: 12,
   },
   lockedFolderCard: {
@@ -1417,8 +1410,8 @@ const styles = StyleSheet.create({
     fontWeight: theme.buttons.secondary.fontWeight,
   },
   lockedGalleryOpenedCard: {
-    backgroundColor: "rgba(10, 14, 26, 0.88)",
-    borderColor: theme.colors.borderWarm,
+    backgroundColor: "transparent",
+    borderColor: "transparent",
   },
   galleryGrid: {
     flexDirection: "row",

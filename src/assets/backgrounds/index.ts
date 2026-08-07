@@ -17,6 +17,13 @@ export const backgrounds = {
   nearbyOldCityV5: require("./nearby_old_city_v5.jpg"),
   chatsBlackGlassV4: require("./chats_black_glass_v4.png"),
   profileOnyxV4: require("./profile_onyx_v4.png"),
+  startLighthouseV6: require("./v6/lighthouse_v6.jpg"),
+  togetherObservatoryV6: require("./v6/observatory_v6.jpg"),
+  togetherSearchLighthouseV6: require("./v6/lighthouse_v6.jpg"),
+  nearbyHarborV6: require("./v6/harbor_v6.jpg"),
+  chatCanalV6: require("./v6/canal_v6.jpg"),
+  profileArchGardenV6: require("./v6/arch_garden_v6.jpg"),
+  drawerLanternStreetV6: require("./v6/drawer_lantern_street_v6.jpg"),
 } as const;
 
 export type BackgroundKey = keyof typeof backgrounds;

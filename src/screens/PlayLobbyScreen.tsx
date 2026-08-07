@@ -524,7 +524,7 @@ export default function PlayLobbyScreen() {
   const togetherFiltersSheetMaxHeight = screenHeight * 0.68;
 
   return (
-    <ScreenShell title={t("tabs.together")} background="togetherOldBridgeV5">
+    <ScreenShell title={t("tabs.together")} background="togetherObservatoryV6">
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}
@@ -1086,12 +1086,10 @@ const styles = StyleSheet.create({
     gap: 7,
   },
   detailStepChip: {
-    borderRadius: theme.shapes.pill,
     paddingHorizontal: 9,
     paddingVertical: 5,
-    backgroundColor: theme.colors.surfaceSoft,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
+    backgroundColor: "transparent",
+    borderWidth: 0,
   },
   detailStepText: {
     color: theme.colors.textSecondary,
@@ -1099,12 +1097,12 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   turnBasedCard: {
-    backgroundColor: "rgba(5,8,22,0.78)",
-    borderColor: "rgba(230,185,118,0.18)",
-    borderWidth: 1,
-    borderRadius: 22,
+    backgroundColor: "transparent",
+    borderWidth: 0,
     padding: 16,
     gap: 10,
+    shadowOpacity: 0,
+    elevation: 0,
   },
   turnBasedTitle: {
     color: "#F9FAFF",
@@ -1122,7 +1120,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: theme.buttons.secondary.backgroundColor,
+    backgroundColor: "transparent",
   },
   turnBasedSecondaryText: {
     color: theme.buttons.secondary.textColor,

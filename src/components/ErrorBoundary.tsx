@@ -36,7 +36,7 @@ export default class ErrorBoundary extends React.Component<
     const t = this.context?.t ?? ((key: string) => key);
 
     return (
-      <ScreenBackground variant="utilityWarm">
+      <ScreenBackground variant="profileArchGardenV6">
         <View style={styles.container}>
           <Text style={styles.title}>{t("errorBoundary.title")}</Text>
           <Text style={styles.message}>{t("errorBoundary.message")}</Text>

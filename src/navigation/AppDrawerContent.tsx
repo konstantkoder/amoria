@@ -17,8 +17,6 @@ import { theme } from "@/theme";
 import { visualSystem } from "@/theme/visualSystem";
 
 const DRAWER_ACTIVE_TINT = visualSystem.colors.secondaryText;
-const DRAWER_ACTIVE_BACKGROUND = "rgba(167,139,196,0.16)";
-const DRAWER_ACTIVE_BORDER = "rgba(167,139,196,0.40)";
 
 type Props = {
   onClose?: () => void;
@@ -173,7 +171,7 @@ export default function AppDrawerContent({ onClose }: Props) {
   );
 
   return (
-    <ScreenBackground variant="menuWarm">
+    <ScreenBackground variant="drawerLanternStreetV6">
       <View style={styles.container}>
         <View style={styles.panel}>
         <View style={styles.headerRow}>
@@ -249,24 +247,19 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
   },
   panel: {
-    backgroundColor: "rgba(10,14,26,0.88)",
-    borderRadius: 26,
+    backgroundColor: "transparent",
     paddingHorizontal: 16,
     paddingTop: 16,
     paddingBottom: 14,
     marginHorizontal: 10,
     marginTop: 10,
     marginBottom: 14,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
+    borderWidth: 0,
     flex: 1,
     alignSelf: "stretch",
     justifyContent: "flex-start",
-    shadowColor: "#000000",
-    shadowOpacity: 0.32,
-    shadowRadius: 22,
-    shadowOffset: { width: 0, height: 14 },
-    elevation: 16,
+    shadowOpacity: 0,
+    elevation: 0,
   },
   headerRow: {
     flexDirection: "row",
@@ -281,12 +274,10 @@ const styles = StyleSheet.create({
   },
   titlePill: {
     alignSelf: "flex-start",
-    backgroundColor: "rgba(255,255,255,0.12)",
-    borderRadius: 20,
+    backgroundColor: "transparent",
     paddingHorizontal: 14,
     paddingVertical: 9,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.18)",
+    borderWidth: 0,
   },
   title: {
     color: theme.colors.textPrimary,
@@ -336,24 +327,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 15,
     paddingVertical: 12,
-    borderRadius: 18,
-    backgroundColor: "rgba(255,255,255,0.05)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
-    shadowColor: "#000000",
-    shadowOpacity: 0.10,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
+    backgroundColor: "transparent",
+    borderWidth: 0,
   },
   activeButton: {
-    backgroundColor: DRAWER_ACTIVE_BACKGROUND,
-    borderColor: DRAWER_ACTIVE_BORDER,
-    shadowColor: DRAWER_ACTIVE_TINT,
-    shadowOpacity: 0.14,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 6,
+    backgroundColor: "transparent",
   },
   dangerButton: {
     backgroundColor: "rgba(255, 77, 103, 0.10)",
@@ -363,16 +341,13 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     marginRight: 10,
-    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.10)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.16)",
+    backgroundColor: "transparent",
+    borderWidth: 0,
   },
   activeIconWrap: {
-    backgroundColor: "rgba(167,139,196,0.16)",
-    borderColor: "rgba(167,139,196,0.40)",
+    backgroundColor: "transparent",
   },
   dangerIconWrap: {
     backgroundColor: "rgba(255, 77, 103, 0.12)",
@@ -385,7 +360,7 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   activeButtonText: {
-    color: "#E9DDF3",
+    color: "#F3C98B",
   },
   activeDot: {
     width: 8,

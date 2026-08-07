@@ -37,6 +37,7 @@ import PrivacyPolicyScreen from "@/screens/PrivacyPolicyScreen";
 import LocationInfoScreen from "@/screens/LocationInfoScreen";
 
 import { AmoriaTogetherIcon } from "@/components/icons/AmoriaTogetherIcon";
+import ScreenBackground from "@/components/ScreenBackground";
 import { theme } from "@/theme";
 import AppDrawerContent from "@/navigation/AppDrawerContent";
 import {
@@ -180,16 +181,17 @@ function IdentitySetupGate({ children }: { children: React.ReactNode }) {
 
   if (loading) {
     return (
-      <View
-        style={{
-          flex: 1,
-          alignItems: "center",
-          justifyContent: "center",
-          backgroundColor: theme.colors.background,
-        }}
-      >
-        <ActivityIndicator color={theme.colors.primary} />
-      </View>
+      <ScreenBackground variant="startLighthouseV6">
+        <View
+          style={{
+            flex: 1,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <ActivityIndicator color={theme.colors.primary} />
+        </View>
+      </ScreenBackground>
     );
   }
 
@@ -198,77 +200,76 @@ function IdentitySetupGate({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <View
-      style={{
-        flex: 1,
-        justifyContent: "center",
-        padding: 24,
-        backgroundColor: theme.colors.background,
-      }}
-    >
+    <ScreenBackground variant="startLighthouseV6">
       <View
         style={{
-          borderRadius: theme.shapes.card,
-          padding: 18,
-          backgroundColor: "rgba(10, 14, 26, 0.94)",
-          borderWidth: 1,
-          borderColor: "rgba(255,255,255,0.12)",
-          gap: 12,
+          flex: 1,
+          justifyContent: "center",
+          padding: 24,
         }}
       >
-        <Text style={{ color: theme.colors.accent, fontSize: 12, fontWeight: "800" }}>
-          {t("profile.completeProfile")}
-        </Text>
-        <Text style={{ color: theme.colors.text, fontSize: 24, fontWeight: "900" }}>
-          {t("profile.yourName")}
-        </Text>
-        <Text style={{ color: theme.colors.subtext, fontSize: 14, lineHeight: 20 }}>
-          {t("profile.completeProfileBody")}
-        </Text>
-        <TextInput
-          ref={nameInputRef}
-          value={nameDraft}
-          onChangeText={setNameDraft}
-          placeholder={t("profile.enterName")}
-          placeholderTextColor={theme.colors.muted}
-          autoCapitalize="words"
-          editable={!saving}
-          maxLength={30}
-          returnKeyType="done"
-          onSubmitEditing={() => void saveName()}
+        <View
           style={{
-            borderRadius: theme.radius,
-            borderWidth: 1,
-            borderColor: theme.colors.borderSubtle,
-            backgroundColor: theme.colors.card,
-            color: theme.colors.text,
-            paddingHorizontal: 14,
-            paddingVertical: 11,
-          }}
-        />
-        {errorText ? (
-          <Text style={{ color: theme.colors.danger, fontSize: 13, fontWeight: "700" }}>
-            {errorText}
-          </Text>
-        ) : null}
-        <TouchableOpacity
-          onPress={() => void saveName()}
-          disabled={saving}
-          activeOpacity={0.85}
-          style={{
-            borderRadius: theme.radius,
-            paddingVertical: 13,
-            alignItems: "center",
-            backgroundColor: theme.colors.primary,
-            opacity: saving ? 0.65 : 1,
+            padding: 18,
+            backgroundColor: "transparent",
+            borderWidth: 0,
+            gap: 12,
           }}
         >
-          <Text style={{ color: "#FFFFFF", fontSize: 15, fontWeight: "800" }}>
-            {saving ? t("common.saving") : t("profile.saveName")}
+          <Text style={{ color: theme.colors.accent, fontSize: 12, fontWeight: "800" }}>
+            {t("profile.completeProfile")}
           </Text>
-        </TouchableOpacity>
+          <Text style={{ color: theme.colors.text, fontSize: 24, fontWeight: "900" }}>
+            {t("profile.yourName")}
+          </Text>
+          <Text style={{ color: theme.colors.subtext, fontSize: 14, lineHeight: 20 }}>
+            {t("profile.completeProfileBody")}
+          </Text>
+          <TextInput
+            ref={nameInputRef}
+            value={nameDraft}
+            onChangeText={setNameDraft}
+            placeholder={t("profile.enterName")}
+            placeholderTextColor={theme.colors.muted}
+            autoCapitalize="words"
+            editable={!saving}
+            maxLength={30}
+            returnKeyType="done"
+            onSubmitEditing={() => void saveName()}
+            style={{
+              borderRadius: theme.radius,
+              borderWidth: 1,
+              borderColor: theme.colors.borderSubtle,
+              backgroundColor: theme.colors.card,
+              color: theme.colors.text,
+              paddingHorizontal: 14,
+              paddingVertical: 11,
+            }}
+          />
+          {errorText ? (
+            <Text style={{ color: theme.colors.danger, fontSize: 13, fontWeight: "700" }}>
+              {errorText}
+            </Text>
+          ) : null}
+          <TouchableOpacity
+            onPress={() => void saveName()}
+            disabled={saving}
+            activeOpacity={0.85}
+            style={{
+              borderRadius: theme.radius,
+              paddingVertical: 13,
+              alignItems: "center",
+              backgroundColor: theme.colors.primary,
+              opacity: saving ? 0.65 : 1,
+            }}
+          >
+            <Text style={{ color: "#FFFFFF", fontSize: 15, fontWeight: "800" }}>
+              {saving ? t("common.saving") : t("profile.saveName")}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
-    </View>
+    </ScreenBackground>
   );
 }
 
