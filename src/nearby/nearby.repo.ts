@@ -211,8 +211,9 @@ export async function listNearbyProfileFeedRows(
         gt(nearbyProfileVisibility.expiresAt, now),
         isNull(viewerBlock.blockedUserId),
         isNull(candidateBlock.blockedUserId),
+        // Viewer radius is that viewer's discovery preference; candidate radius
+        // controls only the candidate's own feed, not inbound visibility.
         sql`${distanceKm} <= ${viewerRadiusKm}`,
-        sql`${distanceKm} <= ${nearbyProfileVisibility.radiusKm}`,
       ),
     )
     .orderBy(sql`${distanceKm}`, desc(nearbyProfileVisibility.updatedAt))
@@ -544,7 +545,7 @@ function getNearbyFeedExclusionReason(
     return "missing_preferred_genders";
   }
 
-  if (isTooFarForNearbyFeed(input.viewerVisibility, input.candidateVisibility)) {
+  if (isOutsideViewerNearbyRadius(input.viewerVisibility, input.candidateVisibility)) {
     return "distance_too_far";
   }
 
@@ -599,7 +600,7 @@ function isActiveNearbyAdminVisibility(
   );
 }
 
-function isTooFarForNearbyFeed(
+function isOutsideViewerNearbyRadius(
   viewerVisibility: NearbyAdminVisibilitySnapshot,
   candidateVisibility: NearbyAdminVisibilitySnapshot,
 ): boolean {
@@ -608,8 +609,7 @@ function isTooFarForNearbyFeed(
     typeof viewerVisibility.longitude !== "number" ||
     typeof viewerVisibility.radiusKm !== "number" ||
     typeof candidateVisibility.latitude !== "number" ||
-    typeof candidateVisibility.longitude !== "number" ||
-    typeof candidateVisibility.radiusKm !== "number"
+    typeof candidateVisibility.longitude !== "number"
   ) {
     return true;
   }
@@ -620,7 +620,7 @@ function isTooFarForNearbyFeed(
     candidateVisibility.latitude,
     candidateVisibility.longitude,
   );
-  return distanceKm > viewerVisibility.radiusKm || distanceKm > candidateVisibility.radiusKm;
+  return distanceKm > viewerVisibility.radiusKm;
 }
 
 function isMutuallyAgeCompatible(

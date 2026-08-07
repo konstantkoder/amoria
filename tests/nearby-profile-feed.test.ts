@@ -30,7 +30,7 @@ const expiredId = "00000000-0000-4000-8000-000000000004";
 const blockedId = "00000000-0000-4000-8000-000000000005";
 const ageMismatchId = "00000000-0000-4000-8000-000000000006";
 const genderMismatchId = "00000000-0000-4000-8000-000000000007";
-const radiusMismatchId = "00000000-0000-4000-8000-000000000008";
+const viewerRadiusMismatchId = "00000000-0000-4000-8000-000000000008";
 
 let restoreNearbyDeps: (() => void) | null = null;
 
@@ -140,8 +140,10 @@ test("Nearby radius boundaries use kilometers deterministically", () => {
   assert.equal(nearbyRepo.__isWithinNearbyRadiusForTests(latitude, longitude, latitude, longitude, 5), true);
   assert.equal(nearbyRepo.__isWithinNearbyRadiusForTests(latitude, longitude, latitude + latitudeOffset(4.9), longitude, 5), true);
   assert.equal(nearbyRepo.__isWithinNearbyRadiusForTests(latitude, longitude, latitude + latitudeOffset(5.1), longitude, 5), false);
-  assert.equal(nearbyRepo.__isWithinNearbyRadiusForTests(latitude, longitude, latitude + latitudeOffset(25), longitude, 5), false);
-  assert.equal(nearbyRepo.__isWithinNearbyRadiusForTests(latitude, longitude, latitude + latitudeOffset(25), longitude, 250), true);
+  assert.equal(nearbyRepo.__isWithinNearbyRadiusForTests(latitude, longitude, latitude + latitudeOffset(24.9), longitude, 25), true);
+  assert.equal(nearbyRepo.__isWithinNearbyRadiusForTests(latitude, longitude, latitude + latitudeOffset(25.1), longitude, 25), false);
+  assert.equal(nearbyRepo.__isWithinNearbyRadiusForTests(latitude, longitude, latitude + latitudeOffset(249), longitude, 250), true);
+  assert.equal(nearbyRepo.__isWithinNearbyRadiusForTests(latitude, longitude, latitude + latitudeOffset(251), longitude, 250), false);
 });
 
 test("Nearby gender normalization preserves Other and rejects unknown legacy values", () => {
@@ -269,7 +271,11 @@ test("Nearby profile feed returns only real compatible opted-in profiles with sa
       visibilityRow(blockedId, { latitude: 45.83, longitude: 16.01, radiusKm: 25 }),
       visibilityRow(ageMismatchId, { latitude: 45.83, longitude: 16.01, radiusKm: 25 }),
       visibilityRow(genderMismatchId, { latitude: 45.83, longitude: 16.01, radiusKm: 25 }),
-      visibilityRow(radiusMismatchId, { latitude: 45.95, longitude: 16.2, radiusKm: 1 }),
+      visibilityRow(viewerRadiusMismatchId, {
+        latitude: 46.15,
+        longitude: 16.2,
+        radiusKm: 250,
+      }),
     ],
     users: [
       userRow(viewerId, {
@@ -297,7 +303,7 @@ test("Nearby profile feed returns only real compatible opted-in profiles with sa
         preferredGenders: ["man"],
       }),
       userRow(genderMismatchId, { gender: "man", preferredGenders: ["woman"] }),
-      userRow(radiusMismatchId, { gender: "woman", preferredGenders: ["man"] }),
+      userRow(viewerRadiusMismatchId, { gender: "woman", preferredGenders: ["man"] }),
     ],
   });
   const app = buildApp();
@@ -335,6 +341,43 @@ test("Nearby profile feed returns only real compatible opted-in profiles with sa
   });
   assertNoPrivateNearbyFields(body);
   assert.equal(JSON.stringify(body).includes("locked"), false);
+});
+
+test("Nearby people discovery radius is viewer-centric and asymmetric", async (t) => {
+  t.after(restoreDeps);
+  const pLocation = { latitude: 45, longitude: 16 };
+  const aLocation = { latitude: 45 + 60 / 111.195, longitude: 16 };
+  mockNearby({
+    visibilities: [
+      visibilityRow(viewerId, { ...pLocation, radiusKm: 250 }),
+      visibilityRow(matchId, { ...aLocation, radiusKm: 25 }),
+    ],
+    users: [
+      userRow(viewerId, { displayName: "P", gender: "man" }),
+      userRow(matchId, { displayName: "A", gender: "woman" }),
+    ],
+  });
+  const app = buildApp();
+  t.after(async () => app.close());
+
+  const pFeed = await app.inject({
+    method: "GET",
+    url: "/nearby/feed",
+    headers: authHeaders(viewerId),
+  });
+  const aFeed = await app.inject({
+    method: "GET",
+    url: "/nearby/feed",
+    headers: authHeaders(matchId),
+  });
+
+  assert.equal(pFeed.statusCode, 200);
+  assert.deepEqual(pFeed.json().items.map((item: { userId: string }) => item.userId), [matchId]);
+  assert.equal(pFeed.json().items[0].distanceBucket, "25_100km");
+  assert.equal(aFeed.statusCode, 200);
+  assert.deepEqual(aFeed.json().items, []);
+  assertNoPrivateNearbyFields(pFeed.json());
+  assertNoPrivateNearbyFields(aFeed.json());
 });
 
 test("Nearby profile feed mapper returns null age when birthDate is missing", async (t) => {
@@ -474,8 +517,7 @@ function mockNearby(input: {
           }
           if (
             visibility.latitude === null ||
-            visibility.longitude === null ||
-            visibility.radiusKm === null
+            visibility.longitude === null
           ) {
             continue;
           }
@@ -491,7 +533,7 @@ function mockNearby(input: {
             visibility.latitude,
             visibility.longitude,
           );
-          if (distanceKm > viewerRadiusKm || distanceKm > visibility.radiusKm) {
+          if (distanceKm > viewerRadiusKm) {
             continue;
           }
           rows.push({ visibility, user, distanceKm });
