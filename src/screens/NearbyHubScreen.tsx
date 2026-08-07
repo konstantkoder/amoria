@@ -52,6 +52,13 @@ import {
   type NearbyProfileLoadState,
 } from "@/services/nearbyProfileLoadState";
 import {
+  buildNearbyPersonAccessibilityLabel,
+  buildNearbyPersonMetadata,
+  formatNearbyDistanceAccessibility,
+  formatNearbyDistanceBucket,
+  getNearbyPeopleGridLayout,
+} from "@/services/nearbyPresentation";
+import {
   getMissingMatchingSafetyFields,
   getUserProfile,
   updateUserFields,
@@ -320,31 +327,6 @@ function getNearbySummaryLine(
   return `${peopleLabel}: ${formatPulseCount(summary.totalUsersCount, t)} \u00B7 ${onlineLabel}: ${formatPulseCount(summary.onlineNowCount, t)} \u00B7 ${nearbyLabel}: ${formatPulseCount(summary.activeNearbyCount, t)}`;
 }
 
-function getPeopleGridLayout(width: number) {
-  const compact = width <= 360;
-  const large = width > 430;
-  const columns = compact ? 2 : 3;
-  const horizontalPadding = compact ? 14 : large ? 16 : 14;
-  const columnGap = compact ? 12 : large ? 12 : 10;
-  const rowGap = 14;
-  const avatarSize = compact ? 108 : large ? 116 : 104;
-  const tileHeight = compact ? 116 : large ? 124 : 112;
-  const availableWidth = Math.max(
-    0,
-    width - horizontalPadding * 2 - columnGap * (columns - 1)
-  );
-
-  return {
-    columns,
-    horizontalPadding,
-    columnGap,
-    rowGap,
-    avatarSize,
-    tileWidth: Math.floor(availableWidth / columns),
-    tileHeight,
-  };
-}
-
 export default function NearbyHubScreen() {
   const navigation = useNavigation<NearbyTabNavigationProp>();
   const { width, height } = useWindowDimensions();
@@ -404,7 +386,7 @@ export default function NearbyHubScreen() {
     rooms.length || roomErrorText || roomPreferenceGateVisible
   );
   const peopleGridLayout = useMemo(
-    () => getPeopleGridLayout(width),
+    () => getNearbyPeopleGridLayout(width),
     [width]
   );
 
@@ -2159,7 +2141,7 @@ function NearbyPeopleGrid({
 }: {
   items: NearbyProfileFeedItemDto[];
   selfProfile: UserProfile | null;
-  layout: ReturnType<typeof getPeopleGridLayout>;
+  layout: ReturnType<typeof getNearbyPeopleGridLayout>;
   onOpen: (item: NearbyProfileFeedItemDto) => void;
   t: (key: string, params?: Record<string, string>) => string;
 }) {
@@ -2280,6 +2262,13 @@ function NearbyProfileCardSlot({
   t: (key: string, params?: Record<string, string>) => string;
 }) {
   const ageLabel = getNearbyPersonAgeLabel(item, t);
+  const distanceLabel = formatNearbyDistanceBucket(item.distanceBucket, t);
+  const metadataLabel = buildNearbyPersonMetadata(ageLabel, distanceLabel);
+  const accessibilityLabel = buildNearbyPersonAccessibilityLabel(
+    item.displayName,
+    ageLabel,
+    formatNearbyDistanceAccessibility(item.distanceBucket, t)
+  );
   const compatibility = buildProfileCompatibilityHints(selfProfile, item);
   const primaryReason = compatibility.reasons[0];
   const compatibilityLabel = primaryReason?.kind === "goal"
@@ -2293,7 +2282,7 @@ function NearbyProfileCardSlot({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={item.displayName}
+      accessibilityLabel={accessibilityLabel}
       onPress={onOpen}
       style={({ pressed }) => [
         styles.personTile,
@@ -2331,14 +2320,16 @@ function NearbyProfileCardSlot({
           >
             {item.displayName}
           </Text>
-          {ageLabel ? (
+          {metadataLabel ? (
             <Text
-              style={styles.personAvatarAge}
+              style={styles.personAvatarMeta}
               numberOfLines={1}
               ellipsizeMode="tail"
               maxFontSizeMultiplier={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.88}
             >
-              {ageLabel}
+              {metadataLabel}
             </Text>
           ) : null}
         </View>
@@ -2751,8 +2742,10 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    paddingVertical: 5,
     paddingHorizontal: 4,
+    paddingTop: 4,
+    paddingBottom: 6,
+    gap: 1,
     backgroundColor: "transparent",
   },
   compatibilityBadge: {
@@ -2781,13 +2774,13 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
   },
-  personAvatarAge: {
-    color: "rgba(226,232,255,0.88)",
-    fontSize: 11,
-    lineHeight: 14,
+  personAvatarMeta: {
+    color: "rgba(240,242,248,0.92)",
+    fontSize: 10,
+    lineHeight: 13,
     fontWeight: "800",
     textAlign: "center",
-    textShadowColor: "rgba(0,0,0,0.68)",
+    textShadowColor: "rgba(0,0,0,0.72)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
   },
