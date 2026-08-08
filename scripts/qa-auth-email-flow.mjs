@@ -100,6 +100,7 @@ async function mainFlow() {
   const mailStart = Date.now();
   const registration = await register(email, oldPassword, context);
   requireStatus(registration, 201, "registration");
+  results.set("VALID_REGISTRATION", registration.data?.verificationRequired === true);
   results.set("REGISTRATION_NO_TOKENS", !registration.data?.accessToken && !registration.data?.refreshToken);
   results.set("REGISTRATION_VERIFICATION_REQUIRED", registration.data?.verificationRequired === true);
 
@@ -107,10 +108,31 @@ async function mainFlow() {
   const user = userResult.rows[0];
   results.set("NEW_USER_UNVERIFIED", Boolean(user) && user.email_verified_at === null);
 
+  const duplicate = await register(email.toUpperCase(), oldPassword, context);
+  const duplicateCount = await client.query("SELECT count(*)::int AS count FROM users WHERE email = $1", [email]);
+  results.set("DUPLICATE_REGISTRATION_ONE_USER", duplicate.status === 201 && duplicateCount.rows[0].count === 1);
+
+  const unverifiedLogin = await request("/auth/login", { email, password: oldPassword }, context);
+  results.set(
+    "UNVERIFIED_LOGIN_REJECTED",
+    unverifiedLogin.status === 403
+      && unverifiedLogin.data?.error?.code === "email_not_verified"
+      && !unverifiedLogin.data?.accessToken
+      && !unverifiedLogin.data?.refreshToken,
+  );
+
   const verificationMail = await waitForCode(email, "Verify your Amoria email", mailStart);
   results.set("VERIFICATION_EMAIL_RECEIVED", true);
   const resend = await request("/auth/resend-verification", { email, locale: "en" }, context);
   results.set("RESEND_COOLDOWN", resend.status === 429 && Boolean(resend.retryAfter));
+
+  const wrongVerificationCode = verificationMail.code === "000000" ? "999999" : "000000";
+  const wrongVerification = await request(
+    "/auth/verify-email",
+    { email, code: wrongVerificationCode },
+    context,
+  );
+  results.set("WRONG_VERIFICATION_CODE_REJECTED", wrongVerification.status === 400);
 
   const verification = await request("/auth/verify-email", { email, code: verificationMail.code }, context);
   requireStatus(verification, 200, "verification");
@@ -223,6 +245,7 @@ async function concurrencyMatrix() {
   results.set("PARALLEL_REGISTRATION_RESPONSES", parallel.every((response) => response.status === 201));
   const count = await client.query("SELECT count(*)::int AS count FROM users WHERE email = $1", [email]);
   results.set("PARALLEL_REGISTRATION_ONE_USER", count.rows[0].count === 1);
+  results.set("EMAIL_NORMALIZATION", count.rows[0].count === 1);
   const verificationMail = await waitForCode(email, "Verify your Amoria email", mailStart);
   const verifies = await Promise.all([
     request("/auth/verify-email", { email, code: verificationMail.code }, context),
@@ -336,6 +359,24 @@ async function grandfatherMigrationMatrix() {
 }
 
 async function abuseMatrix() {
+  const badSyntax = await request("/auth/register", {
+    email: "not-an-email",
+    password: password(),
+    displayName: "Amoria QA",
+    locale: "en",
+  });
+  results.set("BAD_EMAIL_SYNTAX_REJECTED", badSyntax.status === 400);
+
+  const invalidDomain = await register(
+    `invalid.${randomBytes(4).toString("hex")}@example.invalid`,
+    password(),
+    { deviceId: "qa-invalid-domain", ip: "198.51.100.38" },
+  );
+  results.set(
+    "NONEXISTENT_EMAIL_DOMAIN_REJECTED",
+    invalidDomain.status === 422 && invalidDomain.data?.error?.code === "invalid_email_domain",
+  );
+
   const emailKey = `blocked.${randomBytes(4).toString("hex")}@mailinator.com`;
   const emailResponses = [];
   for (let index = 0; index < 4; index += 1) {
@@ -344,6 +385,10 @@ async function abuseMatrix() {
       ip: `198.51.100.${40 + index}`,
     }));
   }
+  results.set(
+    "DISPOSABLE_EMAIL_DOMAIN_REJECTED",
+    emailResponses[0]?.status === 422 && emailResponses[0]?.data?.error?.code === "disposable_email_domain",
+  );
   results.set("REGISTRATION_EMAIL_RATE_LIMIT", emailResponses.at(-1)?.status === 429);
 
   const ipResponses = [];
@@ -354,6 +399,23 @@ async function abuseMatrix() {
     }));
   }
   results.set("REGISTRATION_IP_RATE_LIMIT", ipResponses.at(-1)?.status === 429 && Boolean(ipResponses.at(-1)?.retryAfter));
+
+  const resendEmail = qaEmail("resend-limit");
+  const resendContext = { deviceId: "qa-resend-limit", ip: "198.51.100.109" };
+  const resendResponses = [];
+  for (let index = 0; index < 6; index += 1) {
+    resendResponses.push(await request(
+      "/auth/resend-verification",
+      { email: resendEmail, locale: "en" },
+      resendContext,
+    ));
+  }
+  results.set(
+    "RESEND_EMAIL_RATE_LIMIT",
+    resendResponses.slice(0, 5).every((response) => response.status === 200)
+      && resendResponses.at(-1)?.status === 429
+      && Boolean(resendResponses.at(-1)?.retryAfter),
+  );
 
   const bruteEmail = qaEmail("brute-unknown");
   const bruteContext = { deviceId: "qa-login-brute", ip: "198.51.100.110" };
@@ -371,7 +433,11 @@ async function abuseMatrix() {
   requireStatus(await register(successEmail, successPassword, successContext), 201, "allowed-login registration");
   const mail = await waitForCode(successEmail, "Verify your Amoria email", mailStart);
   requireStatus(await request("/auth/verify-email", { email: successEmail, code: mail.code }, successContext), 200, "allowed-login verification");
-  await request("/auth/login", { email: successEmail, password: password() }, successContext);
+  const wrongPassword = await request("/auth/login", { email: successEmail, password: password() }, successContext);
+  results.set(
+    "LOGIN_WRONG_PASSWORD_GENERIC",
+    wrongPassword.status === 401 && wrongPassword.data?.error?.code === "invalid_credentials",
+  );
   await request("/auth/login", { email: successEmail, password: password() }, successContext);
   const success = await request("/auth/login", { email: successEmail, password: successPassword }, successContext);
   results.set("SUCCESSFUL_LOGIN_AFTER_ALLOWED_FAILURES", success.status === 200);
