@@ -745,6 +745,7 @@ function userRow(userId: string, overrides: Partial<UserRow> = {}): UserRow {
   return {
     id: userId,
     email: `${userId}@example.test`,
+    emailVerifiedAt: now,
     passwordHash: "hash:account-password",
     displayName: userId === ownerId ? "Owner" : "Viewer",
     about: null,

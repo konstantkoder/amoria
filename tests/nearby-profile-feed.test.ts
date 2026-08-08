@@ -560,6 +560,7 @@ function userRow(userId: string, overrides: Partial<UserRow> = {}): UserRow {
   return {
     id: userId,
     email: `${userId}@example.test`,
+    emailVerifiedAt: new Date("2026-01-01T00:00:00.000Z"),
     passwordHash: "hash",
     displayName: "Nearby User",
     about: null,

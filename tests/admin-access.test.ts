@@ -433,6 +433,7 @@ function userRow(input: Partial<UserRow>): UserRow {
   return {
     id: userId,
     email: "owner@example.test",
+    emailVerifiedAt: now,
     passwordHash: "hash",
     displayName: "Admin Owner",
     about: null,

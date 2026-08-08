@@ -17,6 +17,13 @@ export function loggerOptions(): FastifyServerOptions["logger"] {
       "accessToken",
       "refreshToken",
       "tokenHash",
+      "code",
+      "codeHash",
+      "verificationCode",
+      "passwordResetCode",
+      "keyHash",
+      "AUTH_SECURITY_HMAC_SECRET",
+      "SMTP_PASSWORD",
     ],
   };
 }

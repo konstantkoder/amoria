@@ -25,6 +25,19 @@ export type ErrorCode =
   | "nearby_activity_preference_required"
   | "not_found"
   | "email_taken"
+  | "email_not_verified"
+  | "invalid_email_domain"
+  | "disposable_email_domain"
+  | "email_domain_unavailable"
+  | "email_delivery_unavailable"
+  | "invalid_verification_code"
+  | "verification_code_expired"
+  | "verification_attempts_exceeded"
+  | "invalid_password_reset_code"
+  | "password_reset_code_expired"
+  | "password_reset_attempts_exceeded"
+  | "resend_cooldown"
+  | "rate_limited"
   | "file_too_large"
   | "unsupported_media_type"
   | "image_decode_failed"
@@ -84,6 +97,9 @@ function validationDetails(error: FastifyError): ErrorDetails | undefined {
 
 export function errorHandler(error: FastifyError, request: FastifyRequest, reply: FastifyReply): void {
   if (error instanceof AppError) {
+    if (error.statusCode === 429 && error.details?.retryAfterSec) {
+      void reply.header("Retry-After", error.details.retryAfterSec);
+    }
     void reply.status(error.statusCode).send({
       error: {
         code: error.code,

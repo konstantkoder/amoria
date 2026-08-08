@@ -172,6 +172,7 @@ function userRow(overrides: Partial<UserRow>): UserRow {
   return {
     id: userAId,
     email: "user-a@example.test",
+    emailVerifiedAt: now,
     passwordHash: "hash",
     displayName: "User A",
     about: null,

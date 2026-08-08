@@ -1,0 +1,7 @@
+# Local, version-controlled starter policy. Keep one normalized domain per line.
+10minutemail.com
+guerrillamail.com
+mailinator.com
+temp-mail.org
+throwawaymail.com
+yopmail.com

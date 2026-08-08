@@ -8,11 +8,28 @@ export type RegisterBody = {
   email: string;
   password: string;
   displayName: string;
+  locale?: string;
 };
 
 export type LoginBody = {
   email: string;
   password: string;
+};
+
+export type EmailCodeBody = {
+  email: string;
+  code: string;
+};
+
+export type ResendVerificationBody = {
+  email: string;
+  locale?: string;
+};
+
+export type PasswordResetRequestBody = ResendVerificationBody;
+
+export type PasswordResetConfirmBody = EmailCodeBody & {
+  newPassword: string;
 };
 
 export type RefreshBody = {
@@ -24,6 +41,7 @@ export type LogoutBody = RefreshBody;
 export type AuthRequestContext = {
   deviceId?: string;
   userAgent?: string;
+  ip?: string;
 };
 
 export type AuthUserProfile = {
@@ -43,6 +61,17 @@ export type AuthResponse = {
 
 export type OkResponse = {
   ok: true;
+};
+
+export type VerificationRequiredResponse = {
+  ok: true;
+  verificationRequired: true;
+  email: string;
+  resendAfterSec: number;
+};
+
+export type ResendVerificationResponse = OkResponse & {
+  resendAfterSec: number;
 };
 
 export function toAuthUserProfile(user: UserRow): AuthUserProfile {

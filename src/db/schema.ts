@@ -30,6 +30,7 @@ const nearbyActivityKeyCheckValues = sql.raw(
 export const users = pgTable("users", {
   id: uuid("id").defaultRandom().primaryKey(),
   email: text("email").notNull().unique(),
+  emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
   passwordHash: text("password_hash").notNull(),
   displayName: varchar("display_name", { length: 40 }).notNull(),
   about: text("about"),
@@ -939,6 +940,59 @@ export const refreshTokens = pgTable("refresh_tokens", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+export const authEmailChallenges = pgTable(
+  "auth_email_challenges",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    purpose: text("purpose").notNull(),
+    codeHash: text("code_hash").notNull(),
+    attemptCount: integer("attempt_count").default(0).notNull(),
+    maxAttempts: integer("max_attempts").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    consumedAt: timestamp("consumed_at", { withTimezone: true }),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("auth_email_challenges_active_user_purpose_unique")
+      .on(table.userId, table.purpose)
+      .where(sql`${table.consumedAt} IS NULL`),
+    index("auth_email_challenges_expiry_idx").on(table.expiresAt),
+    check(
+      "auth_email_challenges_purpose_check",
+      sql`${table.purpose} IN ('verify_email', 'password_reset')`,
+    ),
+    check(
+      "auth_email_challenges_attempts_check",
+      sql`${table.attemptCount} >= 0 AND ${table.maxAttempts} > 0 AND ${table.attemptCount} <= ${table.maxAttempts}`,
+    ),
+  ],
+);
+
+export const authRateLimits = pgTable(
+  "auth_rate_limits",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    scope: text("scope").notNull(),
+    keyHash: text("key_hash").notNull(),
+    windowStartedAt: timestamp("window_started_at", { withTimezone: true }).notNull(),
+    attemptCount: integer("attempt_count").default(0).notNull(),
+    blockedUntil: timestamp("blocked_until", { withTimezone: true }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique("auth_rate_limits_scope_key_unique").on(table.scope, table.keyHash),
+    index("auth_rate_limits_expiry_idx").on(table.expiresAt),
+    check("auth_rate_limits_attempt_count_check", sql`${table.attemptCount} >= 0`),
+  ],
+);
+
 export const usersRelations = relations(users, ({ one, many }) => ({
   mediaFiles: many(mediaFiles),
   mediaUploads: many(mediaUploads),
@@ -964,6 +1018,7 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   messages: many(messages),
   threadReads: many(threadReads),
   refreshTokens: many(refreshTokens),
+  authEmailChallenges: many(authEmailChallenges),
 }));
 
 export const adminUsersRelations = relations(adminUsers, ({ one, many }) => ({
@@ -1254,8 +1309,18 @@ export const refreshTokensRelations = relations(refreshTokens, ({ one }) => ({
   }),
 }));
 
+export const authEmailChallengesRelations = relations(authEmailChallenges, ({ one }) => ({
+  user: one(users, {
+    fields: [authEmailChallenges.userId],
+    references: [users.id],
+  }),
+}));
+
 export type UserRow = typeof users.$inferSelect;
 export type NewUserRow = typeof users.$inferInsert;
+export type AuthEmailChallengeRow = typeof authEmailChallenges.$inferSelect;
+export type NewAuthEmailChallengeRow = typeof authEmailChallenges.$inferInsert;
+export type AuthRateLimitRow = typeof authRateLimits.$inferSelect;
 export type MediaFileRow = typeof mediaFiles.$inferSelect;
 export type NewMediaFileRow = typeof mediaFiles.$inferInsert;
 export type MediaUploadRow = typeof mediaUploads.$inferSelect;

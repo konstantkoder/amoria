@@ -23,6 +23,7 @@ RUN npm ci --omit=dev && npm cache clean --force
 COPY scripts ./scripts
 COPY --from=build /app/dist ./dist
 COPY src/db/migrations ./dist/src/db/migrations
+COPY src/email/disposable-domains.txt ./dist/src/email/disposable-domains.txt
 
 RUN mkdir -p /app/uploads && chown -R node:node /app/uploads
 

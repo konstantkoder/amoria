@@ -34,6 +34,14 @@ function parsePort(value: string): number {
   return parsed;
 }
 
+function parsePositiveInteger(name: string, value: string, minimum = 1): number {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isInteger(parsed) || parsed < minimum) {
+    throw new Error(`${name} must be an integer greater than or equal to ${minimum}`);
+  }
+  return parsed;
+}
+
 function parseBooleanFlag(name: string, value: string): boolean {
   if (["1", "true", "yes"].includes(value.toLowerCase())) {
     return true;
@@ -132,6 +140,12 @@ const allowLocalPublicUrls = parseBooleanFlag(
   "ALLOW_LOCAL_PUBLIC_URLS",
   optional("ALLOW_LOCAL_PUBLIC_URLS", "false"),
 );
+const authSecurityHmacSecret = process.env.AUTH_SECURITY_HMAC_SECRET?.trim()
+  || (nodeEnv === "production" ? "" : "development-only-auth-security-hmac-secret");
+const smtpHost = process.env.SMTP_HOST?.trim()
+  || (nodeEnv === "production" ? "" : "localhost");
+const mailFrom = process.env.MAIL_FROM?.trim()
+  || (nodeEnv === "production" ? "" : "no-reply@amoria.local");
 
 if (objectStorageProvider !== "s3") {
   throw new Error("OBJECT_STORAGE_PROVIDER must be s3");
@@ -143,6 +157,18 @@ if (jwtSecret.length < 16) {
 
 if (nodeEnv === "production" && jwtSecret.startsWith("change-me")) {
   throw new Error("JWT_SECRET must be changed for production");
+}
+
+if (authSecurityHmacSecret.length < 32) {
+  throw new Error("AUTH_SECURITY_HMAC_SECRET must be at least 32 characters long");
+}
+
+if (!smtpHost) {
+  throw new Error("SMTP_HOST is required in production");
+}
+
+if (!mailFrom) {
+  throw new Error("MAIL_FROM is required in production");
 }
 
 validatePublicUrlEnv({
@@ -159,6 +185,7 @@ export const env = {
   PORT: parsePort(optional("PORT", "4000")),
   DATABASE_URL: required("DATABASE_URL"),
   JWT_SECRET: jwtSecret,
+  AUTH_SECURITY_HMAC_SECRET: authSecurityHmacSecret,
   PUBLIC_API_URL: publicApiUrl,
   PUBLIC_MEDIA_URL: publicMediaUrl,
   ALLOW_LOCAL_PUBLIC_URLS: allowLocalPublicUrls,
@@ -172,6 +199,54 @@ export const env = {
   S3_BUCKET: optional("S3_BUCKET", "amoria"),
   S3_PUBLIC_BASE_URL: s3PublicBaseUrl,
   S3_FORCE_PATH_STYLE: parseBooleanFlag("S3_FORCE_PATH_STYLE", optional("S3_FORCE_PATH_STYLE", "1")),
+  SMTP_HOST: smtpHost,
+  SMTP_PORT: parsePort(optional("SMTP_PORT", "1025")),
+  SMTP_SECURE: parseBooleanFlag("SMTP_SECURE", optional("SMTP_SECURE", "false")),
+  SMTP_USER: process.env.SMTP_USER?.trim() || undefined,
+  SMTP_PASSWORD: process.env.SMTP_PASSWORD || undefined,
+  SMTP_CONNECTION_TIMEOUT_MS: parsePositiveInteger(
+    "SMTP_CONNECTION_TIMEOUT_MS",
+    optional("SMTP_CONNECTION_TIMEOUT_MS", "5000"),
+  ),
+  MAIL_FROM: mailFrom,
+  MAIL_FROM_NAME: optional("MAIL_FROM_NAME", "Amoria"),
+  EMAIL_CHALLENGE_TTL_SEC: parsePositiveInteger(
+    "EMAIL_CHALLENGE_TTL_SEC",
+    optional("EMAIL_CHALLENGE_TTL_SEC", "900"),
+  ),
+  EMAIL_CHALLENGE_MAX_ATTEMPTS: parsePositiveInteger(
+    "EMAIL_CHALLENGE_MAX_ATTEMPTS",
+    optional("EMAIL_CHALLENGE_MAX_ATTEMPTS", "5"),
+  ),
+  EMAIL_RESEND_COOLDOWN_SEC: parsePositiveInteger(
+    "EMAIL_RESEND_COOLDOWN_SEC",
+    optional("EMAIL_RESEND_COOLDOWN_SEC", "60"),
+  ),
+  EMAIL_DOMAIN_DNS_TIMEOUT_MS: parsePositiveInteger(
+    "EMAIL_DOMAIN_DNS_TIMEOUT_MS",
+    optional("EMAIL_DOMAIN_DNS_TIMEOUT_MS", "2500"),
+  ),
+  EMAIL_DOMAIN_CACHE_TTL_SEC: parsePositiveInteger(
+    "EMAIL_DOMAIN_CACHE_TTL_SEC",
+    optional("EMAIL_DOMAIN_CACHE_TTL_SEC", "21600"),
+  ),
+  DISPOSABLE_EMAIL_DOMAIN_OVERRIDES: optional("DISPOSABLE_EMAIL_DOMAIN_OVERRIDES", ""),
+  AUTH_RATE_LIMIT_RETENTION_HOURS: parsePositiveInteger(
+    "AUTH_RATE_LIMIT_RETENTION_HOURS",
+    optional("AUTH_RATE_LIMIT_RETENTION_HOURS", "168"),
+  ),
+  REGISTER_EMAIL_LIMIT: parsePositiveInteger("REGISTER_EMAIL_LIMIT", optional("REGISTER_EMAIL_LIMIT", "3")),
+  REGISTER_IP_LIMIT: parsePositiveInteger("REGISTER_IP_LIMIT", optional("REGISTER_IP_LIMIT", "10")),
+  REGISTER_DEVICE_LIMIT: parsePositiveInteger("REGISTER_DEVICE_LIMIT", optional("REGISTER_DEVICE_LIMIT", "5")),
+  LOGIN_EMAIL_FAILURE_LIMIT: parsePositiveInteger("LOGIN_EMAIL_FAILURE_LIMIT", optional("LOGIN_EMAIL_FAILURE_LIMIT", "5")),
+  LOGIN_IP_FAILURE_LIMIT: parsePositiveInteger("LOGIN_IP_FAILURE_LIMIT", optional("LOGIN_IP_FAILURE_LIMIT", "20")),
+  LOGIN_DEVICE_FAILURE_LIMIT: parsePositiveInteger("LOGIN_DEVICE_FAILURE_LIMIT", optional("LOGIN_DEVICE_FAILURE_LIMIT", "10")),
+  RESEND_EMAIL_LIMIT: parsePositiveInteger("RESEND_EMAIL_LIMIT", optional("RESEND_EMAIL_LIMIT", "5")),
+  RESEND_IP_LIMIT: parsePositiveInteger("RESEND_IP_LIMIT", optional("RESEND_IP_LIMIT", "20")),
+  RESEND_DEVICE_LIMIT: parsePositiveInteger("RESEND_DEVICE_LIMIT", optional("RESEND_DEVICE_LIMIT", "10")),
+  RESET_EMAIL_LIMIT: parsePositiveInteger("RESET_EMAIL_LIMIT", optional("RESET_EMAIL_LIMIT", "3")),
+  RESET_IP_LIMIT: parsePositiveInteger("RESET_IP_LIMIT", optional("RESET_IP_LIMIT", "20")),
+  RESET_DEVICE_LIMIT: parsePositiveInteger("RESET_DEVICE_LIMIT", optional("RESET_DEVICE_LIMIT", "10")),
   isProduction: nodeEnv === "production",
   isTest: nodeEnv === "test",
 };
