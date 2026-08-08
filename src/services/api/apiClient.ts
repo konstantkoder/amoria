@@ -23,6 +23,7 @@ import {
   RequestTimeoutError,
 } from "@/services/api/boundedFetch";
 import { isProvenInvalidRefresh } from "@/services/authBootstrapState";
+import { getDeviceId } from "@/services/deviceId";
 
 type HttpMethod = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
 
@@ -241,6 +242,11 @@ async function rawRequest<TResponse>(
     Accept: "application/json",
     ...options.headers,
   };
+  try {
+    headers["x-device-id"] = await getDeviceId();
+  } catch {
+    // Email/IP limits remain authoritative if persistent storage is temporarily unavailable.
+  }
 
   const token = options.auth === false
     ? null

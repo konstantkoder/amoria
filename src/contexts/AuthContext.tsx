@@ -14,6 +14,7 @@ import {
   logoutAll as logoutAllWithBackend,
   refresh as refreshWithBackend,
   register as registerWithBackend,
+  verifyEmail as verifyEmailWithBackend,
 } from "@/services/api/authApi";
 import {
   clearBackendSession,
@@ -36,6 +37,8 @@ import type {
   AuthUserDto,
   LoginRequest,
   RegisterRequest,
+  VerificationRequiredResponse,
+  VerifyEmailRequest,
 } from "@/services/api/types";
 import {
   safeStartupErrorMetadata,
@@ -54,7 +57,8 @@ type AuthContextValue = {
   startupState: AuthBootstrapState;
   retryStartup: () => void;
   login: (input: LoginRequest) => Promise<AuthUserDto>;
-  register: (input: RegisterRequest) => Promise<AuthUserDto>;
+  register: (input: RegisterRequest) => Promise<VerificationRequiredResponse>;
+  verifyEmail: (input: VerifyEmailRequest) => Promise<AuthUserDto>;
   logout: () => Promise<void>;
   logoutAll: () => Promise<void>;
 };
@@ -189,7 +193,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const register = useCallback(
     async (input: RegisterRequest) => {
       await clearSessionState();
-      const response = await registerWithBackend(input);
+      return registerWithBackend(input);
+    },
+    [clearSessionState]
+  );
+
+  const verifyEmail = useCallback(
+    async (input: VerifyEmailRequest) => {
+      await clearSessionState();
+      const response = await verifyEmailWithBackend(input);
       await applyAuthResponse(response);
       return response.user;
     },
@@ -242,10 +254,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       retryStartup,
       login,
       register,
+      verifyEmail,
       logout,
       logoutAll,
     }),
-    [accessToken, login, logout, logoutAll, register, retryStartup, startupState, user]
+    [accessToken, login, logout, logoutAll, register, retryStartup, startupState, user, verifyEmail]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

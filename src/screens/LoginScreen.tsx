@@ -25,11 +25,13 @@ import {
   normalizeDisplayNameInput,
 } from "@/services/user";
 import ScreenBackground from "@/components/ScreenBackground";
+import EmailVerificationScreen from "@/screens/EmailVerificationScreen";
+import PasswordResetScreen from "@/screens/PasswordResetScreen";
 import { theme } from "@/theme";
 
 const EMAIL_RE = /^\S+@\S+\.\S+$/;
 type AuthMode = "login" | "register";
-type AuthStage = "welcome" | "auth";
+type AuthStage = "welcome" | "auth" | "verification" | "reset";
 
 function isBackendApiConfigured() {
   try {
@@ -150,6 +152,12 @@ function getSignupErrorMessageKey(error: unknown) {
     messageKey = "auth.emailInUse";
   } else if (code === "auth/too-many-requests" || code === "rate_limited") {
     messageKey = "auth.tooManyRequests";
+  } else if (code === "invalid_email_domain") {
+    messageKey = "auth.invalidEmailDomain";
+  } else if (code === "disposable_email_domain") {
+    messageKey = "auth.disposableEmail";
+  } else if (code === "email_domain_unavailable" || code === "email_delivery_unavailable") {
+    messageKey = "auth.emailDeliveryUnavailable";
   } else if (
     code === "auth/network-request-failed" ||
     isNetworkLikeError(error)
@@ -197,6 +205,8 @@ export default function LoginScreen() {
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [verificationEmail, setVerificationEmail] = useState("");
+  const [verificationCooldown, setVerificationCooldown] = useState(0);
   const backendConfigured = isBackendApiConfigured();
   const isRegisterMode = mode === "register";
   const localeCode = locale.toUpperCase();
@@ -250,6 +260,15 @@ export default function LoginScreen() {
       blurAuthInputs();
       Keyboard.dismiss();
     } catch (e: unknown) {
+      if (getErrorCode(e) === "email_not_verified") {
+        setVerificationEmail(trimmedEmail.toLowerCase());
+        setVerificationCooldown(0);
+        setStage("verification");
+        setPassword("");
+        blurAuthInputs();
+        Keyboard.dismiss();
+        return;
+      }
       const { messageKey } = getLoginErrorMessageKey(e);
       reportAuthFailure({
         mode: "login",
@@ -289,11 +308,16 @@ export default function LoginScreen() {
       return;
     }
     try {
-      await auth.register({
+      const response = await auth.register({
         email: trimmedEmail,
         password,
         displayName: trimmedDisplayName,
+        locale,
       });
+      setVerificationEmail(response.email);
+      setVerificationCooldown(response.resendAfterSec);
+      setPassword("");
+      setStage("verification");
       blurAuthInputs();
       Keyboard.dismiss();
     } catch (e: unknown) {
@@ -383,7 +407,7 @@ export default function LoginScreen() {
                 </>
               ) : (
                 <>
-                  <TouchableOpacity
+                  {stage === "auth" ? <TouchableOpacity
                     accessibilityRole="button"
                     accessibilityLabel={t("auth.backToWelcome")}
                     style={styles.backButton}
@@ -391,7 +415,27 @@ export default function LoginScreen() {
                     activeOpacity={0.82}
                   >
                     <Ionicons name="chevron-back" size={24} color={theme.colors.goldBright} />
-                  </TouchableOpacity>
+                  </TouchableOpacity> : null}
+                  {stage === "verification" ? (
+                    <EmailVerificationScreen
+                      email={verificationEmail}
+                      initialCooldownSec={verificationCooldown}
+                      onChangeEmail={() => {
+                        setEmail(verificationEmail);
+                        setVerificationCooldown(0);
+                        setStage("auth");
+                      }}
+                    />
+                  ) : stage === "reset" ? (
+                    <PasswordResetScreen
+                      initialEmail={email}
+                      onBack={(nextEmail) => {
+                        if (nextEmail) setEmail(nextEmail);
+                        setMode("login");
+                        setStage("auth");
+                      }}
+                    />
+                  ) : (
                   <View style={styles.authCard}>
                     <Text style={styles.title}>
                       {isRegisterMode ? t("auth.registerTitle") : t("auth.loginTitle")}
@@ -483,7 +527,15 @@ export default function LoginScreen() {
               />
               {isRegisterMode ? (
                 <Text style={styles.passwordHint}>{t("auth.passwordHint")}</Text>
-              ) : null}
+              ) : (
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  style={styles.forgotButton}
+                  onPress={() => setStage("reset")}
+                >
+                  <Text style={styles.forgotText}>{t("auth.reset.forgotPassword")}</Text>
+                </TouchableOpacity>
+              )}
               <TouchableOpacity
                 style={[styles.button, authDisabled ? styles.buttonDisabled : null]}
                 onPress={submitAuth}
@@ -501,6 +553,7 @@ export default function LoginScreen() {
                 </Text>
               </TouchableOpacity>
                   </View>
+                  )}
                 </>
               )}
             </ScrollView>
@@ -682,6 +735,16 @@ const styles = StyleSheet.create({
     opacity: 0.75,
     fontSize: 12,
     color: theme.colors.textSecondary,
+  },
+  forgotButton: {
+    minHeight: 40,
+    alignItems: "flex-end",
+    justifyContent: "center",
+  },
+  forgotText: {
+    color: theme.colors.goldBright,
+    fontSize: 13,
+    fontWeight: "700",
   },
   button: {
     minHeight: 56,

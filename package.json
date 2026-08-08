@@ -19,7 +19,8 @@
     "dev:usb": "powershell -NoLogo -NonInteractive -ExecutionPolicy Bypass -File scripts\\dev_usb.ps1",
     "i18n:pack": "powershell -ExecutionPolicy Bypass -File scripts\\make-i18n-translation-pack.ps1",
     "i18n:audit": "node scripts/i18n_audit.js",
-    "i18n:ui-risk": "node scripts/i18n_ui_risk.js"
+    "i18n:ui-risk": "node scripts/i18n_ui_risk.js",
+    "test:auth-email": "node --test --import tsx tests/authEmailUx.test.ts"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
@@ -53,6 +54,7 @@
     "@types/react": "~19.1.10",
     "babel-plugin-module-resolver": "^5.0.3",
     "babel-preset-expo": "^54.0.10",
+    "tsx": "^4.23.11",
     "typescript": "~5.9.2"
   }
 }

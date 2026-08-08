@@ -84,7 +84,22 @@ export type RegisterRequest = {
   email: string;
   password: string;
   displayName: string;
+  locale?: string;
 };
+
+export type VerificationRequiredResponse = {
+  ok: true;
+  verificationRequired: true;
+  email: string;
+  resendAfterSec: number;
+};
+
+export type VerifyEmailRequest = { email: string; code: string };
+export type ResendVerificationRequest = { email: string; locale?: string };
+export type ResendVerificationResponse = { ok: true; resendAfterSec: number };
+export type PasswordResetRequest = { email: string; locale?: string };
+export type PasswordResetConfirmRequest = { email: string; code: string; newPassword: string };
+export type OkResponse = { ok: true };
 
 export type PublicUserProfileDto = {
   id: string;

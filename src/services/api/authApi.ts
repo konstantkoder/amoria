@@ -3,7 +3,14 @@ import { AUTH_REFRESH_TIMEOUT_MS } from "@/services/api/boundedFetch";
 import type {
   AuthResponse,
   LoginRequest,
+  OkResponse,
+  PasswordResetConfirmRequest,
+  PasswordResetRequest,
   RegisterRequest,
+  ResendVerificationRequest,
+  ResendVerificationResponse,
+  VerificationRequiredResponse,
+  VerifyEmailRequest,
 } from "@/services/api/types";
 
 function buildLoginBody(inputOrEmail: LoginRequest | string, password?: string): LoginRequest {
@@ -51,19 +58,47 @@ export function register(
   email: string,
   password: string,
   displayName?: string
-): Promise<AuthResponse>;
-export function register(input: RegisterRequest): Promise<AuthResponse>;
+): Promise<VerificationRequiredResponse>;
+export function register(input: RegisterRequest): Promise<VerificationRequiredResponse>;
 export function register(
   inputOrEmail: RegisterRequest | string,
   password?: string,
   displayName?: string
-): Promise<AuthResponse> {
-  return request<AuthResponse>(
+): Promise<VerificationRequiredResponse> {
+  return request<VerificationRequiredResponse>(
     "POST",
     "/auth/register",
     buildRegisterBody(inputOrEmail, password, displayName),
     { auth: false, retryOnUnauthorized: false }
   );
+}
+
+export function verifyEmail(input: VerifyEmailRequest): Promise<AuthResponse> {
+  return request<AuthResponse>("POST", "/auth/verify-email", input, {
+    auth: false,
+    retryOnUnauthorized: false,
+  });
+}
+
+export function resendVerification(input: ResendVerificationRequest): Promise<ResendVerificationResponse> {
+  return request<ResendVerificationResponse>("POST", "/auth/resend-verification", input, {
+    auth: false,
+    retryOnUnauthorized: false,
+  });
+}
+
+export function requestPasswordReset(input: PasswordResetRequest): Promise<OkResponse> {
+  return request<OkResponse>("POST", "/auth/password-reset/request", input, {
+    auth: false,
+    retryOnUnauthorized: false,
+  });
+}
+
+export function confirmPasswordReset(input: PasswordResetConfirmRequest): Promise<OkResponse> {
+  return request<OkResponse>("POST", "/auth/password-reset/confirm", input, {
+    auth: false,
+    retryOnUnauthorized: false,
+  });
 }
 
 export function refresh(refreshToken: string): Promise<AuthResponse> {
@@ -92,7 +127,7 @@ export function logoutAll(): Promise<void> {
   return request<void>("POST", "/auth/logout-all");
 }
 
-export function registerWithBackend(input: RegisterRequest): Promise<AuthResponse> {
+export function registerWithBackend(input: RegisterRequest): Promise<VerificationRequiredResponse> {
   return register(input);
 }
 

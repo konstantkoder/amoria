@@ -21,6 +21,7 @@ import type {
   AuthResponse,
   LoginRequest,
   RegisterRequest,
+  VerificationRequiredResponse,
 } from "@/services/api/types";
 import { markStartupEvent } from "@/services/startupDiagnostics";
 
@@ -48,9 +49,8 @@ async function saveAuthResponse(response: AuthResponse): Promise<BackendSession>
 
 export async function registerBackendSession(
   input: RegisterRequest
-): Promise<BackendSession> {
-  const response = await registerWithBackend(input);
-  return saveAuthResponse(response);
+): Promise<VerificationRequiredResponse> {
+  return registerWithBackend(input);
 }
 
 export async function loginBackendSession(
