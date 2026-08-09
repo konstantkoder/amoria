@@ -17,9 +17,11 @@ import {
 } from "../common/validators";
 import type { MediaFileRow, ProfilePhoto, UserRow } from "../db/schema";
 import {
+  findLatestMediaModerationJob,
   findOwnedMediaFileByUrl,
   findOwnedMediaFilesByIds,
 } from "../media/media.repo";
+import { MEDIA_MODERATION_POLICY_VERSION } from "../media/media-moderation.constants";
 import {
   mediaIdFromPublicMediaReference,
   publicMediaUrlForMediaId,
@@ -129,6 +131,7 @@ type UsersServiceDeps = {
   > & { hasUnrevealedTurnBasedPair?: typeof usersRepo.hasUnrevealedTurnBasedPair };
   findOwnedMediaFileByUrl: typeof findOwnedMediaFileByUrl;
   findOwnedMediaFilesByIds: typeof findOwnedMediaFilesByIds;
+  findLatestMediaModerationJob: typeof findLatestMediaModerationJob;
   headObject: typeof headObject;
   isBlockedEitherWay: typeof isBlockedEitherWay;
   gallery: Pick<
@@ -141,6 +144,7 @@ const defaultDeps: UsersServiceDeps = {
   repo: usersRepo,
   findOwnedMediaFileByUrl,
   findOwnedMediaFilesByIds,
+  findLatestMediaModerationJob,
   headObject,
   isBlockedEitherWay,
   gallery: profileGalleryService,
@@ -375,6 +379,30 @@ async function normalizeOwnedAvatarUrl(
     throw mediaNotOwned("avatarUrl");
   }
 
+  const currentUser = await deps.repo.findUserById(userId);
+  const currentAvatarId = mediaIdFromPublicMediaReference(currentUser?.avatarUrl ?? "");
+  if (
+    currentAvatarId === media.id ||
+    (currentUser?.avatarUrl && currentUser.avatarUrl === normalized)
+  ) {
+    return publicMediaUrlForMediaId(media.id);
+  }
+
+  if (media.moderationState !== "approved") {
+    throw avatarNotApproved();
+  }
+  if (media.moderationOrigin === "manual") {
+    return publicMediaUrlForMediaId(media.id);
+  }
+
+  const latestJob = await deps.findLatestMediaModerationJob(media.id);
+  if (
+    latestJob?.policyVersion !== MEDIA_MODERATION_POLICY_VERSION ||
+    personPresenceFromRawResult(latestJob.rawResult) !== "true"
+  ) {
+    throw avatarNotApproved();
+  }
+
   return publicMediaUrlForMediaId(media.id);
 }
 
@@ -453,6 +481,23 @@ function mediaNotOwned(field: "avatarUrl" | "photos"): AppError {
   return new AppError("media_not_owned", "Media file is not owned by current user", 403, {
     [field]: "media_not_owned",
   });
+}
+
+function avatarNotApproved(): AppError {
+  return new AppError(
+    "avatar_not_approved",
+    "Avatar candidate has not passed current moderation",
+    409,
+    { avatarUrl: "pending_moderation" },
+  );
+}
+
+function personPresenceFromRawResult(value: unknown): string | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+  const signal = (value as Record<string, unknown>).containsPerson;
+  return typeof signal === "string" ? signal : undefined;
 }
 
 function normalizeOptionalMediaReference(

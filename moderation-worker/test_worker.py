@@ -6,8 +6,10 @@ from worker import (
     ModerationFailure,
     automatically_scannable,
     build_claimed_job,
+    decide_media_policy,
     decide_person_presence,
     decide_policy,
+    sync_owner_media_references,
     to_raw_result,
 )
 
@@ -61,6 +63,28 @@ class WorkerPolicyTests(unittest.TestCase):
         self.assertEqual(result["containsPerson"], "unknown")
         self.assertEqual(result["personPresence"]["errorCode"], "person_model_not_configured")
 
+    def test_avatar_requires_person_presence_with_nsfw_restriction_priority(self) -> None:
+        cfg = config()
+        self.assertEqual(decide_media_policy(0.01, "true", "avatar", cfg), ("approve", None))
+        self.assertEqual(
+            decide_media_policy(0.01, "false", "avatar", cfg),
+            ("needs_review", "person_not_detected"),
+        )
+        self.assertEqual(
+            decide_media_policy(0.01, "unknown", "avatar", cfg),
+            ("needs_review", "person_presence_uncertain"),
+        )
+        self.assertEqual(
+            decide_media_policy(0.50, "true", "avatar", cfg),
+            ("needs_review", None),
+        )
+        self.assertEqual(decide_media_policy(0.95, "false", "avatar", cfg), ("restrict", None))
+
+    def test_public_gallery_person_signal_remains_informational(self) -> None:
+        cfg = config()
+        self.assertEqual(decide_media_policy(0.01, "false", "profile_photo", cfg), ("approve", None))
+        self.assertEqual(decide_media_policy(0.01, "unknown", "profile_photo", cfg), ("approve", None))
+
     def test_only_avatar_or_currently_public_profile_photo_is_scannable(self) -> None:
         self.assertTrue(automatically_scannable({"type": "avatar", "moderation_state": "pending"}))
         self.assertTrue(automatically_scannable({"type": "profile_photo", "visibility": "public"}))
@@ -77,6 +101,35 @@ class WorkerPolicyTests(unittest.TestCase):
         self.assertEqual(claim["id"], "job-row-id")
         self.assertEqual(claim["media_id"], "media-row-id")
         self.assertEqual(claim["attempt_count"], 1)
+
+    def test_first_approved_avatar_types_the_null_previous_reference(self) -> None:
+        class Cursor:
+            def __init__(self) -> None:
+                self.queries = []
+                self.rowcount = 0
+
+            def execute(self, query, _params) -> None:
+                self.queries.append(query)
+                self.rowcount = 1 if "UPDATE users u SET avatar_url" in query else 0
+
+            @staticmethod
+            def fetchone():
+                return {"avatar_url": None}
+
+            @staticmethod
+            def fetchall():
+                return []
+
+        cursor = Cursor()
+        sync_owner_media_references(cursor, {
+            "type": "avatar",
+            "owner_user_id": "owner-id",
+            "media_id": "media-id",
+            "url": "/media/public/media-id",
+        }, "approve")
+
+        replacement_query = next(query for query in cursor.queries if "UPDATE media_files" in query)
+        self.assertIn("%s::text IS NOT NULL", replacement_query)
 
     def test_inference_timeout_is_a_failure_and_terminates_the_supervisor(self) -> None:
         class LiveProcess:

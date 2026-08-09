@@ -7,6 +7,7 @@ import type { AdminAuditInput, AdminRoleKey } from "../src/admin/admin.types";
 import type {
   AdminUserRow,
   JsonValue,
+  MediaModerationJobRow,
   MediaModerationReviewRow,
   ReportReviewActionRow,
   UserRow,
@@ -735,6 +736,75 @@ test("POST /admin/media/:mediaId/decision writes moderation review and audit log
   assert.equal(state.auditInputs[0]?.targetId, mediaId);
 });
 
+test("manual avatar person-presence override is server-tagged and audited", async (t) => {
+  t.after(restoreDeps);
+  mockAdmin({ roles: ["moderator"] });
+  const state = mockMedia({
+    row: {
+      type: "avatar",
+      visibility: "avatar",
+      moderationState: "needs_review",
+      moderationOrigin: "automated",
+      latestJob: mediaModerationJobRow({
+        policyDecision: "needs_review",
+        rawResult: {
+          containsPerson: "unknown",
+          policyReasonCode: "person_presence_uncertain",
+        },
+      }),
+    },
+  });
+  const app = buildApp();
+  t.after(async () => app.close());
+
+  const response = await app.inject({
+    method: "POST",
+    url: `/admin/media/${mediaId}/decision`,
+    headers: authHeaders(userId),
+    payload: {
+      action: "approve",
+      reason: "Person is clearly visible; detector was uncertain",
+      metadata: { manualPersonPresenceOverride: false },
+    },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(state.decisions[0]?.metadata?.manualPersonPresenceOverride, true);
+  assert.equal(state.decisions[0]?.metadata?.automatedPersonPresence, "unknown");
+  assert.equal(
+    state.decisions[0]?.metadata?.automatedPersonPolicyReasonCode,
+    "person_presence_uncertain",
+  );
+  const auditMetadata = state.auditInputs[0]?.metadata as Record<string, unknown>;
+  assert.equal(auditMetadata.manualPersonPresenceOverride, true);
+  assert.equal(state.auditInputs[0]?.reason, "Person is clearly visible; detector was uncertain");
+});
+
+test("support role cannot approve an avatar person-presence override", async (t) => {
+  t.after(restoreDeps);
+  mockAdmin({ roles: ["support"] });
+  const state = mockMedia({
+    row: {
+      type: "avatar",
+      visibility: "avatar",
+      moderationState: "needs_review",
+      latestJob: mediaModerationJobRow({ rawResult: { containsPerson: "false" } }),
+    },
+  });
+  const app = buildApp();
+  t.after(async () => app.close());
+
+  const response = await app.inject({
+    method: "POST",
+    url: `/admin/media/${mediaId}/decision`,
+    headers: authHeaders(userId),
+    payload: { action: "approve", reason: "Should not be authorized" },
+  });
+
+  assert.equal(response.statusCode, 403);
+  assert.equal(state.decisions.length, 0);
+});
+
 test("reject or restrict media decisions require a reason", async (t) => {
   t.after(restoreDeps);
   mockAdmin({ roles: ["moderator"] });
@@ -980,7 +1050,10 @@ function reportActionMetadata(
   };
 }
 
-function mockMedia(input: { visibility?: AdminMediaRow["visibility"] } = {}) {
+function mockMedia(input: {
+  visibility?: AdminMediaRow["visibility"];
+  row?: Partial<AdminMediaRow>;
+} = {}) {
   restoreMediaDeps?.();
   restoreMediaDeps = null;
 
@@ -994,11 +1067,19 @@ function mockMedia(input: { visibility?: AdminMediaRow["visibility"] } = {}) {
     contentReads: [],
   };
 
-  let currentState = "approved";
+  let currentState = input.row?.moderationState ?? "approved";
   restoreMediaDeps = adminMediaService.__setAdminMediaServiceDepsForTests({
     repo: {
-      listMedia: async () => [mediaRow({ visibility: input.visibility ?? "public", moderationState: currentState })],
-      findMediaById: async () => mediaRow({ visibility: input.visibility ?? "public", moderationState: currentState }),
+      listMedia: async () => [mediaRow({
+        visibility: input.visibility ?? input.row?.visibility ?? "public",
+        ...input.row,
+        moderationState: currentState,
+      })],
+      findMediaById: async () => mediaRow({
+        visibility: input.visibility ?? input.row?.visibility ?? "public",
+        ...input.row,
+        moderationState: currentState,
+      }),
       listMediaReviews: async () => [mediaReviewRow({})],
       createEffectiveMediaDecision: async (reviewInput) => {
         state.decisions.push({
@@ -1425,6 +1506,28 @@ function mediaReviewRow(input: Partial<MediaModerationReviewRow>): MediaModerati
     reason: "reviewing",
     metadata: null,
     createdAt: new Date("2026-01-05T00:00:00.000Z"),
+    ...input,
+  };
+}
+
+function mediaModerationJobRow(input: Partial<MediaModerationJobRow>): MediaModerationJobRow {
+  const now = new Date("2026-01-04T00:00:00.000Z");
+  return {
+    id: "00000000-0000-4000-8000-0000000000e2",
+    mediaId,
+    status: "completed",
+    attemptCount: 1,
+    nextAttemptAt: now,
+    startedAt: now,
+    completedAt: now,
+    providerEngine: "opennsfw_onnx_cpu",
+    modelVersion: "test-model",
+    policyVersion: "amoria_public_photo_v3",
+    errorCode: null,
+    rawResult: null,
+    policyDecision: "needs_review",
+    createdAt: now,
+    updatedAt: now,
     ...input,
   };
 }

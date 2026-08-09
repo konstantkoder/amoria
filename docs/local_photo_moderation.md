@@ -21,8 +21,9 @@ the result.
 - Person presence: YOLOX-Nano's person class combined with YuNet face-presence confidence, both
   executed locally through ONNX Runtime. The output is only `true`, `false`, or `unknown`; no boxes,
   landmarks, face embeddings, identity matching, or identity attributes are stored. A missing or
-  failed detector returns `unknown` and never changes the NSFW policy decision. Violence remains
-  unsupported and is stored as `unknown`.
+  failed detector returns `unknown`. For new avatars only, `false` and `unknown` prevent automatic
+  adoption and require human review; ordinary public gallery policy remains based on NSFW score.
+  Violence remains unsupported and is stored as `unknown`.
 - Person-model combined weight size: 3,891,996 bytes. Checksums and upstream licenses are recorded
   in `moderation-worker/MODEL_LICENSES.md` and enforced by the installer and worker.
 
@@ -52,7 +53,8 @@ passwords, or secrets.
 ## Media state and exposure
 
 - New avatar/public photo: `pending`, private, one durable job.
-- Policy approve: `approved`, public API access permitted.
+- Policy approve: `approved`, public API access permitted. A new avatar is approved automatically
+  only when person presence is `true`; `false`/`unknown` remain review-gated.
 - Uncertain: `needs_review`, public API access denied.
 - Policy restrict: `restricted`, public API access denied.
 - Logical remove: `removed`, references cleared and public API access denied; review history and the
@@ -62,7 +64,9 @@ passwords, or secrets.
 
 When a new avatar is pending, the approved current avatar stays active. Adoption occurs only on
 approval; the superseded avatar is then logically removed while its private object and history are
-retained.
+retained. A reasoned owner/moderator approval of a detector false-negative records an explicit
+`manualPersonPresenceOverride` in the separate review and audit metadata; automated scores and raw
+results are preserved.
 
 ## Locked-gallery structural boundary
 

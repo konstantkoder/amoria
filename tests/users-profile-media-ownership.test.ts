@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { MediaFileRow, ProfilePhoto, UserRow } from "../src/db/schema";
+import type { MediaFileRow, MediaModerationJobRow, ProfilePhoto, UserRow } from "../src/db/schema";
 
 process.env.NODE_ENV = "test";
 process.env.DATABASE_URL = "postgresql://amoria:amoria_password@localhost:5432/amoria_test";
@@ -119,6 +119,129 @@ test("PATCH /me/profile stores owned photos with current public media URLs", asy
   assert.equal(JSON.stringify(response).includes("localhost"), false);
 });
 
+test("PATCH /me/profile cannot adopt a pending avatar candidate", async (t) => {
+  t.after(restoreServiceDeps);
+  const state = mockAvatarAdoption({
+    media: mediaRow({
+      id: userAMediaId,
+      ownerUserId: userAId,
+      type: "avatar",
+      moderationState: "needs_review",
+      moderationOrigin: "automated",
+    }),
+    currentAvatarUrl: null,
+    job: moderationJob({ rawResult: { containsPerson: "false" } }),
+  });
+
+  await assert.rejects(
+    usersService.updateCurrentUserProfile(userAId, { avatarUrl: userAPublicMediaUrl }),
+    (error) => {
+      const appError = error as { code?: string; statusCode?: number };
+      assert.equal(appError.code, "avatar_not_approved");
+      assert.equal(appError.statusCode, 409);
+      return true;
+    },
+  );
+  assert.equal(state.updateCalled, false);
+});
+
+test("PATCH /me/profile rejects an approved gallery object as avatar", async (t) => {
+  t.after(restoreServiceDeps);
+  const state = mockAvatarAdoption({
+    media: mediaRow({
+      id: userAMediaId,
+      ownerUserId: userAId,
+      type: "profile_photo",
+      moderationState: "approved",
+    }),
+    currentAvatarUrl: null,
+  });
+
+  await assert.rejects(
+    usersService.updateCurrentUserProfile(userAId, { avatarUrl: userAPublicMediaUrl }),
+    (error) => {
+      assert.equal((error as { code?: string }).code, "media_not_owned");
+      return true;
+    },
+  );
+  assert.equal(state.updateCalled, false);
+});
+
+test("PATCH /me/profile allows only a current-policy person-approved avatar", async (t) => {
+  t.after(restoreServiceDeps);
+  const state = mockAvatarAdoption({
+    media: mediaRow({
+      id: userAMediaId,
+      ownerUserId: userAId,
+      type: "avatar",
+      moderationState: "approved",
+      moderationOrigin: "automated",
+    }),
+    currentAvatarUrl: null,
+    job: moderationJob({
+      policyVersion: "amoria_public_photo_v3",
+      rawResult: { containsPerson: "true" },
+    }),
+  });
+
+  const response = await usersService.updateCurrentUserProfile(userAId, {
+    avatarUrl: userAPublicMediaUrl,
+  });
+  assert.equal(response.avatarUrl, userAPublicMediaUrl);
+  assert.equal(state.updateCalled, true);
+});
+
+test("PATCH /me/profile preserves an already active grandfathered avatar", async (t) => {
+  t.after(restoreServiceDeps);
+  const state = mockAvatarAdoption({
+    media: mediaRow({
+      id: userAMediaId,
+      ownerUserId: userAId,
+      type: "avatar",
+      moderationState: "approved",
+      moderationOrigin: "legacy_pre_moderation",
+    }),
+    currentAvatarUrl: userAPublicMediaUrl,
+  });
+
+  const response = await usersService.updateCurrentUserProfile(userAId, {
+    avatarUrl: userAPublicMediaUrl,
+  });
+  assert.equal(response.avatarUrl, userAPublicMediaUrl);
+  assert.equal(state.updateCalled, true);
+});
+
+function mockAvatarAdoption(input: {
+  media: MediaFileRow;
+  currentAvatarUrl: string | null;
+  job?: MediaModerationJobRow;
+}) {
+  restoreServiceDeps();
+  const state = { updateCalled: false };
+  restoreUsersDeps = usersService.__setUsersServiceDepsForTests({
+    repo: {
+      findUserById: async () => userRow({ avatarUrl: input.currentAvatarUrl }),
+      findUserByAmoriaId: async () => undefined,
+      updateUserProfile: async (_userId, update) => {
+        state.updateCalled = true;
+        return userRow({ avatarUrl: update.avatarUrl ?? null });
+      },
+      hasUnrevealedTurnBasedPair: async () => false,
+    },
+    findOwnedMediaFilesByIds: async () => [input.media],
+    findOwnedMediaFileByUrl: async () => input.media,
+    findLatestMediaModerationJob: async () => input.job,
+    gallery: {
+      getPublicGalleryForUser: async () => ({
+        photos: [],
+        lockedGallery: { enabled: false, count: 0 },
+      }),
+      replacePublicGalleryPhotosFromProfilePatch: async () => undefined,
+    },
+  });
+  return state;
+}
+
 function mockDb(input: {
   ownedMediaRows: MediaFileRow[];
   onMediaLookup?: () => void;
@@ -216,6 +339,28 @@ function mediaRow(overrides: Partial<MediaFileRow>): MediaFileRow {
     automatedCheckedAt: null,
     moderationUpdatedAt: now,
     createdAt: now,
+    ...overrides,
+  };
+}
+
+function moderationJob(overrides: Partial<MediaModerationJobRow>): MediaModerationJobRow {
+  const now = new Date("2026-01-01T00:00:00.000Z");
+  return {
+    id: "00000000-0000-4000-8000-000000000201",
+    mediaId: userAMediaId,
+    status: "completed",
+    attemptCount: 1,
+    nextAttemptAt: now,
+    startedAt: now,
+    completedAt: now,
+    providerEngine: "opennsfw_onnx_cpu",
+    modelVersion: "test-model",
+    policyVersion: "amoria_public_photo_v2",
+    errorCode: null,
+    rawResult: null,
+    policyDecision: "approve",
+    createdAt: now,
+    updatedAt: now,
     ...overrides,
   };
 }

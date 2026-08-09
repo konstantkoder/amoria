@@ -139,6 +139,10 @@ export async function createMediaDecisionForAdmin(
   }
 
   const reason = cleanReason(input.reason, "reason is required for media moderation decisions");
+  const automatedPersonPresence = personPresenceFromRawResult(media.latestJob?.rawResult);
+  const manualPersonPresenceOverride = media.type === "avatar" &&
+    input.action === "approve" &&
+    automatedPersonPresence !== "true";
   if (media.visibility === "locked" && !await deps.repo.hasRecentLockedMediaContentAccess(
     admin.adminUser.id,
     mediaId,
@@ -161,6 +165,11 @@ export async function createMediaDecisionForAdmin(
       ...(input.metadata && typeof input.metadata === "object" && !Array.isArray(input.metadata)
         ? input.metadata
         : { submitted: input.metadata }),
+      ...(manualPersonPresenceOverride ? {
+        manualPersonPresenceOverride: true,
+        automatedPersonPresence: automatedPersonPresence ?? "unknown",
+        automatedPersonPolicyReasonCode: policyReasonCodeFromRawResult(media.latestJob?.rawResult),
+      } : {}),
     }),
   });
 
@@ -176,6 +185,10 @@ export async function createMediaDecisionForAdmin(
       type: media.type,
       visibility: media.visibility,
       previousState: media.moderationState,
+      manualPersonPresenceOverride,
+      ...(manualPersonPresenceOverride ? {
+        automatedPersonPresence: automatedPersonPresence ?? "unknown",
+      } : {}),
     },
     ...requestContext,
   });
@@ -269,4 +282,20 @@ function cleanOptional(value: string | undefined, maxLength: number): string | n
   }
 
   return normalized;
+}
+
+function personPresenceFromRawResult(value: unknown): string | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+  const signal = (value as Record<string, unknown>).containsPerson;
+  return signal === "true" || signal === "false" || signal === "unknown" ? signal : undefined;
+}
+
+function policyReasonCodeFromRawResult(value: unknown): string | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  const reason = (value as Record<string, unknown>).policyReasonCode;
+  return typeof reason === "string" && reason ? reason : null;
 }

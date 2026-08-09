@@ -35,7 +35,7 @@ from psycopg.types.json import Jsonb
 
 ENGINE = "opennsfw_onnx_cpu"
 MODEL_VERSION = "yahoo_open_nsfw_resnet50_1by2/opennsfw-onnx@0.1.0"
-POLICY_VERSION = "amoria_public_photo_v2"
+POLICY_VERSION = "amoria_public_photo_v3"
 MODEL_SHA256 = "864bb37bf8863564b87eb330ab8c785a79a773f4e7c43cb96db52ed8611305fa"
 PERSON_DETECTOR_ENGINE = "yolox_nano_yunet_onnx_cpu"
 PERSON_DETECTOR_VERSION = "yolox-nano@0.1.1rc0+yunet@2023mar"
@@ -605,9 +605,23 @@ class JobRunner:
                     image_bytes = self.read_object(current)
                     validate_image(image_bytes, self.cfg)
                     result = self.inference.classify(image_bytes)
-                    decision = decide_policy(result["nsfwProbability"], self.cfg)
+                    decision, policy_reason_code = decide_media_policy(
+                        result["nsfwProbability"],
+                        result.get("containsPerson", "unknown"),
+                        current["type"],
+                        self.cfg,
+                    )
                     raw_result = to_raw_result(result, self.cfg)
-                    self.complete_locked_job(cursor, job, current, decision, raw_result)
+                    raw_result["policyReasonCode"] = policy_reason_code
+                    raw_result["needsHumanReview"] = decision == "needs_review"
+                    self.complete_locked_job(
+                        cursor,
+                        job,
+                        current,
+                        decision,
+                        policy_reason_code,
+                        raw_result,
+                    )
             safe_log(
                 "job_completed",
                 jobId=job_id,
@@ -617,6 +631,7 @@ class JobRunner:
                 inferenceMs=result["inferenceMs"],
                 personInferenceMs=result.get("personInferenceMs"),
                 containsPerson=result.get("containsPerson", "unknown"),
+                policyReasonCode=policy_reason_code,
                 modelVersion=MODEL_VERSION,
             )
         except ModerationFailure as error:
@@ -660,6 +675,7 @@ class JobRunner:
         job: dict[str, Any],
         current: dict[str, Any],
         decision: str,
+        policy_reason_code: str | None,
         raw_result: dict[str, Any],
     ) -> None:
         state = {"approve": "approved", "needs_review": "needs_review", "restrict": "restricted"}[decision]
@@ -672,6 +688,7 @@ class JobRunner:
             "modelVersion": MODEL_VERSION,
             "policyVersion": POLICY_VERSION,
             "policyDecision": decision,
+            "policyReasonCode": policy_reason_code,
             **raw_result,
         }
         cursor.execute(
@@ -702,7 +719,11 @@ class JobRunner:
                 job["media_id"],
                 current["owner_user_id"],
                 action,
-                f"Automated local moderation policy decision: {decision}",
+                (
+                    f"Automated local moderation policy decision: {decision}"
+                    if policy_reason_code is None
+                    else f"Automated local moderation policy decision: {policy_reason_code}"
+                ),
                 Jsonb(metadata),
             ),
         )
@@ -794,6 +815,22 @@ def decide_policy(nsfw_probability: float, cfg: Config) -> str:
     return "needs_review"
 
 
+def decide_media_policy(
+    nsfw_probability: float,
+    contains_person: str,
+    media_type: str,
+    cfg: Config,
+) -> tuple[str, str | None]:
+    if nsfw_probability >= cfg.restrict_min_nsfw:
+        return "restrict", None
+    if media_type == "avatar":
+        if contains_person == "false":
+            return "needs_review", "person_not_detected"
+        if contains_person != "true":
+            return "needs_review", "person_presence_uncertain"
+    return decide_policy(nsfw_probability, cfg), None
+
+
 def to_raw_result(result: dict[str, Any], cfg: Config) -> dict[str, Any]:
     nsfw_probability = float(result["nsfwProbability"])
     signal = "safe" if nsfw_probability <= cfg.approve_max_nsfw else (
@@ -870,7 +907,7 @@ def sync_owner_media_references(cursor: Any, media: dict[str, Any], decision: st
                     WHERE owner_user_id=%s AND type='avatar'
                       AND id<>%s AND moderation_state<>'removed'
                       AND (
-                        (%s IS NOT NULL AND url=%s)
+                        (%s::text IS NOT NULL AND url=%s)
                         OR created_at < (SELECT created_at FROM media_files WHERE id=%s)
                       )
                     RETURNING id

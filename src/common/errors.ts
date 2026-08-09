@@ -7,6 +7,7 @@ export type ErrorCode =
   | "unauthorized"
   | "forbidden"
   | "media_not_owned"
+  | "avatar_not_approved"
   | "blocked_pair"
   | "profile_unavailable"
   | "locked_gallery_unavailable"

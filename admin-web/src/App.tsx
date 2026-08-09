@@ -1978,6 +1978,8 @@ function MediaScreen({
             <dl className="facts compact">
               <Fact label={t("media.mediaId")} value={selected.id} />
               <Fact label={t("media.ownerUserId")} value={selected.ownerUserId} />
+              <Fact label="Media type / intent" value={selected.type} />
+              <Fact label="Visibility" value={selected.visibility ?? ""} />
               <Fact label={t("common.status")} value={formatStatus(selected.moderationStatus, t)} />
               <Fact label="Moderation origin" value={selected.moderationOrigin} />
               <Fact label="Model" value={selected.automation?.providerEngine ?? ""} />
@@ -1985,6 +1987,8 @@ function MediaScreen({
               <Fact label="Policy" value={selected.automation?.policyVersion ?? ""} />
               <Fact label="Automated decision" value={selected.automation?.policyDecision ?? ""} />
               <Fact label="Person presence" value={personPresenceFromRawResult(selected.automation?.rawResult)} />
+              <Fact label="NSFW score" value={nsfwScoreFromRawResult(selected.automation?.rawResult)} />
+              <Fact label="Policy reason" value={policyReasonFromRawResult(selected.automation?.rawResult)} />
               <Fact label={t("media.mime")} value={selected.mimeType} />
               <Fact label={t("media.size")} value={String(selected.sizeBytes)} />
               <Fact label={t("media.publicUrl")} value={resolveApiUrl(selected.publicUrl) ?? ""} />
@@ -2014,6 +2018,26 @@ function personPresenceFromRawResult(value: unknown): string {
   }
   const signal = (value as Record<string, unknown>).containsPerson;
   return signal === "true" || signal === "false" || signal === "unknown" ? signal : "";
+}
+
+function nsfwScoreFromRawResult(value: unknown): string {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return "";
+  }
+  const confidence = (value as Record<string, unknown>).confidence;
+  if (!confidence || typeof confidence !== "object" || Array.isArray(confidence)) {
+    return "";
+  }
+  const score = (confidence as Record<string, unknown>).nsfw;
+  return typeof score === "number" && Number.isFinite(score) ? score.toFixed(6) : "";
+}
+
+function policyReasonFromRawResult(value: unknown): string {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return "";
+  }
+  const reason = (value as Record<string, unknown>).policyReasonCode;
+  return typeof reason === "string" ? reason : "";
 }
 
 function OpsHealthScreen() {
