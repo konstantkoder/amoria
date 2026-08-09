@@ -211,6 +211,13 @@
       "when": 1786147200000,
       "tag": "0029_auth_email_antiabuse",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1786233600000,
+      "tag": "0030_local_photo_moderation",
+      "breakpoints": true
     }
   ]
 }

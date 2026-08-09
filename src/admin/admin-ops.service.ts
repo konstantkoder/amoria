@@ -1,4 +1,4 @@
-import { count, eq, sql } from "drizzle-orm";
+import { count, eq, inArray, sql } from "drizzle-orm";
 import * as auditService from "./admin-audit.service";
 import type { AdminContext, AdminRequestContext } from "./admin.types";
 import { AppError } from "../common/errors";
@@ -8,7 +8,6 @@ import { TOGETHER_HEARTBEAT_TIMEOUT_MS } from "../config/constants";
 import {
   clientErrorReports,
   mediaFiles,
-  mediaModerationReviews,
   safetyReports,
   togetherQueue,
   togetherSessions,
@@ -773,20 +772,7 @@ async function countPendingMediaModerationItems(): Promise<number> {
   const [row] = await db
     .select({ value: count() })
     .from(mediaFiles)
-    .where(
-      sql`not exists (
-          select 1
-          from ${mediaModerationReviews}
-          where ${mediaModerationReviews.mediaId} = ${mediaFiles.id}
-        )
-        or (
-          select ${mediaModerationReviews.action}
-          from ${mediaModerationReviews}
-          where ${mediaModerationReviews.mediaId} = ${mediaFiles.id}
-          order by ${mediaModerationReviews.createdAt} desc
-          limit 1
-        ) = 'mark_under_review'`,
-    );
+    .where(inArray(mediaFiles.moderationState, ["pending", "needs_review", "restricted"]));
 
   return row?.value ?? 0;
 }

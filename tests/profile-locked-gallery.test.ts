@@ -313,12 +313,9 @@ test("owner can move a photo to locked when avatar keeps 3 visible images", asyn
 
 test("owner gallery endpoint returns public and locked photos to owner", async (t) => {
   t.after(restoreGalleryDeps);
-  mockGallery({
-    latestReviewActions: {
-      [publicPhoto1Id]: "mark_under_review",
-      [lockedPhoto1Id]: "approve",
-    },
-  });
+  const state = mockGallery();
+  state.items.find((entry) => entry.media.id === publicPhoto1Id)!.media.moderationState = "needs_review";
+  state.items.find((entry) => entry.media.id === publicPhoto2Id)!.media.moderationState = "pending";
 
   const response = await galleryService.getOwnerProfileGallery(ownerId);
 
@@ -336,8 +333,8 @@ test("owner gallery endpoint returns public and locked photos to owner", async (
     response.lockedPhotos.map((photo) => photo.mediaId),
     [lockedPhoto1Id, lockedPhoto2Id],
   );
-  assert.equal(response.publicPhotos[0]?.moderationStatus, "needs_manual_review");
-  assert.equal(response.publicPhotos[1]?.moderationStatus, "pending_review");
+  assert.equal(response.publicPhotos[0]?.moderationStatus, "needs_review");
+  assert.equal(response.publicPhotos[1]?.moderationStatus, "pending");
   assert.equal(response.lockedPhotos[0]?.moderationStatus, "approved");
   assert.equal(JSON.stringify(response).includes("passwordHash"), false);
   assert.equal(JSON.stringify(response).includes("users/owner/profile"), false);
@@ -600,6 +597,14 @@ function mockGallery(input: {
       }
       state.items.push(galleryEntry(mediaId, "public", state.items.length));
     },
+    upsertGalleryItemForMedia: async (_userId: string, mediaId: string, visibility: "public" | "locked") => {
+      const existing = state.items.find((entry) => entry.item.mediaId === mediaId);
+      if (existing) {
+        existing.item.visibility = visibility;
+        return;
+      }
+      state.items.push(galleryEntry(mediaId, visibility, state.items.length));
+    },
     findGalleryItemForMedia: async () => undefined,
     listLatestModerationReviewsForMediaIds: async (mediaIds: string[]) => {
       const reviews: Record<string, MediaModerationReviewRow> = {};
@@ -708,6 +713,10 @@ function mediaRow(mediaId: string): MediaFileRow {
     width: 512,
     height: 512,
     checksumSha256: null,
+    moderationState: "approved",
+    moderationOrigin: "legacy_pre_moderation",
+    automatedCheckedAt: null,
+    moderationUpdatedAt: now,
     createdAt: now,
   };
 }

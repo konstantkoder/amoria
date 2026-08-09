@@ -31,13 +31,17 @@ export const completeUploadBodySchema = z
     sizeBytes: z.number().int().positive().max(MAX_MEDIA_UPLOAD_BYTES),
     checksumSha256: z.string().regex(checksumSha256Pattern).optional(),
     crop: normalizedCropSchema.optional(),
+    visibility: z.enum(["public", "locked"]).default("public"),
   })
   .strict();
 
 export type PrepareUploadBody = z.infer<typeof prepareUploadBodySchema>;
-export type CompleteUploadBody = z.infer<typeof completeUploadBodySchema>;
+export type CompleteUploadBody = Omit<z.infer<typeof completeUploadBodySchema>, "visibility"> & {
+  visibility?: ProfilePhotoUploadVisibility;
+};
 export type MediaUploadPurpose = (typeof MEDIA_UPLOAD_PURPOSES)[number];
 export type MediaUploadMimeType = (typeof MEDIA_UPLOAD_MIME_TYPES)[number];
+export type ProfilePhotoUploadVisibility = "public" | "locked";
 
 export function parsePrepareUploadBody(input: unknown): PrepareUploadBody {
   return parseWithValidation(prepareUploadBodySchema, input);
@@ -142,6 +146,7 @@ export const completeUploadRouteSchema = {
           height: { type: "number", exclusiveMinimum: 0, maximum: 1 },
         },
       },
+      visibility: { type: "string", enum: ["public", "locked"], default: "public" },
     },
   },
   response: {

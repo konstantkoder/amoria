@@ -12,7 +12,7 @@ import {
   MIN_VISIBLE_PROFILE_IMAGES_FOR_LOCKED_GALLERY,
   SERVICE_NAME,
 } from "../config/constants";
-import type { MediaFileRow, MediaModerationReviewRow, ProfilePhoto, UserRow } from "../db/schema";
+import type { MediaFileRow, ProfilePhoto, UserRow } from "../db/schema";
 import { deleteObject, headObject } from "../media/object-storage";
 import { env } from "../config/env";
 import { findMediaFileById, findMediaFileByOwner, deleteMediaFileByOwner } from "../media/media.repo";
@@ -38,11 +38,11 @@ export type OwnerProfileGalleryPhoto = ProfileGalleryPhoto & {
 };
 
 export type MediaModerationStatus =
-  | "pending_review"
+  | "pending"
   | "approved"
-  | "rejected"
+  | "needs_review"
   | "restricted"
-  | "needs_manual_review";
+  | "removed";
 
 export type LockedGallerySummary = {
   enabled: boolean;
@@ -161,11 +161,7 @@ export async function getOwnerProfileGallery(
     deps.repo.listGalleryItemsForUser(userId),
     deps.repo.getLockedGallerySettings(userId),
   ]);
-  const latestReviewByMediaId = await deps.repo.listLatestModerationReviewsForMediaIds(
-    items.map((entry) => entry.media.id),
-  );
-
-  return toOwnerGalleryResponse(user, items, Boolean(settings?.passwordHash), latestReviewByMediaId);
+  return toOwnerGalleryResponse(user, items, Boolean(settings?.passwordHash));
 }
 
 export async function getPublicGalleryForUser(
@@ -418,13 +414,24 @@ export function verifyLockedGalleryUnlockToken(
 export async function addCompletedProfilePhotoToGallery(
   ownerUserId: string,
   media: MediaFileRow,
+  visibility: galleryRepo.ProfileGalleryVisibility = "public",
 ): Promise<void> {
   if (media.type !== "profile_photo" || media.ownerUserId !== ownerUserId) {
     return;
   }
 
   await assertCanAddProfilePhotoToGallery(ownerUserId);
-  await deps.repo.upsertPublicGalleryItemForMedia(ownerUserId, media.id);
+  if (visibility === "locked") {
+    const settings = await deps.repo.getLockedGallerySettings(ownerUserId);
+    if (!settings?.passwordHash) {
+      throw new AppError(
+        "locked_gallery_password_required",
+        "Locked gallery password must be set first",
+        409,
+      );
+    }
+  }
+  await deps.repo.upsertGalleryItemForMedia(ownerUserId, media.id, visibility);
   await syncPublicPhotosReadModel(ownerUserId);
 }
 
@@ -536,14 +543,13 @@ function toOwnerGalleryResponse(
   user: UserRow,
   items: galleryRepo.ProfileGalleryItemWithMedia[],
   passwordIsSet: boolean,
-  latestReviewByMediaId: Record<string, Pick<MediaModerationReviewRow, "action"> | undefined>,
 ): OwnerProfileGalleryResponse {
   const photos = items.map((entry) => ({
     ...toPublicPhoto(entry),
     galleryItemId: entry.item.id,
     visibility: entry.item.visibility as galleryRepo.ProfileGalleryVisibility,
     mimeType: entry.media.mimeType,
-    moderationStatus: moderationStatusForReview(latestReviewByMediaId[entry.media.id]),
+    moderationStatus: entry.media.moderationState as MediaModerationStatus,
   }));
   const publicPhotos = photos.filter((photo) => photo.visibility === "public");
   const lockedPhotos = photos.filter((photo) => photo.visibility === "locked");
@@ -558,27 +564,6 @@ function toOwnerGalleryResponse(
     maxProfileGalleryPhotos: MAX_PROFILE_GALLERY_PHOTOS,
     maxLockedProfilePhotos: MAX_LOCKED_PROFILE_PHOTOS,
   };
-}
-
-function moderationStatusForReview(
-  review: Pick<MediaModerationReviewRow, "action"> | undefined,
-): MediaModerationStatus {
-  if (!review) {
-    return "pending_review";
-  }
-
-  switch (review.action) {
-    case "approve":
-      return "approved";
-    case "restrict":
-      return "restricted";
-    case "remove":
-      return "rejected";
-    case "mark_under_review":
-      return "needs_manual_review";
-    default:
-      return "pending_review";
-  }
 }
 
 function toPublicPhoto(entry: galleryRepo.ProfileGalleryItemWithMedia): ProfileGalleryPhoto {
@@ -703,6 +688,9 @@ async function filterLoadablePublicGalleryItems(
   const loadable: galleryRepo.ProfileGalleryItemWithMedia[] = [];
   for (const entry of items) {
     if (entry.media.type !== "profile_photo") {
+      continue;
+    }
+    if (entry.media.moderationState !== "approved") {
       continue;
     }
     if (await mediaObjectExists(entry.media)) {

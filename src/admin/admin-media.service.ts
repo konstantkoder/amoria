@@ -21,7 +21,11 @@ import type { AdminContext, AdminRequestContext } from "./admin.types";
 type AdminMediaDeps = {
   repo: Pick<
     typeof mediaRepo,
-    "createMediaModerationReview" | "findMediaById" | "listMedia" | "listMediaReviews"
+    | "createEffectiveMediaDecision"
+    | "findMediaById"
+    | "hasRecentLockedMediaContentAccess"
+    | "listMedia"
+    | "listMediaReviews"
   >;
   audit: Pick<typeof auditService, "writeAuditLog">;
   getObjectBuffer: typeof getObjectBuffer;
@@ -65,6 +69,8 @@ export async function listMediaForAdmin(
         ownerAmoriaId: query.ownerAmoriaId ?? null,
         type: query.type ?? null,
         moderationStatus: query.moderationStatus ?? null,
+        createdFrom: query.createdFrom?.toISOString() ?? null,
+        createdTo: query.createdTo?.toISOString() ?? null,
       },
       limit: query.limit,
       resultCount: rows.length,
@@ -89,7 +95,8 @@ export async function getMediaForAdmin(
     throw new AppError("not_found", "Media not found", 404);
   }
 
-  const includeSensitiveUrl = assertCanViewMediaDetail(admin, media.visibility, reason);
+  assertCanViewMediaDetail(admin, media.visibility, reason);
+  const includeSensitiveUrl = media.visibility !== "locked";
   const reviews = await deps.repo.listMediaReviews(mediaId);
 
   await deps.audit.writeAuditLog({
@@ -110,7 +117,7 @@ export async function getMediaForAdmin(
   return {
     media: {
       ...toAdminMediaItem(media, includeSensitiveUrl),
-      path: includeSensitiveUrl ? media.path : null,
+      path: media.visibility === "locked" ? null : media.path,
       reviews: reviews.map(toAdminMediaReviewItem),
     },
   };
@@ -131,20 +138,30 @@ export async function createMediaDecisionForAdmin(
     throw new AppError("not_found", "Media not found", 404);
   }
 
-  if (media.visibility === "locked") {
-    cleanReason(input.reason, "reason is required for locked gallery media decisions");
-  }
-  if (input.action === "restrict" || input.action === "remove") {
-    cleanReason(input.reason, "reason is required for reject or restrict media decisions");
+  const reason = cleanReason(input.reason, "reason is required for media moderation decisions");
+  if (media.visibility === "locked" && !await deps.repo.hasRecentLockedMediaContentAccess(
+    admin.adminUser.id,
+    mediaId,
+  )) {
+    throw new AppError(
+      "locked_media_access_required",
+      "Locked media content must be opened with a reason before a decision",
+      409,
+    );
   }
 
-  const review = await deps.repo.createMediaModerationReview({
+  const review = await deps.repo.createEffectiveMediaDecision({
     mediaId,
     ownerUserId: media.ownerUserId,
     adminUserId: admin.adminUser.id,
     action: input.action,
-    reason: cleanOptional(input.reason, 500),
-    metadata: sanitizeAuditMetadata(input.metadata),
+    reason,
+    metadata: sanitizeAuditMetadata({
+      previousState: media.moderationState,
+      ...(input.metadata && typeof input.metadata === "object" && !Array.isArray(input.metadata)
+        ? input.metadata
+        : { submitted: input.metadata }),
+    }),
   });
 
   await deps.audit.writeAuditLog({
@@ -152,19 +169,24 @@ export async function createMediaDecisionForAdmin(
     action: "admin.media.decision",
     targetType: "media_file",
     targetId: mediaId,
-    reason: cleanOptional(input.reason, 500),
+    reason,
     metadata: {
       action: input.action,
       ownerAmoriaId: media.owner.amoriaId,
       type: media.type,
       visibility: media.visibility,
+      previousState: media.moderationState,
     },
     ...requestContext,
   });
 
+  const updated = await deps.repo.findMediaById(mediaId);
+  if (!updated) {
+    throw new Error("Media disappeared after moderation decision");
+  }
   return {
     ok: true,
-    media: toAdminMediaItem({ ...media, latestReview: review }, media.visibility !== "locked"),
+    media: toAdminMediaItem(updated, updated.visibility !== "locked"),
     review: toAdminMediaReviewItem(review),
   };
 }
@@ -184,7 +206,9 @@ export async function getMediaContentForAdmin(
 
   await deps.audit.writeAuditLog({
     adminUserId: admin.adminUser.id,
-    action: media.visibility === "locked" ? "admin.media.locked.view" : "admin.media.content.read",
+    action: media.visibility === "locked"
+      ? "admin.media.locked.content.read"
+      : "admin.media.content.read",
     targetType: "media_file",
     targetId: mediaId,
     reason: media.visibility === "locked" ? cleanReason(reason) : null,

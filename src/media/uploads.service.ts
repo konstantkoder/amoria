@@ -20,7 +20,11 @@ import {
 } from "./object-storage";
 import { publicMediaUrlForMediaId } from "./media-url";
 import { queueInitialMediaModeration } from "./media-moderation.service";
-import type { CompleteUploadBody, PrepareUploadBody } from "./uploads.schemas";
+import type {
+  CompleteUploadBody,
+  PrepareUploadBody,
+  ProfilePhotoUploadVisibility,
+} from "./uploads.schemas";
 import {
   addCompletedProfilePhotoToGallery,
   assertCanAddProfilePhotoToGallery,
@@ -204,8 +208,11 @@ export async function completeUpload(
   }
 
   try {
-    await deps.queueInitialMediaModeration(media.media);
-    await deps.addCompletedProfilePhotoToGallery(ownerUserId, media.media);
+    await deps.addCompletedProfilePhotoToGallery(
+      ownerUserId,
+      media.media,
+      input.visibility ?? "public",
+    );
   } catch (error) {
     await deleteObjectIfPossible(media.media.path);
     await deps.deleteMediaFileByOwner(media.media.id, ownerUserId).catch(() => undefined);
@@ -221,6 +228,7 @@ export async function uploadProfilePhoto(
   ownerUserId: string,
   file: MultipartFile | undefined,
   cropInput?: unknown,
+  visibility: ProfilePhotoUploadVisibility = "public",
 ): Promise<CompleteUploadResponse> {
   if (!file) {
     throw validationError("Profile photo file is required", { file: "required" });
@@ -278,6 +286,8 @@ export async function uploadProfilePhoto(
       width: processed.width,
       height: processed.height,
       checksumSha256: checksumSha256(processed.buffer),
+      moderationState: visibility === "public" ? "pending" : "needs_review",
+      moderationOrigin: visibility === "public" ? "awaiting_automatic" : "awaiting_manual_locked",
     });
   } catch (error) {
     await deleteObjectIfPossible(objectKey);
@@ -285,8 +295,7 @@ export async function uploadProfilePhoto(
   }
 
   try {
-    await deps.queueInitialMediaModeration(media);
-    await deps.addCompletedProfilePhotoToGallery(ownerUserId, media);
+    await deps.addCompletedProfilePhotoToGallery(ownerUserId, media, visibility);
   } catch (error) {
     await deleteObjectIfPossible(objectKey);
     await deps.deleteMediaFileByOwner(media.id, ownerUserId).catch(() => undefined);
@@ -416,6 +425,10 @@ async function toCompletedProfilePhotoMediaInput(
     width: processed.width,
     height: processed.height,
     checksumSha256: checksumSha256(processed.buffer),
+    moderationState: (input.visibility ?? "public") === "public" ? "pending" : "needs_review",
+    moderationOrigin: (input.visibility ?? "public") === "public"
+      ? "awaiting_automatic"
+      : "awaiting_manual_locked",
   };
 }
 

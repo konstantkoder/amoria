@@ -13,6 +13,7 @@ export type ErrorCode =
   | "locked_gallery_password_required"
   | "locked_gallery_rate_limited"
   | "locked_gallery_unlock_expired"
+  | "locked_media_access_required"
   | "min_visible_required"
   | "profile_gallery_limit_reached"
   | "locked_gallery_limit_reached"

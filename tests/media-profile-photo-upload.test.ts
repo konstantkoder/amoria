@@ -63,7 +63,9 @@ for (const format of ["jpeg", "png", "webp"] as const) {
     assert.equal(state.mediaInput?.width, 480);
     assert.equal(state.mediaInput?.height, 480);
     assert.equal(state.mediaInput?.checksumSha256, sha256(state.putObject?.body ?? Buffer.alloc(0)));
-    assert.deepEqual(state.moderationMediaIds, [state.mediaInput?.id]);
+    assert.deepEqual(state.moderationMediaIds, []);
+    assert.equal(state.mediaInput?.moderationState, "pending");
+    assert.equal(state.mediaInput?.moderationOrigin, "awaiting_automatic");
     assert.equal(state.galleryMedia?.type, "profile_photo");
     assert.equal(state.galleryMedia?.path, `${state.upload.objectKey}.webp`);
     assert.deepEqual(response.media, {
@@ -117,7 +119,8 @@ test("POST /media/profile-photo uploads profile photo through backend", async (t
   );
   assert.equal(state.mediaInput?.ownerUserId, ownerId);
   assert.equal(state.mediaInput?.type, "profile_photo");
-  assert.deepEqual(state.moderationMediaIds, [state.mediaInput?.id]);
+  assert.deepEqual(state.moderationMediaIds, []);
+  assert.equal(state.mediaInput?.moderationState, "pending");
   assert.equal(state.galleryMedia?.id, state.mediaInput?.id);
   assert.equal(body.media.id, state.mediaInput?.id);
   assert.equal(body.media.url, publicMediaPath(state.mediaInput?.id ?? ""));
@@ -127,6 +130,60 @@ test("POST /media/profile-photo uploads profile photo through backend", async (t
   assert.equal(JSON.stringify(body).includes("minio"), false);
   assert.equal(JSON.stringify(body).includes("objectKey"), false);
   assert.equal(JSON.stringify(body).includes('"path"'), false);
+});
+
+test("POST /media/profile-photo accepts locked intent without invoking automatic moderation", async (t) => {
+  t.after(restoreUploadServiceDeps);
+  const app = buildApp();
+  t.after(async () => app.close());
+  const rawBuffer = await imageBuffer("jpeg", 640, 640);
+  const state = mockBackendProfilePhotoUpload();
+  const response = await app.inject({
+    method: "POST",
+    url: "/media/profile-photo",
+    headers: {
+      Authorization: `Bearer ${signAccessToken(ownerId)}`,
+      ...multipartHeaders("locked-photo-boundary"),
+    },
+    payload: multipartPayload({
+      boundary: "locked-photo-boundary",
+      fieldName: "file",
+      filename: "locked.jpg",
+      contentType: "image/jpeg",
+      body: rawBuffer,
+      fields: { visibility: "locked" },
+    }),
+  });
+  assert.equal(response.statusCode, 200);
+  assert.equal(state.mediaInput?.moderationState, "needs_review");
+  assert.equal(state.mediaInput?.moderationOrigin, "awaiting_manual_locked");
+  assert.equal(state.galleryVisibility, "locked");
+  assert.deepEqual(state.moderationMediaIds, []);
+});
+
+test("POST /media/profile-photo rejects an invalid visibility instead of defaulting public", async (t) => {
+  t.after(restoreUploadServiceDeps);
+  const app = buildApp();
+  t.after(async () => app.close());
+  const response = await app.inject({
+    method: "POST",
+    url: "/media/profile-photo",
+    headers: {
+      Authorization: `Bearer ${signAccessToken(ownerId)}`,
+      ...multipartHeaders("invalid-visibility-boundary"),
+    },
+    payload: multipartPayload({
+      boundary: "invalid-visibility-boundary",
+      fieldName: "file",
+      filename: "profile.jpg",
+      contentType: "image/jpeg",
+      body: await imageBuffer("jpeg", 640, 640),
+      fields: { visibility: "private-ish" },
+    }),
+  });
+
+  assert.equal(response.statusCode, 400);
+  assert.equal(response.json().error.code, "validation_error");
 });
 
 test("uploadProfilePhoto with normalized crop stores cropped WebP", async (t) => {
@@ -448,6 +505,7 @@ function mockBackendProfilePhotoUpload(
     moderationMediaIds: string[];
     mediaInput?: NewMediaFileRow;
     galleryMedia?: MediaFileRow;
+    galleryVisibility?: "public" | "locked";
   } = {
     deletedObjectKeys: [],
     deletedMediaIds: [],
@@ -479,8 +537,9 @@ function mockBackendProfilePhotoUpload(
       state.moderationMediaIds.push(media.id);
       return undefined as never;
     },
-    addCompletedProfilePhotoToGallery: async (_userId, media) => {
+    addCompletedProfilePhotoToGallery: async (_userId, media, visibility) => {
       state.galleryMedia = media;
+      state.galleryVisibility = visibility;
     },
     deleteObject: async (input) => {
       state.deletedObjectKeys.push(input.key);
@@ -516,6 +575,7 @@ function mockCompleteProfilePhotoUpload(
     deletedObjectKey?: string;
     mediaInput?: NewMediaFileRow;
     galleryMedia?: MediaFileRow;
+    galleryVisibility?: "public" | "locked";
     moderationMediaIds: string[];
   } = { upload, moderationMediaIds: [] };
 
@@ -560,8 +620,9 @@ function mockCompleteProfilePhotoUpload(
       state.moderationMediaIds.push(media.id);
       return undefined as never;
     },
-    addCompletedProfilePhotoToGallery: async (_userId, media) => {
+    addCompletedProfilePhotoToGallery: async (_userId, media, visibility) => {
       state.galleryMedia = media;
+      state.galleryVisibility = visibility;
     },
   });
 
@@ -608,6 +669,10 @@ function mediaRow(input: NewMediaFileRow): MediaFileRow {
     width: input.width ?? null,
     height: input.height ?? null,
     checksumSha256: input.checksumSha256 ?? null,
+    moderationState: input.moderationState ?? "pending",
+    moderationOrigin: input.moderationOrigin ?? "awaiting_automatic",
+    automatedCheckedAt: input.automatedCheckedAt ?? null,
+    moderationUpdatedAt: input.moderationUpdatedAt ?? now,
     createdAt: now,
   };
 }

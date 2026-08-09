@@ -1,13 +1,15 @@
-import { and, desc, eq, type SQL } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lt, lte, ne, or, sql, type SQL } from "drizzle-orm";
 import { db } from "../db/client";
 import {
   type MediaFileRow,
   type MediaModerationReviewRow,
   type NewMediaModerationReviewRow,
   mediaFiles,
+  mediaModerationJobs,
   mediaModerationReviews,
   profileGalleryItems,
   users,
+  adminAuditLog,
 } from "../db/schema";
 import {
   moderationStatusForReview,
@@ -37,6 +39,12 @@ export async function listMedia(query: AdminMediaQuery): Promise<AdminMediaRow[]
   if (query.type) {
     conditions.push(eq(mediaFiles.type, query.type));
   }
+  if (query.createdFrom) {
+    conditions.push(gte(mediaFiles.createdAt, query.createdFrom));
+  }
+  if (query.createdTo) {
+    conditions.push(lte(mediaFiles.createdAt, query.createdTo));
+  }
 
   let selectQuery = mediaSelect().$dynamic();
   if (conditions.length > 0) {
@@ -47,12 +55,12 @@ export async function listMedia(query: AdminMediaQuery): Promise<AdminMediaRow[]
     .orderBy(desc(mediaFiles.createdAt))
     .limit(query.limit);
 
-  const withReviews = await attachLatestReviews(rows.map(toAdminMediaRow));
+  const withReviews = await attachLatestHistory(rows.map(toAdminMediaRow));
   if (!query.moderationStatus) {
     return withReviews;
   }
 
-  return withReviews.filter((row) => moderationStatusForReview(row.latestReview) === query.moderationStatus);
+  return withReviews.filter((row) => moderationStatusForReview(row.latestReview, row) === query.moderationStatus);
 }
 
 export async function findMediaById(mediaId: string): Promise<AdminMediaRow | undefined> {
@@ -61,7 +69,7 @@ export async function findMediaById(mediaId: string): Promise<AdminMediaRow | un
     return undefined;
   }
 
-  const [withReview] = await attachLatestReviews([toAdminMediaRow(row)]);
+  const [withReview] = await attachLatestHistory([toAdminMediaRow(row)]);
   return withReview;
 }
 
@@ -83,7 +91,135 @@ export async function createMediaModerationReview(
   return created;
 }
 
-async function attachLatestReviews(rows: AdminMediaRow[]): Promise<AdminMediaRow[]> {
+export async function createEffectiveMediaDecision(
+  input: NewMediaModerationReviewRow,
+): Promise<MediaModerationReviewRow> {
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`
+      SELECT id FROM ${profileGalleryItems}
+      WHERE ${profileGalleryItems.mediaId} = ${input.mediaId}
+      FOR UPDATE
+    `);
+    const state = input.action === "approve"
+      ? "approved"
+      : input.action === "restrict"
+        ? "restricted"
+        : input.action === "remove"
+          ? "removed"
+          : "needs_review";
+    const now = new Date();
+    const [media] = await tx
+      .update(mediaFiles)
+      .set({ moderationState: state, moderationOrigin: "manual", moderationUpdatedAt: now })
+      .where(eq(mediaFiles.id, input.mediaId))
+      .returning();
+    if (!media) {
+      throw new Error("Media disappeared during moderation decision");
+    }
+
+    await tx
+      .update(mediaModerationJobs)
+      .set({ status: "cancelled", completedAt: now, updatedAt: now, errorCode: "manual_decision" })
+      .where(and(
+        eq(mediaModerationJobs.mediaId, input.mediaId),
+        inArray(mediaModerationJobs.status, ["queued", "running"]),
+      ));
+
+    if (input.action === "remove") {
+      await tx.delete(profileGalleryItems).where(eq(profileGalleryItems.mediaId, input.mediaId));
+    }
+    if (input.action === "remove" || input.action === "restrict") {
+      await tx
+        .update(users)
+        .set({ avatarUrl: null, updatedAt: now })
+        .where(and(eq(users.id, media.ownerUserId), eq(users.avatarUrl, media.url)));
+    } else if (input.action === "approve" && media.type === "avatar") {
+      const [owner] = await tx
+        .select({ avatarUrl: users.avatarUrl })
+        .from(users)
+        .where(eq(users.id, media.ownerUserId))
+        .limit(1);
+      await tx.update(users).set({ avatarUrl: media.url, updatedAt: now }).where(eq(users.id, media.ownerUserId));
+      if (owner && owner.avatarUrl !== media.url) {
+        const retiredAvatars = await tx
+          .update(mediaFiles)
+          .set({
+            moderationState: "removed",
+            moderationOrigin: "avatar_replaced",
+            moderationUpdatedAt: now,
+          })
+          .where(and(
+            eq(mediaFiles.ownerUserId, media.ownerUserId),
+            eq(mediaFiles.type, "avatar"),
+            ne(mediaFiles.id, media.id),
+            ne(mediaFiles.moderationState, "removed"),
+            or(
+              owner.avatarUrl ? eq(mediaFiles.url, owner.avatarUrl) : undefined,
+              lt(mediaFiles.createdAt, media.createdAt),
+            ),
+          ))
+          .returning();
+        for (const retiredAvatar of retiredAvatars) {
+          await tx
+            .update(mediaModerationJobs)
+            .set({ status: "cancelled", completedAt: now, updatedAt: now, errorCode: "avatar_replaced" })
+            .where(and(
+              eq(mediaModerationJobs.mediaId, retiredAvatar.id),
+              inArray(mediaModerationJobs.status, ["queued", "running"]),
+            ));
+          await tx.insert(mediaModerationReviews).values({
+            mediaId: retiredAvatar.id,
+            ownerUserId: media.ownerUserId,
+            adminUserId: input.adminUserId,
+            action: "remove",
+            reason: "Superseded by a newly approved avatar",
+            metadata: { source: "avatar_replacement", replacementMediaId: media.id },
+          });
+        }
+      }
+    }
+
+    if (media.type === "profile_photo") {
+      const approvedRows = await tx
+        .select({ mediaId: mediaFiles.id, url: mediaFiles.url })
+        .from(profileGalleryItems)
+        .innerJoin(mediaFiles, eq(mediaFiles.id, profileGalleryItems.mediaId))
+        .where(and(
+          eq(profileGalleryItems.userId, media.ownerUserId),
+          eq(profileGalleryItems.visibility, "public"),
+          eq(mediaFiles.moderationState, "approved"),
+        ))
+        .orderBy(profileGalleryItems.position);
+      await tx.update(users).set({ photos: approvedRows, updatedAt: now }).where(eq(users.id, media.ownerUserId));
+    }
+
+    const [created] = await tx.insert(mediaModerationReviews).values(input).returning();
+    if (!created) {
+      throw new Error("Failed to create media moderation review");
+    }
+    return created;
+  });
+}
+
+export async function hasRecentLockedMediaContentAccess(
+  adminUserId: string,
+  mediaId: string,
+): Promise<boolean> {
+  const cutoff = new Date(Date.now() - 15 * 60 * 1000);
+  const [entry] = await db
+    .select({ id: adminAuditLog.id })
+    .from(adminAuditLog)
+    .where(and(
+      eq(adminAuditLog.adminUserId, adminUserId),
+      eq(adminAuditLog.action, "admin.media.locked.content.read"),
+      eq(adminAuditLog.targetId, mediaId),
+      gte(adminAuditLog.createdAt, cutoff),
+    ))
+    .limit(1);
+  return Boolean(entry);
+}
+
+async function attachLatestHistory(rows: AdminMediaRow[]): Promise<AdminMediaRow[]> {
   const withReviews: AdminMediaRow[] = [];
 
   for (const row of rows) {
@@ -93,10 +229,17 @@ async function attachLatestReviews(rows: AdminMediaRow[]): Promise<AdminMediaRow
       .where(eq(mediaModerationReviews.mediaId, row.id))
       .orderBy(desc(mediaModerationReviews.createdAt))
       .limit(1);
+    const [latestJob] = await db
+      .select()
+      .from(mediaModerationJobs)
+      .where(eq(mediaModerationJobs.mediaId, row.id))
+      .orderBy(desc(mediaModerationJobs.createdAt))
+      .limit(1);
 
     withReviews.push({
       ...row,
       latestReview: latestReview ?? null,
+      latestJob: latestJob ?? null,
     });
   }
 
@@ -135,9 +278,13 @@ function toAdminMediaRow(row: MediaSelectRow): AdminMediaRow {
     width: row.media.width,
     height: row.media.height,
     checksumSha256: row.media.checksumSha256,
+    moderationState: row.media.moderationState,
+    moderationOrigin: row.media.moderationOrigin,
+    automatedCheckedAt: row.media.automatedCheckedAt,
     visibility: mediaVisibility(row.media.type, row.gallery?.visibility ?? null),
     createdAt: row.media.createdAt,
     latestReview: null,
+    latestJob: null,
   };
 }
 

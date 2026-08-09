@@ -1,16 +1,25 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, or } from "drizzle-orm";
 import { db } from "../db/client";
 import {
   type MediaFileRow,
+  type MediaModerationJobRow,
   type MediaModerationReviewRow,
   type MediaUploadRow,
   type NewMediaFileRow,
   type NewMediaModerationReviewRow,
   type NewMediaUploadRow,
   mediaFiles,
+  mediaModerationJobs,
   mediaModerationReviews,
   mediaUploads,
+  profileGalleryItems,
 } from "../db/schema";
+import {
+  MEDIA_MODERATION_ENGINE,
+  MEDIA_MODERATION_MODEL_VERSION,
+  MEDIA_MODERATION_POLICY_VERSION,
+  type MediaModerationState,
+} from "./media-moderation.constants";
 
 export async function createMediaFile(input: NewMediaFileRow): Promise<MediaFileRow> {
   const [created] = await db.insert(mediaFiles).values(input).returning();
@@ -26,6 +35,86 @@ export async function createMediaModerationReview(
   }
 
   return created;
+}
+
+export async function enqueueMediaModerationJob(
+  mediaId: string,
+): Promise<MediaModerationJobRow | undefined> {
+  const [created] = await db
+    .insert(mediaModerationJobs)
+    .values({
+      mediaId,
+      status: "queued",
+      providerEngine: MEDIA_MODERATION_ENGINE,
+      modelVersion: MEDIA_MODERATION_MODEL_VERSION,
+      policyVersion: MEDIA_MODERATION_POLICY_VERSION,
+    })
+    .onConflictDoNothing()
+    .returning();
+  return created;
+}
+
+export async function updateMediaModerationState(
+  mediaId: string,
+  state: MediaModerationState,
+  origin: string,
+): Promise<MediaFileRow | undefined> {
+  const [updated] = await db
+    .update(mediaFiles)
+    .set({
+      moderationState: state,
+      moderationOrigin: origin,
+      moderationUpdatedAt: new Date(),
+    })
+    .where(eq(mediaFiles.id, mediaId))
+    .returning();
+  return updated;
+}
+
+export type PublicMediaModerationCandidate = Pick<
+  MediaFileRow,
+  "id" | "ownerUserId" | "type" | "moderationState"
+>;
+
+export async function listPublicMediaModerationCandidates(
+  mediaIds: string[],
+): Promise<PublicMediaModerationCandidate[]> {
+  if (mediaIds.length === 0) {
+    return [];
+  }
+
+  const uniqueIds = [...new Set(mediaIds)];
+  const rows = await db
+    .select({
+      id: mediaFiles.id,
+      ownerUserId: mediaFiles.ownerUserId,
+      type: mediaFiles.type,
+      moderationState: mediaFiles.moderationState,
+      galleryVisibility: profileGalleryItems.visibility,
+    })
+    .from(mediaFiles)
+    .leftJoin(profileGalleryItems, eq(profileGalleryItems.mediaId, mediaFiles.id))
+    .where(and(
+      inArray(mediaFiles.id, uniqueIds),
+      or(
+        eq(mediaFiles.type, "avatar"),
+        and(eq(mediaFiles.type, "profile_photo"), eq(profileGalleryItems.visibility, "public")),
+      ),
+    ));
+
+  return rows.map(({ galleryVisibility: _galleryVisibility, ...media }) => media);
+}
+
+export async function findLatestMediaModerationJob(
+  mediaId: string,
+): Promise<MediaModerationJobRow | undefined> {
+  const [job] = await db
+    .select()
+    .from(mediaModerationJobs)
+    .where(eq(mediaModerationJobs.mediaId, mediaId))
+    .orderBy(desc(mediaModerationJobs.createdAt))
+    .limit(1);
+  return job;
 }
 
 export async function createMediaUpload(input: NewMediaUploadRow): Promise<MediaUploadRow> {

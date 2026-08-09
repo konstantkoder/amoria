@@ -705,7 +705,7 @@ test("GET /admin/media enforces media role policy", async (t) => {
   assert.equal(item.id, mediaId);
   assert.equal(item.previewUrl, `/media/public/${mediaId}`);
   assert.equal(item.publicUrl, `/media/public/${mediaId}`);
-  assert.equal(item.moderationStatus, "pending_review");
+  assert.equal(item.moderationStatus, "approved");
 });
 
 test("POST /admin/media/:mediaId/decision writes moderation review and audit log", async (t) => {
@@ -805,7 +805,7 @@ test("locked media access requires elevated role and reason", async (t) => {
   assert.equal(allowed.statusCode, 200);
   assert.equal(allowed.json().media.url, null);
   assert.equal(allowed.json().media.publicUrl, null);
-  assert.equal(allowed.json().media.path, "users/owner/profile/media.webp");
+  assert.equal(allowed.json().media.path, null);
   assert.equal(state.auditInputs[0]?.action, "admin.media.locked.view");
   assert.equal(state.auditInputs[0]?.reason, "Moderation review");
 });
@@ -830,7 +830,7 @@ test("locked media content is served only through audited admin content route", 
   assert.equal(response.headers["cache-control"], "private, no-store");
   assert.deepEqual(response.rawPayload, Buffer.from("media-bytes"));
   assert.deepEqual(state.contentReads, ["users/owner/profile/media.webp"]);
-  assert.equal(state.auditInputs[0]?.action, "admin.media.locked.view");
+  assert.equal(state.auditInputs[0]?.action, "admin.media.locked.content.read");
   assert.equal(state.auditInputs[0]?.reason, "Moderation review");
 });
 
@@ -994,22 +994,31 @@ function mockMedia(input: { visibility?: AdminMediaRow["visibility"] } = {}) {
     contentReads: [],
   };
 
+  let currentState = "approved";
   restoreMediaDeps = adminMediaService.__setAdminMediaServiceDepsForTests({
     repo: {
-      listMedia: async () => [mediaRow({ visibility: input.visibility ?? "public" })],
-      findMediaById: async () => mediaRow({ visibility: input.visibility ?? "public" }),
+      listMedia: async () => [mediaRow({ visibility: input.visibility ?? "public", moderationState: currentState })],
+      findMediaById: async () => mediaRow({ visibility: input.visibility ?? "public", moderationState: currentState }),
       listMediaReviews: async () => [mediaReviewRow({})],
-      createMediaModerationReview: async (reviewInput) => {
+      createEffectiveMediaDecision: async (reviewInput) => {
         state.decisions.push({
           action: reviewInput.action,
           metadata: reviewInput.metadata as Record<string, unknown> | null,
         });
+        currentState = reviewInput.action === "approve"
+          ? "approved"
+          : reviewInput.action === "restrict"
+            ? "restricted"
+            : reviewInput.action === "remove"
+              ? "removed"
+              : "needs_review";
         return mediaReviewRow({
           action: reviewInput.action,
           reason: reviewInput.reason ?? null,
           metadata: reviewInput.metadata ?? null,
         });
       },
+      hasRecentLockedMediaContentAccess: async () => true,
     },
     audit: {
       writeAuditLog: async (input) => {
@@ -1395,9 +1404,13 @@ function mediaRow(input: Partial<AdminMediaRow>): AdminMediaRow {
     width: 800,
     height: 800,
     checksumSha256: "checksum",
+    moderationState: "approved",
+    moderationOrigin: "legacy_pre_moderation",
+    automatedCheckedAt: null,
     visibility: "public",
     createdAt: new Date("2026-01-04T00:00:00.000Z"),
     latestReview: null,
+    latestJob: null,
     ...input,
   };
 }

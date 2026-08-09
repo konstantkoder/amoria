@@ -395,6 +395,10 @@ function mediaRow(overrides: Partial<MediaFileRow>): MediaFileRow {
     width: Number(overrides.width ?? 512),
     height: Number(overrides.height ?? 512),
     checksumSha256: overrides.checksumSha256 ?? null,
+    moderationState: String(overrides.moderationState ?? "approved"),
+    moderationOrigin: String(overrides.moderationOrigin ?? "legacy_pre_moderation"),
+    automatedCheckedAt: overrides.automatedCheckedAt ?? null,
+    moderationUpdatedAt: now,
     createdAt: now,
   };
 }

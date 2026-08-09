@@ -1,4 +1,4 @@
-import type { JsonValue, MediaModerationReviewRow } from "../db/schema";
+import type { JsonValue, MediaModerationJobRow, MediaModerationReviewRow } from "../db/schema";
 import { publicMediaUrlForMediaId } from "../media/media-url";
 
 export const MEDIA_MODERATION_ACTIONS = [
@@ -10,11 +10,12 @@ export const MEDIA_MODERATION_ACTIONS = [
 export type MediaModerationAction = (typeof MEDIA_MODERATION_ACTIONS)[number];
 
 export const MEDIA_MODERATION_STATUSES = [
-  "pending_review",
+  "pending",
   "approved",
-  "rejected",
   "restricted",
-  "needs_manual_review",
+  "needs_review",
+  "removed",
+  "automation_failed",
 ] as const;
 export type MediaModerationStatus = (typeof MEDIA_MODERATION_STATUSES)[number];
 
@@ -22,6 +23,8 @@ export type AdminMediaQuery = {
   ownerAmoriaId?: string;
   type?: string;
   moderationStatus?: MediaModerationStatus;
+  createdFrom?: Date;
+  createdTo?: Date;
   limit: number;
 };
 
@@ -44,18 +47,49 @@ export type AdminMediaRow = {
   width: number | null;
   height: number | null;
   checksumSha256: string | null;
+  moderationState: string;
+  moderationOrigin: string;
+  automatedCheckedAt: Date | null;
   visibility: "avatar" | "public" | "locked" | null;
   createdAt: Date;
   latestReview: MediaModerationReviewRow | null;
+  latestJob: MediaModerationJobRow | null;
 };
 
-export type AdminMediaItem = Omit<AdminMediaRow, "createdAt" | "latestReview" | "path" | "url"> & {
+export type AdminMediaItem = Omit<
+  AdminMediaRow,
+  | "automatedCheckedAt"
+  | "createdAt"
+  | "latestJob"
+  | "latestReview"
+  | "moderationOrigin"
+  | "moderationState"
+  | "path"
+  | "url"
+> & {
   url: string | null;
   previewUrl: string | null;
   publicUrl: string | null;
   moderationStatus: MediaModerationStatus;
   reviewedAt: string | null;
+  moderationOrigin: string;
+  automatedCheckedAt: string | null;
+  automation: AdminMediaAutomationItem | null;
   createdAt: string;
+};
+
+export type AdminMediaAutomationItem = {
+  jobId: string;
+  status: string;
+  attemptCount: number;
+  providerEngine: string;
+  modelVersion: string;
+  policyVersion: string;
+  policyDecision: string | null;
+  errorCode: string | null;
+  rawResult: JsonValue | null;
+  startedAt: string | null;
+  completedAt: string | null;
 };
 
 export type AdminMediaReviewItem = {
@@ -113,8 +147,23 @@ export function toAdminMediaItem(row: AdminMediaRow, includeSensitiveUrl: boolea
     height: row.height,
     checksumSha256: row.checksumSha256,
     visibility: row.visibility,
-    moderationStatus: moderationStatusForReview(row.latestReview),
+    moderationStatus: moderationStatusForReview(row.latestReview, row),
     reviewedAt: row.latestReview?.createdAt.toISOString() ?? null,
+    moderationOrigin: row.moderationOrigin,
+    automatedCheckedAt: row.automatedCheckedAt?.toISOString() ?? null,
+    automation: row.latestJob ? {
+      jobId: row.latestJob.id,
+      status: row.latestJob.status,
+      attemptCount: row.latestJob.attemptCount,
+      providerEngine: row.latestJob.providerEngine,
+      modelVersion: row.latestJob.modelVersion,
+      policyVersion: row.latestJob.policyVersion,
+      policyDecision: row.latestJob.policyDecision,
+      errorCode: row.latestJob.errorCode,
+      rawResult: row.latestJob.rawResult ?? null,
+      startedAt: row.latestJob.startedAt?.toISOString() ?? null,
+      completedAt: row.latestJob.completedAt?.toISOString() ?? null,
+    } : null,
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -134,27 +183,19 @@ export function toAdminMediaReviewItem(row: MediaModerationReviewRow): AdminMedi
 
 export function moderationStatusForReview(
   review: MediaModerationReviewRow | null,
+  row?: Pick<AdminMediaRow, "moderationState" | "moderationOrigin">,
 ): MediaModerationStatus {
-  if (!review) {
-    return "pending_review";
+  if (row?.moderationOrigin === "automation_failed") {
+    return "automation_failed";
   }
-
-  switch (review.action as MediaModerationAction) {
-    case "approve":
-      return "approved";
-    case "restrict":
-      return "restricted";
-    case "remove":
-      return "rejected";
-    case "mark_under_review":
-      return "needs_manual_review";
-    default:
-      return "pending_review";
+  if (row && MEDIA_MODERATION_STATUSES.includes(row.moderationState as MediaModerationStatus)) {
+    return row.moderationState as MediaModerationStatus;
   }
+  return review?.action === "approve" ? "approved" : "pending";
 }
 
 function publicUrlForAdminMedia(row: AdminMediaRow): string | null {
-  if (row.visibility === "avatar" || row.visibility === "public") {
+  if (row.moderationState === "approved" && (row.visibility === "avatar" || row.visibility === "public")) {
     return publicMediaUrlForMediaId(row.id);
   }
 

@@ -32,7 +32,7 @@ test.after(async () => {
   await closeDb();
 });
 
-test("avatar upload stores sanitized WebP in object storage and updates user avatarUrl", async (t) => {
+test("avatar upload stores a pending sanitized WebP and defers avatar replacement until approval", async (t) => {
   t.after(restoreMediaDeps);
   const inputBuffer = await imageBuffer("jpeg", 900, 700);
   const state = mockAvatarUpload({
@@ -65,16 +65,18 @@ test("avatar upload stores sanitized WebP in object storage and updates user ava
   assert.equal(state.mediaInput?.width, 512);
   assert.equal(state.mediaInput?.height, 512);
   assert.equal(state.mediaInput?.checksumSha256, sha256(state.putObject?.body ?? Buffer.alloc(0)));
+  assert.equal(state.mediaInput?.moderationState, "pending");
+  assert.equal(state.mediaInput?.moderationOrigin, "awaiting_automatic");
   assert.deepEqual(state.moderationMediaIds, [state.mediaInput?.id]);
-  assert.equal(state.updatedAvatarUrl, state.mediaInput?.url);
+  assert.equal(state.updatedAvatarUrl, undefined);
   assert.equal(response.avatarUrl, state.mediaInput?.url);
-  assert.equal(response.user.avatarUrl, state.mediaInput?.url);
+  assert.equal(response.user.avatarUrl, oldObjectAvatarUrl);
   assert.equal(response.avatarUrl.includes("localhost"), false);
   assert.equal(response.avatarUrl.includes("minio"), false);
   assert.equal(JSON.stringify(response).includes("objectKey"), false);
   assert.equal(JSON.stringify(response).includes('"path"'), false);
-  assert.deepEqual(state.deletedObjectKeys, [`users/${ownerId}/avatar/${oldObjectAvatarId}.webp`]);
-  assert.deepEqual(state.deletedMediaIds, [oldObjectAvatarId]);
+  assert.deepEqual(state.deletedObjectKeys, []);
+  assert.deepEqual(state.deletedMediaIds, []);
 });
 
 test("avatar upload keeps legacy local avatar URL intact during replacement", async (t) => {
@@ -300,6 +302,10 @@ function mediaRow(overrides: Partial<MediaFileRow | NewMediaFileRow>): MediaFile
     width: Number(overrides.width ?? 512),
     height: Number(overrides.height ?? 512),
     checksumSha256: overrides.checksumSha256 ?? null,
+    moderationState: String(overrides.moderationState ?? "approved"),
+    moderationOrigin: String(overrides.moderationOrigin ?? "legacy_pre_moderation"),
+    automatedCheckedAt: overrides.automatedCheckedAt ?? null,
+    moderationUpdatedAt: now,
     createdAt: now,
   };
 }

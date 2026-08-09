@@ -144,8 +144,10 @@ export async function uploadAvatar(
       width: processed.width,
       height: processed.height,
       checksumSha256: checksum,
+      moderationState: "pending",
+      moderationOrigin: "awaiting_automatic",
     });
-    await deps.queueInitialMediaModeration(createdMedia);
+    await deps.queueInitialMediaModeration(createdMedia, "avatar");
   } catch (error) {
     await deleteObjectIfPossible(objectKey);
     if (createdMedia) {
@@ -158,18 +160,9 @@ export async function uploadAvatar(
     throw new Error("Failed to create avatar media");
   }
 
-  const user = await deps.updateUserAvatar(userId, createdMedia.url);
-  if (!user) {
-    await deleteObjectIfPossible(objectKey);
-    await deps.deleteMediaFileByOwner(createdMedia.id, userId).catch(() => undefined);
-    throw unauthorized("User no longer exists");
-  }
-
-  await cleanupPreviousObjectAvatarIfSafe(userId, currentUser.avatarUrl, createdMedia.id);
-
   return {
     avatarUrl: createdMedia.url,
-    user: toSelfUserProfile(user),
+    user: toSelfUserProfile(currentUser),
   };
 }
 
@@ -180,6 +173,10 @@ export async function getPublicMedia(mediaId: string): Promise<PublicMediaRespon
   }
 
   if (media.type !== "avatar" && media.type !== "profile_avatar" && media.type !== "profile_photo") {
+    throw new AppError("not_found", "Media file not found", 404);
+  }
+
+  if (media.moderationState !== "approved") {
     throw new AppError("not_found", "Media file not found", 404);
   }
 
@@ -205,6 +202,9 @@ export async function getLockedGalleryMedia(
 ): Promise<PublicMediaResponse> {
   const media = await deps.findMediaFileById(String(mediaId ?? "").trim());
   if (!media || media.type !== "profile_photo") {
+    throw new AppError("not_found", "Media file not found", 404);
+  }
+  if (media.moderationState === "restricted" || media.moderationState === "removed") {
     throw new AppError("not_found", "Media file not found", 404);
   }
 

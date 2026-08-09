@@ -44,7 +44,7 @@
       set -e;
       mc alias set local http://minio:9000 minioadmin minioadmin;
       mc mb --ignore-existing local/amoria;
-      mc anonymous set download local/amoria;
+      mc anonymous set none local/amoria;
       "
 
   api:

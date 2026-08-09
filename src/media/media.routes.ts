@@ -2,7 +2,7 @@ import "@fastify/multipart";
 import type { MultipartFile } from "@fastify/multipart";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { MAX_AVATAR_INPUT_BYTES, MAX_MEDIA_UPLOAD_BYTES } from "../config/constants";
-import { AppError, unauthorized } from "../common/errors";
+import { AppError, unauthorized, validationError } from "../common/errors";
 import { withErrorResponses } from "../common/http";
 import { authMiddleware } from "../common/security/auth-middleware";
 import { isMultipartFileTooLarge } from "./file-guards";
@@ -26,6 +26,7 @@ function firstHeaderValue(value: string | string[] | undefined): string {
 type MultipartImageUpload = {
   file?: MultipartFile;
   crop?: unknown;
+  visibility?: "public" | "locked";
 };
 
 async function readMultipartImageUpload(
@@ -35,6 +36,7 @@ async function readMultipartImageUpload(
 ): Promise<MultipartImageUpload> {
   let file: MultipartFile | undefined;
   let crop: unknown;
+  let visibility: "public" | "locked" | undefined;
 
   for await (const part of request.parts({
     limits: {
@@ -58,9 +60,15 @@ async function readMultipartImageUpload(
     if (part.fieldname === "crop") {
       crop = part.value;
     }
+    if (part.fieldname === "visibility") {
+      if (part.value !== "public" && part.value !== "locked") {
+        throw validationError("Profile photo visibility is invalid", { visibility: "invalid" });
+      }
+      visibility = part.value;
+    }
   }
 
-  return { file, crop };
+  return { file, crop, visibility };
 }
 
 async function readMultipartFileBuffer(part: MultipartFile, maxFileSize: number): Promise<Buffer> {
@@ -84,7 +92,7 @@ export async function mediaRoutes(fastify: FastifyInstance): Promise<void> {
       const media = await mediaService.getPublicMedia(request.params.mediaId);
       return reply
         .header("content-type", media.contentType)
-        .header("cache-control", "public, max-age=31536000, immutable")
+        .header("cache-control", "public, max-age=0, must-revalidate")
         .send(media.body);
     },
   );
@@ -128,7 +136,12 @@ export async function mediaRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request) => {
       const upload = await readMultipartImageUpload(request, "file", MAX_MEDIA_UPLOAD_BYTES);
-      return uploadsService.uploadProfilePhoto(currentUserId(request), upload.file, upload.crop);
+      return uploadsService.uploadProfilePhoto(
+        currentUserId(request),
+        upload.file,
+        upload.crop,
+        upload.visibility ?? "public",
+      );
     },
   );
 }

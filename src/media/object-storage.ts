@@ -3,6 +3,7 @@ import {
   GetObjectCommand,
   HeadBucketCommand,
   HeadObjectCommand,
+  ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
@@ -224,6 +225,32 @@ export async function deleteObject(input: ObjectStorageInput): Promise<void> {
   } catch {
     throw new AppError("internal_error", "Object storage delete request failed", 500);
   }
+}
+
+export async function listObjectKeys(input: {
+  bucket: string;
+  maximumKeys?: number;
+}): Promise<{ keys: string[]; truncated: boolean }> {
+  const maximumKeys = input.maximumKeys ?? 10_000;
+  if (!Number.isInteger(maximumKeys) || maximumKeys < 1 || maximumKeys > 10_000) {
+    throw new AppError("internal_error", "Object listing limit is invalid", 500);
+  }
+  const keys: string[] = [];
+  let continuationToken: string | undefined;
+  let truncated = false;
+  do {
+    const result = await s3Client.send(new ListObjectsV2Command({
+      Bucket: input.bucket,
+      ContinuationToken: continuationToken,
+      MaxKeys: Math.min(1000, maximumKeys - keys.length),
+    }));
+    for (const object of result.Contents ?? []) {
+      if (object.Key) keys.push(object.Key);
+    }
+    continuationToken = result.NextContinuationToken;
+    truncated = Boolean(result.IsTruncated);
+  } while (truncated && continuationToken && keys.length < maximumKeys);
+  return { keys, truncated: truncated && keys.length >= maximumKeys };
 }
 
 function objectStorageHealthConfig(

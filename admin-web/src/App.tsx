@@ -1755,7 +1755,7 @@ function MediaScreen({
   openRequest: MediaOpenRequest | null;
 }) {
   const { language, t, tx } = useI18n();
-  const [filters, setFilters] = useState({ ownerAmoriaId: "", type: "", moderationStatus: "", limit: "50" });
+  const [filters, setFilters] = useState({ ownerAmoriaId: "", type: "", moderationStatus: "", createdFrom: "", createdTo: "", limit: "50" });
   const [items, setItems] = useState<MediaItem[]>([]);
   const [selected, setSelected] = useState<MediaDetail | null>(null);
   const [detailReason, setDetailReason] = useState("");
@@ -1766,7 +1766,7 @@ function MediaScreen({
   const [previewError, setPreviewError] = useState(false);
   const [previewProbe, setPreviewProbe] = useState<PublicMediaProbeResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const decisionRequiresReason = decisionAction === "restrict" || decisionAction === "remove" || selected?.visibility === "locked";
+  const decisionRequiresReason = true;
 
   useEffect(() => {
     if (!selected) {
@@ -1877,12 +1877,15 @@ function MediaScreen({
           <label>{t("common.type")}<input value={filters.type} onChange={(event) => setFilters({ ...filters, type: event.target.value })} /></label>
           <label>{t("media.moderationStatus")}<select value={filters.moderationStatus} onChange={(event) => setFilters({ ...filters, moderationStatus: event.target.value })}>
             <option value="">{t("status.any")}</option>
-            <option value="pending_review">{t("status.pendingReview")}</option>
-            <option value="needs_manual_review">{t("status.needsManualReview")}</option>
+            <option value="pending">Pending</option>
+            <option value="needs_review">Needs review</option>
             <option value="approved">{t("status.approved")}</option>
             <option value="restricted">{t("status.restricted")}</option>
-            <option value="rejected">{t("status.rejected")}</option>
+            <option value="removed">Removed</option>
+            <option value="automation_failed">Automation failed</option>
           </select></label>
+          <label>Created from<input type="datetime-local" value={filters.createdFrom} onChange={(event) => setFilters({ ...filters, createdFrom: event.target.value })} /></label>
+          <label>Created to<input type="datetime-local" value={filters.createdTo} onChange={(event) => setFilters({ ...filters, createdTo: event.target.value })} /></label>
           <label>{t("common.limit")}<input value={filters.limit} onChange={(event) => setFilters({ ...filters, limit: event.target.value })} inputMode="numeric" /></label>
           <label>{t("media.detailReason")}<input value={detailReason} onChange={(event) => setDetailReason(event.target.value)} /></label>
           <button>{t("common.load")}</button>
@@ -1976,6 +1979,11 @@ function MediaScreen({
               <Fact label={t("media.mediaId")} value={selected.id} />
               <Fact label={t("media.ownerUserId")} value={selected.ownerUserId} />
               <Fact label={t("common.status")} value={formatStatus(selected.moderationStatus, t)} />
+              <Fact label="Moderation origin" value={selected.moderationOrigin} />
+              <Fact label="Model" value={selected.automation?.providerEngine ?? ""} />
+              <Fact label="Model version" value={selected.automation?.modelVersion ?? ""} />
+              <Fact label="Policy" value={selected.automation?.policyVersion ?? ""} />
+              <Fact label="Automated decision" value={selected.automation?.policyDecision ?? ""} />
               <Fact label={t("media.mime")} value={selected.mimeType} />
               <Fact label={t("media.size")} value={String(selected.sizeBytes)} />
               <Fact label={t("media.publicUrl")} value={resolveApiUrl(selected.publicUrl) ?? ""} />

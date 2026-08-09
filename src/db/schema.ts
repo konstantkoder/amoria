@@ -80,8 +80,18 @@ export const mediaFiles = pgTable("media_files", {
   width: integer("width"),
   height: integer("height"),
   checksumSha256: text("checksum_sha256"),
+  moderationState: text("moderation_state").default("pending").notNull(),
+  moderationOrigin: text("moderation_origin").default("unclassified").notNull(),
+  automatedCheckedAt: timestamp("automated_checked_at", { withTimezone: true }),
+  moderationUpdatedAt: timestamp("moderation_updated_at", { withTimezone: true }).defaultNow().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-});
+}, (table) => [
+  index("media_files_moderation_state_created_at_idx").on(table.moderationState, table.createdAt),
+  check(
+    "media_files_moderation_state_check",
+    sql`${table.moderationState} IN ('pending', 'approved', 'needs_review', 'restricted', 'removed')`,
+  ),
+]);
 
 export const mediaUploads = pgTable("media_uploads", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -364,6 +374,38 @@ export const mediaModerationReviews = pgTable("media_moderation_reviews", {
   check(
     "media_moderation_reviews_action_check",
     sql`${table.action} IN ('approve', 'restrict', 'remove', 'mark_under_review')`,
+  ),
+]);
+
+export const mediaModerationJobs = pgTable("media_moderation_jobs", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  mediaId: uuid("media_id")
+    .notNull()
+    .references(() => mediaFiles.id, { onDelete: "cascade" }),
+  status: text("status").default("queued").notNull(),
+  attemptCount: integer("attempt_count").default(0).notNull(),
+  nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).defaultNow().notNull(),
+  startedAt: timestamp("started_at", { withTimezone: true }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  providerEngine: text("provider_engine").notNull(),
+  modelVersion: text("model_version").notNull(),
+  policyVersion: text("policy_version").notNull(),
+  errorCode: text("error_code"),
+  rawResult: jsonb("raw_result").$type<JsonValue | null>(),
+  policyDecision: text("policy_decision"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  index("media_moderation_jobs_claim_idx").on(table.status, table.nextAttemptAt, table.createdAt),
+  index("media_moderation_jobs_media_created_at_idx").on(table.mediaId, table.createdAt),
+  check(
+    "media_moderation_jobs_status_check",
+    sql`${table.status} IN ('queued', 'running', 'completed', 'failed', 'cancelled')`,
+  ),
+  check("media_moderation_jobs_attempt_count_check", sql`${table.attemptCount} >= 0`),
+  check(
+    "media_moderation_jobs_policy_decision_check",
+    sql`${table.policyDecision} IS NULL OR ${table.policyDecision} IN ('approve', 'needs_review', 'restrict')`,
   ),
 ]);
 
@@ -1066,6 +1108,7 @@ export const mediaFilesRelations = relations(mediaFiles, ({ one, many }) => ({
   }),
   photoAnnouncements: many(announcements),
   moderationReviews: many(mediaModerationReviews),
+  moderationJobs: many(mediaModerationJobs),
 }));
 
 export const mediaUploadsRelations = relations(mediaUploads, ({ one }) => ({
@@ -1309,6 +1352,13 @@ export const refreshTokensRelations = relations(refreshTokens, ({ one }) => ({
   }),
 }));
 
+export const mediaModerationJobsRelations = relations(mediaModerationJobs, ({ one }) => ({
+  media: one(mediaFiles, {
+    fields: [mediaModerationJobs.mediaId],
+    references: [mediaFiles.id],
+  }),
+}));
+
 export const authEmailChallengesRelations = relations(authEmailChallenges, ({ one }) => ({
   user: one(users, {
     fields: [authEmailChallenges.userId],
@@ -1352,6 +1402,8 @@ export type ReportReviewActionRow = typeof reportReviewActions.$inferSelect;
 export type NewReportReviewActionRow = typeof reportReviewActions.$inferInsert;
 export type MediaModerationReviewRow = typeof mediaModerationReviews.$inferSelect;
 export type NewMediaModerationReviewRow = typeof mediaModerationReviews.$inferInsert;
+export type MediaModerationJobRow = typeof mediaModerationJobs.$inferSelect;
+export type NewMediaModerationJobRow = typeof mediaModerationJobs.$inferInsert;
 export type NearbyStatusRow = typeof nearbyStatuses.$inferSelect;
 export type NewNearbyStatusRow = typeof nearbyStatuses.$inferInsert;
 export type NearbyProfileVisibilityRow = typeof nearbyProfileVisibility.$inferSelect;

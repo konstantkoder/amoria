@@ -374,6 +374,21 @@ export type MediaItem = {
   checksumSha256: string | null;
   visibility: "avatar" | "public" | "locked" | null;
   moderationStatus: string;
+  moderationOrigin: string;
+  automatedCheckedAt: string | null;
+  automation: {
+    jobId: string;
+    status: string;
+    attemptCount: number;
+    providerEngine: string;
+    modelVersion: string;
+    policyVersion: string;
+    policyDecision: string | null;
+    errorCode: string | null;
+    rawResult: unknown;
+    startedAt: string | null;
+    completedAt: string | null;
+  } | null;
   reviewedAt: string | null;
   createdAt: string;
 };

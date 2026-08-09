@@ -6,10 +6,18 @@ import {
   type ProfileGalleryItemRow,
   type ProfileLockedGallerySettingsRow,
   mediaFiles,
+  mediaModerationJobs,
   mediaModerationReviews,
   profileGalleryItems,
   profileLockedGallerySettings,
 } from "../db/schema";
+import {
+  MEDIA_MODERATION_ENGINE,
+  MEDIA_MODERATION_MODEL_VERSION,
+  MEDIA_MODERATION_POLICY_VERSION,
+} from "../media/media-moderation.constants";
+
+type DbTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 export type ProfileGalleryVisibility = "public" | "locked";
 
@@ -139,27 +147,43 @@ export async function upsertPublicGalleryItemForMedia(
   userId: string,
   mediaId: string,
 ): Promise<void> {
+  return upsertGalleryItemForMedia(userId, mediaId, "public");
+}
+
+export async function upsertGalleryItemForMedia(
+  userId: string,
+  mediaId: string,
+  visibility: ProfileGalleryVisibility,
+): Promise<void> {
   const position = await nextGalleryPosition(userId);
   const now = new Date();
 
-  await db
-    .insert(profileGalleryItems)
-    .values({
-      userId,
-      mediaId,
-      visibility: "public",
-      position,
-      createdAt: now,
-      updatedAt: now,
-    })
-    .onConflictDoUpdate({
-      target: [profileGalleryItems.userId, profileGalleryItems.mediaId],
-      set: {
-        visibility: "public",
+  await db.transaction(async (tx) => {
+    const [current] = await tx
+      .select({ visibility: profileGalleryItems.visibility })
+      .from(profileGalleryItems)
+      .where(and(eq(profileGalleryItems.userId, userId), eq(profileGalleryItems.mediaId, mediaId)))
+      .limit(1);
+    await tx
+      .insert(profileGalleryItems)
+      .values({
+        userId,
+        mediaId,
+        visibility,
         position,
+        createdAt: now,
         updatedAt: now,
-      },
-    });
+      })
+      .onConflictDoUpdate({
+        target: [profileGalleryItems.userId, profileGalleryItems.mediaId],
+        set: {
+          visibility,
+          position,
+          updatedAt: now,
+        },
+      });
+    await applyVisibilityTransition(tx, mediaId, current?.visibility ?? null, visibility, now);
+  });
 }
 
 export async function replacePublicGalleryItems(
@@ -170,12 +194,22 @@ export async function replacePublicGalleryItems(
   const now = new Date();
 
   await db.transaction(async (tx) => {
+    const currentRows = await tx
+      .select({ mediaId: profileGalleryItems.mediaId, visibility: profileGalleryItems.visibility })
+      .from(profileGalleryItems)
+      .where(eq(profileGalleryItems.userId, userId));
+    const currentVisibility = new Map(currentRows.map((row) => [row.mediaId, row.visibility]));
+    const removedPublicIds = currentRows
+      .filter((row) => row.visibility === "public" && !uniqueMediaIds.includes(row.mediaId))
+      .map((row) => row.mediaId);
+
     if (uniqueMediaIds.length === 0) {
       await tx
         .delete(profileGalleryItems)
         .where(
           and(eq(profileGalleryItems.userId, userId), eq(profileGalleryItems.visibility, "public")),
         );
+      await cancelAutomaticJobs(tx, removedPublicIds, now);
       return;
     }
 
@@ -187,7 +221,8 @@ export async function replacePublicGalleryItems(
           eq(profileGalleryItems.visibility, "public"),
           notInArray(profileGalleryItems.mediaId, uniqueMediaIds),
         ),
-      );
+        );
+    await cancelAutomaticJobs(tx, removedPublicIds, now);
 
     for (const [position, mediaId] of uniqueMediaIds.entries()) {
       await tx
@@ -208,6 +243,13 @@ export async function replacePublicGalleryItems(
             updatedAt: now,
           },
         });
+      await applyVisibilityTransition(
+        tx,
+        mediaId,
+        currentVisibility.get(mediaId) ?? null,
+        "public",
+        now,
+      );
     }
   });
 }
@@ -222,6 +264,11 @@ export async function updateGalleryItems(
 
   const now = new Date();
   await db.transaction(async (tx) => {
+    const currentRows = await tx
+      .select({ mediaId: profileGalleryItems.mediaId, visibility: profileGalleryItems.visibility })
+      .from(profileGalleryItems)
+      .where(eq(profileGalleryItems.userId, userId));
+    const currentVisibility = new Map(currentRows.map((row) => [row.mediaId, row.visibility]));
     for (const update of updates) {
       await tx
         .insert(profileGalleryItems)
@@ -241,8 +288,73 @@ export async function updateGalleryItems(
             updatedAt: now,
           },
         });
+      await applyVisibilityTransition(
+        tx,
+        update.mediaId,
+        currentVisibility.get(update.mediaId) ?? null,
+        update.visibility,
+        now,
+      );
     }
   });
+}
+
+async function applyVisibilityTransition(
+  tx: DbTransaction,
+  mediaId: string,
+  previousVisibility: string | null,
+  nextVisibility: ProfileGalleryVisibility,
+  now: Date,
+): Promise<void> {
+  if (previousVisibility === nextVisibility) {
+    return;
+  }
+
+  if (nextVisibility === "locked") {
+    await cancelAutomaticJobs(tx, [mediaId], now);
+    return;
+  }
+
+  await tx
+    .update(mediaFiles)
+    .set({
+      moderationState: "pending",
+      moderationOrigin: previousVisibility === "locked"
+        ? "locked_to_public_pending"
+        : "awaiting_automatic",
+      moderationUpdatedAt: now,
+    })
+    .where(and(eq(mediaFiles.id, mediaId), eq(mediaFiles.type, "profile_photo")));
+  await tx
+    .insert(mediaModerationJobs)
+    .values({
+      mediaId,
+      status: "queued",
+      providerEngine: MEDIA_MODERATION_ENGINE,
+      modelVersion: MEDIA_MODERATION_MODEL_VERSION,
+      policyVersion: MEDIA_MODERATION_POLICY_VERSION,
+      nextAttemptAt: now,
+      createdAt: now,
+      updatedAt: now,
+    })
+    .onConflictDoNothing();
+}
+
+async function cancelAutomaticJobs(
+  tx: DbTransaction,
+  mediaIds: string[],
+  now: Date,
+): Promise<void> {
+  if (mediaIds.length === 0) {
+    return;
+  }
+  await tx
+    .update(mediaModerationJobs)
+    .set({ status: "cancelled", completedAt: now, updatedAt: now })
+    .where(and(
+      inArray(mediaModerationJobs.mediaId, mediaIds),
+      inArray(mediaModerationJobs.status, ["queued", "running"]),
+    ));
 }
 
 export async function listOwnedProfilePhotoMedia(

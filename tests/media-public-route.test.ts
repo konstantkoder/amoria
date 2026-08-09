@@ -27,7 +27,7 @@ test.after(async () => {
   await closeDb();
 });
 
-test("GET /media/public/:mediaId streams pending_review avatar media by current media id", async (t) => {
+test("GET /media/public/:mediaId streams approved avatar media by current media id", async (t) => {
   t.after(restoreMediaDeps);
   const app = buildApp();
   t.after(async () => {
@@ -59,10 +59,29 @@ test("GET /media/public/:mediaId streams pending_review avatar media by current 
 
   assert.equal(response.statusCode, 200);
   assert.equal(response.headers["content-type"], "image/webp");
-  assert.equal(response.headers["cache-control"], "public, max-age=31536000, immutable");
+  assert.equal(response.headers["cache-control"], "public, max-age=0, must-revalidate");
   assert.equal(requestedKey, objectKey);
   assert.deepEqual(response.rawPayload, objectBody);
 });
+
+for (const moderationState of ["pending", "needs_review", "restricted", "removed"] as const) {
+  test(`GET /media/public/:mediaId denies ${moderationState} media before object read`, async (t) => {
+    t.after(restoreMediaDeps);
+    const app = buildApp();
+    t.after(async () => app.close());
+    let objectRead = false;
+    restoreDeps = mediaService.__setMediaServiceDepsForTests({
+      findMediaFileById: async () => mediaRow({ moderationState }),
+      getObjectBuffer: async () => {
+        objectRead = true;
+        return objectBody;
+      },
+    });
+    const response = await app.inject({ method: "GET", url: `/media/public/${mediaId}` });
+    assert.equal(response.statusCode, 404);
+    assert.equal(objectRead, false);
+  });
+}
 
 test("GET /media/public/:mediaId streams only public profile gallery media", async (t) => {
   t.after(restoreMediaDeps);
@@ -254,6 +273,10 @@ function mediaRow(overrides: Partial<MediaFileRow>): MediaFileRow {
     width: Number(overrides.width ?? 512),
     height: Number(overrides.height ?? 512),
     checksumSha256: overrides.checksumSha256 ?? null,
+    moderationState: String(overrides.moderationState ?? "approved"),
+    moderationOrigin: String(overrides.moderationOrigin ?? "legacy_pre_moderation"),
+    automatedCheckedAt: overrides.automatedCheckedAt ?? null,
+    moderationUpdatedAt: now,
     createdAt: now,
   };
 }

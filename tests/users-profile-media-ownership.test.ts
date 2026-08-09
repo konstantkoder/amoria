@@ -211,6 +211,10 @@ function mediaRow(overrides: Partial<MediaFileRow>): MediaFileRow {
     width: 512,
     height: 512,
     checksumSha256: null,
+    moderationState: "approved",
+    moderationOrigin: "legacy_pre_moderation",
+    automatedCheckedAt: null,
+    moderationUpdatedAt: now,
     createdAt: now,
     ...overrides,
   };
