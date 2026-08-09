@@ -6,7 +6,9 @@ from worker import (
     ModerationFailure,
     automatically_scannable,
     build_claimed_job,
+    decide_person_presence,
     decide_policy,
+    to_raw_result,
 )
 
 
@@ -27,8 +29,10 @@ def config() -> Config:
         inference_timeout_seconds=30,
         running_timeout_seconds=180,
         approve_max_nsfw=0.20,
-        restrict_min_nsfw=0.80,
+        restrict_min_nsfw=0.95,
         model_path=None,
+        person_yolox_model_path=None,
+        person_yunet_model_path=None,
     )
 
 
@@ -37,7 +41,25 @@ class WorkerPolicyTests(unittest.TestCase):
         cfg = config()
         self.assertEqual(decide_policy(0.20, cfg), "approve")
         self.assertEqual(decide_policy(0.50, cfg), "needs_review")
-        self.assertEqual(decide_policy(0.80, cfg), "restrict")
+        self.assertEqual(decide_policy(0.80, cfg), "needs_review")
+        self.assertEqual(decide_policy(0.95, cfg), "restrict")
+
+    def test_person_presence_combines_person_and_face_without_identity(self) -> None:
+        self.assertEqual(decide_person_presence(0.35, 0.0), "true")
+        self.assertEqual(decide_person_presence(0.0, 0.80), "true")
+        self.assertEqual(decide_person_presence(0.10, 0.0), "unknown")
+        self.assertEqual(decide_person_presence(0.0, 0.60), "unknown")
+        self.assertEqual(decide_person_presence(0.09, 0.59), "false")
+
+    def test_missing_person_detector_is_unknown_not_false(self) -> None:
+        result = to_raw_result({
+            "nsfwProbability": 0.01,
+            "sfwProbability": 0.99,
+            "inferenceMs": 5.0,
+            "personDetectorError": "person_model_not_configured",
+        }, config())
+        self.assertEqual(result["containsPerson"], "unknown")
+        self.assertEqual(result["personPresence"]["errorCode"], "person_model_not_configured")
 
     def test_only_avatar_or_currently_public_profile_photo_is_scannable(self) -> None:
         self.assertTrue(automatically_scannable({"type": "avatar", "moderation_state": "pending"}))

@@ -1984,6 +1984,7 @@ function MediaScreen({
               <Fact label="Model version" value={selected.automation?.modelVersion ?? ""} />
               <Fact label="Policy" value={selected.automation?.policyVersion ?? ""} />
               <Fact label="Automated decision" value={selected.automation?.policyDecision ?? ""} />
+              <Fact label="Person presence" value={personPresenceFromRawResult(selected.automation?.rawResult)} />
               <Fact label={t("media.mime")} value={selected.mimeType} />
               <Fact label={t("media.size")} value={String(selected.sizeBytes)} />
               <Fact label={t("media.publicUrl")} value={resolveApiUrl(selected.publicUrl) ?? ""} />
@@ -2005,6 +2006,14 @@ function MediaScreen({
       </div>
     </section>
   );
+}
+
+function personPresenceFromRawResult(value: unknown): string {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return "";
+  }
+  const signal = (value as Record<string, unknown>).containsPerson;
+  return signal === "true" || signal === "false" || signal === "unknown" ? signal : "";
 }
 
 function OpsHealthScreen() {

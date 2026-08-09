@@ -13,12 +13,18 @@ the result.
 - ONNX package: <https://github.com/gawryco/opennsfw-onnx/tree/v0.1.0>
 - Execution provider: ONNX Runtime 1.28.0, CPU only.
 - Model input: decoded image resized by the package to 224 by 224 pixels.
-- Output: SFW and NSFW probabilities. Person and violence signals are unsupported and stored as
-  `unknown`.
+- Output: SFW and NSFW probabilities.
 - Weight size: 23,590,724 bytes.
 - Weight SHA-256: `864bb37bf8863564b87eb330ab8c785a79a773f4e7c43cb96db52ed8611305fa`.
 - Model/runtime license: Yahoo model BSD-2-Clause; `opennsfw-onnx` wrapper Apache-2.0; ONNX Runtime
   MIT. Review upstream notices before redistribution.
+- Person presence: YOLOX-Nano's person class combined with YuNet face-presence confidence, both
+  executed locally through ONNX Runtime. The output is only `true`, `false`, or `unknown`; no boxes,
+  landmarks, face embeddings, identity matching, or identity attributes are stored. A missing or
+  failed detector returns `unknown` and never changes the NSFW policy decision. Violence remains
+  unsupported and is stored as `unknown`.
+- Person-model combined weight size: 3,891,996 bytes. Checksums and upstream licenses are recorded
+  in `moderation-worker/MODEL_LICENSES.md` and enforced by the installer and worker.
 
 The weights are not committed. On Windows, run:
 
@@ -26,9 +32,11 @@ The weights are not committed. On Windows, run:
 npm run moderation:install
 ```
 
-This creates a pinned virtual environment outside media storage (default
-`F:\Dev\Amoria-Models\opennsfw-onnx-0.1.0`) and verifies the model checksum. Set
-`MODERATION_PYTHON` and optionally `OPENNSFW_ONNX_MODEL_PATH` for another controlled installation.
+This creates a pinned virtual environment and person-model cache outside media storage (defaults
+`F:\Dev\Amoria-Models\opennsfw-onnx-0.1.0` and
+`F:\Dev\Amoria-Models\person-presence-v1`) and verifies every model checksum. Set
+`MODERATION_PYTHON`, `OPENNSFW_ONNX_MODEL_PATH`, `PERSON_YOLOX_ONNX_MODEL_PATH`, and
+`PERSON_YUNET_ONNX_MODEL_PATH` for another controlled installation.
 
 ## Operations and failure behavior
 

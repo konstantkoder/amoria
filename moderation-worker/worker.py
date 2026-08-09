@@ -26,6 +26,8 @@ from typing import Any
 import boto3
 from botocore.config import Config as BotoConfig
 from botocore.exceptions import ClientError
+import numpy as np
+import onnxruntime as ort
 from PIL import Image, UnidentifiedImageError
 import psycopg
 from psycopg.rows import dict_row
@@ -33,8 +35,16 @@ from psycopg.types.json import Jsonb
 
 ENGINE = "opennsfw_onnx_cpu"
 MODEL_VERSION = "yahoo_open_nsfw_resnet50_1by2/opennsfw-onnx@0.1.0"
-POLICY_VERSION = "amoria_public_photo_v1"
+POLICY_VERSION = "amoria_public_photo_v2"
 MODEL_SHA256 = "864bb37bf8863564b87eb330ab8c785a79a773f4e7c43cb96db52ed8611305fa"
+PERSON_DETECTOR_ENGINE = "yolox_nano_yunet_onnx_cpu"
+PERSON_DETECTOR_VERSION = "yolox-nano@0.1.1rc0+yunet@2023mar"
+PERSON_YOLOX_SHA256 = "c789161ed43c8269fcd4e67c67eeeb4e80c622da2eb296a20bc6007bd18a0b7d"
+PERSON_YUNET_SHA256 = "8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4"
+PERSON_TRUE_THRESHOLD = 0.35
+PERSON_UNKNOWN_THRESHOLD = 0.10
+FACE_TRUE_THRESHOLD = 0.80
+FACE_UNKNOWN_THRESHOLD = 0.60
 
 
 @dataclass(frozen=True)
@@ -56,6 +66,8 @@ class Config:
     approve_max_nsfw: float
     restrict_min_nsfw: float
     model_path: str | None
+    person_yolox_model_path: str | None
+    person_yunet_model_path: str | None
 
 
 class ModerationFailure(Exception):
@@ -81,8 +93,10 @@ def load_config() -> Config:
         inference_timeout_seconds=integer_env("MODERATION_INFERENCE_TIMEOUT_SECONDS", 30, 1, 300),
         running_timeout_seconds=integer_env("MODERATION_RUNNING_TIMEOUT_SECONDS", 180, 60, 3600),
         approve_max_nsfw=float_env("MODERATION_APPROVE_MAX_NSFW", 0.20, 0.0, 1.0),
-        restrict_min_nsfw=float_env("MODERATION_RESTRICT_MIN_NSFW", 0.80, 0.0, 1.0),
+        restrict_min_nsfw=float_env("MODERATION_RESTRICT_MIN_NSFW", 0.95, 0.0, 1.0),
         model_path=os.getenv("OPENNSFW_ONNX_MODEL_PATH") or None,
+        person_yolox_model_path=os.getenv("PERSON_YOLOX_ONNX_MODEL_PATH") or None,
+        person_yunet_model_path=os.getenv("PERSON_YUNET_ONNX_MODEL_PATH") or None,
     )
     if cfg.approve_max_nsfw >= cfg.restrict_min_nsfw:
         raise RuntimeError("MODERATION_APPROVE_MAX_NSFW must be less than MODERATION_RESTRICT_MIN_NSFW")
@@ -115,7 +129,110 @@ def safe_log(event: str, **fields: Any) -> None:
     print(json.dumps(record, separators=(",", ":"), sort_keys=True), flush=True)
 
 
-def inference_process(connection: Any, model_path: str | None) -> None:
+class PersonPresenceDetector:
+    """Local presence-only inference; no boxes, landmarks, or embeddings are retained."""
+
+    def __init__(self, yolox_model_path: str, yunet_model_path: str) -> None:
+        yolox_path = pathlib.Path(yolox_model_path)
+        yunet_path = pathlib.Path(yunet_model_path)
+        verify_model(yolox_path, PERSON_YOLOX_SHA256)
+        verify_model(yunet_path, PERSON_YUNET_SHA256)
+
+        options = ort.SessionOptions()
+        options.intra_op_num_threads = max(1, min(4, os.cpu_count() or 1))
+        self.yolox = ort.InferenceSession(
+            str(yolox_path),
+            sess_options=options,
+            providers=["CPUExecutionProvider"],
+        )
+        self.yunet = ort.InferenceSession(
+            str(yunet_path),
+            sess_options=options,
+            providers=["CPUExecutionProvider"],
+        )
+        self.model_size_bytes = yolox_path.stat().st_size + yunet_path.stat().st_size
+
+    def classify(self, image_bytes: bytes) -> dict[str, Any]:
+        started = time.perf_counter()
+        with Image.open(io.BytesIO(image_bytes)) as source:
+            image = source.convert("RGB")
+            yolox_input = prepare_yolox_input(image)
+            yunet_input = prepare_yunet_input(image)
+
+        yolox_output = self.yolox.run(
+            None,
+            {self.yolox.get_inputs()[0].name: yolox_input},
+        )[0]
+        person_confidence = float(np.max(yolox_output[0, :, 4] * yolox_output[0, :, 5]))
+        yunet_outputs = self.yunet.run(
+            None,
+            {self.yunet.get_inputs()[0].name: yunet_input},
+        )
+        face_confidence = maximum_yunet_score(yunet_outputs)
+        return {
+            "containsPerson": decide_person_presence(person_confidence, face_confidence),
+            "personConfidence": person_confidence,
+            "facePresenceConfidence": face_confidence,
+            "personInferenceMs": round((time.perf_counter() - started) * 1000, 3),
+        }
+
+
+def verify_model(model_path: pathlib.Path, expected_checksum: str) -> None:
+    if not model_path.is_file():
+        raise RuntimeError("person_model_missing")
+    actual_checksum = hashlib.sha256(model_path.read_bytes()).hexdigest()
+    if actual_checksum != expected_checksum:
+        raise RuntimeError("person_model_checksum_mismatch")
+
+
+def prepare_yolox_input(image: Image.Image) -> np.ndarray:
+    ratio = min(416 / image.height, 416 / image.width)
+    resized = image.resize(
+        (max(1, int(image.width * ratio)), max(1, int(image.height * ratio))),
+        Image.Resampling.BILINEAR,
+    )
+    pixels = np.asarray(resized)
+    padded = np.full((416, 416, 3), 114, dtype=np.uint8)
+    padded[:pixels.shape[0], :pixels.shape[1]] = pixels
+    return np.ascontiguousarray(padded.transpose(2, 0, 1)[None, ...], dtype=np.float32)
+
+
+def prepare_yunet_input(image: Image.Image) -> np.ndarray:
+    ratio = min(640 / image.height, 640 / image.width)
+    resized = image.resize(
+        (max(1, int(image.width * ratio)), max(1, int(image.height * ratio))),
+        Image.Resampling.BILINEAR,
+    )
+    pixels = np.asarray(resized)
+    padded = np.zeros((640, 640, 3), dtype=np.uint8)
+    padded[:pixels.shape[0], :pixels.shape[1]] = pixels
+    bgr = padded[..., ::-1]
+    return np.ascontiguousarray(bgr.transpose(2, 0, 1)[None, ...], dtype=np.float32)
+
+
+def maximum_yunet_score(outputs: list[np.ndarray]) -> float:
+    maximum = 0.0
+    for index in range(3):
+        class_scores = np.clip(outputs[index], 0.0, 1.0)
+        object_scores = np.clip(outputs[index + 3], 0.0, 1.0)
+        maximum = max(maximum, float(np.max(np.sqrt(class_scores * object_scores))))
+    return maximum
+
+
+def decide_person_presence(person_confidence: float, face_confidence: float) -> str:
+    if person_confidence >= PERSON_TRUE_THRESHOLD or face_confidence >= FACE_TRUE_THRESHOLD:
+        return "true"
+    if person_confidence < PERSON_UNKNOWN_THRESHOLD and face_confidence < FACE_UNKNOWN_THRESHOLD:
+        return "false"
+    return "unknown"
+
+
+def inference_process(
+    connection: Any,
+    model_path: str | None,
+    person_yolox_model_path: str | None,
+    person_yunet_model_path: str | None,
+) -> None:
     from opennsfw_onnx import NSFWClassifier
     import opennsfw_onnx
 
@@ -134,11 +251,40 @@ def inference_process(connection: Any, model_path: str | None) -> None:
         intra_op_num_threads=max(1, min(4, os.cpu_count() or 1)),
     )
     classifier.warmup()
+    opennsfw_load_ms = round((time.perf_counter() - started) * 1000, 3)
+    person_detector = None
+    person_detector_error = None
+    person_detector_load_ms = None
+    person_model_size_bytes = None
+    person_started = time.perf_counter()
+    try:
+        if not person_yolox_model_path or not person_yunet_model_path:
+            raise RuntimeError("person_model_not_configured")
+        person_detector = PersonPresenceDetector(
+            person_yolox_model_path,
+            person_yunet_model_path,
+        )
+        person_detector_load_ms = round((time.perf_counter() - person_started) * 1000, 3)
+        person_model_size_bytes = person_detector.model_size_bytes
+    except Exception as error:
+        known_errors = {
+            "person_model_missing",
+            "person_model_checksum_mismatch",
+            "person_model_not_configured",
+        }
+        person_detector_error = str(error) if str(error) in known_errors else "person_detector_load_failed"
     connection.send({
         "ready": True,
         "loadMs": round((time.perf_counter() - started) * 1000, 3),
+        "openNsfwLoadMs": opennsfw_load_ms,
         "modelSizeBytes": resolved.stat().st_size,
         "modelSha256": actual_checksum,
+        "personDetectorReady": person_detector is not None,
+        "personDetectorEngine": PERSON_DETECTOR_ENGINE,
+        "personDetectorVersion": PERSON_DETECTOR_VERSION,
+        "personDetectorLoadMs": person_detector_load_ms,
+        "personModelSizeBytes": person_model_size_bytes,
+        "personDetectorError": person_detector_error,
     })
 
     while True:
@@ -148,11 +294,28 @@ def inference_process(connection: Any, model_path: str | None) -> None:
         started = time.perf_counter()
         try:
             prediction = classifier.classify(payload)
+            nsfw_inference_ms = round((time.perf_counter() - started) * 1000, 3)
+            person_result = {
+                "containsPerson": "unknown",
+                "personConfidence": None,
+                "facePresenceConfidence": None,
+                "personInferenceMs": None,
+                "personDetectorError": person_detector_error,
+            }
+            if person_detector is not None:
+                try:
+                    person_result = {
+                        **person_detector.classify(payload),
+                        "personDetectorError": None,
+                    }
+                except Exception:
+                    person_result["personDetectorError"] = "person_detector_inference_failed"
             connection.send({
                 "ok": True,
                 "nsfwProbability": float(prediction.nsfw),
                 "sfwProbability": float(prediction.sfw),
-                "inferenceMs": round((time.perf_counter() - started) * 1000, 3),
+                "inferenceMs": nsfw_inference_ms,
+                **person_result,
             })
         except Exception:
             connection.send({"ok": False, "error": "classifier_failed"})
@@ -171,7 +334,12 @@ class InferenceSupervisor:
         self.connection = parent
         self.process = self.context.Process(
             target=inference_process,
-            args=(child, self.cfg.model_path),
+            args=(
+                child,
+                self.cfg.model_path,
+                self.cfg.person_yolox_model_path,
+                self.cfg.person_yunet_model_path,
+            ),
             name=f"amoria-moderation-inference-{self.worker_index}",
         )
         self.process.start()
@@ -447,6 +615,8 @@ class JobRunner:
                 decision=decision,
                 durationMs=round((time.perf_counter() - started) * 1000, 3),
                 inferenceMs=result["inferenceMs"],
+                personInferenceMs=result.get("personInferenceMs"),
+                containsPerson=result.get("containsPerson", "unknown"),
                 modelVersion=MODEL_VERSION,
             )
         except ModerationFailure as error:
@@ -630,7 +800,15 @@ def to_raw_result(result: dict[str, Any], cfg: Config) -> dict[str, Any]:
         "unsafe" if nsfw_probability >= cfg.restrict_min_nsfw else "unknown"
     )
     return {
-        "containsPerson": "unknown",
+        "containsPerson": result.get("containsPerson", "unknown"),
+        "personPresence": {
+            "detectorEngine": PERSON_DETECTOR_ENGINE,
+            "detectorVersion": PERSON_DETECTOR_VERSION,
+            "personConfidence": result.get("personConfidence"),
+            "facePresenceConfidence": result.get("facePresenceConfidence"),
+            "inferenceMs": result.get("personInferenceMs"),
+            "errorCode": result.get("personDetectorError"),
+        },
         "nsfw": signal,
         "violence": "unknown",
         "confidence": {

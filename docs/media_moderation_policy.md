@@ -12,6 +12,8 @@ This is a release engineering policy, not final legal policy.
   owner/moderator through the reason-gated, audited admin access path. Automatic jobs must never
   read locked-gallery bytes.
 - Avatars and public profile photos are screened by the self-hosted OpenNSFW ONNX CPU worker.
+- A local YOLOX-Nano person-class plus YuNet face-presence detector records only a tri-state
+  `containsPerson` signal. It performs no identity matching and creates no face embeddings.
 
 ## Disallow
 
@@ -25,11 +27,13 @@ This is a release engineering policy, not final legal policy.
 ## Automated policy
 
 The raw NSFW probability and the release policy are separate. Policy
-`amoria_public_photo_v1` approves at or below `0.20`, restricts at or above `0.80`, and sends the
-middle range to human review. Thresholds are configurable, with startup validation that the
-approve boundary is below the restrict boundary.
+`amoria_public_photo_v2` approves at or below `0.20`, restricts at or above `0.95`, and sends the
+middle range to human review. The higher restriction boundary keeps high-scoring but ambiguous
+ordinary photos unavailable for review without automatically labeling them restricted. Thresholds
+are configurable, with startup validation that the approve boundary is below the restrict boundary.
 
-This first model only supports pornographic-content classification. Person detection and violence
-are recorded as `unknown`; the system does not fabricate unsupported results. Automated decisions
-never physically delete content.
+OpenNSFW only supports pornographic-content classification and does not imply person absence. The
+separate presence detector returns `true`, `false`, or `unknown`; detector failure is always
+`unknown`. Person absence does not change the NSFW policy decision in this release. Violence remains
+`unknown`. Automated decisions never physically delete content.
 
