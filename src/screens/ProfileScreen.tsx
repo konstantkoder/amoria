@@ -45,7 +45,6 @@ import {
   getUserProfile,
   normalizeDisplayNameInput,
   refreshUserProfile,
-  updateUserAvatarUrl,
   updateUserDisplayName,
 } from "@/services/user";
 import {
@@ -76,39 +75,6 @@ function nextProfileAvatarCacheVersion() {
 
 function getProfileAvatarCacheKey(profile: UserProfile | null, cacheVersion: number) {
   return `${profile?.updatedAt ?? 0}:${cacheVersion}`;
-}
-
-function samePublicAvatarReference(left: unknown, right: unknown) {
-  const leftInfo = getPublicMediaUrlInfo(left, "avatar URL");
-  const rightInfo = getPublicMediaUrlInfo(right, "avatar URL");
-  if (leftInfo.mediaId && rightInfo.mediaId) {
-    return leftInfo.mediaId === rightInfo.mediaId;
-  }
-
-  return Boolean(leftInfo.url && rightInfo.url && leftInfo.url === rightInfo.url);
-}
-
-function withVisibleAvatarUrl(
-  profile: UserProfile | null,
-  avatarUrl: string
-): UserProfile | null {
-  const stableAvatarUrl = String(avatarUrl ?? "").trim();
-  if (!profile || !stableAvatarUrl) return profile;
-  return {
-    ...profile,
-    avatarUrl: stableAvatarUrl,
-  };
-}
-
-function reconcileRefreshedAvatarProfile(
-  refreshedProfile: UserProfile,
-  uploadedAvatarUrl: string
-) {
-  if (samePublicAvatarReference(refreshedProfile.avatarUrl, uploadedAvatarUrl)) {
-    return refreshedProfile;
-  }
-
-  return withVisibleAvatarUrl(refreshedProfile, uploadedAvatarUrl) ?? refreshedProfile;
 }
 
 function isValidCrop(crop: NormalizedMediaCrop) {
@@ -528,9 +494,8 @@ export default function ProfileScreen() {
         }
       }
 
-      let avatarDownloadUrl = "";
       try {
-        avatarDownloadUrl = await uploadUserAvatar(currentProfile.id, pendingAvatar.uri, {
+        await uploadUserAvatar(currentProfile.id, pendingAvatar.uri, {
           ...(pendingAvatar.mimeType ? { mimeType: pendingAvatar.mimeType } : {}),
           crop: pendingAvatar.crop,
         });
@@ -550,15 +515,10 @@ export default function ProfileScreen() {
 
       const nextCacheVersion = nextProfileAvatarCacheVersion();
       setAvatarCacheKey(nextCacheVersion);
-      setProfile((current) => withVisibleAvatarUrl(current ?? currentProfile, avatarDownloadUrl));
       setPendingAvatar(null);
-
-      const nextProfile = await updateUserAvatarUrl(avatarDownloadUrl);
-      const confirmedAvatarUrl = nextProfile.avatarUrl || avatarDownloadUrl;
-      setProfile(withVisibleAvatarUrl(nextProfile, confirmedAvatarUrl));
-      const refreshedProfile = await refreshUserProfile().catch(() => nextProfile);
-      setProfile(reconcileRefreshedAvatarProfile(refreshedProfile, confirmedAvatarUrl));
-      Alert.alert(t("common.done"), t("photos.photoUpdated"));
+      const refreshedProfile = await refreshUserProfile().catch(() => currentProfile);
+      setProfile(refreshedProfile);
+      Alert.alert(t("common.done"), t("photos.avatarSubmittedForReview"));
     } catch (error) {
       const safeError = sanitizeErrorForReport(error);
       void reportClientError({

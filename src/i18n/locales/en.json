@@ -819,6 +819,7 @@
   "photos.avatarPreviewReady": "Preview - not saved yet",
   "photos.replacePhoto": "Replace photo",
   "photos.photoUpdated": "Photo updated.",
+  "photos.avatarSubmittedForReview": "Photo uploaded. Your current profile photo will stay visible until the new one passes moderation.",
   "photos.add": "Add photo",
   "photos.remove": "Remove",
   "photos.avatarUpload": "Upload photo",

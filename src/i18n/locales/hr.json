@@ -411,6 +411,7 @@
   "photos.avatarPreviewReady": "Pregled - još nije spremljeno",
   "photos.replacePhoto": "Zamijeni fotografiju",
   "photos.photoUpdated": "Fotografija je ažurirana.",
+  "photos.avatarSubmittedForReview": "Fotografija je prenesena. Trenutačna profilna fotografija ostat će vidljiva dok nova ne prođe moderaciju.",
   "photos.avatarUploadErrorBody": "Profilna fotografija nije promijenjena. Provjerite vezu i pokušajte ponovno.",
   "photos.avatarCurrent": "Profilna fotografija",
   "photos.avatarPlaceholder": "Još nema profilne fotografije",

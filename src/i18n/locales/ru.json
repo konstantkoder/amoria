@@ -819,6 +819,7 @@
   "photos.avatarPreviewReady": "Предпросмотр — ещё не сохранено",
   "photos.replacePhoto": "Заменить фото",
   "photos.photoUpdated": "Фото обновлено.",
+  "photos.avatarSubmittedForReview": "Фото загружено. Текущее фото профиля останется видимым, пока новое не пройдёт модерацию.",
   "photos.add": "Добавить фото",
   "photos.remove": "Удалить",
   "photos.avatarUpload": "Загрузить фото",
