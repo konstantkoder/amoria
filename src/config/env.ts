@@ -142,6 +142,18 @@ const allowLocalPublicUrls = parseBooleanFlag(
 );
 const authSecurityHmacSecret = process.env.AUTH_SECURITY_HMAC_SECRET?.trim()
   || (nodeEnv === "production" ? "" : "development-only-auth-security-hmac-secret");
+const messageAbuseHmacSecret = process.env.MESSAGE_ABUSE_HMAC_SECRET?.trim()
+  || (nodeEnv === "production" ? "" : authSecurityHmacSecret);
+const messageAbuseRetentionHours = parsePositiveInteger(
+  "MESSAGE_ABUSE_RETENTION_HOURS",
+  optional("MESSAGE_ABUSE_RETENTION_HOURS", "48"),
+);
+const textModerationEnabled = parseBooleanFlag(
+  "TEXT_MODERATION_ENABLED",
+  optional("TEXT_MODERATION_ENABLED", nodeEnv === "production" ? "true" : "false"),
+);
+const textModerationPython = process.env.TEXT_MODERATION_PYTHON?.trim() || undefined;
+const textModerationModelDir = process.env.TEXT_MODERATION_MODEL_DIR?.trim() || undefined;
 const smtpHost = process.env.SMTP_HOST?.trim()
   || (nodeEnv === "production" ? "" : "localhost");
 const mailFrom = process.env.MAIL_FROM?.trim()
@@ -161,6 +173,24 @@ if (nodeEnv === "production" && jwtSecret.startsWith("change-me")) {
 
 if (authSecurityHmacSecret.length < 32) {
   throw new Error("AUTH_SECURITY_HMAC_SECRET must be at least 32 characters long");
+}
+
+if (messageAbuseHmacSecret.length < 32) {
+  throw new Error("MESSAGE_ABUSE_HMAC_SECRET must be at least 32 characters long");
+}
+
+if (messageAbuseRetentionHours > 168) {
+  throw new Error("MESSAGE_ABUSE_RETENTION_HOURS must not exceed 168");
+}
+
+if (nodeEnv === "production" && !textModerationEnabled) {
+  throw new Error("TEXT_MODERATION_ENABLED must be true in production");
+}
+
+if (textModerationEnabled && (!textModerationPython || !textModerationModelDir)) {
+  throw new Error(
+    "TEXT_MODERATION_PYTHON and TEXT_MODERATION_MODEL_DIR are required when text moderation is enabled",
+  );
 }
 
 if (!smtpHost) {
@@ -186,6 +216,16 @@ export const env = {
   DATABASE_URL: required("DATABASE_URL"),
   JWT_SECRET: jwtSecret,
   AUTH_SECURITY_HMAC_SECRET: authSecurityHmacSecret,
+  MESSAGE_ABUSE_HMAC_SECRET: messageAbuseHmacSecret,
+  MESSAGE_ABUSE_RETENTION_HOURS: messageAbuseRetentionHours,
+  TEXT_MODERATION_ENABLED: textModerationEnabled,
+  TEXT_MODERATION_PYTHON: textModerationPython,
+  TEXT_MODERATION_MODEL_DIR: textModerationModelDir,
+  TEXT_MODERATION_TIMEOUT_MS: parsePositiveInteger(
+    "TEXT_MODERATION_TIMEOUT_MS",
+    optional("TEXT_MODERATION_TIMEOUT_MS", "5000"),
+    100,
+  ),
   PUBLIC_API_URL: publicApiUrl,
   PUBLIC_MEDIA_URL: publicMediaUrl,
   ALLOW_LOCAL_PUBLIC_URLS: allowLocalPublicUrls,

@@ -118,8 +118,12 @@ export async function nearbyRoutes(fastify: FastifyInstance): Promise<void> {
         parseSendNearbyRoomMessageBody(request.body),
       );
 
-      if (result.created) {
-        wsHub.broadcastThreadMessage(result.threadId, result.response.message);
+      if (result.created && result.deliveryAllowed) {
+        wsHub.broadcastThreadMessage(
+          result.threadId,
+          result.response.message,
+          result.recipientUserIds,
+        );
       }
 
       return result.response;

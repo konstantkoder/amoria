@@ -9,6 +9,7 @@ import {
   isAgeInsidePreferredRange,
 } from "../users/age";
 import * as nearbyRepo from "./nearby.repo";
+import { assertSafeText } from "../moderation/text-validation";
 import type {
   CreateNearbyStatusBody,
   CreateNearbyStatusResponse,
@@ -79,6 +80,7 @@ export async function createStatus(
   authorUserId: string,
   input: CreateNearbyStatusBody,
 ): Promise<CreateNearbyStatusResponse> {
+  assertSafeText(input.text, { field: "text", maxUrls: 1 });
   const radiusMeters = clamp(
     input.visibilityRadiusMeters,
     NEARBY_STATUS_MIN_RADIUS_METERS,
@@ -160,6 +162,7 @@ export async function updateNearbyVisibility(
   userId: string,
   input: UpdateNearbyVisibilityBody,
 ): Promise<NearbyMeResponse> {
+  if (input.nearbyStatus) assertSafeText(input.nearbyStatus, { field: "nearbyStatus", maxUrls: 1 });
   const now = deps.now();
   const row = await deps.repo.upsertNearbyProfileVisibility(
     input.enabled
@@ -196,6 +199,7 @@ export async function patchNearbyProfileStatus(
   userId: string,
   input: PatchNearbyProfileStatusBody,
 ): Promise<NearbyMeResponse> {
+  if (input.nearbyStatus) assertSafeText(input.nearbyStatus, { field: "nearbyStatus", maxUrls: 1 });
   const now = deps.now();
   const current = await deps.repo.findNearbyProfileVisibility(userId);
   const currentStatus = effectiveVisibilityStatus(current);

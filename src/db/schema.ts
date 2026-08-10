@@ -1015,6 +1015,102 @@ export const authEmailChallenges = pgTable(
   ],
 );
 
+export const messageModerationStates = pgTable(
+  "message_moderation_states",
+  {
+    messageId: uuid("message_id")
+      .primaryKey()
+      .references(() => messages.id, { onDelete: "cascade" }),
+    state: text("state").default("visible").notNull(),
+    source: text("source").notNull(),
+    automationStatus: text("automation_status").default("not_required").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("message_moderation_states_state_updated_at_idx").on(table.state, table.updatedAt),
+    check(
+      "message_moderation_states_state_check",
+      sql`${table.state} IN ('visible', 'held', 'needs_review', 'restricted', 'removed')`,
+    ),
+    check(
+      "message_moderation_states_source_check",
+      sql`${table.source} IN ('direct', 'nearby')`,
+    ),
+    check(
+      "message_moderation_states_automation_status_check",
+      sql`${table.automationStatus} IN ('completed', 'failed', 'not_configured', 'not_required')`,
+    ),
+  ],
+);
+
+export const messageModerationReviews = pgTable(
+  "message_moderation_reviews",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    messageId: uuid("message_id")
+      .notNull()
+      .references(() => messages.id, { onDelete: "cascade" }),
+    source: text("source").notNull(),
+    action: text("action").notNull(),
+    reason: text("reason"),
+    metadata: jsonb("metadata").$type<JsonValue | null>(),
+    adminUserId: uuid("admin_user_id").references(() => adminUsers.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("message_moderation_reviews_message_created_at_idx").on(
+      table.messageId,
+      table.createdAt,
+    ),
+    index("message_moderation_reviews_source_created_at_idx").on(table.source, table.createdAt),
+    check(
+      "message_moderation_reviews_source_check",
+      sql`${table.source} IN ('legacy', 'automated_spam', 'automated_local_model', 'user_report', 'manual_admin')`,
+    ),
+    check(
+      "message_moderation_reviews_action_check",
+      sql`${table.action} IN ('allow', 'flag', 'hold', 'approve', 'restrict', 'remove', 'restore', 'escalate')`,
+    ),
+  ],
+);
+
+export const messageAbuseEvents = pgTable(
+  "message_abuse_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    senderUserId: uuid("sender_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    threadKey: text("thread_key").notNull(),
+    recipientKey: text("recipient_key"),
+    clientMessageId: text("client_message_id").notNull(),
+    exactFingerprint: text("exact_fingerprint").notNull(),
+    similarityHash: text("similarity_hash").notNull(),
+    linkFingerprint: text("link_fingerprint"),
+    urlCount: integer("url_count").default(0).notNull(),
+    decision: text("decision").notNull(),
+    reason: text("reason"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    unique("message_abuse_events_sender_thread_client_unique").on(
+      table.senderUserId,
+      table.threadKey,
+      table.clientMessageId,
+    ),
+    index("message_abuse_events_sender_created_at_idx").on(table.senderUserId, table.createdAt),
+    index("message_abuse_events_expires_at_idx").on(table.expiresAt),
+    check(
+      "message_abuse_events_decision_check",
+      sql`${table.decision} IN ('allow', 'hold', 'rate_limit')`,
+    ),
+    check("message_abuse_events_url_count_check", sql`${table.urlCount} >= 0`),
+  ],
+);
+
 export const authRateLimits = pgTable(
   "auth_rate_limits",
   {
@@ -1434,6 +1530,12 @@ export type ThreadContextRow = typeof threadContexts.$inferSelect;
 export type NewThreadContextRow = typeof threadContexts.$inferInsert;
 export type MessageRow = typeof messages.$inferSelect;
 export type NewMessageRow = typeof messages.$inferInsert;
+export type MessageModerationStateRow = typeof messageModerationStates.$inferSelect;
+export type NewMessageModerationStateRow = typeof messageModerationStates.$inferInsert;
+export type MessageModerationReviewRow = typeof messageModerationReviews.$inferSelect;
+export type NewMessageModerationReviewRow = typeof messageModerationReviews.$inferInsert;
+export type MessageAbuseEventRow = typeof messageAbuseEvents.$inferSelect;
+export type NewMessageAbuseEventRow = typeof messageAbuseEvents.$inferInsert;
 export type ThreadReadRow = typeof threadReads.$inferSelect;
 export type NewThreadReadRow = typeof threadReads.$inferInsert;
 export type NearbyRoomTypeRow = typeof nearbyRoomTypes.$inferSelect;

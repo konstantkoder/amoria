@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gt, ne, notExists, sql } from "drizzle-orm";
+import { and, count, desc, eq, gt, ne, notExists, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "../db/client";
 import {
@@ -9,18 +9,31 @@ import {
   blockedUsers,
   directThreadPairs,
   messages,
+  messageModerationReviews,
+  messageModerationStates,
   threadContexts,
   threadMembers,
   threadReads,
   threads,
+  nearbyRooms,
+  nearbyRoomMemberships,
   users,
   type JsonValue,
 } from "../db/schema";
+import type {
+  MessageSafetyDecision,
+  ModeratedMessageRow,
+} from "../moderation/message-moderation.types";
 import type { ChatSourceType, ThreadPeerDto } from "./chat.types";
 
 export type MessageInsertResult = {
-  message: MessageRow;
+  message: ModeratedMessageRow;
   created: boolean;
+};
+
+export type ModeratedMessageInsert = NewMessageRow & {
+  moderation: MessageSafetyDecision;
+  moderationSource: "direct" | "nearby";
 };
 
 export type DirectThreadResult = {
@@ -286,7 +299,25 @@ export async function isThreadMember(threadId: string, userId: string): Promise<
       threadMembers,
       and(eq(threadMembers.threadId, threads.id), eq(threadMembers.userId, userId)),
     )
-    .where(and(eq(threads.id, threadId), eq(threads.type, "direct")))
+    .leftJoin(nearbyRooms, eq(nearbyRooms.threadId, threads.id))
+    .leftJoin(
+      nearbyRoomMemberships,
+      and(
+        eq(nearbyRoomMemberships.roomId, nearbyRooms.id),
+        eq(nearbyRoomMemberships.userId, userId),
+      ),
+    )
+    .where(and(
+      eq(threads.id, threadId),
+      or(
+        eq(threads.type, "direct"),
+        and(
+          eq(threads.type, "nearby_room"),
+          eq(nearbyRooms.status, "active"),
+          eq(nearbyRoomMemberships.status, "active"),
+        ),
+      ),
+    ))
     .limit(1);
 
   return Boolean(row);
@@ -358,15 +389,19 @@ export async function findUserPeerById(userId: string): Promise<ThreadPeerDto | 
   return user;
 }
 
-export async function findLatestMessage(threadId: string): Promise<MessageRow | undefined> {
-  const [message] = await db
-    .select()
+export async function findLatestMessage(threadId: string): Promise<ModeratedMessageRow | undefined> {
+  const [row] = await db
+    .select({ message: messages, moderation: messageModerationStates })
     .from(messages)
-    .where(eq(messages.threadId, threadId))
+    .leftJoin(messageModerationStates, eq(messageModerationStates.messageId, messages.id))
+    .where(and(
+      eq(messages.threadId, threadId),
+      or(eq(messageModerationStates.state, "visible"), sql`${messageModerationStates.messageId} is null`),
+    ))
     .orderBy(desc(messages.createdAt), desc(messages.id))
     .limit(1);
 
-  return message;
+  return row ? withModeration(row.message, row.moderation) : undefined;
 }
 
 export async function getUnreadCount(threadId: string, userId: string): Promise<number> {
@@ -377,13 +412,17 @@ export async function getUnreadCount(threadId: string, userId: string): Promise<
     .limit(1);
 
   const where = read?.lastReadAt
-    ? and(eq(messages.threadId, threadId), gt(messages.createdAt, read.lastReadAt))
-    : eq(messages.threadId, threadId);
+    ? and(eq(messages.threadId, threadId), gt(messages.createdAt, read.lastReadAt), ne(messages.fromUserId, userId))
+    : and(eq(messages.threadId, threadId), ne(messages.fromUserId, userId));
 
   const [result] = await db
     .select({ unreadCount: count(messages.id) })
     .from(messages)
-    .where(where);
+    .leftJoin(messageModerationStates, eq(messageModerationStates.messageId, messages.id))
+    .where(and(
+      where,
+      or(eq(messageModerationStates.state, "visible"), sql`${messageModerationStates.messageId} is null`),
+    ));
 
   return Number(result?.unreadCount ?? 0);
 }
@@ -391,13 +430,23 @@ export async function getUnreadCount(threadId: string, userId: string): Promise<
 export async function listMessagesForThread(
   threadId: string,
   limit: number,
-): Promise<MessageRow[]> {
-  return db
-    .select()
+  viewerUserId: string,
+): Promise<ModeratedMessageRow[]> {
+  const rows = await db
+    .select({ message: messages, moderation: messageModerationStates })
     .from(messages)
-    .where(eq(messages.threadId, threadId))
+    .leftJoin(messageModerationStates, eq(messageModerationStates.messageId, messages.id))
+    .where(and(
+      eq(messages.threadId, threadId),
+      or(
+        eq(messages.fromUserId, viewerUserId),
+        eq(messageModerationStates.state, "visible"),
+        sql`${messageModerationStates.messageId} is null`,
+      ),
+    ))
     .orderBy(desc(messages.createdAt), desc(messages.id))
     .limit(limit);
+  return rows.map((row) => withModeration(row.message, row.moderation, viewerUserId));
 }
 
 export async function findMessageInThread(
@@ -405,38 +454,89 @@ export async function findMessageInThread(
   messageId: string,
 ): Promise<MessageRow | undefined> {
   const [message] = await db
-    .select()
+    .select({ message: messages })
     .from(messages)
-    .where(and(eq(messages.threadId, threadId), eq(messages.id, messageId)))
+    .leftJoin(messageModerationStates, eq(messageModerationStates.messageId, messages.id))
+    .where(and(
+      eq(messages.threadId, threadId),
+      eq(messages.id, messageId),
+      or(eq(messageModerationStates.state, "visible"), sql`${messageModerationStates.messageId} is null`),
+    ))
     .limit(1);
 
-  return message;
+  return message?.message;
+}
+
+export async function findMessageByClientId(
+  threadId: string,
+  fromUserId: string,
+  clientMessageId: string,
+): Promise<ModeratedMessageRow | undefined> {
+  const [row] = await db
+    .select({ message: messages, moderation: messageModerationStates })
+    .from(messages)
+    .leftJoin(messageModerationStates, eq(messageModerationStates.messageId, messages.id))
+    .where(and(
+      eq(messages.threadId, threadId),
+      eq(messages.fromUserId, fromUserId),
+      eq(messages.clientMessageId, clientMessageId),
+    ))
+    .limit(1);
+  return row ? withModeration(row.message, row.moderation, fromUserId) : undefined;
 }
 
 export async function createMessageIdempotent(
-  input: NewMessageRow,
+  input: ModeratedMessageInsert,
 ): Promise<MessageInsertResult> {
   return db.transaction(async (tx) => {
+    const { moderation, moderationSource, ...messageInput } = input;
     const [created] = await tx
       .insert(messages)
-      .values(input)
+      .values(messageInput)
       .onConflictDoNothing({
         target: [messages.threadId, messages.fromUserId, messages.clientMessageId],
       })
       .returning();
 
     if (created) {
-      await tx
-        .update(threads)
-        .set({
-          lastMessageAt: created.createdAt,
-          lastMessageText: created.text,
-          updatedAt: created.createdAt,
-        })
-        .where(eq(threads.id, created.threadId));
+      await tx.insert(messageModerationStates).values({
+        messageId: created.id,
+        state: moderation.state,
+        source: moderationSource,
+        automationStatus: moderation.automationStatus,
+        updatedAt: created.createdAt,
+      });
+      if (moderation.evidence.length > 0) {
+        await tx.insert(messageModerationReviews).values(
+          moderation.evidence.map((evidence) => ({
+            messageId: created.id,
+            source: evidence.source,
+            action: evidence.action,
+            reason: evidence.reason,
+            metadata: evidence.metadata,
+            createdAt: created.createdAt,
+          })),
+        );
+      }
+      if (moderation.state === "visible") {
+        await tx
+          .update(threads)
+          .set({
+            lastMessageAt: created.createdAt,
+            lastMessageText: created.text,
+            updatedAt: created.createdAt,
+          })
+          .where(eq(threads.id, created.threadId));
+      }
 
       return {
-        message: created,
+        message: withModeration(created, {
+          messageId: created.id,
+          state: moderation.state,
+          source: moderationSource,
+          automationStatus: moderation.automationStatus,
+          updatedAt: created.createdAt,
+        }, created.fromUserId),
         created: true,
       };
     }
@@ -446,9 +546,9 @@ export async function createMessageIdempotent(
       .from(messages)
       .where(
         and(
-          eq(messages.threadId, input.threadId),
-          eq(messages.fromUserId, input.fromUserId),
-          eq(messages.clientMessageId, input.clientMessageId),
+          eq(messages.threadId, messageInput.threadId),
+          eq(messages.fromUserId, messageInput.fromUserId),
+          eq(messages.clientMessageId, messageInput.clientMessageId),
         ),
       )
       .limit(1);
@@ -457,11 +557,34 @@ export async function createMessageIdempotent(
       throw new Error("Message conflict target was not found after insert conflict");
     }
 
+    const [state] = await tx
+      .select()
+      .from(messageModerationStates)
+      .where(eq(messageModerationStates.messageId, existing.id))
+      .limit(1);
     return {
-      message: existing,
+      message: withModeration(existing, state, existing.fromUserId),
       created: false,
     };
   });
+}
+
+function withModeration(
+  message: MessageRow,
+  moderation: typeof messageModerationStates.$inferSelect | null | undefined,
+  viewerUserId?: string,
+): ModeratedMessageRow {
+  const state = (moderation?.state ?? "visible") as ModeratedMessageRow["moderationState"];
+  return {
+    ...message,
+    text:
+      viewerUserId === message.fromUserId && (state === "restricted" || state === "removed")
+        ? ""
+        : message.text,
+    moderationState: state,
+    automationStatus: (moderation?.automationStatus ?? "not_required") as ModeratedMessageRow["automationStatus"],
+    moderationSource: (moderation?.source ?? "direct") as ModeratedMessageRow["moderationSource"],
+  };
 }
 
 export async function upsertThreadRead(

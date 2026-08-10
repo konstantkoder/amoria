@@ -29,6 +29,7 @@ import {
 import { headObject } from "../media/object-storage";
 import { env } from "../config/env";
 import { isBlockedEitherWay } from "../safety/safety.repo";
+import { assertSafeText } from "../moderation/text-validation";
 import * as profileGalleryService from "./profile-gallery.service";
 import {
   calculateAge,
@@ -255,11 +256,15 @@ export async function updateCurrentUserProfile(
   const update: UserProfileUpdate = {};
 
   if ("displayName" in input) {
-    setIfDefined(update, "displayName", normalizeDisplayName(input.displayName));
+    const displayName = normalizeDisplayName(input.displayName);
+    assertSafeText(displayName, { field: "displayName", maxUrls: 0 });
+    setIfDefined(update, "displayName", displayName);
   }
 
   if ("about" in input) {
-    setIfDefined(update, "about", normalizeOptionalAbout(input.about));
+    const about = normalizeOptionalAbout(input.about);
+    if (about) assertSafeText(about, { field: "about", maxUrls: 2 });
+    setIfDefined(update, "about", about);
   }
 
   if ("avatarUrl" in input) {
@@ -295,7 +300,11 @@ export async function updateCurrentUserProfile(
   }
 
   if ("interests" in input) {
-    setIfDefined(update, "interests", normalizeOptionalInterests(input.interests));
+    const interests = normalizeOptionalInterests(input.interests);
+    for (const interest of interests ?? []) {
+      assertSafeText(interest, { field: "interests", maxUrls: 0 });
+    }
+    setIfDefined(update, "interests", interests);
   }
 
   if ("flirtEnabled" in input) {

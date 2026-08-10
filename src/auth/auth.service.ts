@@ -7,6 +7,7 @@ import {
 } from "../common/validators";
 import { REFRESH_TOKEN_EXPIRES_IN_DAYS } from "../config/constants";
 import { env } from "../config/env";
+import { assertSafeText } from "../moderation/text-validation";
 import type { UserRow } from "../db/schema";
 import { DisposableEmailDomainService } from "../email/disposable-email-domain.service";
 import {
@@ -232,6 +233,7 @@ export async function register(
   await assertRegistrationEmailAllowed(email);
   const password = normalizePassword(input.password);
   const displayName = normalizeDisplayName(input.displayName);
+  assertSafeText(displayName, { field: "displayName", maxUrls: 0 });
   const passwordHash = await hashPassword(password);
 
   for (let attempt = 0; attempt < amoriaIdRetries; attempt += 1) {

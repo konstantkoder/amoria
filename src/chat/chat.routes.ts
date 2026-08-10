@@ -78,8 +78,12 @@ export async function chatRoutes(fastify: FastifyInstance): Promise<void> {
         parseSendMessageBody(request.body),
       );
 
-      if (result.created) {
-        wsHub.broadcastThreadMessage(result.threadId, result.response.message);
+      if (result.created && result.deliveryAllowed) {
+        wsHub.broadcastThreadMessage(
+          result.threadId,
+          result.response.message,
+          result.participantUserIds,
+        );
         wsHub.broadcastInboxUpdated(result.participantUserIds);
       }
 

@@ -45,7 +45,7 @@ export type AdminReportTargetContextLink = {
     | "target_together_session"
     | "nearby_diagnostics";
   label: string;
-  screen: "users" | "media" | "together_sessions" | "nearby_diagnostics" | "none";
+  screen: "users" | "media" | "message_moderation" | "together_sessions" | "nearby_diagnostics" | "none";
   available: boolean;
   params: Record<string, string>;
   unavailableReason: string | null;
@@ -204,10 +204,10 @@ function buildTargetContext(row: AdminReportRow): AdminReportTargetContext {
       links.push({
         kind: "target_message",
         label: "Chat message target",
-        screen: "none",
-        available: false,
-        params: { targetId: row.targetId },
-        unavailableReason: "Dedicated safe chat-message admin view is not available yet.",
+        screen: "message_moderation",
+        available: true,
+        params: { messageId: row.targetId, reason: `Safety report ${row.id}` },
+        unavailableReason: null,
       });
       break;
     case "together_session":

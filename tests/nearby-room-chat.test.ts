@@ -459,7 +459,7 @@ function mockNearbyRoomChat(input: {
         ActivityPreferencesRepo,
         "hasActiveUserActivityPreferenceForActivity"
       >,
-    chatRepo: chatRepo as NearbyRoomChatRepo,
+    chatRepo: chatRepo as unknown as NearbyRoomChatRepo,
   });
 
   function addThreadMember(nextThreadId: string, userId: string) {

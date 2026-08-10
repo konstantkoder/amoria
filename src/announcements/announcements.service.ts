@@ -12,6 +12,7 @@ import type {
   RespondAnnouncementBody,
   RespondAnnouncementResponse,
 } from "./announcements.types";
+import { assertSafeText } from "../moderation/text-validation";
 
 export async function listAnnouncements(
   userId: string,
@@ -28,6 +29,10 @@ export async function createAnnouncement(
   authorUserId: string,
   input: CreateAnnouncementBody,
 ): Promise<AnnouncementDto> {
+  assertSafeText(input.title, { field: "title", maxUrls: 0 });
+  assertSafeText(input.description, { field: "description", maxUrls: 2 });
+  assertSafeText(input.category, { field: "category", maxUrls: 0 });
+  if (input.placeLabel) assertSafeText(input.placeLabel, { field: "placeLabel", maxUrls: 0 });
   if (input.photoMediaId) {
     const media = await announcementsRepo.findOwnedMediaFile(input.photoMediaId, authorUserId);
     if (!media) {

@@ -1,6 +1,7 @@
 import { AppError, validationError } from "../common/errors";
 import { findUserById } from "../users/users.repo";
 import * as safetyRepo from "./safety.repo";
+import { assertSafeText } from "../moderation/text-validation";
 import type {
   BlockUserBody,
   BlockedUsersResponse,
@@ -43,6 +44,26 @@ export async function createReport(
   reporterUserId: string,
   input: CreateSafetyReportBody,
 ): Promise<OkResponse> {
+  assertSafeText(input.reason, { field: "reason", maxUrls: 0 });
+  if (input.comment) assertSafeText(input.comment, { field: "comment", maxUrls: 2 });
+
+  if (input.targetType === "message") {
+    const target = await safetyRepo.findReportableMessage(input.targetId, reporterUserId);
+    if (!target) throw new AppError("not_found", "Message not found", 404);
+    if (target.message.fromUserId === reporterUserId) {
+      throw validationError("You cannot report your own message", { targetId: "own_message" });
+    }
+    await safetyRepo.createMessageSafetyReport({
+      reporterUserId,
+      messageId: target.message.id,
+      targetOwnerUserId: target.message.fromUserId,
+      reason: input.reason,
+      comment: input.comment ?? null,
+      source: target.threadType === "nearby_room" ? "nearby" : "direct",
+    });
+    return { ok: true };
+  }
+
   if (input.targetOwnerUserId) {
     const targetOwner = await findUserById(input.targetOwnerUserId);
     if (!targetOwner) {

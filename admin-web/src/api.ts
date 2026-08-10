@@ -338,7 +338,7 @@ export type ReportTargetContextLink = {
     | "target_together_session"
     | "nearby_diagnostics";
   label: string;
-  screen: "users" | "media" | "together_sessions" | "nearby_diagnostics" | "none";
+  screen: "users" | "media" | "message_moderation" | "together_sessions" | "nearby_diagnostics" | "none";
   available: boolean;
   params: Record<string, string>;
   unavailableReason: string | null;
@@ -357,6 +357,42 @@ export type ReportReviewAction = {
 
 export type ReportDetail = ReportItem & {
   reviewActions: ReportReviewAction[];
+};
+
+export type MessageModerationItem = {
+  id: string;
+  threadId: string;
+  source: "direct" | "nearby";
+  state: "visible" | "held" | "needs_review" | "restricted" | "removed";
+  automationStatus: "completed" | "failed" | "not_configured" | "not_required";
+  sender: { id: string; amoriaId: string; displayName: string };
+  reportCount: number;
+  latestReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type MessageModerationDetail = MessageModerationItem & {
+  text: string;
+  clientMessageId: string;
+  reviews: Array<{
+    id: string;
+    source: string;
+    action: string;
+    reason: string | null;
+    metadata: unknown;
+    adminUserId: string | null;
+    createdAt: string;
+  }>;
+  reports: Array<{
+    id: string;
+    reporterUserId: string;
+    reason: string;
+    comment: string | null;
+    status: string;
+    createdAt: string;
+  }>;
+  privacyNote: string;
 };
 
 export type MediaItem = {

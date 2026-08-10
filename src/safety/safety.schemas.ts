@@ -18,10 +18,10 @@ export const blockUserBodySchema = z
 export const createSafetyReportBodySchema = z
   .object({
     targetType: z.enum(SAFETY_REPORT_TARGET_TYPES),
-    targetId: z.string().trim().min(1),
+    targetId: z.string().trim().min(1).max(128),
     targetOwnerUserId: uuidSchema.nullish(),
-    reason: z.string().trim().min(1),
-    comment: z.string().trim().min(1).nullish(),
+    reason: z.string().trim().min(1).max(100),
+    comment: z.string().trim().min(1).max(1000).nullish(),
   })
   .strict();
 
@@ -103,13 +103,13 @@ export const createSafetyReportRouteSchema = {
     additionalProperties: false,
     properties: {
       targetType: { type: "string", enum: SAFETY_REPORT_TARGET_TYPES },
-      targetId: { type: "string", minLength: 1 },
+      targetId: { type: "string", minLength: 1, maxLength: 128 },
       targetOwnerUserId: {
         anyOf: [{ type: "string", format: "uuid" }, { type: "null" }],
       },
-      reason: { type: "string", minLength: 1 },
+      reason: { type: "string", minLength: 1, maxLength: 100 },
       comment: {
-        anyOf: [{ type: "string", minLength: 1 }, { type: "null" }],
+        anyOf: [{ type: "string", minLength: 1, maxLength: 1000 }, { type: "null" }],
       },
     },
   },

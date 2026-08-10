@@ -24,6 +24,15 @@ import {
 } from "./admin-media.schemas";
 import * as adminMediaService from "./admin-media.service";
 import {
+  adminMessageDecisionRouteSchema,
+  adminMessageDetailRouteSchema,
+  adminMessageQueueRouteSchema,
+  parseAdminMessageDecisionBody,
+  parseAdminMessageDetailReason,
+  parseAdminMessageQueueQuery,
+} from "./admin-message-moderation.schemas";
+import * as adminMessageModerationService from "./admin-message-moderation.service";
+import {
   adminCreateNearbyRoomFromDemandRouteSchema,
   adminCreateNearbyRoomRouteSchema,
   adminNearbyRoomActionRouteSchema,
@@ -88,6 +97,44 @@ function adminRequestContext(request: FastifyRequest): AdminRequestContext {
 }
 
 export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
+  fastify.get(
+    "/message-moderation",
+    {
+      preHandler: [authMiddleware, requireAdmin(["owner", "moderator", "support", "ops"])],
+      schema: withErrorResponses(adminMessageQueueRouteSchema),
+    },
+    async (request) => adminMessageModerationService.listMessageQueue(
+      currentAdmin(request),
+      parseAdminMessageQueueQuery(request.query),
+      adminRequestContext(request),
+    ),
+  );
+  fastify.get<{ Params: { messageId: string } }>(
+    "/message-moderation/:messageId",
+    {
+      preHandler: [authMiddleware, requireAdmin(["owner", "moderator"])],
+      schema: withErrorResponses(adminMessageDetailRouteSchema),
+    },
+    async (request) => adminMessageModerationService.getMessageDetail(
+      currentAdmin(request),
+      request.params.messageId,
+      parseAdminMessageDetailReason(request.query),
+      adminRequestContext(request),
+    ),
+  );
+  fastify.post<{ Params: { messageId: string } }>(
+    "/message-moderation/:messageId/decision",
+    {
+      preHandler: [authMiddleware, requireAdmin(["owner", "moderator"])],
+      schema: withErrorResponses(adminMessageDecisionRouteSchema),
+    },
+    async (request) => adminMessageModerationService.decideMessage(
+      currentAdmin(request),
+      request.params.messageId,
+      parseAdminMessageDecisionBody(request.body),
+      adminRequestContext(request),
+    ),
+  );
   fastify.get("/together/turn-based", {
     preHandler: [authMiddleware, requireAdmin(["owner","ops","support"])],
   }, async (request) => adminTurnBased.listMoments(currentAdmin(request), adminTurnBased.parseQuery(request.query), adminRequestContext(request)));

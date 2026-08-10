@@ -21,6 +21,8 @@ import {
   ClientErrorItem,
   MediaDetail,
   MediaItem,
+  MessageModerationDetail,
+  MessageModerationItem,
   NearbyDiagnostics,
   NearbyFeedExclusionReason,
   NearbyProfileMissingReason,
@@ -64,6 +66,7 @@ type Screen =
   | "clientErrors"
   | "auditLog"
   | "reports"
+  | "messageModeration"
   | "media"
   | "togetherQueue"
   | "togetherSessions"
@@ -93,6 +96,12 @@ type MediaOpenRequest = {
   reason?: string;
 };
 
+type MessageModerationOpenRequest = {
+  nonce: number;
+  messageId: string;
+  reason: string;
+};
+
 type CreateFromDemandForm = {
   activityKey: string;
   activityTitle: string;
@@ -120,6 +129,7 @@ const screens: ScreenItem[] = [
   { key: "adminUsers", labelKey: "nav.adminUsers", ownerOnly: true },
   { key: "clientErrors", labelKey: "nav.clientErrors" },
   { key: "reports", labelKey: "nav.reports" },
+  { key: "messageModeration", labelKey: "nav.messageModeration", roles: ["owner", "moderator", "support", "ops"] },
   { key: "media", labelKey: "nav.media" },
   { key: "togetherQueue", labelKey: "nav.togetherQueue", roles: ["owner", "ops"] },
   { key: "togetherSessions", labelKey: "nav.togetherSessions", roles: ["owner", "ops"] },
@@ -150,6 +160,7 @@ export function App() {
   const [togetherSessionFilter, setTogetherSessionFilter] = useState("");
   const [userSearchRequest, setUserSearchRequest] = useState<UserSearchRequest | null>(null);
   const [mediaOpenRequest, setMediaOpenRequest] = useState<MediaOpenRequest | null>(null);
+  const [messageModerationOpenRequest, setMessageModerationOpenRequest] = useState<MessageModerationOpenRequest | null>(null);
 
   const i18n = useMemo<I18nContextValue>(() => {
     const setLanguage = (nextLanguage: Language) => {
@@ -203,6 +214,8 @@ export function App() {
       (!item.roles || item.roles.some((role) => adminMe?.adminUser.roles.includes(role))),
   );
   const canManageNearbyRooms =
+    adminMe?.adminUser.roles.some((role) => role === "owner" || role === "moderator") ?? false;
+  const canReviewMessages =
     adminMe?.adminUser.roles.some((role) => role === "owner" || role === "moderator") ?? false;
   const activeScreen = visibleScreens.some((item) => item.key === screen) ? screen : "dashboard";
   const activeLabel = screens.find((item) => item.key === activeScreen)?.labelKey ?? "nav.dashboard";
@@ -295,6 +308,17 @@ export function App() {
                 setScreen("togetherSessions");
               }}
               onOpenNearbyDiagnostics={() => setScreen("nearbyDiagnostics")}
+              onOpenMessage={(request) => {
+                setMessageModerationOpenRequest({ ...request, nonce: Date.now() });
+                setScreen("messageModeration");
+              }}
+            />
+          ) : null}
+          {activeScreen === "messageModeration" ? (
+            <MessageModerationScreen
+              canReview={canReviewMessages}
+              openRequest={messageModerationOpenRequest}
+              setMessage={setMessage}
             />
           ) : null}
           {activeScreen === "media" ? <MediaScreen setMessage={setMessage} openRequest={mediaOpenRequest} /> : null}
@@ -1040,18 +1064,179 @@ function AuditLogScreen() {
   );
 }
 
+function MessageModerationScreen({
+  canReview,
+  openRequest,
+  setMessage,
+}: {
+  canReview: boolean;
+  openRequest: MessageModerationOpenRequest | null;
+  setMessage: (message: string | null) => void;
+}) {
+  const { language, t } = useI18n();
+  const [filters, setFilters] = useState({ status: "all", source: "", limit: "50" });
+  const [items, setItems] = useState<MessageModerationItem[]>([]);
+  const [selected, setSelected] = useState<MessageModerationDetail | null>(null);
+  const [readReason, setReadReason] = useState("Moderation queue review");
+  const [decision, setDecision] = useState("approve");
+  const [decisionReason, setDecisionReason] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  async function load() {
+    setError(null);
+    try {
+      const response = await apiGet<{ items: MessageModerationItem[] }>(
+        `/admin/message-moderation${toQuery(filters)}`,
+      );
+      setItems(response.items);
+      if (selected && !response.items.some((item) => item.id === selected.id)) setSelected(null);
+    } catch (loadError) {
+      setError(errorMessage(loadError, t));
+    }
+  }
+
+  async function openDetail(messageId: string, reasonOverride?: string) {
+    if (!canReview) {
+      setMessage(t("messageModeration.metadataOnly"));
+      return;
+    }
+    const reason = (reasonOverride || readReason).trim();
+    if (!reason) {
+      setError(t("messageModeration.readReasonRequired"));
+      return;
+    }
+    setError(null);
+    try {
+      const response = await apiGet<{ message: MessageModerationDetail }>(
+        `/admin/message-moderation/${encodeURIComponent(messageId)}${toQuery({ reason })}`,
+      );
+      setSelected(response.message);
+    } catch (loadError) {
+      setError(errorMessage(loadError, t));
+    }
+  }
+
+  async function submitDecision(event: FormEvent) {
+    event.preventDefault();
+    if (!selected) return;
+    if (!decisionReason.trim()) {
+      setError(t("messageModeration.decisionReasonRequired"));
+      return;
+    }
+    try {
+      await apiPost(`/admin/message-moderation/${encodeURIComponent(selected.id)}/decision`, {
+        action: decision,
+        reason: decisionReason.trim(),
+      });
+      setMessage(t("messageModeration.updated"));
+      setDecisionReason("");
+      await load();
+      await openDetail(selected.id, readReason);
+    } catch (decisionError) {
+      setError(errorMessage(decisionError, t));
+    }
+  }
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  useEffect(() => {
+    if (!openRequest) return;
+    setReadReason(openRequest.reason);
+    void openDetail(openRequest.messageId, openRequest.reason);
+  }, [openRequest?.nonce]);
+
+  return (
+    <section className="grid-two">
+      <div className="panel">
+        <form className="filters" onSubmit={(event) => { event.preventDefault(); void load(); }}>
+          <label>{t("common.status")}<select value={filters.status} onChange={(event) => setFilters({ ...filters, status: event.target.value })}>
+            <option value="all">{t("status.any")}</option>
+            <option value="reported">{t("messageModeration.reported")}</option>
+            <option value="held">{t("messageModeration.held")}</option>
+            <option value="needs_review">{t("messageModeration.needsReview")}</option>
+            <option value="restricted">{t("messageModeration.restricted")}</option>
+            <option value="removed">{t("messageModeration.removed")}</option>
+          </select></label>
+          <label>{t("common.type")}<select value={filters.source} onChange={(event) => setFilters({ ...filters, source: event.target.value })}>
+            <option value="">{t("status.any")}</option>
+            <option value="direct">{t("messageModeration.direct")}</option>
+            <option value="nearby">{t("messageModeration.nearby")}</option>
+          </select></label>
+          <label>{t("common.limit")}<input value={filters.limit} onChange={(event) => setFilters({ ...filters, limit: event.target.value })} inputMode="numeric" /></label>
+          <button>{t("common.load")}</button>
+        </form>
+        <label>{t("messageModeration.readReason")}<input value={readReason} onChange={(event) => setReadReason(event.target.value)} /></label>
+        {!canReview ? <p className="muted">{t("messageModeration.metadataOnly")}</p> : null}
+        {error ? <div className="error">{error}</div> : null}
+        {items.length ? (
+          <table>
+            <thead><tr>
+              <th>{t("common.updated")}</th><th>{t("common.status")}</th>
+              <th>{t("common.type")}</th><th>{t("common.owner")}</th>
+              <th>{t("messageModeration.reports")}</th><th>{t("common.reason")}</th>
+            </tr></thead>
+            <tbody>{items.map((item) => (
+              <tr key={item.id} className={selected?.id === item.id ? "selected" : ""} onClick={() => void openDetail(item.id)}>
+                <td>{formatDate(item.updatedAt, language)}</td><td>{item.state}</td><td>{item.source}</td>
+                <td>{item.sender.displayName} ({item.sender.amoriaId})</td><td>{item.reportCount}</td>
+                <td>{item.latestReason ?? "—"}</td>
+              </tr>
+            ))}</tbody>
+          </table>
+        ) : <EmptyState label={t("messageModeration.empty")} />}
+      </div>
+      <div className="panel">
+        <h2>{t("nav.messageModeration")}</h2>
+        {selected ? <>
+          <p className="muted">{selected.privacyNote}</p>
+          <dl className="facts compact">
+            <Fact label={t("common.status")} value={selected.state} />
+            <Fact label={t("common.type")} value={selected.source} />
+            <Fact label={t("common.owner")} value={`${selected.sender.displayName} (${selected.sender.amoriaId})`} />
+            <Fact label={t("messageModeration.automation")} value={selected.automationStatus} />
+            <Fact label={t("messageModeration.reports")} value={String(selected.reportCount)} />
+          </dl>
+          <h3>{t("messageModeration.selectedBody")}</h3>
+          <pre className="detail-json">{selected.text}</pre>
+          <form className="stack-form" onSubmit={submitDecision}>
+            <label>{t("common.action")}<select value={decision} onChange={(event) => setDecision(event.target.value)}>
+              <option value="approve">{t("messageModeration.approve")}</option>
+              <option value="restore">{t("messageModeration.restore")}</option>
+              <option value="restrict">{t("messageModeration.restrict")}</option>
+              <option value="remove">{t("messageModeration.remove")}</option>
+              <option value="escalate">{t("reports.escalate")}</option>
+            </select></label>
+            <label>{t("common.reason")}<input value={decisionReason} onChange={(event) => setDecisionReason(event.target.value)} /></label>
+            <button>{t("common.apply")}</button>
+          </form>
+          <h3>{t("messageModeration.history")}</h3>
+          {selected.reviews.length ? <table><thead><tr>
+            <th>{t("common.created")}</th><th>{t("common.type")}</th><th>{t("common.action")}</th><th>{t("common.reason")}</th>
+          </tr></thead><tbody>{selected.reviews.map((review) => <tr key={review.id}>
+            <td>{formatDate(review.createdAt, language)}</td><td>{review.source}</td><td>{review.action}</td><td>{review.reason ?? "—"}</td>
+          </tr>)}</tbody></table> : <EmptyState label={t("messageModeration.noHistory")} />}
+        </> : <EmptyState label={t("messageModeration.selectMessage")} />}
+      </div>
+    </section>
+  );
+}
+
 function ReportsScreen({
   setMessage,
   onOpenUser,
   onOpenMedia,
   onOpenTogetherSession,
   onOpenNearbyDiagnostics,
+  onOpenMessage,
 }: {
   setMessage: (message: string | null) => void;
   onOpenUser: (request: Omit<UserSearchRequest, "nonce">) => void;
   onOpenMedia: (request: Omit<MediaOpenRequest, "nonce">) => void;
   onOpenTogetherSession: (sessionId: string) => void;
   onOpenNearbyDiagnostics: () => void;
+  onOpenMessage: (request: Omit<MessageModerationOpenRequest, "nonce">) => void;
 }) {
   const { language, t, tx } = useI18n();
   const [filters, setFilters] = useState({ status: "", targetType: "", reporterAmoriaId: "", targetOwnerAmoriaId: "", limit: "50" });
@@ -1127,6 +1312,14 @@ function ReportsScreen({
             mediaId: link.params.mediaId,
             ownerAmoriaId: selected?.targetOwner?.amoriaId,
             reason: link.params.reason,
+          });
+        }
+        break;
+      case "message_moderation":
+        if (link.params.messageId) {
+          onOpenMessage({
+            messageId: link.params.messageId,
+            reason: link.params.reason || "Safety report review",
           });
         }
         break;

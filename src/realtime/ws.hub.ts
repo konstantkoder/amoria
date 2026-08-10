@@ -150,12 +150,15 @@ class WsHub {
     }
   }
 
-  broadcastThreadMessage(threadId: string, message: MessageDto): void {
-    this.broadcastToSockets(this.threadSockets.get(threadId), {
-      type: "thread.message",
-      threadId,
-      message,
-    });
+  broadcastThreadMessage(threadId: string, message: MessageDto, allowedUserIds?: string[]): void {
+    const sockets = this.threadSockets.get(threadId);
+    if (!sockets) return;
+    const allowed = allowedUserIds ? new Set(allowedUserIds) : null;
+    for (const socket of sockets) {
+      const state = this.socketState.get(socket);
+      if (allowed && (!state || !allowed.has(state.userId))) continue;
+      this.sendJson(socket, { type: "thread.message", threadId, message });
+    }
   }
 
   broadcastTogetherEvent(sessionId: string, event: TogetherEventDto): void {

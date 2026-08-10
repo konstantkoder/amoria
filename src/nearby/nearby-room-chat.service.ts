@@ -7,6 +7,8 @@ import {
 } from "./nearby-activity-participation";
 import * as nearbyRoomsRepo from "./nearby-rooms.repo";
 import * as roomChatRepo from "./nearby-room-chat.repo";
+import { moderateMessage } from "../moderation/message-safety.service";
+import type { ModeratedMessageRow } from "../moderation/message-moderation.types";
 import type {
   NearbyRoomChatMessageDto,
   NearbyRoomMessagesQuery,
@@ -20,6 +22,8 @@ export type SendNearbyRoomMessageResult = {
   response: SendNearbyRoomMessageResponse;
   threadId: string;
   created: boolean;
+  deliveryAllowed: boolean;
+  recipientUserIds: string[];
 };
 
 type NearbyRoomChatServiceDeps = {
@@ -33,6 +37,8 @@ type NearbyRoomChatServiceDeps = {
     | "findOrCreateNearbyRoomThread"
     | "findSafeNearbyRoomThread"
     | "listNearbyRoomMessages"
+    | "findNearbyRoomMessageByClientId"
+    | "listAllowedNearbyRoomRecipientUserIds"
   >;
 };
 
@@ -93,7 +99,7 @@ export async function getNearbyRoomMessages(
   }
 
   await deps.chatRepo.addNearbyRoomThreadMember(thread.id, userId, deps.now());
-  const messages = await deps.chatRepo.listNearbyRoomMessages(thread.id, query.limit);
+  const messages = await deps.chatRepo.listNearbyRoomMessages(thread.id, query.limit, userId);
 
   return {
     items: messages.map((message) => toRoomMessageDto(room.id, message)),
@@ -116,12 +122,41 @@ export async function sendNearbyRoomMessage(
     throw forbidden("Nearby room chat is unavailable");
   }
 
+  const existing = typeof deps.chatRepo.findNearbyRoomMessageByClientId === "function"
+    ? await deps.chatRepo.findNearbyRoomMessageByClientId(thread.id, userId, input.clientMessageId)
+    : undefined;
+  if (existing) {
+    return {
+      response: { message: toRoomMessageDto(room.id, existing) },
+      threadId: thread.id,
+      created: false,
+      deliveryAllowed: existing.moderationState === "visible",
+      recipientUserIds: [],
+    };
+  }
+
+  const moderation = await moderateMessage({
+    messageIdHint: `${thread.id}:${input.clientMessageId}`,
+    senderUserId: userId,
+    threadId: thread.id,
+    clientMessageId: input.clientMessageId,
+    text: input.text,
+    source: "nearby",
+  });
+
   const result = await deps.chatRepo.createNearbyRoomMessageIdempotent({
     threadId: thread.id,
     fromUserId: userId,
     text: input.text,
     clientMessageId: input.clientMessageId,
+    moderation,
+    moderationSource: "nearby",
   });
+  const resultModerationState = (result.message as Partial<ModeratedMessageRow>).moderationState ?? "visible";
+  const recipientUserIds = resultModerationState === "visible" &&
+    typeof deps.chatRepo.listAllowedNearbyRoomRecipientUserIds === "function"
+    ? await deps.chatRepo.listAllowedNearbyRoomRecipientUserIds(room.id, thread.id, userId)
+    : [userId];
 
   return {
     response: {
@@ -129,6 +164,8 @@ export async function sendNearbyRoomMessage(
     },
     threadId: thread.id,
     created: result.created,
+    deliveryAllowed: resultModerationState === "visible",
+    recipientUserIds,
   };
 }
 
@@ -173,7 +210,8 @@ function toRoomChatInfo(
   };
 }
 
-function toRoomMessageDto(roomId: string, message: MessageRow): NearbyRoomChatMessageDto {
+function toRoomMessageDto(roomId: string, message: MessageRow | ModeratedMessageRow): NearbyRoomChatMessageDto {
+  const moderated = message as Partial<ModeratedMessageRow>;
   return {
     id: message.id,
     roomId,
@@ -182,5 +220,11 @@ function toRoomMessageDto(roomId: string, message: MessageRow): NearbyRoomChatMe
     text: message.text,
     createdAt: message.createdAt.toISOString(),
     clientMessageId: message.clientMessageId,
+    ...(moderated.moderationState
+      ? {
+          moderationState: moderated.moderationState,
+          automationStatus: moderated.automationStatus ?? "not_required",
+        }
+      : {}),
   };
 }

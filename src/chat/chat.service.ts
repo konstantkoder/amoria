@@ -1,6 +1,8 @@
 import { AppError, validationError } from "../common/errors";
 import type { MessageRow, ThreadContextRow, ThreadRow } from "../db/schema";
 import { isBlockedEitherWay } from "../safety/safety.repo";
+import { moderateMessage } from "../moderation/message-safety.service";
+import type { ModeratedMessageRow } from "../moderation/message-moderation.types";
 import * as chatRepo from "./chat.repo";
 import type {
   ChatSourceType,
@@ -23,6 +25,7 @@ export type SendMessageResult = {
   threadId: string;
   participantUserIds: string[];
   created: boolean;
+  deliveryAllowed: boolean;
 };
 
 export type OpenDirectThreadResult = {
@@ -112,7 +115,7 @@ export async function getThreadMessages(
 ): Promise<MessagesResponse> {
   await requireThreadMembership(userId, threadId);
 
-  const messages = await deps.repo.listMessagesForThread(threadId, query.limit);
+  const messages = await deps.repo.listMessagesForThread(threadId, query.limit, userId);
   return {
     items: messages.map(toMessageDto),
   };
@@ -131,11 +134,38 @@ export async function sendMessage(
 
   await assertNotBlockedPair(userId, peer.id);
 
+  const existing = await deps.repo.findMessageByClientId(
+    threadId,
+    userId,
+    input.clientMessageId,
+  );
+  if (existing) {
+    return {
+      response: { message: toMessageDto(existing) },
+      threadId,
+      participantUserIds: await deps.repo.listThreadMemberUserIds(threadId),
+      created: false,
+      deliveryAllowed: existing.moderationState === "visible",
+    };
+  }
+
+  const moderation = await moderateMessage({
+    messageIdHint: `${threadId}:${input.clientMessageId}`,
+    senderUserId: userId,
+    threadId,
+    recipientId: peer.id,
+    clientMessageId: input.clientMessageId,
+    text: input.text,
+    source: "direct",
+  });
+
   const result = await deps.repo.createMessageIdempotent({
     threadId,
     fromUserId: userId,
     text: input.text,
     clientMessageId: input.clientMessageId,
+    moderation,
+    moderationSource: "direct",
   });
   const participantUserIds = await deps.repo.listThreadMemberUserIds(threadId);
 
@@ -146,6 +176,7 @@ export async function sendMessage(
     threadId,
     participantUserIds,
     created: result.created,
+    deliveryAllowed: result.message.moderationState === "visible",
   };
 }
 
@@ -240,7 +271,8 @@ function toLastMessageDto(message: MessageRow): ThreadDto["lastMessage"] {
   };
 }
 
-function toMessageDto(message: MessageRow): MessageDto {
+function toMessageDto(message: MessageRow | ModeratedMessageRow): MessageDto {
+  const moderated = message as Partial<ModeratedMessageRow>;
   return {
     id: message.id,
     threadId: message.threadId,
@@ -248,6 +280,12 @@ function toMessageDto(message: MessageRow): MessageDto {
     text: message.text,
     createdAt: message.createdAt.toISOString(),
     clientMessageId: message.clientMessageId,
+    ...(moderated.moderationState
+      ? {
+          moderationState: moderated.moderationState,
+          automationStatus: moderated.automationStatus ?? "not_required",
+        }
+      : {}),
   };
 }
 

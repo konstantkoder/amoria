@@ -71,6 +71,14 @@ const nearbyRoomMessageSchema = {
     text: { type: "string" },
     createdAt: { type: "string", format: "date-time" },
     clientMessageId: { type: "string" },
+    moderationState: {
+      type: "string",
+      enum: ["visible", "held", "needs_review", "restricted", "removed"],
+    },
+    automationStatus: {
+      type: "string",
+      enum: ["completed", "failed", "not_configured", "not_required"],
+    },
   },
 } as const;
 
