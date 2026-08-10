@@ -16,6 +16,8 @@ import {
   AdminNearbyRoomType,
   AdminReleaseDashboard,
   AdminUserItem,
+  AdminUserDetail,
+  AdminBulkJob,
   ApiError,
   AuditLogItem,
   ClientErrorItem,
@@ -58,11 +60,13 @@ import {
   type Language,
   type TranslationKey,
 } from "./i18n";
+import { getNearbyActivityArtUrl } from "./nearbyActivityArt";
 
 type Screen =
   | "dashboard"
   | "users"
   | "adminUsers"
+  | "bulkModeration"
   | "clientErrors"
   | "auditLog"
   | "reports"
@@ -125,20 +129,21 @@ type NearbyDemandSummary = {
 
 const screens: ScreenItem[] = [
   { key: "dashboard", labelKey: "nav.dashboard" },
-  { key: "users", labelKey: "nav.users" },
+  { key: "users", labelKey: "nav.users", roles: ["owner", "support", "moderator"] },
   { key: "adminUsers", labelKey: "nav.adminUsers", ownerOnly: true },
-  { key: "clientErrors", labelKey: "nav.clientErrors" },
-  { key: "reports", labelKey: "nav.reports" },
+  { key: "bulkModeration", labelKey: "nav.bulkModeration", roles: ["owner", "moderator"] },
+  { key: "clientErrors", labelKey: "nav.clientErrors", roles: ["owner", "support", "ops"] },
+  { key: "reports", labelKey: "nav.reports", roles: ["owner", "moderator", "support"] },
   { key: "messageModeration", labelKey: "nav.messageModeration", roles: ["owner", "moderator", "support", "ops"] },
-  { key: "media", labelKey: "nav.media" },
+  { key: "media", labelKey: "nav.media", roles: ["owner", "moderator", "support"] },
   { key: "togetherQueue", labelKey: "nav.togetherQueue", roles: ["owner", "ops"] },
   { key: "togetherSessions", labelKey: "nav.togetherSessions", roles: ["owner", "ops"] },
   { key: "togetherTurnBased", labelKey: "nav.togetherTurnBased", roles: ["owner", "ops", "support"] },
-  { key: "auditLog", labelKey: "nav.auditLog" },
-  { key: "opsHealth", labelKey: "nav.opsHealth" },
+  { key: "auditLog", labelKey: "nav.auditLog", ownerOnly: true },
+  { key: "opsHealth", labelKey: "nav.opsHealth", roles: ["owner", "support", "ops"] },
   { key: "nearbyDiagnostics", labelKey: "nav.nearbyDiagnostics", roles: ["owner", "ops"] },
   { key: "nearbyRooms", labelKey: "nav.nearbyRooms", roles: ["owner", "moderator", "support", "ops"] },
-  { key: "bootstrap", labelKey: "nav.bootstrap" },
+  { key: "bootstrap", labelKey: "nav.bootstrap", ownerOnly: true },
 ];
 
 type I18nContextValue = {
@@ -217,6 +222,9 @@ export function App() {
     adminMe?.adminUser.roles.some((role) => role === "owner" || role === "moderator") ?? false;
   const canReviewMessages =
     adminMe?.adminUser.roles.some((role) => role === "owner" || role === "moderator") ?? false;
+  const canControlUsers = canReviewMessages;
+  const canManageReports = canReviewMessages;
+  const canManageMedia = canReviewMessages;
   const activeScreen = visibleScreens.some((item) => item.key === screen) ? screen : "dashboard";
   const activeLabel = screens.find((item) => item.key === activeScreen)?.labelKey ?? "nav.dashboard";
 
@@ -288,12 +296,14 @@ export function App() {
               }}
             />
           ) : null}
-          {activeScreen === "users" ? <UsersScreen initialSearch={userSearchRequest} /> : null}
+          {activeScreen === "users" ? <UsersScreen initialSearch={userSearchRequest} canControlUsers={canControlUsers} setMessage={setMessage} /> : null}
           {activeScreen === "adminUsers" ? <AdminUsersScreen /> : null}
+          {activeScreen === "bulkModeration" ? <BulkModerationScreen isOwner={adminMe?.adminUser.roles.includes("owner") ?? false} setMessage={setMessage} /> : null}
           {activeScreen === "clientErrors" ? <ClientErrorsScreen setMessage={setMessage} /> : null}
           {activeScreen === "auditLog" ? <AuditLogScreen /> : null}
           {activeScreen === "reports" ? (
             <ReportsScreen
+              canManage={canManageReports}
               setMessage={setMessage}
               onOpenUser={(request) => {
                 setUserSearchRequest({ ...request, nonce: Date.now() });
@@ -321,7 +331,7 @@ export function App() {
               setMessage={setMessage}
             />
           ) : null}
-          {activeScreen === "media" ? <MediaScreen setMessage={setMessage} openRequest={mediaOpenRequest} /> : null}
+          {activeScreen === "media" ? <MediaScreen setMessage={setMessage} openRequest={mediaOpenRequest} canManage={canManageMedia} /> : null}
           {activeScreen === "togetherQueue" ? (
             <TogetherQueueScreen
               onOpenSession={(sessionId) => {
@@ -495,6 +505,7 @@ function LoginScreen({ onLogin }: { onLogin: (tokens: Tokens) => void }) {
       await apiGet<AdminMe>("/admin/me");
       onLogin(response);
     } catch (error) {
+      clearTokens();
       if (error instanceof ApiError && error.status === 403) {
         setError(t("auth.loginForbidden"));
       } else {
@@ -707,13 +718,19 @@ function ReleaseControlCard({
   );
 }
 
-function UsersScreen({ initialSearch }: { initialSearch: UserSearchRequest | null }) {
+function UsersScreen({ initialSearch, canControlUsers, setMessage }: {
+  initialSearch: UserSearchRequest | null;
+  canControlUsers: boolean;
+  setMessage: (message: string | null) => void;
+}) {
   const { language, t } = useI18n();
   const [amoriaId, setAmoriaId] = useState("");
   const [q, setQ] = useState("");
   const [items, setItems] = useState<UserSearchItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [searched, setSearched] = useState(false);
+  const [selected, setSelected] = useState<AdminUserDetail | null>(null);
+  const [reason, setReason] = useState("");
 
   async function runSearch(nextAmoriaId = amoriaId, nextQ = q) {
     setError(null);
@@ -732,6 +749,27 @@ function UsersScreen({ initialSearch }: { initialSearch: UserSearchRequest | nul
   async function search(event: FormEvent) {
     event.preventDefault();
     await runSearch();
+  }
+
+  async function openUser(userId: string) {
+    setError(null);
+    try {
+      const response = await apiGet<{ user: AdminUserDetail }>(`/admin/users/${userId}`);
+      setSelected(response.user);
+    } catch (error) { setError(errorMessage(error, t)); }
+  }
+
+  async function changeStatus() {
+    if (!selected || reason.trim().length < 3) return;
+    const action = selected.accountStatus === "suspended" ? "restore" : "suspend";
+    if (action === "suspend" && !window.confirm(t("users.suspendConfirm"))) return;
+    try {
+      const response = await apiPost<{ user: AdminUserDetail }>(`/admin/users/${selected.id}/status`, { action, reason });
+      setSelected(response.user);
+      setReason("");
+      setMessage(t(action === "suspend" ? "users.suspended" : "users.restored"));
+      await runSearch();
+    } catch (error) { setError(errorMessage(error, t)); }
   }
 
   useEffect(() => {
@@ -754,26 +792,22 @@ function UsersScreen({ initialSearch }: { initialSearch: UserSearchRequest | nul
         <button>{t("common.search")}</button>
       </form>
       {error ? <div className="error">{error}</div> : null}
-      {items.length ? (
-        <DataTable
-          columns={[
-            t("common.amoriaId"),
-            t("common.displayName"),
-            t("common.email"),
-            t("users.avatar"),
-            t("common.created"),
-            t("common.updated"),
-          ]}
-          rows={items.map((item) => [
-            item.amoriaId,
-            item.displayName,
-            item.email,
-            item.avatarUrl ?? "",
-            formatDate(item.createdAt, language),
-            formatDate(item.updatedAt, language),
-          ])}
-        />
-      ) : <EmptyState label={searched ? t("users.emptyResults") : t("users.emptyInitial")} />}
+      {items.length ? <table><thead><tr><th>{t("common.amoriaId")}</th><th>{t("common.displayName")}</th><th>{t("common.email")}</th>
+        <th>{t("common.status")}</th><th>{t("users.verified")}</th><th>{t("common.created")}</th></tr></thead>
+        <tbody>{items.map((item) => <tr key={item.id} className={selected?.id === item.id ? "selected" : ""} onClick={() => void openUser(item.id)}>
+          <td>{item.amoriaId}</td><td>{item.displayName}</td><td>{item.email}</td><td>{item.accountStatus}</td>
+          <td>{item.emailVerifiedAt ? t("common.yes") : t("common.no")}</td><td>{formatDate(item.createdAt, language)}</td>
+        </tr>)}</tbody></table> : <EmptyState label={searched ? t("users.emptyResults") : t("users.emptyInitial")} />}
+      {selected ? <div className="panel inset-panel"><h3>{t("users.detailTitle")}</h3>
+        <dl className="facts compact"><Fact label={t("common.amoriaId")} value={selected.amoriaId} />
+          <Fact label={t("common.status")} value={selected.accountStatus ?? "active"} />
+          <Fact label={t("users.lastSeen")} value={selected.lastSeenAt ? formatDate(selected.lastSeenAt, language) : ""} />
+          <Fact label={t("users.suspensionReason")} value={selected.suspensionReason ?? ""} />
+          <Fact label={t("common.adminUser")} value={selected.adminUserId ?? ""} /></dl>
+        {canControlUsers ? <div className="stack-form"><label>{t("common.reason")}<input value={reason} onChange={(event) => setReason(event.target.value)} minLength={3} maxLength={500} /></label>
+          <button className={selected.accountStatus === "suspended" ? "secondary" : "danger"} disabled={reason.trim().length < 3} onClick={() => void changeStatus()}>
+            {t(selected.accountStatus === "suspended" ? "users.restore" : "users.suspend")}</button></div> : null}
+      </div> : null}
     </section>
   );
 }
@@ -781,7 +815,25 @@ function UsersScreen({ initialSearch }: { initialSearch: UserSearchRequest | nul
 function AdminUsersScreen() {
   const { language, t } = useI18n();
   const { data, error, reload } = useLoad<{ items: AdminUserItem[]; nextCursor: null }>("/admin/admin-users");
-  const items = data?.items ?? [];
+  const [items, setItems] = useState<AdminUserItem[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [userId, setUserId] = useState("");
+  const [roles, setRoles] = useState<string[]>(["support"]);
+  const [status, setStatus] = useState<"active" | "disabled">("active");
+  const [reason, setReason] = useState("");
+  const [mutationError, setMutationError] = useState<string | null>(null);
+  useEffect(() => { if (data) setItems(data.items); }, [data]);
+  function edit(item: AdminUserItem) { setSelectedId(item.id); setUserId(item.userId); setRoles(item.roles); setStatus(item.status); setReason(""); }
+  function reset() { setSelectedId(null); setUserId(""); setRoles(["support"]); setStatus("active"); setReason(""); }
+  function toggleRole(role: string) { setRoles((current) => current.includes(role) ? current.filter((item) => item !== role) : [...current, role]); }
+  async function save(event: FormEvent) {
+    event.preventDefault(); setMutationError(null);
+    try {
+      const response = await apiPost<{ items: AdminUserItem[] }>(selectedId ? `/admin/admin-users/${selectedId}` : "/admin/admin-users",
+        selectedId ? { status, roles, reason } : { userId, roles, reason });
+      setItems(response.items); reset();
+    } catch (error) { setMutationError(errorMessage(error, t)); }
+  }
 
   return (
     <section className="panel">
@@ -790,6 +842,21 @@ function AdminUsersScreen() {
         <button className="secondary" onClick={reload}>{t("common.refresh")}</button>
       </div>
       {error ? <div className="error">{error}</div> : null}
+      {mutationError ? <div className="error">{mutationError}</div> : null}
+      <form className="stack-form" onSubmit={save}>
+        <h3>{t(selectedId ? "adminUsers.edit" : "adminUsers.create")}</h3>
+        <label>{t("adminUsers.edit")}<select value={selectedId ?? ""} onChange={(event) => {
+          const item = items.find((candidate) => candidate.id === event.target.value);
+          if (item) edit(item); else reset();
+        }}><option value="">{t("adminUsers.create")}</option>{items.map((item) => <option key={item.id} value={item.id}>{item.user.amoriaId} · {item.user.email}</option>)}</select></label>
+        <label>{t("adminUsers.linkedUser")}<input value={userId} onChange={(event) => setUserId(event.target.value)} readOnly={Boolean(selectedId)} required /></label>
+        {selectedId ? <label>{t("common.status")}<select value={status} onChange={(event) => setStatus(event.target.value as "active" | "disabled")}>
+          <option value="active">{t("status.active")}</option><option value="disabled">{t("status.disabled")}</option></select></label> : null}
+        <fieldset><legend>{t("common.roles")}</legend>{["owner", "moderator", "support", "ops"].map((role) =>
+          <label key={role} className="inline-check"><input type="checkbox" checked={roles.includes(role)} onChange={() => toggleRole(role)} />{formatRoles([role], t)}</label>)}</fieldset>
+        <label>{t("common.reason")}<input value={reason} onChange={(event) => setReason(event.target.value)} minLength={3} maxLength={500} required /></label>
+        <div className="filters"><button disabled={!roles.length}>{t("common.apply")}</button>{selectedId ? <button className="secondary" type="button" onClick={reset}>{t("common.cancel")}</button> : null}</div>
+      </form>
       {items.length ? (
         <DataTable
           columns={[
@@ -816,6 +883,68 @@ function AdminUsersScreen() {
       ) : <EmptyState label={t("adminUsers.empty")} />}
     </section>
   );
+}
+
+function BulkModerationScreen({ isOwner, setMessage }: { isOwner: boolean; setMessage: (message: string | null) => void }) {
+  const { t } = useI18n();
+  const [kind, setKind] = useState("media_scan");
+  const [action, setAction] = useState("scan");
+  const [reason, setReason] = useState("");
+  const [ownerAmoriaId, setOwnerAmoriaId] = useState("");
+  const [moderationStatus, setModerationStatus] = useState("");
+  const [maxItems, setMaxItems] = useState("25");
+  const [idempotencyKey, setIdempotencyKey] = useState(() => `admin-${Date.now()}`);
+  const [job, setJob] = useState<AdminBulkJob | null>(null);
+  const [confirmationToken, setConfirmationToken] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [countryStatus, setCountryStatus] = useState("");
+  const [orphans, setOrphans] = useState<unknown>(null);
+  const actions: Record<string, string[]> = { media_scan: ["scan"], media_decision: ["mark_under_review", "restrict", "remove"], message_decision: ["restrict", "remove", "escalate"], physical_media_purge: ["purge"] };
+  useEffect(() => { apiGet<{ status: string }>("/admin/country-scope").then((value) => setCountryStatus(value.status)).catch(() => setCountryStatus("")); }, []);
+  function changeKind(value: string) { setKind(value); setAction(actions[value][0]); setJob(null); setConfirmationToken(""); }
+  async function preview(event: FormEvent) {
+    event.preventDefault(); setError(null);
+    try {
+      const scope = kind === "physical_media_purge" ? {} : { ownerAmoriaId: ownerAmoriaId || undefined, moderationStatus: moderationStatus || undefined };
+      const response = await apiPost<{ job: AdminBulkJob; confirmationToken: string }>("/admin/bulk-jobs/preview", { kind, action, reason, idempotencyKey, maxItems: Number(maxItems), scope });
+      setJob(response.job); setConfirmationToken(response.confirmationToken); setMessage(t("bulk.previewReady"));
+    } catch (error) { setError(errorMessage(error, t)); }
+  }
+  async function confirm() {
+    if (!job || !window.confirm(t("bulk.confirmWarning"))) return;
+    try {
+      const response = await apiPost<{ job: AdminBulkJob }>(`/admin/bulk-jobs/${job.id}/confirm`, { confirmationToken });
+      setJob(response.job); setMessage(t("bulk.completed"));
+    } catch (error) { setError(errorMessage(error, t)); }
+  }
+  async function diagnoseOrphans() {
+    try { setOrphans(await apiGet("/admin/storage/orphans")); } catch (error) { setError(errorMessage(error, t)); }
+  }
+  return <section className="grid-two"><div className="panel">
+    <h2>{t("bulk.title")}</h2><p className="muted">{t("bulk.safetyNote")}</p>
+    {countryStatus ? <div className="notice">{countryStatus}</div> : null}{error ? <div className="error">{error}</div> : null}
+    <form className="stack-form" onSubmit={preview}>
+      <label>{t("bulk.kind")}<select value={kind} onChange={(event) => changeKind(event.target.value)}>
+        <option value="media_scan">{t("bulk.mediaScan")}</option><option value="media_decision">{t("bulk.mediaDecision")}</option>
+        <option value="message_decision">{t("bulk.messageDecision")}</option>{isOwner ? <option value="physical_media_purge">{t("bulk.physicalPurge")}</option> : null}</select></label>
+      <label>{t("common.action")}<select value={action} onChange={(event) => setAction(event.target.value)}>{actions[kind].map((item) => <option key={item}>{item}</option>)}</select></label>
+      {kind !== "physical_media_purge" ? <><label>{t("media.ownerAmoriaId")}<input value={ownerAmoriaId} onChange={(event) => setOwnerAmoriaId(event.target.value)} /></label>
+        <label>{t("media.moderationStatus")}<input value={moderationStatus} onChange={(event) => setModerationStatus(event.target.value)} /></label></> : null}
+      <label>{t("common.limit")}<input type="number" min="1" max="100" value={maxItems} onChange={(event) => setMaxItems(event.target.value)} /></label>
+      <label>{t("bulk.idempotencyKey")}<input value={idempotencyKey} onChange={(event) => setIdempotencyKey(event.target.value)} required /></label>
+      <label>{t("common.reason")}<textarea value={reason} onChange={(event) => setReason(event.target.value)} minLength={3} maxLength={500} required /></label>
+      <button>{t("bulk.preview")}</button>
+    </form>
+    {isOwner ? <button className="secondary" type="button" onClick={() => void diagnoseOrphans()}>{t("bulk.orphanDiagnostics")}</button> : null}
+    {orphans ? <JsonBlock data={orphans} /> : null}
+  </div><div className="panel"><h2>{t("bulk.previewTitle")}</h2>{job ? <>
+    <dl className="facts compact"><Fact label={t("bulk.jobId")} value={job.id} /><Fact label={t("common.status")} value={job.status} />
+      <Fact label={t("bulk.previewCount")} value={String(job.previewCount)} /><Fact label={t("bulk.appliedCount")} value={String(job.appliedCount)} />
+      <Fact label={t("bulk.failedCount")} value={String(job.failedCount)} /></dl>
+    {job.status === "awaiting_confirmation" ? <button className="danger" onClick={() => void confirm()}>{t("bulk.confirm")}</button> : null}
+    <table><thead><tr><th>{t("common.target")}</th><th>{t("common.action")}</th><th>{t("common.status")}</th><th>{t("common.code")}</th></tr></thead>
+      <tbody>{job.items.map((item) => <tr key={item.id}><td>{item.targetType}:{item.targetId}</td><td>{item.proposedAction}</td><td>{item.status}</td><td>{item.errorCode ?? ""}</td></tr>)}</tbody></table>
+  </> : <EmptyState label={t("bulk.emptyPreview")} />}</div></section>;
 }
 
 function ClientErrorsScreen({ setMessage }: { setMessage: (message: string | null) => void }) {
@@ -1224,6 +1353,7 @@ function MessageModerationScreen({
 }
 
 function ReportsScreen({
+  canManage,
   setMessage,
   onOpenUser,
   onOpenMedia,
@@ -1231,6 +1361,7 @@ function ReportsScreen({
   onOpenNearbyDiagnostics,
   onOpenMessage,
 }: {
+  canManage: boolean;
   setMessage: (message: string | null) => void;
   onOpenUser: (request: Omit<UserSearchRequest, "nonce">) => void;
   onOpenMedia: (request: Omit<MediaOpenRequest, "nonce">) => void;
@@ -1246,6 +1377,7 @@ function ReportsScreen({
   const [action, setAction] = useState("mark_under_review");
   const [reason, setReason] = useState("");
   const [note, setNote] = useState("");
+  useEffect(() => { if (!canManage) setAction("add_note"); }, [canManage]);
 
   async function load() {
     setError(null);
@@ -1441,15 +1573,13 @@ function ReportsScreen({
 
             <form className="stack-form" onSubmit={submitAction}>
               <label>{t("common.action")}<select value={action} onChange={(event) => setAction(event.target.value)}>
-                <option value="mark_under_review">{t("reports.markUnderReview")}</option>
-                <option value="dismiss">{t("reports.dismiss")}</option>
-                <option value="resolve">{t("reports.resolve")}</option>
-                <option value="escalate">{t("reports.escalate")}</option>
+                {canManage ? <><option value="mark_under_review">{t("reports.markUnderReview")}</option>
+                <option value="dismiss">{t("reports.dismiss")}</option><option value="resolve">{t("reports.resolve")}</option>
+                <option value="escalate">{t("reports.escalate")}</option><option value="assign">{t("reports.assign")}</option></> : null}
                 <option value="add_note">{t("reports.addNote")}</option>
-                <option value="assign">{t("reports.assign")}</option>
               </select></label>
-              <label>{t("common.reason")}<input value={reason} onChange={(event) => setReason(event.target.value)} /></label>
-              <label>{t("common.note")}<textarea value={note} onChange={(event) => setNote(event.target.value)} /></label>
+              <label>{t("common.reason")}<input value={reason} onChange={(event) => setReason(event.target.value)} required={action !== "add_note"} /></label>
+              <label>{t("common.note")}<textarea value={note} onChange={(event) => setNote(event.target.value)} required={action === "add_note"} /></label>
               <button>{t("common.apply")}</button>
             </form>
 
@@ -1943,12 +2073,14 @@ function formatProbeDetails(probe: PublicMediaProbeResult): string {
 function MediaScreen({
   setMessage,
   openRequest,
+  canManage,
 }: {
   setMessage: (message: string | null) => void;
   openRequest: MediaOpenRequest | null;
+  canManage: boolean;
 }) {
   const { language, t, tx } = useI18n();
-  const [filters, setFilters] = useState({ ownerAmoriaId: "", type: "", moderationStatus: "", createdFrom: "", createdTo: "", limit: "50" });
+  const [filters, setFilters] = useState({ ownerAmoriaId: "", type: "", visibility: "", moderationStatus: "", createdFrom: "", createdTo: "", limit: "50" });
   const [items, setItems] = useState<MediaItem[]>([]);
   const [selected, setSelected] = useState<MediaDetail | null>(null);
   const [detailReason, setDetailReason] = useState("");
@@ -2068,6 +2200,8 @@ function MediaScreen({
         <form className="filters" onSubmit={(event) => { event.preventDefault(); void load(); }}>
           <label>{t("media.ownerAmoriaId")}<input value={filters.ownerAmoriaId} onChange={(event) => setFilters({ ...filters, ownerAmoriaId: event.target.value })} /></label>
           <label>{t("common.type")}<input value={filters.type} onChange={(event) => setFilters({ ...filters, type: event.target.value })} /></label>
+          <label>{t("media.visibility")}<select value={filters.visibility} onChange={(event) => setFilters({ ...filters, visibility: event.target.value })}>
+            <option value="">{t("status.any")}</option><option value="avatar">Avatar</option><option value="public">Public</option><option value="locked">Locked</option></select></label>
           <label>{t("media.moderationStatus")}<select value={filters.moderationStatus} onChange={(event) => setFilters({ ...filters, moderationStatus: event.target.value })}>
             <option value="">{t("status.any")}</option>
             <option value="pending">Pending</option>
@@ -2077,8 +2211,8 @@ function MediaScreen({
             <option value="removed">Removed</option>
             <option value="automation_failed">Automation failed</option>
           </select></label>
-          <label>Created from<input type="datetime-local" value={filters.createdFrom} onChange={(event) => setFilters({ ...filters, createdFrom: event.target.value })} /></label>
-          <label>Created to<input type="datetime-local" value={filters.createdTo} onChange={(event) => setFilters({ ...filters, createdTo: event.target.value })} /></label>
+          <label>{t("media.createdFrom")}<input type="datetime-local" value={filters.createdFrom} onChange={(event) => setFilters({ ...filters, createdFrom: event.target.value })} /></label>
+          <label>{t("media.createdTo")}<input type="datetime-local" value={filters.createdTo} onChange={(event) => setFilters({ ...filters, createdTo: event.target.value })} /></label>
           <label>{t("common.limit")}<input value={filters.limit} onChange={(event) => setFilters({ ...filters, limit: event.target.value })} inputMode="numeric" /></label>
           <label>{t("media.detailReason")}<input value={detailReason} onChange={(event) => setDetailReason(event.target.value)} /></label>
           <button>{t("common.load")}</button>
@@ -2171,22 +2305,22 @@ function MediaScreen({
             <dl className="facts compact">
               <Fact label={t("media.mediaId")} value={selected.id} />
               <Fact label={t("media.ownerUserId")} value={selected.ownerUserId} />
-              <Fact label="Media type / intent" value={selected.type} />
-              <Fact label="Visibility" value={selected.visibility ?? ""} />
+              <Fact label={t("media.intent")} value={selected.type} />
+              <Fact label={t("media.visibility")} value={selected.visibility ?? ""} />
               <Fact label={t("common.status")} value={formatStatus(selected.moderationStatus, t)} />
-              <Fact label="Moderation origin" value={selected.moderationOrigin} />
-              <Fact label="Model" value={selected.automation?.providerEngine ?? ""} />
-              <Fact label="Model version" value={selected.automation?.modelVersion ?? ""} />
-              <Fact label="Policy" value={selected.automation?.policyVersion ?? ""} />
-              <Fact label="Automated decision" value={selected.automation?.policyDecision ?? ""} />
-              <Fact label="Person presence" value={personPresenceFromRawResult(selected.automation?.rawResult)} />
-              <Fact label="NSFW score" value={nsfwScoreFromRawResult(selected.automation?.rawResult)} />
-              <Fact label="Policy reason" value={policyReasonFromRawResult(selected.automation?.rawResult)} />
+              <Fact label={t("media.origin")} value={selected.moderationOrigin} />
+              <Fact label={t("media.model")} value={selected.automation?.providerEngine ?? ""} />
+              <Fact label={t("media.modelVersion")} value={selected.automation?.modelVersion ?? ""} />
+              <Fact label={t("media.policy")} value={selected.automation?.policyVersion ?? ""} />
+              <Fact label={t("media.automatedDecision")} value={selected.automation?.policyDecision ?? ""} />
+              <Fact label={t("media.personPresence")} value={personPresenceFromRawResult(selected.automation?.rawResult)} />
+              <Fact label={t("media.nsfwScore")} value={nsfwScoreFromRawResult(selected.automation?.rawResult)} />
+              <Fact label={t("media.policyReason")} value={policyReasonFromRawResult(selected.automation?.rawResult)} />
               <Fact label={t("media.mime")} value={selected.mimeType} />
               <Fact label={t("media.size")} value={String(selected.sizeBytes)} />
               <Fact label={t("media.publicUrl")} value={resolveApiUrl(selected.publicUrl) ?? ""} />
             </dl>
-            <form className="stack-form" onSubmit={submitDecision}>
+            {canManage ? <form className="stack-form" onSubmit={submitDecision}>
               <label>{t("common.decision")}<select value={decisionAction} onChange={(event) => setDecisionAction(event.target.value)}>
                 <option value="approve">{t("media.approve")}</option>
                 <option value="restrict">{t("media.restrict")}</option>
@@ -2195,7 +2329,7 @@ function MediaScreen({
               </select></label>
               <label>{t("common.reason")}<input value={decisionReason} onChange={(event) => setDecisionReason(event.target.value)} required={decisionRequiresReason} /></label>
               <button>{t("media.saveDecision")}</button>
-            </form>
+            </form> : null}
             <h3>{t("media.debugMetadata")}</h3>
             <JsonBlock data={selected} />
           </>
@@ -2603,7 +2737,7 @@ function NearbyRoomsScreen({
         {demandError ? <div className="error">{demandError}</div> : null}
         {demandLoading ? <div className="empty">{t("common.loading")}</div> : null}
         {!demandLoading && visibleDemandRows.length ? (
-          <table>
+          <table className="nearby-demand-table">
             <thead>
               <tr>
                 <th>{t("nearbyDemand.activity")}</th>
@@ -2622,10 +2756,10 @@ function NearbyRoomsScreen({
 
                 return (
                   <tr key={item.activityKey}>
-                    <td>
-                      <div>{activityTitle}</div>
-                      <div className="muted">{item.activityKey}</div>
-                    </td>
+                    <td><div className="nearby-demand-activity-cell">
+                      <img className="nearby-demand-thumbnail" src={getNearbyActivityArtUrl(item.activityKey)} alt="" loading="lazy" />
+                      <div><div>{activityTitle}</div><div className="muted">{item.activityKey}</div></div>
+                    </div></td>
                     <td>{formatCount(item.interestedUsersCount)}</td>
                     <td>{formatCount(item.activeNearbyUsersCount)}</td>
                     <td>{formatCount(item.recentlyUpdatedUsersCount)}</td>
@@ -2725,6 +2859,13 @@ function NearbyRoomsScreen({
             {createFromDemandForm ? (
               <div className="create-from-demand-panel">
                 <h2>{t("nearbyDemand.createActivity")}</h2>
+                <div className="nearby-activity-preview">
+                  <img src={getNearbyActivityArtUrl(createFromDemandForm.activityKey)} alt="" />
+                  <div className="nearby-activity-preview-overlay">
+                    <strong>{createFromDemandForm.activityTitle}</strong>
+                    <span>{createFromDemandForm.activityKey}</span>
+                  </div>
+                </div>
                 <form className="stack-form" onSubmit={submitCreateFromDemand}>
                   <label>
                     {t("nearbyDemand.activity")}

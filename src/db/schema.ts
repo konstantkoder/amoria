@@ -48,6 +48,10 @@ export const users = pgTable("users", {
   birthDate: date("birth_date", { mode: "string" }),
   preferredAgeMin: integer("preferred_age_min").default(18).notNull(),
   preferredAgeMax: integer("preferred_age_max"),
+  accountStatus: text("account_status").default("active").notNull(),
+  suspendedAt: timestamp("suspended_at", { withTimezone: true }),
+  suspensionReason: text("suspension_reason"),
+  suspendedByAdminUserId: uuid("suspended_by_admin_user_id"),
   lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
@@ -64,6 +68,10 @@ export const users = pgTable("users", {
   check(
     "users_gender_check",
     sql`${table.gender} IS NULL OR ${table.gender} IN ('woman', 'man', 'nonbinary')`,
+  ),
+  check(
+    "users_account_status_check",
+    sql`${table.accountStatus} IN ('active', 'suspended')`,
   ),
 ]);
 
@@ -84,6 +92,9 @@ export const mediaFiles = pgTable("media_files", {
   moderationOrigin: text("moderation_origin").default("unclassified").notNull(),
   automatedCheckedAt: timestamp("automated_checked_at", { withTimezone: true }),
   moderationUpdatedAt: timestamp("moderation_updated_at", { withTimezone: true }).defaultNow().notNull(),
+  physicallyPurgedAt: timestamp("physically_purged_at", { withTimezone: true }),
+  physicallyPurgedByAdminUserId: uuid("physically_purged_by_admin_user_id"),
+  physicalPurgeReason: text("physical_purge_reason"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
   index("media_files_moderation_state_created_at_idx").on(table.moderationState, table.createdAt),
@@ -317,6 +328,9 @@ export const safetyReports = pgTable("safety_reports", {
   reason: text("reason").notNull(),
   comment: text("comment"),
   status: text("status").default("open").notNull(),
+  assignedAdminUserId: uuid("assigned_admin_user_id").references(() => adminUsers.id, {
+    onDelete: "set null",
+  }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
@@ -375,6 +389,50 @@ export const mediaModerationReviews = pgTable("media_moderation_reviews", {
     "media_moderation_reviews_action_check",
     sql`${table.action} IN ('approve', 'restrict', 'remove', 'mark_under_review')`,
   ),
+]);
+
+export const adminBulkJobs = pgTable("admin_bulk_jobs", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  adminUserId: uuid("admin_user_id").references(() => adminUsers.id, { onDelete: "set null" }),
+  kind: text("kind").notNull(),
+  action: text("action").notNull(),
+  scope: jsonb("scope").$type<JsonValue>().default(sql`'{}'::jsonb`).notNull(),
+  reason: text("reason").notNull(),
+  idempotencyKey: text("idempotency_key").notNull(),
+  maxItems: integer("max_items").notNull(),
+  status: text("status").default("awaiting_confirmation").notNull(),
+  confirmationTokenHash: text("confirmation_token_hash").notNull(),
+  confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  previewCount: integer("preview_count").default(0).notNull(),
+  appliedCount: integer("applied_count").default(0).notNull(),
+  skippedCount: integer("skipped_count").default(0).notNull(),
+  failedCount: integer("failed_count").default(0).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  unique("admin_bulk_jobs_admin_idempotency_unique").on(table.adminUserId, table.idempotencyKey),
+  index("admin_bulk_jobs_created_at_idx").on(table.createdAt),
+  check("admin_bulk_jobs_kind_check", sql`${table.kind} IN ('media_scan', 'media_decision', 'message_decision', 'physical_media_purge')`),
+  check("admin_bulk_jobs_status_check", sql`${table.status} IN ('awaiting_confirmation', 'running', 'completed', 'partially_failed', 'cancelled')`),
+  check("admin_bulk_jobs_max_items_check", sql`${table.maxItems} >= 1 AND ${table.maxItems} <= 100`),
+]);
+
+export const adminBulkJobItems = pgTable("admin_bulk_job_items", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  jobId: uuid("job_id").notNull().references(() => adminBulkJobs.id, { onDelete: "cascade" }),
+  targetType: text("target_type").notNull(),
+  targetId: text("target_id").notNull(),
+  proposedAction: text("proposed_action").notNull(),
+  status: text("status").default("pending").notNull(),
+  errorCode: text("error_code"),
+  metadata: jsonb("metadata").$type<JsonValue | null>(),
+  appliedAt: timestamp("applied_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  unique("admin_bulk_job_items_job_target_unique").on(table.jobId, table.targetType, table.targetId),
+  index("admin_bulk_job_items_job_status_idx").on(table.jobId, table.status),
+  check("admin_bulk_job_items_status_check", sql`${table.status} IN ('pending', 'applied', 'skipped', 'failed')`),
 ]);
 
 export const mediaModerationJobs = pgTable("media_moderation_jobs", {
@@ -1462,12 +1520,16 @@ export const authEmailChallengesRelations = relations(authEmailChallenges, ({ on
   }),
 }));
 
-export type UserRow = typeof users.$inferSelect;
+type UserDbRow = typeof users.$inferSelect;
+export type UserRow = Omit<UserDbRow, "accountStatus" | "suspendedAt" | "suspensionReason" | "suspendedByAdminUserId"> &
+  Partial<Pick<UserDbRow, "accountStatus" | "suspendedAt" | "suspensionReason" | "suspendedByAdminUserId">>;
 export type NewUserRow = typeof users.$inferInsert;
 export type AuthEmailChallengeRow = typeof authEmailChallenges.$inferSelect;
 export type NewAuthEmailChallengeRow = typeof authEmailChallenges.$inferInsert;
 export type AuthRateLimitRow = typeof authRateLimits.$inferSelect;
-export type MediaFileRow = typeof mediaFiles.$inferSelect;
+type MediaFileDbRow = typeof mediaFiles.$inferSelect;
+export type MediaFileRow = Omit<MediaFileDbRow, "physicallyPurgedAt" | "physicallyPurgedByAdminUserId" | "physicalPurgeReason"> &
+  Partial<Pick<MediaFileDbRow, "physicallyPurgedAt" | "physicallyPurgedByAdminUserId" | "physicalPurgeReason">>;
 export type NewMediaFileRow = typeof mediaFiles.$inferInsert;
 export type MediaUploadRow = typeof mediaUploads.$inferSelect;
 export type NewMediaUploadRow = typeof mediaUploads.$inferInsert;

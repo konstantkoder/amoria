@@ -4,6 +4,7 @@ import { verifyAccessToken } from "../auth/jwt";
 import * as chatService from "../chat/chat.service";
 import * as togetherService from "../together/together.service";
 import { wsHub } from "./ws.hub";
+import { findUserAccountStatus } from "../users/users.repo";
 
 type ClientWsMessage =
   | {
@@ -39,28 +40,19 @@ const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}
 
 export async function wsRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.get("/", { websocket: true }, (socket, request) => {
-    const userId = authenticateSocket(socket, request);
-    if (!userId) {
-      return;
-    }
-
-    wsHub.addSocket(userId, socket);
-
-    socket.on("message", (raw: { toString(): string }) => {
-      void handleClientMessage(socket, userId, raw.toString());
-    });
-
-    socket.on("close", () => {
-      wsHub.removeSocket(socket);
-    });
-
-    socket.on("error", () => {
-      wsHub.removeSocket(socket);
+    void authenticateSocket(socket, request).then((userId) => {
+      if (!userId) return;
+      wsHub.addSocket(userId, socket);
+      socket.on("message", (raw: { toString(): string }) => {
+        void handleClientMessage(socket, userId, raw.toString());
+      });
+      socket.on("close", () => wsHub.removeSocket(socket));
+      socket.on("error", () => wsHub.removeSocket(socket));
     });
   });
 }
 
-function authenticateSocket(socket: WebSocket, request: FastifyRequest): string | undefined {
+async function authenticateSocket(socket: WebSocket, request: FastifyRequest): Promise<string | undefined> {
   const token = authTokenFromRequest(request);
   if (!token) {
     socket.close(1008, "Authentication is required");
@@ -68,7 +60,12 @@ function authenticateSocket(socket: WebSocket, request: FastifyRequest): string 
   }
 
   try {
-    return verifyAccessToken(token).sub;
+    const userId = verifyAccessToken(token).sub;
+    if (await findUserAccountStatus(userId) !== "active") {
+      socket.close(1008, "Account is not active");
+      return undefined;
+    }
+    return userId;
   } catch {
     socket.close(1008, "Invalid access token");
     return undefined;

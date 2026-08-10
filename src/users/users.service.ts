@@ -231,6 +231,9 @@ export async function getPublicUserById(
   if (!user) {
     throw new AppError("not_found", "User not found", 404);
   }
+  if ((user.accountStatus ?? "active") !== "active") {
+    throw new AppError("not_found", "User not found", 404);
+  }
 
   await assertPublicProfileVisible(currentUserId, user.id);
   return toPublicUserProfile(user);
@@ -242,6 +245,9 @@ export async function getPublicUserByAmoriaId(
 ): Promise<PublicUserProfile> {
   const user = await deps.repo.findUserByAmoriaId(amoriaId);
   if (!user) {
+    throw new AppError("not_found", "User not found", 404);
+  }
+  if ((user.accountStatus ?? "active") !== "active") {
     throw new AppError("not_found", "User not found", 404);
   }
 

@@ -1,4 +1,4 @@
-import { and, desc, eq, or, type SQL } from "drizzle-orm";
+import { and, desc, eq, or, sql, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "../db/client";
 import {
@@ -107,7 +107,8 @@ export async function createReportReviewAction(input: {
       .select()
       .from(safetyReports)
       .where(eq(safetyReports.id, input.reportId))
-      .limit(1);
+      .limit(1)
+      .for("update");
 
     if (!existingReport) {
       return undefined;
@@ -119,6 +120,7 @@ export async function createReportReviewAction(input: {
       .update(safetyReports)
       .set({
         ...(input.status ? { status: input.status } : {}),
+        ...(input.action === "assign" ? { assignedAdminUserId: input.adminUserId } : {}),
         updatedAt: new Date(),
       })
       .where(eq(safetyReports.id, input.reportId))
@@ -198,7 +200,10 @@ function reportSelect() {
       targetUsers,
       and(
         or(eq(safetyReports.targetType, "user"), eq(safetyReports.targetType, "profile")),
-        or(eq(targetUsers.id, safetyReports.targetId), eq(targetUsers.amoriaId, safetyReports.targetId)),
+        or(
+          eq(sql<string>`${targetUsers.id}::text`, safetyReports.targetId),
+          eq(targetUsers.amoriaId, safetyReports.targetId),
+        ),
       ),
     );
 }
@@ -216,6 +221,7 @@ function toAdminReportRow(row: ReportSelectRow): AdminReportRow {
     reason: row.report.reason,
     comment: row.report.comment,
     status: row.report.status as ReportStatus,
+    assignedAdminUserId: row.report.assignedAdminUserId,
     createdAt: row.report.createdAt,
     updatedAt: row.report.updatedAt,
   };

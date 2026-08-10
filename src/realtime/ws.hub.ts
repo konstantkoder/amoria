@@ -161,6 +161,14 @@ class WsHub {
     }
   }
 
+  disconnectUser(userId: string, reason = "Access revoked"): void {
+    const sockets = [...(this.userSockets.get(userId) ?? [])];
+    for (const socket of sockets) {
+      this.removeSocket(socket);
+      socket.close(1008, reason);
+    }
+  }
+
   broadcastTogetherEvent(sessionId: string, event: TogetherEventDto): void {
     this.broadcastToSockets(this.togetherSessionSockets.get(sessionId), {
       type: "together.event",

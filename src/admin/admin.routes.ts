@@ -70,15 +70,32 @@ import * as adminReportsService from "./admin-reports.service";
 import {
   adminAuditLogRouteSchema,
   adminAdminUsersRouteSchema,
+  adminCreateAdminUserRouteSchema,
   adminHealthRouteSchema,
   adminMeRouteSchema,
   adminUsersSearchRouteSchema,
+  adminUpdateAdminUserRouteSchema,
+  adminUserDetailRouteSchema,
+  adminUserStatusActionRouteSchema,
   parseAdminAuditLogLimit,
+  parseAdminCreateAdminUserBody,
+  parseAdminUpdateAdminUserBody,
   parseAdminUserSearchQuery,
+  parseAdminUserStatusActionBody,
 } from "./admin.schemas";
 import * as adminService from "./admin.service";
+import * as adminUserControlService from "./admin-user-control.service";
 import { firstHeaderValue, type AdminContext, type AdminRequestContext } from "./admin.types";
 import * as adminTurnBased from "./admin-together-turn-based.service";
+import {
+  adminBulkConfirmRouteSchema,
+  adminBulkJobDetailRouteSchema,
+  adminBulkPreviewRouteSchema,
+  adminCountryScopeRouteSchema,
+  parseAdminBulkConfirmBody,
+  parseAdminBulkPreviewBody,
+} from "./admin-bulk.schemas";
+import * as adminBulkService from "./admin-bulk.service";
 
 function currentAdmin(request: { admin?: AdminContext }): AdminContext {
   if (!request.admin) {
@@ -97,6 +114,47 @@ function adminRequestContext(request: FastifyRequest): AdminRequestContext {
 }
 
 export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
+  fastify.post(
+    "/bulk-jobs/preview",
+    {
+      preHandler: [authMiddleware, requireAdmin(["owner", "moderator"])],
+      schema: withErrorResponses(adminBulkPreviewRouteSchema),
+    },
+    async (request) => adminBulkService.previewBulkJob(
+      currentAdmin(request), parseAdminBulkPreviewBody(request.body), adminRequestContext(request),
+    ),
+  );
+  fastify.post<{ Params: { jobId: string } }>(
+    "/bulk-jobs/:jobId/confirm",
+    {
+      preHandler: [authMiddleware, requireAdmin(["owner", "moderator"])],
+      schema: withErrorResponses(adminBulkConfirmRouteSchema),
+    },
+    async (request) => adminBulkService.confirmBulkJob(
+      currentAdmin(request), request.params.jobId, parseAdminBulkConfirmBody(request.body), adminRequestContext(request),
+    ),
+  );
+  fastify.get<{ Params: { jobId: string } }>(
+    "/bulk-jobs/:jobId",
+    {
+      preHandler: [authMiddleware, requireAdmin(["owner", "moderator"])],
+      schema: withErrorResponses(adminBulkJobDetailRouteSchema),
+    },
+    async (request) => adminBulkService.getBulkJob(currentAdmin(request), request.params.jobId, adminRequestContext(request)),
+  );
+  fastify.get(
+    "/storage/orphans",
+    { preHandler: [authMiddleware, requireAdmin(["owner", "ops"])] },
+    async (request) => adminBulkService.getOrphanDiagnostics(currentAdmin(request), adminRequestContext(request)),
+  );
+  fastify.get(
+    "/country-scope",
+    {
+      preHandler: [authMiddleware, requireAdmin()],
+      schema: withErrorResponses(adminCountryScopeRouteSchema),
+    },
+    async () => ({ status: "COUNTRY_SCOPE_METADATA_MISSING", countryFilteringAvailable: false }),
+  );
   fastify.get(
     "/message-moderation",
     {
@@ -206,6 +264,60 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
         currentAdmin(request),
         adminRequestContext(request),
       ),
+  );
+
+  fastify.post(
+    "/admin-users",
+    {
+      preHandler: [authMiddleware, requireAdmin(["owner"])],
+      schema: withErrorResponses(adminCreateAdminUserRouteSchema),
+    },
+    async (request) => adminUserControlService.createAdminUserForOwner(
+      currentAdmin(request),
+      parseAdminCreateAdminUserBody(request.body),
+      adminRequestContext(request),
+    ),
+  );
+
+  fastify.post<{ Params: { adminUserId: string } }>(
+    "/admin-users/:adminUserId",
+    {
+      preHandler: [authMiddleware, requireAdmin(["owner"])],
+      schema: withErrorResponses(adminUpdateAdminUserRouteSchema),
+    },
+    async (request) => adminUserControlService.updateAdminUserForOwner(
+      currentAdmin(request),
+      request.params.adminUserId,
+      parseAdminUpdateAdminUserBody(request.body),
+      adminRequestContext(request),
+    ),
+  );
+
+  fastify.get<{ Params: { userId: string } }>(
+    "/users/:userId",
+    {
+      preHandler: [authMiddleware, requireAdmin(["owner", "support", "moderator"])],
+      schema: withErrorResponses(adminUserDetailRouteSchema),
+    },
+    async (request) => adminUserControlService.getUserDetailForAdmin(
+      currentAdmin(request),
+      request.params.userId,
+      adminRequestContext(request),
+    ),
+  );
+
+  fastify.post<{ Params: { userId: string } }>(
+    "/users/:userId/status",
+    {
+      preHandler: [authMiddleware, requireAdmin(["owner", "moderator"])],
+      schema: withErrorResponses(adminUserStatusActionRouteSchema),
+    },
+    async (request) => adminUserControlService.actionUserStatusForAdmin(
+      currentAdmin(request),
+      request.params.userId,
+      parseAdminUserStatusActionBody(request.body),
+      adminRequestContext(request),
+    ),
   );
 
   fastify.get(

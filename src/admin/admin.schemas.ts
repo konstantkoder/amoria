@@ -1,7 +1,36 @@
 import type { FastifySchema } from "fastify";
 import { z } from "zod";
 import { validationError } from "../common/errors";
-import { ADMIN_ROLE_KEYS, type AdminUserSearchQuery } from "./admin.types";
+import {
+  ADMIN_ROLE_KEYS,
+  type AdminCreateAdminUserBody,
+  type AdminUpdateAdminUserBody,
+  type AdminUserSearchQuery,
+  type AdminUserStatusActionBody,
+} from "./admin.types";
+
+const reasonSchema = z.string().trim().min(3).max(500);
+const rolesSchema = z.array(z.enum(ADMIN_ROLE_KEYS)).min(1).max(4).transform((roles) => [...new Set(roles)]);
+
+const adminUserStatusActionBodySchema = z.object({
+  action: z.enum(["suspend", "restore"]),
+  reason: reasonSchema,
+}).strict();
+
+const adminCreateAdminUserBodySchema = z.object({
+  userId: z.string().uuid(),
+  roles: rolesSchema,
+  reason: reasonSchema,
+}).strict();
+
+const adminUpdateAdminUserBodySchema = z.object({
+  status: z.enum(["active", "disabled"]).optional(),
+  roles: rolesSchema.optional(),
+  reason: reasonSchema,
+}).strict().refine((value) => value.status !== undefined || value.roles !== undefined, {
+  message: "status or roles is required",
+  path: ["status"],
+});
 
 export const adminUserSearchQuerySchema = z
   .object({
@@ -27,6 +56,18 @@ export function parseAdminUserSearchQuery(input: unknown): AdminUserSearchQuery 
 
 export function parseAdminAuditLogLimit(input: unknown): number {
   return parseWithValidation(adminAuditLogQuerySchema, input).limit;
+}
+
+export function parseAdminUserStatusActionBody(input: unknown): AdminUserStatusActionBody {
+  return parseWithValidation(adminUserStatusActionBodySchema, input);
+}
+
+export function parseAdminCreateAdminUserBody(input: unknown): AdminCreateAdminUserBody {
+  return parseWithValidation(adminCreateAdminUserBodySchema, input);
+}
+
+export function parseAdminUpdateAdminUserBody(input: unknown): AdminUpdateAdminUserBody {
+  return parseWithValidation(adminUpdateAdminUserBodySchema, input);
 }
 
 const adminUserWithRolesSchema = {
@@ -92,6 +133,27 @@ const adminUserSearchItemSchema = {
     avatarUrl: { type: ["string", "null"] },
     createdAt: { type: "string", format: "date-time" },
     updatedAt: { type: "string", format: "date-time" },
+  },
+} as const;
+
+const adminUserDetailSchema = {
+  ...adminUserSearchItemSchema,
+  required: [
+    ...adminUserSearchItemSchema.required,
+    "emailVerifiedAt", "accountStatus", "suspendedAt", "suspensionReason",
+    "gender", "goal", "mood", "lastSeenAt", "adminUserId",
+  ],
+  properties: {
+    ...adminUserSearchItemSchema.properties,
+    emailVerifiedAt: { type: ["string", "null"], format: "date-time" },
+    accountStatus: { type: "string", enum: ["active", "suspended"] },
+    suspendedAt: { type: ["string", "null"], format: "date-time" },
+    suspensionReason: { type: ["string", "null"] },
+    gender: { type: ["string", "null"] },
+    goal: { type: ["string", "null"] },
+    mood: { type: ["string", "null"] },
+    lastSeenAt: { type: ["string", "null"], format: "date-time" },
+    adminUserId: { type: ["string", "null"], format: "uuid" },
   },
 } as const;
 
@@ -217,6 +279,81 @@ export const adminAdminUsersRouteSchema = {
       },
     },
   },
+} as const satisfies FastifySchema;
+
+export const adminUserDetailRouteSchema = {
+  params: { type: "object", required: ["userId"], additionalProperties: false, properties: { userId: { type: "string", format: "uuid" } } },
+  response: {
+    200: {
+      type: "object",
+      required: ["user"],
+      additionalProperties: false,
+      properties: { user: adminUserDetailSchema },
+    },
+  },
+} as const satisfies FastifySchema;
+
+export const adminUserStatusActionRouteSchema = {
+  params: { type: "object", required: ["userId"], additionalProperties: false, properties: { userId: { type: "string", format: "uuid" } } },
+  body: {
+    type: "object",
+    required: ["action", "reason"],
+    additionalProperties: false,
+    properties: {
+      action: { type: "string", enum: ["suspend", "restore"] },
+      reason: { type: "string", minLength: 3, maxLength: 500 },
+    },
+  },
+  response: {
+    200: {
+      type: "object",
+      required: ["ok", "user", "sessionsRevoked"],
+      additionalProperties: false,
+      properties: {
+        ok: { type: "boolean", const: true },
+        user: adminUserDetailSchema,
+        sessionsRevoked: { type: "boolean" },
+      },
+    },
+  },
+} as const satisfies FastifySchema;
+
+const adminRolesBodyProperty = {
+  type: "array",
+  minItems: 1,
+  maxItems: 4,
+  uniqueItems: true,
+  items: { type: "string", enum: ADMIN_ROLE_KEYS },
+} as const;
+
+export const adminCreateAdminUserRouteSchema = {
+  body: {
+    type: "object",
+    required: ["userId", "roles", "reason"],
+    additionalProperties: false,
+    properties: {
+      userId: { type: "string", format: "uuid" },
+      roles: adminRolesBodyProperty,
+      reason: { type: "string", minLength: 3, maxLength: 500 },
+    },
+  },
+  response: adminAdminUsersRouteSchema.response,
+} as const satisfies FastifySchema;
+
+export const adminUpdateAdminUserRouteSchema = {
+  params: { type: "object", required: ["adminUserId"], additionalProperties: false, properties: { adminUserId: { type: "string", format: "uuid" } } },
+  body: {
+    type: "object",
+    required: ["reason"],
+    additionalProperties: false,
+    anyOf: [{ required: ["status"] }, { required: ["roles"] }],
+    properties: {
+      status: { type: "string", enum: ["active", "disabled"] },
+      roles: adminRolesBodyProperty,
+      reason: { type: "string", minLength: 3, maxLength: 500 },
+    },
+  },
+  response: adminAdminUsersRouteSchema.response,
 } as const satisfies FastifySchema;
 
 export const adminAuditLogRouteSchema = {

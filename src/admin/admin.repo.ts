@@ -68,13 +68,13 @@ export async function ensureRequiredRoles(): Promise<void> {
   }
 }
 
-export async function findUserById(userId: string) {
+export async function findUserById(userId: string): Promise<import("../db/schema").UserRow | undefined> {
   return db.query.users.findFirst({
     where: eq(users.id, userId),
   });
 }
 
-export async function findUsersByAmoriaIds(amoriaIds: string[]) {
+export async function findUsersByAmoriaIds(amoriaIds: string[]): Promise<import("../db/schema").UserRow[]> {
   if (amoriaIds.length === 0) {
     return [];
   }
@@ -197,6 +197,10 @@ export async function searchUsers(query: AdminUserSearchQuery): Promise<AdminUse
       displayName: users.displayName,
       email: users.email,
       avatarUrl: users.avatarUrl,
+      emailVerifiedAt: users.emailVerifiedAt,
+      accountStatus: users.accountStatus,
+      suspendedAt: users.suspendedAt,
+      suspensionReason: users.suspensionReason,
       createdAt: users.createdAt,
       updatedAt: users.updatedAt,
     })
@@ -211,6 +215,9 @@ export async function searchUsers(query: AdminUserSearchQuery): Promise<AdminUse
 
   return rows.map((row) => ({
     ...row,
+    emailVerifiedAt: row.emailVerifiedAt?.toISOString() ?? null,
+    accountStatus: row.accountStatus as "active" | "suspended",
+    suspendedAt: row.suspendedAt?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   }));

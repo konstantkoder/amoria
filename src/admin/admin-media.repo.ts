@@ -45,6 +45,11 @@ export async function listMedia(query: AdminMediaQuery): Promise<AdminMediaRow[]
   if (query.createdTo) {
     conditions.push(lte(mediaFiles.createdAt, query.createdTo));
   }
+  if (query.visibility === "avatar") {
+    conditions.push(eq(mediaFiles.type, "avatar"));
+  } else if (query.visibility) {
+    conditions.push(eq(profileGalleryItems.visibility, query.visibility));
+  }
 
   let selectQuery = mediaSelect().$dynamic();
   if (conditions.length > 0) {
@@ -95,6 +100,11 @@ export async function createEffectiveMediaDecision(
   input: NewMediaModerationReviewRow,
 ): Promise<MediaModerationReviewRow> {
   return db.transaction(async (tx) => {
+    await tx.execute(sql`
+      SELECT id FROM ${mediaFiles}
+      WHERE ${mediaFiles.id} = ${input.mediaId}
+      FOR UPDATE
+    `);
     await tx.execute(sql`
       SELECT id FROM ${profileGalleryItems}
       WHERE ${profileGalleryItems.mediaId} = ${input.mediaId}

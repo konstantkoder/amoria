@@ -23,6 +23,7 @@ export type AdminMediaQuery = {
   ownerAmoriaId?: string;
   type?: string;
   moderationStatus?: MediaModerationStatus;
+  visibility?: "avatar" | "public" | "locked";
   createdFrom?: Date;
   createdTo?: Date;
   limit: number;

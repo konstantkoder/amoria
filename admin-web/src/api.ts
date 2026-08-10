@@ -241,6 +241,10 @@ export type UserSearchItem = {
   displayName: string;
   email: string;
   avatarUrl: string | null;
+  emailVerifiedAt: string | null;
+  accountStatus: "active" | "suspended";
+  suspendedAt: string | null;
+  suspensionReason: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -357,6 +361,27 @@ export type ReportReviewAction = {
 
 export type ReportDetail = ReportItem & {
   reviewActions: ReportReviewAction[];
+};
+
+export type AdminUserDetail = UserSearchItem & {
+  gender: string | null;
+  goal: string | null;
+  mood: string | null;
+  lastSeenAt: string | null;
+  adminUserId: string | null;
+};
+
+export type AdminBulkJobItem = {
+  id: string; targetType: string; targetId: string; proposedAction: string;
+  status: "pending" | "applied" | "skipped" | "failed"; errorCode: string | null;
+  metadata: unknown; appliedAt: string | null; createdAt: string;
+};
+export type AdminBulkJob = {
+  id: string; adminUserId: string | null; kind: string; action: string; scope: unknown;
+  reason: string; idempotencyKey: string; maxItems: number; status: string;
+  confirmedAt: string | null; completedAt: string | null; previewCount: number;
+  appliedCount: number; skippedCount: number; failedCount: number;
+  createdAt: string; updatedAt: string; items: AdminBulkJobItem[];
 };
 
 export type MessageModerationItem = {

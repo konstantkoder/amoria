@@ -69,6 +69,7 @@ export async function listMediaForAdmin(
         ownerAmoriaId: query.ownerAmoriaId ?? null,
         type: query.type ?? null,
         moderationStatus: query.moderationStatus ?? null,
+        visibility: query.visibility ?? null,
         createdFrom: query.createdFrom?.toISOString() ?? null,
         createdTo: query.createdTo?.toISOString() ?? null,
       },

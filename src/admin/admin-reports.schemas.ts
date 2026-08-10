@@ -81,7 +81,7 @@ const reportTargetContextLinkSchema = {
     label: { type: "string" },
     screen: {
       type: "string",
-      enum: ["users", "media", "together_sessions", "nearby_diagnostics", "none"],
+      enum: ["users", "media", "message_moderation", "together_sessions", "nearby_diagnostics", "none"],
     },
     available: { type: "boolean" },
     params: {
@@ -136,6 +136,7 @@ const reportItemSchema = {
     "reason",
     "comment",
     "status",
+    "assignedAdminUserId",
     "createdAt",
     "updatedAt",
     "targetContext",
@@ -157,6 +158,7 @@ const reportItemSchema = {
     reason: { type: "string" },
     comment: { type: ["string", "null"] },
     status: { type: "string", enum: REPORT_STATUSES },
+    assignedAdminUserId: { type: ["string", "null"], format: "uuid" },
     createdAt: { type: "string", format: "date-time" },
     updatedAt: { type: "string", format: "date-time" },
     targetContext: reportTargetContextSchema,
@@ -201,6 +203,7 @@ export const adminReportsListRouteSchema = {
 } as const satisfies FastifySchema;
 
 export const adminReportDetailRouteSchema = {
+  params: { type: "object", required: ["id"], additionalProperties: false, properties: { id: { type: "string", format: "uuid" } } },
   response: {
     200: {
       type: "object",
@@ -214,6 +217,7 @@ export const adminReportDetailRouteSchema = {
 } as const satisfies FastifySchema;
 
 export const adminReportActionRouteSchema = {
+  params: { type: "object", required: ["id"], additionalProperties: false, properties: { id: { type: "string", format: "uuid" } } },
   body: {
     type: "object",
     required: ["action"],

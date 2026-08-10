@@ -1,8 +1,8 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
 import "../../auth/auth.types";
-import { unauthorized } from "../errors";
+import { AppError, unauthorized } from "../errors";
 import { verifyAccessToken } from "../../auth/jwt";
-import { touchUserLastSeenAt } from "../../users/users.repo";
+import { findUserAccountStatus, touchUserLastSeenAt } from "../../users/users.repo";
 
 const PRESENCE_HEARTBEAT_ENABLED = process.env.NODE_ENV !== "test";
 
@@ -25,6 +25,14 @@ export async function authMiddleware(request: FastifyRequest, _reply: FastifyRep
 
   if (!PRESENCE_HEARTBEAT_ENABLED) {
     return;
+  }
+
+  const accountStatus = await findUserAccountStatus(payload.sub);
+  if (!accountStatus) {
+    throw unauthorized("User no longer exists");
+  }
+  if (accountStatus !== "active") {
+    throw new AppError("account_suspended", "Account is suspended", 403);
   }
 
   try {

@@ -118,6 +118,11 @@ export async function createReportActionForAdmin(
   const status = statusForAction(input.action);
   const cleanedReason = cleanOptional(input.reason, 500);
   const cleanedNote = cleanOptional(input.note, 2000);
+  if (input.action === "add_note") {
+    if (!cleanedNote) throw validationError("note is required", { note: "required" });
+  } else if (!cleanedReason) {
+    throw validationError("reason is required", { reason: "required" });
+  }
   const result = await deps.repo.createReportReviewAction({
     reportId,
     adminUserId: admin.adminUser.id,
@@ -145,6 +150,7 @@ export async function createReportActionForAdmin(
       previousStatus: result.previousStatus,
       nextStatus: result.nextStatus,
       hasNote: Boolean(cleanedNote),
+      assignedAdminUserId: result.report.assignedAdminUserId,
       actionCreatedAt: result.reviewAction.createdAt.toISOString(),
     },
     ...requestContext,

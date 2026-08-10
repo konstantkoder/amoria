@@ -69,11 +69,13 @@ export type AdminReportRow = {
   reason: string;
   comment: string | null;
   status: ReportStatus;
+  assignedAdminUserId?: string | null;
   createdAt: Date;
   updatedAt: Date;
 };
 
-export type AdminReportItem = Omit<AdminReportRow, "createdAt" | "updatedAt"> & {
+export type AdminReportItem = Omit<AdminReportRow, "createdAt" | "updatedAt" | "assignedAdminUserId"> & {
+  assignedAdminUserId: string | null;
   createdAt: string;
   updatedAt: string;
   targetContext: AdminReportTargetContext;
@@ -119,6 +121,7 @@ export type AdminReportActionResponse = {
 export function toAdminReportItem(row: AdminReportRow): AdminReportItem {
   return {
     ...row,
+    assignedAdminUserId: row.assignedAdminUserId ?? null,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
     targetContext: buildTargetContext(row),

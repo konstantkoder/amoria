@@ -225,6 +225,13 @@
       "when": 1786320000000,
       "tag": "0031_message_moderation_antispam",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1786406400000,
+      "tag": "0032_full_admin_control_center",
+      "breakpoints": true
     }
   ]
 }

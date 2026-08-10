@@ -75,6 +75,12 @@ function invalidCredentials(): AppError {
   return new AppError("invalid_credentials", "Invalid email or password", 401);
 }
 
+function assertAccountActive(user: Pick<UserRow, "accountStatus">): void {
+  if ((user.accountStatus ?? "active") !== "active") {
+    throw new AppError("account_suspended", "Account is suspended", 403);
+  }
+}
+
 function hashRefreshToken(refreshToken: string): string {
   return createHash("sha256").update(refreshToken, "utf8").digest("hex");
 }
@@ -284,6 +290,7 @@ export async function login(
       email: user.email,
     });
   }
+  assertAccountActive(user);
   const refreshToken = await issueRefreshToken(user.id, context);
   return buildAuthResponse(user, refreshToken);
 }
@@ -317,6 +324,7 @@ export async function verifyEmail(
       retryAfterSec: String(env.EMAIL_RESEND_COOLDOWN_SEC),
     });
   }
+  assertAccountActive(consumed.user);
   const refreshToken = await issueRefreshToken(consumed.user.id, context);
   return buildAuthResponse(consumed.user, refreshToken);
 }
@@ -408,8 +416,11 @@ export async function refresh(
     metadata: context,
   });
   if (rotated) {
-    if (!rotated.user.emailVerifiedAt) {
+    if (!rotated.user.emailVerifiedAt || (rotated.user.accountStatus ?? "active") !== "active") {
       await revokeAllRefreshTokensForUser(rotated.user.id, now);
+      if ((rotated.user.accountStatus ?? "active") !== "active") {
+        throw new AppError("account_suspended", "Account is suspended", 403);
+      }
       throw invalidRefresh();
     }
     return buildAuthResponse(rotated.user, nextRefreshToken);
@@ -421,6 +432,7 @@ export async function refresh(
     metadata: context,
   });
   if (!retry?.user.emailVerifiedAt) throw invalidRefresh();
+  assertAccountActive(retry.user);
   return buildAuthResponse(
     retry.user,
     deriveRotatedRefreshToken(refreshToken, retry.refreshToken.id),

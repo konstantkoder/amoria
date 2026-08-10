@@ -17,6 +17,14 @@ export async function findUserByAmoriaId(amoriaId: string): Promise<UserRow | un
   });
 }
 
+export async function findUserAccountStatus(userId: string): Promise<string | undefined> {
+  const row = await db.query.users.findFirst({
+    columns: { accountStatus: true },
+    where: eq(users.id, userId),
+  });
+  return row?.accountStatus;
+}
+
 export async function hasUnrevealedTurnBasedPair(userId:string,targetUserId:string):Promise<boolean>{
   const result=await pool.query(`
     SELECT 1 FROM together_turn_based_moments m

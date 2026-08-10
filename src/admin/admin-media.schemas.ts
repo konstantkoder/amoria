@@ -15,6 +15,7 @@ export const adminMediaQuerySchema = z
     ownerAmoriaId: optionalString(32),
     type: optionalString(80),
     moderationStatus: z.enum(MEDIA_MODERATION_STATUSES).optional(),
+    visibility: z.enum(["avatar", "public", "locked"]).optional(),
     createdFrom: z.coerce.date().optional(),
     createdTo: z.coerce.date().optional(),
     limit: z.coerce.number().int().positive().max(100).default(50),
@@ -176,6 +177,7 @@ export const adminMediaListRouteSchema = {
       ownerAmoriaId: { type: "string", minLength: 1, maxLength: 32 },
       type: { type: "string", minLength: 1, maxLength: 80 },
       moderationStatus: { type: "string", enum: MEDIA_MODERATION_STATUSES },
+      visibility: { type: "string", enum: ["avatar", "public", "locked"] },
       createdFrom: { type: "string", format: "date-time" },
       createdTo: { type: "string", format: "date-time" },
       limit: { type: "integer", minimum: 1, maximum: 100, default: 50 },
@@ -195,6 +197,7 @@ export const adminMediaListRouteSchema = {
 } as const satisfies FastifySchema;
 
 export const adminMediaDetailRouteSchema = {
+  params: { type: "object", required: ["mediaId"], additionalProperties: false, properties: { mediaId: { type: "string", format: "uuid" } } },
   querystring: {
     type: "object",
     additionalProperties: false,
@@ -215,6 +218,7 @@ export const adminMediaDetailRouteSchema = {
 } as const satisfies FastifySchema;
 
 export const adminMediaDecisionRouteSchema = {
+  params: { type: "object", required: ["mediaId"], additionalProperties: false, properties: { mediaId: { type: "string", format: "uuid" } } },
   body: {
     type: "object",
     required: ["action"],

@@ -311,6 +311,7 @@ async function listQueueCandidatesForMatching(
     .where(
       and(
         eq(togetherQueue.activity, input.activity),
+        eq(users.accountStatus, "active"),
         eq(togetherQueue.status, "waiting"),
         ne(togetherQueue.userId, input.userId),
         gt(togetherQueue.expiresAt, now),

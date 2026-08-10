@@ -147,11 +147,11 @@ export async function getNearbySummaryCounts(
   const onlineSince = new Date(checkedAt.getTime() - ONLINE_NOW_WINDOW_MS);
 
   const [totalRows, onlineRows, activeRows] = await Promise.all([
-    db.select({ value: count() }).from(users),
+    db.select({ value: count() }).from(users).where(eq(users.accountStatus, "active")),
     db
       .select({ value: count() })
       .from(users)
-      .where(gt(users.lastSeenAt, onlineSince)),
+      .where(and(eq(users.accountStatus, "active"), gt(users.lastSeenAt, onlineSince))),
     db
       .select({ value: count() })
       .from(nearbyProfileVisibility)
@@ -207,6 +207,7 @@ export async function listNearbyProfileFeedRows(
     .where(
       and(
         ne(nearbyProfileVisibility.userId, viewerUserId),
+        eq(users.accountStatus, "active"),
         eq(nearbyProfileVisibility.status, "active"),
         gt(nearbyProfileVisibility.expiresAt, now),
         isNull(viewerBlock.blockedUserId),
@@ -298,6 +299,7 @@ export async function listNearbyFeedRows(
     .where(
       and(
         gt(nearbyStatuses.expiresAt, now),
+        eq(users.accountStatus, "active"),
         isNull(blockedUsers.blockedUserId),
         sql`${distance} <= ${radiusMeters}`,
         sql`${distance} <= ${nearbyStatuses.radiusMeters}`,

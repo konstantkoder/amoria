@@ -49,8 +49,43 @@ export type AdminUserSearchItem = {
   displayName: string;
   email: string;
   avatarUrl: string | null;
+  emailVerifiedAt?: string | null;
+  accountStatus?: "active" | "suspended";
+  suspendedAt?: string | null;
+  suspensionReason?: string | null;
   createdAt: string;
   updatedAt: string;
+};
+
+export type AdminUserDetail = AdminUserSearchItem & {
+  gender: string | null;
+  goal: string | null;
+  mood: string | null;
+  lastSeenAt: string | null;
+  adminUserId: string | null;
+};
+
+export type AdminUserStatusActionBody = {
+  action: "suspend" | "restore";
+  reason: string;
+};
+
+export type AdminUserStatusActionResponse = {
+  ok: true;
+  user: AdminUserDetail;
+  sessionsRevoked: boolean;
+};
+
+export type AdminCreateAdminUserBody = {
+  userId: string;
+  roles: AdminRoleKey[];
+  reason: string;
+};
+
+export type AdminUpdateAdminUserBody = {
+  status?: AdminStatus;
+  roles?: AdminRoleKey[];
+  reason: string;
 };
 
 export type AdminRequestContext = {
