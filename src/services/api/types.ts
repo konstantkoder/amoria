@@ -486,6 +486,8 @@ export type NearbyRoomMessage = {
   text: string;
   createdAt: string;
   clientMessageId: string;
+  moderationState?: "visible" | "held" | "needs_review" | "restricted" | "removed";
+  automationStatus?: "completed" | "failed" | "not_configured" | "not_required";
 };
 
 export type NearbyRoomMessagesResponse = {
@@ -540,6 +542,8 @@ export type MessageDto = {
   text: string;
   createdAt: string;
   clientMessageId: string;
+  moderationState?: "visible" | "held" | "needs_review" | "restricted" | "removed";
+  automationStatus?: "completed" | "failed" | "not_configured" | "not_required";
 };
 
 export type MessageResponse = {

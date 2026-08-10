@@ -22,6 +22,7 @@ import {
   type RootStackNavigationProp,
 } from "@/navigation/appRoutes";
 import * as nearbyApi from "@/services/api/nearbyApi";
+import { ApiError } from "@/services/api/apiClient";
 import type { NearbyRoomMessage } from "@/services/api/types";
 import { theme } from "@/theme";
 
@@ -200,7 +201,9 @@ export default function NearbyRoomChatScreen() {
     } catch (error) {
       if (!mountedRef.current) return;
       setErrorText(
-        error instanceof Error
+        error instanceof ApiError && error.code === "message_rate_limited"
+          ? tt(t, "chat.rateLimitedBody", "Too many messages were sent. Try again shortly.")
+          : error instanceof Error
           ? error.message
           : tt(t, "nearby.rooms.sendFailed", "Не удалось отправить сообщение.")
       );
@@ -218,6 +221,15 @@ export default function NearbyRoomChatScreen() {
   const renderItem = useCallback(
     ({ item }: { item: RenderRoomMessage }) => {
       const own = Boolean(myId && item.fromUserId === myId);
+      const moderationLabel = item.moderationState === "held"
+        ? tt(t, "chat.messageHeld", "Held — not delivered")
+        : item.moderationState === "needs_review"
+          ? tt(t, "chat.messageUnderReview", "Under review — not delivered")
+          : item.moderationState === "restricted"
+            ? tt(t, "chat.messageRestricted", "Message restricted")
+            : item.moderationState === "removed"
+              ? tt(t, "chat.messageRemoved", "Message removed")
+              : "";
       return (
         <View style={[styles.messageWrap, own ? styles.messageWrapOwn : null]}>
           <View style={[styles.bubble, own ? styles.bubbleOwn : styles.bubbleOther]}>
@@ -228,6 +240,11 @@ export default function NearbyRoomChatScreen() {
             <Text style={[styles.messageTime, own ? styles.messageTimeOwn : null]}>
               {formatMessageTime(item.createdAt)}
             </Text>
+            {moderationLabel ? (
+              <Text style={[styles.messageTime, own ? styles.messageTimeOwn : null]}>
+                {moderationLabel}
+              </Text>
+            ) : null}
           </View>
         </View>
       );

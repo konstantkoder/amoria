@@ -26,6 +26,7 @@ import {
   type RootStackNavigationProp,
 } from "@/navigation/appRoutes";
 import * as chatApi from "@/services/api/chatApi";
+import { ApiError } from "@/services/api/apiClient";
 import {
   reportClientError,
   sanitizeErrorForReport,
@@ -144,6 +145,8 @@ function readThreadMessage(payload: wsClient.RealtimeMessage): MessageDto | null
     text,
     createdAt,
     clientMessageId,
+    moderationState: value.moderationState,
+    automationStatus: value.automationStatus,
   };
 }
 
@@ -232,7 +235,7 @@ export default function DMChatScreen() {
       const response = await chatApi.listMessages(threadId, 50);
       setMessages(mergeMessages([], response.items ?? []));
       await chatApi.markRead(threadId).catch(() => undefined);
-    } catch {
+    } catch (error) {
       setError(
         tt(
           "dm.errorBody",
@@ -605,7 +608,7 @@ export default function DMChatScreen() {
       inputRef.current?.clear?.();
       inputRef.current?.blur();
       requestAnimationFrame(() => Keyboard.dismiss());
-    } catch {
+    } catch (error) {
       if (!mountedRef.current) return;
       setMessages((current) =>
         mergeMessages(
@@ -613,6 +616,12 @@ export default function DMChatScreen() {
           [{ ...optimistic, pending: false, failed: true }]
         )
       );
+      if (error instanceof ApiError && error.code === "message_rate_limited") {
+        Alert.alert(
+          tt("chat.rateLimitedTitle", "Please slow down"),
+          tt("chat.rateLimitedBody", "Too many messages were sent. Try again shortly.")
+        );
+      }
     } finally {
       if (mountedRef.current) {
         setSending(false);
@@ -637,15 +646,15 @@ export default function DMChatScreen() {
   );
 
   const reportChat = useCallback(
-    async (reason: SafetyReportReason) => {
+    async (reason: SafetyReportReason, targetMessage?: MessageDto) => {
       if (!threadId || !peerId || safetyBusy) return;
 
       setSafetyBusy(true);
       try {
         await safetyApi.report({
-          targetType: "thread",
-          targetId: threadId,
-          targetOwnerUserId: peerId,
+          targetType: targetMessage ? "message" : "thread",
+          targetId: targetMessage?.id ?? threadId,
+          targetOwnerUserId: targetMessage?.fromUserId ?? peerId,
           reason,
         });
         Alert.alert(
@@ -671,6 +680,15 @@ export default function DMChatScreen() {
       buildReportReasonButtons(tt, (reason) => void reportChat(reason))
     );
   }, [reportChat, tt]);
+
+  const handleReportMessage = useCallback((message: MessageDto) => {
+    if (message.fromUserId === myId) return;
+    Alert.alert(
+      tt("safety.reportMessageTitle", "Report message"),
+      tt("safety.reportBody", "Choose a reason for the report."),
+      buildReportReasonButtons(tt, (reason) => void reportChat(reason, message))
+    );
+  }, [myId, reportChat, tt]);
 
   const handleBlockPeer = useCallback(() => {
     if (!peerId || peerId === myId) return;
@@ -830,12 +848,21 @@ export default function DMChatScreen() {
       const isOwn = item.fromUserId === myId;
       const failed = item.failed === true;
       const pending = !failed && item.pending === true;
+      const moderationLabel = item.moderationState === "held"
+        ? tt("chat.messageHeld", "Held — not delivered")
+        : item.moderationState === "needs_review"
+          ? tt("chat.messageUnderReview", "Under review — not delivered")
+          : item.moderationState === "restricted"
+            ? tt("chat.messageRestricted", "Message restricted")
+            : item.moderationState === "removed"
+              ? tt("chat.messageRemoved", "Message removed")
+              : "";
 
       return (
         <TouchableOpacity
           activeOpacity={failed ? 0.85 : 1}
-          disabled={!failed}
-          onPress={() => retrySend(item.clientMessageId)}
+          onPress={() => { if (failed) retrySend(item.clientMessageId); }}
+          onLongPress={() => handleReportMessage(item)}
           style={[styles.msgWrap, isOwn ? styles.msgWrapOwn : styles.msgWrapPeer]}
         >
           <View
@@ -857,12 +884,16 @@ export default function DMChatScreen() {
               <Text style={[styles.msgStatus, isOwn ? styles.msgStatusOwn : null]}>
                 {t("common.sending")}
               </Text>
+            ) : moderationLabel ? (
+              <Text style={[styles.msgStatus, isOwn ? styles.msgStatusOwn : null]}>
+                {moderationLabel}
+              </Text>
             ) : null}
           </View>
         </TouchableOpacity>
       );
     },
-    [myId, retrySend, t]
+    [handleReportMessage, myId, retrySend, t, tt]
   );
 
   const canSend = text.trim().length > 0 && !peerBlocked && !sending;
