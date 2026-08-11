@@ -21,6 +21,12 @@ const subscribedThreads = new Set<string>();
 const subscribedTogetherSessions = new Set<string>();
 let inboxSubscribed = false;
 
+type NativeWebSocketConstructor = new (
+  url: string,
+  protocols?: string | string[],
+  options?: { headers?: Record<string, string> },
+) => WebSocket;
+
 export type RealtimeConnectionState =
   | "closed"
   | "connecting"
@@ -37,13 +43,12 @@ export function getConnectionState(): RealtimeConnectionState {
   return "unknown";
 }
 
-function getWsUrl() {
+function getWsConnection() {
   const baseUrl = String(WS_URL ?? "").trim();
   const token = getAccessToken();
-  if (!baseUrl || !token) return "";
+  if (!baseUrl || !token) return null;
 
-  const separator = baseUrl.includes("?") ? "&" : "?";
-  return `${baseUrl}${separator}token=${encodeURIComponent(token)}`;
+  return { baseUrl, token };
 }
 
 function sendJson(payload: Record<string, unknown>) {
@@ -85,8 +90,8 @@ function scheduleReconnect() {
 }
 
 export function connect(): WebSocket | null {
-  const wsUrl = getWsUrl();
-  if (!wsUrl) return null;
+  const connection = getWsConnection();
+  if (!connection) return null;
 
   if (
     socket &&
@@ -97,7 +102,12 @@ export function connect(): WebSocket | null {
   }
 
   manualDisconnect = false;
-  socket = new WebSocket(wsUrl);
+  const NativeWebSocket = WebSocket as unknown as NativeWebSocketConstructor;
+  socket = new NativeWebSocket(connection.baseUrl, undefined, {
+    headers: {
+      Authorization: `Bearer ${connection.token}`,
+    },
+  });
 
   socket.onopen = () => {
     reconnectAttempts = 0;
