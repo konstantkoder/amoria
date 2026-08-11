@@ -14,7 +14,9 @@ const capturedCodes = [];
 const startedAt = Date.now();
 
 function qaEmail(label) {
-  return `amoria.qa.${label}.${Date.now()}.${randomBytes(3).toString("hex")}@example.com`;
+  // Use a domain with real MX records. SMTP is still routed exclusively to the
+  // disposable Mailpit instance, so this never delivers external mail.
+  return `amoria.qa.${label}.${Date.now()}.${randomBytes(3).toString("hex")}@gmail.com`;
 }
 
 function password() {

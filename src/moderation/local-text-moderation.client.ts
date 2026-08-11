@@ -56,6 +56,11 @@ export class LocalTextModerationClient {
     throw lastError ?? new Error("text_model_failed");
   }
 
+  async warmUp(): Promise<void> {
+    if (!this.isConfigured()) throw new Error("text_model_not_configured");
+    await this.ensureStarted();
+  }
+
   stop(reason = new Error("text_model_stopped")): void {
     const child = this.child;
     this.child = null;

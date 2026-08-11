@@ -1,8 +1,6 @@
-import path from "node:path";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import multipart from "@fastify/multipart";
-import fastifyStatic from "@fastify/static";
 import websocket from "@fastify/websocket";
 import Fastify, { type FastifyInstance } from "fastify";
 import { errorHandler } from "./common/errors";
@@ -21,8 +19,16 @@ import { nearbyRoutes } from "./nearby/nearby.routes";
 import { safetyRoutes } from "./safety/safety.routes";
 import { togetherRoutes } from "./together/together.routes";
 import { clientErrorsRoutes } from "./client-errors/client-errors.routes";
-import { ensureUploadsRootSync } from "./media/local-storage";
 import { wsRoutes } from "./realtime/ws.routes";
+import { pool } from "./db/client";
+import { checkObjectStorageHealth } from "./media/object-storage";
+
+export const EXPECTED_MIGRATION = "0032_full_admin_control_center.sql";
+export const WS_MAX_PAYLOAD_BYTES = 16 * 1024;
+
+export function isCorsOriginAllowed(origin: string | undefined, allowedOrigins: string[]): boolean {
+  return origin === undefined || allowedOrigins.includes(origin);
+}
 
 const healthRouteSchema = {
   response: {
@@ -40,12 +46,10 @@ const healthRouteSchema = {
 } as const;
 
 export function buildApp(): FastifyInstance {
-  ensureUploadsRootSync();
-
   const app = Fastify({
     logger: loggerOptions(),
     bodyLimit: MAX_JSON_BODY_BYTES,
-    trustProxy: true,
+    trustProxy: env.TRUST_PROXY,
   });
 
   app.setErrorHandler(errorHandler);
@@ -55,7 +59,10 @@ export function buildApp(): FastifyInstance {
   });
 
   void app.register(cors, {
-    origin: true,
+    origin(origin, callback) {
+      callback(null, isCorsOriginAllowed(origin, env.CORS_ALLOWED_ORIGINS));
+    },
+    credentials: false,
   });
 
   void app.register(multipart, {
@@ -66,18 +73,48 @@ export function buildApp(): FastifyInstance {
     throwFileSizeLimit: true,
   });
 
-  void app.register(fastifyStatic, {
-    root: path.resolve(env.UPLOADS_ROOT),
-    prefix: "/media/",
-    decorateReply: false,
+  void app.register(websocket, {
+    options: {
+      maxPayload: WS_MAX_PAYLOAD_BYTES,
+    },
   });
-
-  void app.register(websocket);
 
   app.get("/health", { schema: withErrorResponses(healthRouteSchema) }, async () => ({
     ok: true,
     service: SERVICE_NAME,
     time: new Date().toISOString(),
+  }));
+
+  app.get("/health/live", { schema: withErrorResponses(healthRouteSchema) }, async () => ({
+    ok: true,
+    service: SERVICE_NAME,
+    time: new Date().toISOString(),
+  }));
+
+  app.get("/health/ready", async (_request, reply) => {
+    const [database, objectStorage] = await Promise.all([
+      readinessCheck(async () => {
+        await pool.query("SELECT 1");
+      }),
+      readinessCheck(async () => {
+        const status = await checkObjectStorageHealth();
+        if (status.status !== "ok") throw new Error("object_storage_unavailable");
+      }),
+    ]);
+    const ok = database === "ok" && objectStorage === "ok";
+    return reply.status(ok ? 200 : 503).send({
+      ok,
+      service: SERVICE_NAME,
+      time: new Date().toISOString(),
+      dependencies: { database, objectStorage },
+    });
+  });
+
+  app.get("/version", async () => ({
+    service: SERVICE_NAME,
+    version: env.APP_VERSION,
+    releaseSha: env.RELEASE_SHA,
+    migration: EXPECTED_MIGRATION,
   }));
 
   void app.register(authRoutes, { prefix: "/auth" });
@@ -95,4 +132,21 @@ export function buildApp(): FastifyInstance {
   void app.register(wsRoutes, { prefix: "/ws" });
 
   return app;
+}
+
+async function readinessCheck(check: () => Promise<void>): Promise<"ok" | "error"> {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    await Promise.race([
+      check(),
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error("readiness_timeout")), 3_000);
+      }),
+    ]);
+    return "ok";
+  } catch {
+    return "error";
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }

@@ -30,25 +30,37 @@ type SocketState = {
 };
 
 class WsHub {
+  private static readonly MAX_CONNECTIONS_PER_USER = 5;
+  private static readonly MAX_CONNECTIONS_GLOBAL = 2_000;
   private readonly userSockets = new Map<string, Set<WebSocket>>();
   private readonly threadSockets = new Map<string, Set<WebSocket>>();
   private readonly togetherSessionSockets = new Map<string, Set<WebSocket>>();
   private readonly socketState = new WeakMap<WebSocket, SocketState>();
+  private connectionCount = 0;
 
-  addSocket(userId: string, socket: WebSocket): void {
+  addSocket(userId: string, socket: WebSocket): boolean {
     let sockets = this.userSockets.get(userId);
+    if (
+      (sockets?.size ?? 0) >= WsHub.MAX_CONNECTIONS_PER_USER ||
+      this.connectionCount >= WsHub.MAX_CONNECTIONS_GLOBAL
+    ) {
+      return false;
+    }
+
     if (!sockets) {
       sockets = new Set();
       this.userSockets.set(userId, sockets);
     }
 
     sockets.add(socket);
+    this.connectionCount += 1;
     this.socketState.set(socket, {
       userId,
       inboxSubscribed: false,
       threadIds: new Set(),
       togetherSessionIds: new Set(),
     });
+    return true;
   }
 
   removeSocket(socket: WebSocket): void {
@@ -59,6 +71,7 @@ class WsHub {
 
     const userSockets = this.userSockets.get(state.userId);
     userSockets?.delete(socket);
+    this.connectionCount = Math.max(0, this.connectionCount - 1);
     if (userSockets?.size === 0) {
       this.userSockets.delete(state.userId);
     }

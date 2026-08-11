@@ -28,3 +28,61 @@ test("GET /health returns service status", async (t) => {
   assert.equal(response.json().service, "amoria-api");
   assert.equal(typeof response.json().time, "string");
 });
+
+test("liveness and version endpoints expose safe release identity", async (t) => {
+  const { buildApp, EXPECTED_MIGRATION } = require("../src/app") as typeof import("../src/app");
+  const app = buildApp();
+  t.after(async () => app.close());
+
+  const live = await app.inject({ method: "GET", url: "/health/live" });
+  assert.equal(live.statusCode, 200);
+  assert.equal(live.json().ok, true);
+
+  const version = await app.inject({ method: "GET", url: "/version" });
+  assert.equal(version.statusCode, 200);
+  assert.equal(version.json().migration, EXPECTED_MIGRATION);
+  assert.equal(version.json().releaseSha, "development");
+  assert.equal(JSON.stringify(version.json()).includes("secret"), false);
+});
+
+test("untrusted forwarded IP and static upload paths are not trusted in local/test mode", async (t) => {
+  const { buildApp } = require("../src/app") as typeof import("../src/app");
+  const app = buildApp();
+  app.get("/__qa/request-ip", async (request) => ({ ip: request.ip }));
+  t.after(async () => app.close());
+
+  const ip = await app.inject({
+    method: "GET",
+    url: "/__qa/request-ip",
+    headers: { "x-forwarded-for": "198.51.100.77" },
+  });
+  assert.notEqual(ip.json().ip, "198.51.100.77");
+
+  const staticBypass = await app.inject({ method: "GET", url: "/media/private-marker.jpg" });
+  assert.equal(staticBypass.statusCode, 404);
+});
+
+test("CORS allows configured Admin origin, allows native calls, and rejects untrusted/null origins", async (t) => {
+  const { buildApp } = require("../src/app") as typeof import("../src/app");
+  const app = buildApp();
+  t.after(async () => app.close());
+
+  const allowed = await app.inject({
+    method: "OPTIONS",
+    url: "/health",
+    headers: {
+      origin: "http://localhost:5174",
+      "access-control-request-method": "GET",
+    },
+  });
+  assert.equal(allowed.statusCode, 204);
+  assert.equal(allowed.headers["access-control-allow-origin"], "http://localhost:5174");
+  assert.equal(allowed.headers["access-control-allow-credentials"], undefined);
+
+  const untrusted = await app.inject({ method: "GET", url: "/health", headers: { origin: "https://evil.example" } });
+  assert.equal(untrusted.headers["access-control-allow-origin"], undefined);
+  const nullOrigin = await app.inject({ method: "GET", url: "/health", headers: { origin: "null" } });
+  assert.equal(nullOrigin.headers["access-control-allow-origin"], undefined);
+  const native = await app.inject({ method: "GET", url: "/health" });
+  assert.equal(native.statusCode, 200);
+});

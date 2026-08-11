@@ -253,9 +253,6 @@ def inference_process(
     classifier.warmup()
     opennsfw_load_ms = round((time.perf_counter() - started) * 1000, 3)
     person_detector = None
-    person_detector_error = None
-    person_detector_load_ms = None
-    person_model_size_bytes = None
     person_started = time.perf_counter()
     try:
         if not person_yolox_model_path or not person_yunet_model_path:
@@ -273,18 +270,20 @@ def inference_process(
             "person_model_not_configured",
         }
         person_detector_error = str(error) if str(error) in known_errors else "person_detector_load_failed"
+        connection.send({"ready": False, "error": person_detector_error})
+        return
     connection.send({
         "ready": True,
         "loadMs": round((time.perf_counter() - started) * 1000, 3),
         "openNsfwLoadMs": opennsfw_load_ms,
         "modelSizeBytes": resolved.stat().st_size,
         "modelSha256": actual_checksum,
-        "personDetectorReady": person_detector is not None,
+        "personDetectorReady": True,
         "personDetectorEngine": PERSON_DETECTOR_ENGINE,
         "personDetectorVersion": PERSON_DETECTOR_VERSION,
         "personDetectorLoadMs": person_detector_load_ms,
         "personModelSizeBytes": person_model_size_bytes,
-        "personDetectorError": person_detector_error,
+        "personDetectorError": None,
     })
 
     while True:
@@ -300,16 +299,15 @@ def inference_process(
                 "personConfidence": None,
                 "facePresenceConfidence": None,
                 "personInferenceMs": None,
-                "personDetectorError": person_detector_error,
+                "personDetectorError": None,
             }
-            if person_detector is not None:
-                try:
-                    person_result = {
-                        **person_detector.classify(payload),
-                        "personDetectorError": None,
-                    }
-                except Exception:
-                    person_result["personDetectorError"] = "person_detector_inference_failed"
+            try:
+                person_result = {
+                    **person_detector.classify(payload),
+                    "personDetectorError": None,
+                }
+            except Exception:
+                person_result["personDetectorError"] = "person_detector_inference_failed"
             connection.send({
                 "ok": True,
                 "nsfwProbability": float(prediction.nsfw),

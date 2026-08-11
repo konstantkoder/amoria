@@ -5,12 +5,15 @@ import {
   TURN_BASED_MAINTENANCE_INTERVAL_MS,
 } from "./config/constants";
 import { runMaintenance } from "./together/together-turn-based.service";
+import { localTextModerationClient } from "./moderation/local-text-moderation.client";
 
 const app = buildApp();
 let turnBasedMaintenanceTimer: NodeJS.Timeout | undefined;
+let shuttingDown = false;
 
 async function start(): Promise<void> {
   try {
+    if (env.isProduction) await localTextModerationClient.warmUp();
     await app.listen({
       host: "0.0.0.0",
       port: env.PORT,
@@ -29,8 +32,11 @@ async function start(): Promise<void> {
 }
 
 async function shutdown(signal: NodeJS.Signals): Promise<void> {
+  if (shuttingDown) return;
+  shuttingDown = true;
   app.log.info({ signal }, "Shutting down");
   if (turnBasedMaintenanceTimer) clearInterval(turnBasedMaintenanceTimer);
+  localTextModerationClient.stop(new Error("server_shutdown"));
   await app.close();
   await closeDb();
   process.exit(0);

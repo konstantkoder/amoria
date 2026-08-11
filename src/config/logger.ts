@@ -24,6 +24,9 @@ export function loggerOptions(): FastifyServerOptions["logger"] {
       "keyHash",
       "AUTH_SECURITY_HMAC_SECRET",
       "SMTP_PASSWORD",
+      "S3_SECRET_KEY",
+      "req.query.token",
+      "request.query.token",
     ],
   };
 }

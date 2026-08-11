@@ -35,7 +35,9 @@ test("WS invalid token closes the connection with policy violation", async (t) =
   });
 
   const wsUrl = await listenWsUrl(app);
-  const socket = new WebSocketClient(`${wsUrl}/ws?token=invalid-token`);
+  const socket = new WebSocketClient(`${wsUrl}/ws`, {
+    headers: { Authorization: "Bearer invalid-token" },
+  });
   t.after(() => {
     socket.terminate();
   });
@@ -44,6 +46,19 @@ test("WS invalid token closes the connection with policy violation", async (t) =
 
   assert.equal(close.code, 1008);
   assert.equal(close.reason, "Invalid access token");
+});
+
+test("WS rejects even a valid token in the URL query", async (t) => {
+  const app = buildApp();
+  t.after(async () => app.close());
+  const token = signAccessToken("00000000-0000-4000-8000-000000000001");
+  const wsUrl = await listenWsUrl(app);
+  const socket = new WebSocketClient(`${wsUrl}/ws?token=${encodeURIComponent(token)}`);
+  t.after(() => socket.terminate());
+
+  const close = await waitForClose(socket);
+  assert.equal(close.code, 1008);
+  assert.equal(close.reason, "Authentication is required");
 });
 
 test("WS accepts Authorization bearer token when query token is absent", async (t) => {

@@ -34,10 +34,105 @@ function parsePort(value: string): number {
   return parsed;
 }
 
+const unsafeProductionValueFragments = [
+  "change-me",
+  "changeme",
+  "replace-with",
+  "example",
+  "development-only",
+  "minioadmin",
+  "amoria_password",
+] as const;
+
+function productionSecret(name: string, value: string, minimumLength = 32): string {
+  if (value.length < minimumLength) {
+    throw new Error(`${name} must be at least ${minimumLength} characters long in production`);
+  }
+
+  const normalized = value.toLowerCase();
+  if (
+    unsafeProductionValueFragments.some((fragment) => normalized.includes(fragment)) ||
+    new Set(value).size < 8
+  ) {
+    throw new Error(`${name} must be a high-entropy non-sample value in production`);
+  }
+
+  return value;
+}
+
+export type TrustProxyConfiguration = false | number | string[];
+
+export function parseTrustProxyConfiguration(
+  value: string,
+  nodeEnv: string,
+): TrustProxyConfiguration {
+  const normalized = value.trim();
+  if (!normalized) {
+    if (nodeEnv === "production") {
+      throw new Error("TRUST_PROXY must identify the known reverse proxy in production");
+    }
+    return false;
+  }
+
+  if (["false", "0", "no"].includes(normalized.toLowerCase())) {
+    if (nodeEnv === "production") {
+      throw new Error("TRUST_PROXY cannot be disabled for the production reverse-proxy deployment");
+    }
+    return false;
+  }
+
+  if (["true", "*", "all"].includes(normalized.toLowerCase())) {
+    throw new Error("TRUST_PROXY must not trust every proxy");
+  }
+
+  if (/^[1-9]\d*$/.test(normalized)) {
+    const hops = Number.parseInt(normalized, 10);
+    if (hops > 3) throw new Error("TRUST_PROXY hop count must be between 1 and 3");
+    return hops;
+  }
+
+  const addresses = normalized.split(",").map((entry) => entry.trim()).filter(Boolean);
+  if (!addresses.length || addresses.some((entry) => /\s/.test(entry))) {
+    throw new Error("TRUST_PROXY must be a hop count or comma-separated proxy IP/CIDR list");
+  }
+  return addresses;
+}
+
+export function parseCorsAllowedOrigins(value: string, nodeEnv: string): string[] {
+  const origins = [...new Set(value.split(",").map((entry) => entry.trim()).filter(Boolean))];
+  if (nodeEnv === "production" && origins.length === 0) {
+    throw new Error("CORS_ALLOWED_ORIGINS must include the production Admin/Web origin");
+  }
+
+  for (const origin of origins) {
+    if (origin === "*" || origin === "null") {
+      throw new Error("CORS_ALLOWED_ORIGINS must not include wildcard or null origins");
+    }
+    let url: URL;
+    try {
+      url = new URL(origin);
+    } catch {
+      throw new Error("CORS_ALLOWED_ORIGINS entries must be valid origins");
+    }
+    if (url.origin !== origin || (nodeEnv === "production" && url.protocol !== "https:")) {
+      throw new Error("CORS_ALLOWED_ORIGINS entries must be exact origins and use HTTPS in production");
+    }
+  }
+  return origins;
+}
+
 function parsePositiveInteger(name: string, value: string, minimum = 1): number {
   const parsed = Number.parseInt(value, 10);
   if (!Number.isInteger(parsed) || parsed < minimum) {
     throw new Error(`${name} must be an integer greater than or equal to ${minimum}`);
+  }
+  return parsed;
+}
+
+function parseIntegerInRange(name: string, value: string, minimum: number, maximum: number): number {
+  const parsed = parsePositiveInteger(name, value, minimum);
+  if (parsed > maximum) {
+    throw new Error(`${name} must be an integer less than or equal to ${maximum}`);
   }
   return parsed;
 }
@@ -158,17 +253,37 @@ const smtpHost = process.env.SMTP_HOST?.trim()
   || (nodeEnv === "production" ? "" : "localhost");
 const mailFrom = process.env.MAIL_FROM?.trim()
   || (nodeEnv === "production" ? "" : "no-reply@amoria.local");
+const s3AccessKey = process.env.S3_ACCESS_KEY?.trim()
+  || (nodeEnv === "production" ? "" : "minioadmin");
+const s3SecretKey = process.env.S3_SECRET_KEY?.trim()
+  || (nodeEnv === "production" ? "" : "minioadmin");
+const corsAllowedOrigins = parseCorsAllowedOrigins(
+  optional(
+    "CORS_ALLOWED_ORIGINS",
+    nodeEnv === "production" ? "" : "http://localhost:5174,http://127.0.0.1:5174",
+  ),
+  nodeEnv,
+);
+const trustProxy = parseTrustProxyConfiguration(optional("TRUST_PROXY", ""), nodeEnv);
+const releaseSha = process.env.RELEASE_SHA?.trim() || (nodeEnv === "production" ? "" : "development");
 
 if (objectStorageProvider !== "s3") {
   throw new Error("OBJECT_STORAGE_PROVIDER must be s3");
 }
 
-if (jwtSecret.length < 16) {
-  throw new Error("JWT_SECRET must be at least 16 characters long");
+if (jwtSecret.length < (nodeEnv === "production" ? 32 : 16)) {
+  throw new Error(`JWT_SECRET must be at least ${nodeEnv === "production" ? 32 : 16} characters long`);
 }
 
-if (nodeEnv === "production" && jwtSecret.startsWith("change-me")) {
-  throw new Error("JWT_SECRET must be changed for production");
+if (nodeEnv === "production") {
+  productionSecret("JWT_SECRET", jwtSecret);
+  productionSecret("AUTH_SECURITY_HMAC_SECRET", authSecurityHmacSecret);
+  productionSecret("MESSAGE_ABUSE_HMAC_SECRET", messageAbuseHmacSecret);
+  productionSecret("S3_ACCESS_KEY", s3AccessKey, 12);
+  productionSecret("S3_SECRET_KEY", s3SecretKey);
+  if (!/^[0-9a-f]{40}$/i.test(releaseSha) || /^0{40}$/.test(releaseSha)) {
+    throw new Error("RELEASE_SHA must be the exact 40-character Git commit SHA in production");
+  }
 }
 
 if (authSecurityHmacSecret.length < 32) {
@@ -199,6 +314,10 @@ if (!smtpHost) {
 
 if (!mailFrom) {
   throw new Error("MAIL_FROM is required in production");
+}
+
+if (nodeEnv === "production" && Boolean(process.env.SMTP_USER) !== Boolean(process.env.SMTP_PASSWORD)) {
+  throw new Error("SMTP_USER and SMTP_PASSWORD must be configured together in production");
 }
 
 validatePublicUrlEnv({
@@ -234,14 +353,18 @@ export const env = {
   OBJECT_STORAGE_PROVIDER: objectStorageProvider,
   S3_ENDPOINT: s3Endpoint,
   S3_REGION: optional("S3_REGION", "us-east-1"),
-  S3_ACCESS_KEY: optional("S3_ACCESS_KEY", "minioadmin"),
-  S3_SECRET_KEY: optional("S3_SECRET_KEY", "minioadmin"),
+  S3_ACCESS_KEY: s3AccessKey,
+  S3_SECRET_KEY: s3SecretKey,
   S3_BUCKET: optional("S3_BUCKET", "amoria"),
   S3_PUBLIC_BASE_URL: s3PublicBaseUrl,
   S3_FORCE_PATH_STYLE: parseBooleanFlag("S3_FORCE_PATH_STYLE", optional("S3_FORCE_PATH_STYLE", "1")),
   SMTP_HOST: smtpHost,
   SMTP_PORT: parsePort(optional("SMTP_PORT", "1025")),
   SMTP_SECURE: parseBooleanFlag("SMTP_SECURE", optional("SMTP_SECURE", "false")),
+  SMTP_REQUIRE_TLS: parseBooleanFlag(
+    "SMTP_REQUIRE_TLS",
+    optional("SMTP_REQUIRE_TLS", nodeEnv === "production" ? "true" : "false"),
+  ),
   SMTP_USER: process.env.SMTP_USER?.trim() || undefined,
   SMTP_PASSWORD: process.env.SMTP_PASSWORD || undefined,
   SMTP_CONNECTION_TIMEOUT_MS: parsePositiveInteger(
@@ -287,6 +410,29 @@ export const env = {
   RESET_EMAIL_LIMIT: parsePositiveInteger("RESET_EMAIL_LIMIT", optional("RESET_EMAIL_LIMIT", "3")),
   RESET_IP_LIMIT: parsePositiveInteger("RESET_IP_LIMIT", optional("RESET_IP_LIMIT", "20")),
   RESET_DEVICE_LIMIT: parsePositiveInteger("RESET_DEVICE_LIMIT", optional("RESET_DEVICE_LIMIT", "10")),
+  CORS_ALLOWED_ORIGINS: corsAllowedOrigins,
+  TRUST_PROXY: trustProxy,
+  DB_POOL_MAX: parseIntegerInRange("DB_POOL_MAX", optional("DB_POOL_MAX", "10"), 1, 50),
+  DB_CONNECTION_TIMEOUT_MS: parseIntegerInRange(
+    "DB_CONNECTION_TIMEOUT_MS",
+    optional("DB_CONNECTION_TIMEOUT_MS", "5000"),
+    100,
+    60_000,
+  ),
+  DB_IDLE_TIMEOUT_MS: parseIntegerInRange(
+    "DB_IDLE_TIMEOUT_MS",
+    optional("DB_IDLE_TIMEOUT_MS", "30000"),
+    1000,
+    600_000,
+  ),
+  DB_STATEMENT_TIMEOUT_MS: parseIntegerInRange(
+    "DB_STATEMENT_TIMEOUT_MS",
+    optional("DB_STATEMENT_TIMEOUT_MS", "15000"),
+    100,
+    300_000,
+  ),
+  RELEASE_SHA: releaseSha,
+  APP_VERSION: optional("APP_VERSION", "0.1.0"),
   isProduction: nodeEnv === "production",
   isTest: nodeEnv === "test",
 };

@@ -14,6 +14,7 @@ export class SmtpEmailDelivery implements EmailDeliveryService {
       host: env.SMTP_HOST,
       port: env.SMTP_PORT,
       secure: env.SMTP_SECURE,
+      requireTLS: env.SMTP_REQUIRE_TLS,
       connectionTimeout: env.SMTP_CONNECTION_TIMEOUT_MS,
       greetingTimeout: env.SMTP_CONNECTION_TIMEOUT_MS,
       socketTimeout: env.SMTP_CONNECTION_TIMEOUT_MS * 2,

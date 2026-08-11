@@ -37,22 +37,76 @@ type ClientWsMessage =
     };
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const connectionAttempts = new Map<string, { count: number; resetAt: number }>();
+const CONNECTION_ATTEMPT_WINDOW_MS = 60_000;
+const CONNECTION_ATTEMPT_LIMIT = 60;
+const MAX_PENDING_AUTH_MESSAGES = 10;
 
 export async function wsRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.get("/", { websocket: true }, (socket, request) => {
-    void authenticateSocket(socket, request).then((userId) => {
-      if (!userId) return;
-      wsHub.addSocket(userId, socket);
-      socket.on("message", (raw: { toString(): string }) => {
-        void handleClientMessage(socket, userId, raw.toString());
-      });
-      socket.on("close", () => wsHub.removeSocket(socket));
-      socket.on("error", () => wsHub.removeSocket(socket));
+    if (!consumeConnectionAttempt(request.ip)) {
+      socket.close(1008, "Connection rate limit exceeded");
+      return;
+    }
+
+    const pendingMessages: string[] = [];
+    let authenticatedUserId: string | undefined;
+    let expiryTimer: NodeJS.Timeout | undefined;
+    let registeredWithHub = false;
+
+    socket.on("message", (raw: { toString(): string }) => {
+      const message = raw.toString();
+      if (!authenticatedUserId) {
+        if (pendingMessages.length >= MAX_PENDING_AUTH_MESSAGES) {
+          socket.close(1008, "Too many messages before authentication");
+          return;
+        }
+        pendingMessages.push(message);
+        return;
+      }
+      void handleClientMessageSafely(socket, authenticatedUserId, message);
+    });
+    const cleanup = () => {
+      if (expiryTimer) clearTimeout(expiryTimer);
+      if (registeredWithHub) wsHub.removeSocket(socket);
+    };
+    socket.on("close", cleanup);
+    socket.on("error", cleanup);
+
+    void authenticateSocket(socket, request).then((auth) => {
+      if (!auth || socket.readyState !== 1) return;
+      if (!wsHub.addSocket(auth.userId, socket)) {
+        socket.close(1008, "Connection limit exceeded");
+        return;
+      }
+      registeredWithHub = true;
+      authenticatedUserId = auth.userId;
+      const expiresInMs = Math.max(0, auth.expiresAtMs - Date.now());
+      expiryTimer = setTimeout(() => socket.close(1008, "Access token expired"), expiresInMs);
+      expiryTimer.unref();
+      for (const message of pendingMessages.splice(0)) {
+        void handleClientMessageSafely(socket, auth.userId, message);
+      }
     });
   });
 }
 
-async function authenticateSocket(socket: WebSocket, request: FastifyRequest): Promise<string | undefined> {
+async function handleClientMessageSafely(
+  socket: WebSocket,
+  userId: string,
+  raw: string,
+): Promise<void> {
+  try {
+    await handleClientMessage(socket, userId, raw);
+  } catch {
+    wsHub.sendError(socket, "invalid_message", "Websocket request failed");
+  }
+}
+
+async function authenticateSocket(
+  socket: WebSocket,
+  request: FastifyRequest,
+): Promise<{ userId: string; expiresAtMs: number } | undefined> {
   const token = authTokenFromRequest(request);
   if (!token) {
     socket.close(1008, "Authentication is required");
@@ -60,12 +114,13 @@ async function authenticateSocket(socket: WebSocket, request: FastifyRequest): P
   }
 
   try {
-    const userId = verifyAccessToken(token).sub;
+    const payload = verifyAccessToken(token);
+    const userId = payload.sub;
     if (await findUserAccountStatus(userId) !== "active") {
       socket.close(1008, "Account is not active");
       return undefined;
     }
-    return userId;
+    return { userId, expiresAtMs: payload.exp * 1000 };
   } catch {
     socket.close(1008, "Invalid access token");
     return undefined;
@@ -73,11 +128,6 @@ async function authenticateSocket(socket: WebSocket, request: FastifyRequest): P
 }
 
 function authTokenFromRequest(request: FastifyRequest): string | undefined {
-  const queryToken = new URL(request.url, "http://localhost").searchParams.get("token")?.trim();
-  if (queryToken) {
-    return queryToken;
-  }
-
   const authorization = firstHeaderValue(request.headers.authorization);
   if (!authorization?.startsWith("Bearer ")) {
     return undefined;
@@ -85,6 +135,23 @@ function authTokenFromRequest(request: FastifyRequest): string | undefined {
 
   const token = authorization.slice("Bearer ".length).trim();
   return token || undefined;
+}
+
+function consumeConnectionAttempt(ip: string): boolean {
+  const now = Date.now();
+  const current = connectionAttempts.get(ip);
+  if (!current || current.resetAt <= now) {
+    if (connectionAttempts.size >= 10_000) {
+      for (const [key, value] of connectionAttempts) {
+        if (value.resetAt <= now) connectionAttempts.delete(key);
+      }
+      if (connectionAttempts.size >= 10_000) return false;
+    }
+    connectionAttempts.set(ip, { count: 1, resetAt: now + CONNECTION_ATTEMPT_WINDOW_MS });
+    return true;
+  }
+  current.count += 1;
+  return current.count <= CONNECTION_ATTEMPT_LIMIT;
 }
 
 function firstHeaderValue(value: string | string[] | undefined): string | undefined {

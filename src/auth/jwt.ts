@@ -6,6 +6,7 @@ import { unauthorized } from "../common/errors";
 type AccessTokenPayload = {
   sub: string;
   typ: "access";
+  exp: number;
 };
 
 export type SignedAccessToken = {
@@ -18,7 +19,7 @@ export function signAccessToken(userId: string): string {
     {
       sub: userId,
       typ: "access",
-    } satisfies AccessTokenPayload,
+    },
     env.JWT_SECRET,
     {
       audience: "amoria-mobile",
@@ -52,6 +53,7 @@ export function verifyAccessToken(token: string): AccessTokenPayload {
     if (
       typeof decoded !== "object" ||
       typeof decoded.sub !== "string" ||
+      typeof decoded.exp !== "number" ||
       decoded.typ !== "access"
     ) {
       throw unauthorized("Invalid access token");
@@ -60,6 +62,7 @@ export function verifyAccessToken(token: string): AccessTokenPayload {
     return {
       sub: decoded.sub,
       typ: "access",
+      exp: decoded.exp,
     };
   } catch (error) {
     if (error instanceof Error && error.name === "AppError") {
