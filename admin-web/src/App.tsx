@@ -58,6 +58,10 @@ import {
   type Language,
   type TranslationKey,
 } from "./i18n";
+import {
+  graphicSafetyFromRawResult,
+  type GraphicSafetyDisplayState,
+} from "./graphic-safety";
 import { getNearbyActivityArtUrl } from "./nearbyActivityArt";
 
 type Screen =
@@ -123,6 +127,12 @@ type NearbyDemandSummary = {
   activitiesWithDemand: number;
   existingActiveRooms: number;
   loadedRows: number;
+};
+
+const graphicSafetyLabelKeys: Record<GraphicSafetyDisplayState, TranslationKey> = {
+  safe: "media.graphicSafe",
+  needs_review: "media.graphicNeedsReview",
+  unsafe: "media.graphicUnsafe",
 };
 
 const screens: ScreenItem[] = [
@@ -2086,6 +2096,7 @@ function MediaScreen({
   const [previewProbe, setPreviewProbe] = useState<PublicMediaProbeResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const decisionRequiresReason = true;
+  const graphicSafety = graphicSafetyFromRawResult(selected?.automation?.rawResult);
 
   useEffect(() => {
     if (!selected) {
@@ -2307,6 +2318,26 @@ function MediaScreen({
               <Fact label={t("media.modelVersion")} value={selected.automation?.modelVersion ?? ""} />
               <Fact label={t("media.policy")} value={selected.automation?.policyVersion ?? ""} />
               <Fact label={t("media.automatedDecision")} value={selected.automation?.policyDecision ?? ""} />
+              <Fact
+                label={t("media.graphicSafety")}
+                value={graphicSafety
+                  ? t(graphicSafetyLabelKeys[graphicSafety.displayState])
+                  : t("media.graphicNotAvailable")}
+              />
+              <Fact
+                label={t("media.graphicScore")}
+                value={graphicSafety?.nsflProbability === null || graphicSafety?.nsflProbability === undefined
+                  ? t("media.graphicNotAvailable")
+                  : graphicSafety.nsflProbability.toFixed(6)}
+              />
+              <Fact
+                label={t("media.graphicDecision")}
+                value={graphicSafety?.policyDecision ?? t("media.graphicNotAvailable")}
+              />
+              <Fact
+                label={t("media.graphicModel")}
+                value={graphicSafety?.modelVersion ?? t("media.graphicNotAvailable")}
+              />
               <Fact label={t("media.personPresence")} value={personPresenceFromRawResult(selected.automation?.rawResult)} />
               <Fact label={t("media.nsfwScore")} value={nsfwScoreFromRawResult(selected.automation?.rawResult)} />
               <Fact label={t("media.policyReason")} value={policyReasonFromRawResult(selected.automation?.rawResult)} />
