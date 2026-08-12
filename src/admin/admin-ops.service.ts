@@ -2,6 +2,10 @@ import { count, eq, inArray, sql } from "drizzle-orm";
 import * as auditService from "./admin-audit.service";
 import type { AdminContext, AdminRequestContext } from "./admin.types";
 import { AppError } from "../common/errors";
+import {
+  boundedDependencyStatus,
+  DEPENDENCY_READINESS_TIMEOUT_MS,
+} from "../common/dependency-readiness";
 import { db } from "../db/client";
 import { env } from "../config/env";
 import { TOGETHER_HEARTBEAT_TIMEOUT_MS } from "../config/constants";
@@ -16,6 +20,7 @@ import {
   checkObjectStorageHealth,
   type ObjectStorageHealth,
 } from "../media/object-storage";
+import { verifyEmailDeliveryReadiness } from "../email/email-delivery.service";
 import * as nearbyRepo from "../nearby/nearby.repo";
 import * as togetherRepo from "../together/together.repo";
 import type {
@@ -38,11 +43,17 @@ export type AdminOpsHealthResponse = {
     ok: boolean;
   };
   objectStorage: ObjectStorageHealth;
+  smtp: AdminSmtpHealth;
   counts: {
     openClientErrors: number | null;
     openReports: number | null;
     pendingMediaModerationItems: number | null;
   };
+};
+
+export type AdminSmtpHealth = {
+  status: "ok" | "error";
+  checkedAt: string;
 };
 
 export type AdminReleaseDashboardCounts = {
@@ -79,6 +90,7 @@ export type AdminReleaseDashboardResponse = {
     apiStatus: "ok";
     databaseStatus: "ok" | "failed";
     objectStorage: ObjectStorageHealth;
+    smtp: AdminSmtpHealth;
   };
   reports: AdminReleaseDashboardCounts["reports"];
   clientErrors: AdminReleaseDashboardCounts["clientErrors"];
@@ -203,6 +215,8 @@ type AdminOpsDeps = {
   counts: () => Promise<AdminOpsHealthResponse["counts"]>;
   dashboardCounts: () => Promise<AdminReleaseDashboardCounts>;
   objectStorageCheck: () => Promise<AdminOpsHealthResponse["objectStorage"]>;
+  smtpCheck: () => Promise<void>;
+  smtpTimeoutMs: number;
   nearbyDiagnostics: Pick<typeof nearbyRepo, "getNearbyAdminDiagnostics">;
   togetherQueue: Pick<
     typeof togetherRepo,
@@ -223,6 +237,8 @@ const defaultDeps: AdminOpsDeps = {
   }),
   dashboardCounts: getReleaseDashboardCounts,
   objectStorageCheck: checkObjectStorageHealth,
+  smtpCheck: verifyEmailDeliveryReadiness,
+  smtpTimeoutMs: DEPENDENCY_READINESS_TIMEOUT_MS,
   nearbyDiagnostics: nearbyRepo,
   togetherQueue: togetherRepo,
   audit: auditService,
@@ -281,6 +297,8 @@ export async function getOpsHealth(
     };
   }
 
+  const smtp = await getSafeSmtpHealth();
+
   await deps.audit.writeAuditLog({
     adminUserId: admin.adminUser.id,
     action: "admin.opsHealth.read",
@@ -288,6 +306,7 @@ export async function getOpsHealth(
     metadata: {
       databaseOk,
       objectStorageStatus: objectStorage.status,
+      smtpStatus: smtp.status,
       counts,
     },
     ...requestContext,
@@ -307,6 +326,7 @@ export async function getOpsHealth(
       ok: databaseOk,
     },
     objectStorage,
+    smtp,
     counts,
   };
 }
@@ -323,6 +343,7 @@ export async function getReleaseDashboardForAdmin(
   }
 
   const objectStorage = await getSafeObjectStorageHealth();
+  const smtp = await getSafeSmtpHealth();
   const counts = await getSafeReleaseDashboardCounts();
   const nearby = await getSafeNearbyDashboardCounts();
 
@@ -333,6 +354,7 @@ export async function getReleaseDashboardForAdmin(
     metadata: {
       databaseStatus: databaseOk ? "ok" : "failed",
       objectStorageStatus: objectStorage.status,
+      smtpStatus: smtp.status,
       reports: counts.reports,
       clientErrors: counts.clientErrors,
       mediaModeration: counts.mediaModeration,
@@ -356,6 +378,7 @@ export async function getReleaseDashboardForAdmin(
       apiStatus: "ok",
       databaseStatus: databaseOk ? "ok" : "failed",
       objectStorage,
+      smtp,
     },
     reports: counts.reports,
     clientErrors: counts.clientErrors,
@@ -469,6 +492,13 @@ async function getSafeObjectStorageHealth(): Promise<ObjectStorageHealth> {
       errorCode: "health_check_exception",
     };
   }
+}
+
+async function getSafeSmtpHealth(): Promise<AdminSmtpHealth> {
+  return {
+    status: await boundedDependencyStatus(deps.smtpCheck, deps.smtpTimeoutMs),
+    checkedAt: new Date().toISOString(),
+  };
 }
 
 async function getSafeReleaseDashboardCounts(): Promise<AdminReleaseDashboardCounts> {

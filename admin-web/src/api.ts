@@ -68,6 +68,10 @@ export type OpsHealth = {
       | "request_failed"
       | "storage_check_failed";
   };
+  smtp: {
+    status: "ok" | "error";
+    checkedAt: string;
+  };
   counts: {
     openClientErrors: number | null;
     openReports: number | null;
@@ -88,6 +92,7 @@ export type AdminReleaseDashboard = {
     apiStatus: "ok";
     databaseStatus: "ok" | "failed";
     objectStorage: OpsHealth["objectStorage"];
+    smtp: OpsHealth["smtp"];
   };
   reports: {
     open: number | null;

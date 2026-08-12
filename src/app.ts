@@ -5,6 +5,7 @@ import websocket from "@fastify/websocket";
 import Fastify, { type FastifyInstance } from "fastify";
 import { errorHandler } from "./common/errors";
 import { withErrorResponses } from "./common/http";
+import { boundedDependencyStatus } from "./common/dependency-readiness";
 import { MAX_JSON_BODY_BYTES, MAX_MEDIA_UPLOAD_BYTES, SERVICE_NAME } from "./config/constants";
 import { env } from "./config/env";
 import { loggerOptions } from "./config/logger";
@@ -105,14 +106,14 @@ export function buildApp(): FastifyInstance {
 
   app.get("/health/ready", async (_request, reply) => {
     const [database, objectStorage, smtp] = await Promise.all([
-      readinessCheck(async () => {
+      boundedDependencyStatus(async () => {
         await pool.query("SELECT 1");
       }),
-      readinessCheck(async () => {
+      boundedDependencyStatus(async () => {
         const status = await checkObjectStorageHealth();
         if (status.status !== "ok") throw new Error("object_storage_unavailable");
       }),
-      readinessCheck(verifyEmailDeliveryReadiness),
+      boundedDependencyStatus(verifyEmailDeliveryReadiness),
     ]);
     const { ok, degraded } = summarizeReadiness(database, objectStorage, smtp);
     return reply.status(ok ? 200 : 503).send({
@@ -146,21 +147,4 @@ export function buildApp(): FastifyInstance {
   void app.register(wsRoutes, { prefix: "/ws" });
 
   return app;
-}
-
-async function readinessCheck(check: () => Promise<void>): Promise<"ok" | "error"> {
-  let timer: NodeJS.Timeout | undefined;
-  try {
-    await Promise.race([
-      check(),
-      new Promise<never>((_resolve, reject) => {
-        timer = setTimeout(() => reject(new Error("readiness_timeout")), 3_000);
-      }),
-    ]);
-    return "ok";
-  } catch {
-    return "error";
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
 }

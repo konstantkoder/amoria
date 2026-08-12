@@ -638,6 +638,7 @@ function Dashboard({
             `${t("dashboard.apiStatus")}: ${formatStatus(data.health.apiStatus, t)}`,
             `${t("ops.database")}: ${formatStatus(data.health.databaseStatus, t)}`,
             `${t("ops.objectStorage")}: ${formatObjectStorageStatus(data.health.objectStorage, t)}`,
+            `${t("ops.emailDelivery")}: ${formatSmtpStatus(data.health.smtp, t)}`,
           ],
           note: t("dashboard.healthNote"),
           actionLabel: t("dashboard.openOpsHealth"),
@@ -2386,6 +2387,8 @@ function OpsHealthScreen() {
           <Fact label={t("ops.database")} value={data.database.ok ? t("status.ok") : t("status.failed")} />
           <Fact label={t("ops.objectStorage")} value={formatObjectStorageStatus(data.objectStorage, t)} />
           <Fact label={t("ops.objectStorageCheckedAt")} value={formatDate(data.objectStorage.checkedAt, language)} />
+          <Fact label={t("ops.emailDelivery")} value={formatSmtpStatus(data.smtp, t)} />
+          <Fact label={t("ops.emailDeliveryCheckedAt")} value={formatDate(data.smtp.checkedAt, language)} />
           <Fact label={t("ops.openClientErrors")} value={formatCount(data.counts.openClientErrors)} />
           <Fact label={t("ops.openReports")} value={formatCount(data.counts.openReports)} />
           <Fact label={t("ops.pendingMedia")} value={formatCount(data.counts.pendingMediaModerationItems)} />
@@ -3476,7 +3479,18 @@ function formatDashboardHealthStatus(
     return formatObjectStorageStatus(health.objectStorage, t);
   }
 
+  if (health.smtp.status !== "ok") {
+    return t("status.degraded");
+  }
+
   return t("status.ok");
+}
+
+function formatSmtpStatus(
+  smtp: OpsHealth["smtp"],
+  t: (key: TranslationKey) => string,
+): string {
+  return smtp.status === "ok" ? t("status.ok") : t("status.degraded");
 }
 
 function formatObjectStorageStatus(
@@ -3775,6 +3789,8 @@ function formatStatus(status: string, t: (key: TranslationKey) => string): strin
       return t("status.closed");
     case "disabled":
       return t("status.disabled");
+    case "degraded":
+      return t("status.degraded");
     case "dismissed":
       return t("status.dismissed");
     case "escalated":

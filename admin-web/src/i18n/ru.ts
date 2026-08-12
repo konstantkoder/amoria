@@ -369,6 +369,8 @@ export const ru: Record<TranslationKey, string> = {
   "sessions.title": "Сессии Together",
 
   "ops.database": "База данных",
+  "ops.emailDelivery": "Доставка email / SMTP",
+  "ops.emailDeliveryCheckedAt": "Доставка email проверена",
   "ops.nodeEnv": "Node Env",
   "ops.objectStorage": "Object Storage",
   "ops.objectStorageCheckedAt": "Object Storage проверен",
@@ -535,6 +537,7 @@ export const ru: Record<TranslationKey, string> = {
   "status.archived": "В архиве",
   "status.closed": "Закрыта",
   "status.disabled": "Отключен",
+  "status.degraded": "Деградация",
   "status.dismissed": "Отклонена",
   "status.escalated": "Эскалирована",
   "status.error": "ошибка",

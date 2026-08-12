@@ -183,6 +183,7 @@ export const adminOpsHealthRouteSchema = {
         "nodeEnv",
         "database",
         "objectStorage",
+        "smtp",
         "counts",
       ],
       additionalProperties: false,
@@ -234,6 +235,15 @@ export const adminOpsHealthRouteSchema = {
                 "storage_check_failed",
               ],
             },
+          },
+        },
+        smtp: {
+          type: "object",
+          required: ["status", "checkedAt"],
+          additionalProperties: false,
+          properties: {
+            status: { type: "string", enum: ["ok", "error"] },
+            checkedAt: { type: "string", format: "date-time" },
           },
         },
         counts: {
@@ -333,7 +343,7 @@ export const adminReleaseDashboardRouteSchema = {
         },
         health: {
           type: "object",
-          required: ["apiStatus", "databaseStatus", "objectStorage"],
+          required: ["apiStatus", "databaseStatus", "objectStorage", "smtp"],
           additionalProperties: false,
           properties: {
             apiStatus: { type: "string", const: "ok" },
@@ -363,6 +373,15 @@ export const adminReleaseDashboardRouteSchema = {
                     "storage_check_failed",
                   ],
                 },
+              },
+            },
+            smtp: {
+              type: "object",
+              required: ["status", "checkedAt"],
+              additionalProperties: false,
+              properties: {
+                status: { type: "string", enum: ["ok", "error"] },
+                checkedAt: { type: "string", format: "date-time" },
               },
             },
           },

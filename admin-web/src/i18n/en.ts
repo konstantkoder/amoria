@@ -367,6 +367,8 @@ export const en = {
   "sessions.title": "Together Sessions",
 
   "ops.database": "Database",
+  "ops.emailDelivery": "Email delivery / SMTP",
+  "ops.emailDeliveryCheckedAt": "Email delivery checked",
   "ops.nodeEnv": "Node Env",
   "ops.objectStorage": "Object Storage",
   "ops.objectStorageCheckedAt": "Object Storage Checked",
@@ -533,6 +535,7 @@ export const en = {
   "status.archived": "Archived",
   "status.closed": "Closed",
   "status.disabled": "Disabled",
+  "status.degraded": "Degraded",
   "status.dismissed": "Dismissed",
   "status.escalated": "Escalated",
   "status.error": "Error",

@@ -156,6 +156,8 @@ test("/admin/ops/health returns database status and real counts", async (t) => {
     checkedAt: "2026-06-03T12:00:00.000Z",
     reason: "safe_check_unavailable",
   });
+  assert.equal(body.smtp.status, "ok");
+  assert.equal(typeof body.smtp.checkedAt, "string");
   const serializedBody = JSON.stringify(body);
   assert.equal(serializedBody.includes("minio"), false);
   assert.equal(serializedBody.includes("amoria-test-bucket"), false);
@@ -167,6 +169,7 @@ test("/admin/ops/health returns database status and real counts", async (t) => {
   assert.equal(state.auditInputs[0]?.action, "admin.opsHealth.read");
   const auditMetadata = state.auditInputs[0]?.metadata as Record<string, unknown> | undefined;
   assert.equal(auditMetadata?.databaseOk, true);
+  assert.equal(auditMetadata?.smtpStatus, "ok");
 });
 
 test("GET /admin/dashboard/release-control returns safe release aggregates", async (t) => {
@@ -221,6 +224,8 @@ test("GET /admin/dashboard/release-control returns safe release aggregates", asy
     checkedAt: "2026-06-03T12:00:00.000Z",
     reason: "safe_check_unavailable",
   });
+  assert.equal(body.health.smtp.status, "ok");
+  assert.equal(typeof body.health.smtp.checkedAt, "string");
 
   assert.equal(bodyText.includes("latitude"), false);
   assert.equal(bodyText.includes("longitude"), false);
@@ -240,6 +245,7 @@ test("GET /admin/dashboard/release-control returns safe release aggregates", asy
   const auditMetadata = state.auditInputs[0]?.metadata as Record<string, unknown> | undefined;
   assert.equal(auditMetadata?.databaseStatus, "ok");
   assert.equal(auditMetadata?.objectStorageStatus, "not_checked");
+  assert.equal(auditMetadata?.smtpStatus, "ok");
 });
 
 test("GET /admin/nearby/diagnostics returns safe Nearby counts and writes audit log", async (t) => {
@@ -1157,6 +1163,7 @@ function mockOpsHealth() {
       checkedAt: "2026-06-03T12:00:00.000Z",
       reason: "safe_check_unavailable",
     }),
+    smtpCheck: async () => undefined,
     nearbyDiagnostics: {
       getNearbyAdminDiagnostics: async () => ({
         checkedAt: new Date("2026-06-03T12:00:00.000Z"),
