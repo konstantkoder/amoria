@@ -31,14 +31,6 @@ const STRONG_CREDENTIAL = [
   /\b(?:lozink\p{L}*|jednokratni kod|verifikacijski kod|sigurnosni kod|kod za prijav\p{L}*|kod iz sms\p{L}*)\b/u,
 ];
 
-const GENERIC_CODE = /(?:^|[^\p{L}\p{N}_])(?:code|код|kod)(?:$|[^\p{L}\p{N}_])/u;
-const SAFE_CODE_CONTEXT = [
-  /\b(?:source|program|software|promo|discount|postal|zip|qr|booking|ticket) code\b/u,
-  /(?:исходн|программн|промо|скидочн|почтов|qr|куар|бронирован|билета)\p{L}*\s+код/u,
-  /\b(?:programski|izvorni|promo|popust|postanski|qr|rezervacij\p{L}*|ulaznic\p{L}*) kod\b/u,
-  /\bkod (?:mene|tebe|nas|vas|restorana|ulaza|zgrade)\b/u,
-];
-
 const ACCOUNT_ACTION = [
   /\b(?:verify|confirm|secure|unlock|restore|login|log in|sign in)\b/u,
   /(?:подтверд|проверь|проверить|защит|разблок|войд|войти|вход)/u,
@@ -117,8 +109,6 @@ export function detectDeterministicTextSafety(text: string): DeterministicTextFi
   const normalized = normalize(text);
   const request = matchesAny(normalized, REQUEST);
   const strongCredential = matchesAny(normalized, STRONG_CREDENTIAL);
-  const genericCredential = GENERIC_CODE.test(normalized) && !matchesAny(normalized, SAFE_CODE_CONTEXT);
-  const credentialContext = strongCredential || genericCredential;
   const accountAction = matchesAny(normalized, ACCOUNT_ACTION);
   const redirect = matchesAny(normalized, URL_OR_REDIRECT);
   const money = matchesAny(normalized, MONEY);
@@ -132,10 +122,10 @@ export function detectDeterministicTextSafety(text: string): DeterministicTextFi
   const demand = matchesAny(normalized, DEMAND);
   const findings: DeterministicTextFinding[] = [];
 
-  if (request && credentialContext) {
+  if (request && strongCredential) {
     findings.push(finding("credential_theft", "hold", ["credential_context", "request_or_demand"]));
   }
-  if ((accountAction || credentialContext) && redirect) {
+  if ((accountAction || strongCredential) && redirect) {
     findings.push(finding("phishing", "hold", ["account_or_credential_context", "url_or_redirect"]));
   }
   if ((money && financialPressure) || matchesAny(normalized, SCAM_SPECIFIC)) {

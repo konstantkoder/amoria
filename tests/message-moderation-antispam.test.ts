@@ -104,13 +104,31 @@ test("text policy allows mild flirt and centralizes hold/restrict thresholds", (
 
 test("deterministic credential theft rules cover RU EN and HR request plus credential context", () => {
   const cases = [
-    "Пришли мне код подтверждения",
+    "Send me your verification code",
     "Send me your password",
+    "Пришли код подтверждения",
+    "Пришли пароль",
     "Pošalji mi verifikacijski kod",
+    "Pošalji mi lozinku",
   ];
 
   for (const text of cases) {
     assert.equal(categories(text).includes("credential_theft"), true, text);
+  }
+});
+
+test("generic entry codes are not treated as credential theft", () => {
+  const cases = [
+    "Send me the door code",
+    "Send me the entry code",
+    "Пришли код от подъезда",
+    "Пришли код домофона",
+    "Pošalji mi kod za ulaz",
+    "Pošalji kod od zgrade",
+  ];
+
+  for (const text of cases) {
+    assert.deepEqual(detectDeterministicTextSafety(text), [], text);
   }
 });
 
