@@ -14,12 +14,17 @@ import {
   EmailDomainValidationError,
   EmailDomainValidationService,
 } from "../email/email-domain-validation.service";
-import { emailDeliveryService } from "../email/email-delivery.service";
+import {
+  EmailDeliveryError,
+  emailDeliveryService,
+  type EmailDeliveryService,
+} from "../email/email-delivery.service";
 import {
   normalizeEmailLocale,
   renderAuthEmail,
   type EmailLocale,
   type EmailPurpose,
+  type RenderedEmail,
 } from "../email/email-templates";
 import { generateAmoriaId } from "../users/amoria-id";
 import {
@@ -174,6 +179,48 @@ async function assertRegistrationEmailAllowed(email: string): Promise<void> {
   }
 }
 
+export function emailDeliveryFailure(error: unknown): AppError {
+  if (error instanceof EmailDeliveryError && error.kind === "permanent") {
+    return new AppError(
+      "email_delivery_failed",
+      "Email could not be delivered. Please check the address or contact support.",
+      502,
+    );
+  }
+  return new AppError(
+    "email_delivery_unavailable",
+    "Email delivery is temporarily unavailable. Please try again.",
+    503,
+  );
+}
+
+type CreatedChallengeDeliveryOperations = {
+  delivery: Pick<EmailDeliveryService, "send">;
+  markSent: (challengeId: string, now: Date) => Promise<void>;
+  invalidate: (challengeId: string, now: Date) => Promise<void>;
+};
+
+export async function deliverCreatedEmailChallenge(
+  input: {
+    challengeId: string;
+    recipient: string;
+    message: RenderedEmail;
+  },
+  operations: CreatedChallengeDeliveryOperations = {
+    delivery: emailDeliveryService(),
+    markSent: markEmailChallengeSent,
+    invalidate: invalidateEmailChallenge,
+  },
+): Promise<void> {
+  try {
+    await operations.delivery.send(input.recipient, input.message);
+  } catch (error) {
+    await operations.invalidate(input.challengeId, new Date());
+    throw emailDeliveryFailure(error);
+  }
+  await operations.markSent(input.challengeId, new Date());
+}
+
 async function createAndDeliverChallenge(input: {
   user: UserRow;
   purpose: EmailPurpose;
@@ -199,26 +246,17 @@ async function createAndDeliverChallenge(input: {
     });
   }
 
-  try {
-    await emailDeliveryService().send(
-      input.user.email,
-      renderAuthEmail({
-        purpose: input.purpose,
-        locale: input.locale,
-        code,
-        expiresInMinutes: Math.ceil(env.EMAIL_CHALLENGE_TTL_SEC / 60),
-      }),
-    );
-    await markEmailChallengeSent(created.challengeId, new Date());
-    return "sent";
-  } catch {
-    await invalidateEmailChallenge(created.challengeId, new Date());
-    throw new AppError(
-      "email_delivery_unavailable",
-      "Email delivery is temporarily unavailable. Please try again.",
-      503,
-    );
-  }
+  await deliverCreatedEmailChallenge({
+    challengeId: created.challengeId,
+    recipient: input.user.email,
+    message: renderAuthEmail({
+      purpose: input.purpose,
+      locale: input.locale,
+      code,
+      expiresInMinutes: Math.ceil(env.EMAIL_CHALLENGE_TTL_SEC / 60),
+    }),
+  });
+  return "sent";
 }
 
 function verificationRequired(email: string): VerificationRequiredResponse {

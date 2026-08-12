@@ -32,7 +32,10 @@ function productionEnv(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
     SMTP_PORT: "587",
     SMTP_SECURE: "false",
     SMTP_REQUIRE_TLS: "true",
+    SMTP_USER: "",
+    SMTP_PASSWORD: "",
     MAIL_FROM: "no-reply@example.test",
+    MAIL_FROM_NAME: "Amoria",
     TRUST_PROXY: "172.28.0.1/32",
     CORS_ALLOWED_ORIGINS: "https://admin.example.test",
     RELEASE_SHA: "0123456789abcdef0123456789abcdef01234567",
@@ -51,6 +54,33 @@ function loadProductionEnv(overrides: NodeJS.ProcessEnv = {}) {
 test("complete production configuration loads", () => {
   const result = loadProductionEnv();
   assert.equal(result.status, 0, result.stderr);
+});
+
+test("production SMTP supports either a credential pair or an intentional private relay", () => {
+  assert.equal(loadProductionEnv({ SMTP_USER: "", SMTP_PASSWORD: "" }).status, 0);
+  assert.equal(loadProductionEnv({ SMTP_USER: "smtp-user", SMTP_PASSWORD: "smtp-password" }).status, 0);
+  assert.notEqual(loadProductionEnv({ SMTP_USER: "smtp-user", SMTP_PASSWORD: "" }).status, 0);
+  assert.notEqual(loadProductionEnv({ SMTP_USER: "", SMTP_PASSWORD: "smtp-password" }).status, 0);
+});
+
+test("production SMTP requires safe host and sender header configuration", () => {
+  for (const overrides of [
+    { SMTP_HOST: "" },
+    { SMTP_HOST: "smtp.example.test\r\nX-Injected: yes" },
+    { MAIL_FROM: "" },
+    { MAIL_FROM: "not-an-email" },
+    { MAIL_FROM: "no-reply@example.test\r\nBcc: injected@example.test" },
+    { MAIL_FROM_NAME: "Amoria\r\nBcc: injected@example.test" },
+  ]) {
+    assert.notEqual(loadProductionEnv(overrides).status, 0);
+  }
+});
+
+test("production SMTP timeout is explicitly bounded", () => {
+  assert.equal(loadProductionEnv({ SMTP_CONNECTION_TIMEOUT_MS: "100" }).status, 0);
+  assert.equal(loadProductionEnv({ SMTP_CONNECTION_TIMEOUT_MS: "30000" }).status, 0);
+  assert.notEqual(loadProductionEnv({ SMTP_CONNECTION_TIMEOUT_MS: "99" }).status, 0);
+  assert.notEqual(loadProductionEnv({ SMTP_CONNECTION_TIMEOUT_MS: "30001" }).status, 0);
 });
 
 for (const name of [

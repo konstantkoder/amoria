@@ -29,6 +29,14 @@ test("GET /health returns service status", async (t) => {
   assert.equal(typeof response.json().time, "string");
 });
 
+test("readiness distinguishes degraded SMTP from unavailable core dependencies", () => {
+  const { summarizeReadiness } = require("../src/app") as typeof import("../src/app");
+  assert.deepEqual(summarizeReadiness("ok", "ok", "ok"), { ok: true, degraded: false });
+  assert.deepEqual(summarizeReadiness("ok", "ok", "error"), { ok: true, degraded: true });
+  assert.deepEqual(summarizeReadiness("error", "ok", "ok"), { ok: false, degraded: true });
+  assert.deepEqual(summarizeReadiness("ok", "error", "ok"), { ok: false, degraded: true });
+});
+
 test("liveness and version endpoints expose safe release identity", async (t) => {
   const { buildApp, EXPECTED_MIGRATION } = require("../src/app") as typeof import("../src/app");
   const app = buildApp();

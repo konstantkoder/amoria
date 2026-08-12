@@ -22,12 +22,24 @@ import { clientErrorsRoutes } from "./client-errors/client-errors.routes";
 import { wsRoutes } from "./realtime/ws.routes";
 import { pool } from "./db/client";
 import { checkObjectStorageHealth } from "./media/object-storage";
+import { verifyEmailDeliveryReadiness } from "./email/email-delivery.service";
 
 export const EXPECTED_MIGRATION = "0032_full_admin_control_center.sql";
 export const WS_MAX_PAYLOAD_BYTES = 16 * 1024;
 
 export function isCorsOriginAllowed(origin: string | undefined, allowedOrigins: string[]): boolean {
   return origin === undefined || allowedOrigins.includes(origin);
+}
+
+type DependencyReadiness = "ok" | "error";
+
+export function summarizeReadiness(
+  database: DependencyReadiness,
+  objectStorage: DependencyReadiness,
+  smtp: DependencyReadiness,
+): { ok: boolean; degraded: boolean } {
+  const ok = database === "ok" && objectStorage === "ok";
+  return { ok, degraded: !ok || smtp !== "ok" };
 }
 
 const healthRouteSchema = {
@@ -92,7 +104,7 @@ export function buildApp(): FastifyInstance {
   }));
 
   app.get("/health/ready", async (_request, reply) => {
-    const [database, objectStorage] = await Promise.all([
+    const [database, objectStorage, smtp] = await Promise.all([
       readinessCheck(async () => {
         await pool.query("SELECT 1");
       }),
@@ -100,13 +112,15 @@ export function buildApp(): FastifyInstance {
         const status = await checkObjectStorageHealth();
         if (status.status !== "ok") throw new Error("object_storage_unavailable");
       }),
+      readinessCheck(verifyEmailDeliveryReadiness),
     ]);
-    const ok = database === "ok" && objectStorage === "ok";
+    const { ok, degraded } = summarizeReadiness(database, objectStorage, smtp);
     return reply.status(ok ? 200 : 503).send({
       ok,
+      degraded,
       service: SERVICE_NAME,
       time: new Date().toISOString(),
-      dependencies: { database, objectStorage },
+      dependencies: { database, objectStorage, smtp },
     });
   });
 

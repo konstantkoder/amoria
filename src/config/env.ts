@@ -253,6 +253,9 @@ const smtpHost = process.env.SMTP_HOST?.trim()
   || (nodeEnv === "production" ? "" : "localhost");
 const mailFrom = process.env.MAIL_FROM?.trim()
   || (nodeEnv === "production" ? "" : "no-reply@amoria.local");
+const mailFromName = optional("MAIL_FROM_NAME", "Amoria");
+const smtpUser = process.env.SMTP_USER?.trim() || undefined;
+const smtpPassword = process.env.SMTP_PASSWORD || undefined;
 const s3AccessKey = process.env.S3_ACCESS_KEY?.trim()
   || (nodeEnv === "production" ? "" : "minioadmin");
 const s3SecretKey = process.env.S3_SECRET_KEY?.trim()
@@ -312,12 +315,24 @@ if (!smtpHost) {
   throw new Error("SMTP_HOST is required in production");
 }
 
+if (/[\r\n]/.test(smtpHost)) {
+  throw new Error("SMTP_HOST must not contain line breaks");
+}
+
 if (!mailFrom) {
   throw new Error("MAIL_FROM is required in production");
 }
 
-if (nodeEnv === "production" && Boolean(process.env.SMTP_USER) !== Boolean(process.env.SMTP_PASSWORD)) {
-  throw new Error("SMTP_USER and SMTP_PASSWORD must be configured together in production");
+if (/[\r\n]/.test(mailFrom) || !/^[^\s@<>]+@[^\s@<>]+$/.test(mailFrom)) {
+  throw new Error("MAIL_FROM must be a single valid email address");
+}
+
+if (!mailFromName || mailFromName.length > 200 || /[\r\n]/.test(mailFromName)) {
+  throw new Error("MAIL_FROM_NAME must be between 1 and 200 characters without line breaks");
+}
+
+if (Boolean(smtpUser) !== Boolean(smtpPassword)) {
+  throw new Error("SMTP_USER and SMTP_PASSWORD must be configured together");
 }
 
 validatePublicUrlEnv({
@@ -365,14 +380,16 @@ export const env = {
     "SMTP_REQUIRE_TLS",
     optional("SMTP_REQUIRE_TLS", nodeEnv === "production" ? "true" : "false"),
   ),
-  SMTP_USER: process.env.SMTP_USER?.trim() || undefined,
-  SMTP_PASSWORD: process.env.SMTP_PASSWORD || undefined,
-  SMTP_CONNECTION_TIMEOUT_MS: parsePositiveInteger(
+  SMTP_USER: smtpUser,
+  SMTP_PASSWORD: smtpPassword,
+  SMTP_CONNECTION_TIMEOUT_MS: parseIntegerInRange(
     "SMTP_CONNECTION_TIMEOUT_MS",
     optional("SMTP_CONNECTION_TIMEOUT_MS", "5000"),
+    100,
+    30_000,
   ),
   MAIL_FROM: mailFrom,
-  MAIL_FROM_NAME: optional("MAIL_FROM_NAME", "Amoria"),
+  MAIL_FROM_NAME: mailFromName,
   EMAIL_CHALLENGE_TTL_SEC: parsePositiveInteger(
     "EMAIL_CHALLENGE_TTL_SEC",
     optional("EMAIL_CHALLENGE_TTL_SEC", "900"),

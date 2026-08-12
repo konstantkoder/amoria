@@ -38,6 +38,7 @@ export type ErrorCode =
   | "disposable_email_domain"
   | "email_domain_unavailable"
   | "email_delivery_unavailable"
+  | "email_delivery_failed"
   | "invalid_verification_code"
   | "verification_code_expired"
   | "verification_attempts_exceeded"
