@@ -1,5 +1,10 @@
 import { env } from "../config/env";
 import { assertNotRateLimited, MessageAbuseGuard, type AbuseDecision } from "./message-abuse.guard";
+import {
+  detectDeterministicTextSafety,
+  DETERMINISTIC_TEXT_POLICY_VERSION,
+  type DeterministicTextFinding,
+} from "./deterministic-text-safety";
 import { localTextModerationClient } from "./local-text-moderation.client";
 import type {
   MessageSafetyDecision,
@@ -71,11 +76,18 @@ export async function moderateMessage(input: ModerateMessageInput): Promise<Mess
     return { state: "held", automationStatus: "not_required", evidence };
   }
 
+  const deterministicFindings = detectDeterministicTextSafety(input.text);
+  evidence.push(...deterministicFindings.map(deterministicEvidence));
+
   if (!deps.modelConfigured()) {
     evidence.push(modelEvidence("allow", "model_not_configured", {
       automationStatus: "not_configured",
     }));
-    return { state: "visible", automationStatus: "not_configured", evidence };
+    return {
+      state: stateForOutcomes(deterministicFindings.map((finding) => finding.outcome)),
+      automationStatus: "not_configured",
+      evidence,
+    };
   }
 
   try {
@@ -87,27 +99,71 @@ export async function moderateMessage(input: ModerateMessageInput): Promise<Mess
       durationMs: model.durationMs,
       automationStatus: "completed",
     }));
+    const deterministicState = stateForOutcomes(deterministicFindings.map((finding) => finding.outcome));
     return {
-      state: policy.outcome === "restrict"
-        ? "restricted"
-        : policy.outcome === "hold"
-          ? "held"
-          : "visible",
+      state: strongestState(deterministicState, stateForModelOutcome(policy.outcome)),
       automationStatus: "completed",
       evidence,
     };
   } catch (error) {
-    const highRisk = isHighRiskWithoutModel(abuse);
-    evidence.push(modelEvidence(highRisk ? "hold" : "allow", "model_failed", {
+    const abuseHighRisk = isHighRiskWithoutModel(abuse);
+    const deterministicState = stateForOutcomes(deterministicFindings.map((finding) => finding.outcome));
+    const fallbackState = abuseHighRisk
+      ? strongestState(deterministicState, "needs_review")
+      : deterministicState;
+    evidence.push(modelEvidence(fallbackState === "visible" ? "allow" : "hold", "model_failed", {
       automationStatus: "failed",
       errorCode: safeModelError(error),
     }));
     return {
-      state: highRisk ? "needs_review" : "visible",
+      state: fallbackState,
       automationStatus: "failed",
       evidence,
     };
   }
+}
+
+function deterministicEvidence(finding: DeterministicTextFinding): ModerationEvidence {
+  return {
+    source: "automated_spam",
+    action: finding.outcome,
+    reason: finding.category,
+    metadata: {
+      engine: "amoria_deterministic_text_safety",
+      policyVersion: DETERMINISTIC_TEXT_POLICY_VERSION,
+      category: finding.category,
+      signals: finding.signals,
+      decision: finding.outcome,
+      timestamp: new Date().toISOString(),
+    },
+  };
+}
+
+function stateForOutcomes(outcomes: Array<"flag" | "hold" | "restrict">): MessageSafetyDecision["state"] {
+  if (outcomes.includes("restrict")) return "restricted";
+  if (outcomes.includes("hold")) return "held";
+  if (outcomes.includes("flag")) return "needs_review";
+  return "visible";
+}
+
+function stateForModelOutcome(outcome: "allow" | "flag" | "hold" | "restrict"): MessageSafetyDecision["state"] {
+  if (outcome === "restrict") return "restricted";
+  if (outcome === "hold") return "held";
+  return "visible";
+}
+
+function strongestState(
+  first: MessageSafetyDecision["state"],
+  second: MessageSafetyDecision["state"],
+): MessageSafetyDecision["state"] {
+  const rank: Record<MessageSafetyDecision["state"], number> = {
+    visible: 0,
+    needs_review: 1,
+    held: 2,
+    restricted: 3,
+    removed: 4,
+  };
+  return rank[first] >= rank[second] ? first : second;
 }
 
 function modelEvidence(

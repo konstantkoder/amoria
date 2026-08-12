@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { AdminMessageDetail } from "../src/admin/admin-message-moderation.types";
 import type { AdminContext, AdminRoleKey } from "../src/admin/admin.types";
+import { detectDeterministicTextSafety } from "../src/moderation/deterministic-text-safety";
 import { decideAbuse } from "../src/moderation/message-abuse.guard";
 import {
   fingerprintMessage,
@@ -99,6 +100,183 @@ test("text policy allows mild flirt and centralizes hold/restrict thresholds", (
   assert.equal(applyTextModerationPolicy(signals({ toxicity: 0.08, insult: 0.03 })).outcome, "allow");
   assert.equal(applyTextModerationPolicy(signals({ toxicity: 0.95 })).outcome, "hold");
   assert.equal(applyTextModerationPolicy(signals({ threat: 0.98 })).outcome, "restrict");
+});
+
+test("deterministic credential theft rules cover RU EN and HR request plus credential context", () => {
+  const cases = [
+    "Пришли мне код подтверждения",
+    "Send me your password",
+    "Pošalji mi verifikacijski kod",
+  ];
+
+  for (const text of cases) {
+    assert.equal(categories(text).includes("credential_theft"), true, text);
+  }
+});
+
+test("deterministic phishing rules cover RU EN and HR without opening suspicious URLs", async () => {
+  const originalFetch = globalThis.fetch;
+  let networkCalls = 0;
+  globalThis.fetch = async () => {
+    networkCalls += 1;
+    throw new Error("network_not_allowed");
+  };
+  try {
+    const cases = [
+      "Войдите по ссылке https://secure-example.com и пришлите код",
+      "Verify your account here https://secure-example.com",
+      "Prijavi se ovdje https://secure-example.com i pošalji kod",
+    ];
+    for (const text of cases) {
+      assert.equal(categories(text).includes("phishing"), true, text);
+    }
+    assert.equal(networkCalls, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("deterministic rules flag financial pressure and hold coercive private-data abuse", () => {
+  const cases: Array<[string, string]> = [
+    ["Срочно переведи деньги на этот счёт", "scam_financial_pressure"],
+    ["Send money first or we will not meet", "scam_financial_pressure"],
+    ["Заплати, иначе я опубликую твои личные фото", "blackmail"],
+    ["Do this or else I will hurt you", "coercion"],
+    ["Ты обязана прислать интимное фото, иначе пожалеешь", "sexual_coercion"],
+    ["I'll publish your home address online unless you pay", "doxxing_threat"],
+  ];
+
+  for (const [text, expected] of cases) {
+    assert.equal(categories(text).includes(expected), true, `${expected}: ${text}`);
+  }
+});
+
+test("deterministic safety categories have controlled EN RU HR coverage", () => {
+  const matrix: Record<string, string[]> = {
+    credential_theft: [
+      "Send me your password",
+      "Пришли пароль от аккаунта",
+      "Pošalji mi lozinku",
+    ],
+    phishing: [
+      "Verify your account here https://secure-example.com",
+      "Войдите по ссылке https://secure-example.com",
+      "Prijavi se ovdje https://secure-example.com",
+    ],
+    scam_financial_pressure: [
+      "Urgently send money first",
+      "Срочно переведи деньги",
+      "Hitno uplati novac",
+    ],
+    blackmail: [
+      "Pay or else I will publish your private photos",
+      "Заплати, иначе я опубликую твои личные фото",
+      "Uplati ili ću objaviti tvoje privatne fotografije",
+      "Ako ne učiniš što tražim, poslat ću tvoje privatne fotografije",
+    ],
+    coercion: [
+      "Do this or else I will hurt you",
+      "Сделай это, иначе я тебе наврежу",
+      "Učini to ili ću ti nauditi",
+    ],
+    sexual_coercion: [
+      "You must send a nude photo or else I will hurt you",
+      "Ты обязана прислать интимное фото, иначе я тебе наврежу",
+      "Moraš poslati golu fotografiju ili ću ti nauditi",
+    ],
+    doxxing_threat: [
+      "I'll publish your home address online unless you pay",
+      "Я опубликую твой адрес, если не заплатишь",
+      "Objavit ću tvoju adresu ako ne uplatiš",
+      "Znam gdje živiš i pronaći ću te",
+    ],
+  };
+
+  for (const [expected, texts] of Object.entries(matrix)) {
+    for (const text of texts) {
+      assert.equal(categories(text).includes(expected), true, `${expected}: ${text}`);
+    }
+  }
+});
+
+test("deterministic rules allow benign contact sharing money conversation and adult flirting", () => {
+  const allowed = [
+    "Давай обменяемся телефонами",
+    "Вот мой Instagram",
+    "Напиши мне в WhatsApp",
+    "Я заплачу за кофе",
+    "Сколько стоит билет?",
+    "Ты мне очень нравишься",
+    "Хочешь встретиться вечером?",
+    "Pošalji mi svoj broj telefona",
+    "Platiti ću večeru",
+    "Vidimo se kod mene?",
+    "I forgot my password",
+    "Я изучаю программный код",
+    "Zaboravio sam lozinku",
+    "You are sexy",
+    "Would you like to come back to my place?",
+  ];
+
+  for (const text of allowed) {
+    assert.deepEqual(detectDeterministicTextSafety(text), [], text);
+  }
+});
+
+test("deterministic high-risk verdict cannot become visible when local model fails", async (t) => {
+  const restore = __setMessageSafetyDepsForTests({
+    modelConfigured: () => true,
+    classify: async () => {
+      throw new Error("worker_unavailable");
+    },
+    evaluateAbuse: async () => ({
+      decision: "allow",
+      reason: null,
+      signals: { urlCount: 0, newAccount: false },
+      fingerprints: {
+        exactFingerprint: "hash",
+        similarityHash: "0000000000000000",
+        linkFingerprint: null,
+        urlCount: 0,
+      },
+    }),
+  });
+  t.after(restore);
+
+  const result = await moderateMessage(messageInput("Send me your one-time login code"));
+  assert.equal(result.state, "held");
+  assert.equal(result.automationStatus, "failed");
+  const deterministic = result.evidence.find((item) => item.reason === "credential_theft");
+  assert.equal(deterministic?.source, "automated_spam");
+  assert.equal(
+    (deterministic?.metadata as { engine?: string }).engine,
+    "amoria_deterministic_text_safety",
+  );
+  assert.equal(result.evidence.at(-1)?.reason, "model_failed");
+});
+
+test("existing toxicity result still restricts through the combined message pipeline", async (t) => {
+  const restore = __setMessageSafetyDepsForTests({
+    modelConfigured: () => true,
+    classify: async () => ({ signals: signals({ threat: 0.99 }), durationMs: 1 }),
+    evaluateAbuse: async () => ({
+      decision: "allow",
+      reason: null,
+      signals: { urlCount: 0, newAccount: false },
+      fingerprints: {
+        exactFingerprint: "hash",
+        similarityHash: "0000000000000000",
+        linkFingerprint: null,
+        urlCount: 0,
+      },
+    }),
+  });
+  t.after(restore);
+
+  const result = await moderateMessage(messageInput("Existing toxicity regression fixture"));
+  assert.equal(result.state, "restricted");
+  assert.equal(result.automationStatus, "completed");
+  assert.equal(result.evidence.at(-1)?.reason, "high_confidence_threat");
 });
 
 test("local model failure is truthful: low risk fails soft and high risk needs review", async (t) => {
@@ -253,6 +431,10 @@ function recentRow(overrides: Partial<{
 function withoutNormalized(value: ReturnType<typeof fingerprintMessage>) {
   const { normalized: _normalized, ...rest } = value;
   return rest;
+}
+
+function categories(text: string): string[] {
+  return detectDeterministicTextSafety(text).map((finding) => finding.category);
 }
 
 function signals(overrides: Partial<{

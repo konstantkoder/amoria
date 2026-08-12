@@ -27,9 +27,17 @@ This decision was recorded before model installation.
 
 The checkpoint emits Detoxify multilingual heads. Amoria records and uses only genuine classifier
 outputs: `toxicity`, `severe_toxicity`, `identity_attack`, `insult`, and `threat`. The model does not
-provide a scam or spam verdict. Identity-demographic heads are ignored. `sexual_explicit` is also
-ignored by product policy so ordinary consensual adult dating/flirting is not prohibited merely
-for sexual vocabulary.
+provide scam, phishing, coercion, or spam verdicts. Identity-demographic heads are ignored.
+`sexual_explicit` is also ignored by product policy so ordinary consensual adult dating/flirting is
+not prohibited merely for sexual vocabulary.
+
+Separate local deterministic rules combine small, normalized EN/RU/HR phrase groups. They cover
+spam plus request-and-context signals for credential/OTP theft, phishing, financial scam pressure,
+blackmail/coercion, sexual coercion, and threatened disclosure of private data. A lone word such as
+`code`, `код`, `kod`, `password`, `address`, or `adresa` is not a violation. URL handling is string
+analysis only: the service never opens or fetches a URL. Findings use machine-readable categories
+in existing moderation evidence and flow through the existing held/needs-review/restricted states.
+This bounded policy is not represented as a universal AI scam detector.
 
 The model card says training/evaluation covered English, French, Spanish, Italian, Portuguese,
 Turkish, and Russian. English and Russian are supported target languages. Croatian is **not an
@@ -40,7 +48,8 @@ equal-quality claim. Controlled Croatian QA is required and must be reported hon
 
 - Toxicity models can over-score profanity, quoted abuse, humor, reclaimed terms, and identity
   mentions. The model is not an intent detector.
-- It is not a scam/phishing, coercion, grooming, consent, or unwanted-solicitation classifier.
+- The ML model is not a scam/phishing, coercion, grooming, consent, or unwanted-solicitation
+  classifier. Deterministic coverage is intentionally limited to the documented combinations.
 - A single score never bans or deletes an account.
 - The model never makes an automatic `removed` decision. High confidence may hold/restrict only the
   message; ambiguous flags are added to the Admin queue without suppressing normal delivery.
@@ -48,10 +57,11 @@ equal-quality claim. Controlled Croatian QA is required and must be reported hon
 
 ## Product policy separation
 
-`TextModerationPolicy` is versioned as `amoria_text_policy_v1`. It consumes model signals and
-deterministic abuse evidence. Model output is preserved in append-only review metadata with engine,
-artifact revision, policy version, selected signals, decision, duration, and timestamp. Thresholds
-live in one policy module.
+`TextModerationPolicy` remains versioned as `amoria_text_policy_v1` and consumes only genuine model
+signals. Deterministic findings use the separate `amoria_deterministic_text_safety_v1` policy. The
+existing message-safety pipeline merges model, deterministic, and anti-spam outcomes. Evidence is
+preserved in append-only review metadata with engine, policy version, selected signals, decision,
+duration where applicable, and timestamp.
 
 Low-risk messages can fail soft if the worker is unavailable, while the abuse guard still runs and
 the history records `automationStatus=failed`. Messages with deterministic high-risk signals fail
