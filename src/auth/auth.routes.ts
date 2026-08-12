@@ -1,7 +1,8 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { withErrorResponses } from "../common/http";
-import { unauthorized } from "../common/errors";
+import { AppError, unauthorized } from "../common/errors";
 import { authMiddleware } from "../common/security/auth-middleware";
+import { env } from "../config/env";
 import type {
   AuthRequestContext,
   EmailCodeBody,
@@ -12,6 +13,8 @@ import type {
   RefreshBody,
   RegisterBody,
   ResendVerificationBody,
+  OkResponse,
+  ResendVerificationResponse,
 } from "./auth.types";
 import {
   loginRouteSchema,
@@ -25,6 +28,38 @@ import {
   verifyEmailRouteSchema,
 } from "./auth.schemas";
 import * as authService from "./auth.service";
+
+type PublicAuthEmailFlow = "password_reset" | "verification_resend";
+type PublicAuthEmailLogger = {
+  warn(bindings: Record<string, unknown>, message: string): void;
+};
+
+const concealedPublicEmailErrors = new Set([
+  "email_delivery_unavailable",
+  "email_delivery_failed",
+  "resend_cooldown",
+]);
+
+export async function completePublicAuthEmailRequest<T>(input: {
+  flow: PublicAuthEmailFlow;
+  response: T;
+  operation: () => Promise<unknown>;
+  logger: PublicAuthEmailLogger;
+}): Promise<T> {
+  try {
+    await input.operation();
+  } catch (error) {
+    if (!(error instanceof AppError) || !concealedPublicEmailErrors.has(error.code)) throw error;
+    if (error.code === "email_delivery_unavailable" || error.code === "email_delivery_failed") {
+      input.logger.warn({
+        event: "auth_email_delivery_failed",
+        flow: input.flow,
+        failureCode: error.code,
+      }, "Auth email delivery failed");
+    }
+  }
+  return input.response;
+}
 
 function firstHeaderValue(value: string | string[] | undefined): string | undefined {
   const candidate = Array.isArray(value) ? value[0] : value;
@@ -72,13 +107,29 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.post<{ Body: ResendVerificationBody }>(
     "/resend-verification",
     { schema: withErrorResponses(resendVerificationRouteSchema) },
-    async (request) => authService.resendVerification(request.body, authRequestContext(request)),
+    async (request, reply) => {
+      const response = await completePublicAuthEmailRequest<ResendVerificationResponse>({
+        flow: "verification_resend",
+        response: { ok: true, resendAfterSec: env.EMAIL_RESEND_COOLDOWN_SEC },
+        operation: () => authService.resendVerification(request.body, authRequestContext(request)),
+        logger: request.log,
+      });
+      return reply.status(200).send(response);
+    },
   );
 
   fastify.post<{ Body: PasswordResetRequestBody }>(
     "/password-reset/request",
     { schema: withErrorResponses(passwordResetRequestRouteSchema) },
-    async (request) => authService.requestPasswordReset(request.body, authRequestContext(request)),
+    async (request, reply) => {
+      const response = await completePublicAuthEmailRequest<OkResponse>({
+        flow: "password_reset",
+        response: { ok: true },
+        operation: () => authService.requestPasswordReset(request.body, authRequestContext(request)),
+        logger: request.log,
+      });
+      return reply.status(200).send(response);
+    },
   );
 
   fastify.post<{ Body: PasswordResetConfirmBody }>(

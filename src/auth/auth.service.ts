@@ -35,6 +35,7 @@ import {
   createUser,
   findRecentRefreshReplacement,
   findUserByEmail,
+  hasActiveSentEmailChallenge,
   invalidateEmailChallenge,
   markEmailChallengeSent,
   revokeAllRefreshTokensForUser,
@@ -259,6 +260,33 @@ async function createAndDeliverChallenge(input: {
   return "sent";
 }
 
+type ExistingRegistrationChallengeOperations = {
+  hasActiveSentChallenge: typeof hasActiveSentEmailChallenge;
+  createAndDeliver: typeof createAndDeliverChallenge;
+};
+
+export async function ensureVerificationChallengeForExistingRegistration(
+  user: UserRow,
+  locale: EmailLocale,
+  operations: ExistingRegistrationChallengeOperations = {
+    hasActiveSentChallenge: hasActiveSentEmailChallenge,
+    createAndDeliver: createAndDeliverChallenge,
+  },
+): Promise<"already_sent" | "sent" | "not_eligible"> {
+  const alreadySent = await operations.hasActiveSentChallenge({
+    userId: user.id,
+    purpose: "verify_email",
+    now: new Date(),
+  });
+  if (alreadySent) return "already_sent";
+  return operations.createAndDeliver({
+    user,
+    purpose: "verify_email",
+    locale,
+    enforceCooldown: false,
+  });
+}
+
 function verificationRequired(email: string): VerificationRequiredResponse {
   return {
     ok: true,
@@ -300,7 +328,13 @@ export async function register(
       const constraint = uniqueConstraint(error);
       if (constraint?.includes("email")) {
         const existing = await findUserByEmail(email);
-        if (existing && !existing.emailVerifiedAt) return verificationRequired(email);
+        if (existing && !existing.emailVerifiedAt) {
+          await ensureVerificationChallengeForExistingRegistration(
+            existing,
+            normalizeEmailLocale(input.locale),
+          );
+          return verificationRequired(email);
+        }
         throw new AppError("email_taken", "Email is already registered", 409, { email: "taken" });
       }
       if (constraint?.includes("amoria_id")) continue;

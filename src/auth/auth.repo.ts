@@ -329,6 +329,25 @@ export async function invalidateEmailChallenge(challengeId: string, now: Date): 
   );
 }
 
+export async function hasActiveSentEmailChallenge(input: {
+  userId: string;
+  purpose: AuthEmailChallengePurpose;
+  now: Date;
+}): Promise<boolean> {
+  const result = await pool.query<{ exists: boolean }>(
+    `SELECT EXISTS (
+       SELECT 1 FROM auth_email_challenges
+       WHERE user_id = $1
+         AND purpose = $2
+         AND sent_at IS NOT NULL
+         AND consumed_at IS NULL
+         AND expires_at > $3
+     ) AS exists`,
+    [input.userId, input.purpose, input.now],
+  );
+  return result.rows[0]?.exists === true;
+}
+
 async function consumeChallenge(input: {
   userId: string;
   purpose: AuthEmailChallengePurpose;
