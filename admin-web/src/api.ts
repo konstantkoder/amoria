@@ -1,19 +1,8 @@
+import { AdminSessionClient, type AdminAccessSession } from "./admin-session";
+
 const API_BASE_URL = (import.meta.env.VITE_ADMIN_API_URL || "").replace(/\/+$/, "");
-const TOKEN_STORAGE_KEY = "amoria.admin.tokens";
-
-export type Tokens = {
-  accessToken: string;
-  refreshToken: string;
-  accessTokenExpiresAt: string;
-};
-
-export type AuthUser = {
-  id: string;
-  email: string;
-  displayName: string;
-  amoriaId: string;
-  avatarUrl: string | null;
-};
+const adminSession = new AdminSessionClient(API_BASE_URL);
+adminSession.clearLegacyStorage(window.localStorage);
 
 export type AdminMe = {
   adminUser: {
@@ -579,50 +568,20 @@ export class ApiError extends Error {
   }
 }
 
-export function loadTokens(): Tokens | null {
-  const raw = window.localStorage.getItem(TOKEN_STORAGE_KEY);
-  if (!raw) {
-    return null;
-  }
-
-  try {
-    const parsed = JSON.parse(raw) as Tokens;
-    if (parsed.accessToken && parsed.refreshToken) {
-      return parsed;
-    }
-  } catch {
-    return null;
-  }
-
-  return null;
-}
-
-export function saveTokens(tokens: Tokens): void {
-  window.localStorage.setItem(TOKEN_STORAGE_KEY, JSON.stringify(tokens));
-}
-
 export function clearTokens(): void {
-  window.localStorage.removeItem(TOKEN_STORAGE_KEY);
+  adminSession.clearAccessSession();
 }
 
-export async function login(email: string, password: string): Promise<Tokens & { user: AuthUser }> {
-  return apiFetch<Tokens & { user: AuthUser }>("/auth/login", {
-    method: "POST",
-    body: JSON.stringify({ email, password }),
-    skipAuth: true,
-  });
+export async function restoreAdminSession(): Promise<AdminAccessSession | null> {
+  return adminSession.restore();
 }
 
-export async function logout(refreshToken: string | undefined): Promise<void> {
-  if (!refreshToken) {
-    return;
-  }
+export async function login(email: string, password: string): Promise<AdminAccessSession> {
+  return adminSession.login(email, password);
+}
 
-  await apiFetch("/auth/logout", {
-    method: "POST",
-    body: JSON.stringify({ refreshToken }),
-    skipRefresh: true,
-  }).catch(() => undefined);
+export async function logout(): Promise<void> {
+  await adminSession.logout().catch(() => undefined);
 }
 
 export async function apiGet<T>(path: string): Promise<T> {
@@ -650,9 +609,10 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
 }
 
 export async function apiBlob(path: string): Promise<Blob> {
+  const accessTokenBefore = adminSession.getAccessToken();
   const response = await fetchWithAuth(path);
 
-  if (response.status === 401 && await refreshTokens()) {
+  if (response.status === 401 && await recoverUnauthorized(accessTokenBefore)) {
     const retry = await fetchWithAuth(path);
     return parseBlobResponse(retry);
   }
@@ -757,11 +717,12 @@ async function readProbeErrorCode(
 
 async function apiFetch<T = unknown>(
   path: string,
-  options: RequestInit & { skipAuth?: boolean; skipRefresh?: boolean } = {},
+  options: RequestInit = {},
 ): Promise<T> {
+  const accessTokenBefore = adminSession.getAccessToken();
   const response = await fetchWithAuth(path, options);
 
-  if (response.status === 401 && !options.skipRefresh && await refreshTokens()) {
+  if (response.status === 401 && await recoverUnauthorized(accessTokenBefore)) {
     const retry = await fetchWithAuth(path, options);
     return parseResponse<T>(retry);
   }
@@ -771,14 +732,14 @@ async function apiFetch<T = unknown>(
 
 async function fetchWithAuth(
   path: string,
-  options: RequestInit & { skipAuth?: boolean } = {},
+  options: RequestInit = {},
 ): Promise<Response> {
   const headers = new Headers(options.headers);
   headers.set("content-type", "application/json");
 
-  const tokens = loadTokens();
-  if (!options.skipAuth && tokens?.accessToken) {
-    headers.set("authorization", `Bearer ${tokens.accessToken}`);
+  const accessToken = adminSession.getAccessToken();
+  if (accessToken) {
+    headers.set("authorization", `Bearer ${accessToken}`);
   }
 
   return fetch(`${API_BASE_URL}${path}`, {
@@ -788,24 +749,13 @@ async function fetchWithAuth(
 }
 
 async function refreshTokens(): Promise<boolean> {
-  const tokens = loadTokens();
-  if (!tokens?.refreshToken) {
-    return false;
-  }
+  return adminSession.refresh();
+}
 
-  try {
-    const refreshed = await apiFetch<Tokens & { user: AuthUser }>("/auth/refresh", {
-      method: "POST",
-      body: JSON.stringify({ refreshToken: tokens.refreshToken }),
-      skipAuth: true,
-      skipRefresh: true,
-    });
-    saveTokens(refreshed);
-    return true;
-  } catch {
-    clearTokens();
-    return false;
-  }
+async function recoverUnauthorized(accessTokenBefore: string | undefined): Promise<boolean> {
+  const currentAccessToken = adminSession.getAccessToken();
+  if (currentAccessToken && currentAccessToken !== accessTokenBefore) return true;
+  return refreshTokens();
 }
 
 async function parseResponse<T>(response: Response): Promise<T> {

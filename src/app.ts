@@ -11,6 +11,7 @@ import { env } from "./config/env";
 import { loggerOptions } from "./config/logger";
 import { authRoutes } from "./auth/auth.routes";
 import { adminRoutes } from "./admin/admin.routes";
+import { adminSessionRoutes } from "./admin/admin-session.routes";
 import { announcementsRoutes } from "./announcements/announcements.routes";
 import { usersRoutes } from "./users/users.routes";
 import { chatRoutes } from "./chat/chat.routes";
@@ -75,7 +76,7 @@ export function buildApp(): FastifyInstance {
     origin(origin, callback) {
       callback(null, isCorsOriginAllowed(origin, env.CORS_ALLOWED_ORIGINS));
     },
-    credentials: false,
+    credentials: true,
   });
 
   void app.register(multipart, {
@@ -133,6 +134,7 @@ export function buildApp(): FastifyInstance {
   }));
 
   void app.register(authRoutes, { prefix: "/auth" });
+  void app.register(adminSessionRoutes, { prefix: "/admin/session" });
   void app.register(adminRoutes, { prefix: "/admin" });
   void app.register(announcementsRoutes, { prefix: "/announcements" });
   void app.register(usersRoutes);

@@ -81,11 +81,13 @@ test("CORS allows configured Admin origin, allows native calls, and rejects untr
     headers: {
       origin: "http://localhost:5174",
       "access-control-request-method": "GET",
+      "access-control-request-headers": "x-amoria-admin-session,content-type",
     },
   });
   assert.equal(allowed.statusCode, 204);
   assert.equal(allowed.headers["access-control-allow-origin"], "http://localhost:5174");
-  assert.equal(allowed.headers["access-control-allow-credentials"], undefined);
+  assert.equal(allowed.headers["access-control-allow-credentials"], "true");
+  assert.match(String(allowed.headers["access-control-allow-headers"]), /x-amoria-admin-session/i);
 
   const untrusted = await app.inject({ method: "GET", url: "/health", headers: { origin: "https://evil.example" } });
   assert.equal(untrusted.headers["access-control-allow-origin"], undefined);

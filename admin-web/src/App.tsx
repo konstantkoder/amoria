@@ -33,7 +33,6 @@ import {
   ReportDetail,
   ReportItem,
   ReportTargetContextLink,
-  Tokens,
   TogetherQueueEntry,
   TogetherSessionItem,
   UserSearchItem,
@@ -44,12 +43,11 @@ import {
   createNearbyRoomFromDemand,
   CreateNearbyRoomFromDemandPayload,
   getAdminNearbyActivityDemand,
-  loadTokens,
   login,
   logout,
   probePublicMediaUrl,
   resolveApiUrl,
-  saveTokens,
+  restoreAdminSession,
   toQuery,
 } from "./api";
 import {
@@ -157,7 +155,6 @@ const I18nContext = createContext<I18nContextValue | null>(null);
 
 export function App() {
   const [language, setLanguageState] = useState<Language>(() => loadLanguage());
-  const [tokens, setTokens] = useState<Tokens | null>(() => loadTokens());
   const [adminMe, setAdminMe] = useState<AdminMe | null>(null);
   const [screen, setScreen] = useState<Screen>("dashboard");
   const [authState, setAuthState] = useState<"checking" | "login" | "ready" | "forbidden">("checking");
@@ -184,31 +181,25 @@ export function App() {
   const { t } = i18n;
 
   useEffect(() => {
-    if (!tokens) {
-      setAuthState("login");
-      return;
-    }
-
-    apiGet<AdminMe>("/admin/me")
-      .then((me) => {
+    void restoreAdminSession().then(async (session) => {
+      if (!session) {
+        setAuthState("login");
+        return;
+      }
+      try {
+        const me = await apiGet<AdminMe>("/admin/me");
         setAdminMe(me);
         setAuthState("ready");
-      })
-      .catch((error) => {
-        if (error instanceof ApiError && error.status === 403) {
-          setAuthState("forbidden");
-          return;
-        }
+      } catch (error) {
         clearTokens();
-        setTokens(null);
-        setAuthState("login");
-      });
-  }, [tokens]);
+        setAuthState(error instanceof ApiError && error.status === 403 ? "forbidden" : "login");
+      }
+    });
+  }, []);
 
   async function handleLogout() {
-    await logout(tokens?.refreshToken);
+    await logout();
     clearTokens();
-    setTokens(null);
     setAdminMe(null);
     setAuthState("login");
   }
@@ -234,9 +225,9 @@ export function App() {
   } else if (authState === "login") {
     content = (
       <LoginScreen
-        onLogin={(nextTokens) => {
-          saveTokens(nextTokens);
-          setTokens(nextTokens);
+        onLogin={(me) => {
+          setAdminMe(me);
+          setAuthState("ready");
         }}
       />
     );
@@ -487,7 +478,7 @@ function TogetherTurnBasedScreen({ canManage, setMessage }: {
   </section>;
 }
 
-function LoginScreen({ onLogin }: { onLogin: (tokens: Tokens) => void }) {
+function LoginScreen({ onLogin }: { onLogin: (admin: AdminMe) => void }) {
   const { t } = useI18n();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -500,13 +491,15 @@ function LoginScreen({ onLogin }: { onLogin: (tokens: Tokens) => void }) {
     setError(null);
 
     try {
-      const response = await login(email, password);
-      saveTokens(response);
-      await apiGet<AdminMe>("/admin/me");
-      onLogin(response);
+      await login(email, password);
+      const me = await apiGet<AdminMe>("/admin/me");
+      onLogin(me);
     } catch (error) {
       clearTokens();
-      if (error instanceof ApiError && error.status === 403) {
+      const status = error instanceof ApiError
+        ? error.status
+        : (error as { status?: unknown } | null)?.status;
+      if (status === 403) {
         setError(t("auth.loginForbidden"));
       } else {
         setError(error instanceof Error ? error.message : t("auth.loginFailed"));

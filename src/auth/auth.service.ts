@@ -65,7 +65,7 @@ import { toAuthUserProfile } from "./auth.types";
 
 const amoriaIdRetries = 8;
 const refreshTokenBytes = 32;
-const refreshTokenExpiresMs = REFRESH_TOKEN_EXPIRES_IN_DAYS * 24 * 60 * 60 * 1000;
+export const REFRESH_TOKEN_EXPIRES_MS = REFRESH_TOKEN_EXPIRES_IN_DAYS * 24 * 60 * 60 * 1000;
 const verificationCodePattern = /^[0-9]{6}$/;
 const dummyPasswordHash = "$2b$12$C6UzMDM.H6dfI/f/IKcEe.5c0m5QkZkW8O7G6Gf4KfCQ7U1w5t2u.";
 export const REFRESH_RETRY_GRACE_MS = 30_000;
@@ -125,7 +125,7 @@ function normalizeCode(code: unknown): string {
 }
 
 function refreshTokenExpiresAt(now: Date): Date {
-  return new Date(now.getTime() + refreshTokenExpiresMs);
+  return new Date(now.getTime() + REFRESH_TOKEN_EXPIRES_MS);
 }
 
 function normalizeRefreshToken(refreshToken: string): string {

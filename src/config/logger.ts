@@ -11,6 +11,8 @@ export function loggerOptions(): FastifyServerOptions["logger"] {
     redact: [
       "req.headers.authorization",
       "request.headers.authorization",
+      "req.headers.cookie",
+      "request.headers.cookie",
       "password",
       "password_hash",
       "passwordHash",
