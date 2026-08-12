@@ -35,7 +35,7 @@ from psycopg.types.json import Jsonb
 
 ENGINE = "opennsfw_onnx_cpu"
 MODEL_VERSION = "yahoo_open_nsfw_resnet50_1by2/opennsfw-onnx@0.1.0"
-POLICY_VERSION = "amoria_public_photo_v3"
+POLICY_VERSION = "amoria_public_photo_v4"
 MODEL_SHA256 = "864bb37bf8863564b87eb330ab8c785a79a773f4e7c43cb96db52ed8611305fa"
 PERSON_DETECTOR_ENGINE = "yolox_nano_yunet_onnx_cpu"
 PERSON_DETECTOR_VERSION = "yolox-nano@0.1.1rc0+yunet@2023mar"
@@ -45,6 +45,12 @@ PERSON_TRUE_THRESHOLD = 0.35
 PERSON_UNKNOWN_THRESHOLD = 0.10
 FACE_TRUE_THRESHOLD = 0.80
 FACE_UNKNOWN_THRESHOLD = 0.60
+GRAPHIC_SAFETY_ENGINE = "image_safety_classifier_s_onnx_cpu"
+GRAPHIC_SAFETY_MODEL_VERSION = (
+    "OwenElliott/image-safety-classifier-s@015042b0eab17f1b17f2986527386346fb0d94be"
+)
+GRAPHIC_SAFETY_SHA256 = "fef443ed68ae25ed693b6fef9e456071692ed3963cff4168acb39c3de6f017e7"
+GRAPHIC_SAFETY_LABELS = ("NSFL", "NSFW", "SFW")
 
 
 @dataclass(frozen=True)
@@ -68,6 +74,9 @@ class Config:
     model_path: str | None
     person_yolox_model_path: str | None
     person_yunet_model_path: str | None
+    graphic_safety_model_path: str | None
+    graphic_review_min_nsfl: float
+    graphic_restrict_min_nsfl: float
 
 
 class ModerationFailure(Exception):
@@ -97,9 +106,17 @@ def load_config() -> Config:
         model_path=os.getenv("OPENNSFW_ONNX_MODEL_PATH") or None,
         person_yolox_model_path=os.getenv("PERSON_YOLOX_ONNX_MODEL_PATH") or None,
         person_yunet_model_path=os.getenv("PERSON_YUNET_ONNX_MODEL_PATH") or None,
+        graphic_safety_model_path=os.getenv("GRAPHIC_SAFETY_ONNX_MODEL_PATH") or None,
+        graphic_review_min_nsfl=float_env("MODERATION_GRAPHIC_REVIEW_MIN_NSFL", 0.20, 0.0, 1.0),
+        graphic_restrict_min_nsfl=float_env("MODERATION_GRAPHIC_RESTRICT_MIN_NSFL", 0.90, 0.0, 1.0),
     )
     if cfg.approve_max_nsfw >= cfg.restrict_min_nsfw:
         raise RuntimeError("MODERATION_APPROVE_MAX_NSFW must be less than MODERATION_RESTRICT_MIN_NSFW")
+    if cfg.graphic_review_min_nsfl >= cfg.graphic_restrict_min_nsfl:
+        raise RuntimeError(
+            "MODERATION_GRAPHIC_REVIEW_MIN_NSFL must be less than "
+            "MODERATION_GRAPHIC_RESTRICT_MIN_NSFL"
+        )
     return cfg
 
 
@@ -135,8 +152,18 @@ class PersonPresenceDetector:
     def __init__(self, yolox_model_path: str, yunet_model_path: str) -> None:
         yolox_path = pathlib.Path(yolox_model_path)
         yunet_path = pathlib.Path(yunet_model_path)
-        verify_model(yolox_path, PERSON_YOLOX_SHA256)
-        verify_model(yunet_path, PERSON_YUNET_SHA256)
+        verify_model(
+            yolox_path,
+            PERSON_YOLOX_SHA256,
+            "person_model_missing",
+            "person_model_checksum_mismatch",
+        )
+        verify_model(
+            yunet_path,
+            PERSON_YUNET_SHA256,
+            "person_model_missing",
+            "person_model_checksum_mismatch",
+        )
 
         options = ort.SessionOptions()
         options.intra_op_num_threads = max(1, min(4, os.cpu_count() or 1))
@@ -177,12 +204,80 @@ class PersonPresenceDetector:
         }
 
 
-def verify_model(model_path: pathlib.Path, expected_checksum: str) -> None:
+class GraphicSafetyClassifier:
+    """Local image-level NSFL/NSFW/SFW inference with no retained image features."""
+
+    def __init__(self, model_path: str) -> None:
+        resolved = pathlib.Path(model_path)
+        verify_model(
+            resolved,
+            GRAPHIC_SAFETY_SHA256,
+            "graphic_model_missing",
+            "graphic_model_checksum_mismatch",
+        )
+        options = ort.SessionOptions()
+        options.intra_op_num_threads = max(1, min(4, os.cpu_count() or 1))
+        self.session = ort.InferenceSession(
+            str(resolved),
+            sess_options=options,
+            providers=["CPUExecutionProvider"],
+        )
+        inputs = self.session.get_inputs()
+        outputs = self.session.get_outputs()
+        if (
+            len(inputs) != 1
+            or inputs[0].type != "tensor(float)"
+            or list(inputs[0].shape[1:]) != [3, 224, 224]
+            or len(outputs) != 1
+        ):
+            raise RuntimeError("graphic_model_signature_mismatch")
+        self.input_name = inputs[0].name
+        self.model_size_bytes = resolved.stat().st_size
+
+    def classify(self, image_bytes: bytes) -> dict[str, Any]:
+        started = time.perf_counter()
+        with Image.open(io.BytesIO(image_bytes)) as source:
+            image_input = prepare_graphic_safety_input(source.convert("RGB"))
+        output = self.session.run(None, {self.input_name: image_input})[0]
+        probabilities = parse_graphic_probabilities(output)
+        return {
+            "graphicNsflProbability": probabilities[0],
+            "graphicNsfwProbability": probabilities[1],
+            "graphicSfwProbability": probabilities[2],
+            "graphicInferenceMs": round((time.perf_counter() - started) * 1000, 3),
+        }
+
+
+def verify_model(
+    model_path: pathlib.Path,
+    expected_checksum: str,
+    missing_code: str,
+    checksum_code: str,
+) -> None:
     if not model_path.is_file():
-        raise RuntimeError("person_model_missing")
+        raise RuntimeError(missing_code)
     actual_checksum = hashlib.sha256(model_path.read_bytes()).hexdigest()
     if actual_checksum != expected_checksum:
-        raise RuntimeError("person_model_checksum_mismatch")
+        raise RuntimeError(checksum_code)
+
+
+def prepare_graphic_safety_input(image: Image.Image) -> np.ndarray:
+    resized = image.resize((224, 224), Image.Resampling.BILINEAR)
+    pixels = np.asarray(resized, dtype=np.float32)
+    return np.ascontiguousarray(pixels.transpose(2, 0, 1)[None, ...], dtype=np.float32)
+
+
+def parse_graphic_probabilities(output: np.ndarray) -> tuple[float, float, float]:
+    probabilities = np.asarray(output, dtype=np.float32).reshape(-1)
+    if (
+        probabilities.shape != (3,)
+        or not np.all(np.isfinite(probabilities))
+        or np.any(probabilities < 0.0)
+        or np.any(probabilities > 1.0)
+        or not np.isclose(float(np.sum(probabilities)), 1.0, atol=0.01)
+    ):
+        raise RuntimeError("graphic_model_output_invalid")
+    return tuple(float(value) for value in probabilities)
 
 
 def prepare_yolox_input(image: Image.Image) -> np.ndarray:
@@ -232,6 +327,7 @@ def inference_process(
     model_path: str | None,
     person_yolox_model_path: str | None,
     person_yunet_model_path: str | None,
+    graphic_safety_model_path: str | None,
 ) -> None:
     from opennsfw_onnx import NSFWClassifier
     import opennsfw_onnx
@@ -272,6 +368,23 @@ def inference_process(
         person_detector_error = str(error) if str(error) in known_errors else "person_detector_load_failed"
         connection.send({"ready": False, "error": person_detector_error})
         return
+
+    graphic_started = time.perf_counter()
+    try:
+        if not graphic_safety_model_path:
+            raise RuntimeError("graphic_model_not_configured")
+        graphic_classifier = GraphicSafetyClassifier(graphic_safety_model_path)
+        graphic_load_ms = round((time.perf_counter() - graphic_started) * 1000, 3)
+    except Exception as error:
+        known_errors = {
+            "graphic_model_missing",
+            "graphic_model_checksum_mismatch",
+            "graphic_model_not_configured",
+            "graphic_model_signature_mismatch",
+        }
+        graphic_error = str(error) if str(error) in known_errors else "graphic_model_load_failed"
+        connection.send({"ready": False, "error": graphic_error})
+        return
     connection.send({
         "ready": True,
         "loadMs": round((time.perf_counter() - started) * 1000, 3),
@@ -284,6 +397,12 @@ def inference_process(
         "personDetectorLoadMs": person_detector_load_ms,
         "personModelSizeBytes": person_model_size_bytes,
         "personDetectorError": None,
+        "graphicSafetyReady": True,
+        "graphicSafetyEngine": GRAPHIC_SAFETY_ENGINE,
+        "graphicSafetyModelVersion": GRAPHIC_SAFETY_MODEL_VERSION,
+        "graphicSafetyLoadMs": graphic_load_ms,
+        "graphicSafetyModelSizeBytes": graphic_classifier.model_size_bytes,
+        "graphicSafetyModelSha256": GRAPHIC_SAFETY_SHA256,
     })
 
     while True:
@@ -294,6 +413,11 @@ def inference_process(
         try:
             prediction = classifier.classify(payload)
             nsfw_inference_ms = round((time.perf_counter() - started) * 1000, 3)
+            try:
+                graphic_result = graphic_classifier.classify(payload)
+            except Exception:
+                connection.send({"ok": False, "error": "graphic_classifier_failed"})
+                continue
             person_result = {
                 "containsPerson": "unknown",
                 "personConfidence": None,
@@ -313,6 +437,7 @@ def inference_process(
                 "nsfwProbability": float(prediction.nsfw),
                 "sfwProbability": float(prediction.sfw),
                 "inferenceMs": nsfw_inference_ms,
+                **graphic_result,
                 **person_result,
             })
         except Exception:
@@ -337,6 +462,7 @@ class InferenceSupervisor:
                 self.cfg.model_path,
                 self.cfg.person_yolox_model_path,
                 self.cfg.person_yunet_model_path,
+                self.cfg.graphic_safety_model_path,
             ),
             name=f"amoria-moderation-inference-{self.worker_index}",
         )
@@ -359,7 +485,10 @@ class InferenceSupervisor:
             raise ModerationFailure("inference_timeout", "Local classifier timed out")
         result = self.connection.recv()
         if not result.get("ok"):
-            raise ModerationFailure("classifier_failed", "Local classifier failed")
+            error_code = str(result.get("error") or "classifier_failed")
+            if error_code not in {"classifier_failed", "graphic_classifier_failed"}:
+                error_code = "classifier_failed"
+            raise ModerationFailure(error_code, "Local classifier failed")
         return result
 
     def stop(self, force: bool = False) -> None:
@@ -605,6 +734,7 @@ class JobRunner:
                     result = self.inference.classify(image_bytes)
                     decision, policy_reason_code = decide_media_policy(
                         result["nsfwProbability"],
+                        result["graphicNsflProbability"],
                         result.get("containsPerson", "unknown"),
                         current["type"],
                         self.cfg,
@@ -628,6 +758,8 @@ class JobRunner:
                 durationMs=round((time.perf_counter() - started) * 1000, 3),
                 inferenceMs=result["inferenceMs"],
                 personInferenceMs=result.get("personInferenceMs"),
+                graphicInferenceMs=result.get("graphicInferenceMs"),
+                graphicNsflProbability=result.get("graphicNsflProbability"),
                 containsPerson=result.get("containsPerson", "unknown"),
                 policyReasonCode=policy_reason_code,
                 modelVersion=MODEL_VERSION,
@@ -813,14 +945,28 @@ def decide_policy(nsfw_probability: float, cfg: Config) -> str:
     return "needs_review"
 
 
+def decide_graphic_policy(graphic_nsfl_probability: float, cfg: Config) -> str:
+    if graphic_nsfl_probability >= cfg.graphic_restrict_min_nsfl:
+        return "restrict"
+    if graphic_nsfl_probability >= cfg.graphic_review_min_nsfl:
+        return "needs_review"
+    return "approve"
+
+
 def decide_media_policy(
     nsfw_probability: float,
+    graphic_nsfl_probability: float,
     contains_person: str,
     media_type: str,
     cfg: Config,
 ) -> tuple[str, str | None]:
     if nsfw_probability >= cfg.restrict_min_nsfw:
         return "restrict", None
+    graphic_decision = decide_graphic_policy(graphic_nsfl_probability, cfg)
+    if graphic_decision == "restrict":
+        return "restrict", "graphic_gore_high_confidence"
+    if graphic_decision == "needs_review":
+        return "needs_review", "graphic_gore_uncertain"
     if media_type == "avatar":
         if contains_person == "false":
             return "needs_review", "person_not_detected"
@@ -834,6 +980,13 @@ def to_raw_result(result: dict[str, Any], cfg: Config) -> dict[str, Any]:
     signal = "safe" if nsfw_probability <= cfg.approve_max_nsfw else (
         "unsafe" if nsfw_probability >= cfg.restrict_min_nsfw else "unknown"
     )
+    graphic_nsfl_probability = float(result["graphicNsflProbability"])
+    graphic_decision = decide_graphic_policy(graphic_nsfl_probability, cfg)
+    graphic_signal = {
+        "approve": "safe",
+        "needs_review": "unknown",
+        "restrict": "unsafe",
+    }[graphic_decision]
     return {
         "containsPerson": result.get("containsPerson", "unknown"),
         "personPresence": {
@@ -846,15 +999,30 @@ def to_raw_result(result: dict[str, Any], cfg: Config) -> dict[str, Any]:
         },
         "nsfw": signal,
         "violence": "unknown",
+        "graphicSafety": {
+            "detectorEngine": GRAPHIC_SAFETY_ENGINE,
+            "modelVersion": GRAPHIC_SAFETY_MODEL_VERSION,
+            "labelOrder": list(GRAPHIC_SAFETY_LABELS),
+            "signal": graphic_signal,
+            "policyDecision": graphic_decision,
+            "nsflProbability": graphic_nsfl_probability,
+            "nsfwProbability": float(result["graphicNsfwProbability"]),
+            "sfwProbability": float(result["graphicSfwProbability"]),
+            "inferenceMs": result.get("graphicInferenceMs"),
+        },
         "confidence": {
             "nsfw": nsfw_probability,
             "sfw": float(result["sfwProbability"]),
+            "graphicNsfl": graphic_nsfl_probability,
         },
         "labels": [
             {"label": "nsfw", "confidence": nsfw_probability},
             {"label": "sfw", "confidence": float(result["sfwProbability"])},
+            {"label": "graphic_nsfl", "confidence": graphic_nsfl_probability},
+            {"label": "graphic_nsfw", "confidence": float(result["graphicNsfwProbability"])},
+            {"label": "graphic_sfw", "confidence": float(result["graphicSfwProbability"])},
         ],
-        "needsHumanReview": signal == "unknown",
+        "needsHumanReview": signal == "unknown" or graphic_decision == "needs_review",
         "inferenceMs": result["inferenceMs"],
         "checkedAt": datetime.now(timezone.utc).isoformat(),
     }

@@ -12,8 +12,11 @@
   <https://github.com/Megvii-BaseDetection/YOLOX/blob/e1052df71842031413f6030723c3607b839c80ce/LICENSE>
 - YuNet face detector model directory: MIT,
   <https://github.com/opencv/opencv_zoo/tree/f12e12798e8314f7c074a6656816c048dcc95b7a/models/face_detection_yunet>
+- Owen Elliott Image Safety Classifier S model and weights: MIT,
+  <https://huggingface.co/OwenElliott/image-safety-classifier-s/tree/015042b0eab17f1b17f2986527386346fb0d94be>
 
 These links identify the upstream license texts. Model weights are installed into the configured
 external cache and are not redistributed in this repository. The person-presence combination uses
 only object/face presence confidence. It does not create face embeddings or perform identity
-matching.
+matching. The image-safety classifier emits only image-level NSFL, NSFW, and SFW probabilities;
+no image content or derived features are retained.

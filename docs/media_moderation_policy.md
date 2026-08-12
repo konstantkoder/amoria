@@ -1,6 +1,6 @@
 # Media Moderation Policy
 
-Updated: 2026-08-09 for the Amoria 1.0 release candidate
+Updated: 2026-08-12 for the Amoria 1.0 release candidate
 
 This is a release engineering policy, not final legal policy.
 
@@ -13,6 +13,8 @@ This is a release engineering policy, not final legal policy.
   owner/moderator through the reason-gated, audited admin access path. Automatic jobs must never
   read locked-gallery bytes.
 - Avatars and public profile photos are screened by the self-hosted OpenNSFW ONNX CPU worker.
+- The same local worker screens image-level NSFL/gore with the pinned Image Safety Classifier S
+  ONNX model. It does not claim to detect every form of violence.
 - A local YOLOX-Nano person-class plus YuNet face-presence detector records only a tri-state
   `containsPerson` signal. It performs no identity matching and creates no face embeddings.
 
@@ -27,18 +29,22 @@ This is a release engineering policy, not final legal policy.
 
 ## Automated policy
 
-The raw NSFW probability and the release policy are separate. Policy
-`amoria_public_photo_v3` approves at or below `0.20`, restricts at or above `0.95`, and sends the
-middle range to human review. For a new avatar, NSFW restriction has priority; below that boundary,
+The raw model probabilities and the release policy are separate. Policy
+`amoria_public_photo_v4` approves OpenNSFW at or below `0.20`, restricts it at or above `0.95`, and
+sends the middle range to human review. Graphic NSFL scores below `0.20` are clear-safe, scores at
+or above `0.20` and below `0.90` require review, and scores at or above `0.90` are restricted. For a
+new avatar, NSFW and graphic restriction have priority; below those boundaries,
 `containsPerson=false` becomes `needs_review/person_not_detected` and `unknown` becomes
 `needs_review/person_presence_uncertain`. Only `containsPerson=true` continues through the normal
-NSFW zones. Existing active avatars are not rescanned or retroactively hidden. Thresholds are
-configurable, with startup validation that the approve boundary is below the restrict boundary.
+NSFW and graphic zones. Existing active avatars are not rescanned or retroactively hidden.
+Thresholds are configurable, with startup validation that each lower boundary is below its
+restriction boundary.
 
 OpenNSFW only supports pornographic-content classification and does not imply person absence. The
 separate presence detector returns `true`, `false`, or `unknown`; detector failure is always
 `unknown`. Person presence remains informational for ordinary public gallery photos. Automatic
 person absence or uncertainty never deletes content and can be overridden through a separate,
 reasoned and audited owner/moderator review without rewriting the automated result. Violence
-remains `unknown`. Automated decisions never physically delete content.
+remains `unknown`; the separate `graphicSafety` evidence holds the NSFL result. Automated decisions
+never physically delete content.
 

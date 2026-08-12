@@ -151,8 +151,10 @@ services:
       OPENNSFW_ONNX_MODEL_PATH: /usr/local/lib/python3.13/site-packages/opennsfw_onnx/open-nsfw.onnx
       PERSON_YOLOX_ONNX_MODEL_PATH: /models/person/yolox_nano.onnx
       PERSON_YUNET_ONNX_MODEL_PATH: /models/person/face_detection_yunet_2023mar.onnx
+      GRAPHIC_SAFETY_ONNX_MODEL_PATH: /models/graphic/image-safety-classifier-s.onnx
     volumes:
       - ${PERSON_MODEL_HOST_DIR:?PERSON_MODEL_HOST_DIR is required}:/models/person:ro
+      - ${GRAPHIC_SAFETY_MODEL_HOST_DIR:?GRAPHIC_SAFETY_MODEL_HOST_DIR is required}:/models/graphic:ro
     depends_on:
       migrate:
         condition: service_completed_successfully

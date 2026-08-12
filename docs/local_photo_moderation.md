@@ -22,10 +22,21 @@ the result.
   executed locally through ONNX Runtime. The output is only `true`, `false`, or `unknown`; no boxes,
   landmarks, face embeddings, identity matching, or identity attributes are stored. A missing or
   failed detector returns `unknown`. For new avatars only, `false` and `unknown` prevent automatic
-  adoption and require human review; ordinary public gallery policy remains based on NSFW score.
-  Violence remains unsupported and is stored as `unknown`.
+  adoption and require human review.
 - Person-model combined weight size: 3,891,996 bytes. Checksums and upstream licenses are recorded
   in `moderation-worker/MODEL_LICENSES.md` and enforced by the installer and worker.
+- Graphic safety: `OwenElliott/image-safety-classifier-s` revision
+  `015042b0eab17f1b17f2986527386346fb0d94be`, executed locally through ONNX Runtime on CPU. Input
+  is RGB, bilinear-resized to 224 by 224, float32 in the 0-255 range, NCHW. The pinned output order
+  is `NSFL`, `NSFW`, `SFW`; NSFL is the graphic/gore signal used by policy. The default policy sends
+  NSFL scores at or above 0.20 and below 0.90 to review, and restricts scores at or above 0.90. This
+  classifier is not treated as a universal violence detector, so the legacy `violence` field remains
+  `unknown`; its model identity, three probabilities, signal, and policy decision are stored under
+  `graphicSafety` for reviewers.
+- Graphic-safety weight size: 23,701,765 bytes. SHA-256:
+  `fef443ed68ae25ed693b6fef9e456071692ed3963cff4168acb39c3de6f017e7`. License: MIT. The model
+  card notes that NSFL training data is underrepresented, which is why ambiguous scores are not
+  auto-approved.
 
 The weights are not committed. On Windows, run:
 
@@ -33,11 +44,28 @@ The weights are not committed. On Windows, run:
 npm run moderation:install
 ```
 
-This creates a pinned virtual environment and person-model cache outside media storage (defaults
+This creates a pinned virtual environment and model caches outside media storage (defaults
 `F:\Dev\Amoria-Models\opennsfw-onnx-0.1.0` and
-`F:\Dev\Amoria-Models\person-presence-v1`) and verifies every model checksum. Set
+`F:\Dev\Amoria-Models\person-presence-v1`, and
+`F:\Dev\Amoria-Models\graphic-safety-v1`) and verifies every model checksum and expected byte
+size. Set
 `MODERATION_PYTHON`, `OPENNSFW_ONNX_MODEL_PATH`, `PERSON_YOLOX_ONNX_MODEL_PATH`, and
-`PERSON_YUNET_ONNX_MODEL_PATH` for another controlled installation.
+`PERSON_YUNET_ONNX_MODEL_PATH`, and `GRAPHIC_SAFETY_ONNX_MODEL_PATH` for another controlled
+installation.
+
+## Targeted fixture provenance
+
+The release-candidate check used temporary, non-user fixtures and deleted them after local
+inference. The SFW set came from Wikimedia Commons public-domain files
+[`Scenic landscape.jpg`](https://commons.wikimedia.org/wiki/File:Scenic_landscape.jpg) and
+[`A Red Rose.jpg`](https://commons.wikimedia.org/wiki/File:A_Red_Rose.jpg), plus Library of
+Congress records with no known publication restrictions for
+[`Jesse James`](https://www.loc.gov/pictures/item/2005682818/) and
+[`Japanese nurses attending a patient`](https://www.loc.gov/item/2005678646/). The strong graphic
+fixture and its neutral-blended, in-memory borderline derivative used CDC Public Health Image
+Library record [`16552`](https://phil.cdc.gov/Details.aspx?pid=16552); the existing-NSFW regression
+used PHIL record [`20837`](https://phil.cdc.gov/Details.aspx?pid=20837). PHIL marks both records
+public domain. Fixture bytes are not stored in this repository or in the model cache.
 
 ## Operations and failure behavior
 
@@ -53,8 +81,9 @@ passwords, or secrets.
 ## Media state and exposure
 
 - New avatar/public photo: `pending`, private, one durable job.
-- Policy approve: `approved`, public API access permitted. A new avatar is approved automatically
-  only when person presence is `true`; `false`/`unknown` remain review-gated.
+- Policy approve: `approved`, public API access permitted. Both avatar and public-gallery approval
+  require a clear-safe NSFW score and a clear-safe graphic score. A new avatar additionally requires
+  person presence `true`; `false`/`unknown` remain review-gated.
 - Uncertain: `needs_review`, public API access denied.
 - Policy restrict: `restricted`, public API access denied.
 - Logical remove: `removed`, references cleared and public API access denied; review history and the

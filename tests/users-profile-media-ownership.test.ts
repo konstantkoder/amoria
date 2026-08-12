@@ -179,7 +179,7 @@ test("PATCH /me/profile allows only a current-policy person-approved avatar", as
     }),
     currentAvatarUrl: null,
     job: moderationJob({
-      policyVersion: "amoria_public_photo_v3",
+      policyVersion: "amoria_public_photo_v4",
       rawResult: { containsPerson: "true" },
     }),
   });
