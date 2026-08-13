@@ -2,7 +2,8 @@ import type { FastifyReply, FastifyRequest } from "fastify";
 import "../../auth/auth.types";
 import { AppError, unauthorized } from "../errors";
 import { verifyAccessToken } from "../../auth/jwt";
-import { findUserAccessState, touchUserLastSeenAt } from "../../users/users.repo";
+import { findUserAccessState } from "../../users/users.repo";
+import { refreshUserPresence } from "../../users/user-presence.service";
 
 const PRESENCE_HEARTBEAT_ENABLED = process.env.NODE_ENV !== "test";
 
@@ -37,8 +38,8 @@ export async function authMiddleware(request: FastifyRequest, _reply: FastifyRep
   if (accessState.authVersion !== payload.ver) throw unauthorized("Access has been revoked");
 
   try {
-    await touchUserLastSeenAt(payload.sub);
+    await refreshUserPresence(payload.sub, accessState.lastSeenAt);
   } catch (error) {
-    request.log.warn({ err: error, userId: payload.sub }, "Failed to update user presence");
+    request.log.warn({ err: error, event: "presence_update_failed" }, "Failed to update user presence");
   }
 }

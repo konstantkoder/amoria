@@ -33,6 +33,8 @@ Prepared-statement stickiness is not assumed. Transactions, `SKIP LOCKED`, and t
 `API_MAX_IN_FLIGHT_REQUESTS` rejects excess work with 503 and `Retry-After: 1`. Existing abuse limits return 429 and Retry-After. WebSocket instance/user/subscription limits reject early; slow send buffers close with 1013. When Valkey is configured, a missing bus is fail-closed for connection-attempt admission and readiness.
 Message sends also pass a coarse shared per-user Valkey flood gate before the durable PostgreSQL abuse evaluation. PostgreSQL evidence, idempotency, and the stricter policy decision remain authoritative. In production a missing shared limiter fails closed for message sends; in development without Valkey, the durable guard remains active.
 
+Nearby summary counts are eventually fresh aggregate product data, not authorization state. They use a 10-second local/Valkey cache and a short distributed refresh lock; cache failure falls back to a real DB-derived refresh under a per-instance single-flight rather than returning fabricated zeroes. Authentication status and `auth_version` remain authoritative DB reads on every request. The same access-state SELECT carries `last_seen_at`; fresh presence skips the UPDATE entirely, while stale presence uses a Valkey `SET NX` heartbeat plus a bounded local fallback before the existing conditional write. Presence failure never changes an authentication decision.
+
 The bearer-protected, internal-only `/internal/metrics` endpoint exposes Prometheus text for HTTP request count/status-class/latency/in-flight; RSS/heap/event-loop delay; DB pool total/idle/waiting/errors; WebSocket accepted/rejected/current/subscriptions/disconnects/slow clients; realtime publish/receive/errors/reconnects; chat create/send latency; Together enqueue/match/lock contention/queue depth; Nearby latency; text moderation count/latency/errors; photo/push/deletion queue depth and age; photo throughput/latency/errors; and push state processing. Labels use normalized route templates and small enums only—never user IDs, email, IP, tokens, raw URLs, thread/session IDs, or storage keys. Structured logger redaction remains enabled.
 
 ## Retention and durable truth
@@ -42,6 +44,8 @@ The retention worker deletes at most 500 rows per table per pass. Expired auth-r
 ## Migration safety
 
 `0035_scale_1m.sql` is sequential and additive. It adds `users.auth_version` with a constant default (metadata-only on supported PostgreSQL versions) and validates its non-negative constraint separately. On an empty/low-volume environment, normal migration is acceptable. On an already large production database, stage equivalent `CREATE INDEX CONCURRENTLY` statements individually outside the transactional migrator, monitor replication lag/locks/disk, verify each valid index, and then record/deploy the migration under the established release procedure; the migration uses `IF NOT EXISTS` so correctly pre-staged indexes are accepted. Rollback is code-first; additive indexes may remain. Do not drop an index until the prior code is restored and query plans are verified.
+
+`0036_scale_matching_locality.sql` is a separate additive migration; 0035 is unchanged. It adds only the live-waiting and turn-based-waiting geographic indexes used by compatibility-before-limit candidate selection. Apply the same large-table procedure: pre-stage equivalent indexes with `CREATE INDEX CONCURRENTLY` outside the transactional migrator, verify them, then deploy/record 0036. No production migration was run as part of this pass.
 
 ## Validation protocol
 

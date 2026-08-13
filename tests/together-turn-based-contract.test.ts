@@ -87,7 +87,7 @@ test("all required user endpoints are registered and history is removed", () => 
   assert.ok(!routes.includes('"/history"'));
 });
 test("matching is oldest-first, lock-safe, blocked-safe, and mutual", () => {
-  assert.match(service, /ORDER BY m\.created_at ASC LIMIT 1 FOR UPDATE OF m SKIP LOCKED/);
+  assert.match(service, /ORDER BY m\.created_at ASC, m\.id ASC LIMIT 1 FOR UPDATE OF m SKIP LOCKED/);
   assert.match(service, /blocked_users/);
   assert.match(service, /preferred_genders/);
   assert.match(service, /radius_km/);

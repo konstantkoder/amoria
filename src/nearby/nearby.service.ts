@@ -1,5 +1,6 @@
 import { AppError, unauthorized } from "../common/errors";
 import { PROFILE_GENDERS } from "../config/constants";
+import { env } from "../config/env";
 import type { ProfileGender, UserRow } from "../db/schema";
 import * as usersRepo from "../users/users.repo";
 import * as usersService from "../users/users.service";
@@ -10,7 +11,13 @@ import {
 } from "../users/age";
 import * as nearbyRepo from "./nearby.repo";
 import { assertSafeText } from "../moderation/text-validation";
-import { setMetric } from "../observability/metrics";
+import { incrementMetric, setMetric } from "../observability/metrics";
+import {
+  acquireSharedEphemeralLock,
+  readSharedEphemeralValue,
+  releaseSharedEphemeralLock,
+  writeSharedEphemeralValue,
+} from "../realtime/realtime-bus";
 import type {
   CreateNearbyStatusBody,
   CreateNearbyStatusResponse,
@@ -37,6 +44,13 @@ const NEARBY_PROFILE_DEFAULT_EXPIRES_IN_SEC = 4 * 60 * 60;
 const NEARBY_PROFILE_PUBLIC_PHOTO_PREVIEW_LIMIT = 3;
 const NEARBY_PROFILE_FEED_PREFILTER_MULTIPLIER = 4;
 const NEARBY_PROFILE_FEED_PREFILTER_LIMIT = 100;
+const NEARBY_SUMMARY_CACHE_KEY = "nearby:summary:v1";
+const NEARBY_SUMMARY_REFRESH_LOCK_MS = 3_000;
+
+type NearbySummarySnapshot = nearbyRepo.NearbySummaryCounts & { checkedAt: string };
+
+let localNearbySummary: { snapshot: NearbySummarySnapshot; expiresAtMs: number } | undefined;
+let nearbySummaryRefresh: Promise<NearbySummarySnapshot> | undefined;
 
 type NearbyServiceDeps = {
   repo: Pick<
@@ -69,6 +83,7 @@ export function __setNearbyServiceDepsForTests(
   overrides: Partial<NearbyServiceDeps>,
 ): () => void {
   const previous = deps;
+  resetNearbySummaryCache();
   deps = {
     ...deps,
     ...overrides,
@@ -76,6 +91,7 @@ export function __setNearbyServiceDepsForTests(
 
   return () => {
     deps = previous;
+    resetNearbySummaryCache();
   };
 }
 
@@ -151,15 +167,99 @@ export async function getNearbyMe(userId: string): Promise<NearbyMeResponse> {
 }
 
 export async function getNearbySummary(_userId: string): Promise<NearbySummaryResponse> {
-  const checkedAt = deps.now();
-  const counts = await deps.repo.getNearbySummaryCounts(checkedAt);
+  const requestedAt = deps.now();
+  if (localNearbySummary && localNearbySummary.expiresAtMs > requestedAt.getTime()) {
+    incrementMetric("amoria_nearby_summary_cache_total", { result: "local_hit" });
+    return localNearbySummary.snapshot;
+  }
 
-  return {
-    totalUsersCount: counts.totalUsersCount,
-    onlineNowCount: counts.onlineNowCount,
-    activeNearbyCount: counts.activeNearbyCount,
-    checkedAt: checkedAt.toISOString(),
+  nearbySummaryRefresh ??= refreshNearbySummary().finally(() => {
+    nearbySummaryRefresh = undefined;
+  });
+  return nearbySummaryRefresh;
+}
+
+async function refreshNearbySummary(): Promise<NearbySummarySnapshot> {
+  const shared = await readValidSharedNearbySummary();
+  if (shared) {
+    incrementMetric("amoria_nearby_summary_cache_total", { result: "shared_hit" });
+    rememberNearbySummary(shared);
+    return shared;
+  }
+
+  const lockToken = await acquireSharedEphemeralLock(
+    `${NEARBY_SUMMARY_CACHE_KEY}:refresh`,
+    NEARBY_SUMMARY_REFRESH_LOCK_MS,
+  );
+  if (lockToken === null) {
+    for (const delayMs of [25, 50, 100, 200, 400, 800, 1_000]) {
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+      const refreshed = await readValidSharedNearbySummary();
+      if (refreshed) {
+        incrementMetric("amoria_nearby_summary_cache_total", { result: "shared_wait_hit" });
+        rememberNearbySummary(refreshed);
+        return refreshed;
+      }
+    }
+  }
+
+  try {
+    const checkedAt = deps.now();
+    const counts = await deps.repo.getNearbySummaryCounts(checkedAt);
+    const snapshot: NearbySummarySnapshot = {
+      totalUsersCount: counts.totalUsersCount,
+      onlineNowCount: counts.onlineNowCount,
+      activeNearbyCount: counts.activeNearbyCount,
+      checkedAt: checkedAt.toISOString(),
+    };
+    rememberNearbySummary(snapshot);
+    await writeSharedEphemeralValue(
+      NEARBY_SUMMARY_CACHE_KEY,
+      JSON.stringify(snapshot),
+      env.NEARBY_SUMMARY_CACHE_TTL_MS,
+    );
+    incrementMetric("amoria_nearby_summary_cache_total", {
+      result: lockToken ? "refresh_owner" : "local_fallback",
+    });
+    return snapshot;
+  } finally {
+    if (lockToken) await releaseSharedEphemeralLock(`${NEARBY_SUMMARY_CACHE_KEY}:refresh`, lockToken);
+  }
+}
+
+async function readValidSharedNearbySummary(): Promise<NearbySummarySnapshot | undefined> {
+  const raw = await readSharedEphemeralValue(NEARBY_SUMMARY_CACHE_KEY);
+  if (!raw) return undefined;
+  try {
+    const value = JSON.parse(raw) as Partial<NearbySummarySnapshot>;
+    if (
+      !isNonNegativeInteger(value.totalUsersCount) ||
+      !isNonNegativeInteger(value.onlineNowCount) ||
+      !isNonNegativeInteger(value.activeNearbyCount) ||
+      typeof value.checkedAt !== "string" ||
+      !Number.isFinite(Date.parse(value.checkedAt)) ||
+      Date.parse(value.checkedAt) + env.NEARBY_SUMMARY_CACHE_TTL_MS <= deps.now().getTime()
+    ) return undefined;
+    return value as NearbySummarySnapshot;
+  } catch {
+    return undefined;
+  }
+}
+
+function rememberNearbySummary(snapshot: NearbySummarySnapshot): void {
+  localNearbySummary = {
+    snapshot,
+    expiresAtMs: Date.parse(snapshot.checkedAt) + env.NEARBY_SUMMARY_CACHE_TTL_MS,
   };
+}
+
+function resetNearbySummaryCache(): void {
+  localNearbySummary = undefined;
+  nearbySummaryRefresh = undefined;
+}
+
+function isNonNegativeInteger(value: unknown): value is number {
+  return Number.isInteger(value) && Number(value) >= 0;
 }
 
 export async function updateNearbyVisibility(

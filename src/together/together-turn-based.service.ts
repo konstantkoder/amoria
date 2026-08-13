@@ -1,5 +1,6 @@
 import type { PoolClient } from "pg";
 import { AppError, validationError } from "../common/errors";
+import { geographicBounds, MAX_FINITE_MATCH_RADIUS_KM } from "../common/geography";
 import {
   TOGETHER_ARTIFACT_PURGE_DELAY_MS,
   TURN_BASED_DRAFT_TTL_MS,
@@ -114,12 +115,18 @@ export async function start(userId: string, input: TurnBasedStartBody): Promise<
     if (input.preferredAgeRange) {
       await client.query("UPDATE users SET preferred_age_min=$2, preferred_age_max=$3, updated_at=now() WHERE id=$1", [userId, preferred.min, preferred.max]);
     }
+    const candidateBounds = geographicBounds(
+      input.location.latitude,
+      input.location.longitude,
+      input.location.radiusKm ?? MAX_FINITE_MATCH_RADIUS_KM,
+    );
 
     const candidateResult = await client.query<ParticipantMomentRow>(`
       SELECT m.*, 'partner'::text role
       FROM together_turn_based_moments m
       JOIN users starter ON starter.id=m.starter_user_id
       WHERE m.status='waiting_for_partner' AND m.waiting_expires_at>now()
+        AND starter.account_status='active'
         AND m.starter_user_id<>$1
         AND $2 BETWEEN m.preferred_age_min AND COALESCE(m.preferred_age_max,120)
         AND m.starter_age BETWEEN $3 AND COALESCE($4,120)
@@ -131,19 +138,33 @@ export async function start(userId: string, input: TurnBasedStartBody): Promise<
              OR (b.user_id=m.starter_user_id AND b.blocked_user_id=$1)
         )
         AND (
-          (m.radius_km IS NULL OR 6371*acos(LEAST(1,GREATEST(-1,
-            cos(radians(m.latitude))*cos(radians($7))*cos(radians($8)-radians(m.longitude))+
-            sin(radians(m.latitude))*sin(radians($7))
-          ))) <= m.radius_km)
-          AND
-          ($9::integer IS NULL OR 6371*acos(LEAST(1,GREATEST(-1,
-            cos(radians(m.latitude))*cos(radians($7))*cos(radians($8)-radians(m.longitude))+
-            sin(radians(m.latitude))*sin(radians($7))
-          ))) <= $9)
+          ($9::integer IS NULL AND m.radius_km IS NULL)
+          OR (
+            m.latitude BETWEEN $10 AND $11
+            AND (
+              $14::boolean
+              OR ($15::boolean AND (m.longitude >= $12 OR m.longitude <= $13))
+              OR (NOT $15::boolean AND m.longitude BETWEEN $12 AND $13)
+            )
+          )
         )
-      ORDER BY m.created_at ASC LIMIT 1 FOR UPDATE OF m SKIP LOCKED
+        AND CASE
+          WHEN m.radius_km IS NULL AND $9::integer IS NULL THEN true
+          ELSE 6371 * 2 * asin(LEAST(1, sqrt(
+            pow(sin(radians(m.latitude - $7) / 2), 2) +
+            cos(radians($7)) * cos(radians(m.latitude)) *
+            pow(sin(radians(m.longitude - $8) / 2), 2)
+          ))) <= LEAST(
+            COALESCE(m.radius_km, 2147483647),
+            COALESCE($9::integer, 2147483647)
+          )
+        END
+      ORDER BY m.created_at ASC, m.id ASC LIMIT 1 FOR UPDATE OF m SKIP LOCKED
     `, [userId, age, preferred.min, preferred.max, profile.gender, preferredGenders,
-      input.location.latitude, input.location.longitude, input.location.radiusKm]);
+      input.location.latitude, input.location.longitude, input.location.radiusKm,
+      candidateBounds.minLatitude, candidateBounds.maxLatitude,
+      candidateBounds.minLongitude, candidateBounds.maxLongitude,
+      candidateBounds.allLongitudes, candidateBounds.crossesAntimeridian]);
 
     let row: ParticipantMomentRow;
     const candidate = candidateResult.rows[0];

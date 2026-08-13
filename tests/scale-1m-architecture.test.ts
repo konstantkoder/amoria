@@ -2,16 +2,17 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
-import { geographicBounds } from "../src/nearby/nearby.repo";
+import { geographicBounds } from "../src/common/geography";
 import { createRealtimeEvent, parseRealtimeEvent } from "../src/realtime/realtime-event";
 
 const read = (file: string) => fs.readFileSync(path.resolve(process.cwd(), file), "utf8");
 
-test("0035 adds the reviewed scale indexes and remains sequential", () => {
+test("0035 remains intact and additive matching migration 0036 is sequential", () => {
   const migration = read("src/db/migrations/0035_scale_1m.sql");
+  const matchingMigration = read("src/db/migrations/0036_scale_matching_locality.sql");
   const journal = JSON.parse(read("src/db/migrations/meta/_journal.json")) as { entries: Array<{ idx: number; tag: string }> };
-  assert.equal(journal.entries.at(-1)?.idx, 35);
-  assert.equal(journal.entries.at(-1)?.tag, "0035_scale_1m");
+  assert.equal(journal.entries.at(-1)?.idx, 36);
+  assert.equal(journal.entries.at(-1)?.tag, "0036_scale_matching_locality");
   assert.match(migration, /auth_version/);
   assert.match(migration, /refresh_tokens_auth_version_check/);
   for (const index of [
@@ -22,14 +23,31 @@ test("0035 adds the reviewed scale indexes and remains sequential", () => {
     "nearby_profile_visibility_active_geo_idx",
     "nearby_statuses_geo_expires_idx",
   ]) assert.match(migration, new RegExp(index));
+  assert.match(matchingMigration, /together_queue_waiting_activity_geo_created_idx/);
+  assert.match(matchingMigration, /together_turn_based_waiting_geo_created_idx/);
+  assert.match(matchingMigration, /CREATE INDEX CONCURRENTLY/);
 });
 
-test("Together matching has no global activity lock and uses bounded skip-locked claims", () => {
+test("Together matching filters compatibility before bounded skip-locked claims", () => {
   const repo = read("src/together/together.repo.ts");
   assert.doesNotMatch(repo, /together_queue:/);
   assert.match(repo, /limit\(50\)/);
   assert.match(repo, /skipLocked: true/);
+  assert.match(repo, /queueCandidateCompatibilityCondition\(input\)[\s\S]*orderBy[\s\S]*limit\(50\)/);
+  assert.match(repo, /NOT EXISTS \(\s*SELECT 1 FROM blocked_users/);
+  assert.match(repo, /MAX_FINITE_MATCH_RADIUS_KM/);
+  assert.match(repo, /asin\(least\(1, sqrt/);
   assert.match(repo, /limit 100/i);
+});
+
+test("turn-based matching bounds geography before exact distance and preserves row claims", () => {
+  const turnBased = read("src/together/together-turn-based.service.ts");
+  const boundsPosition = turnBased.indexOf("m.latitude BETWEEN $10 AND $11");
+  const distancePosition = turnBased.indexOf("6371 * 2 * asin");
+  assert.ok(boundsPosition > 0 && distancePosition > boundsPosition);
+  assert.match(turnBased, /m\.radius_km IS NULL AND \$9::integer IS NULL/);
+  assert.match(turnBased, /ORDER BY m\.created_at ASC, m\.id ASC LIMIT 1 FOR UPDATE OF m SKIP LOCKED/);
+  assert.doesNotMatch(turnBased, /6371\*acos/);
 });
 
 test("maintenance locks are transaction scoped for transaction poolers", () => {
@@ -48,6 +66,14 @@ test("geographic bounding box handles normal, antimeridian and polar searches", 
   assert.equal(dateline.crossesAntimeridian, true);
   const pole = geographicBounds(89.99, 0, 25);
   assert.equal(pole.allLongitudes, true);
+  const highLatitude = geographicBounds(89, 0, 100);
+  assert.equal(highLatitude.allLongitudes, false);
+  assert.ok(highLatitude.maxLongitude > 60 && highLatitude.minLongitude < -60);
+  for (const radiusKm of [5, 25, 100, 250]) {
+    const bounds = geographicBounds(0, -30, radiusKm);
+    assert.ok(bounds.minLatitude < 0 && bounds.maxLatitude > 0);
+    assert.ok(bounds.minLongitude < -30 && bounds.maxLongitude > -30);
+  }
 });
 
 test("realtime events are versioned, parse-bounded and reject unknown types", () => {
@@ -66,6 +92,25 @@ test("durable access generation backs cross-instance security revocation", () =>
   assert.match(auth, /user\.access_revoked/);
   assert.match(middleware, /authVersion !== payload\.ver/);
   assert.match(revalidation, /REVALIDATION_BATCH_SIZE = 500/);
+});
+
+test("presence throttling keeps the authoritative access read and skips fresh writes", () => {
+  const middleware = read("src/common/security/auth-middleware.ts");
+  const repo = read("src/users/users.repo.ts");
+  const presence = read("src/users/user-presence.service.ts");
+  assert.match(repo, /columns: \{ accountStatus: true, authVersion: true, lastSeenAt: true \}/);
+  assert.ok(middleware.indexOf("authVersion !== payload.ver") < middleware.indexOf("await refreshUserPresence"));
+  assert.match(presence, /lastSeenAt\.getTime\(\) >= staleBeforeMs/);
+  assert.match(presence, /claimSharedPresenceHeartbeat/);
+});
+
+test("Nearby summary uses a shared TTL cache with lock and real DB fallback", () => {
+  const nearby = read("src/nearby/nearby.service.ts");
+  assert.match(nearby, /NEARBY_SUMMARY_CACHE_KEY/);
+  assert.match(nearby, /acquireSharedEphemeralLock/);
+  assert.match(nearby, /nearbySummaryRefresh \?\?=/);
+  assert.match(nearby, /getNearbySummaryCounts/);
+  assert.doesNotMatch(nearby, /totalUsersCount:\s*0/);
 });
 
 test("cross-instance per-user WebSocket admission uses expiring shared leases", () => {
@@ -101,12 +146,17 @@ test("scale scripts include guards and every required workload", () => {
   const load = read("scripts/load/amoria-scale.js");
   const seed = read("scripts/load/seed-scale-dataset.mjs");
   for (const scenario of [
-    "http_reads", "websocket", "chat", "nearby", "together", "notifications", "mixed", "reconnect_storm", "worker_recovery",
+    "http_reads", "websocket", "chat", "nearby", "together", "notifications", "mixed", "reconnect_storm", "worker_recovery", "realtime_e2e", "together_match",
   ]) assert.match(load, new RegExp(scenario));
   assert.match(load, /CONFIRM_NON_PRODUCTION_TARGET/);
   assert.match(seed, /generate_series/);
   assert.match(seed, /5_000_000/);
   assert.match(seed, /push_deliveries/);
   assert.match(load, /rate<0\.005/);
+  assert.match(load, /realtime_delivery_ms/);
+  assert.match(load, /together_match_latency_ms/);
+  assert.match(load, /known_compatible_false_no_match_total/);
+  assert.match(load, /HTTP_BASE_URL/);
+  assert.match(load, /WS_BASE_URL/);
   assert.doesNotMatch(seed, /bcrypt|argon2/i);
 });

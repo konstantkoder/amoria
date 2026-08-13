@@ -636,6 +636,9 @@ export const togetherTurnBasedMoments = pgTable(
   },
   (table) => [
     index("together_turn_based_moments_status_created_idx").on(table.status, table.createdAt),
+    index("together_turn_based_waiting_geo_created_idx")
+      .on(table.latitude, table.longitude, table.createdAt, table.id)
+      .where(sql`${table.status} = 'waiting_for_partner'`),
     index("together_turn_based_moments_partner_idx").on(table.partnerUserId),
     uniqueIndex("together_turn_based_moments_start_request_unique").on(table.starterUserId, table.clientRequestId).where(sql`${table.clientRequestId} IS NOT NULL`),
     check("together_turn_based_moments_client_request_id_length_check", sql`${table.clientRequestId} IS NULL OR char_length(${table.clientRequestId}) BETWEEN 1 AND 128`),
@@ -730,6 +733,11 @@ export const togetherQueue = pgTable(
     index("together_queue_waiting_activity_created_idx")
       .on(table.activity, table.createdAt, table.id)
       .where(sql`${table.status} = 'waiting'`),
+    index("together_queue_waiting_activity_geo_created_idx")
+      .on(table.activity, table.latitude, table.longitude, table.createdAt, table.id)
+      .where(
+        sql`${table.status} = 'waiting' AND ${table.latitude} IS NOT NULL AND ${table.longitude} IS NOT NULL`,
+      ),
     index("together_queue_status_expires_idx").on(table.status, table.expiresAt),
     check(
       "together_queue_radius_km_check",

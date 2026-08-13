@@ -17,6 +17,11 @@ import {
   type SQL,
 } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
+import {
+  geographicBounds,
+  MAX_FINITE_MATCH_RADIUS_KM,
+  type GeographicBounds,
+} from "../common/geography";
 import { PROFILE_GENDERS, TOGETHER_ARTIFACT_PURGE_DELAY_MS, TURN_BASED_REVEAL_TTL_MS } from "../config/constants";
 import { db } from "../db/client";
 import {
@@ -341,8 +346,9 @@ async function listQueueCandidatesWithoutLock(
       eq(togetherQueue.status, "waiting"),
       ne(togetherQueue.userId, input.userId),
       gt(togetherQueue.expiresAt, now),
+      queueCandidateCompatibilityCondition(input),
     ))
-    .orderBy(asc(togetherQueue.createdAt))
+    .orderBy(asc(togetherQueue.createdAt), asc(togetherQueue.id))
     .limit(50);
   return rows.map((row) => ({ ...row.entry, gender: row.gender, preferredGenders: row.preferredGenders }));
 }
@@ -367,17 +373,110 @@ async function listQueueCandidatesForMatching(
         eq(togetherQueue.status, "waiting"),
         ne(togetherQueue.userId, input.userId),
         gt(togetherQueue.expiresAt, now),
+        queueCandidateCompatibilityCondition(input),
       ),
     )
-    .orderBy(asc(togetherQueue.createdAt))
+    .orderBy(asc(togetherQueue.createdAt), asc(togetherQueue.id))
     .limit(50)
-    .for("update", { skipLocked: true });
+    .for("update", { of: togetherQueue, skipLocked: true });
 
   return rows.map((row) => ({
     ...row.entry,
     gender: row.gender,
     preferredGenders: row.preferredGenders,
   }));
+}
+
+function queueCandidateCompatibilityCondition(input: EnqueueInput): SQL {
+  if (!hasCoordinates(input)) return sql`false`;
+
+  const radiusKm = input.radiusKm ?? null;
+  const bounds = geographicBounds(
+    input.latitude,
+    input.longitude,
+    radiusKm ?? MAX_FINITE_MATCH_RADIUS_KM,
+  );
+  const boundedCandidate = and(
+    gte(togetherQueue.latitude, bounds.minLatitude),
+    lte(togetherQueue.latitude, bounds.maxLatitude),
+    queueLongitudeCondition(bounds),
+  )!;
+  const geographicPrefilter = radiusKm === null
+    ? or(isNull(togetherQueue.radiusKm), and(isNotNull(togetherQueue.radiusKm), boundedCandidate))!
+    : boundedCandidate;
+  const distanceKm = sql<number>`(
+    6371 * 2 * asin(least(1, sqrt(
+      pow(sin(radians(${togetherQueue.latitude} - ${input.latitude}) / 2), 2) +
+      cos(radians(${input.latitude})) * cos(radians(${togetherQueue.latitude})) *
+      pow(sin(radians(${togetherQueue.longitude} - ${input.longitude}) / 2), 2)
+    )))
+  )`;
+  const exactMutualDistance = radiusKm === null
+    ? sql`CASE
+        WHEN ${togetherQueue.radiusKm} IS NULL THEN true
+        ELSE ${distanceKm} <= ${togetherQueue.radiusKm}
+      END`
+    : and(
+        sql`${distanceKm} <= ${radiusKm}`,
+        or(isNull(togetherQueue.radiusKm), sql`${distanceKm} <= ${togetherQueue.radiusKm}`),
+      )!;
+  const viewerAcceptsCandidate = input.preferredGenders.length === 0
+    ? inArray(users.gender, PROFILE_GENDERS)
+    : inArray(users.gender, input.preferredGenders);
+  const safeCandidatePreferences = sql`CASE
+    WHEN jsonb_typeof(${users.preferredGenders}) = 'array' THEN ${users.preferredGenders}
+    ELSE '[]'::jsonb
+  END`;
+  const candidatePreferencesValid = sql`jsonb_typeof(${users.preferredGenders}) = 'array'
+    AND NOT EXISTS (
+      SELECT 1 FROM jsonb_array_elements_text(${safeCandidatePreferences}) AS preferred_gender(value)
+      WHERE preferred_gender.value NOT IN ('woman', 'man', 'nonbinary')
+    )`;
+  const candidateAcceptsViewer = sql`CASE
+    WHEN jsonb_typeof(${users.preferredGenders}) <> 'array' THEN false
+    ELSE jsonb_array_length(${users.preferredGenders}) = 0
+      OR ${users.preferredGenders} @> ${JSON.stringify([input.gender])}::jsonb
+  END`;
+  const notBlocked = sql`NOT EXISTS (
+    SELECT 1 FROM blocked_users AS candidate_block
+    WHERE
+      (candidate_block.user_id = ${input.userId}
+        AND candidate_block.blocked_user_id = ${togetherQueue.userId})
+      OR
+      (candidate_block.user_id = ${togetherQueue.userId}
+        AND candidate_block.blocked_user_id = ${input.userId})
+  )`;
+
+  return and(
+    isNotNull(togetherQueue.latitude),
+    isNotNull(togetherQueue.longitude),
+    gte(togetherQueue.userAge, input.preferredAgeMin),
+    input.preferredAgeMax === null
+      ? sql`true`
+      : lte(togetherQueue.userAge, input.preferredAgeMax),
+    lte(togetherQueue.preferredAgeMin, input.userAge),
+    or(isNull(togetherQueue.preferredAgeMax), gte(togetherQueue.preferredAgeMax, input.userAge)),
+    viewerAcceptsCandidate,
+    candidatePreferencesValid,
+    candidateAcceptsViewer,
+    notBlocked,
+    geographicPrefilter,
+    exactMutualDistance,
+  )!;
+}
+
+function queueLongitudeCondition(bounds: GeographicBounds): SQL {
+  if (bounds.allLongitudes) return sql`true`;
+  if (bounds.crossesAntimeridian) {
+    return or(
+      gte(togetherQueue.longitude, bounds.minLongitude),
+      lte(togetherQueue.longitude, bounds.maxLongitude),
+    )!;
+  }
+  return and(
+    gte(togetherQueue.longitude, bounds.minLongitude),
+    lte(togetherQueue.longitude, bounds.maxLongitude),
+  )!;
 }
 
 async function createMatchedSessionForEntries(

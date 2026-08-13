@@ -21,6 +21,7 @@ const { closeDb } = require("../src/db/client") as typeof import("../src/db/clie
 const nearbyService = require("../src/nearby/nearby.service") as typeof import("../src/nearby/nearby.service");
 const nearbyRepo = require("../src/nearby/nearby.repo") as typeof import("../src/nearby/nearby.repo");
 const ageHelpers = require("../src/users/age") as typeof import("../src/users/age");
+const { env } = require("../src/config/env") as typeof import("../src/config/env");
 
 const now = new Date("2026-06-03T12:00:00.000Z");
 const viewerId = "00000000-0000-4000-8000-000000000001";
@@ -248,6 +249,40 @@ test("Nearby summary returns safe aggregate counters only", async (t) => {
   assertNoPrivateNearbyFields(response.json());
 });
 
+test("Nearby summary single-flights concurrent calls and refreshes only after TTL", async (t) => {
+  t.after(restoreDeps);
+  let clockMs = now.getTime();
+  let aggregateQueries = 0;
+  mockNearby({
+    now: () => new Date(clockMs),
+    onSummaryQuery: () => { aggregateQueries += 1; },
+  });
+
+  const firstWindow = await Promise.all(
+    Array.from({ length: 100 }, () => nearbyService.getNearbySummary(viewerId)),
+  );
+  assert.equal(aggregateQueries, 1);
+  assert.ok(firstWindow.every((summary) => summary.checkedAt === now.toISOString()));
+
+  clockMs += env.NEARBY_SUMMARY_CACHE_TTL_MS - 1;
+  await nearbyService.getNearbySummary(viewerId);
+  assert.equal(aggregateQueries, 1);
+
+  clockMs += 2;
+  const refreshed = await nearbyService.getNearbySummary(viewerId);
+  assert.equal(aggregateQueries, 2);
+  assert.equal(refreshed.checkedAt, new Date(clockMs).toISOString());
+});
+
+test("Nearby summary cache fallback propagates DB failure instead of fabricating counts", async (t) => {
+  t.after(restoreDeps);
+  mockNearby({ summaryError: new Error("summary-db-unavailable") });
+  await assert.rejects(
+    nearbyService.getNearbySummary(viewerId),
+    /summary-db-unavailable/,
+  );
+});
+
 test("Nearby profile feed returns only real compatible opted-in profiles with safe card fields", async (t) => {
   t.after(restoreDeps);
   mockNearby({
@@ -442,6 +477,9 @@ function mockNearby(input: {
   blocks?: Set<string>;
   users?: UserRow[];
   visibilities?: NearbyProfileVisibilityRow[];
+  now?: () => Date;
+  onSummaryQuery?: () => void;
+  summaryError?: Error;
 } = {}) {
   restoreNearbyDeps?.();
   restoreNearbyDeps = null;
@@ -455,7 +493,7 @@ function mockNearby(input: {
   const blocks = input.blocks ?? new Set<string>();
 
   restoreNearbyDeps = nearbyService.__setNearbyServiceDepsForTests({
-    now: () => new Date(now),
+    now: input.now ?? (() => new Date(now)),
     usersRepo: {
       findUserById: async (userId) => users.get(userId),
     },
@@ -467,6 +505,8 @@ function mockNearby(input: {
       deleteOwnedNearbyStatus: async () => false,
       findNearbyProfileVisibility: async (userId) => visibilities.get(userId),
       getNearbySummaryCounts: async (checkedAt = now) => {
+        input.onSummaryQuery?.();
+        if (input.summaryError) throw input.summaryError;
         const onlineSince = new Date(checkedAt.getTime() - 5 * 60 * 1000);
         let activeNearbyCount = 0;
         let onlineNowCount = 0;

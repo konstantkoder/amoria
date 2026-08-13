@@ -224,3 +224,80 @@ export async function consumeSharedMessageAttempt(userId: string): Promise<boole
     return false;
   }
 }
+
+export async function readSharedEphemeralValue(name: string): Promise<string | null | undefined> {
+  if (!env.REALTIME_BUS_URL || !publisher?.isReady) return undefined;
+  try {
+    return await publisher.get(ephemeralKey(name));
+  } catch {
+    incrementMetric("amoria_realtime_bus_errors_total");
+    return undefined;
+  }
+}
+
+export async function writeSharedEphemeralValue(
+  name: string,
+  value: string,
+  ttlMs: number,
+): Promise<boolean> {
+  if (!env.REALTIME_BUS_URL || !publisher?.isReady || Buffer.byteLength(value, "utf8") > 64 * 1024) {
+    return false;
+  }
+  try {
+    await publisher.set(ephemeralKey(name), value, { PX: ttlMs });
+    return true;
+  } catch {
+    incrementMetric("amoria_realtime_bus_errors_total");
+    return false;
+  }
+}
+
+export async function acquireSharedEphemeralLock(
+  name: string,
+  ttlMs: number,
+): Promise<string | null | undefined> {
+  if (!env.REALTIME_BUS_URL || !publisher?.isReady) return undefined;
+  const token = randomUUID();
+  try {
+    const result = await publisher.set(ephemeralKey(`lock:${name}`), token, { NX: true, PX: ttlMs });
+    return result === "OK" ? token : null;
+  } catch {
+    incrementMetric("amoria_realtime_bus_errors_total");
+    return undefined;
+  }
+}
+
+export async function releaseSharedEphemeralLock(name: string, token: string): Promise<void> {
+  if (!publisher?.isReady) return;
+  try {
+    await publisher.eval(
+      `if redis.call('GET', KEYS[1]) == ARGV[1] then
+         return redis.call('DEL', KEYS[1])
+       end
+       return 0`,
+      { keys: [ephemeralKey(`lock:${name}`)], arguments: [token] },
+    );
+  } catch {
+    incrementMetric("amoria_realtime_bus_errors_total");
+  }
+}
+
+export async function claimSharedPresenceHeartbeat(
+  userId: string,
+  ttlMs: number,
+): Promise<boolean | undefined> {
+  if (!env.REALTIME_BUS_URL || !publisher?.isReady) return undefined;
+  const fingerprint = createHash("sha256").update(userId).digest("hex").slice(0, 32);
+  try {
+    const result = await publisher.set(`amoria:presence:${fingerprint}`, "1", { NX: true, PX: ttlMs });
+    return result === "OK";
+  } catch {
+    incrementMetric("amoria_realtime_bus_errors_total");
+    return undefined;
+  }
+}
+
+function ephemeralKey(name: string): string {
+  if (!/^[a-z0-9:_-]{1,100}$/i.test(name)) throw new Error("invalid_ephemeral_key");
+  return `amoria:ephemeral:${name}`;
+}

@@ -1,6 +1,7 @@
 import { and, count, desc, eq, gt, gte, inArray, isNull, lte, ne, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { PROFILE_GENDERS } from "../config/constants";
+import { geographicBounds, toRadians, type GeographicBounds } from "../common/geography";
 import { db, pool } from "../db/client";
 import {
   type BlockedUserRow,
@@ -756,10 +757,6 @@ export function __isWithinNearbyRadiusForTests(
   return approximateDistanceKm(latA, lngA, latB, lngB) <= radiusKm;
 }
 
-function toRadians(value: number): number {
-  return value * (Math.PI / 180);
-}
-
 function haversineDistanceMeters(lat: number, lng: number) {
   return sql<number>`(
     6371000 * 2 * asin(least(1, sqrt(
@@ -780,38 +777,6 @@ function haversineDistanceKm(lat: number, lng: number) {
   )`;
 }
 
-type GeographicBounds = {
-  minLatitude: number;
-  maxLatitude: number;
-  minLongitude: number;
-  maxLongitude: number;
-  crossesAntimeridian: boolean;
-  allLongitudes: boolean;
-};
-
-export function geographicBounds(lat: number, lng: number, radiusKm: number): GeographicBounds {
-  const latitudeDelta = radiusKm / 110.574;
-  const minLatitude = Math.max(-90, lat - latitudeDelta);
-  const maxLatitude = Math.min(90, lat + latitudeDelta);
-  const cosine = Math.cos(toRadians(lat));
-  if (Math.abs(cosine) < 0.000001 || minLatitude <= -90 || maxLatitude >= 90) {
-    return { minLatitude, maxLatitude, minLongitude: -180, maxLongitude: 180, crossesAntimeridian: false, allLongitudes: true };
-  }
-  const longitudeDelta = Math.min(180, radiusKm / (111.320 * Math.abs(cosine)));
-  const rawMin = lng - longitudeDelta;
-  const rawMax = lng + longitudeDelta;
-  const minLongitude = normalizeLongitude(rawMin);
-  const maxLongitude = normalizeLongitude(rawMax);
-  return {
-    minLatitude,
-    maxLatitude,
-    minLongitude,
-    maxLongitude,
-    crossesAntimeridian: rawMin < -180 || rawMax > 180,
-    allLongitudes: longitudeDelta >= 180,
-  };
-}
-
 function longitudeCondition(column: typeof nearbyStatuses.lng | typeof nearbyProfileVisibility.longitude, bounds: GeographicBounds) {
   if (bounds.allLongitudes) return sql`true`;
   if (bounds.crossesAntimeridian) {
@@ -820,6 +785,4 @@ function longitudeCondition(column: typeof nearbyStatuses.lng | typeof nearbyPro
   return and(gte(column, bounds.minLongitude), lte(column, bounds.maxLongitude));
 }
 
-function normalizeLongitude(value: number): number {
-  return ((value + 180) % 360 + 360) % 360 - 180;
-}
+export { geographicBounds } from "../common/geography";

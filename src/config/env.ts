@@ -620,6 +620,18 @@ export const env = {
     10,
     100_000,
   ),
+  NEARBY_SUMMARY_CACHE_TTL_MS: parseIntegerInRange(
+    "NEARBY_SUMMARY_CACHE_TTL_MS",
+    optional("NEARBY_SUMMARY_CACHE_TTL_MS", "10000"),
+    1_000,
+    60_000,
+  ),
+  PRESENCE_HEARTBEAT_INTERVAL_MS: parseIntegerInRange(
+    "PRESENCE_HEARTBEAT_INTERVAL_MS",
+    optional("PRESENCE_HEARTBEAT_INTERVAL_MS", "60000"),
+    10_000,
+    300_000,
+  ),
   METRICS_TOKEN: metricsToken,
   RELEASE_SHA: releaseSha,
   APP_VERSION: optional("APP_VERSION", "0.1.0"),

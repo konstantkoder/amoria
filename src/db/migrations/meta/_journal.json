@@ -253,6 +253,13 @@
       "when": 1786752000000,
       "tag": "0035_scale_1m",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1786838400000,
+      "tag": "0036_scale_matching_locality",
+      "breakpoints": true
     }
   ]
 }

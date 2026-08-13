@@ -17,11 +17,15 @@ export async function findUserByAmoriaId(amoriaId: string): Promise<UserRow | un
   });
 }
 
-export type UserAccessState = { accountStatus: string; authVersion: number };
+export type UserAccessState = {
+  accountStatus: string;
+  authVersion: number;
+  lastSeenAt: Date | null;
+};
 
 export async function findUserAccessState(userId: string): Promise<UserAccessState | undefined> {
   const row = await db.query.users.findFirst({
-    columns: { accountStatus: true, authVersion: true },
+    columns: { accountStatus: true, authVersion: true, lastSeenAt: true },
     where: eq(users.id, userId),
   });
   return row;
@@ -78,8 +82,12 @@ export async function updateUserProfile(
   return updated;
 }
 
-export async function touchUserLastSeenAt(userId: string, seenAt = new Date()): Promise<void> {
-  const staleBefore = new Date(seenAt.getTime() - USER_LAST_SEEN_WRITE_THROTTLE_MS);
+export async function touchUserLastSeenAt(
+  userId: string,
+  seenAt = new Date(),
+  throttleMs = USER_LAST_SEEN_WRITE_THROTTLE_MS,
+): Promise<void> {
+  const staleBefore = new Date(seenAt.getTime() - throttleMs);
 
   await db
     .update(users)
