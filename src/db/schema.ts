@@ -786,6 +786,13 @@ export const togetherEvents = pgTable(
       table.fromUserId,
       table.clientEventId,
     ),
+    uniqueIndex("together_events_story_round_unique")
+      .on(
+        table.sessionId,
+        table.fromUserId,
+        sql`(${table.payload}->>'roundId')`,
+      )
+      .where(sql`${table.type} = 'story_choice' AND ${table.payload} ? 'roundId'`),
   ],
 );
 

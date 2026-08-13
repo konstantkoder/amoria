@@ -64,6 +64,7 @@ export type EnqueueInput = {
 export type EventInsertResult = {
   event: TogetherEventRow;
   created: boolean;
+  conflictReason?: "client_request" | "story_round";
 };
 
 export type HistorySessionRow = {
@@ -520,13 +521,7 @@ export async function createEventIdempotent(
     const [created] = await tx
       .insert(togetherEvents)
       .values(input)
-      .onConflictDoNothing({
-        target: [
-          togetherEvents.sessionId,
-          togetherEvents.fromUserId,
-          togetherEvents.clientEventId,
-        ],
-      })
+      .onConflictDoNothing()
       .returning();
 
     if (created) {
@@ -548,15 +543,49 @@ export async function createEventIdempotent(
       )
       .limit(1);
 
-    if (!existing) {
-      throw new Error("Together event conflict target was not found after insert conflict");
+    if (existing) {
+      return {
+        event: existing,
+        created: false,
+        conflictReason: "client_request",
+      };
     }
 
-    return {
-      event: existing,
-      created: false,
-    };
+    if (input.type === "story_choice") {
+      const roundId = storyRoundIdFromPayload(input.payload);
+      if (roundId) {
+        const [existingRoundChoice] = await tx
+          .select()
+          .from(togetherEvents)
+          .where(
+            and(
+              eq(togetherEvents.sessionId, input.sessionId),
+              eq(togetherEvents.fromUserId, input.fromUserId),
+              eq(togetherEvents.type, "story_choice"),
+              sql`${togetherEvents.payload}->>'roundId' = ${roundId}`,
+            ),
+          )
+          .orderBy(asc(togetherEvents.createdAt), asc(togetherEvents.id))
+          .limit(1);
+
+        if (existingRoundChoice) {
+          return {
+            event: existingRoundChoice,
+            created: false,
+            conflictReason: "story_round",
+          };
+        }
+      }
+    }
+
+    throw new Error("Together event conflict target was not found after insert conflict");
   });
+}
+
+function storyRoundIdFromPayload(payload: NewTogetherEventRow["payload"]): string | null {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
+  const roundId = (payload as Record<string, unknown>).roundId;
+  return typeof roundId === "string" && roundId.trim() ? roundId.trim() : null;
 }
 
 export async function findStoryChoiceEventForRound(

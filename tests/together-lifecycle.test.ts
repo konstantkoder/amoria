@@ -1839,6 +1839,49 @@ test("duplicate story_sparks round choice rejects different card", async (t) => 
   assert.equal(eventWritten, false);
 });
 
+test("concurrent story_sparks round conflict cannot create a second choice", async (t) => {
+  t.after(restoreRepoMock);
+
+  mockRepo({
+    findSessionForMember: async () => sessionRow({ status: "active", activity: "story_sparks" }),
+    // Model the losing request after both concurrent requests passed the initial read.
+    findStoryChoiceEventForRound: async () => undefined,
+    createEventIdempotent: async () => ({
+      event: eventRow({
+        type: "story_choice",
+        clientEventId: "story-place-winner",
+        payload: {
+          roundId: "place",
+          cardId: "night_train",
+          packId: "first_sparks_v1",
+          clientRoundIndex: 0,
+        },
+      }),
+      created: false,
+      conflictReason: "story_round",
+    }),
+  });
+
+  await assert.rejects(
+    togetherService.createEvent(userAId, sessionId, {
+      clientEventId: "story-place-loser",
+      type: "story_choice",
+      payload: {
+        roundId: "place",
+        cardId: "small_cafe",
+        packId: "first_sparks_v1",
+        clientRoundIndex: 0,
+      },
+    }),
+    (error) => {
+      const appError = error as { code?: string; statusCode?: number };
+      assert.equal(appError.code, "validation_error");
+      assert.equal(appError.statusCode, 400);
+      return true;
+    },
+  );
+});
+
 test("story_choice is rejected for non-story activity", async (t) => {
   t.after(restoreRepoMock);
 

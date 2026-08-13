@@ -323,6 +323,14 @@ export async function createEvent(
     type: input.type,
     payload: prepared.payload,
   });
+  if (result.conflictReason === "story_round") {
+    const preparedChoice = validateStoryChoicePayload(prepared.payload).choice;
+    if (!preparedChoice || !isSameStoryChoice(result.event.payload, preparedChoice)) {
+      throw validationError("Story Sparks round already has a choice from this user", {
+        roundId: "already_chosen",
+      });
+    }
+  }
   if (session.mode === "turn_based") {
     await turnBasedService.renewClaimAfterAcceptedStroke(
       sessionId,

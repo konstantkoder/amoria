@@ -26,7 +26,7 @@ import { pool } from "./db/client";
 import { checkObjectStorageHealth } from "./media/object-storage";
 import { verifyEmailDeliveryReadiness } from "./email/email-delivery.service";
 
-export const EXPECTED_MIGRATION = "0032_full_admin_control_center.sql";
+export const EXPECTED_MIGRATION = "0033_together_story_round_integrity.sql";
 export const WS_MAX_PAYLOAD_BYTES = 16 * 1024;
 
 export function isCorsOriginAllowed(origin: string | undefined, allowedOrigins: string[]): boolean {
