@@ -228,6 +228,37 @@ export async function deleteObject(input: ObjectStorageInput): Promise<void> {
   }
 }
 
+let publicReadClient: S3Client | undefined;
+
+export async function createPublicGetPresignedUrl(input: ObjectStorageInput): Promise<string> {
+  if (!publicReadClient) {
+    const publicBase = new URL(env.S3_PUBLIC_BASE_URL);
+    const bucketSuffix = `/${env.S3_BUCKET}`;
+    const pathname = publicBase.pathname.replace(/\/+$/, "");
+    if (!env.S3_FORCE_PATH_STYLE || !pathname.endsWith(bucketSuffix)) {
+      throw new AppError(
+        "internal_error",
+        "Presigned public media requires a path-style S3 public base ending with the bucket name",
+        500,
+      );
+    }
+    publicBase.pathname = pathname.slice(0, -bucketSuffix.length) || "/";
+    publicBase.search = "";
+    publicBase.hash = "";
+    publicReadClient = new S3Client({
+      endpoint: publicBase.toString(),
+      region: env.S3_REGION,
+      forcePathStyle: true,
+      credentials: { accessKeyId: env.S3_ACCESS_KEY, secretAccessKey: env.S3_SECRET_KEY },
+    });
+  }
+  return getSignedUrl(
+    publicReadClient,
+    new GetObjectCommand({ Bucket: input.bucket, Key: input.key }),
+    { expiresIn: env.PUBLIC_MEDIA_PRESIGN_EXPIRES_SEC },
+  );
+}
+
 export async function listObjectKeys(input: {
   bucket: string;
   maximumKeys?: number;

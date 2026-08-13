@@ -1,4 +1,14 @@
 ﻿services:
+  valkey:
+    image: valkey/valkey:8-alpine
+    restart: unless-stopped
+    command: ["valkey-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   postgres:
     image: postgres:16-bookworm
     restart: unless-stopped
@@ -62,6 +72,8 @@
         condition: service_healthy
       minio-init:
         condition: service_completed_successfully
+      valkey:
+        condition: service_healthy
     # Dockerfile startup is migration-free; this convenience command is local-only.
     command: ["sh", "-c", "node scripts/run-db-migrate.mjs && node dist/src/server.js"]
 

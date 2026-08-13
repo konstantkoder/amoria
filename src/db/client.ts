@@ -3,6 +3,8 @@ import { Pool } from "pg";
 import { env } from "../config/env";
 import * as schema from "./schema";
 
+export let dbPoolErrorCount = 0;
+
 export const pool = new Pool({
   connectionString: env.DATABASE_URL,
   max: env.DB_POOL_MAX,
@@ -12,6 +14,8 @@ export const pool = new Pool({
 });
 
 export const db = drizzle(pool, { schema });
+
+pool.on("error", () => { dbPoolErrorCount += 1; });
 
 export async function closeDb(): Promise<void> {
   await pool.end();

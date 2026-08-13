@@ -221,8 +221,7 @@ export async function updateUserAgePreference(
 export async function enqueueAndMatch(input: EnqueueInput): Promise<TogetherQueueRow> {
   const now = new Date();
 
-  return db.transaction(async (tx) => {
-    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${"together_queue:" + input.activity}))`);
+  const initial = await db.transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${input.userId}))`);
 
     await expireWaitingEntriesForMatching(tx, now);
@@ -294,6 +293,58 @@ export async function enqueueAndMatch(input: EnqueueInput): Promise<TogetherQueu
 
     return createMatchedSessionForEntries(tx, input, entry, peer, now);
   });
+
+  if (initial.status !== "waiting") return initial;
+
+  // A second short transaction closes the simultaneous-empty-queue race: two
+  // compatible inserts that could not see one another before commit are matched
+  // once both durable waiting rows become visible. Row locks keep this scalable.
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${input.userId}))`);
+    const [current] = await tx
+      .select()
+      .from(togetherQueue)
+      .where(eq(togetherQueue.id, initial.id))
+      .limit(1);
+    if (!current || current.status !== "waiting") return current ?? initial;
+    const currentWithProfile = withQueueGenderProfile(current, input);
+    const peers = await listQueueCandidatesWithoutLock(tx, input, new Date());
+    for (const peer of peers) {
+      if (!areQueueEntriesCompatible(currentWithProfile, peer)) continue;
+      const locked = await tx
+        .select()
+        .from(togetherQueue)
+        .where(inArray(togetherQueue.id, [current.id, peer.id]))
+        .orderBy(asc(togetherQueue.id))
+        .for("update", { skipLocked: true });
+      if (locked.length !== 2 || locked.some((row) => row.status !== "waiting")) continue;
+      const lockedCurrent = locked.find((row) => row.id === current.id)!;
+      const lockedPeer = locked.find((row) => row.id === peer.id)!;
+      return createMatchedSessionForEntries(tx, input, lockedCurrent, lockedPeer, new Date());
+    }
+    return current;
+  });
+}
+
+async function listQueueCandidatesWithoutLock(
+  tx: DbTransaction,
+  input: EnqueueInput,
+  now: Date,
+): Promise<QueueCandidateForMatching[]> {
+  const rows = await tx
+    .select({ entry: togetherQueue, gender: users.gender, preferredGenders: users.preferredGenders })
+    .from(togetherQueue)
+    .innerJoin(users, eq(users.id, togetherQueue.userId))
+    .where(and(
+      eq(togetherQueue.activity, input.activity),
+      eq(users.accountStatus, "active"),
+      eq(togetherQueue.status, "waiting"),
+      ne(togetherQueue.userId, input.userId),
+      gt(togetherQueue.expiresAt, now),
+    ))
+    .orderBy(asc(togetherQueue.createdAt))
+    .limit(50);
+  return rows.map((row) => ({ ...row.entry, gender: row.gender, preferredGenders: row.preferredGenders }));
 }
 
 async function listQueueCandidatesForMatching(
@@ -1325,33 +1376,48 @@ async function listQueueDiagnosticsForAdmin(now: Date): Promise<QueueDiagnosticR
 }
 
 async function expireWaitingEntries(now: Date): Promise<void> {
-  await db
-    .update(togetherQueue)
-    .set(queueExpiredUpdate(now))
-    .where(and(eq(togetherQueue.status, "waiting"), lte(togetherQueue.expiresAt, now)));
+  await expireWaitingEntriesBounded(db, now);
 }
 
 async function expireWaitingEntriesTx(tx: DbTransaction, now: Date): Promise<void> {
-  await tx
-    .update(togetherQueue)
-    .set(queueExpiredUpdate(now))
-    .where(and(eq(togetherQueue.status, "waiting"), lte(togetherQueue.expiresAt, now)));
+  await expireWaitingEntriesBounded(tx, now);
+}
+
+async function expireWaitingEntriesBounded(
+  queryable: Pick<DbTransaction, "execute"> | Pick<typeof db, "execute">,
+  now: Date,
+): Promise<void> {
+  await queryable.execute(sql`
+    with stale as (
+      select id from ${togetherQueue}
+      where ${togetherQueue.status} = 'waiting' and ${togetherQueue.expiresAt} <= ${now}
+      order by ${togetherQueue.expiresAt}
+      limit 100 for update skip locked
+    )
+    update ${togetherQueue}
+    set status = 'expired', updated_at = ${now}, last_action = 'expired', last_action_at = ${now}
+    from stale where ${togetherQueue.id} = stale.id
+  `);
 }
 
 async function expireWaitingEntriesForMatching(tx: DbTransaction, now: Date): Promise<void> {
-  await tx
-    .update(togetherQueue)
-    .set(queueExpiredUpdate(now))
-    .where(
-      and(
-        eq(togetherQueue.status, "waiting"),
-        or(
-          lte(togetherQueue.expiresAt, now),
-          isNull(togetherQueue.latitude),
-          isNull(togetherQueue.longitude),
-        ),
-      ),
-    );
+  await tx.execute(sql`
+    with stale as (
+      select id from ${togetherQueue}
+      where ${togetherQueue.status} = 'waiting'
+        and (
+          ${togetherQueue.expiresAt} <= ${now}
+          or ${togetherQueue.latitude} is null
+          or ${togetherQueue.longitude} is null
+        )
+      order by ${togetherQueue.expiresAt}
+      limit 100
+      for update skip locked
+    )
+    update ${togetherQueue}
+    set status = 'expired', updated_at = ${now}, last_action = 'expired', last_action_at = ${now}
+    from stale where ${togetherQueue.id} = stale.id
+  `);
 }
 
 type QueueGeoInput = {

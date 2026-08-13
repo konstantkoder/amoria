@@ -34,6 +34,7 @@ export class LocalTextModerationClient {
   isConfigured(): boolean {
     return Boolean(
       env.TEXT_MODERATION_ENABLED &&
+      env.TEXT_MODERATION_TRANSPORT === "local" &&
       env.TEXT_MODERATION_PYTHON &&
       env.TEXT_MODERATION_MODEL_DIR,
     );

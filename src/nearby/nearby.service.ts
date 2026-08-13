@@ -10,6 +10,7 @@ import {
 } from "../users/age";
 import * as nearbyRepo from "./nearby.repo";
 import { assertSafeText } from "../moderation/text-validation";
+import { setMetric } from "../observability/metrics";
 import type {
   CreateNearbyStatusBody,
   CreateNearbyStatusResponse,
@@ -50,6 +51,7 @@ type NearbyServiceDeps = {
   >;
   usersRepo: Pick<typeof usersRepo, "findUserById">;
   toPublicUserProfile: typeof usersService.toPublicUserProfile;
+  toPublicUserProfilesForFeed: typeof usersService.toPublicUserProfilesForFeed;
   now: () => Date;
 };
 
@@ -57,6 +59,7 @@ const defaultDeps: NearbyServiceDeps = {
   repo: nearbyRepo,
   usersRepo,
   toPublicUserProfile: usersService.toPublicUserProfile,
+  toPublicUserProfilesForFeed: usersService.toPublicUserProfilesForFeed,
   now: () => new Date(),
 };
 
@@ -125,6 +128,7 @@ export async function getFeed(userId: string, query: NearbyFeedQuery): Promise<N
     radiusMeters,
     query.limit,
   );
+  setMetric("amoria_nearby_candidates_last", rows.length, { feed: "status" });
 
   return {
     items: rows.map((row) => ({
@@ -249,17 +253,17 @@ export async function getProfileFeed(
       query.limit * NEARBY_PROFILE_FEED_PREFILTER_MULTIPLIER,
     ),
   );
+  setMetric("amoria_nearby_candidates_last", rows.length, { feed: "profile" });
 
   const items: NearbyProfileFeedResponse["items"] = [];
-  for (const row of rows) {
-    if (!isMutuallyAgeCompatible(viewer, row.user)) {
-      continue;
-    }
-    if (!isMutuallyGenderCompatible(viewer, row.user)) {
-      continue;
-    }
-
-    const profile = await deps.toPublicUserProfile(row.user);
+  const compatibleRows = rows.filter((row) =>
+    isMutuallyAgeCompatible(viewer, row.user) && isMutuallyGenderCompatible(viewer, row.user),
+  ).slice(0, query.limit);
+  const batchProfiles = deps.toPublicUserProfile === usersService.toPublicUserProfile
+    ? deps.toPublicUserProfilesForFeed(compatibleRows.map((row) => row.user))
+    : undefined;
+  for (const [index, row] of compatibleRows.entries()) {
+    const profile = batchProfiles?.[index] ?? await deps.toPublicUserProfile(row.user);
     items.push(toNearbyProfileFeedItem(row, profile));
 
     if (items.length >= query.limit) {

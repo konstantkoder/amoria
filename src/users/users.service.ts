@@ -421,6 +421,31 @@ async function normalizeOwnedAvatarUrl(
   return publicMediaUrlForMediaId(media.id);
 }
 
+/**
+ * Bounded Nearby read model: public photos are maintained transactionally on the
+ * user row when gallery visibility/moderation changes. This avoids one DB query
+ * and multiple object-store HEAD requests per feed candidate.
+ */
+export function toPublicUserProfilesForFeed(users: UserRow[]): PublicUserProfile[] {
+  return users.map((user) => {
+    const age = calculateAge(user.birthDate);
+    return {
+      id: user.id,
+      displayName: user.displayName,
+      amoriaId: user.amoriaId,
+      about: user.about,
+      avatarUrl: user.avatarUrl,
+      photos: user.photos.map((photo, position) => ({ ...photo, position })),
+      goal: toProfileGoal(user.goal),
+      mood: toProfileMood(user.mood),
+      interests: user.interests,
+      age,
+      ageGroup: getAgeGroup(age),
+      lockedGallery: { enabled: false, count: 0 },
+    };
+  });
+}
+
 async function toCurrentAvatarUrl(user: Pick<UserRow, "id" | "avatarUrl">): Promise<string | null> {
   if (!user.avatarUrl) {
     return null;

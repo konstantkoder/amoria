@@ -8,6 +8,8 @@ import type {
   TogetherSessionUpdateReason,
 } from "../together/together.types";
 import type { TurnBasedMomentDto } from "../together/together-turn-based.types";
+import { env } from "../config/env";
+import { incrementMetric, setMetric } from "../observability/metrics";
 
 export type TogetherSessionUpdatedPayload = {
   sessionId: string;
@@ -24,26 +26,30 @@ export type TogetherRevealUpdatedPayload = {
 
 type SocketState = {
   userId: string;
+  authVersion: number;
   inboxSubscribed: boolean;
   threadIds: Set<string>;
   togetherSessionIds: Set<string>;
 };
 
 class WsHub {
-  private static readonly MAX_CONNECTIONS_PER_USER = 5;
-  private static readonly MAX_CONNECTIONS_GLOBAL = 2_000;
   private readonly userSockets = new Map<string, Set<WebSocket>>();
   private readonly threadSockets = new Map<string, Set<WebSocket>>();
   private readonly togetherSessionSockets = new Map<string, Set<WebSocket>>();
   private readonly socketState = new WeakMap<WebSocket, SocketState>();
+  private readonly recentEvents = new Map<string, number>();
   private connectionCount = 0;
+  private subscriptionCount = 0;
 
-  addSocket(userId: string, socket: WebSocket): boolean {
+  addSocket(userId: string, socket: WebSocket, authVersion = 0): boolean {
     let sockets = this.userSockets.get(userId);
     if (
-      (sockets?.size ?? 0) >= WsHub.MAX_CONNECTIONS_PER_USER ||
-      this.connectionCount >= WsHub.MAX_CONNECTIONS_GLOBAL
+      (sockets?.size ?? 0) >= env.WS_MAX_CONNECTIONS_PER_USER ||
+      this.connectionCount >= env.WS_MAX_CONNECTIONS_PER_INSTANCE
     ) {
+      incrementMetric("amoria_ws_connections_rejected_total", {
+        reason: this.connectionCount >= env.WS_MAX_CONNECTIONS_PER_INSTANCE ? "instance_limit" : "user_limit",
+      });
       return false;
     }
 
@@ -56,10 +62,13 @@ class WsHub {
     this.connectionCount += 1;
     this.socketState.set(socket, {
       userId,
+      authVersion,
       inboxSubscribed: false,
       threadIds: new Set(),
       togetherSessionIds: new Set(),
     });
+    incrementMetric("amoria_ws_connections_accepted_total");
+    setMetric("amoria_ws_connections", this.connectionCount);
     return true;
   }
 
@@ -68,6 +77,7 @@ class WsHub {
     if (!state) {
       return;
     }
+    const removedSubscriptions = Number(state.inboxSubscribed) + state.threadIds.size + state.togetherSessionIds.size;
 
     const userSockets = this.userSockets.get(state.userId);
     userSockets?.delete(socket);
@@ -93,27 +103,37 @@ class WsHub {
     }
 
     this.socketState.delete(socket);
+    incrementMetric("amoria_ws_disconnects_total");
+    setMetric("amoria_ws_connections", this.connectionCount);
+    this.subscriptionCount = Math.max(0, this.subscriptionCount - removedSubscriptions);
+    setMetric("amoria_ws_subscriptions", this.subscriptionCount);
   }
 
-  subscribeInbox(socket: WebSocket): void {
+  subscribeInbox(socket: WebSocket): boolean {
     const state = this.socketState.get(socket);
-    if (state) {
-      state.inboxSubscribed = true;
-    }
+    if (!state) return false;
+    if (state.inboxSubscribed) return true;
+    if (!this.hasSubscriptionCapacity(state)) return false;
+    state.inboxSubscribed = true;
+    this.subscriptionAdded();
+    return true;
   }
 
   unsubscribeInbox(socket: WebSocket): void {
     const state = this.socketState.get(socket);
     if (state) {
+      if (state.inboxSubscribed) this.subscriptionRemoved();
       state.inboxSubscribed = false;
     }
   }
 
-  subscribeThread(socket: WebSocket, threadId: string): void {
+  subscribeThread(socket: WebSocket, threadId: string): boolean {
     const state = this.socketState.get(socket);
     if (!state) {
-      return;
+      return false;
     }
+    if (state.threadIds.has(threadId)) return true;
+    if (!this.hasSubscriptionCapacity(state)) return false;
 
     let sockets = this.threadSockets.get(threadId);
     if (!sockets) {
@@ -123,11 +143,13 @@ class WsHub {
 
     sockets.add(socket);
     state.threadIds.add(threadId);
+    this.subscriptionAdded();
+    return true;
   }
 
   unsubscribeThread(socket: WebSocket, threadId: string): void {
     const state = this.socketState.get(socket);
-    state?.threadIds.delete(threadId);
+    if (state?.threadIds.delete(threadId)) this.subscriptionRemoved();
 
     const sockets = this.threadSockets.get(threadId);
     sockets?.delete(socket);
@@ -136,11 +158,13 @@ class WsHub {
     }
   }
 
-  subscribeTogether(socket: WebSocket, sessionId: string): void {
+  subscribeTogether(socket: WebSocket, sessionId: string): boolean {
     const state = this.socketState.get(socket);
     if (!state) {
-      return;
+      return false;
     }
+    if (state.togetherSessionIds.has(sessionId)) return true;
+    if (!this.hasSubscriptionCapacity(state)) return false;
 
     let sockets = this.togetherSessionSockets.get(sessionId);
     if (!sockets) {
@@ -150,11 +174,13 @@ class WsHub {
 
     sockets.add(socket);
     state.togetherSessionIds.add(sessionId);
+    this.subscriptionAdded();
+    return true;
   }
 
   unsubscribeTogether(socket: WebSocket, sessionId: string): void {
     const state = this.socketState.get(socket);
-    state?.togetherSessionIds.delete(sessionId);
+    if (state?.togetherSessionIds.delete(sessionId)) this.subscriptionRemoved();
 
     const sockets = this.togetherSessionSockets.get(sessionId);
     sockets?.delete(socket);
@@ -180,6 +206,35 @@ class WsHub {
       this.removeSocket(socket);
       socket.close(1008, reason);
     }
+  }
+
+  connectedUserIds(): string[] {
+    return [...this.userSockets.keys()];
+  }
+
+  revalidateUserAccess(userId: string, activeAuthVersion: number | undefined): number {
+    const sockets = [...(this.userSockets.get(userId) ?? [])];
+    let disconnected = 0;
+    for (const socket of sockets) {
+      const state = this.socketState.get(socket);
+      if (activeAuthVersion !== undefined && state?.authVersion === activeAuthVersion) continue;
+      this.removeSocket(socket);
+      socket.close(1008, "Access revoked");
+      disconnected += 1;
+    }
+    return disconnected;
+  }
+
+  acceptEvent(eventId: string): boolean {
+    const now = Date.now();
+    if (this.recentEvents.has(eventId)) return false;
+    this.recentEvents.set(eventId, now + 60_000);
+    if (this.recentEvents.size > 10_000) {
+      for (const [id, expiresAt] of this.recentEvents) {
+        if (expiresAt <= now || this.recentEvents.size > 10_000) this.recentEvents.delete(id);
+      }
+    }
+    return true;
   }
 
   broadcastTogetherEvent(sessionId: string, event: TogetherEventDto): void {
@@ -273,7 +328,34 @@ class WsHub {
       return;
     }
 
-    socket.send(JSON.stringify(payload));
+    if (socket.bufferedAmount > env.WS_MAX_BUFFERED_BYTES) {
+      incrementMetric("amoria_ws_slow_client_disconnects_total");
+      this.removeSocket(socket);
+      socket.close(1013, "Slow client; reconnect and refetch");
+      return;
+    }
+    socket.send(JSON.stringify(payload), (error?: Error) => {
+      if (error) incrementMetric("amoria_ws_send_errors_total");
+    });
+  }
+
+  private hasSubscriptionCapacity(state: SocketState): boolean {
+    const count = Number(state.inboxSubscribed) + state.threadIds.size + state.togetherSessionIds.size;
+    if (count < env.WS_MAX_SUBSCRIPTIONS_PER_CONNECTION) return true;
+    incrementMetric("amoria_ws_subscriptions_rejected_total", { reason: "connection_limit" });
+    return false;
+  }
+
+  private subscriptionAdded(): void {
+    incrementMetric("amoria_ws_subscription_changes_total", { action: "add" });
+    this.subscriptionCount += 1;
+    setMetric("amoria_ws_subscriptions", this.subscriptionCount);
+  }
+
+  private subscriptionRemoved(): void {
+    incrementMetric("amoria_ws_subscription_changes_total", { action: "remove" });
+    this.subscriptionCount = Math.max(0, this.subscriptionCount - 1);
+    setMetric("amoria_ws_subscriptions", this.subscriptionCount);
   }
 }
 

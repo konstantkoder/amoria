@@ -82,9 +82,11 @@ consumer.
 The application never adds a public ACL and serves protected objects through
 authorized backend routes. However, code cannot prove the deployed bucket
 policy, anonymous access setting, CDN origin policy, or lifecycle rules.
-`S3_PUBLIC_BASE_URL` remains configured but current backend-generated media URLs
-use application routes. Production must verify that raw object keys and prepared
-upload objects are not anonymously readable.
+Backend-generated media references remain stable application routes. With
+`PUBLIC_MEDIA_DELIVERY_MODE=presigned`, only an approved public route response is
+redirected through `S3_PUBLIC_BASE_URL` using a short-lived signature. Production
+must verify that raw object keys and prepared upload objects are not anonymously
+readable and that the public endpoint fronts the private bucket API.
 
 ### Legacy static upload tree remains mounted
 
@@ -97,11 +99,12 @@ directory as part of this audit.
 
 ### Full-buffer delivery and admin previews
 
-Public, locked, and admin content reads download the whole object into a Buffer
-before replying. The 10 MB cap prevents unbounded single reads, but concurrent
-large reads amplify application memory and storage egress. Admin web requests a
-full moderation blob and creates a browser object URL; there is no thumbnail,
-range response, or lightweight preview.
+In scale-out `presigned` mode, approved public reads bypass Node after the
+moderation/visibility check. Low-cost `proxy` mode, locked reads, and admin reads
+still download the object into a Buffer. The 10 MB cap prevents unbounded single
+reads, but concurrent locked/admin reads can amplify application memory and
+storage egress. Admin web requests a full moderation blob and creates a browser
+object URL; there is no thumbnail, range response, or lightweight preview.
 
 ### Cache and metadata coverage gaps
 

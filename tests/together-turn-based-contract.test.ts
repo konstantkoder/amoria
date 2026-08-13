@@ -114,8 +114,9 @@ test("terminal retention snapshots event counts and deletes event payloads", () 
 test("moderation holds prevent artifact purge", () => {
   assert.match(service, /NOT IN \('reported','blocked'\)/);
 });
-test("maintenance uses an advisory lock and bounded batches", () => {
-  assert.match(service, /pg_try_advisory_lock/);
+test("maintenance uses a transaction-pooler-safe advisory lock and bounded batches", () => {
+  assert.match(service, /pg_try_advisory_xact_lock/);
+  assert.doesNotMatch(service, /pg_advisory_unlock/);
   assert.match(service, /LIMIT 100/);
   assert.match(service, /cleanup_failed/);
 });

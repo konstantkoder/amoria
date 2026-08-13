@@ -30,3 +30,9 @@ test("different replacement sessions derive different refresh tokens", () => {
     deriveRotatedRefreshToken(original, "f34d4d64-f5df-4b71-ab36-b05e5643ab67"),
   );
 });
+
+test("access tokens carry the durable authentication generation", () => {
+  const { signAccessToken, verifyAccessToken } = require("../src/auth/jwt") as typeof import("../src/auth/jwt");
+  const token = signAccessToken("00000000-0000-4000-8000-000000000001", 7);
+  assert.equal(verifyAccessToken(token).ver, 7);
+});

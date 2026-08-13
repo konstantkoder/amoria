@@ -3,10 +3,14 @@ name: amoria-production
 x-api-environment: &api-environment
   NODE_ENV: production
   DATABASE_URL: ${DATABASE_RUNTIME_URL:?DATABASE_RUNTIME_URL is required}
-  TEXT_MODERATION_PYTHON: /usr/local/bin/python3
-  TEXT_MODERATION_MODEL_DIR: /models/text
   RELEASE_SHA: ${RELEASE_SHA:?RELEASE_SHA is required}
   APP_VERSION: ${APP_VERSION:-0.1.0}
+  REALTIME_BUS_URL: redis://valkey:6379
+  METRICS_TOKEN: ${METRICS_TOKEN:?METRICS_TOKEN is required}
+  TEXT_MODERATION_ENABLED: "true"
+  TEXT_MODERATION_TRANSPORT: http
+  TEXT_MODERATION_SERVICE_URL: http://text-moderation:4010
+  TEXT_MODERATION_SERVICE_TOKEN: ${TEXT_MODERATION_SERVICE_TOKEN:?TEXT_MODERATION_SERVICE_TOKEN is required}
 
 x-container-hardening: &container-hardening
   security_opt:
@@ -22,6 +26,20 @@ x-production-logging: &production-logging
     max-file: "5"
 
 services:
+  valkey:
+    image: ${VALKEY_IMAGE:?VALKEY_IMAGE must be a digest-pinned Valkey image}
+    restart: unless-stopped
+    command: ["valkey-server", "--save", "", "--appendonly", "no", "--maxmemory", "${VALKEY_MAXMEMORY:-512mb}", "--maxmemory-policy", "noeviction"]
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    <<: *container-hardening
+    logging: *production-logging
+
   postgres:
     image: postgres@sha256:aefb61c5ac3326e56a7b769fa655fe00af0e335c1b9b65182bd6f6233dd12aad
     restart: unless-stopped
@@ -54,6 +72,7 @@ services:
       - amoria_minio_data:/data
     networks:
       - backend
+      - ingress
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 10s
@@ -115,15 +134,18 @@ services:
       - ${PRODUCTION_ENV_FILE:-.env.production}
     environment:
       <<: *api-environment
+      AMORIA_PROCESS_ROLE: api
     ports:
       - "127.0.0.1:${API_HOST_PORT:-4000}:4000"
-    volumes:
-      - ${TEXT_MODEL_HOST_DIR:?TEXT_MODEL_HOST_DIR is required}:/models/text:ro
     depends_on:
       migrate:
         condition: service_completed_successfully
       minio-init:
         condition: service_completed_successfully
+      valkey:
+        condition: service_healthy
+      text-moderation:
+        condition: service_healthy
     networks:
       - backend
       - ingress
@@ -136,6 +158,59 @@ services:
       timeout: 5s
       retries: 10
       start_period: 30s
+    <<: *container-hardening
+    logging: *production-logging
+
+  worker:
+    image: ${API_IMAGE:?API_IMAGE is required}:${RELEASE_SHA:?RELEASE_SHA is required}
+    restart: unless-stopped
+    env_file:
+      - ${PRODUCTION_ENV_FILE:-.env.production}
+    environment:
+      <<: *api-environment
+      AMORIA_PROCESS_ROLE: worker
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      minio-init:
+        condition: service_completed_successfully
+    networks:
+      - backend
+    read_only: true
+    tmpfs:
+      - /tmp
+    <<: *container-hardening
+    logging: *production-logging
+
+  text-moderation:
+    image: ${API_IMAGE:?API_IMAGE is required}:${RELEASE_SHA:?RELEASE_SHA is required}
+    restart: unless-stopped
+    env_file:
+      - ${PRODUCTION_ENV_FILE:-.env.production}
+    environment:
+      <<: *api-environment
+      AMORIA_PROCESS_ROLE: worker
+      PORT: 4010
+      TEXT_MODERATION_TRANSPORT: local
+      TEXT_MODERATION_PYTHON: /usr/local/bin/python3
+      TEXT_MODERATION_MODEL_DIR: /models/text
+    command: ["node", "dist/src/moderation/text-moderation.server.js"]
+    volumes:
+      - ${TEXT_MODEL_HOST_DIR:?TEXT_MODEL_HOST_DIR is required}:/models/text:ro
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    networks:
+      - backend
+    read_only: true
+    tmpfs:
+      - /tmp
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4010/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 120s
     <<: *container-hardening
     logging: *production-logging
 

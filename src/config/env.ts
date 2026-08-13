@@ -137,6 +137,35 @@ function parseIntegerInRange(name: string, value: string, minimum: number, maxim
   return parsed;
 }
 
+function parseProcessRole(value: string): "api" | "worker" | "all" {
+  if (value === "api" || value === "worker" || value === "all") return value;
+  throw new Error("AMORIA_PROCESS_ROLE must be api, worker, or all");
+}
+
+function parseTextModerationTransport(value: string): "local" | "http" {
+  if (value === "local" || value === "http") return value;
+  throw new Error("TEXT_MODERATION_TRANSPORT must be local or http");
+}
+
+function parsePublicMediaDeliveryMode(value: string): "proxy" | "presigned" {
+  if (value === "proxy" || value === "presigned") return value;
+  throw new Error("PUBLIC_MEDIA_DELIVERY_MODE must be proxy or presigned");
+}
+
+function optionalUrl(name: string, value: string, protocols: string[]): string | undefined {
+  if (!value) return undefined;
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error(`${name} must be a valid URL`);
+  }
+  if (!protocols.includes(parsed.protocol)) {
+    throw new Error(`${name} must use ${protocols.join(" or ")}`);
+  }
+  return parsed.toString().replace(/\/$/, "");
+}
+
 function parseBooleanFlag(name: string, value: string): boolean {
   if (["1", "true", "yes"].includes(value.toLowerCase())) {
     return true;
@@ -221,6 +250,7 @@ function isLocalOrPrivatePublicHostname(hostname: string): boolean {
 }
 
 const nodeEnv = optional("NODE_ENV", "development");
+const processRole = parseProcessRole(optional("AMORIA_PROCESS_ROLE", "all"));
 const publicApiUrl = optional("PUBLIC_API_URL", "http://localhost:4000").replace(/\/+$/, "");
 const publicMediaUrl = optional("PUBLIC_MEDIA_URL", `${publicApiUrl}/media`).replace(/\/+$/, "");
 const uploadsDir = optional("UPLOADS_DIR", "./uploads");
@@ -234,6 +264,13 @@ const s3PublicBaseUrl = optional("S3_PUBLIC_BASE_URL", "http://localhost:9000/am
 const allowLocalPublicUrls = parseBooleanFlag(
   "ALLOW_LOCAL_PUBLIC_URLS",
   optional("ALLOW_LOCAL_PUBLIC_URLS", "false"),
+);
+const publicMediaDeliveryMode = parsePublicMediaDeliveryMode(
+  optional("PUBLIC_MEDIA_DELIVERY_MODE", "proxy"),
+);
+const s3ForcePathStyle = parseBooleanFlag(
+  "S3_FORCE_PATH_STYLE",
+  optional("S3_FORCE_PATH_STYLE", "1"),
 );
 const authSecurityHmacSecret = process.env.AUTH_SECURITY_HMAC_SECRET?.trim()
   || (nodeEnv === "production" ? "" : "development-only-auth-security-hmac-secret");
@@ -249,6 +286,21 @@ const textModerationEnabled = parseBooleanFlag(
 );
 const textModerationPython = process.env.TEXT_MODERATION_PYTHON?.trim() || undefined;
 const textModerationModelDir = process.env.TEXT_MODERATION_MODEL_DIR?.trim() || undefined;
+const textModerationTransport = parseTextModerationTransport(
+  optional("TEXT_MODERATION_TRANSPORT", process.env.TEXT_MODERATION_SERVICE_URL ? "http" : "local"),
+);
+const textModerationServiceUrl = optionalUrl(
+  "TEXT_MODERATION_SERVICE_URL",
+  optional("TEXT_MODERATION_SERVICE_URL", ""),
+  ["http:", "https:"],
+);
+const textModerationServiceToken = process.env.TEXT_MODERATION_SERVICE_TOKEN?.trim() || undefined;
+const realtimeBusUrl = optionalUrl(
+  "REALTIME_BUS_URL",
+  optional("REALTIME_BUS_URL", ""),
+  ["redis:", "rediss:"],
+);
+const metricsToken = process.env.METRICS_TOKEN?.trim() || undefined;
 const smtpHost = process.env.SMTP_HOST?.trim()
   || (nodeEnv === "production" ? "" : "localhost");
 const mailFrom = process.env.MAIL_FROM?.trim()
@@ -272,6 +324,16 @@ const releaseSha = process.env.RELEASE_SHA?.trim() || (nodeEnv === "production" 
 const supportEmail = process.env.SUPPORT_EMAIL?.trim()
   || (nodeEnv === "production" ? "" : "support@example.invalid");
 const expoPushAccessToken = process.env.EXPO_PUSH_ACCESS_TOKEN?.trim() || undefined;
+const expoPushSendUrl = optionalUrl(
+  "EXPO_PUSH_SEND_URL",
+  optional("EXPO_PUSH_SEND_URL", "https://exp.host/--/api/v2/push/send"),
+  ["http:", "https:"],
+)!;
+const expoPushReceiptsUrl = optionalUrl(
+  "EXPO_PUSH_RECEIPTS_URL",
+  optional("EXPO_PUSH_RECEIPTS_URL", "https://exp.host/--/api/v2/push/getReceipts"),
+  ["http:", "https:"],
+)!;
 
 if (objectStorageProvider !== "s3") {
   throw new Error("OBJECT_STORAGE_PROVIDER must be s3");
@@ -290,6 +352,10 @@ if (nodeEnv === "production") {
   if (!/^[0-9a-f]{40}$/i.test(releaseSha) || /^0{40}$/.test(releaseSha)) {
     throw new Error("RELEASE_SHA must be the exact 40-character Git commit SHA in production");
   }
+  if (
+    expoPushSendUrl !== "https://exp.host/--/api/v2/push/send" ||
+    expoPushReceiptsUrl !== "https://exp.host/--/api/v2/push/getReceipts"
+  ) throw new Error("Production Expo push endpoints must use the official HTTPS service");
 }
 
 if (!supportEmail || /[\r\n]/.test(supportEmail) || !/^[^\s@<>]+@[^\s@<>]+$/.test(supportEmail)) {
@@ -312,10 +378,32 @@ if (nodeEnv === "production" && !textModerationEnabled) {
   throw new Error("TEXT_MODERATION_ENABLED must be true in production");
 }
 
-if (textModerationEnabled && (!textModerationPython || !textModerationModelDir)) {
+if (
+  textModerationEnabled &&
+  textModerationTransport === "local" &&
+  (!textModerationPython || !textModerationModelDir)
+) {
   throw new Error(
     "TEXT_MODERATION_PYTHON and TEXT_MODERATION_MODEL_DIR are required when text moderation is enabled",
   );
+}
+
+if (textModerationEnabled && textModerationTransport === "http") {
+  if (!textModerationServiceUrl || !textModerationServiceToken) {
+    throw new Error(
+      "TEXT_MODERATION_SERVICE_URL and TEXT_MODERATION_SERVICE_TOKEN are required for HTTP text moderation",
+    );
+  }
+  if (textModerationServiceToken.length < 32) {
+    throw new Error("TEXT_MODERATION_SERVICE_TOKEN must be at least 32 characters long");
+  }
+}
+
+if (nodeEnv === "production" && (processRole === "api" || processRole === "all")) {
+  if (!realtimeBusUrl) throw new Error("REALTIME_BUS_URL is required for production API processes");
+  if (!metricsToken || metricsToken.length < 32) {
+    throw new Error("METRICS_TOKEN must be at least 32 characters long in production");
+  }
 }
 
 if (!smtpHost) {
@@ -351,8 +439,19 @@ validatePublicUrlEnv({
   s3Endpoint,
 });
 
+if (publicMediaDeliveryMode === "presigned") {
+  const publicStorageUrl = new URL(s3PublicBaseUrl);
+  const s3Bucket = optional("S3_BUCKET", "amoria");
+  if (!s3ForcePathStyle || !publicStorageUrl.pathname.replace(/\/+$/, "").endsWith(`/${s3Bucket}`)) {
+    throw new Error(
+      "Presigned public media requires S3_FORCE_PATH_STYLE=1 and S3_PUBLIC_BASE_URL ending with /S3_BUCKET",
+    );
+  }
+}
+
 export const env = {
   NODE_ENV: nodeEnv,
+  AMORIA_PROCESS_ROLE: processRole,
   PORT: parsePort(optional("PORT", "4000")),
   DATABASE_URL: required("DATABASE_URL"),
   JWT_SECRET: jwtSecret,
@@ -362,6 +461,9 @@ export const env = {
   TEXT_MODERATION_ENABLED: textModerationEnabled,
   TEXT_MODERATION_PYTHON: textModerationPython,
   TEXT_MODERATION_MODEL_DIR: textModerationModelDir,
+  TEXT_MODERATION_TRANSPORT: textModerationTransport,
+  TEXT_MODERATION_SERVICE_URL: textModerationServiceUrl,
+  TEXT_MODERATION_SERVICE_TOKEN: textModerationServiceToken,
   TEXT_MODERATION_TIMEOUT_MS: parsePositiveInteger(
     "TEXT_MODERATION_TIMEOUT_MS",
     optional("TEXT_MODERATION_TIMEOUT_MS", "5000"),
@@ -379,7 +481,14 @@ export const env = {
   S3_SECRET_KEY: s3SecretKey,
   S3_BUCKET: optional("S3_BUCKET", "amoria"),
   S3_PUBLIC_BASE_URL: s3PublicBaseUrl,
-  S3_FORCE_PATH_STYLE: parseBooleanFlag("S3_FORCE_PATH_STYLE", optional("S3_FORCE_PATH_STYLE", "1")),
+  PUBLIC_MEDIA_DELIVERY_MODE: publicMediaDeliveryMode,
+  PUBLIC_MEDIA_PRESIGN_EXPIRES_SEC: parseIntegerInRange(
+    "PUBLIC_MEDIA_PRESIGN_EXPIRES_SEC",
+    optional("PUBLIC_MEDIA_PRESIGN_EXPIRES_SEC", "60"),
+    15,
+    300,
+  ),
+  S3_FORCE_PATH_STYLE: s3ForcePathStyle,
   OBJECT_STORAGE_DELETE_TIMEOUT_MS: parseIntegerInRange(
     "OBJECT_STORAGE_DELETE_TIMEOUT_MS",
     optional("OBJECT_STORAGE_DELETE_TIMEOUT_MS", "10000"),
@@ -461,10 +570,63 @@ export const env = {
     100,
     300_000,
   ),
+  REALTIME_BUS_URL: realtimeBusUrl,
+  REALTIME_BUS_CHANNEL: optional("REALTIME_BUS_CHANNEL", "amoria:realtime:v1"),
+  REALTIME_EVENT_MAX_BYTES: parseIntegerInRange(
+    "REALTIME_EVENT_MAX_BYTES",
+    optional("REALTIME_EVENT_MAX_BYTES", "262144"),
+    4096,
+    1_048_576,
+  ),
+  REALTIME_BUS_CONNECT_TIMEOUT_MS: parseIntegerInRange(
+    "REALTIME_BUS_CONNECT_TIMEOUT_MS",
+    optional("REALTIME_BUS_CONNECT_TIMEOUT_MS", "5000"),
+    100,
+    60_000,
+  ),
+  WS_MAX_CONNECTIONS_PER_INSTANCE: parseIntegerInRange(
+    "WS_MAX_CONNECTIONS_PER_INSTANCE",
+    optional("WS_MAX_CONNECTIONS_PER_INSTANCE", "5000"),
+    1,
+    100_000,
+  ),
+  WS_MAX_CONNECTIONS_PER_USER: parseIntegerInRange(
+    "WS_MAX_CONNECTIONS_PER_USER",
+    optional("WS_MAX_CONNECTIONS_PER_USER", "5"),
+    1,
+    50,
+  ),
+  WS_MAX_SUBSCRIPTIONS_PER_CONNECTION: parseIntegerInRange(
+    "WS_MAX_SUBSCRIPTIONS_PER_CONNECTION",
+    optional("WS_MAX_SUBSCRIPTIONS_PER_CONNECTION", "50"),
+    1,
+    500,
+  ),
+  WS_MAX_BUFFERED_BYTES: parseIntegerInRange(
+    "WS_MAX_BUFFERED_BYTES",
+    optional("WS_MAX_BUFFERED_BYTES", "262144"),
+    16_384,
+    16_777_216,
+  ),
+  WS_ACCESS_REVALIDATION_INTERVAL_MS: parseIntegerInRange(
+    "WS_ACCESS_REVALIDATION_INTERVAL_MS",
+    optional("WS_ACCESS_REVALIDATION_INTERVAL_MS", "30000"),
+    5_000,
+    300_000,
+  ),
+  API_MAX_IN_FLIGHT_REQUESTS: parseIntegerInRange(
+    "API_MAX_IN_FLIGHT_REQUESTS",
+    optional("API_MAX_IN_FLIGHT_REQUESTS", "1000"),
+    10,
+    100_000,
+  ),
+  METRICS_TOKEN: metricsToken,
   RELEASE_SHA: releaseSha,
   APP_VERSION: optional("APP_VERSION", "0.1.0"),
   SUPPORT_EMAIL: supportEmail,
   EXPO_PUSH_ACCESS_TOKEN: expoPushAccessToken,
+  EXPO_PUSH_SEND_URL: expoPushSendUrl,
+  EXPO_PUSH_RECEIPTS_URL: expoPushReceiptsUrl,
   PUSH_REQUEST_TIMEOUT_MS: parseIntegerInRange(
     "PUSH_REQUEST_TIMEOUT_MS",
     optional("PUSH_REQUEST_TIMEOUT_MS", "5000"),
@@ -482,6 +644,30 @@ export const env = {
     optional("ACCOUNT_DELETION_WORKER_INTERVAL_MS", "30000"),
     1000,
     300_000,
+  ),
+  RETENTION_WORKER_INTERVAL_MS: parseIntegerInRange(
+    "RETENTION_WORKER_INTERVAL_MS",
+    optional("RETENTION_WORKER_INTERVAL_MS", "60000"),
+    10_000,
+    3_600_000,
+  ),
+  READ_NOTIFICATION_RETENTION_DAYS: parseIntegerInRange(
+    "READ_NOTIFICATION_RETENTION_DAYS",
+    optional("READ_NOTIFICATION_RETENTION_DAYS", "180"),
+    30,
+    3650,
+  ),
+  PUSH_DELIVERY_RETENTION_DAYS: parseIntegerInRange(
+    "PUSH_DELIVERY_RETENTION_DAYS",
+    optional("PUSH_DELIVERY_RETENTION_DAYS", "30"),
+    7,
+    365,
+  ),
+  PHOTO_JOB_RETENTION_DAYS: parseIntegerInRange(
+    "PHOTO_JOB_RETENTION_DAYS",
+    optional("PHOTO_JOB_RETENTION_DAYS", "30"),
+    7,
+    365,
   ),
   isProduction: nodeEnv === "production",
   isTest: nodeEnv === "test",

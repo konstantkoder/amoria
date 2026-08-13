@@ -1,5 +1,5 @@
 import { createHash, createHmac, randomBytes, randomInt, randomUUID } from "node:crypto";
-import { AppError, validationError } from "../common/errors";
+import { AppError, unauthorized, validationError } from "../common/errors";
 import {
   normalizeDisplayName,
   normalizeEmail,
@@ -39,6 +39,7 @@ import {
   invalidateEmailChallenge,
   markEmailChallengeSent,
   revokeAllRefreshTokensForUser,
+  revokeAllUserAccess,
   revokeRefreshTokenByHash,
   rotateRefreshToken,
   uniqueConstraint,
@@ -62,6 +63,7 @@ import { signAccessTokenWithExpiry } from "./jwt";
 import { hashPassword, verifyPassword } from "./passwords";
 import { registrationAbuseGuard } from "./registration-abuse.guard";
 import { toAuthUserProfile } from "./auth.types";
+import { publishRealtimeEventSafely } from "../realtime/realtime-bus";
 
 const amoriaIdRetries = 8;
 const refreshTokenBytes = 32;
@@ -136,25 +138,26 @@ function normalizeRefreshToken(refreshToken: string): string {
 
 function buildAuthResponse(user: UserRow, refreshToken: string): AuthResponse {
   return {
-    ...signAccessTokenWithExpiry(user.id),
+    ...signAccessTokenWithExpiry(user.id, user.authVersion ?? 0),
     refreshToken,
     user: toAuthUserProfile(user),
   };
 }
 
 async function issueRefreshToken(
-  userId: string,
+  user: Pick<UserRow, "id" | "authVersion">,
   context: AuthRequestContext = {},
   now = new Date(),
 ): Promise<string> {
   const refreshToken = generateRefreshToken();
-  await createRefreshToken({
-    userId,
+  const created = await createRefreshToken({
+    userId: user.id,
     tokenHash: hashRefreshToken(refreshToken),
     expiresAt: refreshTokenExpiresAt(now),
     deviceId: context.deviceId?.slice(0, 200) ?? null,
     userAgent: context.userAgent?.slice(0, 500) ?? null,
-  });
+  }, user.authVersion ?? 0);
+  if (!created) throw unauthorized("Account access changed; sign in again");
   return refreshToken;
 }
 
@@ -363,7 +366,7 @@ export async function login(
     });
   }
   assertAccountActive(user);
-  const refreshToken = await issueRefreshToken(user.id, context);
+  const refreshToken = await issueRefreshToken(user, context);
   return buildAuthResponse(user, refreshToken);
 }
 
@@ -397,7 +400,7 @@ export async function verifyEmail(
     });
   }
   assertAccountActive(consumed.user);
-  const refreshToken = await issueRefreshToken(consumed.user.id, context);
+  const refreshToken = await issueRefreshToken(consumed.user, context);
   return buildAuthResponse(consumed.user, refreshToken);
 }
 
@@ -457,7 +460,14 @@ export async function confirmPasswordReset(
     newPasswordHash,
     now: new Date(),
   });
-  if (consumed.state === "valid") return { ok: true };
+  if (consumed.state === "valid") {
+    await publishRealtimeEventSafely({
+      type: "user.access_revoked",
+      userId: consumed.user.id,
+      reason: "Password reset",
+    });
+    return { ok: true };
+  }
   if (consumed.state === "invalid") {
     await registrationAbuseGuard.recordFailure("reset_confirm", email, context);
     throw new AppError("invalid_password_reset_code", "Password reset code is invalid", 400);
@@ -518,6 +528,11 @@ export async function logout(input: LogoutBody): Promise<OkResponse> {
 }
 
 export async function logoutAll(userId: string): Promise<OkResponse> {
-  await revokeAllRefreshTokensForUser(userId, new Date());
+  await revokeAllUserAccess(userId, new Date());
+  await publishRealtimeEventSafely({
+    type: "user.access_revoked",
+    userId,
+    reason: "All sessions revoked",
+  });
   return { ok: true };
 }

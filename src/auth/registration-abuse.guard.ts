@@ -53,8 +53,6 @@ const policies: Record<AuthRateLimitAction, Record<Dimension, Policy>> = {
   },
 };
 
-let lastCleanupAt = 0;
-
 export function hashRateLimitKey(scope: string, rawValue: string): string {
   return createHmac("sha256", env.AUTH_SECURITY_HMAC_SECRET)
     .update(scope, "utf8")
@@ -75,12 +73,6 @@ function dimensions(email: string, context: AuthRequestContext): { kind: Dimensi
     ...(context.ip ? [{ kind: "ip" as const, value: context.ip }] : []),
     ...(context.deviceId ? [{ kind: "device" as const, value: context.deviceId }] : []),
   ];
-}
-
-async function maybeCleanup(now: Date): Promise<void> {
-  if (now.getTime() - lastCleanupAt < 60_000) return;
-  lastCleanupAt = now.getTime();
-  await pool.query("DELETE FROM auth_rate_limits WHERE expires_at <= $1", [now]);
 }
 
 async function inspectOne(scope: string, keyHash: string, now: Date): Promise<void> {
@@ -154,7 +146,6 @@ async function recordOne(
 export class RegistrationAbuseGuard {
   async check(action: AuthRateLimitAction, email: string, context: AuthRequestContext): Promise<void> {
     const now = new Date();
-    await maybeCleanup(now);
     for (const dimension of dimensions(email, context)) {
       const scope = `${action}:${dimension.kind}`;
       await inspectOne(scope, hashRateLimitKey(scope, dimension.value), now);
@@ -163,7 +154,6 @@ export class RegistrationAbuseGuard {
 
   async consume(action: AuthRateLimitAction, email: string, context: AuthRequestContext): Promise<void> {
     const now = new Date();
-    await maybeCleanup(now);
     for (const dimension of dimensions(email, context)) {
       const scope = `${action}:${dimension.kind}`;
       await recordOne(scope, hashRateLimitKey(scope, dimension.value), policies[action][dimension.kind], false, now);

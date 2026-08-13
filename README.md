@@ -47,6 +47,8 @@ Standalone backend foundation for Amoria. It contains the API, PostgreSQL schema
 - `S3_BUCKET`: S3 bucket name, default local value `amoria`
 - `S3_PUBLIC_BASE_URL`: browser-visible media base URL, default local value `http://localhost:9000/amoria`
 - `S3_FORCE_PATH_STYLE`: use `1` for MinIO
+- `PUBLIC_MEDIA_DELIVERY_MODE`: `proxy` for a low-cost node or `presigned` to redirect approved public media directly to private S3-compatible storage
+- `PUBLIC_MEDIA_PRESIGN_EXPIRES_SEC`: short public-read signature lifetime, default `60`
 - `NODE_ENV`: `development`, `test`, or `production`
 
 ## Endpoints
@@ -169,9 +171,12 @@ DATABASE_URL=postgres://amoria:amoria_password@localhost:5432/amoria S3_ENDPOINT
 DATABASE_URL=postgres://amoria:amoria_password@localhost:5432/amoria S3_ENDPOINT=http://localhost:9000 npm run dev
 ```
 
-Uploaded avatars and profile photos are decoded, validated, re-encoded to WebP,
-and stored in the configured S3 bucket. `S3_ENDPOINT` is the server-side object
-storage endpoint and may point at internal MinIO; URLs returned to mobile clients
-must come from `S3_PUBLIC_BASE_URL`. Production `S3_PUBLIC_BASE_URL` must be an
-HTTPS public URL. Existing legacy local avatar URLs under `/media/...` remain
-served until a separate migration removes or rewrites them.
+Uploaded avatars and profile photos are decoded, validated, bounded, re-encoded
+to WebP, and stored in the configured S3 bucket. `S3_ENDPOINT` is the server-side
+object storage endpoint and may point at internal MinIO. Stable mobile URLs use
+the API media route; in `presigned` mode that route redirects approved public
+media to a short-lived URL generated from `S3_PUBLIC_BASE_URL`. The public base
+must be HTTPS in production, end with `/S3_BUCKET`, and route to the path-style
+S3-compatible API. Locked media never redirects. Existing legacy local avatar
+URLs under `/media/...` remain served until a separate migration removes or
+rewrites them.

@@ -68,7 +68,8 @@ export async function setUserAccountStatus(input: {
     const now = new Date();
     await client.query(`
       UPDATE users
-         SET account_status = $2,
+       SET account_status = $2,
+             auth_version = CASE WHEN $2 = 'suspended' THEN auth_version + 1 ELSE auth_version END,
              suspended_at = CASE WHEN $2 = 'suspended' THEN $3::timestamptz ELSE NULL END,
              suspension_reason = CASE WHEN $2 = 'suspended' THEN $4 ELSE NULL END,
              suspended_by_admin_user_id = CASE WHEN $2 = 'suspended' THEN $5::uuid ELSE NULL END,

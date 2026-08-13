@@ -25,6 +25,7 @@ import * as profileGalleryService from "./profile-gallery.service";
 import * as usersService from "./users.service";
 import { requestAccountDeletion } from "./account-deletion.service";
 import { verifyAccessToken } from "../auth/jwt";
+import { findUserAccessState } from "./users.repo";
 
 function currentUserId(request: { auth?: { userId: string } }): string {
   if (!request.auth?.userId) {
@@ -160,5 +161,8 @@ async function accountDeletionAuthMiddleware(request: FastifyRequest, _reply: Fa
   if (!header?.startsWith("Bearer ")) throw unauthorized();
   const token = header.slice("Bearer ".length).trim();
   if (!token) throw unauthorized();
-  request.auth = { userId: verifyAccessToken(token).sub };
+  const payload = verifyAccessToken(token);
+  const accessState = await findUserAccessState(payload.sub);
+  if (!accessState || accessState.authVersion !== payload.ver) throw unauthorized("Access has been revoked");
+  request.auth = { userId: payload.sub };
 }

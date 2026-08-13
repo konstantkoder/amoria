@@ -1,8 +1,7 @@
 import { env } from "../config/env";
 import * as repo from "./notifications.repo";
+import { incrementMetric, observeMetric } from "../observability/metrics";
 
-const EXPO_SEND_URL = "https://exp.host/--/api/v2/push/send";
-const EXPO_RECEIPTS_URL = "https://exp.host/--/api/v2/push/getReceipts";
 const MAX_BATCH = 100;
 
 type ExpoTicket = { status?: string; id?: string; details?: { error?: string } };
@@ -51,10 +50,11 @@ function transientTicketError(error?: string): boolean {
 }
 
 export async function processPushDeliveries(): Promise<number> {
+  const startedAt = process.hrtime.bigint();
   const rows = await repo.claimDueDeliveries(MAX_BATCH);
   if (!rows.length) return 0;
   try {
-    const response = await expoRequest(EXPO_SEND_URL, rows.map((row) => ({
+    const response = await expoRequest(env.EXPO_PUSH_SEND_URL, rows.map((row) => ({
       to: row.token,
       sound: "default",
       channelId: "amoria_updates",
@@ -81,17 +81,21 @@ export async function processPushDeliveries(): Promise<number> {
         : repo.markDeliveryFailed(row.delivery.id, code);
     }));
   } catch {
+    incrementMetric("amoria_push_errors_total", { phase: "send" });
     await Promise.all(rows.map((row) => repo.markDeliveryRetry(row.delivery.id, row.delivery.attemptCount + 1, "expo_transport_error")));
   }
+  incrementMetric("amoria_push_processed_total", { phase: "send" }, rows.length);
+  observeMetric("amoria_push_batch_duration_seconds", Number(process.hrtime.bigint() - startedAt) / 1e9, { phase: "send" });
   return rows.length;
 }
 
 export async function processPushReceipts(): Promise<number> {
+  const startedAt = process.hrtime.bigint();
   const rows = await repo.listReceiptPending(1000);
   const withIds = rows.filter((row) => Boolean(row.delivery.expoReceiptId));
   if (!withIds.length) return 0;
   try {
-    const response = await expoRequest(EXPO_RECEIPTS_URL, { ids: withIds.map((row) => row.delivery.expoReceiptId) });
+    const response = await expoRequest(env.EXPO_PUSH_RECEIPTS_URL, { ids: withIds.map((row) => row.delivery.expoReceiptId) });
     if (!response.ok) {
       const code = `expo_receipts_http_${response.status}`;
       await Promise.all(withIds.map((row) => transientStatus(response.status)
@@ -116,9 +120,12 @@ export async function processPushReceipts(): Promise<number> {
       await repo.markReceipt(row.delivery.id, receipt.status === "ok" ? "delivered" : "failed", error);
     }));
   } catch {
+    incrementMetric("amoria_push_errors_total", { phase: "receipt" });
     await Promise.all(withIds.map((row) => repo.markReceiptPendingRetry(row.delivery.id, row.delivery.attemptCount + 1, "expo_receipt_transport_error")));
     return withIds.length;
   }
+  incrementMetric("amoria_push_processed_total", { phase: "receipt" }, withIds.length);
+  observeMetric("amoria_push_batch_duration_seconds", Number(process.hrtime.bigint() - startedAt) / 1e9, { phase: "receipt" });
   return withIds.length;
 }
 

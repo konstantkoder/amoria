@@ -4,7 +4,12 @@ import { verifyAccessToken } from "../auth/jwt";
 import * as chatService from "../chat/chat.service";
 import * as togetherService from "../together/together.service";
 import { wsHub } from "./ws.hub";
-import { findUserAccountStatus } from "../users/users.repo";
+import { findUserAccessState } from "../users/users.repo";
+import {
+  acquireSharedWsUserConnection,
+  consumeSharedWsConnectionAttempt,
+  releaseSharedWsUserConnection,
+} from "./realtime-bus";
 
 type ClientWsMessage =
   | {
@@ -44,8 +49,17 @@ const MAX_PENDING_AUTH_MESSAGES = 10;
 
 export async function wsRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.get("/", { websocket: true }, (socket, request) => {
-    if (!consumeConnectionAttempt(request.ip)) {
-      socket.close(1008, "Connection rate limit exceeded");
+    void beginSocket(socket, request);
+  });
+}
+
+async function beginSocket(socket: WebSocket, request: FastifyRequest): Promise<void> {
+    const sharedDecision = await consumeSharedWsConnectionAttempt(request.ip);
+    if (!(sharedDecision ?? consumeConnectionAttempt(request.ip))) {
+      if (socket.readyState === 1) {
+        socket.send(JSON.stringify({ type: "error", code: "rate_limited", retryAfterSeconds: 60 }));
+        socket.close(1008, "Connection rate limit exceeded");
+      }
       return;
     }
 
@@ -53,6 +67,7 @@ export async function wsRoutes(fastify: FastifyInstance): Promise<void> {
     let authenticatedUserId: string | undefined;
     let expiryTimer: NodeJS.Timeout | undefined;
     let registeredWithHub = false;
+    let sharedUserLeaseId: string | undefined;
 
     socket.on("message", (raw: { toString(): string }) => {
       const message = raw.toString();
@@ -69,13 +84,24 @@ export async function wsRoutes(fastify: FastifyInstance): Promise<void> {
     const cleanup = () => {
       if (expiryTimer) clearTimeout(expiryTimer);
       if (registeredWithHub) wsHub.removeSocket(socket);
+      void releaseSharedWsUserConnection(sharedUserLeaseId);
+      sharedUserLeaseId = undefined;
     };
     socket.on("close", cleanup);
     socket.on("error", cleanup);
 
-    void authenticateSocket(socket, request).then((auth) => {
+    void authenticateSocket(socket, request).then(async (auth) => {
       if (!auth || socket.readyState !== 1) return;
-      if (!wsHub.addSocket(auth.userId, socket)) {
+      const lease = await acquireSharedWsUserConnection(auth.userId);
+      if (lease === null || socket.readyState !== 1) {
+        if (lease) await releaseSharedWsUserConnection(lease);
+        if (socket.readyState === 1) socket.close(1008, "Connection limit exceeded");
+        return;
+      }
+      sharedUserLeaseId = lease;
+      if (!wsHub.addSocket(auth.userId, socket, auth.authVersion)) {
+        await releaseSharedWsUserConnection(sharedUserLeaseId);
+        sharedUserLeaseId = undefined;
         socket.close(1008, "Connection limit exceeded");
         return;
       }
@@ -88,7 +114,7 @@ export async function wsRoutes(fastify: FastifyInstance): Promise<void> {
         void handleClientMessageSafely(socket, auth.userId, message);
       }
     });
-  });
+
 }
 
 async function handleClientMessageSafely(
@@ -106,7 +132,7 @@ async function handleClientMessageSafely(
 async function authenticateSocket(
   socket: WebSocket,
   request: FastifyRequest,
-): Promise<{ userId: string; expiresAtMs: number } | undefined> {
+): Promise<{ userId: string; authVersion: number; expiresAtMs: number } | undefined> {
   const token = authTokenFromRequest(request);
   if (!token) {
     socket.close(1008, "Authentication is required");
@@ -116,11 +142,12 @@ async function authenticateSocket(
   try {
     const payload = verifyAccessToken(token);
     const userId = payload.sub;
-    if (await findUserAccountStatus(userId) !== "active") {
+    const accessState = await findUserAccessState(userId);
+    if (accessState?.accountStatus !== "active" || accessState.authVersion !== payload.ver) {
       socket.close(1008, "Account is not active");
       return undefined;
     }
-    return { userId, expiresAtMs: payload.exp * 1000 };
+    return { userId, authVersion: payload.ver, expiresAtMs: payload.exp * 1000 };
   } catch {
     socket.close(1008, "Invalid access token");
     return undefined;
@@ -173,7 +200,9 @@ async function handleClientMessage(
 
   if (message.channel === "inbox") {
     if (message.type === "subscribe") {
-      wsHub.subscribeInbox(socket);
+      if (!wsHub.subscribeInbox(socket)) {
+        wsHub.sendError(socket, "subscription_limit", "Subscription limit reached");
+      }
     } else {
       wsHub.unsubscribeInbox(socket);
     }
@@ -187,7 +216,9 @@ async function handleClientMessage(
     }
 
     if (message.type === "subscribe") {
-      wsHub.subscribeThread(socket, message.threadId);
+      if (!wsHub.subscribeThread(socket, message.threadId)) {
+        wsHub.sendError(socket, "subscription_limit", "Subscription limit reached");
+      }
     } else {
       wsHub.unsubscribeThread(socket, message.threadId);
     }
@@ -200,7 +231,9 @@ async function handleClientMessage(
   }
 
   if (message.type === "subscribe") {
-    wsHub.subscribeTogether(socket, message.sessionId);
+    if (!wsHub.subscribeTogether(socket, message.sessionId)) {
+      wsHub.sendError(socket, "subscription_limit", "Subscription limit reached");
+    }
   } else {
     wsHub.unsubscribeTogether(socket, message.sessionId);
   }

@@ -5,7 +5,7 @@ import {
   DETERMINISTIC_TEXT_POLICY_VERSION,
   type DeterministicTextFinding,
 } from "./deterministic-text-safety";
-import { localTextModerationClient } from "./local-text-moderation.client";
+import { textModerationClient } from "./text-moderation.client";
 import type {
   MessageSafetyDecision,
   MessageSource,
@@ -32,7 +32,7 @@ export type ModerateMessageInput = {
 type MessageSafetyDeps = {
   evaluateAbuse: (input: ModerateMessageInput) => Promise<AbuseDecision>;
   modelConfigured: () => boolean;
-  classify: typeof localTextModerationClient.classify;
+  classify: typeof textModerationClient.classify;
 };
 
 const abuseGuard = new MessageAbuseGuard();
@@ -40,8 +40,8 @@ const defaultDeps: MessageSafetyDeps = {
   evaluateAbuse: env.isTest
     ? async () => testAllowDecision()
     : async (input) => abuseGuard.evaluate(input),
-  modelConfigured: () => localTextModerationClient.isConfigured(),
-  classify: localTextModerationClient.classify.bind(localTextModerationClient),
+  modelConfigured: () => textModerationClient.isConfigured(),
+  classify: textModerationClient.classify.bind(textModerationClient),
 };
 
 let deps = defaultDeps;

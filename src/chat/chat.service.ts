@@ -101,6 +101,29 @@ export async function openDirectThreadWithStatus(
 
 export async function getInbox(userId: string, limit: number): Promise<InboxResponse> {
   const threads = await deps.repo.listThreadsForUser(userId, limit);
+  const listDetails = (deps.repo as Partial<typeof chatRepo>).listInboxThreadDetails;
+  if (listDetails) {
+    const details = await listDetails(userId, threads.map((thread) => thread.id));
+    const byThread = new Map(details.map((detail) => [detail.threadId, detail]));
+    return {
+      items: threads.flatMap((thread) => {
+        const detail = byThread.get(thread.id);
+        if (!detail) return [];
+        return [{
+          id: thread.id,
+          type: thread.type,
+          peer: detail.peer,
+          lastMessage: detail.lastMessage ? toLastMessageDto(detail.lastMessage as MessageRow) : null,
+          unreadCount: detail.unreadCount,
+          source: thread.sourceType && thread.sourceId
+            ? { type: thread.sourceType as ChatSourceType, sourceId: thread.sourceId }
+            : null,
+          contexts: detail.contexts.map(toThreadContextDto),
+        }];
+      }),
+      nextCursor: null,
+    };
+  }
 
   return {
     items: await Promise.all(threads.map((thread) => toThreadDto(thread, userId))),

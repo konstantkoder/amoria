@@ -2,7 +2,7 @@ import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import multipart from "@fastify/multipart";
 import websocket from "@fastify/websocket";
-import Fastify, { type FastifyInstance } from "fastify";
+import Fastify, { type FastifyError, type FastifyInstance } from "fastify";
 import { errorHandler } from "./common/errors";
 import { withErrorResponses } from "./common/http";
 import { boundedDependencyStatus } from "./common/dependency-readiness";
@@ -27,8 +27,10 @@ import { checkObjectStorageHealth } from "./media/object-storage";
 import { verifyEmailDeliveryReadiness } from "./email/email-delivery.service";
 import { publicPagesRoutes } from "./public/public-pages";
 import { notificationsRoutes } from "./notifications/notifications.routes";
+import { recordPotentialDatabaseFailure, registerMetrics } from "./observability/metrics";
+import { realtimeBusReady } from "./realtime/realtime-bus";
 
-export const EXPECTED_MIGRATION = "0034_release_essentials.sql";
+export const EXPECTED_MIGRATION = "0035_scale_1m.sql";
 export const WS_MAX_PAYLOAD_BYTES = 16 * 1024;
 
 export function isCorsOriginAllowed(origin: string | undefined, allowedOrigins: string[]): boolean {
@@ -68,7 +70,34 @@ export function buildApp(): FastifyInstance {
     trustProxy: env.TRUST_PROXY,
   });
 
-  app.setErrorHandler(errorHandler);
+  app.setErrorHandler((error, request, reply) => {
+    recordPotentialDatabaseFailure(error);
+    errorHandler(error as FastifyError, request, reply);
+  });
+  registerMetrics(app);
+  let admittedInFlight = 0;
+  const admitted = new WeakSet<object>();
+  const releaseAdmission = (request: object) => {
+    if (admitted.delete(request)) admittedInFlight = Math.max(0, admittedInFlight - 1);
+  };
+  app.addHook("onRequest", async (request, reply) => {
+    if (
+      admittedInFlight >= env.API_MAX_IN_FLIGHT_REQUESTS &&
+      !request.url.startsWith("/health/") &&
+      request.url !== "/internal/metrics"
+    ) {
+      return reply.status(503).header("Retry-After", "1").send({
+        error: { code: "temporarily_unavailable", message: "Server is at capacity" },
+      });
+    }
+    admittedInFlight += 1;
+    admitted.add(request);
+  });
+  app.addHook("onResponse", async (request) => {
+    releaseAdmission(request);
+  });
+  app.addHook("onError", async (request) => { releaseAdmission(request); });
+  app.addHook("onRequestAbort", async (request) => { releaseAdmission(request); });
 
   void app.register(helmet, {
     contentSecurityPolicy: false,
@@ -118,13 +147,16 @@ export function buildApp(): FastifyInstance {
       }),
       boundedDependencyStatus(verifyEmailDeliveryReadiness),
     ]);
-    const { ok, degraded } = summarizeReadiness(database, objectStorage, smtp);
+    const bus = realtimeBusReady() ? "ok" : "error";
+    const base = summarizeReadiness(database, objectStorage, smtp);
+    const ok = base.ok && bus === "ok";
+    const degraded = base.degraded || bus !== "ok";
     return reply.status(ok ? 200 : 503).send({
       ok,
       degraded,
       service: SERVICE_NAME,
       time: new Date().toISOString(),
-      dependencies: { database, objectStorage, smtp },
+      dependencies: { database, objectStorage, smtp, realtimeBus: bus },
     });
   });
 

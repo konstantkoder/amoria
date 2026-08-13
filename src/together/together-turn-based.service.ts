@@ -13,6 +13,7 @@ import {
   PROFILE_GENDERS,
 } from "../config/constants";
 import { pool } from "../db/client";
+import { incrementMetric } from "../observability/metrics";
 import type { JsonValue } from "../db/schema";
 import { requireAdultAgeFromBirthDate, normalizePreferredAgeRange } from "../users/age";
 import {
@@ -504,10 +505,14 @@ export async function syncReveal(sessionId: string): Promise<void> {
 export async function runMaintenance(): Promise<void> {
   const client = await pool.connect();
   try {
-    const lock = await client.query<{ locked: boolean }>("SELECT pg_try_advisory_lock(hashtext('together_turn_based_maintenance')) locked");
-    if (!lock.rows[0]?.locked) return;
+    await client.query("BEGIN");
+    const lock = await client.query<{ locked: boolean }>("SELECT pg_try_advisory_xact_lock(hashtext('together_turn_based_maintenance')) locked");
+    if (!lock.rows[0]?.locked) {
+      incrementMetric("amoria_together_lock_contention_total", { lock: "maintenance" });
+      await client.query("ROLLBACK");
+      return;
+    }
     try {
-      await client.query("BEGIN");
       await client.query(`
         UPDATE together_sessions s SET artifact_purge_after=NULL,updated_at=now()
         FROM together_turn_based_moments m
@@ -607,8 +612,6 @@ export async function runMaintenance(): Promise<void> {
       await client.query("ROLLBACK");
       await recordProblem(client,null,"cleanup_failed","error","Together maintenance failed");
       throw error;
-    } finally {
-      await client.query("SELECT pg_advisory_unlock(hashtext('together_turn_based_maintenance'))");
     }
   } finally { client.release(); }
 }

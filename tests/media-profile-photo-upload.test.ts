@@ -252,6 +252,14 @@ test("missing crop metadata uses center square fallback for profile photos", asy
   assert.equal(processed.height, 400);
 });
 
+test("large profile photos are normalized to a bounded display size", async () => {
+  const processed = await imageProcessing.processProfilePhotoImage(
+    await imageBuffer("jpeg", 1600, 1600),
+  );
+  assert.equal(processed.width, 1440);
+  assert.equal(processed.height, 1440);
+});
+
 test("POST /media/profile-photo requires authentication", async () => {
   const app = buildApp();
   await app.ready();

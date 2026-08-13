@@ -1,7 +1,7 @@
-import { and, count, desc, eq, gt, isNull, ne, sql } from "drizzle-orm";
+import { and, count, desc, eq, gt, gte, inArray, isNull, lte, ne, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { PROFILE_GENDERS } from "../config/constants";
-import { db } from "../db/client";
+import { db, pool } from "../db/client";
 import {
   type BlockedUserRow,
   type NearbyProfileVisibilityRow,
@@ -181,6 +181,7 @@ export async function listNearbyProfileFeedRows(
   const distanceKm = haversineDistanceKm(viewerLatitude, viewerLongitude);
   const viewerBlock = alias(blockedUsers, "nearby_profile_viewer_block");
   const candidateBlock = alias(blockedUsers, "nearby_profile_candidate_block");
+  const bounds = geographicBounds(viewerLatitude, viewerLongitude, viewerRadiusKm);
 
   return db
     .select({
@@ -210,6 +211,9 @@ export async function listNearbyProfileFeedRows(
         eq(users.accountStatus, "active"),
         eq(nearbyProfileVisibility.status, "active"),
         gt(nearbyProfileVisibility.expiresAt, now),
+        gte(nearbyProfileVisibility.latitude, bounds.minLatitude),
+        lte(nearbyProfileVisibility.latitude, bounds.maxLatitude),
+        longitudeCondition(nearbyProfileVisibility.longitude, bounds),
         isNull(viewerBlock.blockedUserId),
         isNull(candidateBlock.blockedUserId),
         // Viewer radius is that viewer's discovery preference; candidate radius
@@ -224,7 +228,8 @@ export async function listNearbyProfileFeedRows(
 export async function getNearbyAdminDiagnostics(
   checkedAt = new Date(),
 ): Promise<NearbyAdminDiagnostics> {
-  const [userRows, visibilityRows, blockRows] = await Promise.all([
+  const recentSince = new Date(checkedAt.getTime() - 24 * 60 * 60 * 1000);
+  const [userRows, visibilityRows, aggregateResult] = await Promise.all([
     db.select({
       id: users.id,
       amoriaId: users.amoriaId,
@@ -238,7 +243,7 @@ export async function getNearbyAdminDiagnostics(
       preferredAgeMax: users.preferredAgeMax,
       createdAt: users.createdAt,
       updatedAt: users.updatedAt,
-    }).from(users),
+    }).from(users).orderBy(desc(users.updatedAt)).limit(500),
     db.select({
       userId: nearbyProfileVisibility.userId,
       status: nearbyProfileVisibility.status,
@@ -247,20 +252,61 @@ export async function getNearbyAdminDiagnostics(
       radiusKm: nearbyProfileVisibility.radiusKm,
       updatedAt: nearbyProfileVisibility.updatedAt,
       expiresAt: nearbyProfileVisibility.expiresAt,
-    }).from(nearbyProfileVisibility),
-    db.select({
-      userId: blockedUsers.userId,
-      blockedUserId: blockedUsers.blockedUserId,
-      createdAt: blockedUsers.createdAt,
-    }).from(blockedUsers),
+    }).from(nearbyProfileVisibility).orderBy(desc(nearbyProfileVisibility.updatedAt)).limit(500),
+    pool.query<{
+      active: number; off: number; expired: number; recent: number;
+      missing_birth: number; missing_gender: number; missing_preferred: number;
+      missing_avatar: number; missing_display: number;
+    }>(`
+      SELECT
+        (SELECT count(*) FROM nearby_profile_visibility WHERE status='active' AND expires_at>$1)::int active,
+        (SELECT count(*) FROM nearby_profile_visibility WHERE status='off')::int off,
+        (SELECT count(*) FROM nearby_profile_visibility WHERE status='expired' OR (status='active' AND expires_at<=$1))::int expired,
+        (SELECT count(*) FROM nearby_profile_visibility WHERE updated_at>=$2)::int recent,
+        count(*) FILTER (WHERE birth_date IS NULL)::int missing_birth,
+        count(*) FILTER (WHERE gender IS NULL OR gender='')::int missing_gender,
+        count(*) FILTER (WHERE preferred_genders IS NULL)::int missing_preferred,
+        count(*) FILTER (WHERE avatar_url IS NULL OR btrim(avatar_url)='')::int missing_avatar,
+        count(*) FILTER (WHERE display_name IS NULL OR btrim(display_name)='')::int missing_display
+      FROM users
+    `, [checkedAt, recentSince]),
   ]);
 
-  return buildNearbyAdminDiagnostics({
+  const sampledIds = [...new Set([
+    ...userRows.map((row) => row.id),
+    ...visibilityRows.map((row) => row.userId),
+  ])];
+  const blockRows = sampledIds.length ? await db.select({
+    userId: blockedUsers.userId,
+    blockedUserId: blockedUsers.blockedUserId,
+    createdAt: blockedUsers.createdAt,
+  }).from(blockedUsers).where(and(
+    inArray(blockedUsers.userId, sampledIds),
+    inArray(blockedUsers.blockedUserId, sampledIds),
+  )).limit(2000) : [];
+
+  const sampled = buildNearbyAdminDiagnostics({
     checkedAt,
     users: userRows,
     visibilities: visibilityRows,
     blocks: blockRows,
   });
+  const aggregate = aggregateResult.rows[0];
+  if (!aggregate) return sampled;
+  return {
+    ...sampled,
+    activeVisibilityCount: Number(aggregate.active),
+    offVisibilityCount: Number(aggregate.off),
+    expiredVisibilityCount: Number(aggregate.expired),
+    recentlyUpdatedCount: Number(aggregate.recent),
+    profileReadinessMissing: {
+      missingBirthDate: Number(aggregate.missing_birth),
+      missingGender: Number(aggregate.missing_gender),
+      missingPreferredGenders: Number(aggregate.missing_preferred),
+      missingAvatar: Number(aggregate.missing_avatar),
+      missingDisplayName: Number(aggregate.missing_display),
+    },
+  };
 }
 
 export async function listNearbyFeedRows(
@@ -272,6 +318,7 @@ export async function listNearbyFeedRows(
 ): Promise<NearbyFeedRow[]> {
   const now = new Date();
   const distance = haversineDistanceMeters(lat, lng);
+  const bounds = geographicBounds(lat, lng, radiusMeters / 1000);
 
   return db
     .select({
@@ -299,6 +346,9 @@ export async function listNearbyFeedRows(
     .where(
       and(
         gt(nearbyStatuses.expiresAt, now),
+        gte(nearbyStatuses.lat, bounds.minLatitude),
+        lte(nearbyStatuses.lat, bounds.maxLatitude),
+        longitudeCondition(nearbyStatuses.lng, bounds),
         eq(users.accountStatus, "active"),
         isNull(blockedUsers.blockedUserId),
         sql`${distance} <= ${radiusMeters}`,
@@ -728,4 +778,48 @@ function haversineDistanceKm(lat: number, lng: number) {
       pow(sin(radians(${nearbyProfileVisibility.longitude} - ${lng}) / 2), 2)
     )))
   )`;
+}
+
+type GeographicBounds = {
+  minLatitude: number;
+  maxLatitude: number;
+  minLongitude: number;
+  maxLongitude: number;
+  crossesAntimeridian: boolean;
+  allLongitudes: boolean;
+};
+
+export function geographicBounds(lat: number, lng: number, radiusKm: number): GeographicBounds {
+  const latitudeDelta = radiusKm / 110.574;
+  const minLatitude = Math.max(-90, lat - latitudeDelta);
+  const maxLatitude = Math.min(90, lat + latitudeDelta);
+  const cosine = Math.cos(toRadians(lat));
+  if (Math.abs(cosine) < 0.000001 || minLatitude <= -90 || maxLatitude >= 90) {
+    return { minLatitude, maxLatitude, minLongitude: -180, maxLongitude: 180, crossesAntimeridian: false, allLongitudes: true };
+  }
+  const longitudeDelta = Math.min(180, radiusKm / (111.320 * Math.abs(cosine)));
+  const rawMin = lng - longitudeDelta;
+  const rawMax = lng + longitudeDelta;
+  const minLongitude = normalizeLongitude(rawMin);
+  const maxLongitude = normalizeLongitude(rawMax);
+  return {
+    minLatitude,
+    maxLatitude,
+    minLongitude,
+    maxLongitude,
+    crossesAntimeridian: rawMin < -180 || rawMax > 180,
+    allLongitudes: longitudeDelta >= 180,
+  };
+}
+
+function longitudeCondition(column: typeof nearbyStatuses.lng | typeof nearbyProfileVisibility.longitude, bounds: GeographicBounds) {
+  if (bounds.allLongitudes) return sql`true`;
+  if (bounds.crossesAntimeridian) {
+    return or(gte(column, bounds.minLongitude), lte(column, bounds.maxLongitude));
+  }
+  return and(gte(column, bounds.minLongitude), lte(column, bounds.maxLongitude));
+}
+
+function normalizeLongitude(value: number): number {
+  return ((value + 180) % 360 + 360) % 360 - 180;
 }

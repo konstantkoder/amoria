@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { unauthorized } from "../common/errors";
 import { withErrorResponses } from "../common/http";
 import { authMiddleware } from "../common/security/auth-middleware";
-import { wsHub } from "../realtime/ws.hub";
+import { publishRealtimeEventSafely } from "../realtime/realtime-bus";
 import {
   getThreadMessagesRouteSchema,
   inboxRouteSchema,
@@ -17,6 +17,7 @@ import {
 } from "./chat.schemas";
 import * as chatService from "./chat.service";
 import { notifyUser } from "../notifications/notifications.service";
+import { incrementMetric } from "../observability/metrics";
 
 function currentUserId(request: { auth?: { userId: string } }): string {
   if (!request.auth?.userId) {
@@ -80,12 +81,18 @@ export async function chatRoutes(fastify: FastifyInstance): Promise<void> {
       );
 
       if (result.created && result.deliveryAllowed) {
-        wsHub.broadcastThreadMessage(
-          result.threadId,
-          result.response.message,
-          result.participantUserIds,
-        );
-        wsHub.broadcastInboxUpdated(result.participantUserIds);
+        await Promise.all([
+          publishRealtimeEventSafely({
+            type: "thread.message",
+            threadId: result.threadId,
+            message: result.response.message,
+            allowedUserIds: result.participantUserIds,
+          }, request.log),
+          publishRealtimeEventSafely({
+            type: "inbox.updated",
+            userIds: result.participantUserIds,
+          }, request.log),
+        ]);
         const recipientIds = result.participantUserIds.filter((id) => id !== currentUserId(request));
         await Promise.all(recipientIds.map((recipientId) => notifyUser({
           userId: recipientId,
@@ -93,7 +100,10 @@ export async function chatRoutes(fastify: FastifyInstance): Promise<void> {
           titleKey: "notifications.directMessage",
           payload: { threadId: result.threadId },
           eventKey: `direct_message:${result.response.message.id}`,
-        }))).catch((error) => request.log.error({ err: error }, "Failed to persist direct-message notification"));
+        }))).catch((error) => {
+          incrementMetric("amoria_chat_notification_failures_total");
+          request.log.error({ err: error }, "Failed to persist direct-message notification");
+        });
       }
 
       return result.response;

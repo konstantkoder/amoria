@@ -1,5 +1,5 @@
 import { AppError } from "../common/errors";
-import { wsHub } from "../realtime/ws.hub";
+import { publishRealtimeEventSafely } from "../realtime/realtime-bus";
 import * as auditService from "./admin-audit.service";
 import * as adminRepo from "./admin.repo";
 import * as repo from "./admin-user-control.repo";
@@ -45,7 +45,11 @@ export async function actionUserStatusForAdmin(
       reason: input.reason,
     });
     if (!user) throw new AppError("not_found", "User not found", 404);
-    if (input.action === "suspend") wsHub.disconnectUser(userId, "Account suspended");
+    if (input.action === "suspend") await publishRealtimeEventSafely({
+      type: "user.access_revoked",
+      userId,
+      reason: "Account suspended",
+    });
     await auditService.writeAuditLog({
       adminUserId: admin.adminUser.id,
       action: `admin.users.${input.action}`,

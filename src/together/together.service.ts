@@ -46,6 +46,7 @@ import type {
   TogetherSessionStatus,
   TogetherSessionUpdateResult,
 } from "./together.types";
+import { incrementMetric, observeMetric } from "../observability/metrics";
 import {
   buildStorySparksArtifact,
   getStorySparksPackDto,
@@ -128,6 +129,7 @@ export async function enqueue(
   userId: string,
   input: TogetherQueueBody,
 ): Promise<TogetherQueueResponse> {
+  const startedAt = process.hrtime.bigint();
   const expiresAt = new Date(Date.now() + TOGETHER_QUEUE_TTL_MS);
   const location = normalizeQueueLocation(input);
   const userAgeProfile = await deps.repo.findUserAgeProfile(userId);
@@ -160,6 +162,11 @@ export async function enqueue(
     gender,
     preferredGenders,
     ...location,
+  });
+  incrementMetric("amoria_together_enqueue_total", { result: entry.status === "matched" ? "matched" : "waiting" });
+  if (entry.status === "matched") incrementMetric("amoria_together_matches_total", { activity: input.activity });
+  observeMetric("amoria_together_enqueue_match_duration_seconds", Number(process.hrtime.bigint() - startedAt) / 1e9, {
+    result: entry.status === "matched" ? "matched" : "waiting",
   });
 
   return {

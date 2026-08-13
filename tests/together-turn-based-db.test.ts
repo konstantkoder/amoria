@@ -51,6 +51,22 @@ test("turn-based Together real PostgreSQL behavior matrix", { skip: !enabled }, 
     const liveReveal=await together.reveal(liveB,liveSession,{decision:"open"});
     await t.test("3 live reveal still works",()=>assert.equal(liveReveal.response.outcome,"open_open"));
 
+    const concurrentA=await user(3,"woman");
+    const concurrentB=await user(4,"man");
+    await Promise.all([
+      together.enqueue(concurrentA,{activity:"draw",location:input("ca").location,preferredAgeRange:{min:18,max:null}}),
+      together.enqueue(concurrentB,{activity:"draw",location:input("cb").location,preferredAgeRange:{min:18,max:null}}),
+    ]);
+    const concurrentRows=await pool.query<{status:string;matched_session_id:string|null}>(
+      "SELECT status,matched_session_id FROM together_queue WHERE user_id=ANY($1::uuid[]) ORDER BY user_id",
+      [[concurrentA,concurrentB]],
+    );
+    await t.test("3a simultaneous live enqueues converge without an activity-global lock",()=>{
+      assert.equal(concurrentRows.rows.length,2);
+      assert.ok(concurrentRows.rows.every((row)=>row.status==="matched"));
+      assert.equal(new Set(concurrentRows.rows.map((row)=>row.matched_session_id)).size,1);
+    });
+
     const starter=await user(10,"woman");
     const created=(await turn.start(starter,input("lost-response-1"))).moment!;
     await t.test("4 starter moment creation",()=>assert.equal(created.action,"start_draw"));

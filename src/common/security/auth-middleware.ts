@@ -2,7 +2,7 @@ import type { FastifyReply, FastifyRequest } from "fastify";
 import "../../auth/auth.types";
 import { AppError, unauthorized } from "../errors";
 import { verifyAccessToken } from "../../auth/jwt";
-import { findUserAccountStatus, touchUserLastSeenAt } from "../../users/users.repo";
+import { findUserAccessState, touchUserLastSeenAt } from "../../users/users.repo";
 
 const PRESENCE_HEARTBEAT_ENABLED = process.env.NODE_ENV !== "test";
 
@@ -27,13 +27,14 @@ export async function authMiddleware(request: FastifyRequest, _reply: FastifyRep
     return;
   }
 
-  const accountStatus = await findUserAccountStatus(payload.sub);
-  if (!accountStatus) {
+  const accessState = await findUserAccessState(payload.sub);
+  if (!accessState) {
     throw unauthorized("User no longer exists");
   }
-  if (accountStatus !== "active") {
+  if (accessState.accountStatus !== "active") {
     throw new AppError("account_suspended", "Account is suspended", 403);
   }
+  if (accessState.authVersion !== payload.ver) throw unauthorized("Access has been revoked");
 
   try {
     await touchUserLastSeenAt(payload.sub);

@@ -1,6 +1,6 @@
 import { and, count, desc, eq, gt, ne, notExists, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
-import { db } from "../db/client";
+import { db, pool } from "../db/client";
 import {
   type MessageRow,
   type NewMessageRow,
@@ -45,6 +45,14 @@ export type ThreadSourceInput = {
   type: ChatSourceType;
   sourceId: string;
   metadata?: JsonValue | null;
+};
+
+export type InboxThreadDetail = {
+  threadId: string;
+  peer: ThreadPeerDto;
+  lastMessage: { id: string; text: string; createdAt: Date } | null;
+  unreadCount: number;
+  contexts: ThreadContextRow[];
 };
 
 function directPairFor(userId: string, peerUserId: string) {
@@ -402,6 +410,77 @@ export async function findLatestMessage(threadId: string): Promise<ModeratedMess
     .limit(1);
 
   return row ? withModeration(row.message, row.moderation) : undefined;
+}
+
+export async function listInboxThreadDetails(
+  userId: string,
+  threadIds: string[],
+): Promise<InboxThreadDetail[]> {
+  if (!threadIds.length) return [];
+  const result = await pool.query<{
+    thread_id: string;
+    peer_id: string;
+    peer_display_name: string;
+    peer_avatar_url: string | null;
+    last_message_id: string | null;
+    last_message_text: string | null;
+    last_message_created_at: Date | null;
+    unread_count: number;
+    contexts: Array<{
+      id: string;
+      threadId: string;
+      sourceType: string;
+      sourceId: string;
+      metadata: JsonValue | null;
+      createdByUserId: string | null;
+      createdAt: string;
+    }>;
+  }>(`
+    SELECT target.thread_id,
+      peer.id peer_id,peer.display_name peer_display_name,peer.avatar_url peer_avatar_url,
+      latest.id last_message_id,latest.text last_message_text,latest.created_at last_message_created_at,
+      COALESCE(unread.value,0)::int unread_count,COALESCE(contexts.value,'[]'::jsonb) contexts
+    FROM unnest($2::uuid[]) WITH ORDINALITY target(thread_id,ordinality)
+    JOIN LATERAL (
+      SELECT u.id,u.display_name,u.avatar_url
+      FROM thread_members tm JOIN users u ON u.id=tm.user_id
+      WHERE tm.thread_id=target.thread_id AND tm.user_id<>$1 LIMIT 1
+    ) peer ON true
+    LEFT JOIN LATERAL (
+      SELECT m.id,m.text,m.created_at
+      FROM messages m LEFT JOIN message_moderation_states ms ON ms.message_id=m.id
+      WHERE m.thread_id=target.thread_id AND (ms.message_id IS NULL OR ms.state='visible')
+      ORDER BY m.created_at DESC,m.id DESC LIMIT 1
+    ) latest ON true
+    LEFT JOIN LATERAL (
+      SELECT count(*) value FROM (
+        SELECT 1 FROM messages m
+        LEFT JOIN thread_reads r ON r.thread_id=m.thread_id AND r.user_id=$1
+        LEFT JOIN message_moderation_states ms ON ms.message_id=m.id
+        WHERE m.thread_id=target.thread_id AND m.from_user_id<>$1
+          AND m.created_at>COALESCE(r.last_read_at,'epoch'::timestamptz)
+          AND (ms.message_id IS NULL OR ms.state='visible')
+        ORDER BY m.created_at DESC,m.id DESC LIMIT 1000
+      ) bounded_unread
+    ) unread ON true
+    LEFT JOIN LATERAL (
+      SELECT jsonb_agg(jsonb_build_object(
+        'id',c.id,'threadId',c.thread_id,'sourceType',c.source_type,'sourceId',c.source_id,
+        'metadata',c.metadata,'createdByUserId',c.created_by_user_id,'createdAt',c.created_at
+      ) ORDER BY c.created_at DESC,c.id DESC) value
+      FROM (SELECT * FROM thread_contexts WHERE thread_id=target.thread_id ORDER BY created_at DESC,id DESC LIMIT 20) c
+    ) contexts ON true
+    ORDER BY target.ordinality
+  `, [userId, threadIds]);
+  return result.rows.map((row) => ({
+    threadId: row.thread_id,
+    peer: { id: row.peer_id, displayName: row.peer_display_name, avatarUrl: row.peer_avatar_url },
+    lastMessage: row.last_message_id && row.last_message_text && row.last_message_created_at
+      ? { id: row.last_message_id, text: row.last_message_text, createdAt: row.last_message_created_at }
+      : null,
+    unreadCount: Number(row.unread_count),
+    contexts: row.contexts.map((context) => ({ ...context, createdAt: new Date(context.createdAt) })),
+  }));
 }
 
 export async function getUnreadCount(threadId: string, userId: string): Promise<number> {

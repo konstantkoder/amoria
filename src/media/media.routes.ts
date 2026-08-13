@@ -90,6 +90,13 @@ export async function mediaRoutes(fastify: FastifyInstance): Promise<void> {
     "/public/:mediaId",
     async (request, reply) => {
       const media = await mediaService.getPublicMedia(request.params.mediaId);
+      if ("redirectUrl" in media) {
+        return reply
+          .status(307)
+          .header("location", media.redirectUrl)
+          .header("cache-control", "public, max-age=30")
+          .send();
+      }
       return reply
         .header("content-type", media.contentType)
         .header("cache-control", "public, max-age=0, must-revalidate")

@@ -8,6 +8,7 @@ import {
   PROFILE_PHOTO_MAX_WIDTH,
   PROFILE_PHOTO_MIN_HEIGHT,
   PROFILE_PHOTO_MIN_WIDTH,
+  PROFILE_PHOTO_OUTPUT_MAX_SIZE,
 } from "../config/constants";
 
 export type ProcessedImage = {
@@ -222,6 +223,12 @@ export async function processProfilePhotoImage(
       limitInputPixels: PROFILE_PHOTO_MAX_WIDTH * PROFILE_PHOTO_MAX_HEIGHT,
     })
       .extract(squareCrop)
+      .resize({
+        width: PROFILE_PHOTO_OUTPUT_MAX_SIZE,
+        height: PROFILE_PHOTO_OUTPUT_MAX_SIZE,
+        fit: "inside",
+        withoutEnlargement: true,
+      })
       .webp({
         quality: 86,
         effort: 4,

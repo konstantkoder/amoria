@@ -21,7 +21,7 @@ import {
 } from "./media.repo";
 import { queueInitialMediaModeration } from "./media-moderation.service";
 import { publicMediaUrlForMediaId } from "./media-url";
-import { deleteObject, getObjectBuffer, putObjectBuffer } from "./object-storage";
+import { createPublicGetPresignedUrl, deleteObject, getObjectBuffer, putObjectBuffer } from "./object-storage";
 import { findGalleryItemForMedia } from "../users/profile-gallery.repo";
 
 export type AvatarUploadResponse = {
@@ -33,6 +33,8 @@ export type PublicMediaResponse = {
   body: Buffer;
   contentType: string;
 };
+
+export type PublicMediaDeliveryResponse = PublicMediaResponse | { redirectUrl: string };
 
 type MediaServiceDeps = {
   findUserById: typeof findUserById;
@@ -48,6 +50,7 @@ type MediaServiceDeps = {
   putObjectBuffer: typeof putObjectBuffer;
   getObjectBuffer: typeof getObjectBuffer;
   deleteObject: typeof deleteObject;
+  createPublicGetPresignedUrl: typeof createPublicGetPresignedUrl;
   processAvatarImage: typeof processAvatarImage;
 };
 
@@ -65,6 +68,7 @@ const defaultDeps: MediaServiceDeps = {
   putObjectBuffer,
   getObjectBuffer,
   deleteObject,
+  createPublicGetPresignedUrl,
   processAvatarImage,
 };
 
@@ -166,7 +170,7 @@ export async function uploadAvatar(
   };
 }
 
-export async function getPublicMedia(mediaId: string): Promise<PublicMediaResponse> {
+export async function getPublicMedia(mediaId: string): Promise<PublicMediaDeliveryResponse> {
   const media = await deps.findMediaFileById(String(mediaId ?? "").trim());
   if (!media) {
     throw new AppError("not_found", "Media file not found", 404);
@@ -185,6 +189,12 @@ export async function getPublicMedia(mediaId: string): Promise<PublicMediaRespon
     if (!galleryItem || galleryItem.item.visibility !== "public") {
       throw new AppError("not_found", "Media file not found", 404);
     }
+  }
+
+  if (env.PUBLIC_MEDIA_DELIVERY_MODE === "presigned") {
+    return {
+      redirectUrl: await deps.createPublicGetPresignedUrl({ bucket: env.S3_BUCKET, key: media.path }),
+    };
   }
 
   const body = await readPublicMediaObject(media);

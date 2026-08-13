@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { unauthorized } from "../common/errors";
 import { withErrorResponses } from "../common/http";
 import { authMiddleware } from "../common/security/auth-middleware";
-import { wsHub } from "../realtime/ws.hub";
+import { publishRealtimeEventSafely } from "../realtime/realtime-bus";
 import {
   createNearbyStatusRouteSchema,
   deleteNearbyStatusRouteSchema,
@@ -119,11 +119,12 @@ export async function nearbyRoutes(fastify: FastifyInstance): Promise<void> {
       );
 
       if (result.created && result.deliveryAllowed) {
-        wsHub.broadcastThreadMessage(
-          result.threadId,
-          result.response.message,
-          result.recipientUserIds,
-        );
+        await publishRealtimeEventSafely({
+          type: "thread.message",
+          threadId: result.threadId,
+          message: result.response.message,
+          allowedUserIds: result.recipientUserIds,
+        }, request.log);
       }
 
       return result.response;

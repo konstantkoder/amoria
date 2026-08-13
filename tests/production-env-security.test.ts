@@ -40,6 +40,8 @@ function productionEnv(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
     TRUST_PROXY: "172.28.0.1/32",
     CORS_ALLOWED_ORIGINS: "https://admin.example.test",
     RELEASE_SHA: "0123456789abcdef0123456789abcdef01234567",
+    REALTIME_BUS_URL: "redis://valkey:6379",
+    METRICS_TOKEN: strongB,
     ...overrides,
   };
 }

@@ -17,12 +17,18 @@ export async function findUserByAmoriaId(amoriaId: string): Promise<UserRow | un
   });
 }
 
-export async function findUserAccountStatus(userId: string): Promise<string | undefined> {
+export type UserAccessState = { accountStatus: string; authVersion: number };
+
+export async function findUserAccessState(userId: string): Promise<UserAccessState | undefined> {
   const row = await db.query.users.findFirst({
-    columns: { accountStatus: true },
+    columns: { accountStatus: true, authVersion: true },
     where: eq(users.id, userId),
   });
-  return row?.accountStatus;
+  return row;
+}
+
+export async function findUserAccountStatus(userId: string): Promise<string | undefined> {
+  return (await findUserAccessState(userId))?.accountStatus;
 }
 
 export async function hasUnrevealedTurnBasedPair(userId:string,targetUserId:string):Promise<boolean>{

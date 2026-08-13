@@ -49,6 +49,7 @@ export const users = pgTable("users", {
   preferredAgeMin: integer("preferred_age_min").default(18).notNull(),
   preferredAgeMax: integer("preferred_age_max"),
   accountStatus: text("account_status").default("active").notNull(),
+  authVersion: integer("auth_version").default(0).notNull(),
   suspendedAt: timestamp("suspended_at", { withTimezone: true }),
   suspensionReason: text("suspension_reason"),
   suspendedByAdminUserId: uuid("suspended_by_admin_user_id"),
@@ -74,6 +75,7 @@ export const users = pgTable("users", {
     "users_account_status_check",
     sql`${table.accountStatus} IN ('active', 'suspended', 'deleting', 'deleted')`,
   ),
+  check("users_auth_version_check", sql`${table.authVersion} >= 0`),
 ]);
 
 export const mediaFiles = pgTable("media_files", {
@@ -479,7 +481,9 @@ export const nearbyStatuses = pgTable("nearby_statuses", {
   radiusMeters: integer("radius_meters").notNull(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-});
+}, (table) => [
+  index("nearby_statuses_geo_expires_idx").on(table.lat, table.lng, table.expiresAt),
+]);
 
 export const nearbyProfileVisibility = pgTable(
   "nearby_profile_visibility",
@@ -498,6 +502,9 @@ export const nearbyProfileVisibility = pgTable(
   },
   (table) => [
     index("nearby_profile_visibility_status_expires_idx").on(table.status, table.expiresAt),
+    index("nearby_profile_visibility_active_geo_idx")
+      .on(table.latitude, table.longitude, table.expiresAt)
+      .where(sql`${table.status} = 'active'`),
     check(
       "nearby_profile_visibility_status_check",
       sql`${table.status} IN ('active', 'off', 'expired')`,
@@ -720,6 +727,10 @@ export const togetherQueue = pgTable(
     uniqueIndex("together_queue_user_waiting_unique")
       .on(table.userId)
       .where(sql`${table.status} = 'waiting'`),
+    index("together_queue_waiting_activity_created_idx")
+      .on(table.activity, table.createdAt, table.id)
+      .where(sql`${table.status} = 'waiting'`),
+    index("together_queue_status_expires_idx").on(table.status, table.expiresAt),
     check(
       "together_queue_radius_km_check",
       sql`${table.radiusKm} IS NULL OR ${table.radiusKm} IN (5, 25, 100, 250)`,
@@ -763,7 +774,10 @@ export const togetherSessionMembers = pgTable(
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
     leftAt: timestamp("left_at", { withTimezone: true }),
   },
-  (table) => [primaryKey({ columns: [table.sessionId, table.userId] })],
+  (table) => [
+    primaryKey({ columns: [table.sessionId, table.userId] }),
+    index("together_session_members_user_session_idx").on(table.userId, table.sessionId),
+  ],
 );
 
 export const togetherEvents = pgTable(
@@ -794,6 +808,7 @@ export const togetherEvents = pgTable(
         sql`(${table.payload}->>'roundId')`,
       )
       .where(sql`${table.type} = 'story_choice' AND ${table.payload} ? 'roundId'`),
+    index("together_events_session_created_id_idx").on(table.sessionId, table.createdAt, table.id),
   ],
 );
 
@@ -856,7 +871,10 @@ export const threadMembers = pgTable(
       .references(() => users.id, { onDelete: "cascade" }),
     joinedAt: timestamp("joined_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  (table) => [primaryKey({ columns: [table.threadId, table.userId] })],
+  (table) => [
+    primaryKey({ columns: [table.threadId, table.userId] }),
+    index("thread_members_user_thread_idx").on(table.userId, table.threadId),
+  ],
 );
 
 export const threadContexts = pgTable(
@@ -905,6 +923,8 @@ export const messages = pgTable(
       table.fromUserId,
       table.clientMessageId,
     ),
+    index("messages_thread_created_id_idx").on(table.threadId, table.createdAt.desc(), table.id.desc()),
+    index("messages_thread_sender_created_idx").on(table.threadId, table.fromUserId, table.createdAt.desc()),
   ],
 );
 
@@ -1039,6 +1059,7 @@ export const refreshTokens = pgTable("refresh_tokens", {
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
   tokenHash: text("token_hash").notNull().unique(),
+  authVersion: integer("auth_version").default(0).notNull(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
   revokedAt: timestamp("revoked_at", { withTimezone: true }),
@@ -1046,7 +1067,9 @@ export const refreshTokens = pgTable("refresh_tokens", {
   deviceId: text("device_id"),
   userAgent: text("user_agent"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-});
+}, (table) => [
+  check("refresh_tokens_auth_version_check", sql`${table.authVersion} >= 0`),
+]);
 
 export const authEmailChallenges = pgTable(
   "auth_email_challenges",
@@ -1291,6 +1314,7 @@ export const pushDeliveries = pgTable(
     unique("push_deliveries_notification_token_unique").on(table.notificationId, table.pushTokenId),
     index("push_deliveries_due_idx").on(table.status, table.nextAttemptAt),
     index("push_deliveries_receipt_idx").on(table.expoReceiptId),
+    index("push_deliveries_status_updated_idx").on(table.status, table.updatedAt),
     check(
       "push_deliveries_status_check",
       sql`${table.status} IN ('pending', 'sending', 'receipt_pending', 'retry', 'delivered', 'failed')`,
@@ -1631,8 +1655,8 @@ export const authEmailChallengesRelations = relations(authEmailChallenges, ({ on
 }));
 
 type UserDbRow = typeof users.$inferSelect;
-export type UserRow = Omit<UserDbRow, "accountStatus" | "suspendedAt" | "suspensionReason" | "suspendedByAdminUserId" | "deletedAt"> &
-  Partial<Pick<UserDbRow, "accountStatus" | "suspendedAt" | "suspensionReason" | "suspendedByAdminUserId" | "deletedAt">>;
+export type UserRow = Omit<UserDbRow, "accountStatus" | "authVersion" | "suspendedAt" | "suspensionReason" | "suspendedByAdminUserId" | "deletedAt"> &
+  Partial<Pick<UserDbRow, "accountStatus" | "authVersion" | "suspendedAt" | "suspensionReason" | "suspendedByAdminUserId" | "deletedAt">>;
 export type NewUserRow = typeof users.$inferInsert;
 export type AuthEmailChallengeRow = typeof authEmailChallenges.$inferSelect;
 export type NewAuthEmailChallengeRow = typeof authEmailChallenges.$inferInsert;

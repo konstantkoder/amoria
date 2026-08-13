@@ -9,6 +9,7 @@ import {
   type MessageFingerprints,
 } from "./message-fingerprint";
 import type { MessageSource } from "./message-moderation.types";
+import { consumeSharedMessageAttempt } from "../realtime/realtime-bus";
 
 const SENDER_WINDOW_MS = 60_000;
 const DUPLICATE_WINDOW_MS = 10 * 60_000;
@@ -54,6 +55,13 @@ type AccountSignals = {
 
 export class MessageAbuseGuard {
   async evaluate(input: AbuseGuardInput): Promise<AbuseDecision> {
+    const sharedAllowed = await consumeSharedMessageAttempt(input.senderUserId);
+    if (sharedAllowed === false) {
+      throw new AppError("message_rate_limited", "Message rate limit reached. Try again shortly.", 429, {
+        retryAfterSec: String(RATE_LIMIT_RETRY_SECONDS),
+        reason: "shared_sender_rate",
+      });
+    }
     const now = new Date();
     const fingerprints = fingerprintMessage(input.text, env.MESSAGE_ABUSE_HMAC_SECRET);
     const threadKey = privacyKey("thread", input.threadId);
@@ -144,12 +152,6 @@ export class MessageAbuseGuard {
           now,
           new Date(now.getTime() + env.MESSAGE_ABUSE_RETENTION_HOURS * 3_600_000),
         ],
-      );
-      await client.query(
-        `DELETE FROM message_abuse_events WHERE id IN (
-           SELECT id FROM message_abuse_events WHERE expires_at <= $1 ORDER BY expires_at LIMIT 200
-         )`,
-        [now],
       );
       await client.query("COMMIT");
       return decision;

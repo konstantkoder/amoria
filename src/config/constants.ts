@@ -11,6 +11,7 @@ export const PROFILE_PHOTO_MIN_WIDTH = 256;
 export const PROFILE_PHOTO_MIN_HEIGHT = 256;
 export const PROFILE_PHOTO_MAX_WIDTH = 8000;
 export const PROFILE_PHOTO_MAX_HEIGHT = 8000;
+export const PROFILE_PHOTO_OUTPUT_MAX_SIZE = 1440;
 export const MEDIA_UPLOAD_EXPIRES_IN_SEC = 10 * 60;
 export const MEDIA_UPLOAD_PURPOSES = [
   "avatar",

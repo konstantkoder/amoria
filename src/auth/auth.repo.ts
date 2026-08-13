@@ -1,5 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
-import { and, eq, gt, gte, isNotNull, isNull } from "drizzle-orm";
+import { and, eq, gt, gte, isNotNull, isNull, sql } from "drizzle-orm";
 import { db, pool } from "../db/client";
 import {
   type NewRefreshTokenRow,
@@ -45,12 +45,26 @@ export async function createUser(input: NewUserRow): Promise<UserRow> {
   return created;
 }
 
-export async function createRefreshToken(input: NewRefreshTokenRow): Promise<RefreshTokenRow> {
-  const [created] = await db.insert(refreshTokens).values(input).returning();
-  if (!created) {
-    throw new Error("Failed to create refresh token");
-  }
-  return created;
+export async function createRefreshToken(
+  input: NewRefreshTokenRow,
+  expectedAuthVersion: number,
+): Promise<RefreshTokenRow | undefined> {
+  return db.transaction(async (tx) => {
+    const [access] = await tx
+      .select({ accountStatus: users.accountStatus, authVersion: users.authVersion })
+      .from(users)
+      .where(eq(users.id, input.userId))
+      .for("update");
+    if (access?.accountStatus !== "active" || access.authVersion !== expectedAuthVersion) {
+      return undefined;
+    }
+    const [created] = await tx.insert(refreshTokens).values({
+      ...input,
+      authVersion: expectedAuthVersion,
+    }).returning();
+    if (!created) throw new Error("Failed to create refresh token");
+    return created;
+  });
 }
 
 export async function rotateRefreshToken(input: {
@@ -62,13 +76,9 @@ export async function rotateRefreshToken(input: {
   metadata: RefreshTokenMetadata;
 }): Promise<{ user: UserRow; refreshToken: RefreshTokenRow } | undefined> {
   return db.transaction(async (tx) => {
-    const [revoked] = await tx
-      .update(refreshTokens)
-      .set({
-        lastUsedAt: input.now,
-        revokedAt: input.now,
-        replacedByTokenId: input.newTokenId,
-      })
+    const [candidate] = await tx
+      .select({ id: refreshTokens.id, userId: refreshTokens.userId })
+      .from(refreshTokens)
       .where(
         and(
           eq(refreshTokens.tokenHash, input.tokenHash),
@@ -76,27 +86,43 @@ export async function rotateRefreshToken(input: {
           gt(refreshTokens.expiresAt, input.now),
         ),
       )
-      .returning();
+      .limit(1);
 
-    if (!revoked) {
-      return undefined;
-    }
+    if (!candidate) return undefined;
 
     const [user] = await tx
       .select()
       .from(users)
-      .where(eq(users.id, revoked.userId))
-      .limit(1);
+      .where(eq(users.id, candidate.userId))
+      .for("update");
 
-    if (!user) {
+    if (!user || user.accountStatus !== "active") {
       return undefined;
     }
+
+    const [revoked] = await tx
+      .update(refreshTokens)
+      .set({
+        lastUsedAt: input.now,
+        revokedAt: input.now,
+        replacedByTokenId: input.newTokenId,
+      })
+      .where(and(
+        eq(refreshTokens.id, candidate.id),
+        eq(refreshTokens.authVersion, user.authVersion),
+        isNull(refreshTokens.revokedAt),
+        gt(refreshTokens.expiresAt, input.now),
+      ))
+      .returning();
+
+    if (!revoked) return undefined;
 
     const [created] = await tx
       .insert(refreshTokens)
       .values({
         id: input.newTokenId,
         userId: revoked.userId,
+        authVersion: user.authVersion,
         tokenHash: input.newTokenHash,
         expiresAt: input.newTokenExpiresAt,
         deviceId: input.metadata.deviceId ?? null,
@@ -146,7 +172,9 @@ export async function findRecentRefreshReplacement(input: {
   const user = await db.query.users.findFirst({
     where: eq(users.id, replacement.userId),
   });
-  return user ? { user, refreshToken: replacement } : undefined;
+  return user && user.authVersion === replacement.authVersion
+    ? { user, refreshToken: replacement }
+    : undefined;
 }
 
 export async function revokeRefreshTokenByHash(tokenHash: string, now: Date): Promise<void> {
@@ -168,6 +196,24 @@ export async function revokeAllRefreshTokensForUser(userId: string, now: Date): 
     .where(and(eq(refreshTokens.userId, userId), isNull(refreshTokens.revokedAt)));
 }
 
+export async function revokeAllUserAccess(userId: string, now: Date): Promise<void> {
+  await db.transaction(async (tx) => {
+    await tx
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.id, userId))
+      .for("update");
+    await tx
+      .update(refreshTokens)
+      .set({ revokedAt: now })
+      .where(and(eq(refreshTokens.userId, userId), isNull(refreshTokens.revokedAt)));
+    await tx
+      .update(users)
+      .set({ authVersion: sql`${users.authVersion} + 1`, updatedAt: now })
+      .where(eq(users.id, userId));
+  });
+}
+
 export type AuthEmailChallengePurpose = "verify_email" | "password_reset";
 
 type ChallengeRow = {
@@ -187,6 +233,7 @@ type LockedUserRow = {
   amoria_id: string;
   avatar_url: string | null;
   email_verified_at: Date | null;
+  auth_version: number;
 };
 
 export type CreateChallengeResult =
@@ -223,6 +270,7 @@ function rowToUser(row: LockedUserRow): UserRow {
     preferredAgeMin: 18,
     preferredAgeMax: null,
     accountStatus: "active",
+    authVersion: row.auth_version,
     suspendedAt: null,
     suspensionReason: null,
     suspendedByAdminUserId: null,
@@ -255,7 +303,7 @@ export async function createOrReplaceEmailChallenge(input: {
       `${input.userId}:${input.purpose}`,
     ]);
     const userResult = await client.query<LockedUserRow>(
-      `SELECT id, email, password_hash, display_name, amoria_id, avatar_url, email_verified_at
+      `SELECT id, email, password_hash, display_name, amoria_id, avatar_url, email_verified_at, auth_version
        FROM users WHERE id = $1 FOR UPDATE`,
       [input.userId],
     );
@@ -363,7 +411,7 @@ async function consumeChallenge(input: {
       `${input.userId}:${input.purpose}`,
     ]);
     const userResult = await client.query<LockedUserRow>(
-      `SELECT id, email, password_hash, display_name, amoria_id, avatar_url, email_verified_at
+      `SELECT id, email, password_hash, display_name, amoria_id, avatar_url, email_verified_at, auth_version
        FROM users WHERE id = $1 FOR UPDATE`,
       [input.userId],
     );
@@ -418,7 +466,7 @@ async function consumeChallenge(input: {
     } else {
       if (!input.newPasswordHash) throw new Error("Password hash is required for reset confirmation");
       await client.query(
-        "UPDATE users SET password_hash = $2, updated_at = $3 WHERE id = $1",
+        "UPDATE users SET password_hash = $2, auth_version = auth_version + 1, updated_at = $3 WHERE id = $1 RETURNING auth_version",
         [input.userId, input.newPasswordHash, input.now],
       );
       await client.query(
@@ -426,6 +474,7 @@ async function consumeChallenge(input: {
         [input.userId, input.now],
       );
       user.password_hash = input.newPasswordHash;
+      user.auth_version += 1;
     }
     await client.query(
       "UPDATE auth_email_challenges SET consumed_at = $2, updated_at = $2 WHERE id = $1",

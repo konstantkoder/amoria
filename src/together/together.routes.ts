@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { unauthorized } from "../common/errors";
 import { withErrorResponses } from "../common/http";
 import { authMiddleware } from "../common/security/auth-middleware";
-import { wsHub } from "../realtime/ws.hub";
+import { publishRealtimeEventSafely } from "../realtime/realtime-bus";
 import {
   deleteTogetherQueueRouteSchema,
   getTogetherQueueRouteSchema,
@@ -191,7 +191,11 @@ export async function togetherRoutes(fastify: FastifyInstance): Promise<void> {
       );
 
       if (result.created) {
-        wsHub.broadcastTogetherEvent(request.params.id, result.event);
+        await publishRealtimeEventSafely({
+          type: "together.event",
+          sessionId: request.params.id,
+          event: result.event,
+        }, request.log);
         if (body.type === "story_choice") {
           try {
             const turnBasedMomentId = await turnBasedService.findMomentIdBySession(request.params.id);
@@ -217,7 +221,7 @@ export async function togetherRoutes(fastify: FastifyInstance): Promise<void> {
         currentUserId(request),
         request.params.id,
       );
-      broadcastSessionUpdate(request.params.id, result);
+      await broadcastSessionUpdate(request.params.id, result, request.log);
       return result.response;
     },
   );
@@ -233,7 +237,7 @@ export async function togetherRoutes(fastify: FastifyInstance): Promise<void> {
         currentUserId(request),
         request.params.id,
       );
-      broadcastSessionUpdate(request.params.id, result);
+      await broadcastSessionUpdate(request.params.id, result, request.log);
       return result.response;
     },
   );
@@ -249,7 +253,7 @@ export async function togetherRoutes(fastify: FastifyInstance): Promise<void> {
         currentUserId(request),
         request.params.id,
       );
-      broadcastSessionUpdate(request.params.id, result);
+      await broadcastSessionUpdate(request.params.id, result, request.log);
       return result.response;
     },
   );
@@ -271,11 +275,12 @@ export async function togetherRoutes(fastify: FastifyInstance): Promise<void> {
       const turnBasedMomentId = await turnBasedService.findMomentIdBySession(request.params.id);
       if (turnBasedMomentId) await broadcastTurnBasedMoment(turnBasedMomentId, actorUserId, request.log);
 
-      wsHub.broadcastTogetherRevealUpdated(
-        request.params.id,
-        result.broadcasts,
+      await publishRealtimeEventSafely({
+        type: "together.reveal.updated",
+        sessionId: request.params.id,
+        revealStates: result.broadcasts,
         actorUserId,
-      );
+      }, request.log);
 
       return result.response;
     },
@@ -283,26 +288,32 @@ export async function togetherRoutes(fastify: FastifyInstance): Promise<void> {
 
 }
 
-function broadcastSessionUpdate(
+async function broadcastSessionUpdate(
   sessionId: string,
   result: TogetherSessionUpdateResult,
-): void {
+  log?: { error: (value: unknown, message?: string) => void },
+): Promise<void> {
   if (!result.changed || !result.reason || !result.actorUserId) {
     return;
   }
 
-  wsHub.broadcastTogetherSessionUpdated(sessionId, {
+  await publishRealtimeEventSafely({
+    type: "together.session.updated",
     sessionId,
     session: result.response,
     reason: result.reason,
     actorUserId: result.actorUserId,
-  });
+  }, log);
 }
 
 async function broadcastTurnBasedMoment(momentId: string, actorUserId?: string, log?: { error: (value: unknown, message?: string) => void }): Promise<void> {
   const broadcasts = await turnBasedService.getMomentBroadcasts(momentId);
   for (const broadcast of broadcasts) {
-    wsHub.broadcastTurnBasedUpdated([broadcast.userId], broadcast.moment);
+    await publishRealtimeEventSafely({
+      type: "together.turn_based.updated",
+      userIds: [broadcast.userId],
+      moment: broadcast.moment,
+    }, log);
   }
   const attentionActions = new Set(["continue_draw", "review_draw", "continue_story", "review_story"]);
   const recipients = broadcasts.filter((broadcast) => attentionActions.has(broadcast.moment.action) && broadcast.userId !== actorUserId);
