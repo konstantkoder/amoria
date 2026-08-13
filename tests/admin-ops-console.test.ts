@@ -28,6 +28,10 @@ const adminService = require("../src/admin/admin.service") as typeof import("../
 const adminOwnerService = require("../src/admin/admin-owner.service") as typeof import("../src/admin/admin-owner.service");
 const adminReportsService = require("../src/admin/admin-reports.service") as typeof import("../src/admin/admin-reports.service");
 const adminMediaService = require("../src/admin/admin-media.service") as typeof import("../src/admin/admin-media.service");
+const {
+  safeAdminMediaRawResult,
+  sanitizeAdminMediaReviewMetadata,
+} = require("../src/admin/admin-media.types") as typeof import("../src/admin/admin-media.types");
 const adminOpsService = require("../src/admin/admin-ops.service") as typeof import("../src/admin/admin-ops.service");
 
 const userId = "00000000-0000-4000-8000-000000000001";
@@ -881,7 +885,7 @@ test("locked media access requires elevated role and reason", async (t) => {
   assert.equal(allowed.statusCode, 200);
   assert.equal(allowed.json().media.url, null);
   assert.equal(allowed.json().media.publicUrl, null);
-  assert.equal(allowed.json().media.path, null);
+  assert.equal("path" in allowed.json().media, false);
   assert.equal(state.auditInputs[0]?.action, "admin.media.locked.view");
   assert.equal(state.auditInputs[0]?.reason, "Moderation review");
 });
@@ -937,6 +941,48 @@ test("admin endpoints do not expose password hashes refresh tokens or secrets", 
   assert.equal(combined.includes("passwordHash"), false);
   assert.equal(combined.includes("refreshToken"), false);
   assert.equal(combined.includes("secret"), false);
+  assert.equal(combined.includes("users/owner/profile/media.webp"), false);
+});
+
+test("Admin Media whitelists automation evidence and redacts unsafe review metadata", () => {
+  assert.deepEqual(safeAdminMediaRawResult({
+    containsPerson: "true",
+    policyReasonCode: "graphic_gore_high_confidence",
+    confidence: { nsfw: 0.125, storagePath: "users/owner/private.webp" },
+    graphicSafety: {
+      signal: "unsafe",
+      policyDecision: "restrict",
+      nsflProbability: 0.99,
+      modelVersion: "OwenElliott/image-safety-classifier-s@revision",
+      objectStoragePath: "users/owner/private.webp",
+      endpoint: "http://minio:9000",
+    },
+    accessToken: "raw-token-value",
+    path: "users/owner/private.webp",
+  }), {
+    containsPerson: "true",
+    policyReasonCode: "graphic_gore_high_confidence",
+    confidence: { nsfw: 0.125 },
+    graphicSafety: {
+      signal: "unsafe",
+      policyDecision: "restrict",
+      nsflProbability: 0.99,
+      modelVersion: "OwenElliott/image-safety-classifier-s@revision",
+    },
+  });
+
+  const metadata = sanitizeAdminMediaReviewMetadata({
+    source: "automated_media_moderation",
+    objectStoragePath: "opaque-storage-key",
+    endpoint: "http://minio:9000",
+    nested: { accessToken: "raw-token-value", note: "reviewed" },
+  });
+  assert.deepEqual(metadata, {
+    source: "automated_media_moderation",
+    objectStoragePath: "[redacted]",
+    endpoint: "[redacted]",
+    nested: { accessToken: "[redacted]", note: "reviewed" },
+  });
 });
 
 function mockOwnerBootstrap(input: { existingUser?: UserRow } = {}) {

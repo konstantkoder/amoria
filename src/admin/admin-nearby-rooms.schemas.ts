@@ -51,6 +51,7 @@ const createNearbyRoomFromDemandBodySchema = z
 const nearbyRoomActionBodySchema = z
   .object({
     action: z.enum(nearbyRoomActionValues),
+    reason: z.string().trim().min(3).max(500),
   })
   .strict();
 
@@ -182,10 +183,11 @@ const createNearbyRoomFromDemandBodyJsonSchema = {
 
 const nearbyRoomActionBodyJsonSchema = {
   type: "object",
-  required: ["action"],
+  required: ["action", "reason"],
   additionalProperties: false,
   properties: {
     action: { type: "string", enum: nearbyRoomActionValues },
+    reason: { type: "string", minLength: 3, maxLength: 500 },
   },
 } as const;
 

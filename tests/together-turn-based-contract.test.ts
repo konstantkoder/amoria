@@ -27,6 +27,8 @@ const migration = read("src/db/migrations/0027_together_turn_based.sql");
 const routes = read("src/together/together.routes.ts");
 const service = read("src/together/together-turn-based.service.ts");
 const admin = read("src/admin/admin-together-turn-based.service.ts");
+const adminRoutes = read("src/admin/admin.routes.ts");
+const adminWeb = read("admin-web/src/App.tsx");
 
 test("existing live Together timing constants remain unchanged", () => {
   assert.equal(TOGETHER_QUEUE_TTL_MS, 5 * 60_000);
@@ -124,4 +126,14 @@ test("admin reads exclude coordinates and expose operational state only", () => 
 test("admin action policy includes all required moment and problem actions", () => {
   for (const action of ["release_claim","return_to_pool","cancel_moment","expire_moment","retry_cleanup",
     "resolve","ignore","reopen"]) assert.ok(admin.includes(action), action);
+});
+
+test("turn-based support access is read-only and problem transitions reject stale repeats", () => {
+  assert.match(
+    adminRoutes,
+    /turn-based\/problems\/:id\/actions[\s\S]*?requireAdmin\(\["owner", "ops"\]\)/,
+  );
+  assert.match(admin, /status = ANY\(\$5::text\[\]\)/);
+  assert.match(admin, /Problem cannot \$\{body\.action\} from status/);
+  assert.match(adminWeb, /\{canManage \? <td>[\s\S]*?turn-based\/problems/);
 });

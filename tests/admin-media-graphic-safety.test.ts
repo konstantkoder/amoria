@@ -1,11 +1,22 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import path from "node:path";
 import test from "node:test";
 
-import { graphicSafetyFromRawResult } from "../admin-web/src/graphic-safety.ts";
-import { en } from "../admin-web/src/i18n/en.ts";
-import { hr } from "../admin-web/src/i18n/hr.ts";
-import { ru } from "../admin-web/src/i18n/ru.ts";
+type GraphicSafetyEvidence = {
+  signal: "safe" | "unknown" | "unsafe";
+  displayState: "safe" | "needs_review" | "unsafe";
+  nsflProbability: number | null;
+  policyDecision: "approve" | "needs_review" | "restrict" | null;
+  modelVersion: string | null;
+};
+
+const { graphicSafetyFromRawResult } = require("../admin-web/src/graphic-safety") as {
+  graphicSafetyFromRawResult(value: unknown): GraphicSafetyEvidence | null;
+};
+const { en } = require("../admin-web/src/i18n/en") as { en: Record<string, string> };
+const { hr } = require("../admin-web/src/i18n/hr") as { hr: Record<string, string> };
+const { ru } = require("../admin-web/src/i18n/ru") as { ru: Record<string, string> };
 
 test("safe graphic evidence is extracted from the existing rawResult shape", () => {
   const evidence = graphicSafetyFromRawResult({
@@ -115,7 +126,7 @@ test("graphic safety status labels are available in EN, RU, and HR", () => {
 });
 
 test("Admin Media shows graphic evidence and keeps existing NSFW and person-presence rows", async () => {
-  const source = await readFile(new URL("../admin-web/src/App.tsx", import.meta.url), "utf8");
+  const source = await readFile(path.resolve(__dirname, "../admin-web/src/App.tsx"), "utf8");
 
   assert.match(source, /label=\{t\("media\.graphicSafety"\)\}/u);
   assert.match(source, /label=\{t\("media\.graphicScore"\)\}/u);

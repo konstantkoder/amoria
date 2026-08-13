@@ -269,9 +269,18 @@ export async function actionNearbyRoomForAdmin(
 
   const nextStatus = statusForAction(input.action);
   const now = deps.now();
-  const updated = await deps.repo.updateNearbyRoomStatusForAdmin(roomId, nextStatus, now);
+  const updated = await deps.repo.updateNearbyRoomStatusForAdmin(
+    roomId,
+    nextStatus,
+    now,
+    current.status,
+  );
   if (!updated) {
-    throw new AppError("not_found", "Nearby room not found", 404);
+    throw new AppError(
+      "nearby_room_state_changed",
+      "Nearby room state changed; reload before applying another action",
+      409,
+    );
   }
 
   await deps.repo.createRoomModerationActionForAdmin({
@@ -286,6 +295,7 @@ export async function actionNearbyRoomForAdmin(
     action: `admin.nearbyRooms.${input.action}`,
     targetType: "nearby_room",
     targetId: roomId,
+    reason: input.reason,
     metadata: {
       typeKey: updated.typeKey,
       previousStatus: current.status,

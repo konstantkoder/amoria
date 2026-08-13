@@ -142,6 +142,9 @@ export async function updateAdminUser(
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
+    // Serialize cross-row owner changes so two owners cannot concurrently remove
+    // each other after both observe a second active owner.
+    await client.query("SELECT pg_advisory_xact_lock(hashtext('amoria_admin_owner_control'))");
     const current = await client.query<{ id: string; status: AdminStatus; is_owner: boolean }>(`
       SELECT au.id, au.status, EXISTS (
         SELECT 1 FROM admin_user_roles aur JOIN admin_roles ar ON ar.id = aur.role_id

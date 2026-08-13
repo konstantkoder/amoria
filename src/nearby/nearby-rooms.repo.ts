@@ -381,6 +381,7 @@ export async function updateNearbyRoomStatusForAdmin(
   roomId: string,
   status: "active" | "closed" | "disabled" | "archived" | "deleted",
   updatedAt: Date,
+  expectedStatus: string,
 ): Promise<AdminNearbyRoomRow | undefined> {
   const [updated] = await db
     .update(nearbyRooms)
@@ -388,7 +389,7 @@ export async function updateNearbyRoomStatusForAdmin(
       status,
       updatedAt,
     })
-    .where(eq(nearbyRooms.id, roomId))
+    .where(and(eq(nearbyRooms.id, roomId), eq(nearbyRooms.status, expectedStatus)))
     .returning({ id: nearbyRooms.id });
 
   if (!updated) {

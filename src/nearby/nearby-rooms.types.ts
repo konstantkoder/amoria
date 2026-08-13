@@ -117,4 +117,5 @@ export type AdminNearbyRoomAction = "close" | "disable" | "reopen" | "archive" |
 
 export type AdminNearbyRoomActionBody = {
   action: AdminNearbyRoomAction;
+  reason: string;
 };

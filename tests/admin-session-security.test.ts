@@ -18,6 +18,8 @@ const sessionRoutes = require("../src/admin/admin-session.routes") as typeof imp
 type FrontendAdminSessionClient = {
   clearLegacyStorage(storage: { removeItem(key: string): void }): void;
   getAccessToken(): string | undefined;
+  login(email: string, password: string): Promise<{ accessToken: string }>;
+  logout(): Promise<void>;
   restore(): Promise<{ accessToken: string } | null>;
   refresh(): Promise<boolean>;
 };
@@ -408,6 +410,37 @@ test("concurrent frontend refresh requests share exactly one cookie rotation", a
   release?.();
   assert.deepEqual(await Promise.all(refreshes), [true, true, true, true, true]);
   assert.equal(calls, 1);
+});
+
+test("Admin Web logout propagates backend failure while clearing the memory-only access token", async () => {
+  const client = new AdminSessionClient("", async (url) => {
+    if (url.endsWith("/admin/session/login")) {
+      return new Response(JSON.stringify({
+        accessToken: "memory-access-token",
+        accessTokenExpiresAt: "2026-08-12T12:00:00.000Z",
+        user: authResponse("unused").user,
+      }), { status: 200 });
+    }
+    return new Response(JSON.stringify({
+      error: { code: "logout_unavailable", message: "Logout unavailable" },
+    }), { status: 503 });
+  });
+
+  await client.login("owner@example.test", "password");
+  assert.equal(client.getAccessToken(), "memory-access-token");
+  await assert.rejects(client.logout(), /Logout unavailable/);
+  assert.equal(client.getAccessToken(), undefined);
+
+  const apiSource = readFileSync(path.join(process.cwd(), "admin-web/src/api.ts"), "utf8");
+  assert.doesNotMatch(apiSource, /adminSession\.logout\(\)\.catch/);
+
+  const appSource = readFileSync(path.join(process.cwd(), "admin-web/src/App.tsx"), "utf8");
+  const logoutBlock = appSource.slice(
+    appSource.indexOf("async function handleLogout"),
+    appSource.indexOf("const visibleScreens"),
+  );
+  assert.match(logoutBlock, /catch \(error\)[\s\S]*setMessage\([\s\S]*return;[\s\S]*clearTokens\(\)/);
+  assert.doesNotMatch(logoutBlock, /finally/);
 });
 
 test("mobile auth endpoint contracts remain unchanged and still include refreshToken in JSON schemas", () => {

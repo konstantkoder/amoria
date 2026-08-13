@@ -5,6 +5,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import {
@@ -168,6 +169,7 @@ export function App() {
   const [adminMe, setAdminMe] = useState<AdminMe | null>(null);
   const [screen, setScreen] = useState<Screen>("dashboard");
   const [authState, setAuthState] = useState<"checking" | "login" | "ready" | "forbidden">("checking");
+  const [authError, setAuthError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [togetherSessionFilter, setTogetherSessionFilter] = useState("");
   const [userSearchRequest, setUserSearchRequest] = useState<UserSearchRequest | null>(null);
@@ -208,7 +210,15 @@ export function App() {
   }, []);
 
   async function handleLogout() {
-    await logout();
+    try {
+      await logout();
+      setAuthError(null);
+    } catch (error) {
+      const nextError = errorMessage(error, t);
+      setAuthError(nextError);
+      setMessage(`${t("common.logout")}: ${nextError}`);
+      return;
+    }
     clearTokens();
     setAdminMe(null);
     setAuthState("login");
@@ -235,14 +245,16 @@ export function App() {
   } else if (authState === "login") {
     content = (
       <LoginScreen
+        initialError={authError}
         onLogin={(me) => {
+          setAuthError(null);
           setAdminMe(me);
           setAuthState("ready");
         }}
       />
     );
   } else if (authState === "forbidden") {
-    content = <ForbiddenScreen onLogout={handleLogout} />;
+    content = <ForbiddenScreen error={authError} onLogout={handleLogout} />;
   } else {
     content = (
       <div className="app-shell">
@@ -393,6 +405,7 @@ function TogetherTurnBasedScreen({ canManage, setMessage }: {
   const [overview, setOverview] = useState<Record<string,number>>({});
   const [detail, setDetail] = useState<unknown>(null);
   const [error, setError] = useState("");
+  const actionRequest = useRequestLock();
   async function load() {
     setError("");
     try {
@@ -413,14 +426,16 @@ function TogetherTurnBasedScreen({ canManage, setMessage }: {
   }
   useEffect(() => { void load(); }, []);
   async function runAction(path: string, action: string) {
-    const reason = window.prompt(t("togetherTurnBased.reasonPrompt"))?.trim();
-    if (!reason) return;
-    try {
-      await apiPost(path, { action, reason });
-      setMessage(t("togetherTurnBased.actionComplete")); await load();
-    } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : "Error");
-    }
+    await actionRequest.run(async () => {
+      const reason = window.prompt(t("togetherTurnBased.reasonPrompt"))?.trim();
+      if (!reason) return;
+      try {
+        await apiPost(path, { action, reason });
+        setMessage(t("togetherTurnBased.actionComplete")); await load();
+      } catch (nextError) {
+        setError(nextError instanceof Error ? nextError.message : "Error");
+      }
+    });
   }
   async function openDetail(id:string) {
     try { setDetail(await apiGet(`/admin/together/turn-based/${id}`)); }
@@ -463,6 +478,7 @@ function TogetherTurnBasedScreen({ canManage, setMessage }: {
         <td>{item.coarseGeoBucket} / {item.radiusKm??"∞"}</td><td>{item.eventCount}</td>
         <td>{item.artifactPurgedAt?"purged":item.artifactPurgeAfter?"scheduled":"held/active"}</td><td>{item.openProblemCount}</td>
         {canManage ? <td>{item.safeActions.map((action)=><button key={action} className={action.includes("cancel")||action.includes("expire")?"danger":"secondary"}
+          disabled={actionRequest.pending}
           onClick={()=>void runAction(`/admin/together/turn-based/${item.id}/actions`,action)}>{action}</button>)}</td> : null}
       </tr>)}</tbody></table>
       {detail?<pre>{JSON.stringify(detail,null,2)}</pre>:null}
@@ -475,48 +491,52 @@ function TogetherTurnBasedScreen({ canManage, setMessage }: {
       <button>{t("common.load")}</button>
     </form><table><thead><tr><th>{t("common.updated")}</th><th>{t("common.status")}</th>
       <th>{t("togetherTurnBased.severity")}</th><th>{t("togetherTurnBased.code")}</th>
-      <th>{t("togetherTurnBased.summary")}</th><th>{t("common.action")}</th>
+      <th>{t("togetherTurnBased.summary")}</th>{canManage ? <th>{t("common.action")}</th> : null}
     </tr></thead><tbody>{problems.map((item) => <tr key={item.id}>
       <td>{formatDate(item.lastSeenAt, language)}</td><td>{item.status}</td><td>{item.severity}</td>
-      <td>{item.code} × {item.occurrenceCount}</td><td>{item.summary}</td><td>
-        <button className="secondary" onClick={() => void runAction(`/admin/together/turn-based/problems/${item.id}/actions`, item.status === "open" ? "resolve" : "reopen")}>
+      <td>{item.code} × {item.occurrenceCount}</td><td>{item.summary}</td>{canManage ? <td>
+        <button className="secondary" disabled={actionRequest.pending} onClick={() => void runAction(`/admin/together/turn-based/problems/${item.id}/actions`, item.status === "open" ? "resolve" : "reopen")}>
           {item.status === "open" ? t("action.resolve") : t("action.reopen")}
         </button>
-        {item.status === "open" ? <button className="secondary" onClick={() => void runAction(`/admin/together/turn-based/problems/${item.id}/actions`, "ignore")}>{t("action.ignore")}</button> : null}
-      </td>
+        {item.status === "open" ? <button className="secondary" disabled={actionRequest.pending} onClick={() => void runAction(`/admin/together/turn-based/problems/${item.id}/actions`, "ignore")}>{t("action.ignore")}</button> : null}
+      </td> : null}
     </tr>)}</tbody></table></> : null}
   </section>;
 }
 
-function LoginScreen({ onLogin }: { onLogin: (admin: AdminMe) => void }) {
+function LoginScreen({
+  initialError,
+  onLogin,
+}: {
+  initialError: string | null;
+  onLogin: (admin: AdminMe) => void;
+}) {
   const { t } = useI18n();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(initialError);
+  const loginRequest = useRequestLock();
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    setLoading(true);
     setError(null);
-
-    try {
-      await login(email, password);
-      const me = await apiGet<AdminMe>("/admin/me");
-      onLogin(me);
-    } catch (error) {
-      clearTokens();
-      const status = error instanceof ApiError
-        ? error.status
-        : (error as { status?: unknown } | null)?.status;
-      if (status === 403) {
-        setError(t("auth.loginForbidden"));
-      } else {
-        setError(error instanceof Error ? error.message : t("auth.loginFailed"));
+    await loginRequest.run(async () => {
+      try {
+        await login(email, password);
+        const me = await apiGet<AdminMe>("/admin/me");
+        onLogin(me);
+      } catch (error) {
+        clearTokens();
+        const status = error instanceof ApiError
+          ? error.status
+          : (error as { status?: unknown } | null)?.status;
+        if (status === 403) {
+          setError(t("auth.loginForbidden"));
+        } else {
+          setError(error instanceof Error ? error.message : t("auth.loginFailed"));
+        }
       }
-    } finally {
-      setLoading(false);
-    }
+    });
   }
 
   return (
@@ -539,19 +559,20 @@ function LoginScreen({ onLogin }: { onLogin: (admin: AdminMe) => void }) {
           <input value={password} onChange={(event) => setPassword(event.target.value)} type="password" required />
         </label>
         {error ? <div className="error">{error}</div> : null}
-        <button disabled={loading}>{loading ? t("auth.signingIn") : t("auth.signIn")}</button>
+        <button disabled={loginRequest.pending}>{loginRequest.pending ? t("auth.signingIn") : t("auth.signIn")}</button>
       </form>
     </div>
   );
 }
 
-function ForbiddenScreen({ onLogout }: { onLogout: () => void }) {
+function ForbiddenScreen({ error, onLogout }: { error: string | null; onLogout: () => void }) {
   const { t } = useI18n();
   return (
     <div className="center-panel">
       <LanguageSwitcher />
       <h1>{t("auth.forbiddenTitle")}</h1>
       <p>{t("auth.forbiddenMessage")}</p>
+      {error ? <div className="error">{error}</div> : null}
       <button onClick={onLogout}>{t("common.backToLogin")}</button>
     </div>
   );
@@ -735,6 +756,7 @@ function UsersScreen({ initialSearch, canControlUsers, setMessage }: {
   const [searched, setSearched] = useState(false);
   const [selected, setSelected] = useState<AdminUserDetail | null>(null);
   const [reason, setReason] = useState("");
+  const statusRequest = useRequestLock();
 
   async function runSearch(nextAmoriaId = amoriaId, nextQ = q) {
     setError(null);
@@ -765,15 +787,17 @@ function UsersScreen({ initialSearch, canControlUsers, setMessage }: {
 
   async function changeStatus() {
     if (!selected || reason.trim().length < 3) return;
-    const action = selected.accountStatus === "suspended" ? "restore" : "suspend";
-    if (action === "suspend" && !window.confirm(t("users.suspendConfirm"))) return;
-    try {
-      const response = await apiPost<{ user: AdminUserDetail }>(`/admin/users/${selected.id}/status`, { action, reason });
-      setSelected(response.user);
-      setReason("");
-      setMessage(t(action === "suspend" ? "users.suspended" : "users.restored"));
-      await runSearch();
-    } catch (error) { setError(errorMessage(error, t)); }
+    await statusRequest.run(async () => {
+      const action = selected.accountStatus === "suspended" ? "restore" : "suspend";
+      if (action === "suspend" && !window.confirm(t("users.suspendConfirm"))) return;
+      try {
+        const response = await apiPost<{ user: AdminUserDetail }>(`/admin/users/${selected.id}/status`, { action, reason });
+        setSelected(response.user);
+        setReason("");
+        setMessage(t(action === "suspend" ? "users.suspended" : "users.restored"));
+        await runSearch();
+      } catch (error) { setError(errorMessage(error, t)); }
+    });
   }
 
   useEffect(() => {
@@ -809,7 +833,7 @@ function UsersScreen({ initialSearch, canControlUsers, setMessage }: {
           <Fact label={t("users.suspensionReason")} value={selected.suspensionReason ?? ""} />
           <Fact label={t("common.adminUser")} value={selected.adminUserId ?? ""} /></dl>
         {canControlUsers ? <div className="stack-form"><label>{t("common.reason")}<input value={reason} onChange={(event) => setReason(event.target.value)} minLength={3} maxLength={500} /></label>
-          <button className={selected.accountStatus === "suspended" ? "secondary" : "danger"} disabled={reason.trim().length < 3} onClick={() => void changeStatus()}>
+          <button className={selected.accountStatus === "suspended" ? "secondary" : "danger"} disabled={statusRequest.pending || reason.trim().length < 3} onClick={() => void changeStatus()}>
             {t(selected.accountStatus === "suspended" ? "users.restore" : "users.suspend")}</button></div> : null}
       </div> : null}
     </section>
@@ -826,17 +850,20 @@ function AdminUsersScreen() {
   const [status, setStatus] = useState<"active" | "disabled">("active");
   const [reason, setReason] = useState("");
   const [mutationError, setMutationError] = useState<string | null>(null);
+  const mutationRequest = useRequestLock();
   useEffect(() => { if (data) setItems(data.items); }, [data]);
   function edit(item: AdminUserItem) { setSelectedId(item.id); setUserId(item.userId); setRoles(item.roles); setStatus(item.status); setReason(""); }
   function reset() { setSelectedId(null); setUserId(""); setRoles(["support"]); setStatus("active"); setReason(""); }
   function toggleRole(role: string) { setRoles((current) => current.includes(role) ? current.filter((item) => item !== role) : [...current, role]); }
   async function save(event: FormEvent) {
     event.preventDefault(); setMutationError(null);
-    try {
-      const response = await apiPost<{ items: AdminUserItem[] }>(selectedId ? `/admin/admin-users/${selectedId}` : "/admin/admin-users",
-        selectedId ? { status, roles, reason } : { userId, roles, reason });
-      setItems(response.items); reset();
-    } catch (error) { setMutationError(errorMessage(error, t)); }
+    await mutationRequest.run(async () => {
+      try {
+        const response = await apiPost<{ items: AdminUserItem[] }>(selectedId ? `/admin/admin-users/${selectedId}` : "/admin/admin-users",
+          selectedId ? { status, roles, reason } : { userId, roles, reason });
+        setItems(response.items); reset();
+      } catch (error) { setMutationError(errorMessage(error, t)); }
+    });
   }
 
   return (
@@ -859,7 +886,7 @@ function AdminUsersScreen() {
         <fieldset><legend>{t("common.roles")}</legend>{["owner", "moderator", "support", "ops"].map((role) =>
           <label key={role} className="inline-check"><input type="checkbox" checked={roles.includes(role)} onChange={() => toggleRole(role)} />{formatRoles([role], t)}</label>)}</fieldset>
         <label>{t("common.reason")}<input value={reason} onChange={(event) => setReason(event.target.value)} minLength={3} maxLength={500} required /></label>
-        <div className="filters"><button disabled={!roles.length}>{t("common.apply")}</button>{selectedId ? <button className="secondary" type="button" onClick={reset}>{t("common.cancel")}</button> : null}</div>
+        <div className="filters"><button disabled={mutationRequest.pending || !roles.length}>{t("common.apply")}</button>{selectedId ? <button className="secondary" type="button" disabled={mutationRequest.pending} onClick={reset}>{t("common.cancel")}</button> : null}</div>
       </form>
       {items.length ? (
         <DataTable
@@ -903,23 +930,28 @@ function BulkModerationScreen({ isOwner, setMessage }: { isOwner: boolean; setMe
   const [error, setError] = useState<string | null>(null);
   const [countryStatus, setCountryStatus] = useState("");
   const [orphans, setOrphans] = useState<unknown>(null);
+  const mutationRequest = useRequestLock();
   const actions: Record<string, string[]> = { media_scan: ["scan"], media_decision: ["mark_under_review", "restrict", "remove"], message_decision: ["restrict", "remove", "escalate"], physical_media_purge: ["purge"] };
   useEffect(() => { apiGet<{ status: string }>("/admin/country-scope").then((value) => setCountryStatus(value.status)).catch(() => setCountryStatus("")); }, []);
   function changeKind(value: string) { setKind(value); setAction(actions[value][0]); setJob(null); setConfirmationToken(""); }
   async function preview(event: FormEvent) {
     event.preventDefault(); setError(null);
-    try {
-      const scope = kind === "physical_media_purge" ? {} : { ownerAmoriaId: ownerAmoriaId || undefined, moderationStatus: moderationStatus || undefined };
-      const response = await apiPost<{ job: AdminBulkJob; confirmationToken: string }>("/admin/bulk-jobs/preview", { kind, action, reason, idempotencyKey, maxItems: Number(maxItems), scope });
-      setJob(response.job); setConfirmationToken(response.confirmationToken); setMessage(t("bulk.previewReady"));
-    } catch (error) { setError(errorMessage(error, t)); }
+    await mutationRequest.run(async () => {
+      try {
+        const scope = kind === "physical_media_purge" ? {} : { ownerAmoriaId: ownerAmoriaId || undefined, moderationStatus: moderationStatus || undefined };
+        const response = await apiPost<{ job: AdminBulkJob; confirmationToken: string }>("/admin/bulk-jobs/preview", { kind, action, reason, idempotencyKey, maxItems: Number(maxItems), scope });
+        setJob(response.job); setConfirmationToken(response.confirmationToken); setMessage(t("bulk.previewReady"));
+      } catch (error) { setError(errorMessage(error, t)); }
+    });
   }
   async function confirm() {
     if (!job || !window.confirm(t("bulk.confirmWarning"))) return;
-    try {
-      const response = await apiPost<{ job: AdminBulkJob }>(`/admin/bulk-jobs/${job.id}/confirm`, { confirmationToken });
-      setJob(response.job); setMessage(t("bulk.completed"));
-    } catch (error) { setError(errorMessage(error, t)); }
+    await mutationRequest.run(async () => {
+      try {
+        const response = await apiPost<{ job: AdminBulkJob }>(`/admin/bulk-jobs/${job.id}/confirm`, { confirmationToken });
+        setJob(response.job); setMessage(t("bulk.completed"));
+      } catch (error) { setError(errorMessage(error, t)); }
+    });
   }
   async function diagnoseOrphans() {
     try { setOrphans(await apiGet("/admin/storage/orphans")); } catch (error) { setError(errorMessage(error, t)); }
@@ -937,7 +969,7 @@ function BulkModerationScreen({ isOwner, setMessage }: { isOwner: boolean; setMe
       <label>{t("common.limit")}<input type="number" min="1" max="100" value={maxItems} onChange={(event) => setMaxItems(event.target.value)} /></label>
       <label>{t("bulk.idempotencyKey")}<input value={idempotencyKey} onChange={(event) => setIdempotencyKey(event.target.value)} required /></label>
       <label>{t("common.reason")}<textarea value={reason} onChange={(event) => setReason(event.target.value)} minLength={3} maxLength={500} required /></label>
-      <button>{t("bulk.preview")}</button>
+      <button disabled={mutationRequest.pending}>{t("bulk.preview")}</button>
     </form>
     {isOwner ? <button className="secondary" type="button" onClick={() => void diagnoseOrphans()}>{t("bulk.orphanDiagnostics")}</button> : null}
     {orphans ? <JsonBlock data={orphans} /> : null}
@@ -945,7 +977,7 @@ function BulkModerationScreen({ isOwner, setMessage }: { isOwner: boolean; setMe
     <dl className="facts compact"><Fact label={t("bulk.jobId")} value={job.id} /><Fact label={t("common.status")} value={job.status} />
       <Fact label={t("bulk.previewCount")} value={String(job.previewCount)} /><Fact label={t("bulk.appliedCount")} value={String(job.appliedCount)} />
       <Fact label={t("bulk.failedCount")} value={String(job.failedCount)} /></dl>
-    {job.status === "awaiting_confirmation" ? <button className="danger" onClick={() => void confirm()}>{t("bulk.confirm")}</button> : null}
+    {job.status === "awaiting_confirmation" ? <button className="danger" disabled={mutationRequest.pending} onClick={() => void confirm()}>{t("bulk.confirm")}</button> : null}
     <table><thead><tr><th>{t("common.target")}</th><th>{t("common.action")}</th><th>{t("common.status")}</th><th>{t("common.code")}</th></tr></thead>
       <tbody>{job.items.map((item) => <tr key={item.id}><td>{item.targetType}:{item.targetId}</td><td>{item.proposedAction}</td><td>{item.status}</td><td>{item.errorCode ?? ""}</td></tr>)}</tbody></table>
   </> : <EmptyState label={t("bulk.emptyPreview")} />}</div></section>;
@@ -965,6 +997,7 @@ function ClientErrorsScreen({ setMessage }: { setMessage: (message: string | nul
   const [selected, setSelected] = useState<ClientErrorItem | null>(null);
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const mutationRequest = useRequestLock();
 
   async function load(nextFilters = filters) {
     setError(null);
@@ -989,20 +1022,22 @@ function ClientErrorsScreen({ setMessage }: { setMessage: (message: string | nul
     }
 
     setError(null);
-    try {
-      const response = await apiPost<{ item: ClientErrorItem }>(
-        `/admin/client-errors/${selected.id}/actions`,
-        {
-          action,
-          note: note || undefined,
-        },
-      );
-      setMessage(tx("clientErrors.updatedOne", { id: response.item.id }));
-      setNote("");
-      await load();
-    } catch (error) {
-      setError(errorMessage(error, t));
-    }
+    await mutationRequest.run(async () => {
+      try {
+        const response = await apiPost<{ item: ClientErrorItem }>(
+          `/admin/client-errors/${selected.id}/actions`,
+          {
+            action,
+            note: note || undefined,
+          },
+        );
+        setMessage(tx("clientErrors.updatedOne", { id: response.item.id }));
+        setNote("");
+        await load();
+      } catch (error) {
+        setError(errorMessage(error, t));
+      }
+    });
   }
 
   async function bulkArchiveCurrentFilter() {
@@ -1011,24 +1046,26 @@ function ClientErrorsScreen({ setMessage }: { setMessage: (message: string | nul
     }
 
     setError(null);
-    try {
-      const response = await apiPost<{ count: number }>("/admin/client-errors/actions/bulk", {
-        action: "archive",
-        filters: {
-          screen: filters.screen || undefined,
-          action: filters.action || undefined,
-          code: filters.code || undefined,
-          amoriaId: filters.amoriaId || undefined,
-          status: filters.status || undefined,
-        },
-        note: note || undefined,
-      });
-      setMessage(tx("clientErrors.bulkArchived", { count: response.count }));
-      setNote("");
-      await load();
-    } catch (error) {
-      setError(errorMessage(error, t));
-    }
+    await mutationRequest.run(async () => {
+      try {
+        const response = await apiPost<{ count: number }>("/admin/client-errors/actions/bulk", {
+          action: "archive",
+          filters: {
+            screen: filters.screen || undefined,
+            action: filters.action || undefined,
+            code: filters.code || undefined,
+            amoriaId: filters.amoriaId || undefined,
+            status: filters.status || undefined,
+          },
+          note: note || undefined,
+        });
+        setMessage(tx("clientErrors.bulkArchived", { count: response.count }));
+        setNote("");
+        await load();
+      } catch (error) {
+        setError(errorMessage(error, t));
+      }
+    });
   }
 
   return (
@@ -1073,11 +1110,11 @@ function ClientErrorsScreen({ setMessage }: { setMessage: (message: string | nul
               placeholder={t("clientErrors.notePlaceholder")}
             />
           </label>
-          <button type="button" disabled={!selected} onClick={() => void submitAction("resolve")}>{t("action.resolve")}</button>
-          <button type="button" disabled={!selected} onClick={() => void submitAction("ignore")}>{t("action.ignore")}</button>
-          <button type="button" disabled={!selected} onClick={() => void submitAction("archive")}>{t("action.archive")}</button>
-          <button type="button" disabled={!selected} onClick={() => void submitAction("reopen")}>{t("action.reopen")}</button>
-          <button className="secondary" type="button" onClick={() => void bulkArchiveCurrentFilter()}>
+          <button type="button" disabled={mutationRequest.pending || !selected} onClick={() => void submitAction("resolve")}>{t("action.resolve")}</button>
+          <button type="button" disabled={mutationRequest.pending || !selected} onClick={() => void submitAction("ignore")}>{t("action.ignore")}</button>
+          <button type="button" disabled={mutationRequest.pending || !selected} onClick={() => void submitAction("archive")}>{t("action.archive")}</button>
+          <button type="button" disabled={mutationRequest.pending || !selected} onClick={() => void submitAction("reopen")}>{t("action.reopen")}</button>
+          <button className="secondary" type="button" disabled={mutationRequest.pending} onClick={() => void bulkArchiveCurrentFilter()}>
             {t("clientErrors.archiveCurrent")}
           </button>
         </div>
@@ -1214,6 +1251,7 @@ function MessageModerationScreen({
   const [decision, setDecision] = useState("approve");
   const [decisionReason, setDecisionReason] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const decisionRequest = useRequestLock();
 
   async function load() {
     setError(null);
@@ -1256,18 +1294,20 @@ function MessageModerationScreen({
       setError(t("messageModeration.decisionReasonRequired"));
       return;
     }
-    try {
-      await apiPost(`/admin/message-moderation/${encodeURIComponent(selected.id)}/decision`, {
-        action: decision,
-        reason: decisionReason.trim(),
-      });
-      setMessage(t("messageModeration.updated"));
-      setDecisionReason("");
-      await load();
-      await openDetail(selected.id, readReason);
-    } catch (decisionError) {
-      setError(errorMessage(decisionError, t));
-    }
+    await decisionRequest.run(async () => {
+      try {
+        await apiPost(`/admin/message-moderation/${encodeURIComponent(selected.id)}/decision`, {
+          action: decision,
+          reason: decisionReason.trim(),
+        });
+        setMessage(t("messageModeration.updated"));
+        setDecisionReason("");
+        await load();
+        await openDetail(selected.id, readReason);
+      } catch (decisionError) {
+        setError(errorMessage(decisionError, t));
+      }
+    });
   }
 
   useEffect(() => {
@@ -1342,7 +1382,7 @@ function MessageModerationScreen({
               <option value="escalate">{t("reports.escalate")}</option>
             </select></label>
             <label>{t("common.reason")}<input value={decisionReason} onChange={(event) => setDecisionReason(event.target.value)} /></label>
-            <button>{t("common.apply")}</button>
+            <button disabled={decisionRequest.pending}>{t("common.apply")}</button>
           </form>
           <h3>{t("messageModeration.history")}</h3>
           {selected.reviews.length ? <table><thead><tr>
@@ -1381,6 +1421,7 @@ function ReportsScreen({
   const [action, setAction] = useState("mark_under_review");
   const [reason, setReason] = useState("");
   const [note, setNote] = useState("");
+  const actionRequest = useRequestLock();
   useEffect(() => { if (!canManage) setAction("add_note"); }, [canManage]);
 
   async function load() {
@@ -1414,19 +1455,21 @@ function ReportsScreen({
       return;
     }
 
-    try {
-      const response = await apiPost<{ report: ReportItem }>(`/admin/reports/${selected.id}/actions`, {
-        action,
-        reason: reason || undefined,
-        note: note || undefined,
-      });
-      setMessage(tx("reports.updated", { id: response.report.id }));
-      setReason("");
-      setNote("");
-      await load();
-    } catch (error) {
-      setError(errorMessage(error, t));
-    }
+    await actionRequest.run(async () => {
+      try {
+        const response = await apiPost<{ report: ReportItem }>(`/admin/reports/${selected.id}/actions`, {
+          action,
+          reason: reason || undefined,
+          note: note || undefined,
+        });
+        setMessage(tx("reports.updated", { id: response.report.id }));
+        setReason("");
+        setNote("");
+        await load();
+      } catch (error) {
+        setError(errorMessage(error, t));
+      }
+    });
   }
 
   function openTargetContext(link: ReportTargetContextLink) {
@@ -1584,7 +1627,7 @@ function ReportsScreen({
               </select></label>
               <label>{t("common.reason")}<input value={reason} onChange={(event) => setReason(event.target.value)} required={action !== "add_note"} /></label>
               <label>{t("common.note")}<textarea value={note} onChange={(event) => setNote(event.target.value)} required={action === "add_note"} /></label>
-              <button>{t("common.apply")}</button>
+              <button disabled={actionRequest.pending}>{t("common.apply")}</button>
             </form>
 
             <h3>{t("reports.auditTrail")}</h3>
@@ -1651,6 +1694,7 @@ function TogetherQueueScreen({ onOpenSession }: { onOpenSession: (sessionId: str
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [busyEntryId, setBusyEntryId] = useState<string | null>(null);
+  const actionRequest = useRequestLock();
 
   async function load(nextFilters = filters) {
     setLoading(true);
@@ -1672,32 +1716,34 @@ function TogetherQueueScreen({ onOpenSession }: { onOpenSession: (sessionId: str
   }, []);
 
   async function handleCancel(item: TogetherQueueEntry) {
-    if (item.status !== "waiting") {
-      return;
-    }
+    await actionRequest.run(async () => {
+      if (item.status !== "waiting") {
+        return;
+      }
 
-    const reason = window.prompt(t("queue.cancelReasonPrompt"))?.trim();
-    if (!reason) {
-      window.alert(t("queue.cancelReasonRequired"));
-      return;
-    }
+      const reason = window.prompt(t("queue.cancelReasonPrompt"))?.trim();
+      if (!reason) {
+        window.alert(t("queue.cancelReasonRequired"));
+        return;
+      }
 
-    if (!window.confirm(t("queue.cancelConfirm"))) {
-      return;
-    }
+      if (!window.confirm(t("queue.cancelConfirm"))) {
+        return;
+      }
 
       setBusyEntryId(item.entryId);
-    try {
-      await apiPost<{ ok: true; entry: TogetherQueueEntry }>(
-        `/admin/together/queue/${item.entryId}/actions`,
-        { action: "cancel", reason },
-      );
-      await load();
-    } catch (error) {
-      window.alert(error instanceof Error ? error.message : t("error.requestFailed"));
-    } finally {
-      setBusyEntryId(null);
-    }
+      try {
+        await apiPost<{ ok: true; entry: TogetherQueueEntry }>(
+          `/admin/together/queue/${item.entryId}/actions`,
+          { action: "cancel", reason },
+        );
+        await load();
+      } catch (error) {
+        window.alert(error instanceof Error ? error.message : t("error.requestFailed"));
+      } finally {
+        setBusyEntryId(null);
+      }
+    });
   }
 
   return (
@@ -1840,7 +1886,7 @@ function TogetherQueueScreen({ onOpenSession }: { onOpenSession: (sessionId: str
                 <td>
                   <button
                     className="secondary"
-                    disabled={item.status !== "waiting" || busyEntryId === item.entryId}
+                    disabled={actionRequest.pending || item.status !== "waiting" || busyEntryId === item.entryId}
                     onClick={() => void handleCancel(item)}
                   >
                     {busyEntryId === item.entryId ? t("queue.cancelling") : t("queue.cancelWaiting")}
@@ -2095,6 +2141,7 @@ function MediaScreen({
   const [previewError, setPreviewError] = useState(false);
   const [previewProbe, setPreviewProbe] = useState<PublicMediaProbeResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const decisionRequest = useRequestLock();
   const decisionRequiresReason = true;
   const graphicSafety = graphicSafetyFromRawResult(selected?.automation?.rawResult);
 
@@ -2181,17 +2228,19 @@ function MediaScreen({
       return;
     }
 
-    try {
-      const response = await apiPost<{ media: MediaItem }>(`/admin/media/${selected.id}/decision`, {
-        action: decisionAction,
-        reason: decisionReason || undefined,
-      });
-      setMessage(tx("media.reviewed", { id: response.media.id }));
-      setDecisionReason("");
-      await load();
-    } catch (error) {
-      setError(errorMessage(error, t));
-    }
+    await decisionRequest.run(async () => {
+      try {
+        const response = await apiPost<{ media: MediaItem }>(`/admin/media/${selected.id}/decision`, {
+          action: decisionAction,
+          reason: decisionReason || undefined,
+        });
+        setMessage(tx("media.reviewed", { id: response.media.id }));
+        setDecisionReason("");
+        await load();
+      } catch (error) {
+        setError(errorMessage(error, t));
+      }
+    });
   }
 
   async function checkSelectedPublicUrl() {
@@ -2353,7 +2402,7 @@ function MediaScreen({
                 <option value="mark_under_review">{t("reports.markUnderReview")}</option>
               </select></label>
               <label>{t("common.reason")}<input value={decisionReason} onChange={(event) => setDecisionReason(event.target.value)} required={decisionRequiresReason} /></label>
-              <button>{t("media.saveDecision")}</button>
+              <button disabled={decisionRequest.pending}>{t("media.saveDecision")}</button>
             </form> : null}
             <h3>{t("media.debugMetadata")}</h3>
             <JsonBlock data={selected} />
@@ -2539,6 +2588,8 @@ function NearbyRoomsScreen({
   const [createFromDemandForm, setCreateFromDemandForm] = useState<CreateFromDemandForm | null>(null);
   const [creatingFromDemand, setCreatingFromDemand] = useState(false);
   const [busyAction, setBusyAction] = useState<AdminNearbyRoomAction | null>(null);
+  const [roomActionReason, setRoomActionReason] = useState("");
+  const mutationRequest = useRequestLock();
   const demandRows = activityDemand?.items ?? [];
   const visibleDemandRows = demandRows.filter(hasVisibleActivityDemand);
   const demandSummary = summarizeNearbyDemand(demandRows);
@@ -2626,50 +2677,54 @@ function NearbyRoomsScreen({
 
   async function submitCreate(event: FormEvent) {
     event.preventDefault();
-    setCreating(true);
-    setError(null);
-    setMessage(null);
+    await mutationRequest.run(async () => {
+      setCreating(true);
+      setError(null);
+      setMessage(null);
 
-    try {
-      const response = await apiPost<{ room: AdminNearbyRoom }>("/admin/nearby-rooms", {
-        typeKey,
-        geoBucket: geoBucket.trim(),
-      });
-      const reloaded = await load(response.room.id);
-      if (reloaded) {
-        setGeoBucket("");
-        setMessage(tx("nearbyRooms.created", { id: response.room.id }));
+      try {
+        const response = await apiPost<{ room: AdminNearbyRoom }>("/admin/nearby-rooms", {
+          typeKey,
+          geoBucket: geoBucket.trim(),
+        });
+        const reloaded = await load(response.room.id);
+        if (reloaded) {
+          setGeoBucket("");
+          setMessage(tx("nearbyRooms.created", { id: response.room.id }));
+        }
+      } catch (error) {
+        setError(errorMessage(error, t));
+      } finally {
+        setCreating(false);
       }
-    } catch (error) {
-      setError(errorMessage(error, t));
-    } finally {
-      setCreating(false);
-    }
+    });
   }
 
   async function submitCreateCustomType(event: FormEvent) {
     event.preventDefault();
-    setCreatingCustomType(true);
-    setError(null);
-    setMessage(null);
+    await mutationRequest.run(async () => {
+      setCreatingCustomType(true);
+      setError(null);
+      setMessage(null);
 
-    try {
-      const response = await apiPost<{ roomType: AdminNearbyRoomType }>(
-        "/admin/nearby-room-types",
-        { key: customTypeKey.trim(), title: customTypeTitle.trim() },
-      );
-      const reloaded = await load(null);
-      if (reloaded) {
-        setTypeKey(response.roomType.key);
-        setCustomTypeKey("");
-        setCustomTypeTitle("");
-        setMessage(tx("nearbyRooms.customTypeCreated", { title: response.roomType.title }));
+      try {
+        const response = await apiPost<{ roomType: AdminNearbyRoomType }>(
+          "/admin/nearby-room-types",
+          { key: customTypeKey.trim(), title: customTypeTitle.trim() },
+        );
+        const reloaded = await load(null);
+        if (reloaded) {
+          setTypeKey(response.roomType.key);
+          setCustomTypeKey("");
+          setCustomTypeTitle("");
+          setMessage(tx("nearbyRooms.customTypeCreated", { title: response.roomType.title }));
+        }
+      } catch (error) {
+        setError(errorMessage(error, t));
+      } finally {
+        setCreatingCustomType(false);
       }
-    } catch (error) {
-      setError(errorMessage(error, t));
-    } finally {
-      setCreatingCustomType(false);
-    }
+    });
   }
 
   function openCreateFromDemand(item: AdminNearbyActivityDemandRow) {
@@ -2689,58 +2744,63 @@ function NearbyRoomsScreen({
       return;
     }
 
-    setCreatingFromDemand(true);
-    setError(null);
-    setMessage(null);
+    await mutationRequest.run(async () => {
+      setCreatingFromDemand(true);
+      setError(null);
+      setMessage(null);
 
-    try {
-      const response = await createNearbyRoomFromDemand(
-        buildCreateFromDemandPayload(createFromDemandForm),
-      );
-      const roomsReloaded = await load(response.room.id);
-      await loadDemand();
-      if (roomsReloaded) {
-        setCreateFromDemandForm(null);
-        setMessage(tx("nearbyRooms.created", { id: response.room.id }));
+      try {
+        const response = await createNearbyRoomFromDemand(
+          buildCreateFromDemandPayload(createFromDemandForm),
+        );
+        const roomsReloaded = await load(response.room.id);
+        await loadDemand();
+        if (roomsReloaded) {
+          setCreateFromDemandForm(null);
+          setMessage(tx("nearbyRooms.created", { id: response.room.id }));
+        }
+      } catch (error) {
+        setError(errorMessage(error, t));
+      } finally {
+        setCreatingFromDemand(false);
       }
-    } catch (error) {
-      setError(errorMessage(error, t));
-    } finally {
-      setCreatingFromDemand(false);
-    }
+    });
   }
 
   async function submitRoomAction(action: AdminNearbyRoomAction) {
-    if (!selected) {
+    if (!selected || roomActionReason.trim().length < 3) {
       return;
     }
     if (action === "delete" && !window.confirm(t("nearbyRooms.deleteConfirm"))) {
       return;
     }
 
-    setBusyAction(action);
-    setError(null);
-    setMessage(null);
+    await mutationRequest.run(async () => {
+      setBusyAction(action);
+      setError(null);
+      setMessage(null);
 
-    try {
-      const response = await apiPost<{ room: AdminNearbyRoom }>(
-        `/admin/nearby-rooms/${selected.id}/actions`,
-        { action },
-      );
-      const reloaded = await load(action === "delete" ? null : response.room.id);
-      if (reloaded) {
-        setMessage(action === "delete"
-          ? t("nearbyRooms.deleted")
-          : tx("nearbyRooms.actionApplied", {
-            action: formatNearbyRoomAction(action, t),
-            id: response.room.id,
-          }));
+      try {
+        const response = await apiPost<{ room: AdminNearbyRoom }>(
+          `/admin/nearby-rooms/${selected.id}/actions`,
+          { action, reason: roomActionReason.trim() },
+        );
+        const reloaded = await load(action === "delete" ? null : response.room.id);
+        if (reloaded) {
+          setRoomActionReason("");
+          setMessage(action === "delete"
+            ? t("nearbyRooms.deleted")
+            : tx("nearbyRooms.actionApplied", {
+              action: formatNearbyRoomAction(action, t),
+              id: response.room.id,
+            }));
+        }
+      } catch (error) {
+        setError(errorMessage(error, t));
+      } finally {
+        setBusyAction(null);
       }
-    } catch (error) {
-      setError(errorMessage(error, t));
-    } finally {
-      setBusyAction(null);
-    }
+    });
   }
 
   return (
@@ -3005,6 +3065,7 @@ function NearbyRoomsScreen({
                   <div className="tab-row">
                     <button
                       disabled={
+                        mutationRequest.pending ||
                         creatingFromDemand ||
                         loading ||
                         demandLoading ||
@@ -3017,7 +3078,7 @@ function NearbyRoomsScreen({
                     <button
                       className="secondary"
                       type="button"
-                      disabled={creatingFromDemand}
+                      disabled={mutationRequest.pending || creatingFromDemand}
                       onClick={() => setCreateFromDemandForm(null)}
                     >
                       {t("common.cancel")}
@@ -3050,7 +3111,7 @@ function NearbyRoomsScreen({
                   required
                 />
               </label>
-              <button disabled={creatingCustomType || loading}>
+              <button disabled={mutationRequest.pending || creatingCustomType || loading}>
                 {creatingCustomType
                   ? t("nearbyRooms.customTypeCreating")
                   : t("nearbyRooms.customTypeCreate")}
@@ -3087,7 +3148,7 @@ function NearbyRoomsScreen({
                 />
                 <span className="muted">{t("nearbyRooms.geoBucketHelp")}</span>
               </label>
-              <button disabled={creating || loading || !typeKey}>
+              <button disabled={mutationRequest.pending || creating || loading || !typeKey}>
                 {creating ? t("nearbyRooms.creating") : t("nearbyRooms.create")}
               </button>
             </form>
@@ -3121,23 +3182,37 @@ function NearbyRoomsScreen({
               <Fact label={t("common.updated")} value={formatDate(selected.updatedAt, language)} />
             </dl>
             {canManageRooms ? (
-              <div className="tab-row">
-                {nearbyRoomActions.filter((action) => action !== "delete" || selected.status === "archived").map((action) => (
-                  <button
-                    key={action}
-                    type="button"
-                    className={action === "delete" ? "danger" : action === "disable" ? "" : "secondary"}
-                    disabled={
-                      busyAction !== null ||
-                      loading ||
-                      detailLoading ||
-                      isNearbyRoomActionCurrent(selected, action)
-                    }
-                    onClick={() => void submitRoomAction(action)}
-                  >
-                    {busyAction === action ? t("nearbyRooms.applying") : formatNearbyRoomAction(action, t)}
-                  </button>
-                ))}
+              <div className="stack-form">
+                <label>
+                  {t("common.reason")}
+                  <input
+                    value={roomActionReason}
+                    onChange={(event) => setRoomActionReason(event.target.value)}
+                    minLength={3}
+                    maxLength={500}
+                    required
+                  />
+                </label>
+                <div className="tab-row">
+                  {nearbyRoomActions.filter((action) => action !== "delete" || selected.status === "archived").map((action) => (
+                    <button
+                      key={action}
+                      type="button"
+                      className={action === "delete" ? "danger" : action === "disable" ? "" : "secondary"}
+                      disabled={
+                        mutationRequest.pending ||
+                        busyAction !== null ||
+                        loading ||
+                        detailLoading ||
+                        roomActionReason.trim().length < 3 ||
+                        isNearbyRoomActionCurrent(selected, action)
+                      }
+                      onClick={() => void submitRoomAction(action)}
+                    >
+                      {busyAction === action ? t("nearbyRooms.applying") : formatNearbyRoomAction(action, t)}
+                    </button>
+                  ))}
+                </div>
               </div>
             ) : null}
           </>
@@ -3240,6 +3315,28 @@ function JsonBlock({ data }: { data: unknown }) {
 
 function EmptyState({ label }: { label: string }) {
   return <div className="empty">{label}</div>;
+}
+
+function useRequestLock() {
+  const active = useRef(false);
+  const [pending, setPending] = useState(false);
+
+  async function run<T>(operation: () => Promise<T>): Promise<T | undefined> {
+    if (active.current) {
+      return undefined;
+    }
+
+    active.current = true;
+    setPending(true);
+    try {
+      return await operation();
+    } finally {
+      active.current = false;
+      setPending(false);
+    }
+  }
+
+  return { pending, run };
 }
 
 function useLoad<T>(path: string) {

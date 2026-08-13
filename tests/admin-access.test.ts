@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import test from "node:test";
 import type { AdminContextRow } from "../src/admin/admin.repo";
 import type { AdminAuditInput, AdminAuditLogItem, AdminRoleKey } from "../src/admin/admin.types";
@@ -22,6 +24,18 @@ const targetUserId = "00000000-0000-4000-8000-000000000002";
 const auditLogId = "00000000-0000-4000-8000-0000000000b1";
 
 let restoreDeps: (() => void) | null = null;
+
+test("owner management serializes cross-row final-owner checks", () => {
+  const source = readFileSync(
+    path.join(process.cwd(), "src/admin/admin-user-control.repo.ts"),
+    "utf8",
+  );
+  assert.match(source, /pg_advisory_xact_lock\(hashtext\('amoria_admin_owner_control'\)\)/);
+  assert.ok(
+    source.indexOf("pg_advisory_xact_lock") < source.indexOf("removesActiveOwner"),
+    "owner lock must be acquired before checking the remaining active owners",
+  );
+});
 
 test.after(async () => {
   restoreAdminDeps();

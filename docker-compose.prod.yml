@@ -139,6 +139,36 @@ services:
     <<: *container-hardening
     logging: *production-logging
 
+  admin-web:
+    image: ${ADMIN_WEB_IMAGE:?ADMIN_WEB_IMAGE is required}:${RELEASE_SHA:?RELEASE_SHA is required}
+    build:
+      context: ./admin-web
+      args:
+        RELEASE_SHA: ${RELEASE_SHA:?RELEASE_SHA is required}
+        VITE_ADMIN_API_URL: ${PUBLIC_API_URL:?PUBLIC_API_URL is required}
+    restart: unless-stopped
+    environment:
+      ADMIN_API_ORIGIN: ${PUBLIC_API_URL:?PUBLIC_API_URL is required}
+      RELEASE_SHA: ${RELEASE_SHA:?RELEASE_SHA is required}
+    ports:
+      - "127.0.0.1:${ADMIN_WEB_HOST_PORT:-4174}:8080"
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - ingress
+    read_only: true
+    tmpfs:
+      - /tmp
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    <<: *container-hardening
+    logging: *production-logging
+
   photo-worker:
     image: ${PHOTO_WORKER_IMAGE:?PHOTO_WORKER_IMAGE is required}:${RELEASE_SHA:?RELEASE_SHA is required}
     build:

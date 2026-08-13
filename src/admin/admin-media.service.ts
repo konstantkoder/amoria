@@ -118,7 +118,6 @@ export async function getMediaForAdmin(
   return {
     media: {
       ...toAdminMediaItem(media, includeSensitiveUrl),
-      path: media.visibility === "locked" ? null : media.path,
       reviews: reviews.map(toAdminMediaReviewItem),
     },
   };

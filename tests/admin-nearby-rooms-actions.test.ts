@@ -54,13 +54,16 @@ test.after(async () => {
 });
 
 test("parseAdminNearbyRoomActionBody accepts archive/delete and rejects remove", () => {
-  assert.deepEqual(parseAdminNearbyRoomActionBody({ action: "archive" }), {
+  assert.deepEqual(parseAdminNearbyRoomActionBody({ action: "archive", reason: "Archive stale room" }), {
     action: "archive",
+    reason: "Archive stale room",
   });
-  assert.deepEqual(parseAdminNearbyRoomActionBody({ action: "delete" }), {
+  assert.deepEqual(parseAdminNearbyRoomActionBody({ action: "delete", reason: "Delete archived room" }), {
     action: "delete",
+    reason: "Delete archived room",
   });
-  assert.throws(() => parseAdminNearbyRoomActionBody({ action: "remove" }));
+  assert.throws(() => parseAdminNearbyRoomActionBody({ action: "archive" }));
+  assert.throws(() => parseAdminNearbyRoomActionBody({ action: "remove", reason: "Remove room" }));
 });
 
 test("parseAdminCreateNearbyRoomTypeBody accepts slug keys and trims values", () => {
@@ -289,6 +292,7 @@ test("POST /admin/nearby-rooms/:roomId/actions closes disables archives and reop
       "admin.nearbyRooms.reopen",
     ],
   );
+  assert.equal(state.auditInputs.every((input) => input.reason === "Admin room state change"), true);
   assert.equal(state.room(roomId)?.memberCount, 0);
   assert.equal(state.room(roomId)?.threadId, null);
   assertNoPrivateNearbyFields(reopen.json());
@@ -551,10 +555,11 @@ function mockNearbyRoomAdmin(input: {
     updateNearbyRoomStatusForAdmin: async (
       nextRoomId: string,
       status: "active" | "closed" | "disabled" | "archived" | "deleted",
-      updatedAt: Date,
+    updatedAt: Date,
+    expectedStatus: string,
     ) => {
       const room = rooms.get(nextRoomId);
-      if (!room) return undefined;
+      if (!room || room.status !== expectedStatus) return undefined;
       const updated = {
         ...room,
         status,
@@ -598,7 +603,7 @@ async function roomAction(
     method: "POST",
     url: `/admin/nearby-rooms/${roomId}/actions`,
     headers: authHeaders(userId),
-    payload: { action },
+    payload: { action, reason: "Admin room state change" },
   });
 }
 

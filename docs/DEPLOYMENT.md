@@ -8,7 +8,7 @@ This procedure deploys an exact release commit with `docker-compose.prod.yml`. I
 - Install Docker Engine with Compose v2 and ensure the reverse proxy alone owns public 80/443.
 - Keep `.env.production` outside Git, mode `0600`, owned by the deployment account. Start from `.env.production.example` and replace every placeholder.
 - Provision the three local model files at the configured read-only host directories and verify their published checksums.
-- Set `API_IMAGE` and `PHOTO_WORKER_IMAGE` to immutable registry repositories. Set `RELEASE_SHA` to the full 40-character commit; never deploy `latest`.
+- Set `API_IMAGE`, `ADMIN_WEB_IMAGE`, and `PHOTO_WORKER_IMAGE` to immutable registry repositories. Set `RELEASE_SHA` to the full 40-character commit; never deploy `latest`.
 - Create a root-only backup directory outside the web root and outside Docker volumes, for example `/var/backups/amoria`.
 
 Production must provide exact HTTPS public URLs, unique high-entropy JWT/HMAC/S3 secrets, SMTP settings, a precise CORS allowlist, and a bounded `TRUST_PROXY` matching the real reverse-proxy hop or IP/CIDR. The runtime and migration database URLs must use their separate roles.
@@ -56,18 +56,19 @@ Record PostgreSQL version, latest migration, release SHA, sizes, object count, c
 Preferred CI flow: build once, scan, push the SHA tag, record its registry digest, then pull by that exact tag/digest on the server.
 
 ```sh
-docker compose --env-file .env.production -f docker-compose.prod.yml build migrate photo-worker
+docker compose --env-file .env.production -f docker-compose.prod.yml build migrate admin-web photo-worker
 docker image inspect "$API_IMAGE:$RELEASE_SHA" --format '{{json .RepoDigests}}'
+docker image inspect "$ADMIN_WEB_IMAGE:$RELEASE_SHA" --format '{{json .RepoDigests}}'
 docker image inspect "$PHOTO_WORKER_IMAGE:$RELEASE_SHA" --format '{{json .RepoDigests}}'
 ```
 
-The API image embeds the safe release identifier and has no global npm CLI. Both application images run as `amoria`, use pinned base digests, and contain patched fixed-version OS crypto packages.
+The API and Admin Web images embed the safe release identifier. Admin Web is compiled against the exact public API HTTPS origin, uses a dependency-free production static server, and does not publish source maps or a Vite development server. Application images use pinned base digests and unprivileged users.
 
 ## 4. Controlled migration and start
 
 ```sh
 docker compose --env-file .env.production -f docker-compose.prod.yml run --rm migrate
-docker compose --env-file .env.production -f docker-compose.prod.yml up -d postgres minio minio-init api photo-worker
+docker compose --env-file .env.production -f docker-compose.prod.yml up -d postgres minio minio-init api admin-web photo-worker
 ```
 
 The migration service uses the migration role and PostgreSQL advisory locking. The API uses the restricted runtime role and never auto-migrates in production.
@@ -80,9 +81,10 @@ Through the real TLS endpoint, verify:
 curl --fail --silent https://api.example.com/health/live
 curl --fail --silent https://api.example.com/health/ready
 curl --fail --silent https://api.example.com/version
+curl --fail --silent https://admin.example.com/health
 ```
 
-The version SHA must equal the approved `RELEASE_SHA`; readiness must report DB and object storage healthy. Then perform one QA login, profile/inbox read, normal message with WebSocket receipt, Nearby read, public-media read, locked-media denial, and authorized Admin read. Check logs and Admin Client Errors for at least 15 minutes.
+The API version and Admin Web health SHA must equal the approved `RELEASE_SHA`; readiness must report DB and object storage healthy. In a browser at the real Admin HTTPS origin, verify login, refresh continuity, logout, and each role's allowed/denied navigation and mutation controls. Then perform one QA profile/inbox read, normal message with WebSocket receipt, Nearby read, public-media read, and locked-media denial/authorized access. Check logs and Admin Client Errors for at least 15 minutes.
 
 ## Backup schedule and retention
 
@@ -96,7 +98,8 @@ The proposed release RPO is 6 hours for database state and 24 hours for media un
 
 ## Reverse proxy and operations
 
-- Proxy only to the loopback-bound API port and enable WebSocket upgrade.
+- Route the public API HTTPS host to the loopback-bound API port and enable WebSocket upgrade. Route the separate Admin HTTPS host to the loopback-bound Admin Web port. Do not expose either loopback port directly.
+- Set `PUBLIC_API_URL` to the exact API HTTPS origin and `CORS_ALLOWED_ORIGINS` to the exact Admin HTTPS origin. Do not use wildcards with credentialed Admin requests.
 - Enforce HTTPS redirect, TLS renewal, request-body limits matching the API, and the exact real-client-IP topology represented by `TRUST_PROXY`.
 - Do not publish PostgreSQL, MinIO API/console, or an Admin development server.
 - Compose rotates JSON logs at 10 MiB × 5 files per long-running service. Monitor Docker data, Postgres, MinIO, journal, and backup disk growth.

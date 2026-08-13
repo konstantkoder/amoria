@@ -178,12 +178,17 @@ export async function actionMoment(admin:AdminContext,id:string,body:ActionBody,
 export async function actionProblem(admin:AdminContext,id:string,body:ActionBody,ctx:AdminRequestContext):Promise<unknown>{
   const statuses:Record<string,string>={resolve:"resolved",ignore:"ignored",reopen:"open"};
   const status=statuses[body.action]; if(!status) throw validationError("Unsupported problem action",{action:"unsupported"});
+  const expectedStatuses = body.action === "reopen" ? ["resolved", "ignored"] : ["open"];
   const result=await pool.query(`UPDATE together_turn_based_problems SET status=$2,resolution_note=$3,
     resolved_at=CASE WHEN $2='open' THEN NULL ELSE now() END,
     resolved_by_admin_user_id=CASE WHEN $2='open' THEN NULL ELSE $4 END,updated_at=now()
-    WHERE id=$1 RETURNING id,moment_id "momentId",code,severity,status,summary,
-    last_seen_at "lastSeenAt",occurrence_count "occurrenceCount"`,[id,status,body.reason,admin.adminUser.id]);
-  if(!result.rows[0]) throw new AppError("not_found","Together problem not found",404);
+    WHERE id=$1 AND status = ANY($5::text[]) RETURNING id,moment_id "momentId",code,severity,status,summary,
+    last_seen_at "lastSeenAt",occurrence_count "occurrenceCount"`,[id,status,body.reason,admin.adminUser.id,expectedStatuses]);
+  if(!result.rows[0]) {
+    const existing = await pool.query("SELECT status FROM together_turn_based_problems WHERE id=$1", [id]);
+    if (!existing.rows[0]) throw new AppError("not_found","Together problem not found",404);
+    throw invalidAdminTransition(`Problem cannot ${body.action} from status ${String(existing.rows[0].status)}`);
+  }
   await log(admin,"admin.togetherTurnBasedProblem.action","together_turn_based_problem",id,{action:body.action},ctx,body.reason);
   return {problem:result.rows[0]};
 }

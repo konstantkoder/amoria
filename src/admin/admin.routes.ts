@@ -206,7 +206,7 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
     preHandler: [authMiddleware, requireAdmin(["owner","ops"])],
   }, async (request) => adminTurnBased.actionMoment(currentAdmin(request),request.params.id,adminTurnBased.parseAction(request.body),adminRequestContext(request)));
   fastify.post<{Params:{id:string}}>("/together/turn-based/problems/:id/actions", {
-    preHandler: [authMiddleware, requireAdmin(["owner","ops","support"])],
+    preHandler: [authMiddleware, requireAdmin(["owner", "ops"])],
   }, async (request) => adminTurnBased.actionProblem(currentAdmin(request),request.params.id,adminTurnBased.parseAction(request.body),adminRequestContext(request)));
   fastify.get(
     "/health",

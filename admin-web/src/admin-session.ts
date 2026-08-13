@@ -63,7 +63,8 @@ export class AdminSessionClient {
 
   async logout(): Promise<void> {
     try {
-      await this.sessionRequest("/admin/session/logout", {});
+      const response = await this.sessionRequest("/admin/session/logout", {});
+      await parseOkResponse(response);
     } finally {
       this.accessSession = null;
     }
@@ -91,6 +92,22 @@ export class AdminSessionClient {
       body: JSON.stringify(body),
     });
   }
+}
+
+async function parseOkResponse(response: Response): Promise<void> {
+  if (response.ok) {
+    return;
+  }
+  const text = await response.text();
+  const payload = text ? JSON.parse(text) : null;
+  const error = payload?.error;
+  const sessionError = new Error(error?.message || `Request failed with ${response.status}`) as Error & {
+    status?: number;
+    code?: string;
+  };
+  sessionError.status = response.status;
+  sessionError.code = error?.code;
+  throw sessionError;
 }
 
 async function parseSessionResponse(response: Response): Promise<AdminAccessSession> {

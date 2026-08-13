@@ -460,7 +460,6 @@ export type MediaReview = {
 };
 
 export type MediaDetail = MediaItem & {
-  path: string | null;
   reviews: MediaReview[];
 };
 
@@ -581,7 +580,7 @@ export async function login(email: string, password: string): Promise<AdminAcces
 }
 
 export async function logout(): Promise<void> {
-  await adminSession.logout().catch(() => undefined);
+  await adminSession.logout();
 }
 
 export async function apiGet<T>(path: string): Promise<T> {
@@ -639,16 +638,15 @@ export function resolveApiUrl(value: string | null | undefined): string | null {
   }
 
   const apiOrigin = API_BASE_URL || window.location.origin;
-  if (normalized.startsWith("/")) {
-    return `${apiOrigin}${normalized}`;
-  }
-
   try {
-    const url = new URL(normalized);
-    if (url.pathname.startsWith("/media/public/")) {
+    const url = new URL(normalized, `${apiOrigin}/`);
+    if (
+      (url.protocol === "https:" || url.protocol === "http:") &&
+      /^\/media\/public\/[^/?#]+$/u.test(url.pathname)
+    ) {
       return `${apiOrigin}${url.pathname}${url.search}`;
     }
-    return normalized;
+    return null;
   } catch {
     return null;
   }

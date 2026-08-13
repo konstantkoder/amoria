@@ -105,7 +105,6 @@ export type AdminMediaReviewItem = {
 };
 
 export type AdminMediaDetail = AdminMediaItem & {
-  path: string | null;
   reviews: AdminMediaReviewItem[];
 };
 
@@ -156,12 +155,12 @@ export function toAdminMediaItem(row: AdminMediaRow, includeSensitiveUrl: boolea
       jobId: row.latestJob.id,
       status: row.latestJob.status,
       attemptCount: row.latestJob.attemptCount,
-      providerEngine: row.latestJob.providerEngine,
-      modelVersion: row.latestJob.modelVersion,
-      policyVersion: row.latestJob.policyVersion,
-      policyDecision: row.latestJob.policyDecision,
-      errorCode: row.latestJob.errorCode,
-      rawResult: row.latestJob.rawResult ?? null,
+      providerEngine: safeCode(row.latestJob.providerEngine) ?? "[redacted]",
+      modelVersion: safeModelIdentifier(row.latestJob.modelVersion) ?? "[redacted]",
+      policyVersion: safeCode(row.latestJob.policyVersion) ?? "[redacted]",
+      policyDecision: safeEnum(row.latestJob.policyDecision, ["approve", "needs_review", "restrict"]),
+      errorCode: safeCode(row.latestJob.errorCode),
+      rawResult: safeAdminMediaRawResult(row.latestJob.rawResult),
       startedAt: row.latestJob.startedAt?.toISOString() ?? null,
       completedAt: row.latestJob.completedAt?.toISOString() ?? null,
     } : null,
@@ -177,7 +176,7 @@ export function toAdminMediaReviewItem(row: MediaModerationReviewRow): AdminMedi
     adminUserId: row.adminUserId,
     action: row.action as MediaModerationAction,
     reason: row.reason,
-    metadata: row.metadata ?? null,
+    metadata: sanitizeAdminMediaReviewMetadata(row.metadata),
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -193,6 +192,121 @@ export function moderationStatusForReview(
     return row.moderationState as MediaModerationStatus;
   }
   return review?.action === "approve" ? "approved" : "pending";
+}
+
+export function safeAdminMediaRawResult(value: unknown): JsonValue | null {
+  const source = asRecord(value);
+  if (!source) {
+    return null;
+  }
+
+  const output: Record<string, JsonValue> = {};
+  const containsPerson = safeEnum(source.containsPerson, ["true", "false", "unknown"]);
+  if (containsPerson) {
+    output.containsPerson = containsPerson;
+  }
+
+  const policyReasonCode = safeCode(source.policyReasonCode);
+  if (policyReasonCode) {
+    output.policyReasonCode = policyReasonCode;
+  }
+
+  const confidence = asRecord(source.confidence);
+  const nsfwConfidence = safeProbability(confidence?.nsfw);
+  if (nsfwConfidence !== null) {
+    output.confidence = { nsfw: nsfwConfidence };
+  }
+
+  const graphicSource = asRecord(source.graphicSafety);
+  if (graphicSource) {
+    const graphic: Record<string, JsonValue> = {};
+    const signal = safeEnum(graphicSource.signal, ["safe", "unknown", "unsafe"]);
+    const decision = safeEnum(graphicSource.policyDecision, ["approve", "needs_review", "restrict"]);
+    const probability = safeProbability(graphicSource.nsflProbability);
+    const modelVersion = safeModelIdentifier(graphicSource.modelVersion);
+    if (signal) graphic.signal = signal;
+    if (decision) graphic.policyDecision = decision;
+    if (probability !== null) graphic.nsflProbability = probability;
+    if (modelVersion) graphic.modelVersion = modelVersion;
+    if (Object.keys(graphic).length) {
+      output.graphicSafety = graphic;
+    }
+  }
+
+  return Object.keys(output).length ? output : null;
+}
+
+export function sanitizeAdminMediaReviewMetadata(value: unknown): JsonValue | null {
+  if (value === undefined || value === null) {
+    return null;
+  }
+  return sanitizeReviewValue(value, 0);
+}
+
+const sensitiveReviewKey = /password|token|secret|authorization|cookie|jwt|access[_-]?key|private[_-]?key|(?:^|[_-])path(?:$|[_-])|path$|storage[_-]?key|endpoint|host(?:name)?/i;
+
+function sanitizeReviewValue(value: unknown, depth: number): JsonValue {
+  if (depth > 4) {
+    return "[truncated]";
+  }
+  if (value === null || typeof value === "boolean") {
+    return value;
+  }
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : "[invalid]";
+  }
+  if (typeof value === "string") {
+    if (/\p{Cc}/u.test(value) || /:\/\//u.test(value) || /[\\/]/u.test(value) || /^[a-z0-9.-]+:\d+$/iu.test(value)) {
+      return "[redacted]";
+    }
+    return value.length <= 500 ? value : `${value.slice(0, 500)}...[truncated]`;
+  }
+  if (Array.isArray(value)) {
+    return value.slice(0, 20).map((item) => sanitizeReviewValue(item, depth + 1));
+  }
+  if (typeof value === "object") {
+    const output: Record<string, JsonValue> = {};
+    for (const [key, item] of Object.entries(value).slice(0, 40)) {
+      const safeKey = key.slice(0, 80);
+      output[safeKey] = sensitiveReviewKey.test(key)
+        ? "[redacted]"
+        : sanitizeReviewValue(item, depth + 1);
+    }
+    return output;
+  }
+  return String(value);
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function safeEnum<T extends string>(value: unknown, allowed: readonly T[]): T | null {
+  return typeof value === "string" && allowed.includes(value as T) ? value as T : null;
+}
+
+function safeProbability(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 1
+    ? value
+    : null;
+}
+
+function safeCode(value: unknown): string | null {
+  return typeof value === "string" && /^[a-z0-9_]{1,120}$/u.test(value) ? value : null;
+}
+
+function safeModelIdentifier(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const clean = value.trim();
+  const slashCount = clean.split("/").length - 1;
+  return clean.length > 0 && clean.length <= 200 && slashCount <= 1 &&
+    !/\p{Cc}|:\/\/|\\|^\/|(?:^|\/)\.\.(?:\/|$)|\.(?:avif|gif|jpe?g|png|webp)$|^[a-z0-9.-]+:\d+$/iu.test(clean)
+    ? clean
+    : null;
 }
 
 function publicUrlForAdminMedia(row: AdminMediaRow): string | null {

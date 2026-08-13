@@ -31,6 +31,7 @@ export type ErrorCode =
   | "together_turn_invalid_transition"
   | "together_event_id_conflict"
   | "nearby_activity_preference_required"
+  | "nearby_room_state_changed"
   | "not_found"
   | "email_taken"
   | "email_not_verified"

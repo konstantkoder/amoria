@@ -158,10 +158,9 @@ const mediaItemSchema = {
 
 const mediaDetailSchema = {
   ...mediaItemSchema,
-  required: [...mediaItemSchema.required, "path", "reviews"],
+  required: [...mediaItemSchema.required, "reviews"],
   properties: {
     ...mediaItemSchema.properties,
-    path: { type: ["string", "null"] },
     reviews: {
       type: "array",
       items: mediaReviewItemSchema,

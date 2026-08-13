@@ -4,7 +4,7 @@ Rollback always targets an immutable previously recorded image/SHA. Do not rebui
 
 ## Immediate containment
 
-1. Remove the failing API from reverse-proxy traffic or stop only `api` and `photo-worker`.
+1. Remove the failing API/Admin host from reverse-proxy traffic or stop only `api`, `admin-web`, and `photo-worker`.
 2. Preserve logs, release/version output, migration output, and the pre-deploy backup checksums.
 3. Decide whether the migration completed and whether the previous code was proven compatible with the resulting schema.
 
@@ -14,12 +14,13 @@ Use this when no migration ran, migration failed before change, or the exact pre
 
 ```sh
 export RELEASE_SHA='<previous-full-sha>'
-docker compose --env-file .env.production -f docker-compose.prod.yml up -d --no-deps api photo-worker
+docker compose --env-file .env.production -f docker-compose.prod.yml up -d --no-deps api admin-web photo-worker
 curl --fail --silent https://api.example.com/health/ready
 curl --fail --silent https://api.example.com/version
+curl --fail --silent https://admin.example.com/health
 ```
 
-Require the previous SHA in `/version`, then repeat auth, profile/inbox, chat/WebSocket, Nearby, public/locked media, and Admin smoke checks. Monitor errors before reopening traffic.
+Require the previous SHA in both API `/version` and Admin `/health`, then repeat auth, profile/inbox, chat/WebSocket, Nearby, public/locked media, and role-specific Admin smoke checks. Monitor errors before reopening traffic.
 
 Local audit evidence: exact image `amoria-api:preauth-ec3f182` started and returned healthy after the current 0032 schema was applied, so the tested historical code rollback is compatible with that schema. This does not grant blanket compatibility to every future migration.
 
