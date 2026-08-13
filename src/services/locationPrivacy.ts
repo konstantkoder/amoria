@@ -144,3 +144,8 @@ export async function clearLocationConsent(): Promise<void> {
     return;
   }
 }
+
+export function resetLocationPrivacyCache(): void {
+  cachedLocationPrefs = DEFAULT_LOCATION_PREFS;
+  cachedLegacyMapPresencePrefs = DEFAULT_LEGACY_MAP_PRESENCE_PREFS;
+}

@@ -33,6 +33,8 @@ import ProfileScreen from "@/screens/ProfileScreen";
 import EditProfileScreen from "@/screens/EditProfileScreen";
 import PhotoManagerScreen from "@/screens/PhotoManagerScreen";
 import SettingsScreen from "@/screens/SettingsScreen";
+import NotificationsScreen from "@/screens/NotificationsScreen";
+import AccountDeletionScreen from "@/screens/AccountDeletionScreen";
 import PrivacyPolicyScreen from "@/screens/PrivacyPolicyScreen";
 import LocationInfoScreen from "@/screens/LocationInfoScreen";
 
@@ -491,6 +493,8 @@ export default function AppNavigator() {
         <RootStack.Screen name="UserProfile" component={UserProfileScreen} />
         <RootStack.Screen name="Profile" component={ProfileStackNavigator} />
         <RootStack.Screen name="Settings" component={SettingsScreen} />
+        <RootStack.Screen name="Notifications" component={NotificationsScreen} />
+        <RootStack.Screen name="AccountDeletion" component={AccountDeletionScreen} />
         <RootStack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
         <RootStack.Screen name="LocationInfo" component={LocationInfoScreen} />
       </RootStack.Navigator>

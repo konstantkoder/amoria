@@ -50,7 +50,7 @@ export type DmChatRouteParams = {
 
 export type AppStackParamList = {
   Login: undefined;
-  Root: undefined;
+  Root: NavigatorScreenParams<RootStackParamList> | undefined;
 };
 
 export type MainTabParamList = {
@@ -121,6 +121,8 @@ export type RootStackParamList = {
   UserProfile: UserProfileRouteParams;
   Profile: NavigatorScreenParams<ProfileStackParamList> | undefined;
   Settings: undefined;
+  Notifications: undefined;
+  AccountDeletion: undefined;
   PrivacyPolicy: undefined;
   LocationInfo: undefined;
 };

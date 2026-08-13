@@ -27,7 +27,7 @@
         {
           "icon": "./assets/notification-icon.png",
           "color": "#E6B976",
-          "defaultChannel": "default"
+          "defaultChannel": "amoria_updates"
         }
       ],
       "expo-secure-store"

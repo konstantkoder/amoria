@@ -33,6 +33,12 @@ import {
   reportClientError,
   sanitizeErrorForReport,
 } from "@/services/api/clientErrorsApi";
+import * as notificationsApi from "@/services/api/notificationsApi";
+import {
+  Notifications,
+  subscribePushTokenChanges,
+  syncPushTokenIfGranted,
+} from "@/services/notifications";
 
 markStartupEvent("app.module_loaded");
 
@@ -44,6 +50,27 @@ LogBox.ignoreLogs([
 
 const Stack = createNativeStackNavigator<AppStackParamList>();
 const navigationRef = createNavigationContainerRef<AppStackParamList>();
+let pendingPushData: Record<string, unknown> | null = null;
+
+function routePushData(data: Record<string, unknown>) {
+  if (!getSafeNavigationReady()) {
+    pendingPushData = data;
+    return;
+  }
+  const type = typeof data.type === "string" ? data.type : "";
+  if (!new Set(["direct_message", "together_match", "together_action", "announcement"]).has(type)) return;
+  const screen = type === "direct_message" ? "Inbox" : type === "announcement" ? "Nearby" : "Together";
+  navigationRef.navigate("Root", { screen: "Tabs", params: { screen } });
+  const notificationId = typeof data.notificationId === "string" ? data.notificationId : "";
+  if (notificationId) void notificationsApi.markNotificationRead(notificationId).catch(() => undefined);
+}
+
+function flushPendingPushData() {
+  if (!pendingPushData) return;
+  const data = pendingPushData;
+  pendingPushData = null;
+  routePushData(data);
+}
 const ANDROID_NAV_HIDDEN_ROUTES = new Set([
   "Tabs",
   "Together",
@@ -281,6 +308,7 @@ function AppNavigation({ isSignedIn }: AppNavigationProps) {
         (globalThis as any).__NAV = navigationRef;
         markStartupTimingFromStart("first_screen.ready", { signedIn: isSignedIn });
         syncAndroidNavigationBar();
+        if (isSignedIn) flushPendingPushData();
       }}
       onStateChange={syncAndroidNavigationBar}
     >
@@ -304,6 +332,24 @@ function AppNavigation({ isSignedIn }: AppNavigationProps) {
 function AuthGate() {
   const { ready, user, startupState, retryStartup } = useAuth();
   const isSignedIn = Boolean(user);
+  React.useEffect(() => {
+    if (!isSignedIn) return undefined;
+    void syncPushTokenIfGranted().catch(() => undefined);
+    const tokenSubscription = subscribePushTokenChanges();
+    const responseSubscription = Notifications.addNotificationResponseReceivedListener((response) => {
+      routePushData(response.notification.request.content.data);
+      void Notifications.clearLastNotificationResponseAsync().catch(() => undefined);
+    });
+    void Notifications.getLastNotificationResponseAsync().then((response) => {
+      if (!response) return;
+      routePushData(response.notification.request.content.data);
+      return Notifications.clearLastNotificationResponseAsync();
+    }).catch(() => undefined);
+    return () => {
+      tokenSubscription.remove();
+      responseSubscription.remove();
+    };
+  }, [isSignedIn]);
   const handleErrorBoundaryError = React.useCallback(
     (error: Error) => {
       reportAppError(

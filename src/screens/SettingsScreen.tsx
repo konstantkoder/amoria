@@ -217,6 +217,13 @@ export default function SettingsScreen() {
             {copyOrFallback(t, "settings.sectionApp", "Приложение")}
           </Text>
           <View style={styles.card}>
+            <TouchableOpacity
+              onPress={() => navigation.navigate("Notifications")}
+              style={styles.linkRow}
+            >
+              <Ionicons name="notifications-outline" size={18} color="#E5E7EB" />
+              <Text style={styles.linkText}>{t("notifications.title")}</Text>
+            </TouchableOpacity>
             <TouchableOpacity onPress={openLanguagePicker} style={styles.linkRow}>
               <Ionicons name="language-outline" size={18} color="#E5E7EB" />
               <Text style={styles.linkText}>{t("menu.language")}</Text>
@@ -237,6 +244,13 @@ export default function SettingsScreen() {
             <TouchableOpacity onPress={handleLogout} style={styles.linkRow}>
               <Ionicons name="log-out-outline" size={18} color="#FFD7DF" />
               <Text style={[styles.linkText, styles.logoutText]}>{t("menu.logout")}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => navigation.navigate("AccountDeletion")}
+              style={styles.linkRow}
+            >
+              <Ionicons name="trash-outline" size={18} color="#FF9CAD" />
+              <Text style={[styles.linkText, styles.deleteText]}>{t("accountDeletion.title")}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -314,5 +328,8 @@ const styles = {
   },
   logoutText: {
     color: "#FFD7DF",
+  },
+  deleteText: {
+    color: "#FF9CAD",
   },
 };

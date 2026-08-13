@@ -165,6 +165,13 @@ export async function markPlaySessionSeen(sessionId: string, seenAt = Date.now()
   await persistState(cache);
 }
 
+export function resetActivityFreshnessState(): void {
+  cache = EMPTY_STATE;
+  hydrated = false;
+  hydratePromise = null;
+  notifyListeners();
+}
+
 export function getDmThreadActivityAt(thread: Pick<DmThreadActivity, "lastMessageAt" | "updatedAt" | "createdAt">) {
   return thread.lastMessageAt ?? thread.updatedAt ?? thread.createdAt ?? 0;
 }

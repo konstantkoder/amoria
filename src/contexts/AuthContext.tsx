@@ -50,6 +50,9 @@ import {
   type AuthBootstrapState,
 } from "@/services/authBootstrapState";
 import * as wsClient from "@/services/realtime/wsClient";
+import { clearAccountLocalData } from "@/services/accountLocalData";
+import { deleteMyAccount } from "@/services/api/accountApi";
+import { unlinkPushToken } from "@/services/notifications";
 
 type AuthContextValue = {
   ready: boolean;
@@ -62,6 +65,7 @@ type AuthContextValue = {
   verifyEmail: (input: VerifyEmailRequest) => Promise<AuthUserDto>;
   logout: () => Promise<void>;
   logoutAll: () => Promise<void>;
+  deleteAccount: (password: string) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -91,6 +95,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const clearSessionState = useCallback(async () => {
+    if (getAccessToken()) await unlinkPushToken().catch(() => undefined);
     wsClient.resetForSession();
     await clearBackendSession();
     setUser(null);
@@ -247,6 +252,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [clearSessionState]);
 
+  const deleteAccount = useCallback(async (password: string) => {
+    await deleteMyAccount(password);
+    await clearAccountLocalData();
+    await clearSessionState();
+  }, [clearSessionState]);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       ready: isAuthBootstrapReady(startupState),
@@ -259,8 +270,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       verifyEmail,
       logout,
       logoutAll,
+      deleteAccount,
     }),
-    [accessToken, login, logout, logoutAll, register, retryStartup, startupState, user, verifyEmail]
+    [accessToken, deleteAccount, login, logout, logoutAll, register, retryStartup, startupState, user, verifyEmail]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
