@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Image,
   Keyboard,
@@ -183,6 +184,8 @@ function getLoginErrorMessageKey(error: unknown) {
     messageKey = "auth.invalidCredential";
   } else if (code === "auth/too-many-requests" || code === "rate_limited") {
     messageKey = "auth.tooManyRequests";
+  } else if (code === "account_suspended") {
+    messageKey = "auth.accountSuspended";
   } else if (
     code === "auth/network-request-failed" ||
     isNetworkLikeError(error)
@@ -200,6 +203,7 @@ export default function LoginScreen() {
   const displayNameInputRef = useRef<TextInput>(null);
   const emailInputRef = useRef<TextInput>(null);
   const passwordInputRef = useRef<TextInput>(null);
+  const authRequestInFlightRef = useRef(false);
   const [mode, setMode] = useState<AuthMode>("login");
   const [stage, setStage] = useState<AuthStage>("welcome");
   const [displayName, setDisplayName] = useState("");
@@ -207,6 +211,7 @@ export default function LoginScreen() {
   const [password, setPassword] = useState("");
   const [verificationEmail, setVerificationEmail] = useState("");
   const [verificationCooldown, setVerificationCooldown] = useState(0);
+  const [authBusy, setAuthBusy] = useState(false);
   const backendConfigured = isBackendApiConfigured();
   const isRegisterMode = mode === "register";
   const localeCode = locale.toUpperCase();
@@ -220,7 +225,7 @@ export default function LoginScreen() {
     }
     return null;
   }, [backendConfigured, t]);
-  const authDisabled = !backendConfigured;
+  const authDisabled = !backendConfigured || authBusy;
 
   const dismissLanguagePicker = useCallback(() => {
     Keyboard.dismiss();
@@ -234,6 +239,7 @@ export default function LoginScreen() {
   }, []);
 
   const login = async () => {
+    if (authRequestInFlightRef.current) return;
     setMode("login");
     const trimmedEmail = email.trim();
     if (!trimmedEmail) {
@@ -252,6 +258,8 @@ export default function LoginScreen() {
       Alert.alert(t("auth.loginTitle"), t("auth.networkError"));
       return;
     }
+    authRequestInFlightRef.current = true;
+    setAuthBusy(true);
     try {
       await auth.login({
         email: trimmedEmail,
@@ -278,10 +286,14 @@ export default function LoginScreen() {
         messageKey,
       });
       Alert.alert(t("auth.loginError"), t(messageKey));
+    } finally {
+      authRequestInFlightRef.current = false;
+      setAuthBusy(false);
     }
   };
 
   const register = async () => {
+    if (authRequestInFlightRef.current) return;
     setMode("register");
     const trimmedDisplayName = normalizeDisplayNameInput(displayName);
     const displayNameErrorKey = getDisplayNameValidationErrorKey(trimmedDisplayName);
@@ -307,6 +319,8 @@ export default function LoginScreen() {
       Alert.alert(t("auth.registerTitle"), t("auth.networkError"));
       return;
     }
+    authRequestInFlightRef.current = true;
+    setAuthBusy(true);
     try {
       const response = await auth.register({
         email: trimmedEmail,
@@ -330,6 +344,9 @@ export default function LoginScreen() {
         messageKey,
       });
       Alert.alert(t("auth.registerError"), t(messageKey));
+    } finally {
+      authRequestInFlightRef.current = false;
+      setAuthBusy(false);
     }
   };
 
@@ -543,14 +560,16 @@ export default function LoginScreen() {
                 accessibilityRole="button"
                 accessibilityState={{ disabled: authDisabled }}
               >
-                <Text
+                {authBusy ? (
+                  <ActivityIndicator color={theme.colors.primaryActionText} />
+                ) : <Text
                   style={[
                     styles.buttonText,
                     authDisabled ? styles.buttonTextDisabled : null,
                   ]}
                 >
                   {isRegisterMode ? t("auth.registerButton") : t("auth.loginButton")}
-                </Text>
+                </Text>}
               </TouchableOpacity>
                   </View>
                   )}

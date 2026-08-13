@@ -132,6 +132,7 @@ export default function PlayLobbyScreen() {
   const [turnBasedMoment, setTurnBasedMoment] = React.useState<TurnBasedMomentDto | null>(null);
   const [turnBasedBusy, setTurnBasedBusy] = React.useState(false);
   const turnStartRequestIdRef = React.useRef<string | null>(null);
+  const turnBasedMutationRef = React.useRef(false);
 
   React.useEffect(() => {
     let alive = true;
@@ -335,6 +336,8 @@ export default function PlayLobbyScreen() {
   }, [navigation]);
 
   const startTurnBased = React.useCallback(async () => {
+    if (turnBasedMutationRef.current) return;
+    turnBasedMutationRef.current = true;
     try {
       setTurnBasedBusy(true);
       const location = await resolveQueueLocation();
@@ -355,6 +358,7 @@ export default function PlayLobbyScreen() {
         sanitizeErrorForReport(error).message
       );
     } finally {
+      turnBasedMutationRef.current = false;
       setTurnBasedBusy(false);
     }
   }, [openTurnBasedMoment, resolveQueueLocation, selectedAgeFilter, tt]);
@@ -391,7 +395,8 @@ export default function PlayLobbyScreen() {
   }, [refreshTurnBased]);
 
   const cancelCurrentTurnBased = React.useCallback(async () => {
-    if (!turnBasedMoment) return;
+    if (!turnBasedMoment || turnBasedMutationRef.current) return;
+    turnBasedMutationRef.current = true;
     try {
       setTurnBasedBusy(true);
       const response = await togetherApi.cancelTurnBased(
@@ -403,12 +408,14 @@ export default function PlayLobbyScreen() {
     } catch (error) {
       Alert.alert(tt("together.turnBased.errorTitle", "Could not cancel"), sanitizeErrorForReport(error).message);
     } finally {
+      turnBasedMutationRef.current = false;
       setTurnBasedBusy(false);
     }
   }, [tt, turnBasedMoment]);
 
   const dismissCurrentTurnBased = React.useCallback(async () => {
-    if (!turnBasedMoment) return;
+    if (!turnBasedMoment || turnBasedMutationRef.current) return;
+    turnBasedMutationRef.current = true;
     try {
       setTurnBasedBusy(true);
       await togetherApi.dismissTurnBased(turnBasedMoment.id);
@@ -416,6 +423,7 @@ export default function PlayLobbyScreen() {
     } catch (error) {
       Alert.alert(tt("together.turnBased.errorTitle", "Could not close"), sanitizeErrorForReport(error).message);
     } finally {
+      turnBasedMutationRef.current = false;
       setTurnBasedBusy(false);
     }
   }, [tt, turnBasedMoment]);

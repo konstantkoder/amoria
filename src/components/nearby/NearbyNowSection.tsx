@@ -142,6 +142,7 @@ export default function NearbyNowSection({
   const mountedRef = useRef(true);
   const sendResetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sendGuardRef = useRef(false);
+  const reportInFlightRef = useRef(false);
 
   const [prefs, setPrefs] = useState<LocationPrefs>({
     consent: "unknown",
@@ -532,8 +533,9 @@ export default function NearbyNowSection({
   const reportNearbyPost = useCallback(
     async (item: NowPost, reason: SafetyReportReason) => {
       const authorUid = String(item.authorUid ?? "").trim();
-      if (!item.id || !authorUid || reportingPostId) return;
+      if (!item.id || !authorUid || reportingPostId || reportInFlightRef.current) return;
 
+      reportInFlightRef.current = true;
       setReportingPostId(item.id);
       try {
         await safetyApi.report({
@@ -546,6 +548,7 @@ export default function NearbyNowSection({
       } catch {
         Alert.alert(t("safety.reportErrorTitle"), t("safety.reportErrorBody"));
       } finally {
+        reportInFlightRef.current = false;
         if (mountedRef.current) {
           setReportingPostId(null);
         }

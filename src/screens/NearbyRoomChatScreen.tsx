@@ -113,6 +113,7 @@ export default function NearbyRoomChatScreen() {
   const screenTitle = title || tt(t, "nearby.rooms.title", "Активности рядом");
 
   const mountedRef = useRef(true);
+  const sendInFlightRef = useRef(false);
   const inputRef = useRef<TextInput>(null);
   const [messages, setMessages] = useState<RenderRoomMessage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -183,8 +184,9 @@ export default function NearbyRoomChatScreen() {
 
   const send = useCallback(async () => {
     const nextText = text.trim();
-    if (!roomId || !myId || !nextText || sending) return;
+    if (!roomId || !myId || !nextText || sending || sendInFlightRef.current) return;
 
+    sendInFlightRef.current = true;
     setSending(true);
     setErrorText("");
     try {
@@ -208,6 +210,7 @@ export default function NearbyRoomChatScreen() {
           : tt(t, "nearby.rooms.sendFailed", "Не удалось отправить сообщение.")
       );
     } finally {
+      sendInFlightRef.current = false;
       if (mountedRef.current) {
         setSending(false);
       }

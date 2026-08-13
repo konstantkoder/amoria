@@ -22,7 +22,10 @@ import {
   MEDIA_REQUEST_TIMEOUT_MS,
   RequestTimeoutError,
 } from "@/services/api/boundedFetch";
-import { isProvenInvalidRefresh } from "@/services/authBootstrapState";
+import {
+  isAccountSuspended,
+  isTerminalAuthFailure,
+} from "@/services/authBootstrapState";
 import { getDeviceId } from "@/services/deviceId";
 
 type HttpMethod = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
@@ -343,7 +346,7 @@ export function refreshSession(): Promise<AuthResponse> {
   if (!refreshSessionPromise) {
     refreshSessionPromise = refreshSessionOnce()
       .catch(async (error) => {
-        if (isProvenInvalidRefresh(error)) {
+        if (isTerminalAuthFailure(error)) {
           await clearTokensAfterRefreshFailure();
         }
         throw error;
@@ -367,6 +370,10 @@ export async function request<TResponse>(
   try {
     return await rawRequest<TResponse>(method, path, body, options);
   } catch (error) {
+    if (isAccountSuspended(error)) {
+      await clearTokensAfterRefreshFailure();
+      throw error;
+    }
     const shouldRefresh =
       options.auth !== false &&
       options.retryOnUnauthorized !== false &&

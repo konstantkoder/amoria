@@ -283,7 +283,7 @@ export default function PlayResultScreen() {
     session?.status === "finished" &&
     sessionActivity !== null &&
     !decision &&
-    (revealState?.canOpenChat ?? true) &&
+    revealState?.canOpenChat === true &&
     outcome !== "blocked" &&
     (!isTurnBased || turnBasedMoment?.action === "review_draw" || turnBasedMoment?.action === "review_story");
   const canContinueStory = sessionActivity === "draw" && canRevealDecision;

@@ -4,6 +4,7 @@ const {
 } = require("../src/services/api/boundedFetch.ts") as typeof import("../src/services/api/boundedFetch");
 const {
   classifyRefreshFailure,
+  isAccountSuspended,
   isAuthBootstrapReady,
   isProvenInvalidRefresh,
   isRefreshTimeout,
@@ -88,8 +89,11 @@ async function run() {
 
   const invalid = { name: "ApiError", status: 401, code: "invalid_refresh_token" };
   const outage = { name: "ApiError", status: 503, code: "service_unavailable" };
+  const suspended = { name: "ApiError", status: 403, code: "account_suspended" };
   assert(isProvenInvalidRefresh(invalid), "a proven refresh 401 is eligible for safe sign-out");
   assert(classifyRefreshFailure(invalid) === "guest", "invalid credentials transition directly to guest");
+  assert(isAccountSuspended(suspended), "a suspended account is a terminal auth state");
+  assert(classifyRefreshFailure(suspended) === "guest", "suspension cannot trap startup in retry forever");
   assert(!isProvenInvalidRefresh(outage), "backend 5xx never masquerades as revoked credentials");
   assert(classifyRefreshFailure(outage) === "recoverable_error", "backend outage preserves recovery state");
   assert(classifyRefreshFailure(timeoutError) === "recoverable_error", "refresh timeout preserves recovery state");

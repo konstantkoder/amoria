@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   ActivityIndicator,
   StyleSheet,
@@ -36,9 +36,11 @@ export default function PasswordResetScreen({ initialEmail = "", onBack }: Props
   const [newPassword, setNewPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [errorKey, setErrorKey] = useState<string | null>(null);
+  const mutationInFlightRef = useRef(false);
 
   const requestCode = async () => {
-    if (!/^\S+@\S+\.\S+$/.test(email.trim()) || busy) return;
+    if (!/^\S+@\S+\.\S+$/.test(email.trim()) || busy || mutationInFlightRef.current) return;
+    mutationInFlightRef.current = true;
     setBusy(true);
     setErrorKey(null);
     try {
@@ -47,12 +49,14 @@ export default function PasswordResetScreen({ initialEmail = "", onBack }: Props
     } catch (error) {
       setErrorKey(resetErrorKey(error));
     } finally {
+      mutationInFlightRef.current = false;
       setBusy(false);
     }
   };
 
   const confirm = async () => {
-    if (code.length !== 6 || newPassword.length < 8 || busy) return;
+    if (code.length !== 6 || newPassword.length < 8 || busy || mutationInFlightRef.current) return;
+    mutationInFlightRef.current = true;
     setBusy(true);
     setErrorKey(null);
     try {
@@ -63,6 +67,7 @@ export default function PasswordResetScreen({ initialEmail = "", onBack }: Props
     } catch (error) {
       setErrorKey(resetErrorKey(error));
     } finally {
+      mutationInFlightRef.current = false;
       setBusy(false);
     }
   };

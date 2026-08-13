@@ -114,6 +114,7 @@ function IdentitySetupGate({ children }: { children: React.ReactNode }) {
   const [nameDraft, setNameDraft] = React.useState("");
   const [errorText, setErrorText] = React.useState("");
   const nameInputRef = React.useRef<TextInput>(null);
+  const saveNameInFlightRef = React.useRef(false);
 
   React.useEffect(() => {
     let alive = true;
@@ -157,6 +158,7 @@ function IdentitySetupGate({ children }: { children: React.ReactNode }) {
   }, [t, uid]);
 
   const saveName = React.useCallback(async () => {
+    if (saveNameInFlightRef.current) return;
     const nextName = normalizeDisplayNameInput(nameDraft);
     const errorKey = getDisplayNameValidationErrorKey(nextName);
     if (errorKey) {
@@ -164,6 +166,7 @@ function IdentitySetupGate({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    saveNameInFlightRef.current = true;
     setSaving(true);
     setErrorText("");
     try {
@@ -175,6 +178,7 @@ function IdentitySetupGate({ children }: { children: React.ReactNode }) {
     } catch {
       setErrorText(t("profile.nameUpdateFailed"));
     } finally {
+      saveNameInFlightRef.current = false;
       setSaving(false);
     }
   }, [nameDraft, t]);

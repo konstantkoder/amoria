@@ -105,6 +105,7 @@ export default function PlayStorySparksScreen() {
   const [turnBasedMoment, setTurnBasedMoment] = React.useState<TurnBasedMomentDto | null>(null);
   const mountedRef = React.useRef(true);
   const finishPromiseRef = React.useRef<Promise<void> | null>(null);
+  const choiceInFlightRef = React.useRef(false);
   const navigatedRef = React.useRef(false);
   const invalidPackReportedRef = React.useRef(false);
 
@@ -428,6 +429,7 @@ export default function PlayStorySparksScreen() {
         !currentRound ||
         session.status !== "active" ||
         myChoice ||
+        choiceInFlightRef.current ||
         savingRoundId ||
         leaving
         || (isTurnBased && !turnBasedMoment?.isMyTurn)
@@ -435,6 +437,7 @@ export default function PlayStorySparksScreen() {
         return;
       }
 
+      choiceInFlightRef.current = true;
       setSavingRoundId(currentRound.id);
       setActionError("");
       try {
@@ -479,6 +482,7 @@ export default function PlayStorySparksScreen() {
           )
         );
       } finally {
+        choiceInFlightRef.current = false;
         if (mountedRef.current) setSavingRoundId(null);
       }
     },

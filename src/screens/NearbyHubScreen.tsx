@@ -339,6 +339,8 @@ export default function NearbyHubScreen() {
   const feedRequestIdRef = useRef(0);
   const radiusRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const manualRefreshBusyRef = useRef(false);
+  const visibilityMutationRef = useRef(false);
+  const roomActionInFlightRef = useRef(false);
   const reportedMissingPreferenceRef = useRef<Set<MissingNearbyPreferenceField>>(new Set());
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [profileLoadState, setProfileLoadState] = useState<NearbyProfileLoadState>("loading");
@@ -636,12 +638,14 @@ export default function NearbyHubScreen() {
   }, [loadInitial]);
 
   const enableVisibility = useCallback(async () => {
+    if (visibilityMutationRef.current) return;
     const missingFields = getMissingMatchingSafetyFields(profile);
     if (missingFields.length) {
       setErrorText(getMissingSafetyFieldsBody(missingFields, t));
       return;
     }
 
+    visibilityMutationRef.current = true;
     setToggleBusy(true);
     setErrorText("");
     setLocationIssue(null);
@@ -670,6 +674,7 @@ export default function NearbyHubScreen() {
       if (!mountedRef.current) return;
       setErrorText(getBackendErrorText(error, t));
     } finally {
+      visibilityMutationRef.current = false;
       if (mountedRef.current) {
         setToggleBusy(false);
       }
@@ -677,6 +682,8 @@ export default function NearbyHubScreen() {
   }, [profile, radiusKm, refreshFeed, refreshSummary, t, visibility]);
 
   const disableVisibility = useCallback(async () => {
+    if (visibilityMutationRef.current) return;
+    visibilityMutationRef.current = true;
     setToggleBusy(true);
     setErrorText("");
     setLocationIssue(null);
@@ -696,6 +703,7 @@ export default function NearbyHubScreen() {
       if (!mountedRef.current) return;
       setErrorText(getBackendErrorText(error, t));
     } finally {
+      visibilityMutationRef.current = false;
       if (mountedRef.current) {
         setToggleBusy(false);
       }
@@ -951,7 +959,8 @@ export default function NearbyHubScreen() {
 
   const handleJoinRoom = useCallback(
     async (room: NearbyRoomCard) => {
-      if (roomActionBusyId) return;
+      if (roomActionBusyId || roomActionInFlightRef.current) return;
+      roomActionInFlightRef.current = true;
       setRoomActionBusyId(room.id);
       setRoomErrorText("");
       setRoomPreferenceGateVisible(false);
@@ -967,6 +976,7 @@ export default function NearbyHubScreen() {
         }
         setRoomErrorText(getBackendErrorText(error, t));
       } finally {
+        roomActionInFlightRef.current = false;
         if (mountedRef.current) {
           setRoomActionBusyId(null);
         }
@@ -977,7 +987,8 @@ export default function NearbyHubScreen() {
 
   const handleOpenRoom = useCallback(
     async (room: NearbyRoomCard) => {
-      if (roomActionBusyId) return;
+      if (roomActionBusyId || roomActionInFlightRef.current) return;
+      roomActionInFlightRef.current = true;
       setRoomActionBusyId(room.id);
       setRoomErrorText("");
       setRoomPreferenceGateVisible(false);
@@ -999,6 +1010,7 @@ export default function NearbyHubScreen() {
         }
         setRoomErrorText(getBackendErrorText(error, t));
       } finally {
+        roomActionInFlightRef.current = false;
         if (mountedRef.current) {
           setRoomActionBusyId(null);
         }

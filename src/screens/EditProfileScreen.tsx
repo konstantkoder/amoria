@@ -249,6 +249,7 @@ export default function EditProfileScreen() {
   const { t } = useLocale();
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
+  const saveInFlightRef = React.useRef(false);
   const [displayName, setDisplayName] = React.useState("");
   const [about, setAbout] = React.useState("");
   const [interests, setInterests] = React.useState<string[]>([]);
@@ -522,6 +523,8 @@ export default function EditProfileScreen() {
   }, []);
 
   const handleSave = async () => {
+    if (saveInFlightRef.current) return;
+    saveInFlightRef.current = true;
     try {
       setSaving(true);
       const nextDisplayName = normalizeDisplayNameInput(displayName);
@@ -650,6 +653,7 @@ export default function EditProfileScreen() {
         birthDateErrorKey ? t(birthDateErrorKey) : t("editProfile.saveErrorBody")
       );
     } finally {
+      saveInFlightRef.current = false;
       setSaving(false);
     }
   };

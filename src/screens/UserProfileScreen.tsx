@@ -241,6 +241,7 @@ export default function UserProfileScreen() {
   const [unlockedLockedPhotos, setUnlockedLockedPhotos] = useState<UserProfilePhoto[]>([]);
   const reportedMediaFailuresRef = React.useRef<Set<string>>(new Set());
   const activeUserIdRef = React.useRef(userId);
+  const safetyInFlightRef = React.useRef(false);
 
   useEffect(() => {
     let alive = true;
@@ -698,8 +699,9 @@ export default function UserProfileScreen() {
 
   const reportUser = useCallback(
     async (reason: SafetyReportReason) => {
-      if (!userId || safetyBusy) return;
+      if (!userId || safetyBusy || safetyInFlightRef.current) return;
 
+      safetyInFlightRef.current = true;
       setSafetyBusy(true);
       try {
         await safetyApi.report({
@@ -721,6 +723,7 @@ export default function UserProfileScreen() {
           )
         );
       } finally {
+        safetyInFlightRef.current = false;
         setSafetyBusy(false);
       }
     },
@@ -752,6 +755,8 @@ export default function UserProfileScreen() {
           text: tt("safety.blockConfirm", "Заблокировать"),
           style: "destructive",
           onPress: () => {
+            if (safetyInFlightRef.current) return;
+            safetyInFlightRef.current = true;
             setSafetyBusy(true);
             void safetyApi.blockUser(userId)
               .then(() => {
@@ -776,7 +781,10 @@ export default function UserProfileScreen() {
                   )
                 );
               })
-              .finally(() => setSafetyBusy(false));
+              .finally(() => {
+                safetyInFlightRef.current = false;
+                setSafetyBusy(false);
+              });
           },
         },
       ]

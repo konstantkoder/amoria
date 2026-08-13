@@ -271,6 +271,8 @@ export default function ProfileScreen() {
   const [avatarCacheKey, setAvatarCacheKey] = React.useState(profileAvatarCacheVersion);
   const nameInputRef = React.useRef<TextInput>(null);
   const reportedMediaFailuresRef = React.useRef<Set<string>>(new Set());
+  const avatarUploadInFlightRef = React.useRef(false);
+  const nameSaveInFlightRef = React.useRef(false);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -364,6 +366,7 @@ export default function ProfileScreen() {
   );
 
   const saveDisplayName = React.useCallback(async () => {
+    if (nameSaveInFlightRef.current) return;
     const nextName = normalizeDisplayNameInput(nameDraft);
     const errorKey = getDisplayNameValidationErrorKey(nextName);
     if (errorKey) {
@@ -371,6 +374,7 @@ export default function ProfileScreen() {
       return;
     }
 
+    nameSaveInFlightRef.current = true;
     setNameSaving(true);
     setNameError("");
     try {
@@ -383,6 +387,7 @@ export default function ProfileScreen() {
     } catch {
       setNameError(t("profile.nameUpdateFailed"));
     } finally {
+      nameSaveInFlightRef.current = false;
       setNameSaving(false);
     }
   }, [nameDraft, t]);
@@ -480,8 +485,9 @@ export default function ProfileScreen() {
   }, [pickAvatar]);
 
   const confirmAvatarUpload = React.useCallback(async () => {
-    if (!pendingAvatar || avatarUploading) return;
+    if (!pendingAvatar || avatarUploading || avatarUploadInFlightRef.current) return;
 
+    avatarUploadInFlightRef.current = true;
     setAvatarUploading(true);
     try {
       let currentProfile = profile;
@@ -539,6 +545,7 @@ export default function ProfileScreen() {
       });
       Alert.alert(t("photos.saveFailed"), t("photos.uploadErrorBody"));
     } finally {
+      avatarUploadInFlightRef.current = false;
       setAvatarUploading(false);
     }
   }, [avatarUploading, pendingAvatar, profile, t]);

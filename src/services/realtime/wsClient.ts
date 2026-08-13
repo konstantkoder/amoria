@@ -13,6 +13,7 @@ const RECONNECT_BASE_DELAY_MS = 1000;
 const RECONNECT_MAX_DELAY_MS = 30000;
 
 let socket: WebSocket | null = null;
+let socketAccessToken: string | null = null;
 let reconnectAttempts = 0;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let manualDisconnect = false;
@@ -98,23 +99,43 @@ export function connect(): WebSocket | null {
     (socket.readyState === WebSocket.CONNECTING ||
       socket.readyState === WebSocket.OPEN)
   ) {
-    return socket;
+    if (socketAccessToken === connection.token) return socket;
+
+    // Never reuse a socket authenticated for a previous login session.
+    const staleSocket = socket;
+    socket = null;
+    socketAccessToken = null;
+    staleSocket.close();
   }
 
   manualDisconnect = false;
   const NativeWebSocket = WebSocket as unknown as NativeWebSocketConstructor;
-  socket = new NativeWebSocket(connection.baseUrl, undefined, {
-    headers: {
-      Authorization: `Bearer ${connection.token}`,
-    },
-  });
+  let nextSocket: WebSocket;
+  try {
+    nextSocket = new NativeWebSocket(connection.baseUrl, undefined, {
+      headers: {
+        Authorization: `Bearer ${connection.token}`,
+      },
+    });
+  } catch {
+    socket = null;
+    socketAccessToken = null;
+    return null;
+  }
+  socket = nextSocket;
+  socketAccessToken = connection.token;
 
-  socket.onopen = () => {
+  nextSocket.onopen = () => {
+    if (socket !== nextSocket || socketAccessToken !== connection.token) {
+      nextSocket.close();
+      return;
+    }
     reconnectAttempts = 0;
     replaySubscriptions();
   };
 
-  socket.onmessage = (event) => {
+  nextSocket.onmessage = (event) => {
+    if (socket !== nextSocket) return;
     try {
       const data = JSON.parse(String(event.data ?? "{}")) as RealtimeMessage;
       for (const handler of handlers) {
@@ -125,14 +146,16 @@ export function connect(): WebSocket | null {
     }
   };
 
-  socket.onerror = () => undefined;
+  nextSocket.onerror = () => undefined;
 
-  socket.onclose = () => {
+  nextSocket.onclose = () => {
+    if (socket !== nextSocket) return;
     socket = null;
+    socketAccessToken = null;
     scheduleReconnect();
   };
 
-  return socket;
+  return nextSocket;
 }
 
 export function onMessage(handler: RealtimeHandler): () => void {
@@ -191,7 +214,17 @@ export function disconnect(): void {
   }
 
   if (socket) {
-    socket.close();
+    const currentSocket = socket;
     socket = null;
+    socketAccessToken = null;
+    currentSocket.close();
   }
+}
+
+export function resetForSession(): void {
+  disconnect();
+  handlers.clear();
+  subscribedThreads.clear();
+  subscribedTogetherSessions.clear();
+  inboxSubscribed = false;
 }

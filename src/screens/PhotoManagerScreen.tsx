@@ -100,6 +100,8 @@ export default function PhotoManagerScreen() {
   const currentPasswordInputRef = React.useRef<TextInput>(null);
   const newFolderPasswordInputRef = React.useRef<TextInput>(null);
   const reportedPhotoFailuresRef = React.useRef<Set<string>>(new Set());
+  const mutationInFlightRef = React.useRef(false);
+  const passwordMutationInFlightRef = React.useRef(false);
 
   const refreshGallery = React.useCallback(async () => {
     const nextGallery = await getMyProfileGallery();
@@ -356,8 +358,9 @@ export default function PhotoManagerScreen() {
   }
 
   async function confirmPendingPhotoUpload() {
-    if (!pendingPhoto || busy) return;
+    if (!pendingPhoto || busy || mutationInFlightRef.current) return;
 
+    mutationInFlightRef.current = true;
     let uploadCompleted = false;
     try {
       setBusy(true);
@@ -379,6 +382,7 @@ export default function PhotoManagerScreen() {
       });
       handleApiError(error, t("photos.uploadFailed"), t("photos.uploadErrorBody"));
     } finally {
+      mutationInFlightRef.current = false;
       setBusy(false);
     }
   }
@@ -416,6 +420,8 @@ export default function PhotoManagerScreen() {
   }
 
   async function removePhoto(photo: ProfileGalleryPhotoDto) {
+    if (mutationInFlightRef.current) return;
+    mutationInFlightRef.current = true;
     try {
       setBusy(true);
       await deleteProfilePhoto(photo.mediaId);
@@ -448,6 +454,7 @@ export default function PhotoManagerScreen() {
       }
       handleDeleteError();
     } finally {
+      mutationInFlightRef.current = false;
       setBusy(false);
     }
   }
@@ -476,6 +483,7 @@ export default function PhotoManagerScreen() {
   }
 
   async function movePhoto(photo: ProfileGalleryPhotoDto, visibility: ProfileGalleryVisibility) {
+    if (mutationInFlightRef.current) return;
     if (visibility === "locked" && !gallery?.lockedFolderEnabled) {
       Alert.alert(
         tt("photos.lockedGalleryPasswordRequiredTitle", "Нужен пароль"),
@@ -492,6 +500,7 @@ export default function PhotoManagerScreen() {
       return;
     }
 
+    mutationInFlightRef.current = true;
     try {
       setBusy(true);
       const nextGallery = await updateMyProfileGalleryItems({
@@ -505,12 +514,13 @@ export default function PhotoManagerScreen() {
         tt("photos.uploadErrorBody", "Попробуйте ещё раз позже.")
       );
     } finally {
+      mutationInFlightRef.current = false;
       setBusy(false);
     }
   }
 
   async function submitPasswordAction() {
-    if (!currentAccountPassword.trim() || passwordBusy) return;
+    if (!currentAccountPassword.trim() || passwordBusy || passwordMutationInFlightRef.current) return;
     if (passwordMode === "set" && newFolderPassword.length < 8) {
       Alert.alert(
         tt("photos.lockedGalleryPasswordTooShortTitle", "Пароль слишком короткий"),
@@ -519,6 +529,7 @@ export default function PhotoManagerScreen() {
       return;
     }
 
+    passwordMutationInFlightRef.current = true;
     try {
       setPasswordBusy(true);
       if (passwordMode === "set") {
@@ -547,6 +558,7 @@ export default function PhotoManagerScreen() {
         tt("photos.lockedGalleryPasswordSaveFailed", "Проверьте пароль от аккаунта и попробуйте ещё раз.")
       );
     } finally {
+      passwordMutationInFlightRef.current = false;
       setPasswordBusy(false);
     }
   }

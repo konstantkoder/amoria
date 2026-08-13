@@ -186,6 +186,8 @@ export default function DMChatScreen() {
   const inputRef = useRef<TextInput>(null);
   const listRef = useRef<FlatList<RenderMessage>>(null);
   const mountedRef = useRef(true);
+  const sendInFlightRef = useRef(false);
+  const safetyInFlightRef = useRef(false);
   const peerHydratePromiseRef = useRef<Promise<HydratedPeer | null> | null>(null);
 
   const amoriaUserLabel = tt("profile.amoriaUser", "Пользователь Amoria");
@@ -582,7 +584,8 @@ export default function DMChatScreen() {
 
   const send = useCallback(async () => {
     const value = textRef.current.trim();
-    if (!value || !threadId || !myId || peerBlocked) return;
+    if (!value || !threadId || !myId || peerBlocked || sendInFlightRef.current) return;
+    sendInFlightRef.current = true;
 
     const clientMessageId = `m_${Date.now()}_${Math.random().toString(16).slice(2)}`;
     const optimistic: RenderMessage = {
@@ -623,6 +626,7 @@ export default function DMChatScreen() {
         );
       }
     } finally {
+      sendInFlightRef.current = false;
       if (mountedRef.current) {
         setSending(false);
       }
@@ -647,8 +651,9 @@ export default function DMChatScreen() {
 
   const reportChat = useCallback(
     async (reason: SafetyReportReason, targetMessage?: MessageDto) => {
-      if (!threadId || !peerId || safetyBusy) return;
+      if (!threadId || !peerId || safetyBusy || safetyInFlightRef.current) return;
 
+      safetyInFlightRef.current = true;
       setSafetyBusy(true);
       try {
         await safetyApi.report({
@@ -667,6 +672,7 @@ export default function DMChatScreen() {
           tt("safety.reportErrorBody", "Не удалось сохранить жалобу. Попробуй ещё раз позже.")
         );
       } finally {
+        safetyInFlightRef.current = false;
         setSafetyBusy(false);
       }
     },
@@ -707,6 +713,8 @@ export default function DMChatScreen() {
           text: tt("safety.blockConfirm", "Заблокировать"),
           style: "destructive",
           onPress: () => {
+            if (safetyInFlightRef.current) return;
+            safetyInFlightRef.current = true;
             setSafetyBusy(true);
             void safetyApi.blockUser(peerId)
               .then(() => {
@@ -721,7 +729,10 @@ export default function DMChatScreen() {
                   tt("safety.blockErrorBody", "Попробуй ещё раз позже.")
                 );
               })
-              .finally(() => setSafetyBusy(false));
+              .finally(() => {
+                safetyInFlightRef.current = false;
+                setSafetyBusy(false);
+              });
           },
         },
       ]

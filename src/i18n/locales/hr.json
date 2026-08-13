@@ -440,6 +440,7 @@
   "auth.weakPassword": "Lozinka mora imati najmanje 8 znakova.",
   "auth.tooManyRequests": "Previše pokušaja. Pokušajte ponovno kasnije.",
   "auth.unknownLoginError": "Ne možemo vas prijaviti. Provjerite podatke i pokušajte ponovno.",
+  "auth.accountSuspended": "Ovaj je račun suspendiran. Obratite se podršci Amoria ako smatrate da je došlo do pogreške.",
   "auth.unknownRegisterError": "Ne možemo stvoriti račun. Pokušajte ponovno.",
   "auth.profileSyncError": "Ne možemo pripremiti vaš profil. Pokušajte se ponovno prijaviti.",
   "auth.emailPlaceholder": "E-pošta",

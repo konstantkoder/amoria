@@ -35,6 +35,9 @@ test("auth UI includes verification, resend cooldown, and forgot-password stages
   assert.match(verification, /textContentType="oneTimeCode"/);
   assert.match(reset, /genericRequest/);
   assert.match(reset, /newPassword/);
+  assert.match(login, /authRequestInFlightRef/);
+  assert.match(verification, /mutationInFlightRef/);
+  assert.match(reset, /mutationInFlightRef/);
 });
 
 test("every API request reuses a persisted random install identifier", () => {
@@ -56,6 +59,7 @@ test("release locales contain all new authentication copy", () => {
     "auth.reset.genericRequest",
     "auth.reset.invalidCode",
     "auth.rateLimited",
+    "auth.accountSuspended",
   ];
   for (const locale of ["en", "ru", "hr"]) {
     const messages = JSON.parse(read(`src/i18n/locales/${locale}.json`)) as Record<string, string>;

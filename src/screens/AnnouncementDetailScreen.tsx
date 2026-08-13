@@ -232,6 +232,8 @@ export default function AnnouncementDetailScreen() {
   const initialAnnouncement: NearbyAnnouncement | null =
     route.params.initialAnnouncement ?? null;
   const currentUid = authUser?.id ?? "";
+  const responseInFlightRef = React.useRef(false);
+  const safetyInFlightRef = React.useRef(false);
   const [announcement, setAnnouncement] = React.useState<NearbyAnnouncement | null>(
     initialAnnouncement
   );
@@ -384,8 +386,9 @@ export default function AnnouncementDetailScreen() {
   }, [announcement]);
 
   const handleCloseAnnouncement = React.useCallback(async () => {
-    if (!announcement || closing) return;
+    if (!announcement || closing || responseInFlightRef.current) return;
 
+    responseInFlightRef.current = true;
     setClosing(true);
     setResponseError(null);
     try {
@@ -407,12 +410,13 @@ export default function AnnouncementDetailScreen() {
         )
       );
     } finally {
+      responseInFlightRef.current = false;
       setClosing(false);
     }
   }, [announcement, announcementId, closing, t]);
 
   const handleRespond = React.useCallback(async () => {
-    if (responding) return;
+    if (responding || responseInFlightRef.current) return;
 
     switch (responseMode) {
       case "own":
@@ -427,6 +431,7 @@ export default function AnnouncementDetailScreen() {
           return;
         }
 
+        responseInFlightRef.current = true;
         setResponding(true);
         setResponseError(null);
         try {
@@ -456,6 +461,7 @@ export default function AnnouncementDetailScreen() {
             )
           );
         } finally {
+          responseInFlightRef.current = false;
           setResponding(false);
         }
     }
@@ -474,7 +480,7 @@ export default function AnnouncementDetailScreen() {
 
   const reportAnnouncement = React.useCallback(
     async (reason: SafetyReportReason) => {
-      if (!announcement || !currentUid || safetyBusy) {
+      if (!announcement || !currentUid || safetyBusy || safetyInFlightRef.current) {
         if (!currentUid) {
           Alert.alert(
             copyOrFallback(t, "safety.signInRequiredTitle", "Нужен вход"),
@@ -488,6 +494,7 @@ export default function AnnouncementDetailScreen() {
         return;
       }
 
+      safetyInFlightRef.current = true;
       setSafetyBusy(true);
       try {
         await safetyApi.report({
@@ -514,6 +521,7 @@ export default function AnnouncementDetailScreen() {
           )
         );
       } finally {
+        safetyInFlightRef.current = false;
         setSafetyBusy(false);
       }
     },
@@ -558,6 +566,8 @@ export default function AnnouncementDetailScreen() {
           text: copyOrFallback(t, "safety.blockConfirm", "Заблокировать"),
           style: "destructive",
           onPress: () => {
+            if (safetyInFlightRef.current) return;
+            safetyInFlightRef.current = true;
             setSafetyBusy(true);
             void safetyApi.blockUser(announcementAuthorUid)
               .then(() => {
@@ -582,7 +592,10 @@ export default function AnnouncementDetailScreen() {
                   )
                 );
               })
-              .finally(() => setSafetyBusy(false));
+              .finally(() => {
+                safetyInFlightRef.current = false;
+                setSafetyBusy(false);
+              });
           },
         },
       ]

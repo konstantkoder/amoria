@@ -43,6 +43,7 @@ export default function EmailVerificationScreen({
   const auth = useAuth();
   const { locale, t } = useLocale();
   const codeInputRef = useRef<TextInput>(null);
+  const mutationInFlightRef = useRef(false);
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [resending, setResending] = useState(false);
@@ -62,7 +63,8 @@ export default function EmailVerificationScreen({
   );
 
   const verify = async () => {
-    if (!canVerify) return;
+    if (!canVerify || mutationInFlightRef.current) return;
+    mutationInFlightRef.current = true;
     setBusy(true);
     setErrorKey(null);
     try {
@@ -72,12 +74,14 @@ export default function EmailVerificationScreen({
     } catch (error) {
       setErrorKey(verificationErrorKey(error));
     } finally {
+      mutationInFlightRef.current = false;
       setBusy(false);
     }
   };
 
   const resend = async () => {
-    if (cooldownSec > 0 || busy || resending) return;
+    if (cooldownSec > 0 || busy || resending || mutationInFlightRef.current) return;
+    mutationInFlightRef.current = true;
     setResending(true);
     setErrorKey(null);
     try {
@@ -91,6 +95,7 @@ export default function EmailVerificationScreen({
       }
       setErrorKey(verificationErrorKey(error));
     } finally {
+      mutationInFlightRef.current = false;
       setResending(false);
     }
   };

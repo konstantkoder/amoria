@@ -49,6 +49,7 @@ import {
   isAuthBootstrapReady,
   type AuthBootstrapState,
 } from "@/services/authBootstrapState";
+import * as wsClient from "@/services/realtime/wsClient";
 
 type AuthContextValue = {
   ready: boolean;
@@ -90,6 +91,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const clearSessionState = useCallback(async () => {
+    wsClient.resetForSession();
     await clearBackendSession();
     setUser(null);
     setAccessTokenState(null);

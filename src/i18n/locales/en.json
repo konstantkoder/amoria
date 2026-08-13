@@ -857,6 +857,7 @@
   "auth.tooManyRequests": "Too many attempts. Try again later.",
   "auth.networkError": "Check your internet connection.",
   "auth.unknownLoginError": "We couldn't sign you in. Check your details and try again.",
+  "auth.accountSuspended": "This account is suspended. Contact Amoria support if you believe this is a mistake.",
   "auth.unknownRegisterError": "We couldn't create the account. Try again.",
   "auth.profileSyncError": "We couldn't prepare your profile. Try signing in again.",
   "auth.displayNamePlaceholder": "Your name",
