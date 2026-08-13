@@ -1184,6 +1184,12 @@ function mockOpsHealth() {
       openReports: 2,
       pendingMediaModerationItems: 1,
     }),
+    accountDeletionCleanup: async () => ({
+      pending: 0,
+      retrying: 0,
+      maxAttemptCount: 0,
+      degraded: false,
+    }),
     dashboardCounts: async () => ({
       reports: {
         open: 2,

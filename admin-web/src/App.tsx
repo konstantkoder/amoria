@@ -2462,6 +2462,10 @@ function OpsHealthScreen() {
           <Fact label={t("ops.objectStorageCheckedAt")} value={formatDate(data.objectStorage.checkedAt, language)} />
           <Fact label={t("ops.emailDelivery")} value={formatSmtpStatus(data.smtp, t)} />
           <Fact label={t("ops.emailDeliveryCheckedAt")} value={formatDate(data.smtp.checkedAt, language)} />
+          <Fact label={t("ops.accountDeletionCleanup")} value={data.accountDeletionCleanup.degraded ? t("status.degraded") : t("status.ok")} />
+          <Fact label={t("ops.accountDeletionPending")} value={formatCount(data.accountDeletionCleanup.pending)} />
+          <Fact label={t("ops.accountDeletionRetrying")} value={formatCount(data.accountDeletionCleanup.retrying)} />
+          <Fact label={t("ops.accountDeletionMaxAttempts")} value={formatCount(data.accountDeletionCleanup.maxAttemptCount)} />
           <Fact label={t("ops.openClientErrors")} value={formatCount(data.counts.openClientErrors)} />
           <Fact label={t("ops.openReports")} value={formatCount(data.counts.openReports)} />
           <Fact label={t("ops.pendingMedia")} value={formatCount(data.counts.pendingMediaModerationItems)} />

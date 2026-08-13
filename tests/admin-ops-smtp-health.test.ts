@@ -32,6 +32,12 @@ function installOpsDeps(input: {
   smtpCheck?: () => Promise<void>;
   smtpTimeoutMs?: number;
   auditInputs?: AdminAuditInput[];
+  accountDeletionCleanup?: () => Promise<{
+    pending: number;
+    retrying: number;
+    maxAttemptCount: number;
+    degraded: boolean;
+  }>;
 } = {}): () => void {
   const auditInputs = input.auditInputs ?? [];
   return adminOpsService.__setAdminOpsServiceDepsForTests({
@@ -41,6 +47,12 @@ function installOpsDeps(input: {
       openReports: 2,
       pendingMediaModerationItems: 1,
     }),
+    accountDeletionCleanup: input.accountDeletionCleanup ?? (async () => ({
+      pending: 0,
+      retrying: 0,
+      maxAttemptCount: 0,
+      degraded: false,
+    })),
     dashboardCounts: async () => ({
       reports: { open: 2, underReview: 1, escalated: 1 },
       clientErrors: { open: 3 },
@@ -117,6 +129,12 @@ test("Admin Ops Health uses the existing email delivery verify path and reports 
     openReports: 2,
     pendingMediaModerationItems: 1,
   });
+  assert.deepEqual(response.accountDeletionCleanup, {
+    pending: 0,
+    retrying: 0,
+    maxAttemptCount: 0,
+    degraded: false,
+  });
   assert.equal((auditInputs[0]?.metadata as Record<string, unknown>)?.smtpStatus, "ok");
 });
 
@@ -142,12 +160,65 @@ test("SMTP connection failure returns degraded Admin health without exposing con
     databaseOk: true,
     objectStorageStatus: "ok",
     smtpStatus: "error",
+    accountDeletionCleanup: {
+      pending: 0,
+      retrying: 0,
+      maxAttemptCount: 0,
+      degraded: false,
+    },
     counts: {
       openClientErrors: 3,
       openReports: 2,
       pendingMediaModerationItems: 1,
     },
   });
+});
+
+test("account deletion retry jobs degrade Ops Health using aggregate-only data", async (t) => {
+  const restore = installOpsDeps({
+    accountDeletionCleanup: async () => ({
+      pending: 2,
+      retrying: 1,
+      maxAttemptCount: 11,
+      degraded: true,
+    }),
+  });
+  t.after(restore);
+
+  const response = await adminOpsService.getOpsHealth(admin, {});
+  const serialized = JSON.stringify(response.accountDeletionCleanup);
+
+  assert.deepEqual(response.accountDeletionCleanup, {
+    pending: 2,
+    retrying: 1,
+    maxAttemptCount: 11,
+    degraded: true,
+  });
+  assert.deepEqual(Object.keys(response.accountDeletionCleanup).sort(), [
+    "degraded",
+    "maxAttemptCount",
+    "pending",
+    "retrying",
+  ]);
+  assert.doesNotMatch(serialized, /users\/|object|bucket|path|email|@|token|secret/i);
+});
+
+test("unknown deletion cleanup health is degraded without leaking dependency errors", async (t) => {
+  const restore = installOpsDeps({
+    accountDeletionCleanup: async () => {
+      throw new Error("users/private-user/object.jpg private@example.test secret-token");
+    },
+  });
+  t.after(restore);
+
+  const response = await adminOpsService.getOpsHealth(admin, {});
+  assert.deepEqual(response.accountDeletionCleanup, {
+    pending: null,
+    retrying: null,
+    maxAttemptCount: null,
+    degraded: true,
+  });
+  assert.doesNotMatch(JSON.stringify(response), /private-user|private@example|secret-token/);
 });
 
 test("hung SMTP verification is bounded and Admin health still responds with SMTP error", async (t) => {
@@ -188,6 +259,8 @@ test("Admin Web Ops Health renders backend SMTP OK and degraded states", () => {
   const appSource = readFileSync(path.join(process.cwd(), "admin-web/src/App.tsx"), "utf8");
   assert.match(appSource, /Fact label=\{t\("ops\.emailDelivery"\)\} value=\{formatSmtpStatus\(data\.smtp, t\)\}/);
   assert.match(appSource, /smtp\.status === "ok" \? t\("status\.ok"\) : t\("status\.degraded"\)/);
+  assert.match(appSource, /data\.accountDeletionCleanup\.degraded \? t\("status\.degraded"\) : t\("status\.ok"\)/);
+  assert.match(appSource, /data\.accountDeletionCleanup\.maxAttemptCount/);
   assert.doesNotMatch(appSource, /SMTP_HOST|SMTP_USER|SMTP_PASSWORD/);
 });
 

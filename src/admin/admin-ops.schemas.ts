@@ -184,6 +184,7 @@ export const adminOpsHealthRouteSchema = {
         "database",
         "objectStorage",
         "smtp",
+        "accountDeletionCleanup",
         "counts",
       ],
       additionalProperties: false,
@@ -244,6 +245,17 @@ export const adminOpsHealthRouteSchema = {
           properties: {
             status: { type: "string", enum: ["ok", "error"] },
             checkedAt: { type: "string", format: "date-time" },
+          },
+        },
+        accountDeletionCleanup: {
+          type: "object",
+          required: ["pending", "retrying", "maxAttemptCount", "degraded"],
+          additionalProperties: false,
+          properties: {
+            pending: { type: ["integer", "null"], minimum: 0 },
+            retrying: { type: ["integer", "null"], minimum: 0 },
+            maxAttemptCount: { type: ["integer", "null"], minimum: 0 },
+            degraded: { type: "boolean" },
           },
         },
         counts: {

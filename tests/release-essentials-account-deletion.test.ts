@@ -18,6 +18,7 @@ const service = read("src/users/account-deletion.service.ts");
 const migration = read("src/db/migrations/0034_release_essentials.sql");
 const routes = read("src/users/users.routes.ts");
 const retention = read("docs/account_deletion_retention.md");
+const deletionService = require("../src/users/account-deletion.service") as typeof import("../src/users/account-deletion.service");
 
 test("migration creates durable account deletion state without rewriting older migrations", () => {
   assert.match(migration, /CREATE TABLE "account_deletion_jobs"/);
@@ -75,19 +76,77 @@ test("delete, anonymize and minimum-retention decisions are documented", () => {
   }
 });
 
-test("private object cleanup is bounded, durable, restart-safe, observable, and not fake-complete", () => {
+test("private object cleanup uses durable retries with bounded backoff and observable state", () => {
   const storage = read("src/media/object-storage.ts");
   assert.match(service, /collectObjectKeys/);
   assert.match(service, /deleted_object_keys/);
   assert.match(service, /next_attempt_at=now\(\)\+interval '5 minutes'/);
   assert.match(service, /status='retry'/);
   assert.match(service, /last_error_code=\$4/);
+  assert.match(service, /attemptCount[\s\S]*?currentAttemptCount[\s\S]*?\+ 1/);
+  assert.doesNotMatch(service, /MAX_ATTEMPTS|Math\.min\(attempts,\s*10\)/);
+  assert.match(service, /status IN \('pending','retry','processing'\)[\s\S]*?next_attempt_at<=now\(\)/);
   assert.match(service, /physical_purge_reason='account_deletion'/);
   assert.match(storage, /DeleteObjectCommand/);
   assert.match(storage, /AbortSignal\.timeout\(env\.OBJECT_STORAGE_DELETE_TIMEOUT_MS\)/);
   assert.match(service, /DELETE FROM media_files[\s\S]*account_status='deleted'/);
   assert.match(service, /status='completed',object_keys='\[\]'::jsonb,deleted_object_keys='\[\]'::jsonb/);
   assert.doesNotMatch(routes, /status\(200\).*requestAccountDeletion/);
+});
+
+test("account deletion failure count remains truthful after attempts 1, 10 and 11", () => {
+  const now = Date.parse("2026-08-13T12:00:00.000Z");
+  const firstFailure = deletionService.calculateAccountDeletionRetry(0, now);
+  const tenthFailure = deletionService.calculateAccountDeletionRetry(9, now);
+  const eleventhFailure = deletionService.calculateAccountDeletionRetry(10, now);
+
+  assert.equal(firstFailure.attemptCount, 1);
+  assert.equal(tenthFailure.attemptCount, 10);
+  assert.equal(eleventhFailure.attemptCount, 11);
+  assert.equal(eleventhFailure.delayMs, tenthFailure.delayMs);
+  assert.ok(eleventhFailure.delayMs <= deletionService.ACCOUNT_DELETION_RETRY_MAX_DELAY_MS);
+  assert.equal(eleventhFailure.nextAttemptAt.getTime(), now + eleventhFailure.delayMs);
+});
+
+test("retry scheduling persists attempt 11 and does not overwrite completed object progress", async () => {
+  const queries: Array<{ text: string; values: unknown[] | undefined }> = [];
+  const queryRunner = {
+    query: async (text: string, values?: unknown[]) => {
+      queries.push({ text, values });
+      return { rows: [], rowCount: 1 };
+    },
+  };
+
+  await deletionService.scheduleAccountDeletionRetry(
+    "00000000-0000-4000-8000-0000000000d1",
+    10,
+    "storage_delete_failed",
+    Date.parse("2026-08-13T12:00:00.000Z"),
+    queryRunner,
+  );
+
+  assert.equal(queries.length, 1);
+  assert.equal(queries[0]?.values?.[1], 11);
+  assert.equal(queries[0]?.values?.[3], "storage_delete_failed");
+  assert.match(queries[0]?.text ?? "", /status='retry',attempt_count=\$2,next_attempt_at=\$3,last_error_code=\$4/);
+  assert.doesNotMatch(queries[0]?.text ?? "", /deleted_object_keys\s*=/);
+});
+
+test("partial object progress survives retry and completed cleanup stays final", () => {
+  const failureUpdate = service.match(/UPDATE account_deletion_jobs SET status='retry'[^"]+/)?.[0] ?? "";
+  assert.doesNotMatch(failureUpdate, /deleted_object_keys\s*=/);
+  assert.match(service, /if \(deleted\.has\(key\)\) continue/);
+  assert.match(service, /status='completed',object_keys='\[\]'::jsonb,deleted_object_keys='\[\]'::jsonb/);
+  assert.match(service, /account_status === "deleted"[\s\S]*?status: "completed"/);
+});
+
+test("authored chat deletion recomputes deterministic remaining last-message truth", () => {
+  assert.match(service, /DELETE FROM messages WHERE from_user_id=\$1/);
+  assert.match(service, /SELECT DISTINCT ON \(m\.thread_id\)/);
+  assert.match(service, /ORDER BY m\.thread_id,m\.created_at DESC,m\.id DESC/);
+  assert.match(service, /last_message_text=latest\.text,last_message_at=latest\.created_at/);
+  assert.match(service, /LEFT JOIN latest_messages/);
+  assert.doesNotMatch(service, /UPDATE threads t SET last_message_text=NULL,last_message_at=NULL/);
 });
 
 test("public deletion and privacy pages are anonymous GET resources with escaped configured contact", async (t) => {

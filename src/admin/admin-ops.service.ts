@@ -23,6 +23,10 @@ import {
 import { verifyEmailDeliveryReadiness } from "../email/email-delivery.service";
 import * as nearbyRepo from "../nearby/nearby.repo";
 import * as togetherRepo from "../together/together.repo";
+import {
+  getAccountDeletionCleanupHealth,
+  type AccountDeletionCleanupHealth,
+} from "../users/account-deletion.service";
 import type {
   AdminTogetherQueueActionBody,
   AdminTogetherQueueQuery,
@@ -44,6 +48,12 @@ export type AdminOpsHealthResponse = {
   };
   objectStorage: ObjectStorageHealth;
   smtp: AdminSmtpHealth;
+  accountDeletionCleanup: {
+    pending: number | null;
+    retrying: number | null;
+    maxAttemptCount: number | null;
+    degraded: boolean;
+  };
   counts: {
     openClientErrors: number | null;
     openReports: number | null;
@@ -213,6 +223,7 @@ export type AdminTogetherSessionsResponse = {
 type AdminOpsDeps = {
   dbCheck: () => Promise<boolean>;
   counts: () => Promise<AdminOpsHealthResponse["counts"]>;
+  accountDeletionCleanup: () => Promise<AccountDeletionCleanupHealth>;
   dashboardCounts: () => Promise<AdminReleaseDashboardCounts>;
   objectStorageCheck: () => Promise<AdminOpsHealthResponse["objectStorage"]>;
   smtpCheck: () => Promise<void>;
@@ -235,6 +246,7 @@ const defaultDeps: AdminOpsDeps = {
     openReports: await countOpenReports(),
     pendingMediaModerationItems: await countPendingMediaModerationItems(),
   }),
+  accountDeletionCleanup: getAccountDeletionCleanupHealth,
   dashboardCounts: getReleaseDashboardCounts,
   objectStorageCheck: checkObjectStorageHealth,
   smtpCheck: verifyEmailDeliveryReadiness,
@@ -298,6 +310,17 @@ export async function getOpsHealth(
   }
 
   const smtp = await getSafeSmtpHealth();
+  let accountDeletionCleanup: AdminOpsHealthResponse["accountDeletionCleanup"];
+  try {
+    accountDeletionCleanup = await deps.accountDeletionCleanup();
+  } catch {
+    accountDeletionCleanup = {
+      pending: null,
+      retrying: null,
+      maxAttemptCount: null,
+      degraded: true,
+    };
+  }
 
   await deps.audit.writeAuditLog({
     adminUserId: admin.adminUser.id,
@@ -307,6 +330,7 @@ export async function getOpsHealth(
       databaseOk,
       objectStorageStatus: objectStorage.status,
       smtpStatus: smtp.status,
+      accountDeletionCleanup,
       counts,
     },
     ...requestContext,
@@ -327,6 +351,7 @@ export async function getOpsHealth(
     },
     objectStorage,
     smtp,
+    accountDeletionCleanup,
     counts,
   };
 }

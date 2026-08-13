@@ -7,7 +7,7 @@ This contract describes the behavior implemented by `account-deletion.service.ts
 | Account/profile, email, credentials, avatar/profile fields | Anonymize immediately | Stop access and remove direct identity while retaining a non-login tombstone for shared-record integrity. |
 | Refresh tokens, email challenges, linkable email rate-limit keys, push tokens, notifications | Delete immediately | These are account/session/device associations and are not needed after deletion. Non-linkable IP/device abuse hashes remain only for their existing bounded expiry. |
 | Public/locked gallery settings and media metadata | Hide immediately; delete after object purge | Prevent exposure immediately and ensure DB cannot claim final deletion while private object cleanup is incomplete. |
-| Private object-storage media | Delete with durable, idempotent retry | Object keys and completed keys remain in the deletion job only until cleanup completes; then both lists are erased. |
+| Private object-storage media | Delete with durable retries and bounded exponential backoff | Object keys and completed keys remain in the deletion job only until cleanup completes; successful keys are skipped on later attempts, and then both lists are erased. |
 | Nearby visibility, exact location, statuses, room memberships and activity preferences | Delete immediately | Product state and location are personal and have no post-deletion purpose. |
 | Together queue and active state | Delete/cancel immediately | The account cannot remain matchable or actionable. |
 | Together authored events/reveals | Delete | User-generated content belongs to the deleting account. Other participants' content is retained. |

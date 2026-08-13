@@ -8,11 +8,22 @@ import { pool } from "../db/client";
 import { deleteObject } from "../media/object-storage";
 import { wsHub } from "../realtime/ws.hub";
 
-const MAX_ATTEMPTS = 10;
+export const ACCOUNT_DELETION_RETRY_BACKOFF_EXPONENT_CAP = 10;
+export const ACCOUNT_DELETION_RETRY_MAX_DELAY_MS = 24 * 60 * 60_000;
+const ACCOUNT_DELETION_RETRY_BASE_DELAY_MS = 30_000;
 const JOB_BATCH = 10;
 
 type UserForDeletion = { id: string; email: string; password_hash: string; account_status: string };
 type DeletionJob = { id: string; user_id: string; object_keys: string[]; deleted_object_keys: string[]; attempt_count: number };
+type AccountDeletionErrorCode = "account_cleanup_failed" | "storage_delete_failed";
+type DeletionQueryRunner = { query: (text: string, values?: unknown[]) => Promise<unknown> };
+
+export type AccountDeletionCleanupHealth = {
+  pending: number;
+  retrying: number;
+  maxAttemptCount: number;
+  degraded: boolean;
+};
 
 export const ACCOUNT_DELETION_RETENTION = {
   delete: ["profile", "email", "credentials", "location", "media", "messages", "Together artifacts", "notifications", "push tokens"],
@@ -99,8 +110,7 @@ async function immediatelyDeactivateAccount(client: PoolClient, userId: string, 
   await client.query("UPDATE admin_audit_log SET admin_user_id=NULL,ip_address=NULL,user_agent=NULL,request_id=NULL WHERE admin_user_id IN (SELECT id FROM admin_users WHERE user_id=$1)", [userId]);
   await client.query("DELETE FROM admin_users WHERE user_id=$1", [userId]);
   await client.query("UPDATE thread_contexts SET created_by_user_id=NULL WHERE created_by_user_id=$1", [userId]);
-  await client.query("DELETE FROM messages WHERE from_user_id=$1", [userId]);
-  await client.query("UPDATE threads t SET last_message_text=NULL,last_message_at=NULL,updated_at=$2 WHERE EXISTS (SELECT 1 FROM thread_members tm WHERE tm.thread_id=t.id AND tm.user_id=$1)", [userId, now]);
+  await deleteAuthoredMessagesAndRecomputeThreads(client, userId, now);
   await client.query("DELETE FROM together_events WHERE from_user_id=$1", [userId]);
   await client.query("DELETE FROM together_reveals WHERE user_id=$1", [userId]);
   await client.query("DELETE FROM blocked_users WHERE user_id=$1 OR blocked_user_id=$1", [userId]);
@@ -147,11 +157,78 @@ async function processJob(job: DeletionJob): Promise<void> {
     }
     await finalizeAccountDeletion(job.user_id, job.id);
   } catch {
-    const attempts = job.attempt_count + 1;
-    const next = new Date(Date.now() + Math.min(24 * 60 * 60_000, 30_000 * 2 ** Math.min(attempts, 10)));
     const errorCode = deleted.size === (job.object_keys ?? []).length ? "account_cleanup_failed" : "storage_delete_failed";
-    await pool.query("UPDATE account_deletion_jobs SET status='retry',attempt_count=$2,next_attempt_at=$3,last_error_code=$4,updated_at=now() WHERE id=$1", [job.id, Math.min(attempts, MAX_ATTEMPTS), next, errorCode]);
+    await scheduleAccountDeletionRetry(job.id, job.attempt_count, errorCode);
   }
+}
+
+export function calculateAccountDeletionRetry(
+  currentAttemptCount: number,
+  nowMs = Date.now(),
+): { attemptCount: number; delayMs: number; nextAttemptAt: Date } {
+  const attemptCount = Math.max(0, Math.trunc(currentAttemptCount)) + 1;
+  const exponent = Math.min(attemptCount, ACCOUNT_DELETION_RETRY_BACKOFF_EXPONENT_CAP);
+  const delayMs = Math.min(
+    ACCOUNT_DELETION_RETRY_MAX_DELAY_MS,
+    ACCOUNT_DELETION_RETRY_BASE_DELAY_MS * 2 ** exponent,
+  );
+  return {
+    attemptCount,
+    delayMs,
+    nextAttemptAt: new Date(nowMs + delayMs),
+  };
+}
+
+export async function scheduleAccountDeletionRetry(
+  jobId: string,
+  currentAttemptCount: number,
+  errorCode: AccountDeletionErrorCode,
+  nowMs = Date.now(),
+  queryRunner: DeletionQueryRunner = pool,
+): Promise<void> {
+  const retry = calculateAccountDeletionRetry(currentAttemptCount, nowMs);
+  await queryRunner.query(
+    "UPDATE account_deletion_jobs SET status='retry',attempt_count=$2,next_attempt_at=$3,last_error_code=$4,updated_at=now() WHERE id=$1",
+    [jobId, retry.attemptCount, retry.nextAttemptAt, errorCode],
+  );
+}
+
+export async function getAccountDeletionCleanupHealth(): Promise<AccountDeletionCleanupHealth> {
+  const result = await pool.query<{
+    pending: number;
+    retrying: number;
+    max_attempt_count: number;
+  }>(`SELECT
+    count(*) FILTER (WHERE status IN ('pending','processing'))::integer AS pending,
+    count(*) FILTER (WHERE status='retry')::integer AS retrying,
+    COALESCE(max(attempt_count) FILTER (WHERE status<>'completed'),0)::integer AS max_attempt_count
+    FROM account_deletion_jobs`);
+  const row = result.rows[0];
+  const pending = Number(row?.pending ?? 0);
+  const retrying = Number(row?.retrying ?? 0);
+  const maxAttemptCount = Number(row?.max_attempt_count ?? 0);
+  return { pending, retrying, maxAttemptCount, degraded: retrying > 0 };
+}
+
+export async function deleteAuthoredMessagesAndRecomputeThreads(
+  client: Pick<PoolClient, "query">,
+  userId: string,
+  now: Date,
+): Promise<void> {
+  await client.query("DELETE FROM messages WHERE from_user_id=$1", [userId]);
+  await client.query(`WITH affected_threads AS (
+      SELECT thread_id FROM thread_members WHERE user_id=$1
+    ), latest_messages AS (
+      SELECT DISTINCT ON (m.thread_id) m.thread_id,m.text,m.created_at
+      FROM messages m
+      JOIN affected_threads affected ON affected.thread_id=m.thread_id
+      ORDER BY m.thread_id,m.created_at DESC,m.id DESC
+    )
+    UPDATE threads t
+    SET last_message_text=latest.text,last_message_at=latest.created_at,updated_at=$2
+    FROM affected_threads affected
+    LEFT JOIN latest_messages latest ON latest.thread_id=affected.thread_id
+    WHERE t.id=affected.thread_id`, [userId, now]);
 }
 
 async function finalizeAccountDeletion(userId: string, jobId: string): Promise<void> {

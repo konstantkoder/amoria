@@ -61,6 +61,12 @@ export type OpsHealth = {
     status: "ok" | "error";
     checkedAt: string;
   };
+  accountDeletionCleanup: {
+    pending: number | null;
+    retrying: number | null;
+    maxAttemptCount: number | null;
+    degraded: boolean;
+  };
   counts: {
     openClientErrors: number | null;
     openReports: number | null;
