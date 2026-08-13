@@ -66,7 +66,7 @@ export async function findMessageDetail(messageId: string): Promise<AdminMessage
     }>(`SELECT id,source,action,reason,metadata,admin_user_id,created_at
           FROM message_moderation_reviews WHERE message_id=$1 ORDER BY created_at,id`, [messageId]),
     pool.query<{
-      id: string; reporter_user_id: string; reason: string; comment: string | null;
+      id: string; reporter_user_id: string | null; reason: string; comment: string | null;
       status: string; created_at: Date;
     }>(`SELECT id,reporter_user_id,reason,comment,status,created_at FROM safety_reports
          WHERE target_type='message' AND target_id=$1 ORDER BY created_at,id`, [messageId]),

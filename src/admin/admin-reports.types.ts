@@ -59,8 +59,8 @@ export type AdminReportTargetContext = {
 
 export type AdminReportRow = {
   id: string;
-  reporterUserId: string;
-  reporter: AdminReportUserSnapshot;
+  reporterUserId: string | null;
+  reporter: AdminReportUserSnapshot | null;
   targetType: string;
   targetId: string;
   targetOwnerUserId: string | null;
@@ -144,16 +144,14 @@ export function toAdminReportReviewActionItem(
 }
 
 function buildTargetContext(row: AdminReportRow): AdminReportTargetContext {
-  const links: AdminReportTargetContextLink[] = [
-    {
-      kind: "reporter_user",
-      label: "Open reporter profile",
-      screen: "users",
-      available: true,
-      params: { amoriaId: row.reporter.amoriaId },
-      unavailableReason: null,
-    },
-  ];
+  const links: AdminReportTargetContextLink[] = [{
+    kind: "reporter_user",
+    label: "Open reporter profile",
+    screen: row.reporter ? "users" : "none",
+    available: Boolean(row.reporter),
+    params: row.reporter ? { amoriaId: row.reporter.amoriaId } : {},
+    unavailableReason: row.reporter ? null : "Reporter account was deleted",
+  }];
 
   if (row.targetUser) {
     links.push({

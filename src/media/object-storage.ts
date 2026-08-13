@@ -221,6 +221,7 @@ export async function deleteObject(input: ObjectStorageInput): Promise<void> {
         Bucket: input.bucket,
         Key: input.key,
       }),
+      { abortSignal: AbortSignal.timeout(env.OBJECT_STORAGE_DELETE_TIMEOUT_MS) },
     );
   } catch {
     throw new AppError("internal_error", "Object storage delete request failed", 500);

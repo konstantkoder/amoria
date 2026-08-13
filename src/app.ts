@@ -25,8 +25,10 @@ import { wsRoutes } from "./realtime/ws.routes";
 import { pool } from "./db/client";
 import { checkObjectStorageHealth } from "./media/object-storage";
 import { verifyEmailDeliveryReadiness } from "./email/email-delivery.service";
+import { publicPagesRoutes } from "./public/public-pages";
+import { notificationsRoutes } from "./notifications/notifications.routes";
 
-export const EXPECTED_MIGRATION = "0033_together_story_round_integrity.sql";
+export const EXPECTED_MIGRATION = "0034_release_essentials.sql";
 export const WS_MAX_PAYLOAD_BYTES = 16 * 1024;
 
 export function isCorsOriginAllowed(origin: string | undefined, allowedOrigins: string[]): boolean {
@@ -147,6 +149,8 @@ export function buildApp(): FastifyInstance {
   void app.register(nearbyRoutes, { prefix: "/nearby" });
   void app.register(togetherRoutes, { prefix: "/together" });
   void app.register(wsRoutes, { prefix: "/ws" });
+  void app.register(publicPagesRoutes);
+  void app.register(notificationsRoutes);
 
   return app;
 }

@@ -144,8 +144,8 @@ const reportItemSchema = {
   additionalProperties: false,
   properties: {
     id: { type: "string", format: "uuid" },
-    reporterUserId: { type: "string", format: "uuid" },
-    reporter: reportUserSchema,
+    reporterUserId: { type: ["string", "null"], format: "uuid" },
+    reporter: { anyOf: [reportUserSchema, { type: "null" }] },
     targetType: { type: "string" },
     targetId: { type: "string" },
     targetOwnerUserId: { type: ["string", "null"], format: "uuid" },

@@ -269,6 +269,9 @@ const corsAllowedOrigins = parseCorsAllowedOrigins(
 );
 const trustProxy = parseTrustProxyConfiguration(optional("TRUST_PROXY", ""), nodeEnv);
 const releaseSha = process.env.RELEASE_SHA?.trim() || (nodeEnv === "production" ? "" : "development");
+const supportEmail = process.env.SUPPORT_EMAIL?.trim()
+  || (nodeEnv === "production" ? "" : "support@example.invalid");
+const expoPushAccessToken = process.env.EXPO_PUSH_ACCESS_TOKEN?.trim() || undefined;
 
 if (objectStorageProvider !== "s3") {
   throw new Error("OBJECT_STORAGE_PROVIDER must be s3");
@@ -287,6 +290,10 @@ if (nodeEnv === "production") {
   if (!/^[0-9a-f]{40}$/i.test(releaseSha) || /^0{40}$/.test(releaseSha)) {
     throw new Error("RELEASE_SHA must be the exact 40-character Git commit SHA in production");
   }
+}
+
+if (!supportEmail || /[\r\n]/.test(supportEmail) || !/^[^\s@<>]+@[^\s@<>]+$/.test(supportEmail)) {
+  throw new Error("SUPPORT_EMAIL must be a single valid email address");
 }
 
 if (authSecurityHmacSecret.length < 32) {
@@ -373,6 +380,12 @@ export const env = {
   S3_BUCKET: optional("S3_BUCKET", "amoria"),
   S3_PUBLIC_BASE_URL: s3PublicBaseUrl,
   S3_FORCE_PATH_STYLE: parseBooleanFlag("S3_FORCE_PATH_STYLE", optional("S3_FORCE_PATH_STYLE", "1")),
+  OBJECT_STORAGE_DELETE_TIMEOUT_MS: parseIntegerInRange(
+    "OBJECT_STORAGE_DELETE_TIMEOUT_MS",
+    optional("OBJECT_STORAGE_DELETE_TIMEOUT_MS", "10000"),
+    500,
+    60_000,
+  ),
   SMTP_HOST: smtpHost,
   SMTP_PORT: parsePort(optional("SMTP_PORT", "1025")),
   SMTP_SECURE: parseBooleanFlag("SMTP_SECURE", optional("SMTP_SECURE", "false")),
@@ -450,6 +463,26 @@ export const env = {
   ),
   RELEASE_SHA: releaseSha,
   APP_VERSION: optional("APP_VERSION", "0.1.0"),
+  SUPPORT_EMAIL: supportEmail,
+  EXPO_PUSH_ACCESS_TOKEN: expoPushAccessToken,
+  PUSH_REQUEST_TIMEOUT_MS: parseIntegerInRange(
+    "PUSH_REQUEST_TIMEOUT_MS",
+    optional("PUSH_REQUEST_TIMEOUT_MS", "5000"),
+    500,
+    30_000,
+  ),
+  PUSH_WORKER_INTERVAL_MS: parseIntegerInRange(
+    "PUSH_WORKER_INTERVAL_MS",
+    optional("PUSH_WORKER_INTERVAL_MS", "5000"),
+    1000,
+    60_000,
+  ),
+  ACCOUNT_DELETION_WORKER_INTERVAL_MS: parseIntegerInRange(
+    "ACCOUNT_DELETION_WORKER_INTERVAL_MS",
+    optional("ACCOUNT_DELETION_WORKER_INTERVAL_MS", "30000"),
+    1000,
+    300_000,
+  ),
   isProduction: nodeEnv === "production",
   isTest: nodeEnv === "test",
 };

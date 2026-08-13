@@ -27,7 +27,7 @@ type ReportSelectRow = {
     amoriaId: string;
     displayName: string;
     email: string;
-  };
+  } | null;
   targetOwner: {
     id: string;
     amoriaId: string;
@@ -194,7 +194,7 @@ function reportSelect() {
       },
     })
     .from(safetyReports)
-    .innerJoin(reporterUsers, eq(safetyReports.reporterUserId, reporterUsers.id))
+    .leftJoin(reporterUsers, eq(safetyReports.reporterUserId, reporterUsers.id))
     .leftJoin(targetOwnerUsers, eq(safetyReports.targetOwnerUserId, targetOwnerUsers.id))
     .leftJoin(
       targetUsers,

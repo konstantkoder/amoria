@@ -167,6 +167,10 @@ export async function enqueue(
   };
 }
 
+export function listNotificationRecipientIds(sessionId: string): Promise<string[]> {
+  return deps.repo.listSessionMemberUserIds(sessionId);
+}
+
 function normalizeQueueLocation(
   input: TogetherQueueBody,
 ): {

@@ -36,6 +36,7 @@ function productionEnv(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
     SMTP_PASSWORD: "",
     MAIL_FROM: "no-reply@example.test",
     MAIL_FROM_NAME: "Amoria",
+    SUPPORT_EMAIL: "support@example.test",
     TRUST_PROXY: "172.28.0.1/32",
     CORS_ALLOWED_ORIGINS: "https://admin.example.test",
     RELEASE_SHA: "0123456789abcdef0123456789abcdef01234567",
@@ -93,6 +94,7 @@ for (const name of [
   "TEXT_MODERATION_MODEL_DIR",
   "CORS_ALLOWED_ORIGINS",
   "TRUST_PROXY",
+  "SUPPORT_EMAIL",
 ] as const) {
   test(`production fails closed when ${name} is missing`, () => {
     const result = loadProductionEnv({ [name]: "" });
@@ -104,6 +106,11 @@ for (const name of [
 test("production rejects repository sample/default secrets", () => {
   assert.notEqual(loadProductionEnv({ JWT_SECRET: "change-me-change-me-change-me-change-me" }).status, 0);
   assert.notEqual(loadProductionEnv({ S3_ACCESS_KEY: "minioadmin" }).status, 0);
+});
+
+test("production support contact rejects invalid or header-injected values", () => {
+  assert.notEqual(loadProductionEnv({ SUPPORT_EMAIL: "not-an-email" }).status, 0);
+  assert.notEqual(loadProductionEnv({ SUPPORT_EMAIL: "support@example.test\r\nBcc: injected@example.test" }).status, 0);
 });
 
 test("production rejects trust-all proxy and wildcard/null CORS policies", () => {

@@ -30,6 +30,7 @@ import {
 import * as turnBasedService from "./together-turn-based.service";
 import * as togetherService from "./together.service";
 import type { TogetherSessionUpdateResult } from "./together.types";
+import { notifyUser } from "../notifications/notifications.service";
 
 function currentUserId(request: { auth?: { userId: string } }): string {
   if (!request.auth?.userId) {
@@ -48,7 +49,7 @@ export async function togetherRoutes(fastify: FastifyInstance): Promise<void> {
         currentUserId(request),
         parseTurnBasedStartBody(request.body),
       );
-      if (response.moment) await broadcastTurnBasedMoment(response.moment.id);
+      if (response.moment) await broadcastTurnBasedMoment(response.moment.id, currentUserId(request), request.log);
       return response;
     },
   );
@@ -70,7 +71,7 @@ export async function togetherRoutes(fastify: FastifyInstance): Promise<void> {
     { preHandler: authMiddleware, schema: withErrorResponses(turnBasedActionRouteSchema) },
     async (request) => {
       const response = await turnBasedService.submitDraw(currentUserId(request), request.params.id, parseTurnBasedActionBody(request.body));
-      await broadcastTurnBasedMoment(request.params.id);
+      await broadcastTurnBasedMoment(request.params.id, currentUserId(request), request.log);
       return response;
     },
   );
@@ -80,7 +81,7 @@ export async function togetherRoutes(fastify: FastifyInstance): Promise<void> {
     { preHandler: authMiddleware, schema: withErrorResponses(turnBasedMomentRouteSchema) },
     async (request) => {
       const response = await turnBasedService.renewLease(currentUserId(request), request.params.id);
-      await broadcastTurnBasedMoment(request.params.id);
+      await broadcastTurnBasedMoment(request.params.id, currentUserId(request), request.log);
       return response;
     },
   );
@@ -90,7 +91,7 @@ export async function togetherRoutes(fastify: FastifyInstance): Promise<void> {
     { preHandler: authMiddleware, schema: withErrorResponses(turnBasedActionRouteSchema) },
     async (request) => {
       const response = await turnBasedService.cancel(currentUserId(request), request.params.id, parseTurnBasedActionBody(request.body));
-      await broadcastTurnBasedMoment(request.params.id);
+      await broadcastTurnBasedMoment(request.params.id, currentUserId(request), request.log);
       return response;
     },
   );
@@ -100,7 +101,7 @@ export async function togetherRoutes(fastify: FastifyInstance): Promise<void> {
     { preHandler: authMiddleware, schema: withErrorResponses(turnBasedMomentRouteSchema) },
     async (request) => {
       const response = await turnBasedService.dismiss(currentUserId(request), request.params.id);
-      await broadcastTurnBasedMoment(request.params.id);
+      await broadcastTurnBasedMoment(request.params.id, currentUserId(request), request.log);
       return response;
     },
   );
@@ -111,8 +112,25 @@ export async function togetherRoutes(fastify: FastifyInstance): Promise<void> {
       preHandler: authMiddleware,
       schema: withErrorResponses(postTogetherQueueRouteSchema),
     },
-    async (request) =>
-      togetherService.enqueue(currentUserId(request), parseTogetherQueueBody(request.body)),
+    async (request) => {
+      const actorUserId = currentUserId(request);
+      const response = await togetherService.enqueue(actorUserId, parseTogetherQueueBody(request.body));
+      if (response.entry.status === "matched" && response.entry.sessionId) {
+        try {
+          const recipientIds = await togetherService.listNotificationRecipientIds(response.entry.sessionId);
+          await Promise.all(recipientIds.map((recipientId) => notifyUser({
+            userId: recipientId,
+            type: "together_match",
+            titleKey: "notifications.togetherMatch",
+            payload: { sessionId: response.entry.sessionId },
+            eventKey: `together_match:${response.entry.sessionId}`,
+          })));
+        } catch (error) {
+          request.log.error({ err: error }, "Failed to persist Together match notification");
+        }
+      }
+      return response;
+    },
   );
 
   fastify.get<{ Params: { id: string } }>(
@@ -164,14 +182,24 @@ export async function togetherRoutes(fastify: FastifyInstance): Promise<void> {
       schema: withErrorResponses(postTogetherEventRouteSchema),
     },
     async (request) => {
+      const actorUserId = currentUserId(request);
+      const body = parseTogetherEventBody(request.body);
       const result = await togetherService.createEvent(
-        currentUserId(request),
+        actorUserId,
         request.params.id,
-        parseTogetherEventBody(request.body),
+        body,
       );
 
       if (result.created) {
         wsHub.broadcastTogetherEvent(request.params.id, result.event);
+        if (body.type === "story_choice") {
+          try {
+            const turnBasedMomentId = await turnBasedService.findMomentIdBySession(request.params.id);
+            if (turnBasedMomentId) await broadcastTurnBasedMoment(turnBasedMomentId, actorUserId, request.log);
+          } catch (error) {
+            request.log.error({ err: error }, "Failed to persist Together story-turn notification");
+          }
+        }
       }
 
       return result.response;
@@ -241,7 +269,7 @@ export async function togetherRoutes(fastify: FastifyInstance): Promise<void> {
       );
       await turnBasedService.syncReveal(request.params.id);
       const turnBasedMomentId = await turnBasedService.findMomentIdBySession(request.params.id);
-      if (turnBasedMomentId) await broadcastTurnBasedMoment(turnBasedMomentId);
+      if (turnBasedMomentId) await broadcastTurnBasedMoment(turnBasedMomentId, actorUserId, request.log);
 
       wsHub.broadcastTogetherRevealUpdated(
         request.params.id,
@@ -271,9 +299,18 @@ function broadcastSessionUpdate(
   });
 }
 
-async function broadcastTurnBasedMoment(momentId: string): Promise<void> {
+async function broadcastTurnBasedMoment(momentId: string, actorUserId?: string, log?: { error: (value: unknown, message?: string) => void }): Promise<void> {
   const broadcasts = await turnBasedService.getMomentBroadcasts(momentId);
   for (const broadcast of broadcasts) {
     wsHub.broadcastTurnBasedUpdated([broadcast.userId], broadcast.moment);
   }
+  const attentionActions = new Set(["continue_draw", "review_draw", "continue_story", "review_story"]);
+  const recipients = broadcasts.filter((broadcast) => attentionActions.has(broadcast.moment.action) && broadcast.userId !== actorUserId);
+  await Promise.all(recipients.map((broadcast) => notifyUser({
+    userId: broadcast.userId,
+    type: "together_action",
+    titleKey: "notifications.togetherAction",
+    payload: { momentId },
+    eventKey: `together_action:${momentId}:${broadcast.moment.status}:${broadcast.moment.stage}:${broadcast.moment.currentRoundId ?? "none"}:${broadcast.moment.updatedAt}`,
+  }))).catch((error) => log?.error({ err: error }, "Failed to persist Together action notification"));
 }

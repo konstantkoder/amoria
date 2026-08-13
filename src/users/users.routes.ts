@@ -1,4 +1,4 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { authMiddleware } from "../common/security/auth-middleware";
 import { unauthorized } from "../common/errors";
 import { withErrorResponses } from "../common/http";
@@ -23,6 +23,8 @@ import {
 } from "./users.schemas";
 import * as profileGalleryService from "./profile-gallery.service";
 import * as usersService from "./users.service";
+import { requestAccountDeletion } from "./account-deletion.service";
+import { verifyAccessToken } from "../auth/jwt";
 
 function currentUserId(request: { auth?: { userId: string } }): string {
   if (!request.auth?.userId) {
@@ -139,4 +141,24 @@ export async function usersRoutes(fastify: FastifyInstance): Promise<void> {
         requestContext(request),
       ),
   );
+
+  fastify.delete<{ Body: { password: string } }>(
+    "/me/account",
+    {
+      preHandler: accountDeletionAuthMiddleware,
+      schema: withErrorResponses({
+        body: { type: "object", required: ["password"], additionalProperties: false, properties: { password: { type: "string", minLength: 1, maxLength: 200 } } },
+        response: { 202: { type: "object", required: ["status"], additionalProperties: false, properties: { status: { type: "string", enum: ["pending", "completed"] } } } },
+      }),
+    },
+    async (request, reply) => reply.status(202).send(await requestAccountDeletion(currentUserId(request), request.body.password)),
+  );
+}
+
+async function accountDeletionAuthMiddleware(request: FastifyRequest, _reply: FastifyReply) {
+  const header = request.headers.authorization;
+  if (!header?.startsWith("Bearer ")) throw unauthorized();
+  const token = header.slice("Bearer ".length).trim();
+  if (!token) throw unauthorized();
+  request.auth = { userId: verifyAccessToken(token).sub };
 }

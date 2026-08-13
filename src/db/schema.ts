@@ -52,6 +52,7 @@ export const users = pgTable("users", {
   suspendedAt: timestamp("suspended_at", { withTimezone: true }),
   suspensionReason: text("suspension_reason"),
   suspendedByAdminUserId: uuid("suspended_by_admin_user_id"),
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
   lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
@@ -71,7 +72,7 @@ export const users = pgTable("users", {
   ),
   check(
     "users_account_status_check",
-    sql`${table.accountStatus} IN ('active', 'suspended')`,
+    sql`${table.accountStatus} IN ('active', 'suspended', 'deleting', 'deleted')`,
   ),
 ]);
 
@@ -317,9 +318,9 @@ export const blockedUsers = pgTable(
 
 export const safetyReports = pgTable("safety_reports", {
   id: uuid("id").defaultRandom().primaryKey(),
-  reporterUserId: uuid("reporter_user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
+  reporterUserId: uuid("reporter_user_id").references(() => users.id, {
+    onDelete: "set null",
+  }),
   targetType: text("target_type").notNull(),
   targetId: text("target_id").notNull(),
   targetOwnerUserId: uuid("target_owner_user_id").references(() => users.id, {
@@ -1196,6 +1197,108 @@ export const authRateLimits = pgTable(
   ],
 );
 
+export const accountDeletionJobs = pgTable(
+  "account_deletion_jobs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").notNull().unique(),
+    objectKeys: jsonb("object_keys").$type<string[]>().default(sql`'[]'::jsonb`).notNull(),
+    deletedObjectKeys: jsonb("deleted_object_keys").$type<string[]>().default(sql`'[]'::jsonb`).notNull(),
+    status: text("status").default("pending").notNull(),
+    attemptCount: integer("attempt_count").default(0).notNull(),
+    nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).defaultNow().notNull(),
+    lastErrorCode: text("last_error_code"),
+    requestedAt: timestamp("requested_at", { withTimezone: true }).defaultNow().notNull(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("account_deletion_jobs_due_idx").on(table.status, table.nextAttemptAt),
+    check(
+      "account_deletion_jobs_status_check",
+      sql`${table.status} IN ('pending', 'processing', 'retry', 'completed')`,
+    ),
+    check("account_deletion_jobs_attempt_count_check", sql`${table.attemptCount} >= 0`),
+  ],
+);
+
+export const notifications = pgTable(
+  "notifications",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    type: text("type").notNull(),
+    titleKey: text("title_key").notNull(),
+    payload: jsonb("payload").$type<JsonValue>().default(sql`'{}'::jsonb`).notNull(),
+    eventKey: text("event_key").notNull(),
+    readAt: timestamp("read_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique("notifications_user_event_unique").on(table.userId, table.eventKey),
+    index("notifications_user_created_idx").on(table.userId, table.createdAt),
+    index("notifications_user_unread_idx").on(table.userId, table.readAt),
+    check(
+      "notifications_type_check",
+      sql`${table.type} IN ('direct_message', 'together_match', 'together_action', 'announcement')`,
+    ),
+  ],
+);
+
+export const pushTokens = pgTable(
+  "push_tokens",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    token: text("token").notNull().unique(),
+    platform: text("platform").notNull(),
+    deviceId: text("device_id").notNull(),
+    disabledAt: timestamp("disabled_at", { withTimezone: true }),
+    lastError: text("last_error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique("push_tokens_user_device_unique").on(table.userId, table.deviceId),
+    index("push_tokens_user_active_idx").on(table.userId, table.disabledAt),
+    check("push_tokens_platform_check", sql`${table.platform} IN ('android', 'ios')`),
+  ],
+);
+
+export const pushDeliveries = pgTable(
+  "push_deliveries",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    notificationId: uuid("notification_id")
+      .notNull()
+      .references(() => notifications.id, { onDelete: "cascade" }),
+    pushTokenId: uuid("push_token_id")
+      .notNull()
+      .references(() => pushTokens.id, { onDelete: "cascade" }),
+    status: text("status").default("pending").notNull(),
+    attemptCount: integer("attempt_count").default(0).notNull(),
+    nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).defaultNow().notNull(),
+    expoReceiptId: text("expo_receipt_id"),
+    lastError: text("last_error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique("push_deliveries_notification_token_unique").on(table.notificationId, table.pushTokenId),
+    index("push_deliveries_due_idx").on(table.status, table.nextAttemptAt),
+    index("push_deliveries_receipt_idx").on(table.expoReceiptId),
+    check(
+      "push_deliveries_status_check",
+      sql`${table.status} IN ('pending', 'sending', 'receipt_pending', 'retry', 'delivered', 'failed')`,
+    ),
+    check("push_deliveries_attempt_count_check", sql`${table.attemptCount} >= 0`),
+  ],
+);
+
 export const usersRelations = relations(users, ({ one, many }) => ({
   mediaFiles: many(mediaFiles),
   mediaUploads: many(mediaUploads),
@@ -1528,8 +1631,8 @@ export const authEmailChallengesRelations = relations(authEmailChallenges, ({ on
 }));
 
 type UserDbRow = typeof users.$inferSelect;
-export type UserRow = Omit<UserDbRow, "accountStatus" | "suspendedAt" | "suspensionReason" | "suspendedByAdminUserId"> &
-  Partial<Pick<UserDbRow, "accountStatus" | "suspendedAt" | "suspensionReason" | "suspendedByAdminUserId">>;
+export type UserRow = Omit<UserDbRow, "accountStatus" | "suspendedAt" | "suspensionReason" | "suspendedByAdminUserId" | "deletedAt"> &
+  Partial<Pick<UserDbRow, "accountStatus" | "suspendedAt" | "suspensionReason" | "suspendedByAdminUserId" | "deletedAt">>;
 export type NewUserRow = typeof users.$inferInsert;
 export type AuthEmailChallengeRow = typeof authEmailChallenges.$inferSelect;
 export type NewAuthEmailChallengeRow = typeof authEmailChallenges.$inferInsert;

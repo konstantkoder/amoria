@@ -239,6 +239,13 @@
       "when": 1786579200000,
       "tag": "0033_together_story_round_integrity",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1786665600000,
+      "tag": "0034_release_essentials",
+      "breakpoints": true
     }
   ]
 }

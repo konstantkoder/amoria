@@ -50,7 +50,7 @@ export type AdminMessageReviewItem = {
 
 export type AdminMessageReportItem = {
   id: string;
-  reporterUserId: string;
+  reporterUserId: string | null;
   reason: string;
   comment: string | null;
   status: string;

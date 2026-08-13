@@ -16,6 +16,7 @@ import {
   sendMessageRouteSchema,
 } from "./chat.schemas";
 import * as chatService from "./chat.service";
+import { notifyUser } from "../notifications/notifications.service";
 
 function currentUserId(request: { auth?: { userId: string } }): string {
   if (!request.auth?.userId) {
@@ -85,6 +86,14 @@ export async function chatRoutes(fastify: FastifyInstance): Promise<void> {
           result.participantUserIds,
         );
         wsHub.broadcastInboxUpdated(result.participantUserIds);
+        const recipientIds = result.participantUserIds.filter((id) => id !== currentUserId(request));
+        await Promise.all(recipientIds.map((recipientId) => notifyUser({
+          userId: recipientId,
+          type: "direct_message",
+          titleKey: "notifications.directMessage",
+          payload: { threadId: result.threadId },
+          eventKey: `direct_message:${result.response.message.id}`,
+        }))).catch((error) => request.log.error({ err: error }, "Failed to persist direct-message notification"));
       }
 
       return result.response;

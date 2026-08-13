@@ -6,10 +6,29 @@ import {
 } from "./config/constants";
 import { runMaintenance } from "./together/together-turn-based.service";
 import { localTextModerationClient } from "./moderation/local-text-moderation.client";
+import { runPushMaintenance } from "./notifications/push-delivery.service";
+import { runAccountDeletionMaintenance } from "./users/account-deletion.service";
 
 const app = buildApp();
 let turnBasedMaintenanceTimer: NodeJS.Timeout | undefined;
+let pushMaintenanceTimer: NodeJS.Timeout | undefined;
+let accountDeletionMaintenanceTimer: NodeJS.Timeout | undefined;
 let shuttingDown = false;
+
+function scheduleWorker(run: () => Promise<unknown>, intervalMs: number, failureMessage: string): NodeJS.Timeout {
+  let running = false;
+  const tick = async () => {
+    if (running || shuttingDown) return;
+    running = true;
+    try { await run(); }
+    catch (error) { app.log.error({ err: error }, failureMessage); }
+    finally { running = false; }
+  };
+  void tick();
+  const timer = setInterval(() => { void tick(); }, intervalMs);
+  timer.unref();
+  return timer;
+}
 
 async function start(): Promise<void> {
   try {
@@ -18,12 +37,9 @@ async function start(): Promise<void> {
       host: "0.0.0.0",
       port: env.PORT,
     });
-    turnBasedMaintenanceTimer = setInterval(() => {
-      void runMaintenance().catch((error: unknown) => {
-        app.log.error({ err: error }, "Together turn-based maintenance failed");
-      });
-    }, TURN_BASED_MAINTENANCE_INTERVAL_MS);
-    turnBasedMaintenanceTimer.unref();
+    turnBasedMaintenanceTimer = scheduleWorker(runMaintenance, TURN_BASED_MAINTENANCE_INTERVAL_MS, "Together maintenance failed");
+    pushMaintenanceTimer = scheduleWorker(runPushMaintenance, env.PUSH_WORKER_INTERVAL_MS, "Push maintenance failed");
+    accountDeletionMaintenanceTimer = scheduleWorker(runAccountDeletionMaintenance, env.ACCOUNT_DELETION_WORKER_INTERVAL_MS, "Account deletion maintenance failed");
   } catch (error) {
     app.log.error({ err: error }, "Failed to start server");
     await closeDb();
@@ -36,6 +52,8 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
   shuttingDown = true;
   app.log.info({ signal }, "Shutting down");
   if (turnBasedMaintenanceTimer) clearInterval(turnBasedMaintenanceTimer);
+  if (pushMaintenanceTimer) clearInterval(pushMaintenanceTimer);
+  if (accountDeletionMaintenanceTimer) clearInterval(accountDeletionMaintenanceTimer);
   localTextModerationClient.stop(new Error("server_shutdown"));
   await app.close();
   await closeDb();
