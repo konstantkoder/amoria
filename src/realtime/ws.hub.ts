@@ -313,6 +313,15 @@ class WsHub {
     this.sendJson(socket, { type: "error", code, message });
   }
 
+  sendSubscriptionAck(
+    socket: WebSocket,
+    type: "subscribed" | "unsubscribed",
+    channel: "inbox" | "thread" | "together",
+    id?: { threadId: string } | { sessionId: string },
+  ): void {
+    this.sendJson(socket, { type, channel, ...id });
+  }
+
   private broadcastToSockets(sockets: Set<WebSocket> | undefined, payload: unknown): void {
     if (!sockets) {
       return;

@@ -665,6 +665,10 @@ export async function reveal(
     });
   }
 
+  if (session.mode === "turn_based") {
+    await turnBasedService.validateRevealDecision(sessionId);
+  }
+
   await deps.repo.upsertReveal(sessionId, userId, input.decision);
 
   const memberUserIds = await deps.repo.listSessionMemberUserIds(sessionId);

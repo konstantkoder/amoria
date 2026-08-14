@@ -1,5 +1,6 @@
 import type { WebSocket } from "@fastify/websocket";
 import type { FastifyInstance, FastifyRequest } from "fastify";
+import { env } from "../config/env";
 import { verifyAccessToken } from "../auth/jwt";
 import * as chatService from "../chat/chat.service";
 import * as togetherService from "../together/together.service";
@@ -44,7 +45,6 @@ type ClientWsMessage =
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const connectionAttempts = new Map<string, { count: number; resetAt: number }>();
 const CONNECTION_ATTEMPT_WINDOW_MS = 60_000;
-const CONNECTION_ATTEMPT_LIMIT = 60;
 const MAX_PENDING_AUTH_MESSAGES = 10;
 
 export async function wsRoutes(fastify: FastifyInstance): Promise<void> {
@@ -54,15 +54,6 @@ export async function wsRoutes(fastify: FastifyInstance): Promise<void> {
 }
 
 async function beginSocket(socket: WebSocket, request: FastifyRequest): Promise<void> {
-    const sharedDecision = await consumeSharedWsConnectionAttempt(request.ip);
-    if (!(sharedDecision ?? consumeConnectionAttempt(request.ip))) {
-      if (socket.readyState === 1) {
-        socket.send(JSON.stringify({ type: "error", code: "rate_limited", retryAfterSeconds: 60 }));
-        socket.close(1008, "Connection rate limit exceeded");
-      }
-      return;
-    }
-
     const pendingMessages: string[] = [];
     let authenticatedUserId: string | undefined;
     let expiryTimer: NodeJS.Timeout | undefined;
@@ -89,6 +80,15 @@ async function beginSocket(socket: WebSocket, request: FastifyRequest): Promise<
     };
     socket.on("close", cleanup);
     socket.on("error", cleanup);
+
+    const sharedDecision = await consumeSharedWsConnectionAttempt(request.ip);
+    if (!(sharedDecision ?? consumeConnectionAttempt(request.ip))) {
+      if (socket.readyState === 1) {
+        socket.send(JSON.stringify({ type: "error", code: "rate_limited", retryAfterSeconds: 60 }));
+        socket.close(1008, "Connection rate limit exceeded");
+      }
+      return;
+    }
 
     void authenticateSocket(socket, request).then(async (auth) => {
       if (!auth || socket.readyState !== 1) return;
@@ -178,7 +178,7 @@ function consumeConnectionAttempt(ip: string): boolean {
     return true;
   }
   current.count += 1;
-  return current.count <= CONNECTION_ATTEMPT_LIMIT;
+  return current.count <= env.WS_CONNECTION_ATTEMPT_LIMIT_PER_MINUTE;
 }
 
 function firstHeaderValue(value: string | string[] | undefined): string | undefined {
@@ -202,9 +202,12 @@ async function handleClientMessage(
     if (message.type === "subscribe") {
       if (!wsHub.subscribeInbox(socket)) {
         wsHub.sendError(socket, "subscription_limit", "Subscription limit reached");
+      } else {
+        wsHub.sendSubscriptionAck(socket, "subscribed", "inbox");
       }
     } else {
       wsHub.unsubscribeInbox(socket);
+      wsHub.sendSubscriptionAck(socket, "unsubscribed", "inbox");
     }
     return;
   }
@@ -218,9 +221,12 @@ async function handleClientMessage(
     if (message.type === "subscribe") {
       if (!wsHub.subscribeThread(socket, message.threadId)) {
         wsHub.sendError(socket, "subscription_limit", "Subscription limit reached");
+      } else {
+        wsHub.sendSubscriptionAck(socket, "subscribed", "thread", { threadId: message.threadId });
       }
     } else {
       wsHub.unsubscribeThread(socket, message.threadId);
+      wsHub.sendSubscriptionAck(socket, "unsubscribed", "thread", { threadId: message.threadId });
     }
     return;
   }
@@ -233,9 +239,12 @@ async function handleClientMessage(
   if (message.type === "subscribe") {
     if (!wsHub.subscribeTogether(socket, message.sessionId)) {
       wsHub.sendError(socket, "subscription_limit", "Subscription limit reached");
+    } else {
+      wsHub.sendSubscriptionAck(socket, "subscribed", "together", { sessionId: message.sessionId });
     }
   } else {
     wsHub.unsubscribeTogether(socket, message.sessionId);
+    wsHub.sendSubscriptionAck(socket, "unsubscribed", "together", { sessionId: message.sessionId });
   }
 }
 

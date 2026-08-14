@@ -260,6 +260,20 @@
       "when": 1786838400000,
       "tag": "0036_scale_matching_locality",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1786924800000,
+      "tag": "0037_scale_push_claim_order",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1787011200000,
+      "tag": "0038_scale_nearby_knn",
+      "breakpoints": true
     }
   ]
 }

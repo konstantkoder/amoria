@@ -6,6 +6,8 @@ if (process.env.CONFIRM_EXPO_STUB !== "I_CONFIRM_NON_PRODUCTION") {
 }
 const port = Number.parseInt(process.env.EXPO_STUB_PORT || "4500", 10);
 if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error("EXPO_STUB_PORT must be 1024..65535");
+const host = process.env.EXPO_STUB_HOST || "127.0.0.1";
+if (host !== "127.0.0.1" && host !== "0.0.0.0") throw new Error("EXPO_STUB_HOST must be a local bind address");
 
 const server = createServer(async (request, response) => {
   try {
@@ -31,8 +33,8 @@ const server = createServer(async (request, response) => {
   }
 });
 
-server.listen(port, "127.0.0.1", () => {
-  process.stdout.write(`${JSON.stringify({ ready: true, port, nonProductionOnly: true })}\n`);
+server.listen(port, host, () => {
+  process.stdout.write(`${JSON.stringify({ ready: true, host, port, nonProductionOnly: true })}\n`);
 });
 
 async function readJson(request) {

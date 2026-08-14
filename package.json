@@ -27,6 +27,7 @@
     "qa:backup-restore:verify": "node scripts/qa-backup-restore-fixture.mjs verify",
     "qa:bounded-load": "node scripts/qa-bounded-load.mjs",
     "scale:seed": "node scripts/load/seed-scale-dataset.mjs",
+    "scale:fixtures": "node scripts/load/generate-scale-fixtures.mjs",
     "scale:explain": "node scripts/load/explain-hot-queries.mjs",
     "admin:message-moderation:runtime-qa": "node --import tsx scripts/run-admin-message-moderation-runtime-qa.mjs",
     "media:diagnostics": "node --import tsx src/media/media-diagnostics.cli.ts",

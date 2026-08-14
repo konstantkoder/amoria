@@ -78,7 +78,6 @@ function projection(): string {
 }
 
 export async function start(userId: string, input: TurnBasedStartBody): Promise<TurnBasedMomentResponse> {
-  await runMaintenance();
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -89,10 +88,15 @@ export async function start(userId: string, input: TurnBasedStartBody): Promise<
       WHERE m.starter_user_id=$1 AND m.client_request_id=$2
       ORDER BY m.created_at DESC LIMIT 1 FOR UPDATE OF m`, [userId, input.clientRequestId]);
     if (retried.rows[0]) {
+      const normalized = await normalizeExpiredMoment(client, retried.rows[0], new Date());
       await client.query("COMMIT");
-      return { moment: toDto(retried.rows[0], userId) };
+      return { moment: toDto({ ...normalized, role: retried.rows[0].role }, userId) };
     }
-    const existing = await findCurrent(client, userId, true, false);
+    let existing = await findCurrent(client, userId, true, false);
+    if (existing) {
+      await normalizeExpiredMoment(client, existing, new Date());
+      existing = await findCurrent(client, userId, true, false);
+    }
     if (existing) {
       await client.query("COMMIT");
       return { moment: toDto(existing, userId) };
@@ -213,20 +217,44 @@ export async function start(userId: string, input: TurnBasedStartBody): Promise<
 }
 
 export async function getCurrent(userId: string): Promise<TurnBasedMomentResponse> {
-  await runMaintenance();
-  const row = await findCurrent(pool, userId, false, true);
-  return { moment: row ? toDto(row, userId) : null };
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const current = await findCurrent(client, userId, true, true);
+    if (current) await normalizeExpiredMoment(client, current, new Date());
+    const row = await findCurrent(client, userId, false, true);
+    await client.query("COMMIT");
+    return { moment: row ? toDto(row, userId) : null };
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 export async function getMoment(userId: string, id: string): Promise<TurnBasedMomentResponse> {
-  await runMaintenance();
-  const result = await pool.query<ParticipantMomentRow>(`
-    SELECT ${projection()} FROM together_turn_based_moments m
-    JOIN together_turn_based_participants p ON p.moment_id=m.id
-    WHERE m.id=$1 AND p.user_id=$2`, [id, userId]);
-  const row = result.rows[0];
-  if (!row) throw new AppError("not_found", "Together moment not found", 404);
-  return { moment: toDto(row, userId) };
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const locked = await client.query<ParticipantMomentRow>(`
+      SELECT ${projection()} FROM together_turn_based_moments m
+      JOIN together_turn_based_participants p ON p.moment_id=m.id
+      WHERE m.id=$1 AND p.user_id=$2 FOR UPDATE OF m`, [id, userId]);
+    if (!locked.rows[0]) throw new AppError("not_found", "Together moment not found", 404);
+    await normalizeExpiredMoment(client, locked.rows[0], new Date());
+    const result = await client.query<ParticipantMomentRow>(`
+      SELECT ${projection()} FROM together_turn_based_moments m
+      JOIN together_turn_based_participants p ON p.moment_id=m.id
+      WHERE m.id=$1 AND p.user_id=$2`, [id, userId]);
+    await client.query("COMMIT");
+    return { moment: toDto(result.rows[0]!, userId) };
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 export async function getMomentBroadcasts(id: string): Promise<Array<{ userId: string; moment: TurnBasedMomentDto }>> {
@@ -252,8 +280,9 @@ export async function submitDraw(userId: string, id: string, _input: TurnBasedAc
       SELECT m.*,p.role FROM together_turn_based_moments m
       JOIN together_turn_based_participants p ON p.moment_id=m.id
       WHERE m.id=$1 AND p.user_id=$2 FOR UPDATE OF m`, [id, userId]);
-    const row = found.rows[0];
+    let row = found.rows[0];
     if (!row) throw new AppError("not_found", "Together moment not found", 404);
+    row = { ...await normalizeExpiredMoment(client, row, new Date()), role: row.role };
     const expected = row.role === "starter" ? "starter_turn" : "partner_turn";
     if (row.status !== expected || row.current_turn_user_id !== userId) throw outOfOrder();
     const strokes = await client.query<{ count: string }>(`
@@ -306,8 +335,9 @@ export async function cancel(userId: string, id: string, input: TurnBasedActionB
       SELECT m.*,p.role FROM together_turn_based_moments m
       JOIN together_turn_based_participants p ON p.moment_id=m.id
       WHERE m.id=$1 AND p.user_id=$2 FOR UPDATE OF m`, [id, userId]);
-    const row = found.rows[0];
+    let row = found.rows[0];
     if (!row) throw new AppError("not_found", "Together moment not found", 404);
+    row = { ...await normalizeExpiredMoment(client, row, new Date()), role: row.role };
     if (["awaiting_draw_reveal","awaiting_story_reveal"].includes(row.status)) {
       throw new AppError("together_turn_invalid_transition", "Submitted reveal decisions cannot be cancelled", 409);
     }
@@ -357,14 +387,56 @@ export async function dismiss(userId: string, id: string): Promise<TurnBasedMome
 }
 
 export async function validateEventTurn(sessionId: string, userId: string, type: string): Promise<void> {
-  const result = await pool.query<MomentRow>(`
-    SELECT * FROM together_turn_based_moments WHERE draw_session_id=$1 OR story_session_id=$1 LIMIT 1
-  `, [sessionId]);
-  const row = result.rows[0];
-  if (!row) return;
-  if (row.current_turn_user_id !== userId) throw outOfOrder();
-  if (sessionId === row.draw_session_id && !["starter_turn","partner_turn"].includes(row.status)) throw outOfOrder();
-  if (sessionId === row.story_session_id && (row.status !== "story_turn" || type !== "story_choice")) throw outOfOrder();
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const result = await client.query<MomentRow>(`
+      SELECT * FROM together_turn_based_moments
+      WHERE draw_session_id=$1 OR story_session_id=$1 LIMIT 1 FOR UPDATE
+    `, [sessionId]);
+    let row = result.rows[0];
+    if (!row) {
+      await client.query("COMMIT");
+      return;
+    }
+    row = await normalizeExpiredMoment(client, row, new Date());
+    if (row.current_turn_user_id !== userId) throw outOfOrder();
+    if (sessionId === row.draw_session_id && !["starter_turn","partner_turn"].includes(row.status)) throw outOfOrder();
+    if (sessionId === row.story_session_id && (row.status !== "story_turn" || type !== "story_choice")) throw outOfOrder();
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function validateRevealDecision(sessionId: string): Promise<void> {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const result = await client.query<MomentRow>(`
+      SELECT * FROM together_turn_based_moments
+      WHERE draw_session_id=$1 OR story_session_id=$1 LIMIT 1 FOR UPDATE
+    `, [sessionId]);
+    let row = result.rows[0];
+    if (!row) {
+      await client.query("COMMIT");
+      return;
+    }
+    row = await normalizeExpiredMoment(client, row, new Date());
+    const expected = sessionId === row.story_session_id ? "awaiting_story_reveal" : "awaiting_draw_reveal";
+    if (row.status !== expected) {
+      throw new AppError("together_turn_invalid_transition", "Reveal decision window is closed", 409);
+    }
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 export async function createStoryChoiceAtomic(
@@ -382,8 +454,9 @@ export async function createStoryChoiceAtomic(
   try {
     await client.query("BEGIN");
     const result = await client.query<MomentRow>("SELECT * FROM together_turn_based_moments WHERE story_session_id=$1 FOR UPDATE", [sessionId]);
-    const row = result.rows[0];
+    let row = result.rows[0];
     if (!row) throw new AppError("not_found", "Turn-based Story Sparks moment not found", 404);
+    row = await normalizeExpiredMoment(client, row, new Date());
     if (input.type !== "story_choice") {
       throw validationError("Story Sparks sessions only accept story choices", { type: "unsupported_for_story_sparks" });
     }
@@ -635,6 +708,52 @@ export async function runMaintenance(): Promise<void> {
       throw error;
     }
   } finally { client.release(); }
+}
+
+async function normalizeExpiredMoment(
+  client: Pick<PoolClient, "query">,
+  row: MomentRow,
+  now: Date,
+): Promise<MomentRow> {
+  if (!isExpiredAt(row, now)) return row;
+
+  if (row.status === "partner_turn") {
+    await releasePartner(client, row, "claim_expired");
+    const released = await client.query<MomentRow>(
+      "SELECT * FROM together_turn_based_moments WHERE id=$1",
+      [row.id],
+    );
+    const normalized = released.rows[0] ?? row;
+    if (!isExpiredAt(normalized, now)) return normalized;
+    row = normalized;
+  }
+
+  const expired = await client.query<MomentRow>(`
+    UPDATE together_turn_based_moments
+    SET status='expired',stage='done',current_turn_user_id=NULL,
+      last_transition='expired',last_transition_at=$2,updated_at=$2
+    WHERE id=$1 AND status IN ${activeStatuses}
+    RETURNING *`, [row.id, now]);
+  const normalized = expired.rows[0] ?? row;
+  if (expired.rows[0]) {
+    await client.query(
+      "UPDATE together_turn_based_participants SET active=false,completed_at=COALESCE(completed_at,$2) WHERE moment_id=$1",
+      [row.id, now],
+    );
+    await scheduleTerminalPurge(client, normalized);
+  }
+  return normalized;
+}
+
+function isExpiredAt(row: MomentRow, now: Date): boolean {
+  const elapsed = (value: Date | null): boolean => Boolean(value && value <= now);
+  if (row.status === "starter_turn" || row.status === "story_turn") return elapsed(row.turn_expires_at);
+  if (row.status === "waiting_for_partner") return elapsed(row.waiting_expires_at);
+  if (row.status === "partner_turn") return elapsed(row.claim_expires_at) || elapsed(row.turn_expires_at);
+  if (row.status === "awaiting_draw_reveal" || row.status === "awaiting_story_reveal") {
+    return elapsed(row.decision_expires_at);
+  }
+  return false;
 }
 
 async function findCurrent(

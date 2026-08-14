@@ -120,8 +120,8 @@ test("turn-based Together real PostgreSQL behavior matrix", { skip: !enabled }, 
     await turn.start(expiryPartner,input("expiry-claim"));
     await together.createEvent(expiryPartner,expiry.drawSessionId,stroke(expiryPartner,"expiry-partner"));
     await pool.query("UPDATE together_turn_based_moments SET claim_expires_at=now()-interval '1 second' WHERE id=$1",[expiry.id]);
-    await turn.runMaintenance();
-    await t.test("16 claim expiry preserves starter and removes partner partial events",async()=>{
+    await turn.getMoment(expiryStarter,expiry.id);
+    await t.test("16 targeted read normalization preserves starter and removes only expired partner artifacts",async()=>{
       const row=(await pool.query<{status:string;partner_user_id:string|null}>("SELECT status,partner_user_id FROM together_turn_based_moments WHERE id=$1",[expiry.id])).rows[0]!;
       assert.deepEqual(row,{status:"waiting_for_partner",partner_user_id:null});
       assert.equal(await count("together_events WHERE session_id=$1 AND from_user_id=$2",[expiry.drawSessionId,expiryPartner]),0);

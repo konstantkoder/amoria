@@ -483,6 +483,8 @@ export const nearbyStatuses = pgTable("nearby_statuses", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
   index("nearby_statuses_geo_expires_idx").on(table.lat, table.lng, table.expiresAt),
+  index("nearby_statuses_point_gist_idx")
+    .using("gist", sql`point(${table.lng}, ${table.lat})`),
 ]);
 
 export const nearbyProfileVisibility = pgTable(
@@ -505,6 +507,9 @@ export const nearbyProfileVisibility = pgTable(
     index("nearby_profile_visibility_active_geo_idx")
       .on(table.latitude, table.longitude, table.expiresAt)
       .where(sql`${table.status} = 'active'`),
+    index("nearby_profile_visibility_active_point_gist_idx")
+      .using("gist", sql`point(${table.longitude}, ${table.latitude})`)
+      .where(sql`${table.status} = 'active' AND ${table.latitude} IS NOT NULL AND ${table.longitude} IS NOT NULL`),
     check(
       "nearby_profile_visibility_status_check",
       sql`${table.status} IN ('active', 'off', 'expired')`,
@@ -1321,6 +1326,8 @@ export const pushDeliveries = pgTable(
   (table) => [
     unique("push_deliveries_notification_token_unique").on(table.notificationId, table.pushTokenId),
     index("push_deliveries_due_idx").on(table.status, table.nextAttemptAt),
+    index("push_deliveries_claim_order_idx")
+      .on(table.nextAttemptAt, table.id),
     index("push_deliveries_receipt_idx").on(table.expoReceiptId),
     index("push_deliveries_status_updated_idx").on(table.status, table.updatedAt),
     check(

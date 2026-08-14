@@ -4,6 +4,7 @@ import multipart from "@fastify/multipart";
 import websocket from "@fastify/websocket";
 import Fastify, { type FastifyError, type FastifyInstance } from "fastify";
 import { errorHandler } from "./common/errors";
+import { isWebSocketUpgradeRequest } from "./common/http-admission";
 import { withErrorResponses } from "./common/http";
 import { boundedDependencyStatus } from "./common/dependency-readiness";
 import { MAX_JSON_BODY_BYTES, MAX_MEDIA_UPLOAD_BYTES, SERVICE_NAME } from "./config/constants";
@@ -30,7 +31,7 @@ import { notificationsRoutes } from "./notifications/notifications.routes";
 import { recordPotentialDatabaseFailure, registerMetrics } from "./observability/metrics";
 import { realtimeBusReady } from "./realtime/realtime-bus";
 
-export const EXPECTED_MIGRATION = "0035_scale_1m.sql";
+export const EXPECTED_MIGRATION = "0038_scale_nearby_knn.sql";
 export const WS_MAX_PAYLOAD_BYTES = 16 * 1024;
 
 export function isCorsOriginAllowed(origin: string | undefined, allowedOrigins: string[]): boolean {
@@ -81,6 +82,7 @@ export function buildApp(): FastifyInstance {
     if (admitted.delete(request)) admittedInFlight = Math.max(0, admittedInFlight - 1);
   };
   app.addHook("onRequest", async (request, reply) => {
+    if (isWebSocketUpgradeRequest(request)) return;
     if (
       admittedInFlight >= env.API_MAX_IN_FLIGHT_REQUESTS &&
       !request.url.startsWith("/health/") &&

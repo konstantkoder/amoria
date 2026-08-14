@@ -1,5 +1,6 @@
 import { monitorEventLoopDelay } from "node:perf_hooks";
 import type { FastifyInstance, FastifyRequest } from "fastify";
+import { isWebSocketUpgradeRequest } from "../common/http-admission";
 import { env } from "../config/env";
 import { dbPoolErrorCount, pool } from "../db/client";
 
@@ -91,6 +92,7 @@ export function registerMetrics(app: FastifyInstance): void {
   app.addHook("onRequest", async (request) => {
     (request as FastifyRequest & { scaleStartedAt?: bigint }).scaleStartedAt = process.hrtime.bigint();
     incrementMetric("amoria_http_requests_total", { route: routeLabel(request), method: request.method });
+    if (isWebSocketUpgradeRequest(request)) return;
     httpInFlight += 1;
     metricInFlightRequests.add(request);
     setMetric("amoria_http_in_flight", httpInFlight);

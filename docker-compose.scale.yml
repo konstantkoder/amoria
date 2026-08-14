@@ -1,0 +1,308 @@
+name: amoria-scale
+
+x-scale-api-environment: &scale-api-environment
+  NODE_ENV: test
+  PORT: 4000
+  RELEASE_SHA: ${SCALE_RELEASE_SHA:-a4c7bf81bf3bb9d9cb0ca693b52f09711a048d59}
+  APP_VERSION: scale-validation
+  SUPPORT_EMAIL: scale-support@example.test
+  DATABASE_URL: postgres://amoria_runtime:${SCALE_POSTGRES_RUNTIME_PASSWORD:-scale-runtime-password}@pgbouncer:5432/amoria_scale
+  DB_POOL_MAX: ${SCALE_DB_POOL_MAX:-20}
+  JWT_SECRET: ${SCALE_JWT_SECRET:-scale-only-jwt-secret-never-use-in-production}
+  AUTH_SECURITY_HMAC_SECRET: ${SCALE_AUTH_HMAC_SECRET:-scale-only-auth-hmac-secret-never-use-in-production}
+  MESSAGE_ABUSE_HMAC_SECRET: ${SCALE_ABUSE_HMAC_SECRET:-scale-only-abuse-hmac-never-use-in-production}
+  METRICS_TOKEN: ${SCALE_METRICS_TOKEN:-scale-only-metrics-token-never-use-production}
+  REALTIME_BUS_URL: redis://valkey:6379
+  REALTIME_BUS_CHANNEL: amoria:scale:realtime:v1
+  PUBLIC_API_URL: http://127.0.0.1:4400
+  PUBLIC_MEDIA_URL: http://127.0.0.1:4400/media
+  ALLOW_LOCAL_PUBLIC_URLS: "true"
+  OBJECT_STORAGE_PROVIDER: s3
+  S3_ENDPOINT: http://minio:9000
+  S3_PUBLIC_BASE_URL: http://127.0.0.1:4490/amoria-scale
+  S3_REGION: us-east-1
+  S3_ACCESS_KEY: ${SCALE_S3_ACCESS_KEY:-amoria-scale-access}
+  S3_SECRET_KEY: ${SCALE_S3_SECRET_KEY:-amoria-scale-secret-never-production}
+  S3_BUCKET: amoria-scale
+  S3_FORCE_PATH_STYLE: "1"
+  PUBLIC_MEDIA_DELIVERY_MODE: proxy
+  TEXT_MODERATION_ENABLED: "true"
+  TEXT_MODERATION_TRANSPORT: http
+  TEXT_MODERATION_SERVICE_URL: http://text-moderation:4010
+  TEXT_MODERATION_SERVICE_TOKEN: ${SCALE_TEXT_TOKEN:-scale-only-text-service-token-never-production}
+  SMTP_HOST: mailpit
+  SMTP_PORT: 1025
+  SMTP_SECURE: "false"
+  SMTP_REQUIRE_TLS: "false"
+  MAIL_FROM: no-reply@scale.example.test
+  EXPO_PUSH_SEND_URL: http://expo-push-stub:4500/--/api/v2/push/send
+  EXPO_PUSH_RECEIPTS_URL: http://expo-push-stub:4500/--/api/v2/push/getReceipts
+  WORKER_METRICS_HOST: 0.0.0.0
+  WORKER_METRICS_PORT: 4001
+  WS_MAX_CONNECTIONS_PER_INSTANCE: ${SCALE_WS_MAX_CONNECTIONS_PER_INSTANCE:-50000}
+  WS_CONNECTION_ATTEMPT_LIMIT_PER_MINUTE: ${SCALE_WS_CONNECTION_ATTEMPT_LIMIT_PER_MINUTE:-100000}
+
+x-scale-hardening: &scale-hardening
+  init: true
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+
+services:
+  postgres:
+    image: postgres@sha256:aefb61c5ac3326e56a7b769fa655fe00af0e335c1b9b65182bd6f6233dd12aad
+    environment:
+      POSTGRES_DB: amoria_scale
+      POSTGRES_USER: amoria_migrator
+      POSTGRES_PASSWORD: ${SCALE_POSTGRES_MIGRATION_PASSWORD:-scale-migration-password}
+      POSTGRES_RUNTIME_PASSWORD: ${SCALE_POSTGRES_RUNTIME_PASSWORD:-scale-runtime-password}
+    ports:
+      - "127.0.0.1:${SCALE_POSTGRES_HOST_PORT:-45432}:5432"
+    volumes:
+      - amoria_scale_postgres:/var/lib/postgresql/data
+      - ./scripts/postgres-init-runtime.sh:/docker-entrypoint-initdb.d/10-runtime-role.sh:ro
+    networks: [scale_backend]
+    shm_size: 1gb
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U amoria_migrator -d amoria_scale"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  pgbouncer:
+    image: edoburu/pgbouncer:v1.24.1-p0
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: amoria_runtime
+      DB_PASSWORD: ${SCALE_POSTGRES_RUNTIME_PASSWORD:-scale-runtime-password}
+      DB_NAME: amoria_scale
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: ${SCALE_PGBOUNCER_MAX_CLIENT_CONN:-1000}
+      DEFAULT_POOL_SIZE: ${SCALE_PGBOUNCER_DEFAULT_POOL_SIZE:-80}
+      AUTH_TYPE: scram-sha-256
+      IGNORE_STARTUP_PARAMETERS: extra_float_digits,statement_timeout
+    ports:
+      - "127.0.0.1:${SCALE_PGBOUNCER_HOST_PORT:-46432}:5432"
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [scale_backend]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432 -U amoria_runtime -d amoria_scale"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  valkey:
+    image: valkey/valkey:8.1.3-alpine
+    command: ["valkey-server", "--save", "", "--appendonly", "no", "--maxmemory", "${SCALE_VALKEY_MAXMEMORY:-1gb}", "--maxmemory-policy", "noeviction"]
+    ports:
+      - "127.0.0.1:${SCALE_VALKEY_HOST_PORT:-46379}:6379"
+    networks: [scale_backend]
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  minio:
+    image: minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${SCALE_S3_ACCESS_KEY:-amoria-scale-access}
+      MINIO_ROOT_PASSWORD: ${SCALE_S3_SECRET_KEY:-amoria-scale-secret-never-production}
+    ports:
+      - "127.0.0.1:${SCALE_MINIO_HOST_PORT:-4490}:9000"
+      - "127.0.0.1:${SCALE_MINIO_CONSOLE_HOST_PORT:-4491}:9001"
+    volumes:
+      - amoria_scale_minio:/data
+    networks: [scale_backend]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  minio-init:
+    image: minio/mc@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727
+    environment:
+      MC_HOST_local: http://${SCALE_S3_ACCESS_KEY:-amoria-scale-access}:${SCALE_S3_SECRET_KEY:-amoria-scale-secret-never-production}@minio:9000
+    entrypoint: ["/bin/sh", "-ec", "mc mb --ignore-existing local/amoria-scale && mc anonymous set none local/amoria-scale"]
+    depends_on:
+      minio: { condition: service_healthy }
+    networks: [scale_backend]
+
+  migrate:
+    build:
+      context: .
+      args:
+        RELEASE_SHA: ${SCALE_RELEASE_SHA:-a4c7bf81bf3bb9d9cb0ca693b52f09711a048d59}
+        APP_VERSION: scale-validation
+    image: amoria-api:scale
+    environment:
+      <<: *scale-api-environment
+      DATABASE_URL: postgres://amoria_migrator:${SCALE_POSTGRES_MIGRATION_PASSWORD:-scale-migration-password}@postgres:5432/amoria_scale
+    command: ["node", "scripts/run-db-migrate.mjs"]
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [scale_backend]
+    read_only: true
+    tmpfs: [/tmp]
+    <<: *scale-hardening
+
+  text-moderation:
+    image: amoria-api:scale
+    environment:
+      <<: *scale-api-environment
+      PORT: 4010
+      TEXT_MODERATION_TRANSPORT: local
+      TEXT_MODERATION_PYTHON: /usr/local/bin/python3
+      TEXT_MODERATION_MODEL_DIR: /models/text
+    command: ["node", "dist/src/moderation/text-moderation.server.js"]
+    volumes:
+      - ../Amoria-Models/text-moderation-v1/model:/models/text:ro
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    networks: [scale_backend]
+    read_only: true
+    tmpfs: [/tmp]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4010/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+    <<: *scale-hardening
+
+  api-a:
+    image: amoria-api:scale
+    environment:
+      <<: *scale-api-environment
+      AMORIA_PROCESS_ROLE: api
+    ports:
+      - "127.0.0.1:${SCALE_API_A_HOST_PORT:-4400}:4000"
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      pgbouncer: { condition: service_healthy }
+      valkey: { condition: service_healthy }
+      minio-init: { condition: service_completed_successfully }
+      text-moderation: { condition: service_healthy }
+    networks: [scale_backend]
+    read_only: true
+    tmpfs: [/tmp]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    <<: *scale-hardening
+
+  api-b:
+    image: amoria-api:scale
+    environment:
+      <<: *scale-api-environment
+      AMORIA_PROCESS_ROLE: api
+    ports:
+      - "127.0.0.1:${SCALE_API_B_HOST_PORT:-4401}:4000"
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      pgbouncer: { condition: service_healthy }
+      valkey: { condition: service_healthy }
+      minio-init: { condition: service_completed_successfully }
+      text-moderation: { condition: service_healthy }
+    networks: [scale_backend]
+    read_only: true
+    tmpfs: [/tmp]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    <<: *scale-hardening
+
+  expo-push-stub:
+    image: amoria-api:scale
+    environment:
+      CONFIRM_EXPO_STUB: I_CONFIRM_NON_PRODUCTION
+      EXPO_STUB_HOST: 0.0.0.0
+      EXPO_STUB_PORT: 4500
+    command: ["node", "scripts/load/expo-push-stub.mjs"]
+    networks: [scale_backend]
+    read_only: true
+    tmpfs: [/tmp]
+    <<: *scale-hardening
+
+  worker:
+    image: amoria-api:scale
+    environment:
+      <<: *scale-api-environment
+      AMORIA_PROCESS_ROLE: worker
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      pgbouncer: { condition: service_healthy }
+      expo-push-stub: { condition: service_started }
+    networks: [scale_backend]
+    read_only: true
+    tmpfs: [/tmp]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4001/health/live').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    <<: *scale-hardening
+
+  photo-worker:
+    build:
+      context: ./moderation-worker
+    image: amoria-photo-worker:scale
+    environment:
+      DATABASE_URL: postgres://amoria_runtime:${SCALE_POSTGRES_RUNTIME_PASSWORD:-scale-runtime-password}@pgbouncer:5432/amoria_scale
+      S3_ENDPOINT: http://minio:9000
+      S3_REGION: us-east-1
+      S3_ACCESS_KEY: ${SCALE_S3_ACCESS_KEY:-amoria-scale-access}
+      S3_SECRET_KEY: ${SCALE_S3_SECRET_KEY:-amoria-scale-secret-never-production}
+      S3_BUCKET: amoria-scale
+      OPENNSFW_ONNX_MODEL_PATH: /models/opennsfw/open-nsfw.onnx
+      PERSON_YOLOX_ONNX_MODEL_PATH: /models/person/yolox_nano.onnx
+      PERSON_YUNET_ONNX_MODEL_PATH: /models/person/face_detection_yunet_2023mar.onnx
+      GRAPHIC_SAFETY_ONNX_MODEL_PATH: /models/graphic/image-safety-classifier-s.onnx
+    volumes:
+      - ../Amoria-Models/opennsfw-onnx-0.1.0/Lib/site-packages/opennsfw_onnx:/models/opennsfw:ro
+      - ../Amoria-Models/person-presence-v1:/models/person:ro
+      - ../Amoria-Models/graphic-safety-v1:/models/graphic:ro
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      pgbouncer: { condition: service_healthy }
+      minio-init: { condition: service_completed_successfully }
+    networks: [scale_backend]
+    read_only: true
+    tmpfs: [/tmp]
+    <<: *scale-hardening
+
+  mailpit:
+    image: axllent/mailpit:v1.21
+    networks: [scale_backend]
+
+  k6:
+    image: grafana/k6:0.57.0
+    profiles: [load]
+    environment:
+      BASE_URL: http://api-a:4000
+      HTTP_BASE_URL: http://api-a:4000
+      WS_BASE_URL: http://api-b:4000
+      CONFIRM_NON_PRODUCTION_TARGET: I_CONFIRM_THIS_IS_NOT_PRODUCTION
+    volumes:
+      - ./scripts/load:/load:ro
+    working_dir: /load
+    networks: [scale_backend]
+    entrypoint: ["k6"]
+    command: ["run", "/load/amoria-scale.js"]
+
+networks:
+  scale_backend:
+    driver: bridge
+
+volumes:
+  amoria_scale_postgres:
+  amoria_scale_minio:

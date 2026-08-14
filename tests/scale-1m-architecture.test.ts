@@ -7,12 +7,14 @@ import { createRealtimeEvent, parseRealtimeEvent } from "../src/realtime/realtim
 
 const read = (file: string) => fs.readFileSync(path.resolve(process.cwd(), file), "utf8");
 
-test("0035 remains intact and additive matching migration 0036 is sequential", () => {
+test("scale migrations remain additive and sequential through measured hot-path indexes", () => {
   const migration = read("src/db/migrations/0035_scale_1m.sql");
   const matchingMigration = read("src/db/migrations/0036_scale_matching_locality.sql");
+  const pushMigration = read("src/db/migrations/0037_scale_push_claim_order.sql");
+  const nearbyKnnMigration = read("src/db/migrations/0038_scale_nearby_knn.sql");
   const journal = JSON.parse(read("src/db/migrations/meta/_journal.json")) as { entries: Array<{ idx: number; tag: string }> };
-  assert.equal(journal.entries.at(-1)?.idx, 36);
-  assert.equal(journal.entries.at(-1)?.tag, "0036_scale_matching_locality");
+  assert.equal(journal.entries.at(-1)?.idx, 38);
+  assert.equal(journal.entries.at(-1)?.tag, "0038_scale_nearby_knn");
   assert.match(migration, /auth_version/);
   assert.match(migration, /refresh_tokens_auth_version_check/);
   for (const index of [
@@ -26,6 +28,21 @@ test("0035 remains intact and additive matching migration 0036 is sequential", (
   assert.match(matchingMigration, /together_queue_waiting_activity_geo_created_idx/);
   assert.match(matchingMigration, /together_turn_based_waiting_geo_created_idx/);
   assert.match(matchingMigration, /CREATE INDEX CONCURRENTLY/);
+  assert.match(pushMigration, /push_deliveries_claim_order_idx/);
+  assert.match(pushMigration, /CREATE INDEX CONCURRENTLY/);
+  assert.match(nearbyKnnMigration, /nearby_profile_visibility_active_point_gist_idx/);
+  assert.match(nearbyKnnMigration, /nearby_statuses_point_gist_idx/);
+  assert.match(nearbyKnnMigration, /CREATE INDEX CONCURRENTLY/);
+});
+
+test("ordinary Nearby profile reads use a bounded KNN candidate set before exact distance", () => {
+  const repo = read("src/nearby/nearby.repo.ts");
+  assert.match(repo, /nearby_profile_nearest_candidates/);
+  assert.match(repo, /nearby_status_nearest_candidates/);
+  assert.match(repo, /point\([\s\S]*<-> point/);
+  assert.match(repo, /\.limit\(500\)/);
+  assert.match(repo, /!bounds\.allLongitudes && !bounds\.crossesAntimeridian/);
+  assert.ok(repo.indexOf(".limit(500)") < repo.indexOf("sql`${distanceKm} <= ${viewerRadiusKm}`"));
 });
 
 test("Together matching filters compatibility before bounded skip-locked claims", () => {
@@ -37,7 +54,7 @@ test("Together matching filters compatibility before bounded skip-locked claims"
   assert.match(repo, /NOT EXISTS \(\s*SELECT 1 FROM blocked_users/);
   assert.match(repo, /MAX_FINITE_MATCH_RADIUS_KM/);
   assert.match(repo, /asin\(least\(1, sqrt/);
-  assert.match(repo, /limit 100/i);
+  assert.match(repo, /runTogetherQueueMaintenance/);
 });
 
 test("turn-based matching bounds geography before exact distance and preserves row claims", () => {
@@ -55,6 +72,28 @@ test("maintenance locks are transaction scoped for transaction poolers", () => {
   assert.match(maintenance, /pg_try_advisory_xact_lock/);
   assert.doesNotMatch(maintenance, /pg_try_advisory_lock\(/);
   assert.doesNotMatch(maintenance, /pg_advisory_unlock/);
+});
+
+test("Turn-Based hot requests use targeted deadline normalization, never global maintenance", () => {
+  const service = read("src/together/together-turn-based.service.ts");
+  for (const [name, next] of [["start", "getCurrent"], ["getCurrent", "getMoment"], ["getMoment", "getMomentBroadcasts"]]) {
+    const section = service.slice(
+      service.indexOf(`export async function ${name}`),
+      service.indexOf(`export async function ${next}`),
+    );
+    assert.doesNotMatch(section, /runMaintenance/);
+  }
+  assert.match(service, /normalizeExpiredMoment/);
+  assert.match(service, /FOR UPDATE OF m/);
+  assert.match(service, /validateRevealDecision/);
+});
+
+test("live Together request paths expire only the requested user's row", () => {
+  const repo = read("src/together/together.repo.ts");
+  assert.match(repo, /expireWaitingEntryForUser\(tx, input\.userId, now\)/);
+  assert.match(repo, /runTogetherQueueMaintenance[\s\S]*for update skip locked/);
+  assert.match(repo, /TOGETHER_QUEUE_MAINTENANCE_BATCH_SIZE/);
+  assert.doesNotMatch(repo, /expireWaitingEntriesForMatching/);
 });
 
 test("geographic bounding box handles normal, antimeridian and polar searches", () => {
@@ -104,12 +143,15 @@ test("presence throttling keeps the authoritative access read and skips fresh wr
   assert.match(presence, /claimSharedPresenceHeartbeat/);
 });
 
-test("Nearby summary uses a shared TTL cache with lock and real DB fallback", () => {
+test("Nearby summary uses shared stale-while-refresh without lock-waiter COUNT fallthrough", () => {
   const nearby = read("src/nearby/nearby.service.ts");
   assert.match(nearby, /NEARBY_SUMMARY_CACHE_KEY/);
   assert.match(nearby, /acquireSharedEphemeralLock/);
   assert.match(nearby, /nearbySummaryRefresh \?\?=/);
   assert.match(nearby, /getNearbySummaryCounts/);
+  assert.match(nearby, /stale_while_refresh/);
+  assert.match(nearby, /NEARBY_SUMMARY_STALE_TTL_MS/);
+  assert.match(nearby, /refresh is already in progress/);
   assert.doesNotMatch(nearby, /totalUsersCount:\s*0/);
 });
 
@@ -119,7 +161,32 @@ test("cross-instance per-user WebSocket admission uses expiring shared leases", 
   assert.match(bus, /ZREMRANGEBYSCORE/);
   assert.match(bus, /WS_MAX_CONNECTIONS_PER_USER/);
   assert.match(bus, /WS_LEASE_TTL_MS = 90_000/);
+  assert.match(bus, /wsLeaseReconciliationPending/);
+  assert.match(bus, /recreateMissing/);
   assert.match(read("docker-compose.prod.yml"), /maxmemory-policy", "noeviction/);
+});
+
+test("shared fixed windows are atomic and successful subscriptions are acknowledged", () => {
+  const bus = read("src/realtime/realtime-bus.ts");
+  const routes = read("src/realtime/ws.routes.ts");
+  assert.match(bus, /FIXED_WINDOW_INCREMENT_LUA/);
+  assert.match(bus, /redis\.call\('INCR'/);
+  assert.match(bus, /redis\.call\('PEXPIRE'/);
+  assert.doesNotMatch(bus, /publisher\.incr/);
+  assert.match(routes, /sendSubscriptionAck\(socket, "subscribed", "thread"/);
+  assert.match(routes, /sendSubscriptionAck\(socket, "subscribed", "inbox"/);
+  assert.match(routes, /sendSubscriptionAck\(socket, "subscribed", "together"/);
+});
+
+test("worker role exposes only an authenticated metrics and health listener", () => {
+  const workerServer = read("src/workers/worker-observability.server.ts");
+  const server = read("src/server.ts");
+  assert.match(workerServer, /createServer/);
+  assert.match(workerServer, /\/health\/live/);
+  assert.match(workerServer, /\/internal\/metrics/);
+  assert.match(workerServer, /Bearer \$\{env\.METRICS_TOKEN\}/);
+  assert.match(server, /startWorkerObservabilityServer/);
+  assert.match(server, /runTogetherQueueMaintenance/);
 });
 
 test("production compose separates API, general workers, text model and internal bus", () => {
@@ -130,6 +197,9 @@ test("production compose separates API, general workers, text model and internal
   assert.match(compose, /REALTIME_BUS_URL: redis:\/\/valkey:6379/);
   const apiSection = compose.slice(compose.indexOf("  api:"), compose.indexOf("  worker:"));
   assert.doesNotMatch(apiSection, /TEXT_MODEL_HOST_DIR/);
+  const workerSection = compose.slice(compose.indexOf("\n  worker:"), compose.indexOf("\n  text-moderation:"));
+  assert.match(workerSection, /4001\/health\/live/);
+  assert.doesNotMatch(workerSection, /ports:/);
 });
 
 test("scale-out public media bypasses Node bytes without weakening locked media", () => {
@@ -146,12 +216,19 @@ test("scale scripts include guards and every required workload", () => {
   const load = read("scripts/load/amoria-scale.js");
   const seed = read("scripts/load/seed-scale-dataset.mjs");
   for (const scenario of [
-    "http_reads", "websocket", "chat", "nearby", "together", "notifications", "mixed", "reconnect_storm", "worker_recovery", "realtime_e2e", "together_match",
+    "http_reads", "websocket_steady", "chat", "nearby", "together", "notifications", "mixed", "reconnect_storm", "worker_recovery", "realtime_e2e", "together_match",
   ]) assert.match(load, new RegExp(scenario));
   assert.match(load, /CONFIRM_NON_PRODUCTION_TARGET/);
   assert.match(seed, /generate_series/);
   assert.match(seed, /5_000_000/);
   assert.match(seed, /push_deliveries/);
+  assert.match(seed, /SCALE_DATASET_PROFILE/);
+  assert.match(seed, /together_turn_based_moments/);
+  assert.match(seed, /media_moderation_jobs/);
+  assert.match(load, /constant-arrival-rate/);
+  assert.match(load, /CONCURRENT_CLIENTS/);
+  assert.match(load, /type === "subscribed"/);
+  assert.doesNotMatch(load, /20_000/);
   assert.match(load, /rate<0\.005/);
   assert.match(load, /realtime_delivery_ms/);
   assert.match(load, /together_match_latency_ms/);
@@ -159,4 +236,17 @@ test("scale scripts include guards and every required workload", () => {
   assert.match(load, /HTTP_BASE_URL/);
   assert.match(load, /WS_BASE_URL/);
   assert.doesNotMatch(seed, /bcrypt|argon2/i);
+  const fixtures = read("scripts/load/generate-scale-fixtures.mjs");
+  assert.match(fixtures, /typ: "access"/);
+  assert.match(fixtures, /issuer: "amoria-api"/);
+  assert.match(fixtures, /audience: "amoria-mobile"/);
+  assert.match(fixtures, /CONFIRM_SCALE_FIXTURES/);
+  assert.match(fixtures, /auth_version/);
+  assert.match(fixtures, /scenario === "chat" \|\| scenario === "realtime_e2e" \|\| scenario === "mixed"/);
+  const scaleCompose = read("docker-compose.scale.yml");
+  assert.match(scaleCompose, /POOL_MODE: transaction/);
+  assert.match(scaleCompose, /api-a:/);
+  assert.match(scaleCompose, /api-b:/);
+  assert.match(scaleCompose, /grafana\/k6:0\.57\.0/);
+  assert.match(scaleCompose, /EXPO_STUB_HOST: 0\.0\.0\.0/);
 });

@@ -301,6 +301,19 @@ const realtimeBusUrl = optionalUrl(
   ["redis:", "rediss:"],
 );
 const metricsToken = process.env.METRICS_TOKEN?.trim() || undefined;
+const workerMetricsHost = optional("WORKER_METRICS_HOST", "0.0.0.0");
+const nearbySummaryCacheTtlMs = parseIntegerInRange(
+  "NEARBY_SUMMARY_CACHE_TTL_MS",
+  optional("NEARBY_SUMMARY_CACHE_TTL_MS", "10000"),
+  1_000,
+  60_000,
+);
+const nearbySummaryStaleTtlMs = parseIntegerInRange(
+  "NEARBY_SUMMARY_STALE_TTL_MS",
+  optional("NEARBY_SUMMARY_STALE_TTL_MS", "60000"),
+  10_000,
+  300_000,
+);
 const smtpHost = process.env.SMTP_HOST?.trim()
   || (nodeEnv === "production" ? "" : "localhost");
 const mailFrom = process.env.MAIL_FROM?.trim()
@@ -401,9 +414,20 @@ if (textModerationEnabled && textModerationTransport === "http") {
 
 if (nodeEnv === "production" && (processRole === "api" || processRole === "all")) {
   if (!realtimeBusUrl) throw new Error("REALTIME_BUS_URL is required for production API processes");
+}
+
+if (nodeEnv === "production") {
   if (!metricsToken || metricsToken.length < 32) {
     throw new Error("METRICS_TOKEN must be at least 32 characters long in production");
   }
+}
+
+if (nearbySummaryStaleTtlMs <= nearbySummaryCacheTtlMs) {
+  throw new Error("NEARBY_SUMMARY_STALE_TTL_MS must be greater than NEARBY_SUMMARY_CACHE_TTL_MS");
+}
+
+if (!["0.0.0.0", "127.0.0.1", "::1", "localhost"].includes(workerMetricsHost)) {
+  throw new Error("WORKER_METRICS_HOST must be a local or container bind address");
 }
 
 if (!smtpHost) {
@@ -453,6 +477,8 @@ export const env = {
   NODE_ENV: nodeEnv,
   AMORIA_PROCESS_ROLE: processRole,
   PORT: parsePort(optional("PORT", "4000")),
+  WORKER_METRICS_HOST: workerMetricsHost,
+  WORKER_METRICS_PORT: parsePort(optional("WORKER_METRICS_PORT", "4001")),
   DATABASE_URL: required("DATABASE_URL"),
   JWT_SECRET: jwtSecret,
   AUTH_SECURITY_HMAC_SECRET: authSecurityHmacSecret,
@@ -590,6 +616,12 @@ export const env = {
     1,
     100_000,
   ),
+  WS_CONNECTION_ATTEMPT_LIMIT_PER_MINUTE: parseIntegerInRange(
+    "WS_CONNECTION_ATTEMPT_LIMIT_PER_MINUTE",
+    optional("WS_CONNECTION_ATTEMPT_LIMIT_PER_MINUTE", "60"),
+    1,
+    1_000_000,
+  ),
   WS_MAX_CONNECTIONS_PER_USER: parseIntegerInRange(
     "WS_MAX_CONNECTIONS_PER_USER",
     optional("WS_MAX_CONNECTIONS_PER_USER", "5"),
@@ -620,12 +652,8 @@ export const env = {
     10,
     100_000,
   ),
-  NEARBY_SUMMARY_CACHE_TTL_MS: parseIntegerInRange(
-    "NEARBY_SUMMARY_CACHE_TTL_MS",
-    optional("NEARBY_SUMMARY_CACHE_TTL_MS", "10000"),
-    1_000,
-    60_000,
-  ),
+  NEARBY_SUMMARY_CACHE_TTL_MS: nearbySummaryCacheTtlMs,
+  NEARBY_SUMMARY_STALE_TTL_MS: nearbySummaryStaleTtlMs,
   PRESENCE_HEARTBEAT_INTERVAL_MS: parseIntegerInRange(
     "PRESENCE_HEARTBEAT_INTERVAL_MS",
     optional("PRESENCE_HEARTBEAT_INTERVAL_MS", "60000"),
@@ -662,6 +690,18 @@ export const env = {
     optional("RETENTION_WORKER_INTERVAL_MS", "60000"),
     10_000,
     3_600_000,
+  ),
+  TOGETHER_QUEUE_MAINTENANCE_INTERVAL_MS: parseIntegerInRange(
+    "TOGETHER_QUEUE_MAINTENANCE_INTERVAL_MS",
+    optional("TOGETHER_QUEUE_MAINTENANCE_INTERVAL_MS", "5000"),
+    1_000,
+    300_000,
+  ),
+  TOGETHER_QUEUE_MAINTENANCE_BATCH_SIZE: parseIntegerInRange(
+    "TOGETHER_QUEUE_MAINTENANCE_BATCH_SIZE",
+    optional("TOGETHER_QUEUE_MAINTENANCE_BATCH_SIZE", "500"),
+    1,
+    5_000,
   ),
   READ_NOTIFICATION_RETENTION_DAYS: parseIntegerInRange(
     "READ_NOTIFICATION_RETENTION_DAYS",

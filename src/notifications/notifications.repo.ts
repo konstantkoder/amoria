@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNull, lte, or } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { db } from "../db/client";
 import { notifications, pushDeliveries, pushTokens } from "../db/schema";
 import type { JsonValue } from "../db/schema";
@@ -39,16 +39,24 @@ export async function unregisterDevice(userId: string, deviceId: string): Promis
 export async function claimDueDeliveries(limit: number) {
   return db.transaction(async (tx) => {
     const staleSendingAt = new Date(Date.now() - 5 * 60_000);
+    const dueIds = await tx.select({ id: pushDeliveries.id })
+      .from(pushDeliveries)
+      .where(and(or(
+        and(inArray(pushDeliveries.status, ["pending", "retry"]), lte(pushDeliveries.nextAttemptAt, new Date())),
+        and(eq(pushDeliveries.status, "sending"), lte(pushDeliveries.updatedAt, staleSendingAt)),
+      ), sql`exists (
+        select 1 from ${pushTokens} active_token
+        where active_token.id = ${pushDeliveries.pushTokenId} and active_token.disabled_at is null
+      )`))
+      .orderBy(asc(pushDeliveries.nextAttemptAt)).limit(limit).for("update", { skipLocked: true });
+    if (!dueIds.length) return [];
+    const ids = dueIds.map((row) => row.id);
     const due = await tx.select({ delivery: pushDeliveries, token: pushTokens.token, notification: notifications })
       .from(pushDeliveries)
       .innerJoin(pushTokens, eq(pushTokens.id, pushDeliveries.pushTokenId))
       .innerJoin(notifications, eq(notifications.id, pushDeliveries.notificationId))
-      .where(and(or(
-        and(inArray(pushDeliveries.status, ["pending", "retry"]), lte(pushDeliveries.nextAttemptAt, new Date())),
-        and(eq(pushDeliveries.status, "sending"), lte(pushDeliveries.updatedAt, staleSendingAt)),
-      ), isNull(pushTokens.disabledAt)))
-      .orderBy(asc(pushDeliveries.nextAttemptAt)).limit(limit).for("update", { skipLocked: true });
-    if (due.length) await tx.update(pushDeliveries).set({ status: "sending", updatedAt: new Date() }).where(inArray(pushDeliveries.id, due.map((row) => row.delivery.id)));
+      .where(inArray(pushDeliveries.id, ids));
+    await tx.update(pushDeliveries).set({ status: "sending", updatedAt: new Date() }).where(inArray(pushDeliveries.id, ids));
     return due;
   });
 }

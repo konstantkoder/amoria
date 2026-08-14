@@ -169,6 +169,8 @@ services:
     environment:
       <<: *api-environment
       AMORIA_PROCESS_ROLE: worker
+      WORKER_METRICS_HOST: 0.0.0.0
+      WORKER_METRICS_PORT: 4001
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -179,6 +181,12 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4001/health/live').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     <<: *container-hardening
     logging: *production-logging
 

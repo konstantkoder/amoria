@@ -283,6 +283,47 @@ test("Nearby summary cache fallback propagates DB failure instead of fabricating
   );
 });
 
+test("Nearby summary serves a bounded stale DB snapshot while another replica refreshes", async (t) => {
+  t.after(restoreDeps);
+  let clockMs = now.getTime();
+  let aggregateQueries = 0;
+  const sharedSnapshot = JSON.stringify({
+    totalUsersCount: 11,
+    onlineNowCount: 4,
+    activeNearbyCount: 3,
+    checkedAt: now.toISOString(),
+  });
+  mockNearby({
+    now: () => new Date(clockMs),
+    onSummaryQuery: () => { aggregateQueries += 1; },
+    readSharedValue: async () => sharedSnapshot,
+    acquireSharedLock: async () => null,
+  });
+
+  assert.equal((await nearbyService.getNearbySummary(viewerId)).totalUsersCount, 11);
+  clockMs += env.NEARBY_SUMMARY_CACHE_TTL_MS + 1;
+  const stale = await nearbyService.getNearbySummary(viewerId);
+  assert.equal(stale.checkedAt, now.toISOString());
+  assert.equal(aggregateQueries, 0);
+});
+
+test("Nearby cold-start lock wait never falls through to a duplicate COUNT", async (t) => {
+  t.after(restoreDeps);
+  let aggregateQueries = 0;
+  mockNearby({
+    onSummaryQuery: () => { aggregateQueries += 1; },
+    readSharedValue: async () => undefined,
+    acquireSharedLock: async () => null,
+    delay: async () => undefined,
+  });
+
+  await assert.rejects(
+    nearbyService.getNearbySummary(viewerId),
+    /refresh is already in progress/,
+  );
+  assert.equal(aggregateQueries, 0);
+});
+
 test("Nearby profile feed returns only real compatible opted-in profiles with safe card fields", async (t) => {
   t.after(restoreDeps);
   mockNearby({
@@ -480,6 +521,9 @@ function mockNearby(input: {
   now?: () => Date;
   onSummaryQuery?: () => void;
   summaryError?: Error;
+  readSharedValue?: () => Promise<string | null | undefined>;
+  acquireSharedLock?: () => Promise<string | null | undefined>;
+  delay?: (milliseconds: number) => Promise<void>;
 } = {}) {
   restoreNearbyDeps?.();
   restoreNearbyDeps = null;
@@ -494,6 +538,9 @@ function mockNearby(input: {
 
   restoreNearbyDeps = nearbyService.__setNearbyServiceDepsForTests({
     now: input.now ?? (() => new Date(now)),
+    ...(input.readSharedValue ? { readSharedValue: input.readSharedValue } : {}),
+    ...(input.acquireSharedLock ? { acquireSharedLock: input.acquireSharedLock } : {}),
+    ...(input.delay ? { delay: input.delay } : {}),
     usersRepo: {
       findUserById: async (userId) => users.get(userId),
     },

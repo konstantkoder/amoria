@@ -11,16 +11,25 @@ let starting: Promise<void> | undefined;
 const wsUserConnectionLeases = new Map<string, string>();
 let wsLeaseHeartbeatTimer: NodeJS.Timeout | undefined;
 let wsLeaseHeartbeatRunning = false;
+let wsLeaseReconciliationPending = false;
 const WS_LEASE_TTL_MS = 90_000;
 const WS_LEASE_HEARTBEAT_MS = 30_000;
+const FIXED_WINDOW_INCREMENT_LUA = `
+  local count = redis.call('INCR', KEYS[1])
+  if count == 1 or redis.call('PTTL', KEYS[1]) < 0 then
+    redis.call('PEXPIRE', KEYS[1], ARGV[1])
+  end
+  return count
+`;
 
-function newClient(): RedisClientType {
+function newClient(onReady?: () => void): RedisClientType {
   const client = createClient({
     url: env.REALTIME_BUS_URL,
     socket: { connectTimeout: env.REALTIME_BUS_CONNECT_TIMEOUT_MS },
   });
   client.on("error", () => incrementMetric("amoria_realtime_bus_errors_total"));
   client.on("reconnecting", () => incrementMetric("amoria_realtime_bus_reconnects_total"));
+  if (onReady) client.on("ready", onReady);
   return client as RedisClientType;
 }
 
@@ -28,7 +37,10 @@ export async function startRealtimeBus(): Promise<void> {
   if (!env.REALTIME_BUS_URL || (publisher?.isReady && subscriber?.isReady)) return;
   if (starting) return starting;
   starting = (async () => {
-    publisher = newClient();
+    publisher = newClient(() => {
+      wsLeaseReconciliationPending = true;
+      void heartbeatWsUserConnectionLeases();
+    });
     subscriber = newClient();
     await Promise.all([publisher.connect(), subscriber.connect()]);
     await subscriber.subscribe(env.REALTIME_BUS_CHANNEL, (raw) => {
@@ -113,6 +125,7 @@ export async function stopRealtimeBus(): Promise<void> {
     }
   }
   wsUserConnectionLeases.clear();
+  wsLeaseReconciliationPending = false;
   const clients = [subscriber, publisher].filter((client): client is RedisClientType => Boolean(client));
   subscriber = undefined;
   publisher = undefined;
@@ -168,25 +181,53 @@ async function heartbeatWsUserConnectionLeases(): Promise<void> {
   if (wsLeaseHeartbeatRunning || !publisher?.isReady || wsUserConnectionLeases.size === 0) return;
   wsLeaseHeartbeatRunning = true;
   try {
+    const recreateMissing = wsLeaseReconciliationPending;
     const entries = [...wsUserConnectionLeases.entries()];
     const [seconds, microseconds] = await publisher.time();
     const expiresAt = Number(seconds) * 1000 + Math.floor(Number(microseconds) / 1000) + WS_LEASE_TTL_MS;
-    for (let offset = 0; offset < entries.length; offset += 500) {
-      const batch = entries.slice(offset, offset + 500);
-      const transaction = publisher.multi();
-      for (const [leaseId, key] of batch) {
-        // XX prevents a heartbeat snapshot from resurrecting a lease that a
-        // concurrent socket close already removed.
-        transaction.zAdd(key, { score: expiresAt, value: leaseId }, { condition: "XX" });
-        transaction.pExpire(key, WS_LEASE_TTL_MS + 10_000);
-      }
-      await transaction.exec();
+    await refreshWsLeaseEntries(publisher, entries, expiresAt, recreateMissing);
+    if (recreateMissing) {
+      wsLeaseReconciliationPending = false;
+      incrementMetric("amoria_ws_lease_reconciliations_total", {}, entries.length);
     }
   } catch {
     incrementMetric("amoria_realtime_bus_errors_total");
   } finally {
     wsLeaseHeartbeatRunning = false;
   }
+}
+
+async function refreshWsLeaseEntries(
+  client: Pick<RedisClientType, "multi">,
+  entries: Array<[string, string]>,
+  expiresAt: number,
+  recreateMissing: boolean,
+): Promise<void> {
+  for (let offset = 0; offset < entries.length; offset += 500) {
+    const batch = entries.slice(offset, offset + 500);
+    const transaction = client.multi();
+    for (const [leaseId, key] of batch) {
+      if (recreateMissing) {
+        // A ready/reconnect event must restore local live sockets whose shared
+        // lease expired during the outage. A concurrent close can leave only
+        // a bounded TTL ghost, never a permanent lease.
+        transaction.zAdd(key, { score: expiresAt, value: leaseId });
+      } else {
+        transaction.zAdd(key, { score: expiresAt, value: leaseId }, { condition: "XX" });
+      }
+      transaction.pExpire(key, WS_LEASE_TTL_MS + 10_000);
+    }
+    await transaction.exec();
+  }
+}
+
+export async function __refreshWsLeaseEntriesForTests(
+  client: Pick<RedisClientType, "multi">,
+  entries: Array<[string, string]>,
+  expiresAt: number,
+  recreateMissing: boolean,
+): Promise<void> {
+  await refreshWsLeaseEntries(client, entries, expiresAt, recreateMissing);
 }
 
 export function realtimeBusReady(): boolean {
@@ -199,9 +240,8 @@ export async function consumeSharedWsConnectionAttempt(ip: string): Promise<bool
   const fingerprint = createHash("sha256").update(ip).digest("hex").slice(0, 32);
   try {
     const key = `amoria:ws-attempt:${fingerprint}`;
-    const count = await publisher.incr(key);
-    if (count === 1) await publisher.pExpire(key, 60_000);
-    return count <= 60;
+    const count = await incrementFixedWindow(publisher, key, 60_000);
+    return count <= env.WS_CONNECTION_ATTEMPT_LIMIT_PER_MINUTE;
   } catch {
     incrementMetric("amoria_realtime_bus_errors_total");
     return false;
@@ -214,8 +254,7 @@ export async function consumeSharedMessageAttempt(userId: string): Promise<boole
   const fingerprint = createHash("sha256").update(userId).digest("hex").slice(0, 32);
   try {
     const key = `amoria:message-attempt:${fingerprint}`;
-    const count = await publisher.incr(key);
-    if (count === 1) await publisher.pExpire(key, 60_000);
+    const count = await incrementFixedWindow(publisher, key, 60_000);
     const allowed = count <= 60;
     if (!allowed) incrementMetric("amoria_shared_rate_limit_rejections_total", { scope: "message" });
     return allowed;
@@ -223,6 +262,26 @@ export async function consumeSharedMessageAttempt(userId: string): Promise<boole
     incrementMetric("amoria_realtime_bus_errors_total");
     return false;
   }
+}
+
+async function incrementFixedWindow(
+  client: Pick<RedisClientType, "eval">,
+  key: string,
+  ttlMs: number,
+): Promise<number> {
+  const count = await client.eval(FIXED_WINDOW_INCREMENT_LUA, {
+    keys: [key],
+    arguments: [String(ttlMs)],
+  });
+  return Number(count);
+}
+
+export async function __incrementFixedWindowForTests(
+  client: Pick<RedisClientType, "eval">,
+  key: string,
+  ttlMs: number,
+): Promise<number> {
+  return incrementFixedWindow(client, key, ttlMs);
 }
 
 export async function readSharedEphemeralValue(name: string): Promise<string | null | undefined> {

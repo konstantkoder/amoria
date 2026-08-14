@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gt, gte, inArray, isNull, lte, ne, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, gt, gte, inArray, isNotNull, isNull, lte, ne, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { PROFILE_GENDERS } from "../config/constants";
 import { geographicBounds, toRadians, type GeographicBounds } from "../common/geography";
@@ -184,6 +184,69 @@ export async function listNearbyProfileFeedRows(
   const candidateBlock = alias(blockedUsers, "nearby_profile_candidate_block");
   const bounds = geographicBounds(viewerLatitude, viewerLongitude, viewerRadiusKm);
 
+  // A longitude/latitude btree can bound the search window, but it still has to
+  // sort every person in a dense cell by Haversine distance. Use the built-in
+  // PostgreSQL point GiST KNN operator to cap that ordinary-case candidate set,
+  // then preserve the authoritative Haversine/radius/block checks below. The
+  // exact range plan remains the correctness fallback at a pole or dateline.
+  if (!bounds.allLongitudes && !bounds.crossesAntimeridian) {
+    const nearestCandidates = db
+      .select({ userId: nearbyProfileVisibility.userId })
+      .from(nearbyProfileVisibility)
+      .where(
+        and(
+          ne(nearbyProfileVisibility.userId, viewerUserId),
+          eq(nearbyProfileVisibility.status, "active"),
+          gt(nearbyProfileVisibility.expiresAt, now),
+          isNotNull(nearbyProfileVisibility.latitude),
+          isNotNull(nearbyProfileVisibility.longitude),
+          gte(nearbyProfileVisibility.latitude, bounds.minLatitude),
+          lte(nearbyProfileVisibility.latitude, bounds.maxLatitude),
+          longitudeCondition(nearbyProfileVisibility.longitude, bounds),
+        ),
+      )
+      .orderBy(sql`point(${nearbyProfileVisibility.longitude}, ${nearbyProfileVisibility.latitude}) <-> point(${viewerLongitude}, ${viewerLatitude})`)
+      .limit(500)
+      .as("nearby_profile_nearest_candidates");
+
+    return db
+      .select({
+        visibility: nearbyProfileVisibility,
+        user: users,
+        distanceKm,
+      })
+      .from(nearestCandidates)
+      .innerJoin(
+        nearbyProfileVisibility,
+        eq(nearbyProfileVisibility.userId, nearestCandidates.userId),
+      )
+      .innerJoin(users, eq(users.id, nearbyProfileVisibility.userId))
+      .leftJoin(
+        viewerBlock,
+        and(
+          eq(viewerBlock.userId, viewerUserId),
+          eq(viewerBlock.blockedUserId, nearbyProfileVisibility.userId),
+        ),
+      )
+      .leftJoin(
+        candidateBlock,
+        and(
+          eq(candidateBlock.userId, nearbyProfileVisibility.userId),
+          eq(candidateBlock.blockedUserId, viewerUserId),
+        ),
+      )
+      .where(
+        and(
+          eq(users.accountStatus, "active"),
+          isNull(viewerBlock.blockedUserId),
+          isNull(candidateBlock.blockedUserId),
+          sql`${distanceKm} <= ${viewerRadiusKm}`,
+        ),
+      )
+      .orderBy(sql`${distanceKm}`, desc(nearbyProfileVisibility.updatedAt))
+      .limit(limit);
+  }
+
   return db
     .select({
       visibility: nearbyProfileVisibility,
@@ -320,6 +383,58 @@ export async function listNearbyFeedRows(
   const now = new Date();
   const distance = haversineDistanceMeters(lat, lng);
   const bounds = geographicBounds(lat, lng, radiusMeters / 1000);
+
+  if (!bounds.allLongitudes && !bounds.crossesAntimeridian) {
+    const nearestCandidates = db
+      .select({ id: nearbyStatuses.id })
+      .from(nearbyStatuses)
+      .where(
+        and(
+          gt(nearbyStatuses.expiresAt, now),
+          gte(nearbyStatuses.lat, bounds.minLatitude),
+          lte(nearbyStatuses.lat, bounds.maxLatitude),
+          longitudeCondition(nearbyStatuses.lng, bounds),
+        ),
+      )
+      .orderBy(sql`point(${nearbyStatuses.lng}, ${nearbyStatuses.lat}) <-> point(${lng}, ${lat})`)
+      .limit(500)
+      .as("nearby_status_nearest_candidates");
+
+    return db
+      .select({
+        id: nearbyStatuses.id,
+        authorUserId: nearbyStatuses.authorUserId,
+        text: nearbyStatuses.text,
+        distanceMeters: distance,
+        createdAt: nearbyStatuses.createdAt,
+        expiresAt: nearbyStatuses.expiresAt,
+        author: {
+          id: users.id,
+          displayName: users.displayName,
+          avatarUrl: users.avatarUrl,
+        },
+      })
+      .from(nearestCandidates)
+      .innerJoin(nearbyStatuses, eq(nearbyStatuses.id, nearestCandidates.id))
+      .innerJoin(users, eq(users.id, nearbyStatuses.authorUserId))
+      .leftJoin(
+        blockedUsers,
+        and(
+          eq(blockedUsers.userId, viewerUserId),
+          eq(blockedUsers.blockedUserId, nearbyStatuses.authorUserId),
+        ),
+      )
+      .where(
+        and(
+          eq(users.accountStatus, "active"),
+          isNull(blockedUsers.blockedUserId),
+          sql`${distance} <= ${radiusMeters}`,
+          sql`${distance} <= ${nearbyStatuses.radiusMeters}`,
+        ),
+      )
+      .orderBy(sql`${distance}`, desc(nearbyStatuses.createdAt), desc(nearbyStatuses.id))
+      .limit(limit);
+  }
 
   return db
     .select({

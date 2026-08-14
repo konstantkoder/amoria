@@ -23,7 +23,9 @@ import {
   type GeographicBounds,
 } from "../common/geography";
 import { PROFILE_GENDERS, TOGETHER_ARTIFACT_PURGE_DELAY_MS, TURN_BASED_REVEAL_TTL_MS } from "../config/constants";
+import { env } from "../config/env";
 import { db } from "../db/client";
+import { incrementMetric } from "../observability/metrics";
 import {
   type NewTogetherEventRow,
   type ProfileGender,
@@ -228,8 +230,7 @@ export async function enqueueAndMatch(input: EnqueueInput): Promise<TogetherQueu
 
   const initial = await db.transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${input.userId}))`);
-
-    await expireWaitingEntriesForMatching(tx, now);
+    await expireWaitingEntryForUser(tx, input.userId, now);
 
     const [existing] = await tx
       .select()
@@ -536,29 +537,32 @@ export async function findQueueEntryForOwner(
   entryId: string,
   userId: string,
 ): Promise<TogetherQueueRow | undefined> {
-  const now = new Date();
-  await expireWaitingEntries(now);
+  return db.transaction(async (tx) => {
+    const now = new Date();
+    const [entry] = await tx
+      .select()
+      .from(togetherQueue)
+      .where(and(eq(togetherQueue.id, entryId), eq(togetherQueue.userId, userId)))
+      .limit(1)
+      .for("update");
 
-  const [entry] = await db
-    .select()
-    .from(togetherQueue)
-    .where(and(eq(togetherQueue.id, entryId), eq(togetherQueue.userId, userId)))
-    .limit(1);
-
-  if (entry?.status === "waiting") {
-    const [polled] = await db
+    if (entry?.status !== "waiting") return entry;
+    const expired = entry.expiresAt <= now;
+    const [updated] = await tx
       .update(togetherQueue)
-      .set({
+      .set(expired ? queueExpiredUpdate(now) : {
         lastClientPollAt: now,
         lastAction: "client_poll",
         lastActionAt: now,
       })
-      .where(and(eq(togetherQueue.id, entryId), eq(togetherQueue.userId, userId), eq(togetherQueue.status, "waiting")))
+      .where(and(
+        eq(togetherQueue.id, entryId),
+        eq(togetherQueue.userId, userId),
+        eq(togetherQueue.status, "waiting"),
+      ))
       .returning();
-    return polled ?? entry;
-  }
-
-  return entry;
+    return updated ?? entry;
+  });
 }
 
 export async function cancelQueueEntryForOwner(
@@ -568,9 +572,6 @@ export async function cancelQueueEntryForOwner(
 ): Promise<TogetherQueueRow | undefined> {
   return db.transaction(async (tx) => {
     const now = new Date();
-
-    await expireWaitingEntriesTx(tx, now);
-
     const [entry] = await tx
       .select()
       .from(togetherQueue)
@@ -584,6 +585,15 @@ export async function cancelQueueEntryForOwner(
 
     if (entry.status !== "waiting") {
       return entry;
+    }
+
+    if (entry.expiresAt <= now) {
+      const [expired] = await tx
+        .update(togetherQueue)
+        .set(queueExpiredUpdate(now))
+        .where(and(eq(togetherQueue.id, entry.id), eq(togetherQueue.status, "waiting")))
+        .returning();
+      return expired ?? entry;
     }
 
     const [cancelled] = await tx
@@ -1112,9 +1122,6 @@ export async function cancelQueueEntryForAdmin(
 ): Promise<AdminTogetherQueueEntryRow | undefined> {
   return db.transaction(async (tx) => {
     const now = new Date();
-
-    await expireWaitingEntriesTx(tx, now);
-
     const [entry] = await tx
       .select({
         entryId: togetherQueue.id,
@@ -1153,6 +1160,15 @@ export async function cancelQueueEntryForAdmin(
 
     if (entry.status !== "waiting") {
       return toAdminTogetherQueueEntry(entry, now, [entry]);
+    }
+
+    if (entry.expiresAt <= now) {
+      const [expired] = await tx
+        .update(togetherQueue)
+        .set(queueExpiredUpdate(now))
+        .where(and(eq(togetherQueue.id, entryId), eq(togetherQueue.status, "waiting")))
+        .returning();
+      return toAdminTogetherQueueEntry({ ...entry, ...(expired ?? {}) }, now, [entry]);
     }
 
     const [cancelled] = await tx
@@ -1474,49 +1490,38 @@ async function listQueueDiagnosticsForAdmin(now: Date): Promise<QueueDiagnosticR
     .limit(500);
 }
 
-async function expireWaitingEntries(now: Date): Promise<void> {
-  await expireWaitingEntriesBounded(db, now);
-}
-
-async function expireWaitingEntriesTx(tx: DbTransaction, now: Date): Promise<void> {
-  await expireWaitingEntriesBounded(tx, now);
-}
-
-async function expireWaitingEntriesBounded(
-  queryable: Pick<DbTransaction, "execute"> | Pick<typeof db, "execute">,
-  now: Date,
-): Promise<void> {
-  await queryable.execute(sql`
+export async function runTogetherQueueMaintenance(): Promise<number> {
+  const now = new Date();
+  const result = await db.execute(sql`
     with stale as (
       select id from ${togetherQueue}
       where ${togetherQueue.status} = 'waiting' and ${togetherQueue.expiresAt} <= ${now}
       order by ${togetherQueue.expiresAt}
-      limit 100 for update skip locked
+      limit ${env.TOGETHER_QUEUE_MAINTENANCE_BATCH_SIZE} for update skip locked
     )
     update ${togetherQueue}
-    set status = 'expired', updated_at = ${now}, last_action = 'expired', last_action_at = ${now}
+    set status = 'expired', last_action = 'expired', last_action_at = ${now}
     from stale where ${togetherQueue.id} = stale.id
+    returning ${togetherQueue.id}
   `);
+  const processed = result.rowCount ?? result.rows.length;
+  if (processed > 0) incrementMetric("amoria_together_queue_maintenance_total", {}, processed);
+  return processed;
 }
 
-async function expireWaitingEntriesForMatching(tx: DbTransaction, now: Date): Promise<void> {
-  await tx.execute(sql`
-    with stale as (
-      select id from ${togetherQueue}
-      where ${togetherQueue.status} = 'waiting'
-        and (
-          ${togetherQueue.expiresAt} <= ${now}
-          or ${togetherQueue.latitude} is null
-          or ${togetherQueue.longitude} is null
-        )
-      order by ${togetherQueue.expiresAt}
-      limit 100
-      for update skip locked
-    )
-    update ${togetherQueue}
-    set status = 'expired', updated_at = ${now}, last_action = 'expired', last_action_at = ${now}
-    from stale where ${togetherQueue.id} = stale.id
-  `);
+async function expireWaitingEntryForUser(
+  tx: DbTransaction,
+  userId: string,
+  now: Date,
+): Promise<void> {
+  await tx
+    .update(togetherQueue)
+    .set(queueExpiredUpdate(now))
+    .where(and(
+      eq(togetherQueue.userId, userId),
+      eq(togetherQueue.status, "waiting"),
+      lte(togetherQueue.expiresAt, now),
+    ));
 }
 
 type QueueGeoInput = {
@@ -1551,7 +1556,8 @@ function queueCancelledUpdate(now: Date, input: QueueCancelInput) {
 
 function queueExpiredUpdate(now: Date) {
   return {
-    status: "expired",
+    status: "expired" as const,
+    updatedAt: now,
     lastAction: "expired",
     lastActionAt: now,
   };
