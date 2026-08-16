@@ -4,6 +4,7 @@ import {
   Alert,
   Image,
   Keyboard,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -393,23 +394,25 @@ export default function ProfileScreen() {
   }, [nameDraft, t]);
 
   const pickAvatar = React.useCallback(async () => {
-    let status = "";
-    try {
-      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      status = permission.status;
-    } catch (error) {
-      const safeError = sanitizeErrorForReport(error);
-      reportClientError({
-        screen: "ProfileScreen",
-        action: "pickPhoto",
-        step: "pickerFailed",
-        message: safeError.message,
-        code: safeError.code,
-        stack: safeError.stack,
-        metadata: { permissionStatus: status || "unknown" },
-      });
-      Alert.alert(t("photos.pickFailed"), t("photos.permissionBody"));
-      return;
+    let status = "granted";
+    if (Platform.OS === "ios") {
+      try {
+        const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        status = permission.status;
+      } catch (error) {
+        const safeError = sanitizeErrorForReport(error);
+        reportClientError({
+          screen: "ProfileScreen",
+          action: "pickPhoto",
+          step: "pickerFailed",
+          message: safeError.message,
+          code: safeError.code,
+          stack: safeError.stack,
+          metadata: { permissionStatus: status || "unknown" },
+        });
+        Alert.alert(t("photos.pickFailed"), t("photos.permissionBody"));
+        return;
+      }
     }
 
     if (status !== "granted") {

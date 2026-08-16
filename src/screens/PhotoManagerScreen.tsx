@@ -4,6 +4,7 @@ import {
   Alert,
   Image,
   Keyboard,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -240,25 +241,27 @@ export default function PhotoManagerScreen() {
       return;
     }
 
-    let status = "";
-    try {
-      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      status = permission.status;
-    } catch (error) {
-      const safeError = sanitizeErrorForReport(error);
-      reportClientError({
-        screen: "PhotoManagerScreen",
-        action: "pickPhoto",
-        step: "pickerFailed",
-        code: safeError.code,
-        message: safeError.message,
-        stack: safeError.stack,
-        metadata: {
-          permissionStatus: status || "unknown",
-        },
-      });
-      Alert.alert(t("photos.pickFailed"), t("photos.permissionBody"));
-      return;
+    let status = "granted";
+    if (Platform.OS === "ios") {
+      try {
+        const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        status = permission.status;
+      } catch (error) {
+        const safeError = sanitizeErrorForReport(error);
+        reportClientError({
+          screen: "PhotoManagerScreen",
+          action: "pickPhoto",
+          step: "pickerFailed",
+          code: safeError.code,
+          message: safeError.message,
+          stack: safeError.stack,
+          metadata: {
+            permissionStatus: status || "unknown",
+          },
+        });
+        Alert.alert(t("photos.pickFailed"), t("photos.permissionBody"));
+        return;
+      }
     }
 
     if (status !== "granted") {

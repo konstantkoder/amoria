@@ -2,6 +2,7 @@
   "expo": {
     "name": "Amoria",
     "slug": "amoria",
+    "scheme": "amoria",
     "version": "1.0.0",
     "icon": "./assets/icons/amoria_android_launcher_icon_1024.png",
     "splash": {
@@ -30,17 +31,34 @@
           "defaultChannel": "amoria_updates"
         }
       ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Amoria uses your photo library so you can choose profile, chat, and announcement photos.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": false
+          }
+        }
+      ],
       "expo-secure-store"
     ],
     "assetBundlePatterns": [
       "src/assets/backgrounds/*"
     ],
     "ios": {
+      "bundleIdentifier": "com.kostiantyndemidets.amoria",
       "usesAppleSignIn": false,
       "supportsTablet": false,
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "Мы используем геолокацию для Nearby и Together matching. Точная позиция не показывается другим людям.",
-        "NSPhotoLibraryUsageDescription": "Нужен доступ к фотобиблиотеке для выбора фотографий."
+        "NSLocationWhenInUseUsageDescription": "Amoria uses your location for Nearby and Together matching. Your exact location is not shown to other users.",
+        "NSPhotoLibraryUsageDescription": "Amoria uses your photo library so you can choose profile, chat, and announcement photos."
       }
     },
     "android": {
@@ -51,11 +69,15 @@
       "permissions": [
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
-        "READ_EXTERNAL_STORAGE",
-        "NOTIFICATIONS"
+        "POST_NOTIFICATIONS"
       ],
-      "package": "com.anonymous.amoria",
-      "usesCleartextTraffic": true,
+      "blockedPermissions": [
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ],
+      "package": "com.kostiantyndemidets.amoria",
       "softwareKeyboardLayoutMode": "resize"
     },
     "extra": {

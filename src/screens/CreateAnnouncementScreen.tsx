@@ -4,6 +4,7 @@ import {
   BackHandler,
   Image,
   Keyboard,
+  Platform,
   ScrollView,
   Pressable,
   StyleSheet,
@@ -230,20 +231,22 @@ export default function CreateAnnouncementScreen() {
   const pickPhoto = React.useCallback(async () => {
     if (saving) return;
     Keyboard.dismiss();
-    let status = "";
-    try {
-      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      status = permission.status;
-    } catch {
-      Alert.alert(
-        copyOrFallback(t, "photos.pickFailed", "Не удалось выбрать фото"),
-        copyOrFallback(
-          t,
-          "photos.permissionBody",
-          "Разреши доступ к фото, чтобы добавить изображение."
-        )
-      );
-      return;
+    let status = "granted";
+    if (Platform.OS === "ios") {
+      try {
+        const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        status = permission.status;
+      } catch {
+        Alert.alert(
+          copyOrFallback(t, "photos.pickFailed", "Не удалось выбрать фото"),
+          copyOrFallback(
+            t,
+            "photos.permissionBody",
+            "Разреши доступ к фото, чтобы добавить изображение."
+          )
+        );
+        return;
+      }
     }
 
     if (status !== "granted") {

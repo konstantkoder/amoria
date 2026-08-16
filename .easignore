@@ -10,6 +10,19 @@ uploads-test/
 .env
 .env.*
 *.log
+*.keystore
+*.jks
+*.p8
+*.p12
+*.mobileprovision
+*.cer
+*.key
+credentials.json
+google-services.json
+GoogleService-Info.plist
+service-account*.json
+service_account*.json
+*-firebase-adminsdk-*.json
 
 node_modules/
 dist/

@@ -23,7 +23,7 @@ Invoke-OrSkip -Path "babel.config.js" -Description "babel.config" -Block {
 Write-Host '== Sanity: App.tsx bootstrap =='
 Invoke-OrSkip -Path "App.tsx" -Description "App.tsx" -Block {
     $app = Get-Content "App.tsx" -Raw
-    if ($app -notmatch "import 'react-native-gesture-handler'") { Write-Warning "Recommend: import 'react-native-gesture-handler' must be first in App.tsx" }
+    if ($app -notmatch 'import\s+["'']react-native-gesture-handler["'']') { Write-Warning "Recommend: import react-native-gesture-handler must be first in App.tsx" }
     if ($app -notmatch 'GestureHandlerRootView') { throw 'App.tsx must wrap UI with <GestureHandlerRootView>' }
     if (($app -split 'NavigationContainer').Length -lt 2) { throw 'NavigationContainer not found' }
     Write-Host 'OK'
@@ -33,7 +33,7 @@ Write-Host '== Sanity: AppNavigator tabs & icons =='
 Invoke-OrSkip -Path "src/navigation/AppNavigator.tsx" -Description "AppNavigator" -Block {
     $nav = Get-Content "src/navigation/AppNavigator.tsx" -Raw
     if ($nav -notmatch '@expo/vector-icons') { throw 'AppNavigator: @expo/vector-icons Ionicons not imported' }
-    $tabNames = @('Feed','Nearby','Adults18','Question','Profile')
+    $tabNames = @('Together','Nearby','Inbox')
     foreach($n in $tabNames){
         if ($nav -notmatch "name=`"$n`"") { throw "Tab $n is not registered" }
     }

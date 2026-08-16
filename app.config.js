@@ -1,5 +1,38 @@
 const baseConfig = require("./app.json").expo;
 
+const VARIANTS = {
+  development: {
+    name: "Amoria Dev",
+    identifier: "com.kostiantyndemidets.amoria.dev",
+    scheme: "amoria-dev",
+  },
+  preview: {
+    name: "Amoria Preview",
+    identifier: "com.kostiantyndemidets.amoria.preview",
+    scheme: "amoria-preview",
+  },
+  production: {
+    name: "Amoria",
+    identifier: "com.kostiantyndemidets.amoria",
+    scheme: "amoria",
+  },
+};
+
+function resolveAppVariant() {
+  const appVariant = String(process.env.APP_VARIANT || "").trim();
+  const buildProfile = String(process.env.EAS_BUILD_PROFILE || "").trim();
+
+  if (appVariant && buildProfile && VARIANTS[buildProfile] && appVariant !== buildProfile) {
+    throw new Error(`APP_VARIANT=${appVariant} does not match EAS_BUILD_PROFILE=${buildProfile}`);
+  }
+
+  const requested = appVariant || (VARIANTS[buildProfile] ? buildProfile : "development");
+  if (!VARIANTS[requested]) {
+    throw new Error("APP_VARIANT must be development, preview, or production");
+  }
+  return requested;
+}
+
 function isPrivateOrLocalHostname(hostname) {
   const normalized = String(hostname || "").trim().toLowerCase();
   if (
@@ -45,8 +78,33 @@ function requireProductionUrl(name, expectedProtocol) {
   return url;
 }
 
+function configurePlugins(plugins, variant) {
+  return (plugins || []).map((plugin) => {
+    if (plugin === "expo-dev-client") {
+      return ["expo-dev-client", { addGeneratedScheme: variant === "development" }];
+    }
+    if (Array.isArray(plugin) && plugin[0] === "expo-build-properties") {
+      const options = plugin[1] || {};
+      return [
+        plugin[0],
+        {
+          ...options,
+          android: {
+            ...(options.android || {}),
+            usesCleartextTraffic: variant !== "production",
+          },
+        },
+      ];
+    }
+    return plugin;
+  });
+}
+
 module.exports = ({ config = {} } = {}) => {
-  const production = process.env.EAS_BUILD_PROFILE === "production";
+  const variant = resolveAppVariant();
+  const selected = VARIANTS[variant];
+  const production = variant === "production";
+
   if (production) {
     requireProductionUrl("EXPO_PUBLIC_API_URL", "https");
     requireProductionUrl("EXPO_PUBLIC_WS_URL", "wss");
@@ -55,13 +113,23 @@ module.exports = ({ config = {} } = {}) => {
   return {
     ...baseConfig,
     ...config,
+    name: selected.name,
+    scheme: selected.scheme,
+    plugins: configurePlugins(config.plugins || baseConfig.plugins, variant),
+    ios: {
+      ...baseConfig.ios,
+      ...(config.ios || {}),
+      bundleIdentifier: selected.identifier,
+    },
     android: {
       ...baseConfig.android,
       ...(config.android || {}),
-      usesCleartextTraffic: production ? false : baseConfig.android.usesCleartextTraffic,
+      package: selected.identifier,
+      ...(production ? { usesCleartextTraffic: false } : {}),
     },
   };
 };
 
 module.exports.isPrivateOrLocalHostname = isPrivateOrLocalHostname;
 module.exports.requireProductionUrl = requireProductionUrl;
+module.exports.resolveAppVariant = resolveAppVariant;
