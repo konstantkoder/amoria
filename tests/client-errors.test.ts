@@ -22,6 +22,7 @@ process.env.UPLOADS_DIR = "./uploads-test";
 
 const { buildApp } = require("../src/app") as typeof import("../src/app");
 const { signAccessToken } = require("../src/auth/jwt") as typeof import("../src/auth/jwt");
+const { signAdminAccessTokenWithExpiry } = require("../src/admin/admin-jwt") as typeof import("../src/admin/admin-jwt");
 const { closeDb } = require("../src/db/client") as typeof import("../src/db/client");
 const adminService = require("../src/admin/admin.service") as typeof import("../src/admin/admin.service");
 const clientErrorsService = require(
@@ -244,7 +245,7 @@ test("normal user cannot GET /admin/client-errors", async (t) => {
     headers: authHeaders(userId),
   });
 
-  assert.equal(response.statusCode, 403);
+  assert.equal(response.statusCode, 401);
 });
 
 for (const role of ["owner", "support", "ops"] as const) {
@@ -260,10 +261,10 @@ for (const role of ["owner", "support", "ops"] as const) {
     const response = await app.inject({
       method: "GET",
       url: "/admin/client-errors?limit=5",
-      headers: authHeaders(userId),
+      headers: adminAuthHeaders(userId),
     });
 
-    assert.equal(response.statusCode, 200);
+    assert.equal(response.statusCode, 200, response.body);
     assert.equal(response.json().items[0].id, reportId);
   });
 }
@@ -280,7 +281,7 @@ test("admin client error feed does not expose password hashes or refresh tokens"
   const response = await app.inject({
     method: "GET",
     url: "/admin/client-errors",
-    headers: authHeaders(userId),
+    headers: adminAuthHeaders(userId),
   });
   const bodyText = response.body;
 
@@ -302,7 +303,7 @@ test("GET /admin/client-errors filters by amoriaId screen action and code", asyn
   const response = await app.inject({
     method: "GET",
     url: "/admin/client-errors?amoriaId=AMOWNER1&screen=PhotoManagerScreen&action=uploadProfilePhoto&code=media.uploadPutFailed&limit=7",
-    headers: authHeaders(userId),
+    headers: adminAuthHeaders(userId),
   });
 
   assert.equal(response.statusCode, 200);
@@ -327,7 +328,7 @@ test("reading admin client errors writes audit log", async (t) => {
   const response = await app.inject({
     method: "GET",
     url: "/admin/client-errors?screen=PhotoManagerScreen",
-    headers: authHeaders(userId),
+    headers: adminAuthHeaders(userId),
   });
 
   assert.equal(response.statusCode, 200);
@@ -371,7 +372,7 @@ for (const input of [
     const response = await app.inject({
       method: "POST",
       url: `/admin/client-errors/${reportId}/actions`,
-      headers: authHeaders(userId),
+      headers: adminAuthHeaders(userId),
       payload: {
         action: input.action,
         note: "Handled during release smoke",
@@ -418,7 +419,7 @@ test("non-admin cannot act on client error", async (t) => {
     },
   });
 
-  assert.equal(response.statusCode, 403);
+  assert.equal(response.statusCode, 401);
 });
 
 test("bulk archive with filters updates only matching rows and writes audit log", async (t) => {
@@ -433,7 +434,7 @@ test("bulk archive with filters updates only matching rows and writes audit log"
   const response = await app.inject({
     method: "POST",
     url: "/admin/client-errors/actions/bulk",
-    headers: authHeaders(userId),
+    headers: adminAuthHeaders(userId),
     payload: {
       action: "archive",
       filters: {
@@ -477,7 +478,7 @@ test("GET /admin/client-errors status filter works", async (t) => {
   const response = await app.inject({
     method: "GET",
     url: "/admin/client-errors?status=archived",
-    headers: authHeaders(userId),
+    headers: adminAuthHeaders(userId),
   });
 
   assert.equal(response.statusCode, 200);
@@ -609,6 +610,17 @@ function authHeaders(id: string) {
   };
 }
 
+function adminAuthHeaders(id: string) {
+  return {
+    Authorization: `Bearer ${signAdminAccessTokenWithExpiry({
+      userId: id,
+      adminUserId,
+      adminSessionVersion: 0,
+      userAuthVersion: 0,
+    }).accessToken}`,
+  };
+}
+
 function adminContextRow(roles: AdminRoleKey[]): AdminContextRow {
   const now = new Date("2026-01-01T00:00:00.000Z");
 
@@ -629,6 +641,7 @@ function adminContextRow(roles: AdminRoleKey[]): AdminContextRow {
       email: "owner@example.test",
     },
     roles,
+    mfaEnabled: true,
   };
 }
 

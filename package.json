@@ -16,6 +16,7 @@
     "db:migrate": "node scripts/run-db-migrate.mjs",
     "admin:bootstrap": "node scripts/admin-bootstrap.mjs",
     "admin:create-owner": "node scripts/admin-create-owner.mjs",
+    "admin:reset-owner-mfa": "node scripts/admin-reset-owner-mfa.mjs",
     "admin:web:dev": "npm --prefix admin-web run dev",
     "admin:web:build": "npm --prefix admin-web run build",
     "moderation:install": "powershell -ExecutionPolicy Bypass -File scripts/install-local-moderation-model.ps1",

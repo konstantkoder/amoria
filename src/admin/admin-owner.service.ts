@@ -31,7 +31,6 @@ export type CreateOwnerAdminResult = {
   adminUserId: string;
   createdUser: boolean;
   generatedPassword: boolean;
-  generatedPasswordValue?: string;
   credentialsFile?: string;
 };
 
@@ -106,7 +105,6 @@ export async function createOwnerAdminAccount(
       amoriaId: user.amoriaId,
       adminUserId: adminUser.id,
     });
-    result.generatedPasswordValue = password;
     result.credentialsFile = credentialsFile;
   }
 
@@ -156,8 +154,8 @@ function defaultCredentialsDir(): string {
   }
 
   return process.platform === "win32"
-    ? "F:\\Dev\\AmoriaAdminSecrets"
-    : "/mnt/f/Dev/AmoriaAdminSecrets";
+    ? "F:\\Amoria-Private-Backup\\Admin-Security"
+    : "/var/lib/amoria/private/admin-security";
 }
 
 async function writeCredentialsFile(input: {
@@ -170,7 +168,7 @@ async function writeCredentialsFile(input: {
   amoriaId: string;
   adminUserId: string;
 }): Promise<string> {
-  await mkdir(input.credentialsDir, { recursive: true });
+  await mkdir(input.credentialsDir, { recursive: true, mode: 0o700 });
   const timestamp = formatTimestamp(input.now);
   const filePath = path.join(input.credentialsDir, `owner-admin-${timestamp}.txt`);
   const body = [
@@ -186,7 +184,7 @@ async function writeCredentialsFile(input: {
     "This file is local only. Do not commit it or paste it into logs.",
   ].join("\n");
 
-  await writeFile(filePath, body, { encoding: "utf8", flag: "wx" });
+  await writeFile(filePath, body, { encoding: "utf8", flag: "wx", mode: 0o600 });
   return filePath;
 }
 

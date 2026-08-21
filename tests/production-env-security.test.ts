@@ -5,6 +5,7 @@ import test from "node:test";
 const strongA = "0123456789abcdefGHIJKLMNOPqrstuvwxyz-ABCD";
 const strongB = "fedcba9876543210ZYXWVUTSrqponmlkjihg-DCBA";
 const strongC = "A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8S9t0";
+const strongMfaKey = Buffer.from(strongA.slice(0, 32), "utf8").toString("base64");
 
 function productionEnv(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
   return {
@@ -14,6 +15,9 @@ function productionEnv(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
     JWT_SECRET: strongA,
     AUTH_SECURITY_HMAC_SECRET: strongB,
     MESSAGE_ABUSE_HMAC_SECRET: strongC,
+    ADMIN_MFA_ENCRYPTION_KEY: strongMfaKey,
+    ADMIN_NETWORK_ACCESS_MODE: "disabled",
+    ADMIN_ALLOWED_CIDRS: "",
     PUBLIC_API_URL: "https://api.example.test",
     PUBLIC_MEDIA_URL: "https://api.example.test/media",
     ALLOW_LOCAL_PUBLIC_URLS: "false",
@@ -90,6 +94,7 @@ for (const name of [
   "JWT_SECRET",
   "AUTH_SECURITY_HMAC_SECRET",
   "MESSAGE_ABUSE_HMAC_SECRET",
+  "ADMIN_MFA_ENCRYPTION_KEY",
   "S3_ACCESS_KEY",
   "S3_SECRET_KEY",
   "PUBLIC_API_URL",
@@ -108,6 +113,21 @@ for (const name of [
 test("production rejects repository sample/default secrets", () => {
   assert.notEqual(loadProductionEnv({ JWT_SECRET: "change-me-change-me-change-me-change-me" }).status, 0);
   assert.notEqual(loadProductionEnv({ S3_ACCESS_KEY: "minioadmin" }).status, 0);
+});
+
+test("production Admin network access fails closed and validates private CIDRs", () => {
+  assert.equal(loadProductionEnv({ ADMIN_NETWORK_ACCESS_MODE: "disabled", ADMIN_ALLOWED_CIDRS: "" }).status, 0);
+  assert.notEqual(loadProductionEnv({ ADMIN_NETWORK_ACCESS_MODE: "development_local" }).status, 0);
+  assert.notEqual(loadProductionEnv({ ADMIN_NETWORK_ACCESS_MODE: "private_cidr", ADMIN_ALLOWED_CIDRS: "" }).status, 0);
+  assert.notEqual(loadProductionEnv({ ADMIN_NETWORK_ACCESS_MODE: "private_cidr", ADMIN_ALLOWED_CIDRS: "10.0.0.999/24" }).status, 0);
+  assert.notEqual(loadProductionEnv({ ADMIN_NETWORK_ACCESS_MODE: "private_cidr", ADMIN_ALLOWED_CIDRS: "10.0.0.1/24" }).status, 0);
+  assert.equal(loadProductionEnv({ ADMIN_NETWORK_ACCESS_MODE: "private_cidr", ADMIN_ALLOWED_CIDRS: "10.0.0.0/24,2001:db8::/32" }).status, 0);
+});
+
+test("production Admin MFA key must decode to 32 high-entropy bytes", () => {
+  assert.notEqual(loadProductionEnv({ ADMIN_MFA_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64") }).status, 0);
+  assert.notEqual(loadProductionEnv({ ADMIN_MFA_ENCRYPTION_KEY: Buffer.alloc(31, 7).toString("base64") }).status, 0);
+  assert.equal(loadProductionEnv({ ADMIN_MFA_ENCRYPTION_KEY: strongMfaKey }).status, 0);
 });
 
 test("production support contact rejects invalid or header-injected values", () => {

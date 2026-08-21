@@ -78,6 +78,13 @@ export async function setUserAccountStatus(input: {
 
     if (input.status === "suspended") {
       await client.query(`UPDATE refresh_tokens SET revoked_at = COALESCE(revoked_at, $2) WHERE user_id = $1`, [input.userId, now]);
+      await client.query(`UPDATE admin_sessions SET revoked_at = COALESCE(revoked_at, $2) WHERE user_id = $1`, [input.userId, now]);
+      await client.query(`
+        UPDATE admin_step_up_sessions sus SET revoked_at=COALESCE(sus.revoked_at,$2)
+         FROM admin_users au WHERE au.id=sus.admin_user_id AND au.user_id=$1`, [input.userId, now]);
+      await client.query(`
+        UPDATE admin_mfa_pre_auth_challenges ch SET consumed_at=COALESCE(ch.consumed_at,$2)
+         FROM admin_users au WHERE au.id=ch.admin_user_id AND au.user_id=$1`, [input.userId, now]);
       await client.query(`
         UPDATE nearby_profile_visibility
            SET status = 'off', latitude = NULL, longitude = NULL, radius_km = NULL,
@@ -121,11 +128,15 @@ export async function createAdminUser(input: AdminCreateAdminUserBody): Promise<
       INSERT INTO admin_users (user_id, email, display_name, status, updated_at)
       VALUES ($1, $2, $3, 'active', now())
       ON CONFLICT (user_id) DO UPDATE SET status = 'active', email = EXCLUDED.email,
-        display_name = EXCLUDED.display_name, updated_at = now()
+        display_name = EXCLUDED.display_name, session_version = admin_users.session_version + 1,
+        updated_at = now()
       RETURNING id`, [input.userId, user.rows[0].email, user.rows[0].display_name]);
     const adminUserId = created.rows[0]?.id;
     if (!adminUserId) throw new Error("Failed to create admin user");
     await replaceRoles(client, adminUserId, input.roles);
+    await client.query("UPDATE admin_sessions SET revoked_at=COALESCE(revoked_at,now()) WHERE admin_user_id=$1", [adminUserId]);
+    await client.query("UPDATE admin_step_up_sessions SET revoked_at=COALESCE(revoked_at,now()) WHERE admin_user_id=$1", [adminUserId]);
+    await client.query("UPDATE admin_mfa_pre_auth_challenges SET consumed_at=COALESCE(consumed_at,now()) WHERE admin_user_id=$1", [adminUserId]);
     await client.query("COMMIT");
     return adminUserId;
   } catch (error) {
@@ -175,6 +186,13 @@ export async function updateAdminUser(
       await client.query(`UPDATE admin_users SET status = $2, updated_at = now() WHERE id = $1`, [adminUserId, input.status]);
     }
     if (input.roles) await replaceRoles(client, adminUserId, input.roles);
+    await client.query(
+      "UPDATE admin_users SET session_version=session_version+1,updated_at=now() WHERE id=$1",
+      [adminUserId],
+    );
+    await client.query("UPDATE admin_sessions SET revoked_at=COALESCE(revoked_at,now()) WHERE admin_user_id=$1", [adminUserId]);
+    await client.query("UPDATE admin_step_up_sessions SET revoked_at=COALESCE(revoked_at,now()) WHERE admin_user_id=$1", [adminUserId]);
+    await client.query("UPDATE admin_mfa_pre_auth_challenges SET consumed_at=COALESCE(consumed_at,now()) WHERE admin_user_id=$1", [adminUserId]);
     await client.query("COMMIT");
     return true;
   } catch (error) {

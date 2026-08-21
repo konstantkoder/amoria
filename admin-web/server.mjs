@@ -1,6 +1,7 @@
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
 import { createServer } from "node:http";
+import { isIP } from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -47,6 +48,16 @@ function releaseIdentity(value) {
     throw new Error("RELEASE_SHA must be a full lowercase Git SHA");
   }
   return value;
+}
+
+export function adminWebBindHost(value, nodeEnv, allowAllInterfaces) {
+  const host = (value ?? "").trim() || "127.0.0.1";
+  if (isIP(host) === 0) throw new Error("ADMIN_WEB_BIND_HOST must be an explicit IP address");
+  const allInterfaces = host === "0.0.0.0" || host === "::";
+  if (nodeEnv === "production" && allInterfaces && allowAllInterfaces !== "true") {
+    throw new Error("Production all-interface Admin Web binding requires ADMIN_WEB_ALLOW_ALL_INTERFACES=true");
+  }
+  return host;
 }
 
 function securityHeaders(apiOrigin) {
@@ -168,8 +179,13 @@ export function createAdminWebServer(options = {}) {
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const port = listenPort(process.env.PORT ?? "8080");
+  const host = adminWebBindHost(
+    process.env.ADMIN_WEB_BIND_HOST,
+    process.env.NODE_ENV ?? "production",
+    process.env.ADMIN_WEB_ALLOW_ALL_INTERFACES,
+  );
   const server = createAdminWebServer();
-  server.listen(port, "0.0.0.0", () => {
-    process.stdout.write(`Amoria Admin Web listening on ${port}\n`);
+  server.listen(port, host, () => {
+    process.stdout.write(`Amoria Admin Web listening on ${host}:${port}\n`);
   });
 }

@@ -207,6 +207,17 @@ export async function revokeAllUserAccess(userId: string, now: Date): Promise<vo
       .update(refreshTokens)
       .set({ revokedAt: now })
       .where(and(eq(refreshTokens.userId, userId), isNull(refreshTokens.revokedAt)));
+    await tx.execute(sql`
+      UPDATE admin_sessions SET revoked_at=COALESCE(revoked_at,${now}) WHERE user_id=${userId}
+    `);
+    await tx.execute(sql`
+      UPDATE admin_step_up_sessions sus SET revoked_at=COALESCE(sus.revoked_at,${now})
+       FROM admin_users au WHERE au.id=sus.admin_user_id AND au.user_id=${userId}
+    `);
+    await tx.execute(sql`
+      UPDATE admin_mfa_pre_auth_challenges ch SET consumed_at=COALESCE(ch.consumed_at,${now})
+       FROM admin_users au WHERE au.id=ch.admin_user_id AND au.user_id=${userId}
+    `);
     await tx
       .update(users)
       .set({ authVersion: sql`${users.authVersion} + 1`, updatedAt: now })

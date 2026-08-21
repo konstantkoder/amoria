@@ -31,7 +31,7 @@ import { notificationsRoutes } from "./notifications/notifications.routes";
 import { recordPotentialDatabaseFailure, registerMetrics } from "./observability/metrics";
 import { realtimeBusReady } from "./realtime/realtime-bus";
 
-export const EXPECTED_MIGRATION = "0038_scale_nearby_knn.sql";
+export const EXPECTED_MIGRATION = "0039_admin_mfa_security.sql";
 export const WS_MAX_PAYLOAD_BYTES = 16 * 1024;
 
 export function isCorsOriginAllowed(origin: string | undefined, allowedOrigins: string[]): boolean {

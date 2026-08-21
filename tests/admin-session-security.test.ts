@@ -1,456 +1,313 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 import test from "node:test";
-import Fastify from "fastify";
-import type { AuthResponse } from "../src/auth/auth.types";
-import type { AdminContext, AdminRoleKey } from "../src/admin/admin.types";
+import { signAccessToken, verifyAccessToken } from "../src/auth/jwt";
+import { signAdminAccessTokenWithExpiry, verifyAdminAccessToken } from "../src/admin/admin-jwt";
+import {
+  decodeBase32,
+  encodeBase32,
+  encryptTotpSecret,
+  decryptTotpSecret,
+  findMatchingTotpCounter,
+  generateRecoveryCodes,
+  generateTotpCode,
+  hashRecoveryCode,
+  normalizeRecoveryCode,
+  RECOVERY_CODE_COUNT,
+} from "../src/admin/admin-mfa.crypto";
+import {
+  assertAdminSessionRequest,
+  serializeAdminRefreshCookie,
+  serializeClearedAdminRefreshCookie,
+} from "../src/admin/admin-session.routes";
+import { ipMatchesCidr, isLoopbackAddress, parseCidr, parseIpAddress } from "../src/common/security/ip-cidr";
 
-process.env.NODE_ENV = "test";
-process.env.DATABASE_URL = "postgresql://unused";
-process.env.JWT_SECRET = "test-secret-that-is-long-enough";
-process.env.PUBLIC_API_URL = "http://localhost:4000";
-process.env.CORS_ALLOWED_ORIGINS = "http://localhost:5174";
+const root = path.resolve(__dirname, "..");
+const read = (relativePath: string) => readFileSync(path.join(root, relativePath), "utf8");
 
-const { AppError, errorHandler, forbidden } = require("../src/common/errors") as typeof import("../src/common/errors");
-const sessionService = require("../src/admin/admin-session.service") as typeof import("../src/admin/admin-session.service");
-const sessionRoutes = require("../src/admin/admin-session.routes") as typeof import("../src/admin/admin-session.routes");
-type FrontendAdminSessionClient = {
-  clearLegacyStorage(storage: { removeItem(key: string): void }): void;
-  getAccessToken(): string | undefined;
-  login(email: string, password: string): Promise<{ accessToken: string }>;
-  logout(): Promise<void>;
-  restore(): Promise<{ accessToken: string } | null>;
-  refresh(): Promise<boolean>;
-};
-const frontendSession = require("../admin-web/src/admin-session") as {
-  AdminSessionClient: new (
-    apiBaseUrl: string,
-    fetchImplementation?: (input: string, init?: RequestInit) => Promise<Response>,
-  ) => FrontendAdminSessionClient;
-  LEGACY_ADMIN_TOKEN_STORAGE_KEY: string;
-};
-const { AdminSessionClient, LEGACY_ADMIN_TOKEN_STORAGE_KEY } = frontendSession;
-
-const userId = "00000000-0000-4000-8000-000000000001";
-const allowedHeaders = {
-  origin: "http://localhost:5174",
-  "x-amoria-admin-session": "1",
-};
-
-function authResponse(refreshToken: string): AuthResponse {
-  return {
-    accessToken: `access-${refreshToken}`,
-    refreshToken,
-    accessTokenExpiresAt: "2026-08-12T12:00:00.000Z",
-    user: {
-      id: userId,
-      email: "admin@example.test",
-      displayName: "Admin",
-      amoriaId: "AM12345",
-      avatarUrl: null,
-    },
-  };
-}
-
-function adminContext(role: AdminRoleKey, status: "active" | "disabled" = "active"): AdminContext {
-  return {
-    adminUser: {
-      id: "00000000-0000-4000-8000-0000000000a1",
-      userId,
-      status,
-      roles: [role],
-      createdAt: "2026-01-01T00:00:00.000Z",
-      updatedAt: "2026-01-01T00:00:00.000Z",
-    },
-    user: {
-      id: userId,
-      amoriaId: "AM12345",
-      displayName: "Admin",
-      email: "admin@example.test",
-    },
-  };
-}
-
-function adminContextWithoutRoles(): AdminContext {
-  const context = adminContext("owner");
-  return {
-    ...context,
-    adminUser: { ...context.adminUser, roles: [] },
-  };
-}
-
-function installSessionDeps(input: {
-  login?: () => Promise<AuthResponse>;
-  refresh?: (refreshToken: string) => Promise<AuthResponse>;
-  logout?: (refreshToken: string) => Promise<{ ok: true }>;
-  getAdmin?: () => Promise<AdminContext>;
-} = {}): { restore: () => void; revoked: string[] } {
-  const revoked: string[] = [];
-  const restore = sessionService.__setAdminSessionServiceDepsForTests({
-    auth: {
-      login: async () => input.login ? input.login() : authResponse("login-refresh-token-value-00000001"),
-      refresh: async ({ refreshToken }) => input.refresh
-        ? input.refresh(refreshToken)
-        : authResponse("rotated-refresh-token-value-00000002"),
-      logout: async ({ refreshToken }) => {
-        revoked.push(refreshToken);
-        return input.logout ? input.logout(refreshToken) : { ok: true };
-      },
-    },
-    admin: {
-      getAdminContextByUserId: async () => input.getAdmin ? input.getAdmin() : adminContext("owner"),
-      assertAdminHasAnyRole: (admin, roles) => {
-        if (!roles.some((role) => admin.adminUser.roles.includes(role))) {
-          throw forbidden("Admin access is required");
-        }
-      },
-    },
-  });
-  return { restore, revoked };
-}
-
-async function sessionApp() {
-  const app = Fastify({ logger: false });
-  app.setErrorHandler(errorHandler);
-  await app.register(sessionRoutes.adminSessionRoutes, { prefix: "/admin/session" });
-  return app;
-}
-
-function cookieValue(setCookie: string): string {
-  return setCookie.split(";", 1)[0]?.split("=", 2)[1] ?? "";
-}
-
-test("ordinary user cannot create an Admin session and the newly issued refresh token is revoked", async (t) => {
-  const deps = installSessionDeps({ getAdmin: async () => { throw forbidden("Admin access is required"); } });
-  t.after(deps.restore);
-  await assert.rejects(
-    () => sessionService.loginAdminSession({ email: "user@example.test", password: "password" }, {}),
-    (error) => (error as { statusCode?: number }).statusCode === 403,
-  );
-  assert.deepEqual(deps.revoked, ["login-refresh-token-value-00000001"]);
+test("RFC 6238 SHA-1 vectors produce the expected six-digit suffix and +/-1 matching window", () => {
+  const secret = encodeBase32(Buffer.from("12345678901234567890", "ascii"));
+  assert.deepEqual(decodeBase32(secret), Buffer.from("12345678901234567890", "ascii"));
+  const vectors = [
+    [59_000, "287082"],
+    [1_111_111_109_000, "081804"],
+    [1_111_111_111_000, "050471"],
+    [1_234_567_890_000, "005924"],
+    [2_000_000_000_000, "279037"],
+    [20_000_000_000_000, "353130"],
+  ] as const;
+  for (const [time, expected] of vectors) {
+    const counter = Math.floor(time / 30_000);
+    assert.equal(generateTotpCode(secret, counter), expected);
+    assert.equal(findMatchingTotpCounter(secret, expected, new Date(time), 1), counter);
+  }
+  const now = new Date(1_234_567_890_000);
+  assert.equal(findMatchingTotpCounter(secret, generateTotpCode(secret, Math.floor(now.getTime() / 30_000) - 2), now, 1), undefined);
+  assert.equal(findMatchingTotpCounter(secret, "12ab56", now, 1), undefined);
 });
 
-for (const role of ["owner", "moderator", "support", "ops"] as const) {
-  test(`${role} can establish an Admin session`, async (t) => {
-    const deps = installSessionDeps({ getAdmin: async () => adminContext(role) });
-    t.after(deps.restore);
-    const session = await sessionService.loginAdminSession({
-      email: `${role}@example.test`,
-      password: "password",
-    }, {});
-    assert.equal(session.response.accessToken, "access-login-refresh-token-value-00000001");
-    assert.equal("refreshToken" in session.response, false);
-    assert.equal(session.refreshToken, "login-refresh-token-value-00000001");
-  });
-}
-
-test("disabled Admin cannot establish a session and the refresh token is revoked", async (t) => {
-  const deps = installSessionDeps({
-    getAdmin: async () => { throw forbidden("Admin access is required"); },
-  });
-  t.after(deps.restore);
-  await assert.rejects(() => sessionService.loginAdminSession({
-    email: "disabled@example.test",
-    password: "password",
-  }, {}));
-  assert.deepEqual(deps.revoked, ["login-refresh-token-value-00000001"]);
+test("TOTP secrets use randomized AES-256-GCM authenticated encryption", () => {
+  const adminUserId = "11111111-1111-4111-8111-111111111111";
+  const secret = "JBSWY3DPEHPK3PXP";
+  const first = encryptTotpSecret(secret, adminUserId);
+  const second = encryptTotpSecret(secret, adminUserId);
+  assert.notEqual(first.ciphertext, secret);
+  assert.notEqual(first.iv, second.iv);
+  assert.notEqual(first.ciphertext, second.ciphertext);
+  assert.equal(decryptTotpSecret(first, adminUserId), secret);
+  assert.throws(() => decryptTotpSecret({ ...first, authTag: Buffer.alloc(16).toString("base64") }, adminUserId));
+  assert.throws(() => decryptTotpSecret(first, "22222222-2222-4222-8222-222222222222"));
 });
 
-test("Admin login sets a host-only HttpOnly SameSite Strict cookie and omits refresh token from JSON", async (t) => {
-  const deps = installSessionDeps();
-  t.after(deps.restore);
-  const app = await sessionApp();
-  t.after(() => app.close());
-
-  const response = await app.inject({
-    method: "POST",
-    url: "/admin/session/login",
-    headers: allowedHeaders,
-    payload: { email: "admin@example.test", password: "password" },
-  });
-  const body = response.json();
-  const setCookie = String(response.headers["set-cookie"]);
-
-  assert.equal(response.statusCode, 200);
-  assert.equal(body.refreshToken, undefined);
-  assert.equal(body.accessToken, "access-login-refresh-token-value-00000001");
-  assert.match(setCookie, /HttpOnly/i);
-  assert.match(setCookie, /SameSite=Strict/i);
-  assert.match(setCookie, /Path=\/admin\/session/i);
-  assert.match(setCookie, /Max-Age=2592000/i);
-  assert.doesNotMatch(setCookie, /Domain=/i);
-  assert.equal(response.headers["cache-control"], "no-store");
+test("recovery codes are high-entropy, normalized, unique, and stored through keyed hashes", () => {
+  const codes = generateRecoveryCodes();
+  assert.equal(codes.length, RECOVERY_CODE_COUNT);
+  assert.equal(new Set(codes).size, RECOVERY_CODE_COUNT);
+  for (const code of codes) {
+    assert.match(code, /^(?:[A-Z2-7]{4}-){7}[A-Z2-7]{4}$/u);
+    assert.equal(normalizeRecoveryCode(code)?.length, 32);
+    assert.match(hashRecoveryCode(code), /^[a-f0-9]{64}$/u);
+    assert.notEqual(hashRecoveryCode(code), code);
+  }
+  assert.equal(normalizeRecoveryCode("not-a-code"), undefined);
 });
 
-test("production cookie serialization is always Secure and never sets Domain", () => {
-  const setCookie = sessionRoutes.serializeAdminRefreshCookie("refresh-token-value-00000000000001", {
+test("mobile and Admin access tokens are cryptographically audience-separated", () => {
+  const userId = "11111111-1111-4111-8111-111111111111";
+  const adminUserId = "22222222-2222-4222-8222-222222222222";
+  const mobile = signAccessToken(userId, 4);
+  const admin = signAdminAccessTokenWithExpiry({
+    userId,
+    adminUserId,
+    adminSessionVersion: 7,
+    userAuthVersion: 4,
+  }).accessToken;
+  assert.equal(verifyAccessToken(mobile).sub, userId);
+  assert.equal(verifyAdminAccessToken(admin).auid, adminUserId);
+  assert.throws(() => verifyAdminAccessToken(mobile));
+  assert.throws(() => verifyAccessToken(admin));
+});
+
+test("Admin refresh cookie is host-only HttpOnly SameSite Strict and Secure in production", () => {
+  const cookie = serializeAdminRefreshCookie("refresh-token-value-00000000000001", {
     secure: true,
-    now: new Date("2026-08-12T00:00:00.000Z"),
+    now: new Date("2026-08-21T00:00:00.000Z"),
   });
-  assert.match(setCookie, /; Secure(?:;|$)/);
-  assert.match(setCookie, /HttpOnly/);
-  assert.match(setCookie, /SameSite=Strict/);
-  assert.doesNotMatch(setCookie, /Domain=/i);
-  const routeSource = readFileSync(path.join(process.cwd(), "src/admin/admin-session.routes.ts"), "utf8");
-  assert.match(routeSource, /serializeAdminRefreshCookie\(refreshToken, \{ secure: env\.isProduction \}\)/);
-  assert.match(routeSource, /serializeClearedAdminRefreshCookie\(\{ secure: env\.isProduction \}\)/);
+  assert.match(cookie, /^amoria_admin_refresh=/u);
+  assert.match(cookie, /Path=\/admin\/session/u);
+  assert.match(cookie, /HttpOnly/u);
+  assert.match(cookie, /SameSite=Strict/u);
+  assert.match(cookie, /Secure/u);
+  assert.doesNotMatch(cookie, /Domain=/u);
+  assert.match(serializeClearedAdminRefreshCookie({ secure: true }), /Max-Age=0/u);
 });
 
-test("refresh reads only the cookie, rotates it, omits refresh token from JSON, and rejects old-token reuse", async (t) => {
-  const usable = new Set(["refresh-token-value-00000000000001"]);
-  const refreshCalls: string[] = [];
-  const deps = installSessionDeps({
-    refresh: async (refreshToken) => {
-      refreshCalls.push(refreshToken);
-      if (!usable.delete(refreshToken)) throw new AppError("invalid_refresh", "Invalid refresh token", 401);
-      usable.add("refresh-token-value-00000000000002");
-      return authResponse("refresh-token-value-00000000000002");
+test("Admin Origin/header policy denies missing, null, foreign, and lookalike origins", () => {
+  const valid = { headers: { origin: "http://localhost:5174", "x-amoria-admin-session": "1" } };
+  assert.doesNotThrow(() => assertAdminSessionRequest(valid as never));
+  for (const headers of [
+    { origin: "http://localhost:5174" },
+    { "x-amoria-admin-session": "1" },
+    { origin: "null", "x-amoria-admin-session": "1" },
+    { origin: "https://evil.example", "x-amoria-admin-session": "1" },
+    { origin: "http://localhost:5174.evil.example", "x-amoria-admin-session": "1" },
+    { origin: "http://evil.localhost:5174", "x-amoria-admin-session": "1" },
+    { origin: "*", "x-amoria-admin-session": "1" },
+    { origin: "http://localhost:5174", "x-amoria-admin-session": "yes" },
+  ]) assert.throws(() => assertAdminSessionRequest({ headers } as never));
+});
+
+test("IPv4, IPv4-mapped IPv6, and IPv6 CIDR matching is exact and malformed CIDRs fail", () => {
+  assert.equal(ipMatchesCidr(parseIpAddress("10.20.30.8"), parseCidr("10.20.30.0/24")), true);
+  assert.equal(ipMatchesCidr(parseIpAddress("10.20.31.8"), parseCidr("10.20.30.0/24")), false);
+  assert.equal(ipMatchesCidr(parseIpAddress("::ffff:127.0.0.1"), parseCidr("127.0.0.1/32")), true);
+  assert.equal(ipMatchesCidr(parseIpAddress("2001:db8::2"), parseCidr("2001:db8::/32")), true);
+  assert.equal(isLoopbackAddress("::1"), true);
+  assert.equal(isLoopbackAddress("127.88.1.2"), true);
+  assert.throws(() => parseCidr("10.0.0.1/24"));
+  assert.throws(() => parseCidr("10.0.0.999/24"));
+  assert.throws(() => parseCidr("0.0.0.0/0/0"));
+});
+
+test("disabled Admin network mode denies Admin while the ordinary application remains live", () => {
+  const script = `
+    const { buildApp } = require('./src/app');
+    const app = buildApp();
+    (async () => {
+      const publicResponse = await app.inject({ method: 'GET', url: '/health' });
+      const adminResponse = await app.inject({
+        method: 'POST', url: '/admin/session/login',
+        headers: { origin: 'http://localhost:5174', 'x-amoria-admin-session': '1' },
+        payload: { email: 'owner@example.test', password: 'irrelevant' },
+      });
+      process.stdout.write(JSON.stringify({ publicStatus: publicResponse.statusCode, adminStatus: adminResponse.statusCode }));
+      await app.close();
+    })().catch((error) => { process.stderr.write(String(error)); process.exit(1); });
+  `;
+  const result = spawnSync(process.execPath, ["--import", "tsx", "--eval", script], {
+    cwd: root,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      NODE_ENV: "test",
+      ADMIN_NETWORK_ACCESS_MODE: "disabled",
+      ADMIN_ALLOWED_CIDRS: "",
+      CORS_ALLOWED_ORIGINS: "http://localhost:5174",
+      PUBLIC_API_URL: "http://localhost:4000",
+      PUBLIC_MEDIA_URL: "http://localhost:4000/media",
     },
   });
-  t.after(deps.restore);
-  const app = await sessionApp();
-  t.after(() => app.close());
+  assert.equal(result.status, 0, result.stderr);
+  const status = JSON.parse(result.stdout) as { publicStatus: number; adminStatus: number };
+  assert.deepEqual(status, { publicStatus: 200, adminStatus: 403 });
+});
 
-  const rotated = await app.inject({
-    method: "POST",
-    url: "/admin/session/refresh",
-    headers: { ...allowedHeaders, cookie: "amoria_admin_refresh=refresh-token-value-00000000000001" },
-    payload: {},
-  });
-  assert.equal(rotated.statusCode, 200);
-  assert.equal(rotated.json().refreshToken, undefined);
-  assert.equal(decodeURIComponent(cookieValue(String(rotated.headers["set-cookie"]))), "refresh-token-value-00000000000002");
+test("legacy token storage is deleted and sensitive Admin state is not persisted by frontend runtime", () => {
+  const session = read("admin-web/src/admin-session.ts");
+  const api = read("admin-web/src/api.ts");
+  assert.match(session, /LEGACY_ADMIN_TOKEN_STORAGE_KEY = "amoria\.admin\.tokens"/u);
+  assert.match(session, /this\.accessSession = null;[\s\S]*\/admin\/session\/login/u);
+  assert.match(session, /completeMfa[\s\S]*this\.accessSession = session/u);
+  assert.doesNotMatch(`${session}\n${api}`, /localStorage\.setItem|sessionStorage|indexedDB|document\.cookie/iu);
+  assert.doesNotMatch(api, /\/auth\/(?:login|refresh|logout)/u);
+  assert.match(api, /fetch\(`\$\{API_BASE_URL\}\$\{path\}`,[\s\S]*credentials: "include"/u);
+});
 
-  const replay = await app.inject({
-    method: "POST",
-    url: "/admin/session/refresh",
-    headers: { ...allowedHeaders, cookie: "amoria_admin_refresh=refresh-token-value-00000000000001" },
-    payload: {},
+test("Admin Web password, enrollment, MFA, recovery, and step-up stages keep access memory-only", async () => {
+  const { AdminSessionClient } = await import("../admin-web/src/admin-session.js");
+  const requests: Array<{ path: string; body: Record<string, unknown>; credentials?: string }> = [];
+  const responses = [
+    jsonResponse({ state: "enrollment_required", enrollment: { manualKey: "TESTONLY", otpauthUri: "otpauth://totp/test" } }),
+    jsonResponse({
+      accessToken: "admin-access-after-mfa",
+      accessTokenExpiresAt: "2026-08-21T01:00:00.000Z",
+      user: testAdminUser(),
+      recoveryCodes: ["TEST-RECOVERY-CODE"],
+      recoveryUsed: false,
+      remainingRecoveryCodes: 10,
+    }),
+    jsonResponse({ ok: true, expiresAt: "2026-08-21T00:10:00.000Z" }),
+    jsonResponse({ ok: true }),
+    jsonResponse({ state: "mfa_required" }),
+    jsonResponse({
+      accessToken: "admin-access-after-recovery",
+      accessTokenExpiresAt: "2026-08-21T01:00:00.000Z",
+      user: testAdminUser(),
+      recoveryUsed: true,
+      remainingRecoveryCodes: 9,
+    }),
+  ];
+  const client = new AdminSessionClient("https://api.example.test", async (input, init) => {
+    requests.push({
+      path: String(input),
+      body: JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>,
+      credentials: init?.credentials,
+    });
+    const response = responses.shift();
+    assert.ok(response);
+    return response;
   });
-  assert.equal(replay.statusCode, 401);
-  assert.match(String(replay.headers["set-cookie"]), /Max-Age=0/);
-  assert.deepEqual(refreshCalls, [
-    "refresh-token-value-00000000000001",
-    "refresh-token-value-00000000000001",
+
+  const enrollment = await client.login("owner@example.test", "password-stage-only");
+  assert.equal(enrollment.state, "enrollment_required");
+  assert.equal(client.getAccessToken(), undefined);
+  const completed = await client.confirmEnrollment("123456");
+  assert.equal(client.getAccessToken(), "admin-access-after-mfa");
+  assert.deepEqual(completed.recoveryCodes, ["TEST-RECOVERY-CODE"]);
+  await client.stepUp("654321");
+  await client.logout();
+  assert.equal(client.getAccessToken(), undefined);
+
+  assert.equal((await client.login("owner@example.test", "password-stage-only")).state, "mfa_required");
+  const recovered = await client.verifyMfa("recovery", "TEST-RECOVERY-CODE");
+  assert.equal(recovered.recoveryUsed, true);
+  assert.equal(client.getAccessToken(), "admin-access-after-recovery");
+  assert.equal(requests.every((request) => request.credentials === "include"), true);
+  assert.deepEqual(requests.map((request) => request.path), [
+    "https://api.example.test/admin/session/login",
+    "https://api.example.test/admin/session/mfa/enroll/confirm",
+    "https://api.example.test/admin/session/step-up",
+    "https://api.example.test/admin/session/logout",
+    "https://api.example.test/admin/session/login",
+    "https://api.example.test/admin/session/mfa/verify",
   ]);
 });
 
-test("disabled Admin fails on refresh, rotated token is revoked, and cookie is cleared", async (t) => {
-  const deps = installSessionDeps({ getAdmin: async () => { throw forbidden("Admin access is required"); } });
-  t.after(deps.restore);
-  const app = await sessionApp();
-  t.after(() => app.close());
-
-  const response = await app.inject({
-    method: "POST",
-    url: "/admin/session/refresh",
-    headers: { ...allowedHeaders, cookie: "amoria_admin_refresh=refresh-token-value-00000000000001" },
-    payload: {},
-  });
-
-  assert.equal(response.statusCode, 403);
-  assert.deepEqual(deps.revoked, ["rotated-refresh-token-value-00000002"]);
-  assert.match(String(response.headers["set-cookie"]), /Max-Age=0/);
-});
-
-test("Admin with all roles removed fails on refresh, rotated token is revoked, and cookie is cleared", async (t) => {
-  const deps = installSessionDeps({ getAdmin: async () => adminContextWithoutRoles() });
-  t.after(deps.restore);
-  const app = await sessionApp();
-  t.after(() => app.close());
-
-  const response = await app.inject({
-    method: "POST",
-    url: "/admin/session/refresh",
-    headers: { ...allowedHeaders, cookie: "amoria_admin_refresh=refresh-token-value-00000000000001" },
-    payload: {},
-  });
-
-  assert.equal(response.statusCode, 403);
-  assert.deepEqual(deps.revoked, ["rotated-refresh-token-value-00000002"]);
-  assert.match(String(response.headers["set-cookie"]), /Max-Age=0/);
-});
-
-test("logout revokes cookie token, clears cookie, and repeated logout is safe", async (t) => {
-  const deps = installSessionDeps();
-  t.after(deps.restore);
-  const app = await sessionApp();
-  t.after(() => app.close());
-
-  const first = await app.inject({
-    method: "POST",
-    url: "/admin/session/logout",
-    headers: { ...allowedHeaders, cookie: "amoria_admin_refresh=refresh-token-value-00000000000001" },
-    payload: {},
-  });
-  const repeated = await app.inject({
-    method: "POST",
-    url: "/admin/session/logout",
-    headers: allowedHeaders,
-    payload: {},
-  });
-  assert.equal(first.statusCode, 200);
-  assert.equal(repeated.statusCode, 200);
-  assert.deepEqual(deps.revoked, ["refresh-token-value-00000000000001"]);
-  assert.match(String(first.headers["set-cookie"]), /Max-Age=0/);
-  assert.match(String(repeated.headers["set-cookie"]), /Max-Age=0/);
-});
-
-test("missing custom header, missing Origin, and untrusted Origin reject Admin session mutations", async (t) => {
-  const deps = installSessionDeps();
-  t.after(deps.restore);
-  const app = await sessionApp();
-  t.after(() => app.close());
-  const variants = [
-    { origin: "http://localhost:5174" },
-    { "x-amoria-admin-session": "1" },
-    { origin: "https://evil.example", "x-amoria-admin-session": "1" },
+test("Admin Web restore handles valid, expired, disabled, and generic auth responses without stale access", async () => {
+  const { AdminSessionClient } = await import("../admin-web/src/admin-session.js");
+  const responses = [
+    jsonResponse({
+      accessToken: "restored-admin-access",
+      accessTokenExpiresAt: "2026-08-21T01:00:00.000Z",
+      user: testAdminUser(),
+    }),
+    jsonResponse({ error: { code: "unauthorized", message: "Authentication failed" } }, 401),
+    jsonResponse({ error: { code: "unauthorized", message: "Authentication failed" } }, 401),
   ];
-  for (const headers of variants) {
-    const response = await app.inject({
-      method: "POST",
-      url: "/admin/session/login",
-      headers,
-      payload: { email: "admin@example.test", password: "password" },
-    });
-    assert.equal(response.statusCode, 403);
-  }
-});
-
-test("exact allowed Admin origin and custom header permit a session request", async (t) => {
-  const deps = installSessionDeps();
-  t.after(deps.restore);
-  const app = await sessionApp();
-  t.after(() => app.close());
-  const response = await app.inject({
-    method: "POST",
-    url: "/admin/session/login",
-    headers: allowedHeaders,
-    payload: { email: "admin@example.test", password: "password" },
+  const client = new AdminSessionClient("https://api.example.test", async () => {
+    const response = responses.shift();
+    assert.ok(response);
+    return response;
   });
-  assert.equal(response.statusCode, 200);
+
+  assert.equal((await client.restore())?.accessToken, "restored-admin-access");
+  assert.equal(await client.restore(), null);
+  assert.equal(client.getAccessToken(), undefined);
+  await assert.rejects(
+    () => client.verifyMfa("totp", "000000"),
+    (error: unknown) => error instanceof Error
+      && error.message === "Authentication failed"
+      && (error as Error & { status?: number; code?: string }).status === 401
+      && (error as Error & { status?: number; code?: string }).code === "unauthorized",
+  );
+  assert.equal(client.getAccessToken(), undefined);
 });
 
-test("application registers isolated Admin session endpoints alongside unchanged mobile auth endpoints", async (t) => {
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json" },
+  });
+}
+
+function testAdminUser() {
+  return {
+    id: "11111111-1111-4111-8111-111111111111",
+    email: "owner@example.test",
+    displayName: "Owner",
+    amoriaId: "AMOWNER1",
+    avatarUrl: null,
+  };
+}
+
+test("application registers MFA, step-up, isolated Admin, and unchanged mobile auth endpoints", async (t) => {
   const { buildApp } = require("../src/app") as typeof import("../src/app");
   const app = buildApp();
   t.after(() => app.close());
   await app.ready();
   for (const url of [
     "/admin/session/login",
+    "/admin/session/mfa/verify",
+    "/admin/session/mfa/enroll/confirm",
+    "/admin/session/step-up",
     "/admin/session/refresh",
     "/admin/session/logout",
     "/auth/login",
     "/auth/refresh",
     "/auth/logout",
-  ]) {
-    assert.equal(app.hasRoute({ method: "POST", url }), true, url);
-  }
+  ]) assert.equal(app.hasRoute({ method: "POST", url }), true, url);
 });
 
-test("legacy Admin token storage is deleted and no Admin auth token is persisted by frontend runtime", () => {
-  const removed: string[] = [];
-  const client = new AdminSessionClient("", async () => new Response(null, { status: 401 }));
-  client.clearLegacyStorage({ removeItem: (key) => removed.push(key) });
-  assert.deepEqual(removed, [LEGACY_ADMIN_TOKEN_STORAGE_KEY]);
-
-  const sessionSource = readFileSync(path.join(process.cwd(), "admin-web/src/admin-session.ts"), "utf8");
-  const apiSource = readFileSync(path.join(process.cwd(), "admin-web/src/api.ts"), "utf8");
-  assert.doesNotMatch(`${sessionSource}\n${apiSource}`, /localStorage\.setItem|sessionStorage|indexedDB|document\.cookie/i);
-  assert.doesNotMatch(apiSource, /\/auth\/login|\/auth\/refresh|\/auth\/logout/);
-});
-
-test("Admin refresh cookie is redacted from application logs and absent from audit metadata", () => {
-  const loggerSource = readFileSync(path.join(process.cwd(), "src/config/logger.ts"), "utf8");
-  const sessionSource = readFileSync(path.join(process.cwd(), "src/admin/admin-session.service.ts"), "utf8");
-  const routesSource = readFileSync(path.join(process.cwd(), "src/admin/admin-session.routes.ts"), "utf8");
-  assert.match(loggerSource, /"req\.headers\.cookie"/);
-  assert.match(loggerSource, /"request\.headers\.cookie"/);
-  assert.doesNotMatch(`${sessionSource}\n${routesSource}`, /writeAuditLog|request\.log|console\./);
-});
-
-test("Admin Web reload restores access session through cookie refresh and expired session returns login state", async () => {
-  const calls: Array<{ url: string; init?: RequestInit }> = [];
-  const successful = new AdminSessionClient("https://api.example.test", async (url, init) => {
-    calls.push({ url, init });
-    return new Response(JSON.stringify({
-      accessToken: "memory-access-token",
-      accessTokenExpiresAt: "2026-08-12T12:00:00.000Z",
-      user: authResponse("unused").user,
-    }), { status: 200 });
-  });
-  assert.equal((await successful.restore())?.accessToken, "memory-access-token");
-  assert.equal(calls[0]?.url, "https://api.example.test/admin/session/refresh");
-  assert.equal(calls[0]?.init?.credentials, "include");
-  assert.equal(new Headers(calls[0]?.init?.headers).get("x-amoria-admin-session"), "1");
-
-  const expired = new AdminSessionClient("", async () => new Response(null, { status: 401 }));
-  assert.equal(await expired.restore(), null);
-  assert.equal(expired.getAccessToken(), undefined);
-});
-
-test("concurrent frontend refresh requests share exactly one cookie rotation", async () => {
-  let calls = 0;
-  let release: (() => void) | undefined;
-  const gate = new Promise<void>((resolve) => { release = resolve; });
-  const client = new AdminSessionClient("", async () => {
-    calls += 1;
-    await gate;
-    return new Response(JSON.stringify({
-      accessToken: "rotated-access-token",
-      accessTokenExpiresAt: "2026-08-12T12:00:00.000Z",
-      user: authResponse("unused").user,
-    }), { status: 200 });
-  });
-
-  const refreshes = [client.refresh(), client.refresh(), client.refresh(), client.refresh(), client.refresh()];
-  await Promise.resolve();
-  assert.equal(calls, 1);
-  release?.();
-  assert.deepEqual(await Promise.all(refreshes), [true, true, true, true, true]);
-  assert.equal(calls, 1);
-});
-
-test("Admin Web logout propagates backend failure while clearing the memory-only access token", async () => {
-  const client = new AdminSessionClient("", async (url) => {
-    if (url.endsWith("/admin/session/login")) {
-      return new Response(JSON.stringify({
-        accessToken: "memory-access-token",
-        accessTokenExpiresAt: "2026-08-12T12:00:00.000Z",
-        user: authResponse("unused").user,
-      }), { status: 200 });
-    }
-    return new Response(JSON.stringify({
-      error: { code: "logout_unavailable", message: "Logout unavailable" },
-    }), { status: 503 });
-  });
-
-  await client.login("owner@example.test", "password");
-  assert.equal(client.getAccessToken(), "memory-access-token");
-  await assert.rejects(client.logout(), /Logout unavailable/);
-  assert.equal(client.getAccessToken(), undefined);
-
-  const apiSource = readFileSync(path.join(process.cwd(), "admin-web/src/api.ts"), "utf8");
-  assert.doesNotMatch(apiSource, /adminSession\.logout\(\)\.catch/);
-
-  const appSource = readFileSync(path.join(process.cwd(), "admin-web/src/App.tsx"), "utf8");
-  const logoutBlock = appSource.slice(
-    appSource.indexOf("async function handleLogout"),
-    appSource.indexOf("const visibleScreens"),
-  );
-  assert.match(logoutBlock, /catch \(error\)[\s\S]*setMessage\([\s\S]*return;[\s\S]*clearTokens\(\)/);
-  assert.doesNotMatch(logoutBlock, /finally/);
-});
-
-test("mobile auth endpoint contracts remain unchanged and still include refreshToken in JSON schemas", () => {
-  const { loginRouteSchema, refreshRouteSchema } = require("../src/auth/auth.schemas") as typeof import("../src/auth/auth.schemas");
-  const loginRequired = loginRouteSchema.response[200].required;
-  const refreshRequired = refreshRouteSchema.response[200].required;
-  assert.equal(loginRequired.includes("refreshToken"), true);
-  assert.equal(refreshRequired.includes("refreshToken"), true);
-  const authRoutesSource = readFileSync(path.join(process.cwd(), "src/auth/auth.routes.ts"), "utf8");
-  assert.match(authRoutesSource, /"\/login"/);
-  assert.match(authRoutesSource, /"\/refresh"/);
-  assert.match(authRoutesSource, /"\/logout"/);
+test("security source has no production MFA bypass and no secret-bearing logging", () => {
+  const source = [
+    read("src/admin/admin-session.service.ts"),
+    read("src/admin/admin-session.routes.ts"),
+    read("src/admin/admin-mfa.repo.ts"),
+  ].join("\n");
+  assert.doesNotMatch(source, /MFA_BYPASS|SKIP_ADMIN_MFA|TEST_MFA_CODE|DISABLE_ADMIN_MFA/u);
+  assert.doesNotMatch(source, /console\.|request\.log/u);
+  assert.doesNotMatch(read("src/admin/admin-owner.bootstrap.ts"), /generatedPassword=/u);
+  assert.doesNotMatch(source, /localStorage|sessionStorage|indexedDB/u);
 });

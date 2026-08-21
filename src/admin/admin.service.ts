@@ -57,13 +57,23 @@ export function __setAdminServiceDepsForTests(
 
 export async function getAdminContextByUserId(userId: string): Promise<AdminContext> {
   const row = await deps.repo.findAdminContextByUserId(userId);
-  if (!row || row.adminUser.status !== "active") {
+  if (!row || row.adminUser.status !== "active" || (row.user.accountStatus ?? "active") !== "active") {
     throw forbidden("Admin access is required");
   }
 
   return {
     adminUser: toAdminUserWithRoles(row.adminUser, row.roles),
-    user: row.user,
+    user: {
+      id: row.user.id,
+      amoriaId: row.user.amoriaId,
+      displayName: row.user.displayName,
+      email: row.user.email,
+    },
+    security: {
+      adminSessionVersion: row.adminUser.sessionVersion ?? 0,
+      userAuthVersion: row.user.authVersion ?? 0,
+      mfaEnabled: row.mfaEnabled ?? false,
+    },
   };
 }
 

@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { unauthorized } from "../common/errors";
 import { withErrorResponses } from "../common/http";
-import { authMiddleware } from "../common/security/auth-middleware";
+import { adminAuthMiddleware as authMiddleware } from "./admin-auth.middleware";
 import { requireAdmin } from "./admin.guard";
 import {
   adminClientErrorActionRouteSchema,
@@ -96,6 +96,9 @@ import {
   parseAdminBulkPreviewBody,
 } from "./admin-bulk.schemas";
 import * as adminBulkService from "./admin-bulk.service";
+import { requireAdminNetworkAccess } from "./admin-network.guard";
+import { requireRecentStepUp } from "./admin-step-up.guard";
+import { resetAdminMfa } from "./admin-session.service";
 
 function currentAdmin(request: { admin?: AdminContext }): AdminContext {
   if (!request.admin) {
@@ -114,6 +117,12 @@ function adminRequestContext(request: FastifyRequest): AdminRequestContext {
 }
 
 export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
+  fastify.addHook("onRequest", requireAdminNetworkAccess);
+  fastify.addHook("onSend", async (_request, reply, payload) => {
+    if (!reply.getHeader("cache-control")) void reply.header("cache-control", "no-store");
+    void reply.header("pragma", "no-cache");
+    return payload;
+  });
   fastify.post(
     "/bulk-jobs/preview",
     {
@@ -127,7 +136,7 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.post<{ Params: { jobId: string } }>(
     "/bulk-jobs/:jobId/confirm",
     {
-      preHandler: [authMiddleware, requireAdmin(["owner", "moderator"])],
+      preHandler: [authMiddleware, requireAdmin(["owner", "moderator"]), requireRecentStepUp],
       schema: withErrorResponses(adminBulkConfirmRouteSchema),
     },
     async (request) => adminBulkService.confirmBulkJob(
@@ -269,7 +278,7 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.post(
     "/admin-users",
     {
-      preHandler: [authMiddleware, requireAdmin(["owner"])],
+      preHandler: [authMiddleware, requireAdmin(["owner"]), requireRecentStepUp],
       schema: withErrorResponses(adminCreateAdminUserRouteSchema),
     },
     async (request) => adminUserControlService.createAdminUserForOwner(
@@ -282,7 +291,7 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.post<{ Params: { adminUserId: string } }>(
     "/admin-users/:adminUserId",
     {
-      preHandler: [authMiddleware, requireAdmin(["owner"])],
+      preHandler: [authMiddleware, requireAdmin(["owner"]), requireRecentStepUp],
       schema: withErrorResponses(adminUpdateAdminUserRouteSchema),
     },
     async (request) => adminUserControlService.updateAdminUserForOwner(
@@ -291,6 +300,35 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
       parseAdminUpdateAdminUserBody(request.body),
       adminRequestContext(request),
     ),
+  );
+
+  fastify.post<{ Params: { adminUserId: string }; Body: { reason: string } }>(
+    "/admin-users/:adminUserId/mfa/reset",
+    {
+      preHandler: [authMiddleware, requireAdmin(["owner"]), requireRecentStepUp],
+      schema: withErrorResponses({
+        body: {
+          type: "object",
+          required: ["reason"],
+          additionalProperties: false,
+          properties: { reason: { type: "string", minLength: 3, maxLength: 500 } },
+        },
+        response: {
+          200: {
+            type: "object",
+            required: ["ok"],
+            additionalProperties: false,
+            properties: { ok: { type: "boolean", const: true } },
+          },
+        },
+      }),
+    },
+    async (request) => resetAdminMfa({
+      actor: currentAdmin(request),
+      targetAdminUserId: request.params.adminUserId,
+      reason: request.body.reason.trim(),
+      context: adminRequestContext(request),
+    }),
   );
 
   fastify.get<{ Params: { userId: string } }>(

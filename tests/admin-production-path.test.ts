@@ -13,6 +13,8 @@ test("production Compose builds and serves Admin Web only through a loopback por
   assert.match(compose, /VITE_ADMIN_API_URL: \$\{PUBLIC_API_URL:\?PUBLIC_API_URL is required\}/);
   assert.match(compose, /ADMIN_API_ORIGIN: \$\{PUBLIC_API_URL:\?PUBLIC_API_URL is required\}/);
   assert.match(compose, /127\.0\.0\.1:\$\{ADMIN_WEB_HOST_PORT:-4174\}:8080/);
+  assert.match(compose, /ADMIN_WEB_BIND_HOST: 0\.0\.0\.0/);
+  assert.match(compose, /ADMIN_WEB_ALLOW_ALL_INTERFACES: "true"/);
   assert.match(compose, /fetch\('http:\/\/127\.0\.0\.1:8080\/health'\)/);
   assert.match(compose, /read_only: true/);
 });
@@ -37,6 +39,11 @@ test("Admin Web runtime has a health identity, SPA fallback, and browser hardeni
   assert.match(server, /Content-Security-Policy/);
   assert.match(server, /frame-ancestors 'none'/);
   assert.match(server, /X-Content-Type-Options/);
+  assert.match(server, /ADMIN_WEB_BIND_HOST must be an explicit IP address/);
+  assert.match(server, /ADMIN_WEB_ALLOW_ALL_INTERFACES=true/);
+  assert.match(server, /const host = adminWebBindHost/);
+  assert.match(server, /server\.listen\(port, host/);
+  assert.doesNotMatch(server, /server\.listen\(port, "0\.0\.0\.0"/);
   assert.match(server, /startsWith\(`\$\{distDirectory\}\$\{path\.sep\}`\)/);
 
   const vite = read("admin-web/vite.config.ts");

@@ -7,7 +7,9 @@ import {
   useMemo,
   useRef,
   useState,
+  type ReactNode,
 } from "react";
+import { QRCodeSVG } from "qrcode.react";
 import {
   AdminMe,
   AdminNearbyActivityDemand,
@@ -41,6 +43,8 @@ import {
   apiGet,
   apiPost,
   clearTokens,
+  confirmAdminMfaEnrollment,
+  confirmAdminStepUp,
   createNearbyRoomFromDemand,
   CreateNearbyRoomFromDemandPayload,
   getAdminNearbyActivityDemand,
@@ -49,7 +53,10 @@ import {
   probePublicMediaUrl,
   resolveApiUrl,
   restoreAdminSession,
+  regenerateAdminRecoveryCodes,
+  resetOwnAdminMfa,
   toQuery,
+  verifyAdminMfa,
 } from "./api";
 import {
   interpolate,
@@ -81,7 +88,8 @@ type Screen =
   | "opsHealth"
   | "nearbyDiagnostics"
   | "nearbyRooms"
-  | "bootstrap";
+  | "bootstrap"
+  | "security";
 
 type ScreenItem = {
   key: Screen;
@@ -152,6 +160,7 @@ const screens: ScreenItem[] = [
   { key: "opsHealth", labelKey: "nav.opsHealth", roles: ["owner", "support", "ops"] },
   { key: "nearbyDiagnostics", labelKey: "nav.nearbyDiagnostics", roles: ["owner", "ops"] },
   { key: "nearbyRooms", labelKey: "nav.nearbyRooms", roles: ["owner", "moderator", "support", "ops"] },
+  { key: "security", labelKey: "nav.security" },
   { key: "bootstrap", labelKey: "nav.bootstrap", ownerOnly: true },
 ];
 
@@ -163,6 +172,86 @@ type I18nContextValue = {
 };
 
 const I18nContext = createContext<I18nContextValue | null>(null);
+
+type StepUpContextValue = {
+  run<T>(operation: () => Promise<T>): Promise<T>;
+};
+
+const StepUpContext = createContext<StepUpContextValue | null>(null);
+
+function StepUpProvider({ children }: { children: ReactNode }) {
+  const { t } = useI18n();
+  const [open, setOpen] = useState(false);
+  const [code, setCode] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+  const resolver = useRef<((accepted: boolean) => void) | null>(null);
+
+  function requestConfirmation(): Promise<boolean> {
+    setCode("");
+    setError(null);
+    setOpen(true);
+    return new Promise((resolve) => { resolver.current = resolve; });
+  }
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setError(null);
+    setPending(true);
+    try {
+      await confirmAdminStepUp(code);
+      setOpen(false);
+      resolver.current?.(true);
+      resolver.current = null;
+    } catch (nextError) {
+      setError(errorMessage(nextError, t));
+    } finally {
+      setPending(false);
+    }
+  }
+
+  function cancel() {
+    setOpen(false);
+    resolver.current?.(false);
+    resolver.current = null;
+  }
+
+  const value = useMemo<StepUpContextValue>(() => ({
+    async run<T>(operation: () => Promise<T>): Promise<T> {
+      try {
+        return await operation();
+      } catch (operationError) {
+        if ((operationError as { code?: unknown } | null)?.code !== "step_up_required") throw operationError;
+        if (!await requestConfirmation()) throw operationError;
+        return operation();
+      }
+    },
+  }), []);
+
+  return <StepUpContext.Provider value={value}>
+    {children}
+    {open ? <div className="modal-backdrop" role="presentation">
+      <form className="modal-card stack-form" role="dialog" aria-modal="true" onSubmit={submit}>
+        <h2>{t("security.stepUpTitle")}</h2>
+        <p>{t("security.stepUpDescription")}</p>
+        <label>{t("security.authenticatorCode")}<input
+          autoFocus inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}"
+          value={code} onChange={(event) => setCode(event.target.value.replace(/\D/gu, "").slice(0, 6))}
+          required
+        /></label>
+        {error ? <div className="error">{error}</div> : null}
+        <div className="filters"><button disabled={pending || code.length !== 6}>{t("common.confirm")}</button>
+          <button className="secondary" type="button" disabled={pending} onClick={cancel}>{t("common.cancel")}</button></div>
+      </form>
+    </div> : null}
+  </StepUpContext.Provider>;
+}
+
+function useStepUp(): StepUpContextValue {
+  const value = useContext(StepUpContext);
+  if (!value) throw new Error("Step-up context is missing");
+  return value;
+}
 
 export function App() {
   const [language, setLanguageState] = useState<Language>(() => loadLanguage());
@@ -367,13 +456,18 @@ export function App() {
           {activeScreen === "nearbyRooms" ? (
             <NearbyRoomsScreen canManageRooms={canManageNearbyRooms} setMessage={setMessage} />
           ) : null}
+          {activeScreen === "security" ? <AdminSecurityScreen onReset={() => {
+            clearTokens();
+            setAdminMe(null);
+            setAuthState("login");
+          }} /> : null}
           {activeScreen === "bootstrap" ? <BootstrapScreen /> : null}
         </main>
       </div>
     );
   }
 
-  return <I18nContext.Provider value={i18n}>{content}</I18nContext.Provider>;
+  return <I18nContext.Provider value={i18n}><StepUpProvider>{content}</StepUpProvider></I18nContext.Provider>;
 }
 
 type TurnBasedAdminMoment = {
@@ -514,34 +608,133 @@ function LoginScreen({
   const { t } = useI18n();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [phase, setPhase] = useState<"password" | "mfa" | "enroll" | "recovery_once">("password");
+  const [enrollment, setEnrollment] = useState<{ manualKey: string; otpauthUri: string } | null>(null);
+  const [method, setMethod] = useState<"totp" | "recovery">("totp");
+  const [code, setCode] = useState("");
+  const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
+  const [remainingRecoveryCodes, setRemainingRecoveryCodes] = useState<number | null>(null);
+  const [pendingAdmin, setPendingAdmin] = useState<AdminMe | null>(null);
+  const [recoveryUsed, setRecoveryUsed] = useState(false);
   const [error, setError] = useState<string | null>(initialError);
   const loginRequest = useRequestLock();
 
-  async function submit(event: FormEvent) {
+  async function submitPassword(event: FormEvent) {
     event.preventDefault();
     setError(null);
     await loginRequest.run(async () => {
       try {
-        await login(email, password);
-        const me = await apiGet<AdminMe>("/admin/me");
-        onLogin(me);
+        const next = await login(email, password);
+        setPassword("");
+        setCode("");
+        setMethod("totp");
+        if (next.state === "enrollment_required") {
+          setEnrollment(next.enrollment);
+          setPhase("enroll");
+        } else {
+          setEnrollment(null);
+          setPhase("mfa");
+        }
       } catch (error) {
         clearTokens();
-        const status = error instanceof ApiError
-          ? error.status
-          : (error as { status?: unknown } | null)?.status;
-        if (status === 403) {
-          setError(t("auth.loginForbidden"));
-        } else {
-          setError(error instanceof Error ? error.message : t("auth.loginFailed"));
-        }
+        setError(error instanceof Error ? error.message : t("auth.loginFailed"));
       }
     });
   }
 
+  async function submitMfa(event: FormEvent) {
+    event.preventDefault();
+    setError(null);
+    await loginRequest.run(async () => {
+      try {
+        const completion = phase === "enroll"
+          ? await confirmAdminMfaEnrollment(code)
+          : await verifyAdminMfa(method, code);
+        setCode("");
+        setRemainingRecoveryCodes(completion.remainingRecoveryCodes);
+        setRecoveryUsed(completion.recoveryUsed);
+        const requiresOneTimeScreen = Boolean(completion.recoveryCodes?.length || completion.recoveryUsed);
+        if (requiresOneTimeScreen) {
+          setRecoveryCodes(completion.recoveryCodes ?? []);
+          setPhase("recovery_once");
+        }
+        const me = await apiGet<AdminMe>("/admin/me");
+        if (requiresOneTimeScreen) {
+          setPendingAdmin(me);
+        } else {
+          onLogin(me);
+        }
+      } catch (nextError) {
+        setError(errorMessage(nextError, t));
+      }
+    });
+  }
+
+  function downloadRecoveryCodes() {
+    if (!recoveryCodes.length) return;
+    const blob = new Blob([`${recoveryCodes.join("\n")}\n`], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "amoria-admin-recovery-codes.txt";
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  if (phase === "recovery_once") {
+    return <div className="login-shell"><div className="login-form stack-form">
+      <h1>{recoveryCodes.length ? t("security.recoveryCodesTitle") : t("security.recoveryUsedTitle")}</h1>
+      {recoveryCodes.length ? <>
+        <p className="notice">{t("security.recoveryCodesOnce")}</p>
+        <div className="recovery-code-grid">{recoveryCodes.map((item) => <code key={item}>{item}</code>)}</div>
+        <div className="filters">
+          <button type="button" onClick={() => void navigator.clipboard.writeText(recoveryCodes.join("\n"))}>{t("security.copyCodes")}</button>
+          <button className="secondary" type="button" onClick={downloadRecoveryCodes}>{t("security.downloadCodes")}</button>
+        </div>
+      </> : null}
+      {recoveryUsed ? <div className="notice">{t("security.recoveryUsedWarning")} {remainingRecoveryCodes ?? 0}</div> : null}
+      {error ? <div className="error">{error}</div> : null}
+      <button disabled={!pendingAdmin} onClick={() => {
+        const admin = pendingAdmin;
+        setRecoveryCodes([]);
+        setPendingAdmin(null);
+        if (admin) onLogin(admin);
+      }}>{t("common.continue")}</button>
+    </div></div>;
+  }
+
+  if (phase === "mfa" || phase === "enroll") {
+    const enrollmentPhase = phase === "enroll";
+    return <div className="login-shell"><form className="login-form" onSubmit={submitMfa}>
+      <div className="brand login-brand"><div className="brand-mark">A</div><div><strong>Amoria</strong><span>{t("app.brandSubtitle")}</span></div></div>
+      <LanguageSwitcher />
+      <h1>{t(enrollmentPhase ? "security.enrollTitle" : "security.mfaTitle")}</h1>
+      {enrollmentPhase && enrollment ? <>
+        <p>{t("security.enrollDescription")}</p>
+        <div className="qr-panel"><QRCodeSVG value={enrollment.otpauthUri} size={220} level="M" /></div>
+        <label>{t("security.manualKey")}<code className="manual-key">{enrollment.manualKey}</code></label>
+      </> : <div className="filters">
+        <button className={method === "totp" ? "" : "secondary"} type="button" onClick={() => { setMethod("totp"); setCode(""); }}>{t("security.authenticator")}</button>
+        <button className={method === "recovery" ? "" : "secondary"} type="button" onClick={() => { setMethod("recovery"); setCode(""); }}>{t("security.recoveryCode")}</button>
+      </div>}
+      <label>{t(method === "totp" || enrollmentPhase ? "security.authenticatorCode" : "security.recoveryCode")}
+        <input autoFocus autoComplete="one-time-code" inputMode={method === "totp" ? "numeric" : "text"}
+          pattern={method === "totp" || enrollmentPhase ? "[0-9]{6}" : undefined}
+          value={code} onChange={(event) => setCode((method === "totp" || enrollmentPhase)
+            ? event.target.value.replace(/\D/gu, "").slice(0, 6)
+            : event.target.value.toUpperCase().slice(0, 64))} required />
+      </label>
+      {error ? <div className="error">{error}</div> : null}
+      <button disabled={loginRequest.pending || ((method === "totp" || enrollmentPhase) && code.length !== 6)}>{t("common.confirm")}</button>
+      <button className="secondary" type="button" disabled={loginRequest.pending} onClick={() => {
+        setPhase("password"); setEnrollment(null); setCode(""); setError(null);
+      }}>{t("common.backToLogin")}</button>
+    </form></div>;
+  }
+
   return (
     <div className="login-shell">
-      <form className="login-form" onSubmit={submit}>
+      <form className="login-form" onSubmit={submitPassword}>
         <div className="brand login-brand">
           <div className="brand-mark">A</div>
           <div>
@@ -576,6 +769,52 @@ function ForbiddenScreen({ error, onLogout }: { error: string | null; onLogout: 
       <button onClick={onLogout}>{t("common.backToLogin")}</button>
     </div>
   );
+}
+
+function AdminSecurityScreen({ onReset }: { onReset: () => void }) {
+  const { t } = useI18n();
+  const stepUp = useStepUp();
+  const [codes, setCodes] = useState<string[]>([]);
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const request = useRequestLock();
+
+  async function regenerate() {
+    await request.run(async () => {
+      try {
+        const result = await stepUp.run(regenerateAdminRecoveryCodes);
+        setCodes(result.recoveryCodes);
+        setError(null);
+      } catch (nextError) { setError(errorMessage(nextError, t)); }
+    });
+  }
+
+  async function resetMfa() {
+    if (reason.trim().length < 3 || !window.confirm(t("security.resetMfaConfirm"))) return;
+    await request.run(async () => {
+      try {
+        await stepUp.run(() => resetOwnAdminMfa(reason.trim()));
+        setCodes([]);
+        onReset();
+      } catch (nextError) { setError(errorMessage(nextError, t)); }
+    });
+  }
+
+  return <section className="panel stack-form">
+    <h2>{t("security.title")}</h2>
+    <p>{t("security.description")}</p>
+    {error ? <div className="error">{error}</div> : null}
+    <button type="button" disabled={request.pending} onClick={() => void regenerate()}>{t("security.regenerateCodes")}</button>
+    {codes.length ? <div className="inset-panel stack-form">
+      <div className="notice">{t("security.recoveryCodesOnce")}</div>
+      <div className="recovery-code-grid">{codes.map((code) => <code key={code}>{code}</code>)}</div>
+      <div className="filters"><button type="button" onClick={() => void navigator.clipboard.writeText(codes.join("\n"))}>{t("security.copyCodes")}</button>
+        <button className="secondary" type="button" onClick={() => setCodes([])}>{t("security.hideCodes")}</button></div>
+    </div> : null}
+    <hr />
+    <label>{t("common.reason")}<input value={reason} minLength={3} maxLength={500} onChange={(event) => setReason(event.target.value)} /></label>
+    <button className="danger" type="button" disabled={request.pending || reason.trim().length < 3} onClick={() => void resetMfa()}>{t("security.resetOwnMfa")}</button>
+  </section>;
 }
 
 function Dashboard({
@@ -842,6 +1081,7 @@ function UsersScreen({ initialSearch, canControlUsers, setMessage }: {
 
 function AdminUsersScreen() {
   const { language, t } = useI18n();
+  const stepUp = useStepUp();
   const { data, error, reload } = useLoad<{ items: AdminUserItem[]; nextCursor: null }>("/admin/admin-users");
   const [items, setItems] = useState<AdminUserItem[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -859,10 +1099,23 @@ function AdminUsersScreen() {
     event.preventDefault(); setMutationError(null);
     await mutationRequest.run(async () => {
       try {
-        const response = await apiPost<{ items: AdminUserItem[] }>(selectedId ? `/admin/admin-users/${selectedId}` : "/admin/admin-users",
-          selectedId ? { status, roles, reason } : { userId, roles, reason });
+        const response = await stepUp.run(() => apiPost<{ items: AdminUserItem[] }>(
+          selectedId ? `/admin/admin-users/${selectedId}` : "/admin/admin-users",
+          selectedId ? { status, roles, reason } : { userId, roles, reason },
+        ));
         setItems(response.items); reset();
       } catch (error) { setMutationError(errorMessage(error, t)); }
+    });
+  }
+
+  async function resetSelectedMfa() {
+    if (!selectedId || reason.trim().length < 3 || !window.confirm(t("security.resetMfaConfirm"))) return;
+    await mutationRequest.run(async () => {
+      try {
+        await stepUp.run(() => apiPost(`/admin/admin-users/${selectedId}/mfa/reset`, { reason }));
+        setMutationError(null);
+        setReason("");
+      } catch (nextError) { setMutationError(errorMessage(nextError, t)); }
     });
   }
 
@@ -886,7 +1139,9 @@ function AdminUsersScreen() {
         <fieldset><legend>{t("common.roles")}</legend>{["owner", "moderator", "support", "ops"].map((role) =>
           <label key={role} className="inline-check"><input type="checkbox" checked={roles.includes(role)} onChange={() => toggleRole(role)} />{formatRoles([role], t)}</label>)}</fieldset>
         <label>{t("common.reason")}<input value={reason} onChange={(event) => setReason(event.target.value)} minLength={3} maxLength={500} required /></label>
-        <div className="filters"><button disabled={mutationRequest.pending || !roles.length}>{t("common.apply")}</button>{selectedId ? <button className="secondary" type="button" disabled={mutationRequest.pending} onClick={reset}>{t("common.cancel")}</button> : null}</div>
+        <div className="filters"><button disabled={mutationRequest.pending || !roles.length}>{t("common.apply")}</button>
+          {selectedId ? <button className="danger" type="button" disabled={mutationRequest.pending || reason.trim().length < 3} onClick={() => void resetSelectedMfa()}>{t("security.resetMfa")}</button> : null}
+          {selectedId ? <button className="secondary" type="button" disabled={mutationRequest.pending} onClick={reset}>{t("common.cancel")}</button> : null}</div>
       </form>
       {items.length ? (
         <DataTable
@@ -918,6 +1173,7 @@ function AdminUsersScreen() {
 
 function BulkModerationScreen({ isOwner, setMessage }: { isOwner: boolean; setMessage: (message: string | null) => void }) {
   const { t } = useI18n();
+  const stepUp = useStepUp();
   const [kind, setKind] = useState("media_scan");
   const [action, setAction] = useState("scan");
   const [reason, setReason] = useState("");
@@ -948,7 +1204,7 @@ function BulkModerationScreen({ isOwner, setMessage }: { isOwner: boolean; setMe
     if (!job || !window.confirm(t("bulk.confirmWarning"))) return;
     await mutationRequest.run(async () => {
       try {
-        const response = await apiPost<{ job: AdminBulkJob }>(`/admin/bulk-jobs/${job.id}/confirm`, { confirmationToken });
+        const response = await stepUp.run(() => apiPost<{ job: AdminBulkJob }>(`/admin/bulk-jobs/${job.id}/confirm`, { confirmationToken }));
         setJob(response.job); setMessage(t("bulk.completed"));
       } catch (error) { setError(errorMessage(error, t)); }
     });

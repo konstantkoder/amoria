@@ -1,4 +1,9 @@
-import { AdminSessionClient, type AdminAccessSession } from "./admin-session";
+import {
+  AdminSessionClient,
+  type AdminAccessSession,
+  type AdminMfaCompletion,
+  type AdminPasswordStage,
+} from "./admin-session";
 
 const API_BASE_URL = (import.meta.env.VITE_ADMIN_API_URL || "").replace(/\/+$/, "");
 const adminSession = new AdminSessionClient(API_BASE_URL);
@@ -581,8 +586,28 @@ export async function restoreAdminSession(): Promise<AdminAccessSession | null> 
   return adminSession.restore();
 }
 
-export async function login(email: string, password: string): Promise<AdminAccessSession> {
+export async function login(email: string, password: string): Promise<AdminPasswordStage> {
   return adminSession.login(email, password);
+}
+
+export async function verifyAdminMfa(method: "totp" | "recovery", code: string): Promise<AdminMfaCompletion> {
+  return adminSession.verifyMfa(method, code);
+}
+
+export async function confirmAdminMfaEnrollment(code: string): Promise<AdminMfaCompletion> {
+  return adminSession.confirmEnrollment(code);
+}
+
+export async function confirmAdminStepUp(code: string): Promise<{ ok: true; expiresAt: string }> {
+  return adminSession.stepUp(code);
+}
+
+export async function regenerateAdminRecoveryCodes(): Promise<{ recoveryCodes: string[] }> {
+  return adminSession.regenerateRecoveryCodes();
+}
+
+export async function resetOwnAdminMfa(reason: string): Promise<void> {
+  return adminSession.resetMfa(reason);
 }
 
 export async function logout(): Promise<void> {
@@ -749,6 +774,7 @@ async function fetchWithAuth(
   return fetch(`${API_BASE_URL}${path}`, {
     ...options,
     headers,
+    credentials: "include",
   });
 }
 

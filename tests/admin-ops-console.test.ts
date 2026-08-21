@@ -22,6 +22,7 @@ process.env.UPLOADS_DIR = "./uploads-test";
 
 const { buildApp } = require("../src/app") as typeof import("../src/app");
 const { signAccessToken } = require("../src/auth/jwt") as typeof import("../src/auth/jwt");
+const { signAdminAccessTokenWithExpiry } = require("../src/admin/admin-jwt") as typeof import("../src/admin/admin-jwt");
 const { verifyPassword } = require("../src/auth/passwords") as typeof import("../src/auth/passwords");
 const { closeDb } = require("../src/db/client") as typeof import("../src/db/client");
 const adminService = require("../src/admin/admin.service") as typeof import("../src/admin/admin.service");
@@ -1410,7 +1411,7 @@ function restoreDeps(): void {
 
 function authHeaders(id: string) {
   return {
-    Authorization: `Bearer ${signAccessToken(id)}`,
+    Authorization: `Bearer ${signAdminAccessTokenWithExpiry({ userId: id, adminUserId, adminSessionVersion: 0, userAuthVersion: 0 }).accessToken}`,
   };
 }
 
@@ -1426,8 +1427,11 @@ function adminContextRow(roles: AdminRoleKey[], user = userRow({})): AdminContex
       amoriaId: user.amoriaId,
       displayName: user.displayName,
       email: user.email,
+      accountStatus: "active",
+      authVersion: 0,
     },
     roles,
+    mfaEnabled: true,
   };
 }
 
@@ -1441,6 +1445,7 @@ function adminUserRow(
     email: "owner@example.test",
     displayName: "Amoria Owner",
     status: "active",
+    sessionVersion: 0,
     createdAt: now,
     updatedAt: now,
     ...input,

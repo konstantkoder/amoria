@@ -352,22 +352,34 @@ export async function login(
   context: AuthRequestContext = {},
 ): Promise<AuthResponse> {
   const email = normalizeEmail(input.email);
-  const password = normalizePassword(input.password);
   await registrationAbuseGuard.check("login", email, context);
+  let user: UserRow;
+  try {
+    user = await verifyPasswordCredentials(input);
+  } catch (error) {
+    if (error instanceof AppError && error.code === "invalid_credentials") {
+      await registrationAbuseGuard.recordFailure("login", email, context);
+    }
+    throw error;
+  }
+  const refreshToken = await issueRefreshToken(user, context);
+  return buildAuthResponse(user, refreshToken);
+}
+
+/** Verifies the primary credential without creating any access or refresh token. */
+export async function verifyPasswordCredentials(input: LoginBody): Promise<UserRow> {
+  const email = normalizeEmail(input.email);
+  const password = normalizePassword(input.password);
   const user = await findUserByEmail(email);
   const passwordMatches = await verifyPassword(password, user?.passwordHash ?? dummyPasswordHash);
-  if (!user || !passwordMatches) {
-    await registrationAbuseGuard.recordFailure("login", email, context);
-    throw invalidCredentials();
-  }
+  if (!user || !passwordMatches) throw invalidCredentials();
   if (!user.emailVerifiedAt) {
     throw new AppError("email_not_verified", "Email verification is required", 403, {
       email: user.email,
     });
   }
   assertAccountActive(user);
-  const refreshToken = await issueRefreshToken(user, context);
-  return buildAuthResponse(user, refreshToken);
+  return user;
 }
 
 export async function verifyEmail(

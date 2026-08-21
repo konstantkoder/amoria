@@ -1,5 +1,6 @@
 import { relations, sql } from "drizzle-orm";
 import {
+  bigint,
   boolean,
   check,
   date,
@@ -168,11 +169,127 @@ export const adminUsers = pgTable(
     email: text("email"),
     displayName: text("display_name"),
     status: text("status").default("active").notNull(),
+    sessionVersion: integer("session_version").default(0).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
     check("admin_users_status_check", sql`${table.status} IN ('active', 'disabled')`),
+    check("admin_users_session_version_check", sql`${table.sessionVersion} >= 0`),
+  ],
+);
+
+export const adminMfaCredentials = pgTable(
+  "admin_mfa_credentials",
+  {
+    adminUserId: uuid("admin_user_id")
+      .primaryKey()
+      .references(() => adminUsers.id, { onDelete: "cascade" }),
+    secretCiphertext: text("secret_ciphertext").notNull(),
+    secretIv: text("secret_iv").notNull(),
+    secretAuthTag: text("secret_auth_tag").notNull(),
+    keyVersion: integer("key_version").default(1).notNull(),
+    status: text("status").default("pending").notNull(),
+    lastAcceptedCounter: bigint("last_accepted_counter", { mode: "number" }),
+    enabledAt: timestamp("enabled_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    check("admin_mfa_credentials_status_check", sql`${table.status} IN ('pending', 'enabled')`),
+    check("admin_mfa_credentials_counter_check", sql`${table.lastAcceptedCounter} IS NULL OR ${table.lastAcceptedCounter} >= 0`),
+    check(
+      "admin_mfa_credentials_enabled_check",
+      sql`(${table.status} = 'enabled' AND ${table.enabledAt} IS NOT NULL) OR (${table.status} = 'pending' AND ${table.enabledAt} IS NULL)`,
+    ),
+  ],
+);
+
+export const adminMfaPreAuthChallenges = pgTable(
+  "admin_mfa_pre_auth_challenges",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    adminUserId: uuid("admin_user_id").notNull().references(() => adminUsers.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull().unique(),
+    flow: text("flow").notNull(),
+    ipHash: text("ip_hash"),
+    userAgentHash: text("user_agent_hash"),
+    attemptCount: integer("attempt_count").default(0).notNull(),
+    maxAttempts: integer("max_attempts").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    consumedAt: timestamp("consumed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("admin_mfa_pre_auth_admin_expiry_idx").on(table.adminUserId, table.expiresAt),
+    index("admin_mfa_pre_auth_expiry_idx").on(table.expiresAt),
+    check("admin_mfa_pre_auth_flow_check", sql`${table.flow} IN ('enroll', 'verify')`),
+    check(
+      "admin_mfa_pre_auth_attempts_check",
+      sql`${table.attemptCount} >= 0 AND ${table.maxAttempts} > 0 AND ${table.attemptCount} <= ${table.maxAttempts}`,
+    ),
+  ],
+);
+
+export const adminMfaRecoveryCodes = pgTable(
+  "admin_mfa_recovery_codes",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    adminUserId: uuid("admin_user_id").notNull().references(() => adminUsers.id, { onDelete: "cascade" }),
+    generationId: uuid("generation_id").notNull(),
+    codeHash: text("code_hash").notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique("admin_mfa_recovery_code_hash_unique").on(table.adminUserId, table.codeHash),
+    index("admin_mfa_recovery_admin_unused_idx").on(table.adminUserId, table.usedAt),
+  ],
+);
+
+export const adminSessions = pgTable(
+  "admin_sessions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    familyId: uuid("family_id").notNull(),
+    adminUserId: uuid("admin_user_id").notNull().references(() => adminUsers.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull().unique(),
+    adminSessionVersion: integer("admin_session_version").notNull(),
+    userAuthVersion: integer("user_auth_version").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    replacedBySessionId: uuid("replaced_by_session_id"),
+    deviceId: text("device_id"),
+    userAgent: text("user_agent"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("admin_sessions_admin_active_idx").on(table.adminUserId, table.expiresAt),
+    index("admin_sessions_family_idx").on(table.familyId),
+    index("admin_sessions_expiry_idx").on(table.expiresAt),
+    check(
+      "admin_sessions_versions_check",
+      sql`${table.adminSessionVersion} >= 0 AND ${table.userAuthVersion} >= 0`,
+    ),
+  ],
+);
+
+export const adminStepUpSessions = pgTable(
+  "admin_step_up_sessions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    adminUserId: uuid("admin_user_id").notNull().references(() => adminUsers.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull().unique(),
+    adminSessionVersion: integer("admin_session_version").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("admin_step_up_admin_expiry_idx").on(table.adminUserId, table.expiresAt),
+    index("admin_step_up_expiry_idx").on(table.expiresAt),
+    check("admin_step_up_version_check", sql`${table.adminSessionVersion} >= 0`),
   ],
 );
 

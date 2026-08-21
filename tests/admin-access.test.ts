@@ -15,6 +15,7 @@ process.env.UPLOADS_DIR = "./uploads-test";
 
 const { buildApp } = require("../src/app") as typeof import("../src/app");
 const { signAccessToken } = require("../src/auth/jwt") as typeof import("../src/auth/jwt");
+const { signAdminAccessTokenWithExpiry } = require("../src/admin/admin-jwt") as typeof import("../src/admin/admin-jwt");
 const { closeDb } = require("../src/db/client") as typeof import("../src/db/client");
 const adminService = require("../src/admin/admin.service") as typeof import("../src/admin/admin.service");
 
@@ -67,11 +68,11 @@ test("normal authenticated user cannot access /admin/health", async (t) => {
   const response = await app.inject({
     method: "GET",
     url: "/admin/health",
-    headers: authHeaders(userId),
+    headers: mobileAuthHeaders(userId),
   });
 
-  assert.equal(response.statusCode, 403);
-  assert.equal(response.json().error.code, "forbidden");
+  assert.equal(response.statusCode, 401);
+  assert.equal(response.json().error.code, "unauthorized");
 });
 
 test("active admin can access /admin/health", async (t) => {
@@ -90,6 +91,7 @@ test("active admin can access /admin/health", async (t) => {
   const body = response.json();
 
   assert.equal(response.statusCode, 200);
+  assert.equal(response.headers["cache-control"], "no-store");
   assert.equal(body.ok, true);
   assert.equal(body.service, "amoria-admin");
   assert.equal(body.admin.id, adminUserId);
@@ -289,7 +291,7 @@ test("owner can access /admin/admin-users without secrets", async (t) => {
   assert.deepEqual(state.auditInputs[0]?.metadata, { resultCount: 1 });
 });
 
-for (const role of ["support", "ops"] as const) {
+for (const role of ["support", "moderator", "ops"] as const) {
   test(`${role} cannot access owner-only /admin/admin-users`, async (t) => {
     t.after(restoreAdminDeps);
     const state = mockAdmin({ roles: [role] });
@@ -406,8 +408,17 @@ function restoreAdminDeps(): void {
 
 function authHeaders(id: string) {
   return {
-    Authorization: `Bearer ${signAccessToken(id)}`,
+    Authorization: `Bearer ${signAdminAccessTokenWithExpiry({
+      userId: id,
+      adminUserId,
+      adminSessionVersion: 0,
+      userAuthVersion: 0,
+    }).accessToken}`,
   };
+}
+
+function mobileAuthHeaders(id: string) {
+  return { Authorization: `Bearer ${signAccessToken(id)}` };
 }
 
 function adminContextRow(input: {
@@ -421,8 +432,11 @@ function adminContextRow(input: {
       amoriaId: "AMOWNER1",
       displayName: "Admin Owner",
       email: "owner@example.test",
+      accountStatus: "active",
+      authVersion: 0,
     },
     roles: input.roles,
+    mfaEnabled: true,
   };
 }
 
@@ -435,6 +449,7 @@ function adminUserRow(input: Partial<AdminContextRow["adminUser"]>): AdminContex
     email: "owner@example.test",
     displayName: "Admin Owner",
     status: "active",
+    sessionVersion: 0,
     createdAt: now,
     updatedAt: now,
     ...input,

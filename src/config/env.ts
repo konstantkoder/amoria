@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import dotenv from "dotenv";
+import { parseCidr } from "../common/security/ip-cidr";
 
 const envPaths = [
   path.resolve(process.cwd(), ".env"),
@@ -58,6 +59,47 @@ function productionSecret(name: string, value: string, minimumLength = 32): stri
   }
 
   return value;
+}
+
+export type AdminNetworkAccessMode = "development_local" | "private_cidr" | "disabled";
+
+export function parseAdminNetworkAccessMode(value: string, nodeEnv: string): AdminNetworkAccessMode {
+  const normalized = value.trim() || (nodeEnv === "production" ? "disabled" : "development_local");
+  if (!(["development_local", "private_cidr", "disabled"] as const).includes(normalized as AdminNetworkAccessMode)) {
+    throw new Error("ADMIN_NETWORK_ACCESS_MODE must be development_local, private_cidr, or disabled");
+  }
+  if (nodeEnv === "production" && normalized === "development_local") {
+    throw new Error("ADMIN_NETWORK_ACCESS_MODE=development_local is forbidden in production");
+  }
+  return normalized as AdminNetworkAccessMode;
+}
+
+export function parseAdminAllowedCidrs(value: string, mode: AdminNetworkAccessMode): string[] {
+  const cidrs = [...new Set(value.split(",").map((entry) => entry.trim()).filter(Boolean))];
+  if (mode === "private_cidr" && cidrs.length === 0) {
+    throw new Error("ADMIN_ALLOWED_CIDRS is required for ADMIN_NETWORK_ACCESS_MODE=private_cidr");
+  }
+  if (mode !== "private_cidr" && cidrs.length > 0) {
+    throw new Error("ADMIN_ALLOWED_CIDRS may only be set for ADMIN_NETWORK_ACCESS_MODE=private_cidr");
+  }
+  for (const cidr of cidrs) parseCidr(cidr);
+  return cidrs;
+}
+
+export function decodeAdminMfaEncryptionKey(value: string): Buffer {
+  const normalized = value.trim();
+  let decoded: Buffer;
+  if (/^[0-9a-f]{64}$/iu.test(normalized)) {
+    decoded = Buffer.from(normalized, "hex");
+  } else if (/^[A-Za-z0-9+/_-]+={0,2}$/u.test(normalized)) {
+    decoded = Buffer.from(normalized.replace(/-/g, "+").replace(/_/g, "/"), "base64");
+  } else {
+    throw new Error("ADMIN_MFA_ENCRYPTION_KEY must be 32 bytes encoded as base64, base64url, or hex");
+  }
+  if (decoded.length !== 32) {
+    throw new Error("ADMIN_MFA_ENCRYPTION_KEY must decode to exactly 32 bytes");
+  }
+  return decoded;
 }
 
 export type TrustProxyConfiguration = false | number | string[];
@@ -276,6 +318,16 @@ const authSecurityHmacSecret = process.env.AUTH_SECURITY_HMAC_SECRET?.trim()
   || (nodeEnv === "production" ? "" : "development-only-auth-security-hmac-secret");
 const messageAbuseHmacSecret = process.env.MESSAGE_ABUSE_HMAC_SECRET?.trim()
   || (nodeEnv === "production" ? "" : authSecurityHmacSecret);
+const adminMfaEncryptionKey = process.env.ADMIN_MFA_ENCRYPTION_KEY?.trim()
+  || (nodeEnv === "production" ? "" : "YW1vcmlhLWFkbWluLW1mYS1sb2NhbC10ZXN0LWtleQA=");
+const adminNetworkAccessMode = parseAdminNetworkAccessMode(
+  optional("ADMIN_NETWORK_ACCESS_MODE", ""),
+  nodeEnv,
+);
+const adminAllowedCidrs = parseAdminAllowedCidrs(
+  optional("ADMIN_ALLOWED_CIDRS", ""),
+  adminNetworkAccessMode,
+);
 const messageAbuseRetentionHours = parsePositiveInteger(
   "MESSAGE_ABUSE_RETENTION_HOURS",
   optional("MESSAGE_ABUSE_RETENTION_HOURS", "48"),
@@ -362,6 +414,15 @@ if (nodeEnv === "production") {
   productionSecret("MESSAGE_ABUSE_HMAC_SECRET", messageAbuseHmacSecret);
   productionSecret("S3_ACCESS_KEY", s3AccessKey, 12);
   productionSecret("S3_SECRET_KEY", s3SecretKey);
+  if (!adminMfaEncryptionKey) throw new Error("ADMIN_MFA_ENCRYPTION_KEY is required in production");
+  const decodedAdminMfaKey = decodeAdminMfaEncryptionKey(adminMfaEncryptionKey);
+  const normalizedAdminMfaKey = adminMfaEncryptionKey.toLowerCase();
+  if (
+    unsafeProductionValueFragments.some((fragment) => normalizedAdminMfaKey.includes(fragment)) ||
+    new Set(decodedAdminMfaKey).size < 8
+  ) {
+    throw new Error("ADMIN_MFA_ENCRYPTION_KEY must be a high-entropy non-sample value in production");
+  }
   if (!/^[0-9a-f]{40}$/i.test(releaseSha) || /^0{40}$/.test(releaseSha)) {
     throw new Error("RELEASE_SHA must be the exact 40-character Git commit SHA in production");
   }
@@ -370,6 +431,9 @@ if (nodeEnv === "production") {
     expoPushReceiptsUrl !== "https://exp.host/--/api/v2/push/getReceipts"
   ) throw new Error("Production Expo push endpoints must use the official HTTPS service");
 }
+
+if (!adminMfaEncryptionKey) throw new Error("ADMIN_MFA_ENCRYPTION_KEY is required");
+decodeAdminMfaEncryptionKey(adminMfaEncryptionKey);
 
 if (!supportEmail || /[\r\n]/.test(supportEmail) || !/^[^\s@<>]+@[^\s@<>]+$/.test(supportEmail)) {
   throw new Error("SUPPORT_EMAIL must be a single valid email address");
@@ -483,6 +547,27 @@ export const env = {
   JWT_SECRET: jwtSecret,
   AUTH_SECURITY_HMAC_SECRET: authSecurityHmacSecret,
   MESSAGE_ABUSE_HMAC_SECRET: messageAbuseHmacSecret,
+  ADMIN_MFA_ENCRYPTION_KEY: adminMfaEncryptionKey,
+  ADMIN_NETWORK_ACCESS_MODE: adminNetworkAccessMode,
+  ADMIN_ALLOWED_CIDRS: adminAllowedCidrs,
+  ADMIN_PRE_AUTH_TTL_SEC: parseIntegerInRange(
+    "ADMIN_PRE_AUTH_TTL_SEC",
+    optional("ADMIN_PRE_AUTH_TTL_SEC", "300"),
+    60,
+    300,
+  ),
+  ADMIN_MFA_MAX_ATTEMPTS: parseIntegerInRange(
+    "ADMIN_MFA_MAX_ATTEMPTS",
+    optional("ADMIN_MFA_MAX_ATTEMPTS", "5"),
+    3,
+    10,
+  ),
+  ADMIN_STEP_UP_TTL_SEC: parseIntegerInRange(
+    "ADMIN_STEP_UP_TTL_SEC",
+    optional("ADMIN_STEP_UP_TTL_SEC", "600"),
+    60,
+    900,
+  ),
   MESSAGE_ABUSE_RETENTION_HOURS: messageAbuseRetentionHours,
   TEXT_MODERATION_ENABLED: textModerationEnabled,
   TEXT_MODERATION_PYTHON: textModerationPython,

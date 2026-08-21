@@ -21,7 +21,8 @@ export type AdminUserWithRoles = {
   updatedAt: string;
 };
 
-export type AdminUserRecord = AdminUserRow & {
+export type AdminUserRecord = Omit<AdminUserRow, "sessionVersion"> & {
+  sessionVersion?: number;
   userId: string;
   status: AdminStatus;
 };
@@ -125,6 +126,18 @@ export type AdminAuditLogItem = {
 export type AdminContext = {
   adminUser: AdminUserWithRoles;
   user: Pick<UserRow, "id" | "amoriaId" | "displayName" | "email">;
+  security?: {
+    adminSessionVersion: number;
+    userAuthVersion: number;
+    mfaEnabled: boolean;
+  };
+};
+
+export type AdminAccessIdentity = {
+  userId: string;
+  adminUserId: string;
+  adminSessionVersion: number;
+  userAuthVersion: number;
 };
 
 export type AdminHealthResponse = {
@@ -174,6 +187,7 @@ export type BootstrapAdminResult = {
 declare module "fastify" {
   interface FastifyRequest {
     admin?: AdminContext;
+    adminAuth?: AdminAccessIdentity;
   }
 }
 

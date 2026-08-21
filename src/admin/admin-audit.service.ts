@@ -2,7 +2,7 @@ import type { JsonValue } from "../db/schema";
 import * as adminRepo from "./admin.repo";
 import type { AdminAuditInput } from "./admin.types";
 
-const blockedMetadataKeyPattern = /password|token|secret|authorization|cookie|jwt|access[_-]?key|private[_-]?key|locked[_-]?gallery/i;
+const blockedMetadataKeyPattern = /password|token|secret|authorization|cookie|jwt|totp|otp[_-]?code|recovery[_-]?codes?|pre[_-]?auth|step[_-]?up|access[_-]?key|private[_-]?key|locked[_-]?gallery/i;
 const maxObjectKeys = 40;
 const maxArrayItems = 20;
 const maxStringLength = 500;

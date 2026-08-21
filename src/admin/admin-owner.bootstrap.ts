@@ -17,7 +17,7 @@ async function main(): Promise<void> {
   console.log(`createdUser=${result.createdUser}`);
 
   if (result.generatedPassword) {
-    console.log(`generatedPassword=${result.generatedPasswordValue}`);
+    console.log("passwordSource=secure_credentials_file");
     console.log(`credentialsFile=${result.credentialsFile}`);
   } else {
     console.log("passwordSource=ADMIN_OWNER_PASSWORD");

@@ -1,10 +1,11 @@
-import { and, desc, eq, ilike, inArray, or, type SQL } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, or, sql, type SQL } from "drizzle-orm";
 import { db } from "../db/client";
 import {
   type AdminAuditLogRow,
   type AdminUserRow,
   type NewAdminAuditLogRow,
   adminAuditLog,
+  adminMfaCredentials,
   adminRoles,
   adminUserRoles,
   adminUsers,
@@ -43,14 +44,17 @@ const requiredRoles: Array<{ key: AdminRoleKey; name: string; description: strin
 ];
 
 export type AdminContextRow = {
-  adminUser: AdminUserRow & { userId: string; status: AdminStatus };
+  adminUser: Omit<AdminUserRow, "sessionVersion"> & { userId: string; status: AdminStatus; sessionVersion?: number };
   user: {
     id: string;
     amoriaId: string;
     displayName: string;
     email: string;
+    accountStatus?: string;
+    authVersion?: number;
   };
   roles: AdminRoleKey[];
+  mfaEnabled?: boolean;
 };
 
 export async function ensureRequiredRoles(): Promise<void> {
@@ -86,49 +90,66 @@ export async function upsertActiveAdminUserForUser(user: {
   id: string;
   email: string;
   displayName: string;
-}): Promise<AdminUserRow & { userId: string }> {
-  const [adminUser] = await db
-    .insert(adminUsers)
-    .values({
-      userId: user.id,
-      email: user.email,
-      displayName: user.displayName,
-      status: "active",
-    })
-    .onConflictDoUpdate({
-      target: adminUsers.userId,
-      set: {
+}): Promise<Omit<AdminUserRow, "sessionVersion"> & { userId: string; sessionVersion?: number }> {
+  return db.transaction(async (tx) => {
+    const [existing] = await tx
+      .select({ id: adminUsers.id, status: adminUsers.status })
+      .from(adminUsers)
+      .where(eq(adminUsers.userId, user.id))
+      .limit(1)
+      .for("update");
+    const reactivating = Boolean(existing && existing.status !== "active");
+    const now = new Date();
+    const [adminUser] = await tx
+      .insert(adminUsers)
+      .values({
+        userId: user.id,
         email: user.email,
         displayName: user.displayName,
         status: "active",
-        updatedAt: new Date(),
-      },
-    })
-    .returning();
+      })
+      .onConflictDoUpdate({
+        target: adminUsers.userId,
+        set: {
+          email: user.email,
+          displayName: user.displayName,
+          status: "active",
+          ...(reactivating ? { sessionVersion: sql`${adminUsers.sessionVersion} + 1` } : {}),
+          updatedAt: now,
+        },
+      })
+      .returning();
 
-  if (!adminUser?.userId) {
-    throw new Error("Failed to create admin user");
-  }
+    if (!adminUser?.userId) throw new Error("Failed to create admin user");
+    if (reactivating) {
+      await tx.execute(sql`UPDATE admin_sessions SET revoked_at=COALESCE(revoked_at,${now}) WHERE admin_user_id=${adminUser.id}`);
+      await tx.execute(sql`UPDATE admin_step_up_sessions SET revoked_at=COALESCE(revoked_at,${now}) WHERE admin_user_id=${adminUser.id}`);
+      await tx.execute(sql`UPDATE admin_mfa_pre_auth_challenges SET consumed_at=COALESCE(consumed_at,${now}) WHERE admin_user_id=${adminUser.id}`);
+    }
 
-  return adminUser as AdminUserRow & { userId: string };
+    return adminUser as Omit<AdminUserRow, "sessionVersion"> & { userId: string; sessionVersion?: number };
+  });
 }
 
 export async function assignRole(adminUserId: string, roleKey: AdminRoleKey): Promise<void> {
-  const role = await db.query.adminRoles.findFirst({
-    where: eq(adminRoles.key, roleKey),
+  await db.transaction(async (tx) => {
+    await tx.select({ id: adminUsers.id }).from(adminUsers).where(eq(adminUsers.id, adminUserId)).for("update");
+    const [role] = await tx.select().from(adminRoles).where(eq(adminRoles.key, roleKey)).limit(1);
+    if (!role) throw new Error(`Admin role is missing: ${roleKey}`);
+    const inserted = await tx
+      .insert(adminUserRoles)
+      .values({ adminUserId, roleId: role.id })
+      .onConflictDoNothing()
+      .returning({ adminUserId: adminUserRoles.adminUserId });
+    if (inserted.length === 0) return;
+    const now = new Date();
+    await tx.update(adminUsers)
+      .set({ sessionVersion: sql`${adminUsers.sessionVersion} + 1`, updatedAt: now })
+      .where(eq(adminUsers.id, adminUserId));
+    await tx.execute(sql`UPDATE admin_sessions SET revoked_at=COALESCE(revoked_at,${now}) WHERE admin_user_id=${adminUserId}`);
+    await tx.execute(sql`UPDATE admin_step_up_sessions SET revoked_at=COALESCE(revoked_at,${now}) WHERE admin_user_id=${adminUserId}`);
+    await tx.execute(sql`UPDATE admin_mfa_pre_auth_challenges SET consumed_at=COALESCE(consumed_at,${now}) WHERE admin_user_id=${adminUserId}`);
   });
-
-  if (!role) {
-    throw new Error(`Admin role is missing: ${roleKey}`);
-  }
-
-  await db
-    .insert(adminUserRoles)
-    .values({
-      adminUserId,
-      roleId: role.id,
-    })
-    .onConflictDoNothing();
 }
 
 export async function findAdminContextByUserId(userId: string): Promise<AdminContextRow | undefined> {
@@ -140,10 +161,14 @@ export async function findAdminContextByUserId(userId: string): Promise<AdminCon
         amoriaId: users.amoriaId,
         displayName: users.displayName,
         email: users.email,
+        accountStatus: users.accountStatus,
+        authVersion: users.authVersion,
       },
+      mfaStatus: adminMfaCredentials.status,
     })
     .from(adminUsers)
     .innerJoin(users, eq(adminUsers.userId, users.id))
+    .leftJoin(adminMfaCredentials, eq(adminMfaCredentials.adminUserId, adminUsers.id))
     .where(eq(adminUsers.userId, userId))
     .limit(1);
 
@@ -157,6 +182,7 @@ export async function findAdminContextByUserId(userId: string): Promise<AdminCon
     adminUser: row.adminUser as AdminUserRow & { userId: string; status: AdminStatus },
     user: row.user,
     roles,
+    mfaEnabled: row.mfaStatus === "enabled",
   };
 }
 

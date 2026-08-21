@@ -231,6 +231,9 @@ services:
         VITE_ADMIN_API_URL: ${PUBLIC_API_URL:?PUBLIC_API_URL is required}
     restart: unless-stopped
     environment:
+      NODE_ENV: production
+      ADMIN_WEB_BIND_HOST: 0.0.0.0
+      ADMIN_WEB_ALLOW_ALL_INTERFACES: "true"
       ADMIN_API_ORIGIN: ${PUBLIC_API_URL:?PUBLIC_API_URL is required}
       RELEASE_SHA: ${RELEASE_SHA:?RELEASE_SHA is required}
     ports:
