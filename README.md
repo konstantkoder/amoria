@@ -1,38 +1,10 @@
-# Amoria — Sprint 1 MVP
+# AMORIA
 
-Этот каркас включает:
-- Онбординг (согласия, разрешение локации, профиль, интересы/цели/настроение)
-- Экран Nearby с жалобой/блокировкой
-- Профиль с кнопкой удаления аккаунта
-- Экран с Политикой конфиденциальности (RU/EN/HR)
-- Безопасные разрешения для Google Play (без фоновой локации)
+This branch is the repository landing page and a pointer to the preserved project history. It is not production application source and must not be used to build or deploy Amoria.
 
-## Запуск
-1. Установи зависимости:
-   ```
-   npm i
-   ```
-2. Запусти:
-   ```
-   npx expo start
-   ```
-3. В `src/services/firebase.ts` вставь конфиг Firebase. Пока конфиг не задан, все вызовы работают в mock-режиме (без сети).
+## Active release branches
 
-## Что ещё сделать перед публикацией
-- Добавить реальную ссылку на Privacy Policy (Play Console) и на сайте.
-- Включить Firebase Auth/Firestore и заменить mock.
-- Заполнить Data Safety в Google Play.
+- Mobile: [`release/amoria-1.0-mobile-rc`](../../tree/release/amoria-1.0-mobile-rc)
+- Server and Admin: [`release/amoria-1.0-server-rc`](../../tree/release/amoria-1.0-server-rc)
 
-
-## Новые фичи (этот пакет)
-- Лента карточек со свайпом (react-native-deck-swiper) + лайки/матчи
-- Фильтры Nearby (радиус, цель, настроение)
-- Вопрос дня + сохранение ответа (Firestore или локально)
-- Random Chat (простейший матчмейкинг; работает локально и с Firestore)
-- Экран Условий использования
-
-
-## Профиль и фото (новое)
-- Экран **EditProfile**: редактирование имени, описания, интересов, цели, настроения.
-- Экран **PhotoManager**: добавление фото через Expo Image Picker, загрузка в Firebase Storage (или локальный mock), удаление из профиля.
-- Список фото хранится в поле `users/{uid}.photos` (Firestore) — в mock-режиме сохраняется только локально.
+The previous application state remains recoverable from normal Git history and repository tags. Release implementation, dependency manifests, build instructions, and operational documentation live on the corresponding active release branch.
