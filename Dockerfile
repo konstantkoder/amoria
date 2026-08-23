@@ -7,9 +7,8 @@ RUN npm ci
 
 FROM deps AS build
 
-COPY tsconfig.json drizzle.config.ts ./
+COPY tsconfig.json tsconfig.build.json ./
 COPY src ./src
-COPY tests ./tests
 RUN npm run build
 
 FROM deps AS prod-deps

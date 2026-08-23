@@ -8,7 +8,7 @@ const read = (relativePath: string) => readFileSync(path.join(root, relativePath
 
 test("production Compose builds and serves Admin Web only through a loopback port", () => {
   const compose = read("docker-compose.prod.yml");
-  assert.match(compose, /\n  admin-web:\n/);
+  assert.match(compose, /\r?\n  admin-web:\r?\n/);
   assert.match(compose, /context: \.\/admin-web/);
   assert.match(compose, /VITE_ADMIN_API_URL: \$\{PUBLIC_API_URL:\?PUBLIC_API_URL is required\}/);
   assert.match(compose, /ADMIN_API_ORIGIN: \$\{PUBLIC_API_URL:\?PUBLIC_API_URL is required\}/);
