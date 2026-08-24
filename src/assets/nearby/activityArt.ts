@@ -14,7 +14,7 @@ const ACTIVITY_ART: Readonly<Record<string, ImageSourcePropType>> = {
   fishing_nearby: require("./activity-art-v6/fishing_nearby.jpg"),
   sport_nearby: require("./activity-art-v6/sport_nearby.jpg"),
   language_exchange_nearby: require("./activity-art-v6/language_exchange_nearby.jpg"),
-  local_event_nearby: require("./activity-art-v6/local_event_nearby.jpg"),
+  local_event_nearby: DEFAULT_ART,
   lunch_nearby: require("./activity-art-v6/lunch_nearby.jpg"),
   dinner_nearby: require("./activity-art-v6/dinner_nearby.jpg"),
   dessert_nearby: require("./activity-art-v6/dessert_nearby.jpg"),
