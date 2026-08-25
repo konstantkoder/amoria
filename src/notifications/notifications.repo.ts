@@ -4,10 +4,12 @@ import { notifications, pushDeliveries, pushTokens } from "../db/schema";
 import type { JsonValue } from "../db/schema";
 import type { NotificationType, RegisterPushTokenBody } from "./notifications.types";
 
-export async function createNotification(input: { userId: string; type: NotificationType; titleKey: string; payload: JsonValue; eventKey: string }) {
+export async function createNotification(input: { userId: string; type: NotificationType; titleKey: string; payload: JsonValue; eventKey: string; enqueuePush?: boolean }) {
   return db.transaction(async (tx) => {
-    const [created] = await tx.insert(notifications).values(input).onConflictDoNothing({ target: [notifications.userId, notifications.eventKey] }).returning();
+    const { enqueuePush = true, ...notificationInput } = input;
+    const [created] = await tx.insert(notifications).values(notificationInput).onConflictDoNothing({ target: [notifications.userId, notifications.eventKey] }).returning();
     if (!created) return null;
+    if (!enqueuePush) return created;
     const tokens = await tx.select({ id: pushTokens.id }).from(pushTokens).where(and(eq(pushTokens.userId, input.userId), isNull(pushTokens.disabledAt)));
     if (tokens.length) await tx.insert(pushDeliveries).values(tokens.map((token) => ({ notificationId: created.id, pushTokenId: token.id }))).onConflictDoNothing();
     return created;

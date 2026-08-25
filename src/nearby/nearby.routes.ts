@@ -19,6 +19,8 @@ import {
   updateNearbyVisibilityRouteSchema,
 } from "./nearby.schemas";
 import * as nearbyService from "./nearby.service";
+import { env } from "../config/env";
+import { progressReleaseState, recordProductEvent } from "../growth/growth.service";
 import {
   getNearbyActivityPreferencesRouteSchema,
   parseUpdateNearbyActivityPreferencesBody,
@@ -147,11 +149,15 @@ export async function nearbyRoutes(fastify: FastifyInstance): Promise<void> {
       preHandler: authMiddleware,
       schema: withErrorResponses(updateNearbyActivityPreferencesRouteSchema),
     },
-    async (request) =>
-      nearbyActivityPreferencesService.updateActivityPreferences(
-        currentUserId(request),
+    async (request) => {
+      const actorUserId = currentUserId(request);
+      const response = await nearbyActivityPreferencesService.updateActivityPreferences(
+        actorUserId,
         parseUpdateNearbyActivityPreferencesBody(request.body),
-      ),
+      );
+      await progressReleaseState(actorUserId);
+      return response;
+    },
   );
 
   fastify.get(
@@ -178,11 +184,18 @@ export async function nearbyRoutes(fastify: FastifyInstance): Promise<void> {
       preHandler: authMiddleware,
       schema: withErrorResponses(updateNearbyVisibilityRouteSchema),
     },
-    async (request) =>
-      nearbyService.updateNearbyVisibility(
-        currentUserId(request),
+    async (request) => {
+      const actorUserId = currentUserId(request);
+      const response = await nearbyService.updateNearbyVisibility(
+        actorUserId,
         parseUpdateNearbyVisibilityBody(request.body),
-      ),
+      );
+      await progressReleaseState(actorUserId);
+      if (!env.isTest && response.visibility.status === "active") {
+        await recordProductEvent({ userId: actorUserId, eventName: "nearby_enabled" });
+      }
+      return response;
+    },
   );
 
   fastify.patch(

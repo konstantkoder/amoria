@@ -88,6 +88,9 @@ type Screen =
   | "opsHealth"
   | "nearbyDiagnostics"
   | "nearbyRooms"
+  | "monetization"
+  | "founders"
+  | "growth"
   | "bootstrap"
   | "security";
 
@@ -160,6 +163,9 @@ const screens: ScreenItem[] = [
   { key: "opsHealth", labelKey: "nav.opsHealth", roles: ["owner", "support", "ops"] },
   { key: "nearbyDiagnostics", labelKey: "nav.nearbyDiagnostics", roles: ["owner", "ops"] },
   { key: "nearbyRooms", labelKey: "nav.nearbyRooms", roles: ["owner", "moderator", "support", "ops"] },
+  { key: "monetization", labelKey: "nav.monetization", roles: ["owner", "support", "ops"] },
+  { key: "founders", labelKey: "nav.founders", roles: ["owner", "support", "ops"] },
+  { key: "growth", labelKey: "nav.growth", roles: ["owner", "ops"] },
   { key: "security", labelKey: "nav.security" },
   { key: "bootstrap", labelKey: "nav.bootstrap", ownerOnly: true },
 ];
@@ -456,6 +462,14 @@ export function App() {
           {activeScreen === "nearbyRooms" ? (
             <NearbyRoomsScreen canManageRooms={canManageNearbyRooms} setMessage={setMessage} />
           ) : null}
+          {activeScreen === "monetization" ? (
+            <MonetizationScreen
+              isOwner={adminMe?.adminUser.roles.includes("owner") ?? false}
+              setMessage={setMessage}
+            />
+          ) : null}
+          {activeScreen === "founders" ? <FoundersScreen /> : null}
+          {activeScreen === "growth" ? <GrowthScreen /> : null}
           {activeScreen === "security" ? <AdminSecurityScreen onReset={() => {
             clearTokens();
             setAdminMe(null);
@@ -468,6 +482,165 @@ export function App() {
   }
 
   return <I18nContext.Provider value={i18n}><StepUpProvider>{content}</StepUpProvider></I18nContext.Provider>;
+}
+
+type MonetizationOverview = {
+  mode: "OFF" | "TEST" | "ON" | "PAUSED";
+  firstMonetizationEnabledAt: string | null;
+  founderCampaignStatus: "ACTIVE" | "PAUSED";
+  billing: {
+    configured: boolean;
+    healthy: boolean;
+    productId: string | null;
+    packageName: string;
+    failures: number;
+  };
+  counts: {
+    activePaidPremium: number;
+    founderPremiumActive: number;
+    adminGrantsActive: number;
+    foundersActivated: number;
+    founderReservationsActive: number;
+    foundersRemaining: number;
+    founderEnding30Days: number;
+    founderEnding7Days: number;
+    founderPremiumExpired: number;
+  };
+  billingTesters: Array<{ amoriaId: string; createdAt: string }>;
+};
+
+function MonetizationScreen({ isOwner, setMessage }: {
+  isOwner: boolean;
+  setMessage: (message: string | null) => void;
+}) {
+  const { language, t } = useI18n();
+  const stepUp = useStepUp();
+  const { data, error, reload } = useLoad<MonetizationOverview>("/admin/monetization/overview");
+  const request = useRequestLock();
+  const [reason, setReason] = useState("");
+  const [testerAmoriaId, setTesterAmoriaId] = useState("");
+  const [grantAmoriaId, setGrantAmoriaId] = useState("");
+  const [grantEndsAt, setGrantEndsAt] = useState("");
+  const [revokeEntitlementId, setRevokeEntitlementId] = useState("");
+
+  async function mutate(path: string, body: Record<string, unknown>, message: string) {
+    await request.run(async () => {
+      try {
+        await stepUp.run(() => apiPost(path, body));
+        setMessage(message);
+        reload();
+      } catch (nextError) {
+        setMessage(errorMessage(nextError, t));
+      }
+    });
+  }
+
+  async function changeMode(mode: MonetizationOverview["mode"]) {
+    if (!data || reason.trim().length < 8) {
+      setMessage(t("monetization.reasonRequired"));
+      return;
+    }
+    const firstOn = mode === "ON" && !data.firstMonetizationEnabledAt;
+    if (firstOn && !window.confirm(t("monetization.firstOnWarning"))) return;
+    await mutate("/admin/monetization/mode", {
+      mode,
+      reason,
+      ...(firstOn ? { confirmFirstOn: true } : {}),
+    }, t("monetization.updated"));
+  }
+
+  return <section className="panel">
+    <div className="panel-header"><h2>{t("monetization.title")}</h2>
+      <button className="secondary" onClick={reload}>{t("common.refresh")}</button></div>
+    {error ? <div className="error">{error}</div> : null}
+    {data ? <>
+      <dl className="facts dashboard-facts">
+        <Fact label={t("monetization.mode")} value={data.mode} />
+        <Fact label={t("monetization.firstOn")} value={data.firstMonetizationEnabledAt ? formatDate(data.firstMonetizationEnabledAt, language) : "—"} />
+        <Fact label={t("monetization.founderCampaign")} value={data.founderCampaignStatus} />
+        <Fact label={t("monetization.billing")} value={`${data.billing.configured ? "configured" : "not configured"} · ${data.billing.healthy ? "healthy" : "degraded"}`} />
+        <Fact label={t("monetization.product")} value={data.billing.productId ?? "—"} />
+        <Fact label={t("monetization.paidActive")} value={String(data.counts.activePaidPremium)} />
+        <Fact label={t("monetization.founderPremium")} value={String(data.counts.founderPremiumActive)} />
+        <Fact label={t("monetization.adminGrants")} value={String(data.counts.adminGrantsActive)} />
+        <Fact label={t("monetization.billingFailures")} value={String(data.billing.failures)} />
+      </dl>
+      {isOwner ? <>
+        <label>{t("common.reason")}<textarea value={reason} onChange={(event) => setReason(event.target.value)} minLength={8} maxLength={500} /></label>
+        <div className="filters">
+          {(["OFF", "TEST", "ON", "PAUSED"] as const).map((mode) =>
+            <button key={mode} type="button" className={data.mode === mode ? "" : "secondary"} disabled={request.pending} onClick={() => void changeMode(mode)}>{mode}</button>)}
+        </div>
+        <div className="filters">
+          <button type="button" disabled={request.pending || data.founderCampaignStatus === "ACTIVE"} onClick={() => void mutate("/admin/founders/campaign", { status: "ACTIVE", reason }, t("monetization.updated"))}>{t("monetization.campaignActive")}</button>
+          <button type="button" className="secondary" disabled={request.pending || data.founderCampaignStatus === "PAUSED"} onClick={() => void mutate("/admin/founders/campaign", { status: "PAUSED", reason }, t("monetization.updated"))}>{t("monetization.campaignPaused")}</button>
+        </div>
+        <div className="split-grid">
+          <form className="stack-form" onSubmit={(event) => { event.preventDefault(); void mutate("/admin/monetization/billing-testers", { amoriaId: testerAmoriaId, enabled: true, reason }, t("monetization.updated")); }}>
+            <h3>{t("monetization.billingTesters")}</h3>
+            <label>{t("common.amoriaId")}<input value={testerAmoriaId} onChange={(event) => setTesterAmoriaId(event.target.value)} required /></label>
+            <div className="filters"><button disabled={request.pending}>{t("action.enable")}</button><button className="secondary" type="button" disabled={request.pending} onClick={() => void mutate("/admin/monetization/billing-testers", { amoriaId: testerAmoriaId, enabled: false, reason }, t("monetization.updated"))}>{t("action.disable")}</button></div>
+            <p className="muted">{data.billingTesters.map((tester) => tester.amoriaId).join(", ") || "—"}</p>
+          </form>
+          <form className="stack-form" onSubmit={(event) => { event.preventDefault(); void mutate("/admin/monetization/grants", { amoriaId: grantAmoriaId, endsAt: new Date(grantEndsAt).toISOString(), reason }, t("monetization.updated")); }}>
+            <h3>{t("monetization.manualGrant")}</h3>
+            <label>{t("common.amoriaId")}<input value={grantAmoriaId} onChange={(event) => setGrantAmoriaId(event.target.value)} required /></label>
+            <label>{t("monetization.expiry")}<input type="datetime-local" value={grantEndsAt} onChange={(event) => setGrantEndsAt(event.target.value)} required /></label>
+            <button disabled={request.pending}>{t("monetization.grant")}</button>
+          </form>
+          <form className="stack-form" onSubmit={(event) => { event.preventDefault(); void mutate("/admin/monetization/grants/revoke", { entitlementId: revokeEntitlementId, reason }, t("monetization.updated")); }}>
+            <h3>{t("monetization.manualRevoke")}</h3>
+            <label>{t("monetization.entitlementId")}<input value={revokeEntitlementId} onChange={(event) => setRevokeEntitlementId(event.target.value)} required /></label>
+            <button className="danger" disabled={request.pending}>{t("monetization.revoke")}</button>
+          </form>
+        </div>
+      </> : <p className="muted">{t("monetization.ownerOnly")}</p>}
+    </> : <EmptyState label={t("common.loading")} />}
+  </section>;
+}
+
+type FounderItem = {
+  founderNumber: number | null;
+  amoriaId: string;
+  userStatus: string;
+  status: string;
+  reservedAt: string;
+  activatedAt: string | null;
+  premiumStartsAt: string | null;
+  premiumEndsAt: string | null;
+  daysRemaining: number | null;
+  entitlementSource: string | null;
+  convertedToPaid: boolean;
+};
+
+function FoundersScreen() {
+  const { language, t } = useI18n();
+  const [q, setQ] = useState("");
+  const [filter, setFilter] = useState("all");
+  const path = `/admin/founders${toQuery({ q, filter, limit: 500 })}`;
+  const { data, error, reload } = useLoad<{ items: FounderItem[] }>(path);
+  return <section className="panel">
+    <div className="panel-header"><h2>{t("founders.title")}</h2><button className="secondary" onClick={reload}>{t("common.refresh")}</button></div>
+    <div className="filters"><input value={q} onChange={(event) => setQ(event.target.value)} placeholder={t("founders.search")} />
+      <select value={filter} onChange={(event) => setFilter(event.target.value)}>{["all", "reserved", "active", "ending_soon", "expired", "paid"].map((value) => <option key={value} value={value}>{value}</option>)}</select></div>
+    {error ? <div className="error">{error}</div> : null}
+    <div className="table-wrap"><table><thead><tr><th>№</th><th>{t("common.amoriaId")}</th><th>{t("common.status")}</th><th>{t("founders.activated")}</th><th>{t("founders.premiumEnd")}</th><th>{t("founders.days")}</th><th>{t("founders.source")}</th><th>{t("founders.paid")}</th></tr></thead>
+      <tbody>{data?.items.map((item) => <tr key={`${item.amoriaId}:${item.reservedAt}`}><td>{item.founderNumber ?? "—"}</td><td>{item.amoriaId}</td><td>{item.status} · {item.userStatus}</td><td>{item.activatedAt ? formatDate(item.activatedAt, language) : "—"}</td><td>{item.premiumEndsAt ? formatDate(item.premiumEndsAt, language) : "—"}</td><td>{item.daysRemaining ?? "—"}</td><td>{item.entitlementSource ?? "—"}</td><td>{item.convertedToPaid ? t("common.yes") : t("common.no")}</td></tr>)}</tbody></table></div>
+  </section>;
+}
+
+type GrowthOverview = {
+  funnel: Record<string, number>;
+  community: Record<string, number>;
+};
+
+function GrowthScreen() {
+  const { t } = useI18n();
+  const { data, error, reload } = useLoad<GrowthOverview>("/admin/growth/overview");
+  return <section className="panel"><div className="panel-header"><h2>{t("growth.title")}</h2><button className="secondary" onClick={reload}>{t("common.refresh")}</button></div>
+    {error ? <div className="error">{error}</div> : null}
+    {data ? <div className="split-grid"><article><h3>{t("growth.funnel")}</h3><dl className="facts">{Object.entries(data.funnel).map(([key, value]) => <Fact key={key} label={key} value={key === "inviteConversion" ? `${(value * 100).toFixed(1)}%` : String(value)} />)}</dl></article><article><h3>{t("growth.community")}</h3><dl className="facts">{Object.entries(data.community).map(([key, value]) => <Fact key={key} label={key} value={String(value)} />)}</dl></article></div> : <EmptyState label={t("common.loading")} />}
+  </section>;
 }
 
 type TurnBasedAdminMoment = {

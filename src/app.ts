@@ -30,8 +30,11 @@ import { publicPagesRoutes } from "./public/public-pages";
 import { notificationsRoutes } from "./notifications/notifications.routes";
 import { recordPotentialDatabaseFailure, registerMetrics } from "./observability/metrics";
 import { realtimeBusReady } from "./realtime/realtime-bus";
+import { monetizationRoutes } from "./monetization/monetization.routes";
+import { growthRoutes } from "./growth/growth.routes";
+import { adminMonetizationRoutes } from "./admin/admin-monetization.routes";
 
-export const EXPECTED_MIGRATION = "0039_admin_mfa_security.sql";
+export const EXPECTED_MIGRATION = "0040_release_monetization_founder_growth.sql";
 export const WS_MAX_PAYLOAD_BYTES = 16 * 1024;
 
 export function isCorsOriginAllowed(origin: string | undefined, allowedOrigins: string[]): boolean {
@@ -172,6 +175,7 @@ export function buildApp(): FastifyInstance {
   void app.register(authRoutes, { prefix: "/auth" });
   void app.register(adminSessionRoutes, { prefix: "/admin/session" });
   void app.register(adminRoutes, { prefix: "/admin" });
+  void app.register(adminMonetizationRoutes, { prefix: "/admin" });
   void app.register(announcementsRoutes, { prefix: "/announcements" });
   void app.register(usersRoutes);
   void app.register(mediaRoutes, { prefix: "/media" });
@@ -185,6 +189,8 @@ export function buildApp(): FastifyInstance {
   void app.register(wsRoutes, { prefix: "/ws" });
   void app.register(publicPagesRoutes);
   void app.register(notificationsRoutes);
+  void app.register(monetizationRoutes);
+  void app.register(growthRoutes);
 
   return app;
 }

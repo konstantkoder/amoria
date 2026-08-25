@@ -22,6 +22,8 @@ import {
   requireAdultAgeFromBirthDate,
 } from "../users/age";
 import * as togetherRepoImpl from "./together.repo";
+import { env } from "../config/env";
+import { assertPremiumFeature, getMonetizationSnapshot } from "../monetization/monetization.service";
 import type {
   TogetherActivity,
   TogetherEventBody,
@@ -146,6 +148,14 @@ export async function enqueue(
     input.preferredAgeRange,
     storedPreference,
   );
+
+  if (
+    !env.isTest &&
+    input.preferredAgeRange &&
+    (preferredAgeRange.min !== DEFAULT_PREFERRED_AGE_RANGE.min || preferredAgeRange.max !== null)
+  ) {
+    await assertPremiumFeature(userId, "advanced_nearby_filters");
+  }
 
   if (input.preferredAgeRange) {
     await deps.repo.updateUserAgePreference(userId, preferredAgeRange);
@@ -731,7 +741,12 @@ export async function getHistory(
   userId: string,
   limit: number,
 ): Promise<TogetherHistoryResponse> {
-  const rows = await deps.repo.listHistorySessions(userId, limit);
+  const effectiveLimit = env.isTest
+    ? limit
+    : (await getMonetizationSnapshot(userId, { progressFounder: false })).premiumCapabilitiesAvailable
+      ? limit
+      : Math.min(limit, 10);
+  const rows = await deps.repo.listHistorySessions(userId, effectiveLimit);
   const reveals = await deps.repo.listRevealsForSessions(
     rows.map((row) => row.session.id),
   );

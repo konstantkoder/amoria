@@ -2,6 +2,7 @@ import { AppError, validationError } from "../common/errors";
 import { MAX_MEDIA_UPLOAD_BYTES } from "../config/constants";
 import { env } from "../config/env";
 import { getObjectBuffer } from "../media/object-storage";
+import { progressReleaseState } from "../growth/growth.service";
 import * as auditService from "./admin-audit.service";
 import { sanitizeAuditMetadata } from "./admin-audit.service";
 import * as mediaRepo from "./admin-media.repo";
@@ -197,6 +198,7 @@ export async function createMediaDecisionForAdmin(
   if (!updated) {
     throw new Error("Media disappeared after moderation decision");
   }
+  if (input.action === "approve") await progressReleaseState(media.ownerUserId);
   return {
     ok: true,
     media: toAdminMediaItem(updated, updated.visibility !== "locked"),

@@ -281,6 +281,13 @@
       "when": 1787270400000,
       "tag": "0039_admin_mfa_security",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1787616000000,
+      "tag": "0040_release_monetization_founder_growth",
+      "breakpoints": true
     }
   ]
 }

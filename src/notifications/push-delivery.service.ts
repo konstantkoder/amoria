@@ -11,13 +11,20 @@ export function pushCopy(type: string): { title: string; body: string } {
   if (type === "direct_message") return { title: "Amoria", body: "You have a new message" };
   if (type === "together_match") return { title: "Amoria", body: "A Together participant was found for you" };
   if (type === "announcement") return { title: "Amoria", body: "You have an important update" };
+  if (type === "founder_activated") return { title: "Amoria", body: "Your Founder identity is active" };
+  if (type === "founder_premium_started") return { title: "Amoria", body: "Your Founder Premium period has started" };
+  if (type === "founder_premium_expiring") return { title: "Amoria", body: "Your Founder Premium period is ending soon" };
+  if (type === "founder_premium_expired") return { title: "Amoria", body: "Your Founder Premium period has ended" };
+  if (type === "premium_activated" || type === "premium_restored") return { title: "Amoria", body: "Amoria Premium is active" };
+  if (type === "premium_billing_issue") return { title: "Amoria", body: "Your Premium subscription needs attention" };
+  if (type === "community_activity") return { title: "Amoria", body: "There is new real activity nearby" };
   return { title: "Amoria", body: "Together has an update" };
 }
 
 export function safeData(row: Delivery): Record<string, string> {
   const payload = row.notification.payload as Record<string, unknown>;
   const data: Record<string, string> = { notificationId: row.notification.id, type: row.notification.type };
-  for (const key of ["threadId", "sessionId", "momentId", "announcementId"]) {
+  for (const key of ["threadId", "peerId", "sessionId", "momentId", "announcementId", "founderNumber", "days"]) {
     const value = payload?.[key];
     if (typeof value === "string" && value.length <= 64) data[key] = value;
   }

@@ -18,6 +18,8 @@ import {
   startWorkerObservabilityServer,
   stopWorkerObservabilityServer,
 } from "./workers/worker-observability.server";
+import { runGooglePlayReconciliation } from "./billing/google-play.service";
+import { runEntitlementMaintenance } from "./monetization/monetization.service";
 
 const app = env.AMORIA_PROCESS_ROLE === "worker" ? undefined : buildApp();
 let turnBasedMaintenanceTimer: NodeJS.Timeout | undefined;
@@ -26,6 +28,7 @@ let pushMaintenanceTimer: NodeJS.Timeout | undefined;
 let accountDeletionMaintenanceTimer: NodeJS.Timeout | undefined;
 let retentionMaintenanceTimer: NodeJS.Timeout | undefined;
 let wsAccessRevalidationTimer: NodeJS.Timeout | undefined;
+let monetizationMaintenanceTimer: NodeJS.Timeout | undefined;
 let shuttingDown = false;
 
 function scheduleWorker(
@@ -80,6 +83,15 @@ async function start(): Promise<void> {
       pushMaintenanceTimer = scheduleWorker(runPushMaintenance, env.PUSH_WORKER_INTERVAL_MS, "push", "Push maintenance failed");
       accountDeletionMaintenanceTimer = scheduleWorker(runAccountDeletionMaintenance, env.ACCOUNT_DELETION_WORKER_INTERVAL_MS, "account_deletion", "Account deletion maintenance failed");
       retentionMaintenanceTimer = scheduleWorker(runRetentionMaintenance, env.RETENTION_WORKER_INTERVAL_MS, "retention", "Retention maintenance failed");
+      monetizationMaintenanceTimer = scheduleWorker(
+        async () => {
+          await runEntitlementMaintenance();
+          await runGooglePlayReconciliation();
+        },
+        env.BILLING_RECONCILIATION_INTERVAL_MS,
+        "monetization",
+        "Monetization reconciliation failed",
+      );
     }
     if (app) app.log.info({ processRole: env.AMORIA_PROCESS_ROLE }, "Amoria process started");
     else console.info("Amoria worker process started");
@@ -103,6 +115,7 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
   if (accountDeletionMaintenanceTimer) clearInterval(accountDeletionMaintenanceTimer);
   if (retentionMaintenanceTimer) clearInterval(retentionMaintenanceTimer);
   if (wsAccessRevalidationTimer) clearInterval(wsAccessRevalidationTimer);
+  if (monetizationMaintenanceTimer) clearInterval(monetizationMaintenanceTimer);
   if (app) await app.close();
   if (env.AMORIA_PROCESS_ROLE === "worker") await stopWorkerObservabilityServer();
   await stopRealtimeBus();

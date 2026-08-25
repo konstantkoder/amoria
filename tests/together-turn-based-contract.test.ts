@@ -79,12 +79,12 @@ test("turn-based actions reject missing idempotency ids and oversized reasons", 
   assert.throws(() => parseTurnBasedActionBody({}));
   assert.throws(() => parseTurnBasedActionBody({ clientActionId: "x", reason: "x".repeat(501) }));
 });
-test("all required user endpoints are registered and history is removed", () => {
+test("all required user endpoints and the release Together archive are registered", () => {
   for (const endpoint of ["/turn-based/start","/turn-based/current","/turn-based/moments/:id",
     "/turn-based/moments/:id/submit-draw","/turn-based/moments/:id/lease","/turn-based/moments/:id/cancel"]) {
     assert.ok(routes.includes(endpoint), endpoint);
   }
-  assert.ok(!routes.includes('"/history"'));
+  assert.ok(routes.includes('"/history"'));
 });
 test("matching is oldest-first, lock-safe, blocked-safe, and mutual", () => {
   assert.match(service, /ORDER BY m\.created_at ASC, m\.id ASC LIMIT 1 FOR UPDATE OF m SKIP LOCKED/);

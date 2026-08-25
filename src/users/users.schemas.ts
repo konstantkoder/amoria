@@ -172,6 +172,8 @@ export const selfUserProfileSchema = {
     "ageGroup",
     "preferredAgeMin",
     "preferredAgeMax",
+    "founderNumber",
+    "profileFrame",
     "createdAt",
     "updatedAt",
   ],
@@ -205,6 +207,8 @@ export const selfUserProfileSchema = {
     ageGroup: nullableAgeGroupSchema,
     preferredAgeMin: { type: "integer", minimum: MIN_ADULT_AGE, maximum: MAX_PROFILE_AGE },
     preferredAgeMax: { type: ["integer", "null"], minimum: MIN_ADULT_AGE, maximum: MAX_PROFILE_AGE },
+    founderNumber: { type: ["integer", "null"], minimum: 1, maximum: 500 },
+    profileFrame: { type: "string", enum: ["NONE", "WARM_METALLIC", "BLACK_GLASS", "WARM_HALO"] },
     createdAt: { type: "string", format: "date-time" },
     updatedAt: { type: "string", format: "date-time" },
   },
@@ -225,6 +229,8 @@ export const publicUserProfileSchema = {
     "age",
     "ageGroup",
     "lockedGallery",
+    "founderNumber",
+    "profileFrame",
   ],
   additionalProperties: false,
   properties: {
@@ -240,6 +246,8 @@ export const publicUserProfileSchema = {
     age: { type: ["integer", "null"], minimum: MIN_ADULT_AGE, maximum: MAX_PROFILE_AGE },
     ageGroup: nullableAgeGroupSchema,
     lockedGallery: lockedGallerySummarySchema,
+    founderNumber: { type: ["integer", "null"], minimum: 1, maximum: 500 },
+    profileFrame: { type: "string", enum: ["NONE", "WARM_METALLIC", "BLACK_GLASS", "WARM_HALO"] },
   },
 } as const;
 
@@ -263,8 +271,8 @@ export const ownerProfileGallerySchema = {
     lockedPhotosCount: { type: "integer", minimum: 0 },
     visibleImagesCount: { type: "integer", minimum: 0 },
     minVisibleImagesRequired: { type: "integer", minimum: 1 },
-    maxProfileGalleryPhotos: { type: "integer", const: MAX_PROFILE_GALLERY_PHOTOS },
-    maxLockedProfilePhotos: { type: "integer", const: MAX_LOCKED_PROFILE_PHOTOS },
+    maxProfileGalleryPhotos: { type: "integer", enum: [6, MAX_PROFILE_GALLERY_PHOTOS] },
+    maxLockedProfilePhotos: { type: "integer", enum: [0, MAX_LOCKED_PROFILE_PHOTOS] },
   },
 } as const;
 

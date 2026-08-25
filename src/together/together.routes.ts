@@ -5,10 +5,12 @@ import { authMiddleware } from "../common/security/auth-middleware";
 import { publishRealtimeEventSafely } from "../realtime/realtime-bus";
 import {
   deleteTogetherQueueRouteSchema,
+  getTogetherHistoryRouteSchema,
   getTogetherQueueRouteSchema,
   getTogetherSessionEventsRouteSchema,
   getTogetherSessionRouteSchema,
   parseTogetherEventBody,
+  parseTogetherHistoryQuery,
   parseTogetherQueueBody,
   parseTogetherQueueCancelBody,
   parseTogetherRevealBody,
@@ -31,6 +33,8 @@ import * as turnBasedService from "./together-turn-based.service";
 import * as togetherService from "./together.service";
 import type { TogetherSessionUpdateResult } from "./together.types";
 import { notifyUser } from "../notifications/notifications.service";
+import { env } from "../config/env";
+import { progressReleaseState, recordProductEvent } from "../growth/growth.service";
 
 function currentUserId(request: { auth?: { userId: string } }): string {
   if (!request.auth?.userId) {
@@ -41,6 +45,15 @@ function currentUserId(request: { auth?: { userId: string } }): string {
 }
 
 export async function togetherRoutes(fastify: FastifyInstance): Promise<void> {
+  fastify.get(
+    "/history",
+    { preHandler: authMiddleware, schema: withErrorResponses(getTogetherHistoryRouteSchema) },
+    async (request) => {
+      const query = parseTogetherHistoryQuery(request.query);
+      return togetherService.getHistory(currentUserId(request), query.limit);
+    },
+  );
+
   fastify.post(
     "/turn-based/start",
     { preHandler: authMiddleware, schema: withErrorResponses(turnBasedStartRouteSchema) },
@@ -115,6 +128,10 @@ export async function togetherRoutes(fastify: FastifyInstance): Promise<void> {
     async (request) => {
       const actorUserId = currentUserId(request);
       const response = await togetherService.enqueue(actorUserId, parseTogetherQueueBody(request.body));
+      await progressReleaseState(actorUserId);
+      if (!env.isTest) {
+        await recordProductEvent({ userId: actorUserId, eventName: "together_started" });
+      }
       if (response.entry.status === "matched" && response.entry.sessionId) {
         try {
           const recipientIds = await togetherService.listNotificationRecipientIds(response.entry.sessionId);
@@ -125,6 +142,9 @@ export async function togetherRoutes(fastify: FastifyInstance): Promise<void> {
             payload: { sessionId: response.entry.sessionId },
             eventKey: `together_match:${response.entry.sessionId}`,
           })));
+          if (!env.isTest) {
+            await recordProductEvent({ userId: actorUserId, eventName: "together_matched" });
+          }
         } catch (error) {
           request.log.error({ err: error }, "Failed to persist Together match notification");
         }
@@ -217,11 +237,13 @@ export async function togetherRoutes(fastify: FastifyInstance): Promise<void> {
       schema: withErrorResponses(postTogetherFinishRouteSchema),
     },
     async (request) => {
+      const actorUserId = currentUserId(request);
       const result = await togetherService.finishSession(
-        currentUserId(request),
+        actorUserId,
         request.params.id,
       );
       await broadcastSessionUpdate(request.params.id, result, request.log);
+      if (!env.isTest) await recordProductEvent({ userId: actorUserId, eventName: "together_completed" });
       return result.response;
     },
   );

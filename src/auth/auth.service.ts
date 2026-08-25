@@ -7,6 +7,8 @@ import {
 } from "../common/validators";
 import { REFRESH_TOKEN_EXPIRES_IN_DAYS } from "../config/constants";
 import { env } from "../config/env";
+import { progressFounderCandidate } from "../monetization/monetization.service";
+import { recordProductEvent } from "../growth/growth.service";
 import { assertSafeText } from "../moderation/text-validation";
 import type { UserRow } from "../db/schema";
 import { DisposableEmailDomainService } from "../email/disposable-email-domain.service";
@@ -413,7 +415,12 @@ export async function verifyEmail(
   }
   assertAccountActive(consumed.user);
   const refreshToken = await issueRefreshToken(consumed.user, context);
-  return buildAuthResponse(consumed.user, refreshToken);
+  const response = buildAuthResponse(consumed.user, refreshToken);
+  if (!env.isTest) {
+    await recordProductEvent({ userId: consumed.user.id, eventName: "registration_completed" });
+    await progressFounderCandidate(consumed.user.id);
+  }
+  return response;
 }
 
 export async function resendVerification(

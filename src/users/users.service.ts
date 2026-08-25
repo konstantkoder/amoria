@@ -39,6 +39,9 @@ import {
   type AgeGroup,
 } from "./age";
 import * as usersRepo from "./users.repo";
+import { progressReleaseState } from "../growth/growth.service";
+import { assertPremiumFeature, getPublicIdentity } from "../monetization/monetization.service";
+import type { PremiumFrameStyle } from "../monetization/monetization.types";
 
 export type SelfUserProfile = {
   id: string;
@@ -63,6 +66,8 @@ export type SelfUserProfile = {
   ageGroup: AgeGroup | null;
   preferredAgeMin: number;
   preferredAgeMax: number | null;
+  founderNumber: number | null;
+  profileFrame: PremiumFrameStyle;
   createdAt: string;
   updatedAt: string;
 };
@@ -82,6 +87,8 @@ export type PublicUserProfile = Pick<
   age: number | null;
   ageGroup: AgeGroup | null;
   lockedGallery: profileGalleryService.LockedGallerySummary;
+  founderNumber?: number | null;
+  profileFrame?: PremiumFrameStyle;
 };
 
 export type UpdateProfileBody = {
@@ -190,13 +197,18 @@ export function toSelfUserProfile(user: UserRow): SelfUserProfile {
     ageGroup: getAgeGroup(age),
     preferredAgeMin: user.preferredAgeMin,
     preferredAgeMax: user.preferredAgeMax,
+    founderNumber: null,
+    profileFrame: "NONE",
     createdAt: user.createdAt.toISOString(),
     updatedAt: user.updatedAt.toISOString(),
   };
 }
 
 export async function toPublicUserProfile(user: UserRow): Promise<PublicUserProfile> {
-  const gallery = await deps.gallery.getPublicGalleryForUser(user.id);
+  const [gallery, identity] = await Promise.all([
+    deps.gallery.getPublicGalleryForUser(user.id),
+    env.isTest ? Promise.resolve({ founderNumber: null, profileFrame: "NONE" as const }) : getPublicIdentity(user.id),
+  ]);
   const age = calculateAge(user.birthDate);
   return {
     id: user.id,
@@ -208,6 +220,8 @@ export async function toPublicUserProfile(user: UserRow): Promise<PublicUserProf
     goal: toProfileGoal(user.goal),
     mood: toProfileMood(user.mood),
     interests: user.interests,
+    founderNumber: identity.founderNumber,
+    profileFrame: identity.profileFrame,
     age,
     ageGroup: getAgeGroup(age),
     lockedGallery: gallery.lockedGallery,
@@ -220,7 +234,10 @@ export async function getCurrentUser(userId: string): Promise<SelfUserProfile> {
     throw unauthorized("User no longer exists");
   }
 
-  return toSelfUserProfile(user);
+  const profile = toSelfUserProfile(user);
+  if (env.isTest) return profile;
+  const identity = await getPublicIdentity(userId);
+  return { ...profile, ...identity };
 }
 
 export async function getPublicUserById(
@@ -330,6 +347,9 @@ export async function updateCurrentUserProfile(
   }
 
   if ("mysteryMode" in input) {
+    if (!env.isTest && input.mysteryMode === true) {
+      await assertPremiumFeature(userId, "advanced_privacy");
+    }
     setIfDefined(update, "mysteryMode", normalizeOptionalBoolean(input.mysteryMode, "mysteryMode"));
   }
 
@@ -357,7 +377,10 @@ export async function updateCurrentUserProfile(
     throw unauthorized("User no longer exists");
   }
 
-  return toSelfUserProfile(updated);
+  await progressReleaseState(userId);
+  const profile = toSelfUserProfile(updated);
+  if (env.isTest) return profile;
+  return { ...profile, ...(await getPublicIdentity(userId)) };
 }
 
 async function assertPublicProfileVisible(

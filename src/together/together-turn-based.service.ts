@@ -17,6 +17,8 @@ import { pool } from "../db/client";
 import { incrementMetric } from "../observability/metrics";
 import type { JsonValue } from "../db/schema";
 import { requireAdultAgeFromBirthDate, normalizePreferredAgeRange } from "../users/age";
+import { env } from "../config/env";
+import { assertPremiumFeature } from "../monetization/monetization.service";
 import {
   getStorySparksPackDto,
   isSameStoryChoice,
@@ -116,6 +118,9 @@ export async function start(userId: string, input: TurnBasedStartBody): Promise<
     const preferred = normalizePreferredAgeRange(input.preferredAgeRange, {
       min: profile.preferred_age_min, max: profile.preferred_age_max,
     });
+    if (!env.isTest && input.preferredAgeRange && (preferred.min !== 18 || preferred.max !== null)) {
+      await assertPremiumFeature(userId, "advanced_nearby_filters");
+    }
     if (input.preferredAgeRange) {
       await client.query("UPDATE users SET preferred_age_min=$2, preferred_age_max=$3, updated_at=now() WHERE id=$1", [userId, preferred.min, preferred.max]);
     }

@@ -6,7 +6,12 @@ const notificationSchema = {
   additionalProperties: false,
   properties: {
     id: { type: "string", format: "uuid" },
-    type: { type: "string", enum: ["direct_message", "together_match", "together_action", "announcement"] },
+    type: { type: "string", enum: [
+      "direct_message", "together_match", "together_action", "announcement",
+      "founder_activated", "founder_premium_started", "founder_premium_expiring",
+      "founder_premium_expired", "premium_activated", "premium_restored",
+      "premium_billing_issue", "community_activity",
+    ] },
     titleKey: { type: "string" },
     payload: { type: "object", additionalProperties: { type: "string" } },
     readAt: { type: ["string", "null"], format: "date-time" },

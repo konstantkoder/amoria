@@ -399,6 +399,46 @@ const expoPushReceiptsUrl = optionalUrl(
   optional("EXPO_PUSH_RECEIPTS_URL", "https://exp.host/--/api/v2/push/getReceipts"),
   ["http:", "https:"],
 )!;
+const publicAppUrl = optionalUrl(
+  "PUBLIC_APP_URL",
+  optional("PUBLIC_APP_URL", ""),
+  ["http:", "https:"],
+);
+const googlePlayListingUrl = optionalUrl(
+  "GOOGLE_PLAY_LISTING_URL",
+  optional("GOOGLE_PLAY_LISTING_URL", ""),
+  ["https:"],
+);
+const googlePlayPackageName = optional(
+  "GOOGLE_PLAY_PACKAGE_NAME",
+  "com.kostiantyndemidets.amoria",
+);
+const googlePlayProductId = process.env.GOOGLE_PLAY_PREMIUM_PRODUCT_ID?.trim() || undefined;
+const googlePlayServiceAccountJsonBase64 =
+  process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64?.trim() || undefined;
+const billingTokenEncryptionKey = process.env.BILLING_TOKEN_ENCRYPTION_KEY?.trim() || undefined;
+const googleRtdnAudience = process.env.GOOGLE_RTDN_AUDIENCE?.trim() || undefined;
+const androidAppLinkFingerprints = [...new Set(
+  optional("ANDROID_APP_LINK_SHA256_CERT_FINGERPRINTS", "")
+    .split(",")
+    .map((value) => value.trim().toUpperCase())
+    .filter(Boolean),
+)];
+
+if (googlePlayPackageName !== "com.kostiantyndemidets.amoria") {
+  throw new Error("GOOGLE_PLAY_PACKAGE_NAME must remain com.kostiantyndemidets.amoria");
+}
+if (googlePlayProductId && !/^[a-z0-9][a-z0-9._-]{1,126}$/u.test(googlePlayProductId)) {
+  throw new Error("GOOGLE_PLAY_PREMIUM_PRODUCT_ID is invalid");
+}
+for (const fingerprint of androidAppLinkFingerprints) {
+  if (!/^(?:[0-9A-F]{2}:){31}[0-9A-F]{2}$/u.test(fingerprint)) {
+    throw new Error("ANDROID_APP_LINK_SHA256_CERT_FINGERPRINTS contains an invalid SHA-256 fingerprint");
+  }
+}
+if (nodeEnv === "production" && publicAppUrl) {
+  validateProductionPublicUrl("PUBLIC_APP_URL", publicAppUrl);
+}
 
 if (objectStorageProvider !== "s3") {
   throw new Error("OBJECT_STORAGE_PROVIDER must be s3");
@@ -752,6 +792,20 @@ export const env = {
   EXPO_PUSH_ACCESS_TOKEN: expoPushAccessToken,
   EXPO_PUSH_SEND_URL: expoPushSendUrl,
   EXPO_PUSH_RECEIPTS_URL: expoPushReceiptsUrl,
+  PUBLIC_APP_URL: publicAppUrl,
+  GOOGLE_PLAY_LISTING_URL: googlePlayListingUrl,
+  GOOGLE_PLAY_PACKAGE_NAME: googlePlayPackageName,
+  GOOGLE_PLAY_PREMIUM_PRODUCT_ID: googlePlayProductId,
+  GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64: googlePlayServiceAccountJsonBase64,
+  BILLING_TOKEN_ENCRYPTION_KEY: billingTokenEncryptionKey,
+  GOOGLE_RTDN_AUDIENCE: googleRtdnAudience,
+  ANDROID_APP_LINK_SHA256_CERT_FINGERPRINTS: androidAppLinkFingerprints,
+  BILLING_RECONCILIATION_INTERVAL_MS: parseIntegerInRange(
+    "BILLING_RECONCILIATION_INTERVAL_MS",
+    optional("BILLING_RECONCILIATION_INTERVAL_MS", "21600000"),
+    900_000,
+    86_400_000,
+  ),
   PUSH_REQUEST_TIMEOUT_MS: parseIntegerInRange(
     "PUSH_REQUEST_TIMEOUT_MS",
     optional("PUSH_REQUEST_TIMEOUT_MS", "5000"),

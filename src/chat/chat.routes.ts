@@ -18,6 +18,8 @@ import {
 import * as chatService from "./chat.service";
 import { notifyUser } from "../notifications/notifications.service";
 import { incrementMetric } from "../observability/metrics";
+import { env } from "../config/env";
+import { recordProductEvent } from "../growth/growth.service";
 
 function currentUserId(request: { auth?: { userId: string } }): string {
   if (!request.auth?.userId) {
@@ -34,11 +36,15 @@ export async function chatRoutes(fastify: FastifyInstance): Promise<void> {
       preHandler: authMiddleware,
       schema: withErrorResponses(openDirectThreadRouteSchema),
     },
-    async (request) =>
-      chatService.openDirectThread(
-        currentUserId(request),
+    async (request) => {
+      const actorUserId = currentUserId(request);
+      const result = await chatService.openDirectThread(
+        actorUserId,
         parseOpenDirectThreadBody(request.body),
-      ),
+      );
+      if (!env.isTest) await recordProductEvent({ userId: actorUserId, eventName: "chat_started" });
+      return result;
+    },
   );
 
   fastify.get(

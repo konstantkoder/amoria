@@ -95,12 +95,14 @@ test("authenticated user can load peer public profile without internal fields", 
     "amoriaId",
     "avatarUrl",
     "displayName",
+    "founderNumber",
     "goal",
     "id",
     "interests",
     "lockedGallery",
     "mood",
     "photos",
+    "profileFrame",
   ]);
   assert.equal(body.id, userBId);
   assert.equal(body.email, undefined);

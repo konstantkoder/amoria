@@ -23,6 +23,11 @@ import * as auditService from "../admin/admin-audit.service";
 import type { AdminRequestContext } from "../admin/admin.types";
 import * as usersRepo from "./users.repo";
 import * as galleryRepo from "./profile-gallery.repo";
+import {
+  effectiveGalleryLimits,
+  progressFounderCandidate,
+} from "../monetization/monetization.service";
+import { progressAttributionForUser } from "../growth/growth.service";
 
 export type ProfileGalleryPhoto = {
   mediaId: string;
@@ -153,6 +158,21 @@ export function __resetLockedGalleryRuntimeStateForTests(): void {
   wrongAttemptBuckets.clear();
 }
 
+async function loadEffectiveGalleryLimits(userId: string) {
+  if (env.isTest) {
+    return {
+      maxProfileGalleryPhotos: MAX_PROFILE_GALLERY_PHOTOS as 15,
+      maxLockedProfilePhotos: MAX_LOCKED_PROFILE_PHOTOS as 10,
+    };
+  }
+  return effectiveGalleryLimits(userId);
+}
+
+async function progressUserProductState(userId: string): Promise<void> {
+  if (env.isTest) return;
+  await Promise.all([progressFounderCandidate(userId), progressAttributionForUser(userId)]);
+}
+
 export async function getOwnerProfileGallery(
   userId: string,
 ): Promise<OwnerProfileGalleryResponse> {
@@ -161,7 +181,8 @@ export async function getOwnerProfileGallery(
     deps.repo.listGalleryItemsForUser(userId),
     deps.repo.getLockedGallerySettings(userId),
   ]);
-  return toOwnerGalleryResponse(user, items, Boolean(settings?.passwordHash));
+  const limits = await loadEffectiveGalleryLimits(userId);
+  return toOwnerGalleryResponse(user, items, Boolean(settings?.passwordHash), limits);
 }
 
 export async function getPublicGalleryForUser(
@@ -249,10 +270,17 @@ export async function updateOwnerProfileGalleryItems(
   }
 
   const nextItems = [...nextByMediaId.values()];
-  assertGalleryCountLimits(nextItems);
+  const limits = await loadEffectiveGalleryLimits(userId);
+  assertGalleryCountLimits(nextItems, limits);
+  if (nextItems.some((item) => item.visibility === "locked") && limits.maxLockedProfilePhotos === 0) {
+    throw new AppError("premium_required", "Amoria Premium is required", 403, {
+      feature: "locked_gallery",
+    });
+  }
   assertVisibleImageRule(user, nextItems, passwordIsSet);
   await deps.repo.updateGalleryItems(userId, nextItems);
   await syncPublicPhotosReadModel(userId);
+  await progressUserProductState(userId);
   return getOwnerProfileGallery(userId);
 }
 
@@ -262,6 +290,12 @@ export async function setLockedGalleryPassword(
 ): Promise<OkResponse> {
   const user = await loadUser(userId);
   await verifyCurrentAccountPassword(user, input.currentAccountPassword);
+  const limits = await loadEffectiveGalleryLimits(userId);
+  if (limits.maxLockedProfilePhotos === 0) {
+    throw new AppError("premium_required", "Amoria Premium is required", 403, {
+      feature: "locked_gallery",
+    });
+  }
   const newFolderPassword = normalizePassword(input.newFolderPassword);
   const items = await deps.repo.listGalleryItemsForUser(userId);
 
@@ -270,7 +304,7 @@ export async function setLockedGalleryPassword(
     visibility: entry.item.visibility as galleryRepo.ProfileGalleryVisibility,
     position: entry.item.position,
   }));
-  assertGalleryCountLimits(nextItems);
+  assertGalleryCountLimits(nextItems, limits);
   assertVisibleImageRule(user, nextItems, true);
 
   await deps.repo.upsertLockedGalleryPasswordHash(
@@ -433,17 +467,21 @@ export async function addCompletedProfilePhotoToGallery(
   }
   await deps.repo.upsertGalleryItemForMedia(ownerUserId, media.id, visibility);
   await syncPublicPhotosReadModel(ownerUserId);
+  await progressUserProductState(ownerUserId);
 }
 
 export async function assertCanAddProfilePhotoToGallery(ownerUserId: string): Promise<void> {
-  const items = await deps.repo.listGalleryItemsForUser(ownerUserId);
-  if (items.length >= MAX_PROFILE_GALLERY_PHOTOS) {
+  const [items, limits] = await Promise.all([
+    deps.repo.listGalleryItemsForUser(ownerUserId),
+    loadEffectiveGalleryLimits(ownerUserId),
+  ]);
+  if (items.length >= limits.maxProfileGalleryPhotos) {
     throw new AppError(
       "profile_gallery_limit_reached",
       "Profile gallery photo limit has been reached",
       409,
       {
-        maxProfileGalleryPhotos: String(MAX_PROFILE_GALLERY_PHOTOS),
+        maxProfileGalleryPhotos: String(limits.maxProfileGalleryPhotos),
       },
     );
   }
@@ -479,7 +517,7 @@ export async function replacePublicGalleryPhotosFromProfilePatch(
   }
 
   const nextItems = [...nextByMediaId.values()];
-  assertGalleryCountLimits(nextItems);
+  assertGalleryCountLimits(nextItems, await loadEffectiveGalleryLimits(userId));
   assertVisibleImageRule(user, nextItems, Boolean(settings?.passwordHash));
   await deps.repo.replacePublicGalleryItems(userId, mediaIds);
 }
@@ -543,6 +581,7 @@ function toOwnerGalleryResponse(
   user: UserRow,
   items: galleryRepo.ProfileGalleryItemWithMedia[],
   passwordIsSet: boolean,
+  limits: { maxProfileGalleryPhotos: 6 | 15; maxLockedProfilePhotos: 0 | 10 },
 ): OwnerProfileGalleryResponse {
   const photos = items.map((entry) => ({
     ...toPublicPhoto(entry),
@@ -561,8 +600,8 @@ function toOwnerGalleryResponse(
     lockedPhotosCount: lockedPhotos.length,
     visibleImagesCount: visibleImagesCount(user, photos),
     minVisibleImagesRequired: MIN_VISIBLE_PROFILE_IMAGES_FOR_LOCKED_GALLERY,
-    maxProfileGalleryPhotos: MAX_PROFILE_GALLERY_PHOTOS,
-    maxLockedProfilePhotos: MAX_LOCKED_PROFILE_PHOTOS,
+    maxProfileGalleryPhotos: limits.maxProfileGalleryPhotos,
+    maxLockedProfilePhotos: limits.maxLockedProfilePhotos,
   };
 }
 
@@ -776,26 +815,27 @@ function assertVisibleImageRule(
 
 function assertGalleryCountLimits(
   items: { visibility: galleryRepo.ProfileGalleryVisibility }[],
+  limits: { maxProfileGalleryPhotos: number; maxLockedProfilePhotos: number },
 ): void {
-  if (items.length > MAX_PROFILE_GALLERY_PHOTOS) {
+  if (items.length > limits.maxProfileGalleryPhotos) {
     throw new AppError(
       "profile_gallery_limit_reached",
       "Profile gallery photo limit has been reached",
       409,
       {
-        maxProfileGalleryPhotos: String(MAX_PROFILE_GALLERY_PHOTOS),
+        maxProfileGalleryPhotos: String(limits.maxProfileGalleryPhotos),
       },
     );
   }
 
   const lockedPhotosCount = items.filter((item) => item.visibility === "locked").length;
-  if (lockedPhotosCount > MAX_LOCKED_PROFILE_PHOTOS) {
+  if (lockedPhotosCount > limits.maxLockedProfilePhotos) {
     throw new AppError(
       "locked_gallery_limit_reached",
       "Locked gallery photo limit has been reached",
       409,
       {
-        maxLockedProfilePhotos: String(MAX_LOCKED_PROFILE_PHOTOS),
+        maxLockedProfilePhotos: String(limits.maxLockedProfilePhotos),
       },
     );
   }

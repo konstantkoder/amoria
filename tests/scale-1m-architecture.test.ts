@@ -13,10 +13,10 @@ test("scale migrations remain additive and sequential through measured hot-path 
   const pushMigration = read("src/db/migrations/0037_scale_push_claim_order.sql");
   const nearbyKnnMigration = read("src/db/migrations/0038_scale_nearby_knn.sql");
   const journal = JSON.parse(read("src/db/migrations/meta/_journal.json")) as { entries: Array<{ idx: number; tag: string }> };
-  assert.equal(journal.entries.at(-1)?.idx, 39);
-  assert.equal(journal.entries.at(-1)?.tag, "0039_admin_mfa_security");
-  assert.equal(journal.entries.at(-2)?.idx, 38);
-  assert.equal(journal.entries.at(-2)?.tag, "0038_scale_nearby_knn");
+  assert.equal(journal.entries.at(-1)?.idx, 40);
+  assert.equal(journal.entries.at(-1)?.tag, "0040_release_monetization_founder_growth");
+  assert.equal(journal.entries.at(-2)?.idx, 39);
+  assert.equal(journal.entries.at(-2)?.tag, "0039_admin_mfa_security");
   assert.match(migration, /auth_version/);
   assert.match(migration, /refresh_tokens_auth_version_check/);
   for (const index of [
