@@ -23,6 +23,7 @@
     "jsEngine": "hermes",
     "plugins": [
       "expo-dev-client",
+      "expo-iap",
       [
         "expo-notifications",
         {
@@ -49,9 +50,7 @@
       ],
       "expo-secure-store"
     ],
-    "assetBundlePatterns": [
-      "src/assets/backgrounds/*"
-    ],
+    "assetBundlePatterns": ["**/*"],
     "ios": {
       "bundleIdentifier": "com.kostiantyndemidets.amoria",
       "usesAppleSignIn": false,

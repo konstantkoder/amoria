@@ -37,6 +37,11 @@ import NotificationsScreen from "@/screens/NotificationsScreen";
 import AccountDeletionScreen from "@/screens/AccountDeletionScreen";
 import PrivacyPolicyScreen from "@/screens/PrivacyPolicyScreen";
 import LocationInfoScreen from "@/screens/LocationInfoScreen";
+import PremiumScreen from "@/screens/PremiumScreen";
+import InviteScreen from "@/screens/InviteScreen";
+import CommunityAvailabilityScreen from "@/screens/CommunityAvailabilityScreen";
+import PushPreferencesScreen from "@/screens/PushPreferencesScreen";
+import TogetherHistoryScreen from "@/screens/TogetherHistoryScreen";
 
 import { AmoriaTogetherIcon } from "@/components/icons/AmoriaTogetherIcon";
 import ScreenBackground from "@/components/ScreenBackground";
@@ -484,6 +489,7 @@ export default function AppNavigator() {
         <RootStack.Screen name="PlayCanvas" component={PlayCanvasScreen} />
         <RootStack.Screen name="PlayStorySparks" component={PlayStorySparksScreen} />
         <RootStack.Screen name="PlayResult" component={PlayResultScreen} />
+        <RootStack.Screen name="TogetherHistory" component={TogetherHistoryScreen} />
         <RootStack.Screen name="DMChat" component={DMChatScreen} />
         <RootStack.Screen name="NearbyRoomChat" component={NearbyRoomChatScreen} />
         <RootStack.Screen
@@ -497,6 +503,10 @@ export default function AppNavigator() {
         <RootStack.Screen name="AccountDeletion" component={AccountDeletionScreen} />
         <RootStack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
         <RootStack.Screen name="LocationInfo" component={LocationInfoScreen} />
+        <RootStack.Screen name="Premium" component={PremiumScreen} />
+        <RootStack.Screen name="Invite" component={InviteScreen} />
+        <RootStack.Screen name="CommunityAvailability" component={CommunityAvailabilityScreen} />
+        <RootStack.Screen name="PushPreferences" component={PushPreferencesScreen} />
       </RootStack.Navigator>
     </Drawer>
     </IdentitySetupGate>

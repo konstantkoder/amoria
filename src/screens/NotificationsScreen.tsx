@@ -16,12 +16,7 @@ import { type RootStackNavigationProp } from "@/navigation/appRoutes";
 import * as notificationsApi from "@/services/api/notificationsApi";
 import { requestAndRegisterPush } from "@/services/notifications";
 import { theme } from "@/theme";
-
-function destination(type: notificationsApi.NotificationType): "Inbox" | "Together" | "Nearby" {
-  if (type === "direct_message") return "Inbox";
-  if (type === "announcement") return "Nearby";
-  return "Together";
-}
+import { resolvePushRoute } from "@/services/pushRouting";
 
 export default function NotificationsScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"Notifications">>();
@@ -55,7 +50,8 @@ export default function NotificationsScreen() {
       ? { ...candidate, readAt: new Date().toISOString() }
       : candidate));
     await notificationsApi.markNotificationRead(item.id).catch(() => undefined);
-    navigation.navigate("Tabs", { screen: destination(item.type) });
+    const route = await resolvePushRoute({ type: item.type, ...item.payload });
+    if (route) navigation.navigate(route.name as any, route.params as any);
   }, [navigation]);
 
   const enablePush = React.useCallback(async () => {

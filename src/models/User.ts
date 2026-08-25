@@ -44,4 +44,6 @@ export interface UserProfile {
   createdAt: number;
   updatedAt: number;
   mysteryMode?: boolean;
+  founderNumber?: number | null;
+  profileFrame?: "NONE" | "WARM_METALLIC" | "BLACK_GLASS" | "WARM_HALO";
 }

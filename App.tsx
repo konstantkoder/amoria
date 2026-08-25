@@ -2,7 +2,7 @@ import "react-native-gesture-handler";
 import "react-native-reanimated";
 
 import React from "react";
-import { AppState, LogBox, Platform } from "react-native";
+import { AppState, Linking, LogBox, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import type { AppStateStatus } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
@@ -19,6 +19,7 @@ import LoginScreen from "@/screens/LoginScreen";
 import AppNavigator from "@/navigation/AppNavigator";
 import { type AppStackParamList } from "@/navigation/appRoutes";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { MonetizationProvider } from "@/contexts/MonetizationContext";
 import { LocaleProvider, useLocale } from "@/contexts/LocaleContext";
 import { theme } from "@/theme/theme";
 import ErrorBoundary from "@/components/ErrorBoundary";
@@ -39,6 +40,8 @@ import {
   subscribePushTokenChanges,
   syncPushTokenIfGranted,
 } from "@/services/notifications";
+import { resolvePushRoute } from "@/services/pushRouting";
+import { captureAttribution, captureInstallReferrer, claimPendingAttribution } from "@/services/attribution";
 
 markStartupEvent("app.module_loaded");
 
@@ -57,12 +60,12 @@ function routePushData(data: Record<string, unknown>) {
     pendingPushData = data;
     return;
   }
-  const type = typeof data.type === "string" ? data.type : "";
-  if (!new Set(["direct_message", "together_match", "together_action", "announcement"]).has(type)) return;
-  const screen = type === "direct_message" ? "Inbox" : type === "announcement" ? "Nearby" : "Together";
-  navigationRef.navigate("Root", { screen: "Tabs", params: { screen } });
-  const notificationId = typeof data.notificationId === "string" ? data.notificationId : "";
-  if (notificationId) void notificationsApi.markNotificationRead(notificationId).catch(() => undefined);
+  void resolvePushRoute(data).then((route) => {
+    if (!route || !getSafeNavigationReady()) return;
+    navigationRef.navigate("Root", { screen: route.name as any, params: route.params as any });
+    const notificationId = typeof data.notificationId === "string" ? data.notificationId : "";
+    if (notificationId) void notificationsApi.markNotificationRead(notificationId).catch(() => undefined);
+  }).catch(() => undefined);
 }
 
 function flushPendingPushData() {
@@ -331,7 +334,9 @@ function AppNavigation({ isSignedIn }: AppNavigationProps) {
 
 function AuthGate() {
   const { ready, user, startupState, retryStartup } = useAuth();
+  const { t } = useLocale();
   const isSignedIn = Boolean(user);
+  const [foregroundNotice, setForegroundNotice] = React.useState<{ title: string; body: string; data: Record<string, unknown> } | null>(null);
   React.useEffect(() => {
     if (!isSignedIn) return undefined;
     void syncPushTokenIfGranted().catch(() => undefined);
@@ -339,6 +344,10 @@ function AuthGate() {
     const responseSubscription = Notifications.addNotificationResponseReceivedListener((response) => {
       routePushData(response.notification.request.content.data);
       void Notifications.clearLastNotificationResponseAsync().catch(() => undefined);
+    });
+    const foregroundSubscription = Notifications.addNotificationReceivedListener((notification) => {
+      const content = notification.request.content;
+      setForegroundNotice({ title: content.title ?? t("notifications.title"), body: content.body ?? "", data: content.data });
     });
     void Notifications.getLastNotificationResponseAsync().then((response) => {
       if (!response) return;
@@ -348,7 +357,14 @@ function AuthGate() {
     return () => {
       tokenSubscription.remove();
       responseSubscription.remove();
+      foregroundSubscription.remove();
     };
+  }, [isSignedIn, t]);
+  React.useEffect(() => {
+    void captureInstallReferrer().then(() => isSignedIn ? claimPendingAttribution() : false).catch(() => undefined);
+    void Linking.getInitialURL().then(captureAttribution).then(() => isSignedIn ? claimPendingAttribution() : false).catch(() => undefined);
+    const subscription = Linking.addEventListener("url", ({ url }) => { void captureAttribution(url).then(() => isSignedIn ? claimPendingAttribution() : false).catch(() => undefined); });
+    return () => subscription.remove();
   }, [isSignedIn]);
   const handleErrorBoundaryError = React.useCallback(
     (error: Error) => {
@@ -375,6 +391,7 @@ function AuthGate() {
             <AppNavigation isSignedIn={isSignedIn} />
           </ErrorBoundary>
           <LanguagePickerHost />
+          {foregroundNotice ? <TouchableOpacity style={appStyles.toast} activeOpacity={0.9} onPress={() => { const data = foregroundNotice.data; setForegroundNotice(null); routePushData(data); }}><View style={appStyles.toastCopy}><Text style={appStyles.toastTitle}>{foregroundNotice.title}</Text>{foregroundNotice.body ? <Text style={appStyles.toastBody}>{foregroundNotice.body}</Text> : null}</View><Text style={appStyles.toastClose} onPress={() => setForegroundNotice(null)}>×</Text></TouchableOpacity> : null}
         </>
       )}
     </>
@@ -389,12 +406,17 @@ function AppBootstrap() {
         <StartupScreen />
       ) : (
         <AuthProvider>
-          <AuthGate />
+          <MonetizationProvider><AuthGate /></MonetizationProvider>
         </AuthProvider>
       )}
     </GestureHandlerRootView>
   );
 }
+
+const appStyles = StyleSheet.create({
+  toast: { position: "absolute", top: 54, left: 16, right: 16, zIndex: 1000, flexDirection: "row", padding: 14, borderRadius: 16, backgroundColor: "rgba(20,18,30,.97)", borderWidth: 1, borderColor: "rgba(230,185,118,.55)", elevation: 12 },
+  toastCopy: { flex: 1, gap: 3 }, toastTitle: { color: "#F3C98B", fontWeight: "900" }, toastBody: { color: "#E5E7EB", fontSize: 13 }, toastClose: { color: "#E5E7EB", fontSize: 22, paddingHorizontal: 6 },
+});
 
 export default function App() {
   return (

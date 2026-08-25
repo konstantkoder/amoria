@@ -1,6 +1,8 @@
 import { apiRequest } from "@/services/api/apiClient";
 
-export type NotificationType = "direct_message" | "together_match" | "together_action" | "announcement";
+export type NotificationType = "direct_message" | "together_match" | "together_action" | "announcement"
+  | "founder_activated" | "founder_premium_started" | "founder_premium_expiring" | "founder_premium_expired"
+  | "premium_activated" | "premium_restored" | "premium_billing_issue" | "community_activity";
 export type NotificationDto = {
   id: string;
   type: NotificationType;

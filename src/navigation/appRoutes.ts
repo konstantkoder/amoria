@@ -115,6 +115,7 @@ export type RootStackParamList = {
   PlayCanvas: PlaySessionRouteParams;
   PlayStorySparks: PlaySessionRouteParams;
   PlayResult: PlaySessionRouteParams;
+  TogetherHistory: undefined;
   DMChat: DmChatRouteParams;
   NearbyRoomChat: NearbyRoomChatRouteParams;
   NearbyActivityPreferences: undefined;
@@ -125,6 +126,10 @@ export type RootStackParamList = {
   AccountDeletion: undefined;
   PrivacyPolicy: undefined;
   LocationInfo: undefined;
+  Premium: undefined;
+  Invite: undefined;
+  CommunityAvailability: undefined;
+  PushPreferences: undefined;
 };
 
 export type RootStackNavigationProp<

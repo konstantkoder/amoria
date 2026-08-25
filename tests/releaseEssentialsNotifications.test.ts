@@ -8,10 +8,11 @@ const notifications = read("src/services/notifications.ts");
 const api = read("src/services/api/notificationsApi.ts");
 const screen = read("src/screens/NotificationsScreen.tsx");
 const auth = read("src/contexts/AuthContext.tsx");
+const routing = read("src/services/pushRouting.ts");
 const config = JSON.parse(read("app.json")).expo;
 
 assert(screen.includes("listNotifications") && screen.includes("useFocusEffect"), "durable notifications reload whenever their screen is opened");
-assert(screen.includes("markNotificationRead") && screen.includes('navigation.navigate("Tabs"'), "notification taps mark read and navigate through existing guarded screens");
+assert(screen.includes("markNotificationRead") && screen.includes("resolvePushRoute") && screen.includes("navigation.navigate(route.name"), "notification taps mark read and navigate through exact guarded screens");
 assert(screen.includes("requestAndRegisterPush"), "permission request happens from an explanatory user-facing action");
 assert(notifications.includes("Device.isDevice") && notifications.includes('Platform.OS !== "android"') && notifications.includes('Platform.OS !== "ios"'), "registration is limited to physical mobile devices");
 assert(notifications.includes("getExpoPushTokenAsync({ projectId: projectId(), devicePushToken })"), "Expo token uses the configured EAS project id and supports rotation");
@@ -20,10 +21,11 @@ assert(api.includes('method: "PUT"') && api.includes('method: "DELETE"'), "token
 assert(auth.includes("await unlinkPushToken().catch"), "logout and account switch unlink the previous device association");
 assert(app.includes("syncPushTokenIfGranted") && app.includes("subscribePushTokenChanges"), "granted token state and token rotation sync after sign-in");
 assert(app.includes("addNotificationResponseReceivedListener") && app.includes("getLastNotificationResponseAsync"), "warm and cold push taps are handled");
-assert(app.includes('type === "direct_message" ? "Inbox"') && app.includes('type === "announcement" ? "Nearby" : "Together"'), "tap data maps only to existing high-level screens");
-assert(app.includes('["direct_message", "together_match", "together_action", "announcement"]'), "unknown push types are ignored");
+assert(routing.includes('type === "direct_message"') && routing.includes('name: "DMChat"') && routing.includes('name: "AnnouncementDetail"'), "tap data resolves exact chat and announcement destinations");
+assert(routing.includes("return null"), "unknown push types are ignored");
 assert(app.includes("isSignedIn") && app.includes("pendingPushData"), "signed-out and pre-navigation taps cannot bypass authentication");
 assert(notifications.includes("shouldShowBanner: false") && notifications.includes("shouldShowList: false"), "foreground push banners are suppressed to avoid WS/UI duplication");
+assert(app.includes("addNotificationReceivedListener") && app.includes("foregroundNotice"), "foreground notifications use the in-app banner rather than a duplicate OS banner");
 
 for (const locale of ["en", "ru", "hr"]) {
   const dictionary = JSON.parse(read(`src/i18n/locales/${locale}.json`));

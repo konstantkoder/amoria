@@ -29,6 +29,8 @@ import {
 } from "@/config/profileFields";
 import ScreenShell from "@/components/ScreenShell";
 import UserAvatar from "@/components/UserAvatar";
+import FounderBadge from "@/components/FounderBadge";
+import { useMonetization } from "@/contexts/MonetizationContext";
 import { useLocale } from "@/contexts/LocaleContext";
 import type { ProfileGender, UserProfile, UserProfilePhoto } from "@/models/User";
 import type { ProfileStackParamList, RootStackNavigationProp } from "@/navigation/appRoutes";
@@ -261,6 +263,7 @@ export default function ProfileScreen() {
   const navigation = useNavigation<ProfileNav>();
   const rootNavigation = navigation.getParent<RootStackNavigationProp>();
   const { t } = useLocale();
+  const { snapshot } = useMonetization();
   const [profile, setProfile] = React.useState<UserProfile | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [avatarUploading, setAvatarUploading] = React.useState(false);
@@ -700,6 +703,7 @@ export default function ProfileScreen() {
                   avatarUrl={avatarUrl}
                   label={displayName}
                   size={108}
+                  frameStyle={snapshot?.profileFrame.rendered}
                   cacheKey={avatarDisplayCacheKey}
                   onLoadError={(urlInfo) => {
                     reportProfileMediaLoadFailed("loadAvatar", {
@@ -776,6 +780,7 @@ export default function ProfileScreen() {
             </View>
           </View>
           <Text style={styles.displayName}>{displayName}</Text>
+          <FounderBadge number={snapshot?.founder?.number} />
           {amoriaId ? (
             <Text style={styles.amoriaIdText}>
               {t("profile.amoriaId")}: {amoriaId}

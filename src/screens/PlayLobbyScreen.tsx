@@ -53,6 +53,7 @@ import {
 } from "@/services/togetherTurnBasedPresentation";
 import { refreshTurnBasedFlow } from "@/services/togetherTurnBasedFlow";
 import { theme } from "@/theme";
+import { useMonetization } from "@/contexts/MonetizationContext";
 
 function isReleasePlayActivity(
   value: string
@@ -111,6 +112,7 @@ function getMissingSafetyFieldsBody(
 export default function PlayLobbyScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"PlayMatch">>();
   const { t } = useLocale();
+  const { hasPremiumFeature } = useMonetization();
   const { height: screenHeight } = useWindowDimensions();
   const tt = React.useCallback(
     (key: string, fallback: string, params?: Record<string, string>) => {
@@ -241,9 +243,16 @@ export default function PlayLobbyScreen() {
   }, []);
 
   const selectAgeFilter = React.useCallback((id: AgeFilterId) => {
+    if (id !== "any" && !hasPremiumFeature) {
+      Alert.alert(tt("premium.requiredTitle", "Premium"), tt("premium.filtersGate", "Advanced age filters are available with Premium."), [
+        { text: tt("common.cancel", "Cancel"), style: "cancel" },
+        { text: tt("premium.view", "View Premium"), onPress: () => navigation.navigate("Premium") },
+      ]);
+      return;
+    }
     setSelectedAgeFilter(id);
     void AsyncStorage.setItem(AGE_FILTER_STORAGE_KEY, id).catch(() => undefined);
-  }, []);
+  }, [hasPremiumFeature, navigation, tt]);
 
   const openProfileSafetyFields = React.useCallback(() => {
     navigation.navigate("Profile", {
@@ -600,6 +609,15 @@ export default function PlayLobbyScreen() {
                 "Сначала общий рисунок. Дальше - продолжение только по взаимности."
               )}
             </Text>
+
+            <Pressable
+              onPress={() => navigation.navigate("TogetherHistory")}
+              style={styles.searchSettingsPill}
+              accessibilityRole="button"
+            >
+              <Ionicons name="archive-outline" size={16} color={theme.buttons.secondary.textColor} />
+              <Text style={styles.searchSettingsPillText}>{t("togetherHistory.open")}</Text>
+            </Pressable>
 
             {locationNotice ? (
               <Text style={styles.locationNotice}>{locationNotice}</Text>

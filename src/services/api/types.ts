@@ -114,6 +114,8 @@ export type PublicUserProfileDto = {
   age?: number | null;
   ageGroup?: AgeGroup | null;
   lockedGallery: LockedGallerySummaryDto;
+  founderNumber?: number | null;
+  profileFrame?: "NONE" | "WARM_METALLIC" | "BLACK_GLASS" | "WARM_HALO";
 };
 
 export type ProfileGalleryVisibility = "public" | "locked";
@@ -728,6 +730,28 @@ export type TogetherRevealResponse = {
   nextActivity?: TogetherActivity;
   revealState: TogetherRevealStateDto;
 };
+
+export type TogetherHistoryItemDto = {
+  sessionId: string;
+  activity: TogetherActivity;
+  status: TogetherSessionStatus;
+  promptText: string;
+  promptKey: string | null;
+  peer: TogetherParticipantDto;
+  outcome: TogetherRevealOutcome;
+  myDecision: TogetherRevealDecision | null;
+  threadId: string | null;
+  canOpenChat: boolean;
+  peerDecisionKnown: boolean;
+  nextSessionId: string | null;
+  nextActivity: TogetherActivity | null;
+  createdAt: string;
+  endedAt: string | null;
+  endedReason: string | null;
+  storyArtifact?: StorySparksArtifactDto;
+};
+
+export type TogetherHistoryResponse = { items: TogetherHistoryItemDto[] };
 
 export type TurnBasedStatus =
   | "starter_turn" | "waiting_for_partner" | "partner_turn"

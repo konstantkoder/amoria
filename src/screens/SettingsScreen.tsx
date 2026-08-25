@@ -218,6 +218,34 @@ export default function SettingsScreen() {
           </Text>
           <View style={styles.card}>
             <TouchableOpacity
+              onPress={() => navigation.navigate("Premium")}
+              style={styles.linkRow}
+            >
+              <Ionicons name="diamond-outline" size={18} color="#F3C98B" />
+              <Text style={styles.linkText}>{t("premium.title")}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => navigation.navigate("Invite")}
+              style={styles.linkRow}
+            >
+              <Ionicons name="person-add-outline" size={18} color="#E5E7EB" />
+              <Text style={styles.linkText}>{t("invite.title")}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => navigation.navigate("CommunityAvailability")}
+              style={styles.linkRow}
+            >
+              <Ionicons name="radio-outline" size={18} color="#E5E7EB" />
+              <Text style={styles.linkText}>{t("availability.title")}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => navigation.navigate("PushPreferences")}
+              style={styles.linkRow}
+            >
+              <Ionicons name="options-outline" size={18} color="#E5E7EB" />
+              <Text style={styles.linkText}>{t("pushPrefs.title")}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
               onPress={() => navigation.navigate("Notifications")}
               style={styles.linkRow}
             >

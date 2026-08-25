@@ -7,6 +7,7 @@ import {
   type PublicMediaUrlInfo,
 } from "@/services/media/mediaUrl";
 import { theme } from "@/theme";
+import type { PremiumFrameStyle } from "@/services/api/monetizationApi";
 
 type Props = {
   avatarUrl?: string;
@@ -14,6 +15,7 @@ type Props = {
   size?: number;
   cacheKey?: string | number;
   onLoadError?: (info: PublicMediaUrlInfo) => void;
+  frameStyle?: PremiumFrameStyle;
 };
 
 function normalizeAvatarUrl(value?: string) {
@@ -51,6 +53,7 @@ export default function UserAvatar({
   size = 44,
   cacheKey,
   onLoadError,
+  frameStyle = "NONE",
 }: Props) {
   const [failed, setFailed] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
@@ -78,11 +81,13 @@ export default function UserAvatar({
     }
   }, [hasRawAvatarUrl, onLoadError, sharedUrl, urlInfo]);
 
+  const frame = frameStyle === "NONE" ? null : styles[`frame${frameStyle}`];
+
   if (imageUrl && !failed) {
     return (
       <View
         style={[
-          styles.avatar,
+          styles.avatar, frame,
           {
             width: size,
             height: size,
@@ -116,7 +121,7 @@ export default function UserAvatar({
     <View
       style={[
         styles.avatar,
-        styles.fallback,
+        styles.fallback, frame,
         {
           width: size,
           height: size,
@@ -155,5 +160,29 @@ const styles = StyleSheet.create({
   initials: {
     color: theme.colors.text,
     fontWeight: "800",
+  },
+  frameWARM_METALLIC: {
+    borderWidth: 3,
+    borderColor: "#D8A45B",
+    shadowColor: "#F3C98B",
+    shadowOpacity: 0.45,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  frameBLACK_GLASS: {
+    borderWidth: 3,
+    borderColor: "rgba(18,18,24,0.92)",
+    shadowColor: "#FFFFFF",
+    shadowOpacity: 0.18,
+    shadowRadius: 5,
+    elevation: 4,
+  },
+  frameWARM_HALO: {
+    borderWidth: 3,
+    borderColor: "#F0BD87",
+    shadowColor: "#FF9F6E",
+    shadowOpacity: 0.78,
+    shadowRadius: 13,
+    elevation: 8,
   },
 });

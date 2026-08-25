@@ -236,6 +236,8 @@ function mapBackendUserProfile(
     ageGroup: AgeGroup | null;
     preferredAgeMin: number;
     preferredAgeMax: number | null;
+    founderNumber: number | null;
+    profileFrame: "NONE" | "WARM_METALLIC" | "BLACK_GLASS" | "WARM_HALO";
   }>;
   const createdAt = normalizeBackendTimestamp(backendFields.createdAt, now);
   const updatedAt = normalizeBackendTimestamp(backendFields.updatedAt, createdAt);
@@ -282,6 +284,10 @@ function mapBackendUserProfile(
     createdAt,
     updatedAt,
     mysteryMode: Boolean(backendFields.mysteryMode),
+    founderNumber: Number.isInteger(backendFields.founderNumber) ? backendFields.founderNumber : null,
+    profileFrame: new Set(["NONE", "WARM_METALLIC", "BLACK_GLASS", "WARM_HALO"]).has(String(backendFields.profileFrame))
+      ? backendFields.profileFrame
+      : "NONE",
   };
 }
 

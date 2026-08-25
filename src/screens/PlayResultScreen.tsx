@@ -1,7 +1,9 @@
 import React from "react";
 import {
   AppState,
+  Alert,
   Pressable,
+  Share,
   ScrollView,
   StyleSheet,
   Text,
@@ -592,6 +594,16 @@ export default function PlayResultScreen() {
       activity: sessionActivity ?? "draw",
     });
   }, [navigation, sessionActivity]);
+  const shareTogether = React.useCallback(async () => {
+    if (!sessionId) return;
+    try {
+      const consent = await togetherApi.setShareConsent(sessionId, true);
+      if (consent.shareMode === "neutral_amoria_card") {
+        Alert.alert(tt("share.waitingTitle", "Consent saved"), tt("share.waitingBody", "Until every participant consents, only a neutral Amoria card is shared."));
+      }
+      await Share.share({ message: tt("share.neutralText", "We created something together in Amoria.") });
+    } catch (error) { Alert.alert(tt("common.error", "Error"), sanitizeErrorForReport(error).message); }
+  }, [sessionId, tt]);
 
   const screenTitle = tt("play.result.title", "Итог сессии");
 
@@ -896,6 +908,9 @@ export default function PlayResultScreen() {
         </View>
 
         <View style={styles.bottomActions}>
+          <Pressable style={styles.outlineButton} onPress={() => void shareTogether()}>
+            <Text style={styles.outlineButtonText}>{tt("share.together", "Share together")}</Text>
+          </Pressable>
           {false ? (
           <Pressable style={styles.outlineButton} onPress={startNewSession}>
             <Text style={styles.outlineButtonText}>

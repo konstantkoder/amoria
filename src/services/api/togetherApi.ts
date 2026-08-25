@@ -2,6 +2,7 @@ import { request } from "@/services/api/apiClient";
 import type {
   TogetherActivity,
   TogetherEventType,
+  TogetherHistoryResponse,
   TogetherPreferredAgeRangeInput,
   TogetherQueueCancelInput,
   TogetherQueueLocationInput,
@@ -102,6 +103,14 @@ export function heartbeat(sessionId: string): Promise<TogetherSessionResponse> {
     "POST",
     `/together/sessions/${encodeURIComponent(sessionId)}/heartbeat`
   );
+}
+
+export function getHistory(limit = 50): Promise<TogetherHistoryResponse> {
+  return request<TogetherHistoryResponse>("GET", `/together/history?limit=${Math.max(1, Math.min(limit, 100))}`);
+}
+
+export function setShareConsent(sessionId: string, consent: boolean): Promise<{ consented: boolean; shareMode: "joint_result" | "neutral_amoria_card" }> {
+  return request("PUT", `/together/sessions/${encodeURIComponent(sessionId)}/share-consent`, { consent });
 }
 
 export function reveal(

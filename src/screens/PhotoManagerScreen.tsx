@@ -13,7 +13,7 @@ import {
   View,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 
 import ImageCropper, {
   CroppedMediaPreview,
@@ -49,6 +49,7 @@ import {
   probePublicMediaUrlInfo,
 } from "@/services/media/mediaUrl";
 import { theme } from "@/theme";
+import { useMonetization } from "@/contexts/MonetizationContext";
 
 type PasswordMode = "set" | "reset" | "";
 type PendingPickedPhoto = {
@@ -81,6 +82,13 @@ function isValidCrop(crop: NormalizedMediaCrop) {
 
 export default function PhotoManagerScreen() {
   const { t } = useLocale();
+  const navigation = useNavigation<any>();
+  const { hasPremiumFeature } = useMonetization();
+  const openPremium = React.useCallback(() => navigation.getParent()?.navigate("Premium"), [navigation]);
+  const showPremiumGate = React.useCallback((bodyKey: string) => Alert.alert(
+    t("premium.requiredTitle"), t(bodyKey),
+    [{ text: t("common.cancel"), style: "cancel" }, { text: t("premium.view"), onPress: openPremium }],
+  ), [openPremium, t]);
   const tt = React.useCallback(
     (key: string, fallback: string) => {
       const value = t(key);
@@ -230,6 +238,10 @@ export default function PhotoManagerScreen() {
   }
 
   async function pickPhotoForCrop() {
+    if (totalPhotos >= 6 && !hasPremiumFeature) {
+      showPremiumGate("premium.photoGate");
+      return;
+    }
     if (galleryLimitReached) {
       Alert.alert(
         tt("photos.galleryLimitReachedTitle", "Лимит фото достигнут"),
@@ -487,6 +499,10 @@ export default function PhotoManagerScreen() {
 
   async function movePhoto(photo: ProfileGalleryPhotoDto, visibility: ProfileGalleryVisibility) {
     if (mutationInFlightRef.current) return;
+    if (visibility === "locked" && !hasPremiumFeature) {
+      showPremiumGate("premium.lockedGate");
+      return;
+    }
     if (visibility === "locked" && !gallery?.lockedFolderEnabled) {
       Alert.alert(
         tt("photos.lockedGalleryPasswordRequiredTitle", "Нужен пароль"),
@@ -694,7 +710,7 @@ export default function PhotoManagerScreen() {
           <Text style={styles.summaryText}>{minVisibleMessage()}</Text>
           <View style={styles.summaryActions}>
             <TouchableOpacity
-              onPress={() => setPasswordMode("set")}
+              onPress={() => hasPremiumFeature ? setPasswordMode("set") : showPremiumGate("premium.lockedGate")}
               disabled={passwordBusy}
               style={styles.smallButton}
               activeOpacity={0.86}
@@ -706,7 +722,7 @@ export default function PhotoManagerScreen() {
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              onPress={() => setPasswordMode("reset")}
+              onPress={() => hasPremiumFeature ? setPasswordMode("reset") : showPremiumGate("premium.lockedGate")}
               disabled={passwordBusy}
               style={styles.smallButton}
               activeOpacity={0.86}

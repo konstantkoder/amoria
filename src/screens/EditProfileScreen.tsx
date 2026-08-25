@@ -10,6 +10,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  Switch,
   View,
 } from "react-native";
 import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
@@ -36,6 +37,7 @@ import type {
   RootStackNavigationProp,
 } from "@/navigation/appRoutes";
 import { theme } from "@/theme";
+import { useMonetization } from "@/contexts/MonetizationContext";
 import {
   reportClientError,
   sanitizeErrorForReport,
@@ -247,6 +249,7 @@ export default function EditProfileScreen() {
   const navigation = useNavigation<EditProfileNavigation>();
   const rootNavigation = navigation.getParent<RootStackNavigationProp>();
   const { t } = useLocale();
+  const { hasPremiumFeature } = useMonetization();
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
   const saveInFlightRef = React.useRef(false);
@@ -1032,6 +1035,20 @@ export default function EditProfileScreen() {
             </View>
           </View>
 
+          <View style={styles.privacyRow}>
+            <View style={styles.privacyCopy}>
+              <Text style={styles.label}>{t("premium.advancedPrivacy")}</Text>
+              <Text style={styles.helperText}>{t("premium.advancedPrivacyBody")}</Text>
+            </View>
+            <Switch value={mysteryMode} onValueChange={(value) => {
+              if (value && !hasPremiumFeature) {
+                Alert.alert(t("premium.requiredTitle"), t("premium.privacyGate"));
+                return;
+              }
+              setMysteryMode(value);
+            }} />
+          </View>
+
           <TouchableOpacity
             onPress={() => void handleSave()}
             disabled={saving}
@@ -1054,6 +1071,8 @@ export default function EditProfileScreen() {
 }
 
 const styles = StyleSheet.create({
+  privacyRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 12 },
+  privacyCopy: { flex: 1 },
   keyboardAvoider: {
     flex: 1,
   },

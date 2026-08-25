@@ -33,6 +33,8 @@ function copyOrFallback(
 
 type DrawerSection =
   | "profile"
+  | "premium"
+  | "invite"
   | "settings"
   | "language"
   | "privacy";
@@ -53,6 +55,8 @@ function activeSectionFromRoute(route?: RouteSnapshot): DrawerSection | null {
   }
 
   if (route.name === "Profile" || route.name === "UserProfile") return "profile";
+  if (route.name === "Premium") return "premium";
+  if (route.name === "Invite") return "invite";
   if (route.name === "Settings" || route.name === "LocationInfo") return "settings";
   if (route.name === "PrivacyPolicy") return "privacy";
   return null;
@@ -204,6 +208,18 @@ export default function AppDrawerContent({ onClose }: Props) {
             icon: "person-outline",
             label: t("menu.profile"),
             onPress: handleOpenProfile,
+          })}
+          {renderButton({
+            section: "premium",
+            icon: "diamond-outline",
+            label: t("premium.title"),
+            onPress: () => { onClose?.(); navigation.navigate("Premium"); },
+          })}
+          {renderButton({
+            section: "invite",
+            icon: "person-add-outline",
+            label: t("invite.title"),
+            onPress: () => { onClose?.(); navigation.navigate("Invite"); },
           })}
           {renderButton({
             section: "settings",

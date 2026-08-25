@@ -104,6 +104,10 @@ module.exports = ({ config = {} } = {}) => {
   const variant = resolveAppVariant();
   const selected = VARIANTS[variant];
   const production = variant === "production";
+  const appLinkHost = String(process.env.EXPO_PUBLIC_APP_LINK_HOST || "").trim().toLowerCase();
+  if (appLinkHost && (appLinkHost.includes("://") || isPrivateOrLocalHostname(appLinkHost))) {
+    throw new Error("EXPO_PUBLIC_APP_LINK_HOST must be a public hostname without a protocol");
+  }
 
   if (production) {
     requireProductionUrl("EXPO_PUBLIC_API_URL", "https");
@@ -126,6 +130,14 @@ module.exports = ({ config = {} } = {}) => {
       ...(config.android || {}),
       package: selected.identifier,
       ...(production ? { usesCleartextTraffic: false } : {}),
+      ...(appLinkHost ? {
+        intentFilters: [{
+          action: "VIEW",
+          autoVerify: production,
+          category: ["BROWSABLE", "DEFAULT"],
+          data: [{ scheme: "https", host: appLinkHost, pathPrefix: "/i/" }],
+        }],
+      } : {}),
     },
   };
 };

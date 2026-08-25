@@ -25,6 +25,7 @@ import {
 } from "@/config/profileFields";
 import ScreenShell from "@/components/ScreenShell";
 import UserAvatar from "@/components/UserAvatar";
+import FounderBadge from "@/components/FounderBadge";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocale } from "@/contexts/LocaleContext";
 import {
@@ -913,6 +914,7 @@ export default function UserProfileScreen() {
               avatarUrl={avatarUrl}
               label={displayName}
               size={112}
+              frameStyle={profile.profileFrame}
               onLoadError={(urlInfo) => {
                 setAvatarLoadFailed(true);
                 reportPeerMediaLoadFailed("avatarLoadFailed", { urlInfo, visibility: "avatar" });
@@ -923,6 +925,7 @@ export default function UserProfileScreen() {
                 {tt("profile.peerTitle", "Профиль собеседника")}
               </Text>
               <Text style={styles.displayName}>{displayName}</Text>
+              <FounderBadge number={profile.founderNumber} />
               {profileFacts.map((item) => (
                 <Text key={item} style={styles.amoriaIdText}>{item}</Text>
               ))}
