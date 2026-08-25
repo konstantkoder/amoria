@@ -45,7 +45,9 @@ import {
   revokeRefreshTokenByHash,
   rotateRefreshToken,
   uniqueConstraint,
+  updateUserPreferredLocale,
 } from "./auth.repo";
+import { normalizeAppLocale } from "../i18n/app-locales";
 import type {
   AuthRequestContext,
   AuthResponse,
@@ -321,6 +323,7 @@ export async function register(
         passwordHash,
         displayName,
         amoriaId: generateAmoriaId(),
+        preferredLocale: normalizeAppLocale(input.locale),
       });
       await createAndDeliverChallenge({
         user,
@@ -363,6 +366,9 @@ export async function login(
       await registrationAbuseGuard.recordFailure("login", email, context);
     }
     throw error;
+  }
+  if (input.locale !== undefined) {
+    user = await updateUserPreferredLocale(user.id, normalizeAppLocale(input.locale)) ?? user;
   }
   const refreshToken = await issueRefreshToken(user, context);
   return buildAuthResponse(user, refreshToken);
@@ -434,7 +440,7 @@ export async function resendVerification(
     await createAndDeliverChallenge({
       user,
       purpose: "verify_email",
-      locale: normalizeEmailLocale(input.locale),
+      locale: normalizeEmailLocale(input.locale ?? user.preferredLocale),
       enforceCooldown: true,
     });
   }
@@ -452,7 +458,7 @@ export async function requestPasswordReset(
     await createAndDeliverChallenge({
       user,
       purpose: "password_reset",
-      locale: normalizeEmailLocale(input.locale),
+      locale: normalizeEmailLocale(input.locale ?? user.preferredLocale),
       enforceCooldown: true,
     });
   }

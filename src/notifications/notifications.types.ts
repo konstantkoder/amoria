@@ -1,4 +1,5 @@
 import type { JsonValue } from "../db/schema";
+import type { AppLocale } from "../i18n/app-locales";
 
 export type NotificationType =
   | "direct_message"
@@ -36,4 +37,5 @@ export type RegisterPushTokenBody = {
   token: string;
   platform: "android" | "ios";
   deviceId: string;
+  locale?: AppLocale;
 };

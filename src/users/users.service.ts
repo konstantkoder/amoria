@@ -42,10 +42,12 @@ import * as usersRepo from "./users.repo";
 import { progressReleaseState } from "../growth/growth.service";
 import { assertPremiumFeature, getPublicIdentity } from "../monetization/monetization.service";
 import type { PremiumFrameStyle } from "../monetization/monetization.types";
+import { isAppLocale, type AppLocale } from "../i18n/app-locales";
 
 export type SelfUserProfile = {
   id: string;
   email: string;
+  preferredLocale: AppLocale;
   displayName: string;
   about: string | null;
   amoriaId: string;
@@ -136,7 +138,10 @@ type UsersServiceDeps = {
   repo: Pick<
     typeof usersRepo,
     "findUserById" | "findUserByAmoriaId" | "updateUserProfile"
-  > & { hasUnrevealedTurnBasedPair?: typeof usersRepo.hasUnrevealedTurnBasedPair };
+  > & {
+    hasUnrevealedTurnBasedPair?: typeof usersRepo.hasUnrevealedTurnBasedPair;
+    updateUserPreferredLocale?: typeof usersRepo.updateUserPreferredLocale;
+  };
   findOwnedMediaFileByUrl: typeof findOwnedMediaFileByUrl;
   findOwnedMediaFilesByIds: typeof findOwnedMediaFilesByIds;
   findLatestMediaModerationJob: typeof findLatestMediaModerationJob;
@@ -179,6 +184,7 @@ export function toSelfUserProfile(user: UserRow): SelfUserProfile {
   return {
     id: user.id,
     email: user.email,
+    preferredLocale: (user.preferredLocale ?? "en") as AppLocale,
     displayName: user.displayName,
     about: user.about,
     amoriaId: user.amoriaId,
@@ -381,6 +387,15 @@ export async function updateCurrentUserProfile(
   const profile = toSelfUserProfile(updated);
   if (env.isTest) return profile;
   return { ...profile, ...(await getPublicIdentity(userId)) };
+}
+
+export async function updatePreferredLocale(userId: string, locale: unknown): Promise<{ preferredLocale: AppLocale }> {
+  if (!isAppLocale(locale)) {
+    throw validationError("Locale is invalid", { locale: "unsupported" });
+  }
+  const updated = await (deps.repo.updateUserPreferredLocale ?? usersRepo.updateUserPreferredLocale)(userId, locale);
+  if (!updated) throw unauthorized("User no longer exists");
+  return { preferredLocale: locale };
 }
 
 async function assertPublicProfileVisible(

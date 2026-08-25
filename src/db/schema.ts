@@ -32,6 +32,7 @@ export const users = pgTable("users", {
   id: uuid("id").defaultRandom().primaryKey(),
   email: text("email").notNull().unique(),
   emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
+  preferredLocale: text("preferred_locale").default("en").notNull(),
   passwordHash: text("password_hash").notNull(),
   displayName: varchar("display_name", { length: 40 }).notNull(),
   about: text("about"),
@@ -75,6 +76,10 @@ export const users = pgTable("users", {
   check(
     "users_account_status_check",
     sql`${table.accountStatus} IN ('active', 'suspended', 'deleting', 'deleted')`,
+  ),
+  check(
+    "users_preferred_locale_check",
+    sql`${table.preferredLocale} IN ('en','ru','hr','uk','pl','de','fr','es','it','pt','nl','sv','no','da','fi','cs','sk','sl','sr','bs','ro','hu','el','tr')`,
   ),
   check("users_auth_version_check", sql`${table.authVersion} >= 0`),
 ]);
@@ -1410,6 +1415,7 @@ export const pushTokens = pgTable(
     token: text("token").notNull().unique(),
     platform: text("platform").notNull(),
     deviceId: text("device_id").notNull(),
+    locale: text("locale"),
     disabledAt: timestamp("disabled_at", { withTimezone: true }),
     lastError: text("last_error"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
@@ -1419,6 +1425,7 @@ export const pushTokens = pgTable(
     unique("push_tokens_user_device_unique").on(table.userId, table.deviceId),
     index("push_tokens_user_active_idx").on(table.userId, table.disabledAt),
     check("push_tokens_platform_check", sql`${table.platform} IN ('android', 'ios')`),
+    check("push_tokens_locale_check", sql`${table.locale} IS NULL OR ${table.locale} IN ('en','ru','hr','uk','pl','de','fr','es','it','pt','nl','sv','no','da','fi','cs','sk','sl','sr','bs','ro','hu','el','tr')`),
   ],
 );
 
@@ -1787,8 +1794,8 @@ export const authEmailChallengesRelations = relations(authEmailChallenges, ({ on
 }));
 
 type UserDbRow = typeof users.$inferSelect;
-export type UserRow = Omit<UserDbRow, "accountStatus" | "authVersion" | "suspendedAt" | "suspensionReason" | "suspendedByAdminUserId" | "deletedAt"> &
-  Partial<Pick<UserDbRow, "accountStatus" | "authVersion" | "suspendedAt" | "suspensionReason" | "suspendedByAdminUserId" | "deletedAt">>;
+export type UserRow = Omit<UserDbRow, "preferredLocale" | "accountStatus" | "authVersion" | "suspendedAt" | "suspensionReason" | "suspendedByAdminUserId" | "deletedAt"> &
+  Partial<Pick<UserDbRow, "preferredLocale" | "accountStatus" | "authVersion" | "suspendedAt" | "suspensionReason" | "suspendedByAdminUserId" | "deletedAt">>;
 export type NewUserRow = typeof users.$inferInsert;
 export type AuthEmailChallengeRow = typeof authEmailChallenges.$inferSelect;
 export type NewAuthEmailChallengeRow = typeof authEmailChallenges.$inferInsert;

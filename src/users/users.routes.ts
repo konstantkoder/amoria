@@ -20,6 +20,7 @@ import {
   unlockLockedGalleryRouteSchema,
   updateOwnerProfileGalleryItemsRouteSchema,
   updateProfileRouteSchema,
+  updatePreferredLocaleRouteSchema,
 } from "./users.schemas";
 import * as profileGalleryService from "./profile-gallery.service";
 import * as usersService from "./users.service";
@@ -74,6 +75,15 @@ export async function usersRoutes(fastify: FastifyInstance): Promise<void> {
       schema: withErrorResponses(getMeRouteSchema),
     },
     async (request) => usersService.getCurrentUser(currentUserId(request)),
+  );
+
+  fastify.put<{ Body: { locale: string } }>(
+    "/me/locale",
+    {
+      preHandler: authMiddleware,
+      schema: withErrorResponses(updatePreferredLocaleRouteSchema),
+    },
+    async (request) => usersService.updatePreferredLocale(currentUserId(request), request.body.locale),
   );
 
   fastify.get(

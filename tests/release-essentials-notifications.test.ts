@@ -49,7 +49,7 @@ test("real chat and Together events persist generic, idempotent notification row
 
 test("Expo sender is privacy-safe, bounded, timeout-controlled and retries only transient failures", () => {
   const push = require("../src/notifications/push-delivery.service") as typeof import("../src/notifications/push-delivery.service");
-  assert.deepEqual(push.pushCopy("direct_message"), { title: "Amoria", body: "You have a new message" });
+  assert.deepEqual(push.pushCopy("direct_message"), { title: "Amoria", body: "You have a new message." });
   const safe = push.safeData({
     notification: { id: "notification-id", type: "direct_message", payload: { threadId: "thread-id", messageBody: "secret", exactLocation: "45,16" } },
   } as never);

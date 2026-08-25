@@ -1,4 +1,7 @@
-export type EmailLocale = "en" | "ru" | "hr";
+import catalog from "./auth-email-copy.catalog.json";
+import { normalizeAppLocale, type AppLocale } from "../i18n/app-locales";
+
+export type EmailLocale = AppLocale;
 export type EmailPurpose = "verify_email" | "password_reset";
 
 export type RenderedEmail = {
@@ -12,41 +15,24 @@ type Copy = {
   verificationIntro: string;
   resetSubject: string;
   resetIntro: string;
-  expires: (minutes: number) => string;
+  expires: string;
   warning: string;
 };
 
-const copy: Record<EmailLocale, Copy> = {
-  en: {
-    verificationSubject: "Verify your Amoria email",
-    verificationIntro: "Use this code to verify your email address:",
-    resetSubject: "Reset your Amoria password",
-    resetIntro: "Use this code to reset your password:",
-    expires: (minutes) => `This code expires in ${minutes} minutes.`,
-    warning: "If you did not request this, you can safely ignore this email. Never share this code.",
-  },
-  ru: {
-    verificationSubject: "Подтвердите email в Amoria",
-    verificationIntro: "Используйте этот код, чтобы подтвердить адрес электронной почты:",
-    resetSubject: "Сброс пароля Amoria",
-    resetIntro: "Используйте этот код, чтобы сбросить пароль:",
-    expires: (minutes) => `Код действует ${minutes} минут.`,
-    warning: "Если вы не запрашивали код, просто проигнорируйте письмо. Никому не сообщайте код.",
-  },
-  hr: {
-    verificationSubject: "Potvrdite svoju Amoria e-poštu",
-    verificationIntro: "Upotrijebite ovaj kôd za potvrdu adrese e-pošte:",
-    resetSubject: "Ponovno postavljanje Amoria lozinke",
-    resetIntro: "Upotrijebite ovaj kôd za ponovno postavljanje lozinke:",
-    expires: (minutes) => `Kôd istječe za ${minutes} minuta.`,
-    warning: "Ako ovo niste zatražili, slobodno zanemarite poruku. Ne dijelite ovaj kôd.",
-  },
-};
+const copy = catalog as Record<EmailLocale, Copy>;
 
 export function normalizeEmailLocale(locale: unknown): EmailLocale {
-  if (typeof locale !== "string") return "en";
-  const normalized = locale.trim().toLowerCase().split(/[-_]/)[0];
-  return normalized === "ru" || normalized === "hr" ? normalized : "en";
+  return normalizeAppLocale(locale);
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  })[character] ?? character);
 }
 
 export function renderAuthEmail(input: {
@@ -55,22 +41,22 @@ export function renderAuthEmail(input: {
   code: string;
   expiresInMinutes: number;
 }): RenderedEmail {
-  const selected = copy[input.locale];
+  const selected = copy[input.locale] ?? copy.en;
   const isVerification = input.purpose === "verify_email";
   const subject = isVerification ? selected.verificationSubject : selected.resetSubject;
   const intro = isVerification ? selected.verificationIntro : selected.resetIntro;
-  const expires = selected.expires(input.expiresInMinutes);
+  const expires = selected.expires.replace("{minutes}", new Intl.NumberFormat(input.locale).format(input.expiresInMinutes));
 
   return {
     subject,
-    text: [`Amoria`, "", intro, input.code, "", expires, selected.warning].join("\n"),
+    text: ["Amoria", "", intro, input.code, "", expires, selected.warning].join("\n"),
     html: [
       '<div style="font-family:Arial,sans-serif;max-width:520px;color:#241c21">',
       '<h1 style="color:#8b3157">Amoria</h1>',
-      `<p>${intro}</p>`,
-      `<p style="font-size:32px;font-weight:700;letter-spacing:8px">${input.code}</p>`,
-      `<p>${expires}</p>`,
-      `<p style="color:#6b5b63">${selected.warning}</p>`,
+      `<p>${escapeHtml(intro)}</p>`,
+      `<p style="font-size:32px;font-weight:700;letter-spacing:8px">${escapeHtml(input.code)}</p>`,
+      `<p>${escapeHtml(expires)}</p>`,
+      `<p style="color:#6b5b63">${escapeHtml(selected.warning)}</p>`,
       "</div>",
     ].join(""),
   };

@@ -1,24 +1,20 @@
 import { env } from "../config/env";
 import * as repo from "./notifications.repo";
 import { incrementMetric, observeMetric } from "../observability/metrics";
+import pushCatalog from "./push-copy.catalog.json";
+import { normalizeAppLocale, type AppLocale } from "../i18n/app-locales";
+import type { NotificationType } from "./notifications.types";
 
 const MAX_BATCH = 100;
 
 type ExpoTicket = { status?: string; id?: string; details?: { error?: string } };
 type Delivery = Awaited<ReturnType<typeof repo.claimDueDeliveries>>[number];
 
-export function pushCopy(type: string): { title: string; body: string } {
-  if (type === "direct_message") return { title: "Amoria", body: "You have a new message" };
-  if (type === "together_match") return { title: "Amoria", body: "A Together participant was found for you" };
-  if (type === "announcement") return { title: "Amoria", body: "You have an important update" };
-  if (type === "founder_activated") return { title: "Amoria", body: "Your Founder identity is active" };
-  if (type === "founder_premium_started") return { title: "Amoria", body: "Your Founder Premium period has started" };
-  if (type === "founder_premium_expiring") return { title: "Amoria", body: "Your Founder Premium period is ending soon" };
-  if (type === "founder_premium_expired") return { title: "Amoria", body: "Your Founder Premium period has ended" };
-  if (type === "premium_activated" || type === "premium_restored") return { title: "Amoria", body: "Amoria Premium is active" };
-  if (type === "premium_billing_issue") return { title: "Amoria", body: "Your Premium subscription needs attention" };
-  if (type === "community_activity") return { title: "Amoria", body: "There is new real activity nearby" };
-  return { title: "Amoria", body: "Together has an update" };
+const localizedPushCatalog = pushCatalog as Record<AppLocale, Record<NotificationType, { title: string; body: string }>>;
+
+export function pushCopy(type: NotificationType, locale: unknown = "en"): { title: string; body: string } {
+  const selectedLocale = normalizeAppLocale(locale);
+  return localizedPushCatalog[selectedLocale]?.[type] ?? localizedPushCatalog.en[type];
 }
 
 export function safeData(row: Delivery): Record<string, string> {
@@ -65,7 +61,7 @@ export async function processPushDeliveries(): Promise<number> {
       to: row.token,
       sound: "default",
       channelId: "amoria_updates",
-      ...pushCopy(row.notification.type),
+      ...pushCopy(row.notification.type as NotificationType, row.tokenLocale ?? row.preferredLocale),
       data: safeData(row),
     })));
     if (!response.ok) {

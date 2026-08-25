@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { db } from "../db/client";
-import { notifications, pushDeliveries, pushTokens } from "../db/schema";
+import { notifications, pushDeliveries, pushTokens, users } from "../db/schema";
 import type { JsonValue } from "../db/schema";
 import type { NotificationType, RegisterPushTokenBody } from "./notifications.types";
 
@@ -53,10 +53,17 @@ export async function claimDueDeliveries(limit: number) {
       .orderBy(asc(pushDeliveries.nextAttemptAt)).limit(limit).for("update", { skipLocked: true });
     if (!dueIds.length) return [];
     const ids = dueIds.map((row) => row.id);
-    const due = await tx.select({ delivery: pushDeliveries, token: pushTokens.token, notification: notifications })
+    const due = await tx.select({
+      delivery: pushDeliveries,
+      token: pushTokens.token,
+      tokenLocale: pushTokens.locale,
+      preferredLocale: users.preferredLocale,
+      notification: notifications,
+    })
       .from(pushDeliveries)
       .innerJoin(pushTokens, eq(pushTokens.id, pushDeliveries.pushTokenId))
       .innerJoin(notifications, eq(notifications.id, pushDeliveries.notificationId))
+      .innerJoin(users, eq(users.id, notifications.userId))
       .where(inArray(pushDeliveries.id, ids));
     await tx.update(pushDeliveries).set({ status: "sending", updatedAt: new Date() }).where(inArray(pushDeliveries.id, ids));
     return due;

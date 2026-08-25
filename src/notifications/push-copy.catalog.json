@@ -1,0 +1,1202 @@
+{
+  "en": {
+    "direct_message": {
+      "title": "Amoria",
+      "body": "You have a new message."
+    },
+    "together_match": {
+      "title": "Amoria",
+      "body": "A Together participant was found for you."
+    },
+    "together_action": {
+      "title": "Amoria",
+      "body": "A Together moment needs your attention."
+    },
+    "announcement": {
+      "title": "Amoria",
+      "body": "There is an important Amoria update."
+    },
+    "founder_activated": {
+      "title": "Amoria",
+      "body": "Your permanent Founder number is ready."
+    },
+    "founder_premium_started": {
+      "title": "Amoria",
+      "body": "Your included Founder Premium period has started."
+    },
+    "founder_premium_expiring": {
+      "title": "Amoria",
+      "body": "Your Founder Premium period is nearing its end."
+    },
+    "founder_premium_expired": {
+      "title": "Amoria",
+      "body": "Your Founder badge remains permanent; the included Premium period ended."
+    },
+    "premium_activated": {
+      "title": "Amoria",
+      "body": "Premium is active."
+    },
+    "premium_restored": {
+      "title": "Amoria",
+      "body": "Premium was restored from Google Play."
+    },
+    "premium_billing_issue": {
+      "title": "Amoria",
+      "body": "Google Play reported a billing issue. Manage your subscription to resolve it."
+    },
+    "community_activity": {
+      "title": "Amoria",
+      "body": "People nearby are looking for company for an activity."
+    }
+  },
+  "ru": {
+    "direct_message": {
+      "title": "Amoria",
+      "body": "У вас новое сообщение."
+    },
+    "together_match": {
+      "title": "Amoria",
+      "body": "Для вас найден участник во Вместе."
+    },
+    "together_action": {
+      "title": "Amoria",
+      "body": "Момент во Вместе требует вашего внимания."
+    },
+    "announcement": {
+      "title": "Amoria",
+      "body": "В Amoria есть важное обновление."
+    },
+    "founder_activated": {
+      "title": "Amoria",
+      "body": "Ваш постоянный номер Founder готов."
+    },
+    "founder_premium_started": {
+      "title": "Amoria",
+      "body": "Включённый период Founder Premium начался."
+    },
+    "founder_premium_expiring": {
+      "title": "Amoria",
+      "body": "Период Founder Premium скоро закончится."
+    },
+    "founder_premium_expired": {
+      "title": "Amoria",
+      "body": "Значок Founder остаётся навсегда; включённый период Premium завершён."
+    },
+    "premium_activated": {
+      "title": "Amoria",
+      "body": "Premium активен."
+    },
+    "premium_restored": {
+      "title": "Amoria",
+      "body": "Premium восстановлен из Google Play."
+    },
+    "premium_billing_issue": {
+      "title": "Amoria",
+      "body": "Google Play сообщил о проблеме оплаты. Откройте управление подпиской."
+    },
+    "community_activity": {
+      "title": "Amoria",
+      "body": "Люди рядом ищут компанию для активности."
+    }
+  },
+  "hr": {
+    "direct_message": {
+      "title": "Amoria",
+      "body": "Imate novu poruku."
+    },
+    "together_match": {
+      "title": "Amoria",
+      "body": "Pronađen je Together sudionik za vas."
+    },
+    "together_action": {
+      "title": "Amoria",
+      "body": "Together trenutak zahtijeva vašu pažnju."
+    },
+    "announcement": {
+      "title": "Amoria",
+      "body": "Dostupno je važno Amoria ažuriranje."
+    },
+    "founder_activated": {
+      "title": "Amoria",
+      "body": "Vaš trajni Founder broj je spreman."
+    },
+    "founder_premium_started": {
+      "title": "Amoria",
+      "body": "Vaše uključeno Founder Premium razdoblje je započelo."
+    },
+    "founder_premium_expiring": {
+      "title": "Amoria",
+      "body": "Vaše Founder Premium razdoblje uskoro završava."
+    },
+    "founder_premium_expired": {
+      "title": "Amoria",
+      "body": "Founder značka ostaje trajno; uključeno Premium razdoblje je završilo."
+    },
+    "premium_activated": {
+      "title": "Amoria",
+      "body": "Premium je aktivan."
+    },
+    "premium_restored": {
+      "title": "Amoria",
+      "body": "Premium je obnovljen s Google Playa."
+    },
+    "premium_billing_issue": {
+      "title": "Amoria",
+      "body": "Google Play prijavio je problem s naplatom. Otvorite upravljanje pretplatom."
+    },
+    "community_activity": {
+      "title": "Amoria",
+      "body": "Ljudi u blizini traže društvo za aktivnost."
+    }
+  },
+  "uk": {
+    "direct_message": {
+      "title": "Amoria",
+      "body": "У вас нове повідомлення."
+    },
+    "together_match": {
+      "title": "Amoria",
+      "body": "Для вас знайшли учасника «Разом»."
+    },
+    "together_action": {
+      "title": "Amoria",
+      "body": "Момент разом потребує вашої уваги."
+    },
+    "announcement": {
+      "title": "Amoria",
+      "body": "Є важливе оновлення Amoria."
+    },
+    "founder_activated": {
+      "title": "Amoria",
+      "body": "Ваш постійний номер засновника готовий."
+    },
+    "founder_premium_started": {
+      "title": "Amoria",
+      "body": "Розпочався ваш включений період Founder Premium."
+    },
+    "founder_premium_expiring": {
+      "title": "Amoria",
+      "body": "Період вашого Преміум-засновника добігає кінця."
+    },
+    "founder_premium_expired": {
+      "title": "Amoria",
+      "body": "Ваш значок засновника залишається постійним; включений преміум-період закінчився."
+    },
+    "premium_activated": {
+      "title": "Amoria",
+      "body": "Premium активний."
+    },
+    "premium_restored": {
+      "title": "Amoria",
+      "body": "Premium було відновлено з Google Play."
+    },
+    "premium_billing_issue": {
+      "title": "Amoria",
+      "body": "Google Play повідомив про проблему з виставленням рахунків. Щоб вирішити цю проблему, керуйте своєю підпискою."
+    },
+    "community_activity": {
+      "title": "Amoria",
+      "body": "Люди поблизу шукають компанію для діяльності."
+    }
+  },
+  "pl": {
+    "direct_message": {
+      "title": "Amoria",
+      "body": "Masz nową wiadomość."
+    },
+    "together_match": {
+      "title": "Amoria",
+      "body": "Znaleziono uczestnika Together dla Ciebie."
+    },
+    "together_action": {
+      "title": "Amoria",
+      "body": "Moment Together wymaga Twojej uwagi."
+    },
+    "announcement": {
+      "title": "Amoria",
+      "body": "Jest ważna aktualizacja Amoria."
+    },
+    "founder_activated": {
+      "title": "Amoria",
+      "body": "Twój stały numer założyciela jest gotowy."
+    },
+    "founder_premium_started": {
+      "title": "Amoria",
+      "body": "Rozpoczął się Twój uwzględniony okres Founder Premium."
+    },
+    "founder_premium_expiring": {
+      "title": "Amoria",
+      "body": "Twój okres Premium Fundatora dobiega końca."
+    },
+    "founder_premium_expired": {
+      "title": "Amoria",
+      "body": "Twoja odznaka Założyciela pozostaje trwała; uwzględniony okres Premium dobiegł końca."
+    },
+    "premium_activated": {
+      "title": "Amoria",
+      "body": "Premium jest aktywny."
+    },
+    "premium_restored": {
+      "title": "Amoria",
+      "body": "Premium został przywrócony z Google Play."
+    },
+    "premium_billing_issue": {
+      "title": "Amoria",
+      "body": "Google Play zgłosił problem z rozliczeniami. Zarządzaj swoją subskrypcją, aby rozwiązać ten problem."
+    },
+    "community_activity": {
+      "title": "Amoria",
+      "body": "Osoby w pobliżu szukają firmy do działania."
+    }
+  },
+  "de": {
+    "direct_message": {
+      "title": "Amoria",
+      "body": "Du hast eine neue Nachricht."
+    },
+    "together_match": {
+      "title": "Amoria",
+      "body": "Ein Together‑Teilnehmer wurde für dich gefunden."
+    },
+    "together_action": {
+      "title": "Amoria",
+      "body": "Ein Together‑Moment erfordert deine Aufmerksamkeit."
+    },
+    "announcement": {
+      "title": "Amoria",
+      "body": "Es gibt ein wichtiges Amoria‑Update."
+    },
+    "founder_activated": {
+      "title": "Amoria",
+      "body": "Deine permanente Founder-Nummer ist bereit."
+    },
+    "founder_premium_started": {
+      "title": "Amoria",
+      "body": "Deine inkludierte Founder-Premium-Phase hat begonnen."
+    },
+    "founder_premium_expiring": {
+      "title": "Amoria",
+      "body": "Deine Founder-Premium-Phase nähert sich dem Ende."
+    },
+    "founder_premium_expired": {
+      "title": "Amoria",
+      "body": "Dein Founder-Abzeichen bleibt dauerhaft; die inkludierte Premium-Phase ist beendet."
+    },
+    "premium_activated": {
+      "title": "Amoria",
+      "body": "Premium ist aktiv."
+    },
+    "premium_restored": {
+      "title": "Amoria",
+      "body": "Premium wurde von Google Play wiederhergestellt."
+    },
+    "premium_billing_issue": {
+      "title": "Amoria",
+      "body": "Google Play meldete ein Abrechnungsproblem. Verwalte dein Abonnement, um es zu beheben."
+    },
+    "community_activity": {
+      "title": "Amoria",
+      "body": "Leute in deiner Nähe suchen Begleitung für eine Aktivität."
+    }
+  },
+  "fr": {
+    "direct_message": {
+      "title": "Amoria",
+      "body": "Vous avez un nouveau message."
+    },
+    "together_match": {
+      "title": "Amoria",
+      "body": "Un participant Together a été trouvé pour vous."
+    },
+    "together_action": {
+      "title": "Amoria",
+      "body": "Un moment Together nécessite votre attention."
+    },
+    "announcement": {
+      "title": "Amoria",
+      "body": "Une mise à jour importante d’Amoria est disponible."
+    },
+    "founder_activated": {
+      "title": "Amoria",
+      "body": "Votre numéro Founder permanent est prêt."
+    },
+    "founder_premium_started": {
+      "title": "Amoria",
+      "body": "Votre période Founder Premium incluse a commencé."
+    },
+    "founder_premium_expiring": {
+      "title": "Amoria",
+      "body": "Votre période Founder Premium approche de la fin."
+    },
+    "founder_premium_expired": {
+      "title": "Amoria",
+      "body": "Votre badge Founder reste permanent ; la période Premium incluse est terminée."
+    },
+    "premium_activated": {
+      "title": "Amoria",
+      "body": "Premium est actif."
+    },
+    "premium_restored": {
+      "title": "Amoria",
+      "body": "Premium a été restauré depuis Google Play."
+    },
+    "premium_billing_issue": {
+      "title": "Amoria",
+      "body": "Google Play a signalé un problème de facturation. Gérez votre abonnement pour le résoudre."
+    },
+    "community_activity": {
+      "title": "Amoria",
+      "body": "Des personnes à proximité cherchent de la compagnie pour une activité."
+    }
+  },
+  "es": {
+    "direct_message": {
+      "title": "Amoria",
+      "body": "Tienes un nuevo mensaje."
+    },
+    "together_match": {
+      "title": "Amoria",
+      "body": "Se encontró un participante de Together para ti."
+    },
+    "together_action": {
+      "title": "Amoria",
+      "body": "Momento Together necesita tu atención."
+    },
+    "announcement": {
+      "title": "Amoria",
+      "body": "Hay una actualización importante de Amoria."
+    },
+    "founder_activated": {
+      "title": "Amoria",
+      "body": "Tu número permanente de Founder está listo."
+    },
+    "founder_premium_started": {
+      "title": "Amoria",
+      "body": "Tu período incluido de Founder Premium ha comenzado."
+    },
+    "founder_premium_expiring": {
+      "title": "Amoria",
+      "body": "Tu período de Founder Premium está próximo a terminar."
+    },
+    "founder_premium_expired": {
+      "title": "Amoria",
+      "body": "Tu insignia de Founder sigue siendo permanente; el período incluido de Premium ha finalizado."
+    },
+    "premium_activated": {
+      "title": "Amoria",
+      "body": "Premium está activo."
+    },
+    "premium_restored": {
+      "title": "Amoria",
+      "body": "Premium se restauró desde Google Play."
+    },
+    "premium_billing_issue": {
+      "title": "Amoria",
+      "body": "Google Play informó un problema de facturación. Gestiona tu suscripción para resolverlo."
+    },
+    "community_activity": {
+      "title": "Amoria",
+      "body": "Personas cercanas buscan compañía para una actividad."
+    }
+  },
+  "it": {
+    "direct_message": {
+      "title": "Amoria",
+      "body": "Hai un nuovo messaggio."
+    },
+    "together_match": {
+      "title": "Amoria",
+      "body": "È stato trovato un partecipante Together per te."
+    },
+    "together_action": {
+      "title": "Amoria",
+      "body": "Un momento Together richiede la tua attenzione."
+    },
+    "announcement": {
+      "title": "Amoria",
+      "body": "C'è un importante aggiornamento di Amoria."
+    },
+    "founder_activated": {
+      "title": "Amoria",
+      "body": "Il tuo numero permanente di Founder è pronto."
+    },
+    "founder_premium_started": {
+      "title": "Amoria",
+      "body": "È iniziato il periodo Premium incluso per Founder."
+    },
+    "founder_premium_expiring": {
+      "title": "Amoria",
+      "body": "Il tuo periodo Premium Founder sta per terminare."
+    },
+    "founder_premium_expired": {
+      "title": "Amoria",
+      "body": "Il tuo badge Founder rimane permanente; il periodo Premium incluso è terminato."
+    },
+    "premium_activated": {
+      "title": "Amoria",
+      "body": "Premium attivo."
+    },
+    "premium_restored": {
+      "title": "Amoria",
+      "body": "Premium ripristinato da Google Play."
+    },
+    "premium_billing_issue": {
+      "title": "Amoria",
+      "body": "Google Play ha segnalato un problema di fatturazione. Gestisci l'abbonamento per risolverlo."
+    },
+    "community_activity": {
+      "title": "Amoria",
+      "body": "Le persone nelle vicinanze cercano compagnia per un'attività."
+    }
+  },
+  "pt": {
+    "direct_message": {
+      "title": "Amoria",
+      "body": "Você tem uma nova mensagem."
+    },
+    "together_match": {
+      "title": "Amoria",
+      "body": "Um participante Together foi encontrado para você."
+    },
+    "together_action": {
+      "title": "Amoria",
+      "body": "Um momento Together precisa da sua atenção."
+    },
+    "announcement": {
+      "title": "Amoria",
+      "body": "Há uma atualização importante da Amoria."
+    },
+    "founder_activated": {
+      "title": "Amoria",
+      "body": "Seu número permanente de Founder está pronto."
+    },
+    "founder_premium_started": {
+      "title": "Amoria",
+      "body": "Seu período incluído de Founder Premium começou."
+    },
+    "founder_premium_expiring": {
+      "title": "Amoria",
+      "body": "Seu período de Founder Premium está quase terminando."
+    },
+    "founder_premium_expired": {
+      "title": "Amoria",
+      "body": "Sua insígnia de Founder permanece permanente; o período incluído de Premium terminou."
+    },
+    "premium_activated": {
+      "title": "Amoria",
+      "body": "Premium está ativo."
+    },
+    "premium_restored": {
+      "title": "Amoria",
+      "body": "Premium foi restaurado da Google Play."
+    },
+    "premium_billing_issue": {
+      "title": "Amoria",
+      "body": "Google Play relatou um problema de cobrança. Gerencie sua assinatura para resolvê-lo."
+    },
+    "community_activity": {
+      "title": "Amoria",
+      "body": "Pessoas próximas estão procurando companhia para uma atividade."
+    }
+  },
+  "nl": {
+    "direct_message": {
+      "title": "Amoria",
+      "body": "Je hebt een nieuw bericht."
+    },
+    "together_match": {
+      "title": "Amoria",
+      "body": "Er is een Together-deelnemer voor je gevonden."
+    },
+    "together_action": {
+      "title": "Amoria",
+      "body": "Een Together-moment vereist je aandacht."
+    },
+    "announcement": {
+      "title": "Amoria",
+      "body": "Er is een belangrijke Amoria-update."
+    },
+    "founder_activated": {
+      "title": "Amoria",
+      "body": "Je permanente Founder-nummer is klaar."
+    },
+    "founder_premium_started": {
+      "title": "Amoria",
+      "body": "Je inbegrepen Founder Premium-periode is begonnen."
+    },
+    "founder_premium_expiring": {
+      "title": "Amoria",
+      "body": "Je Founder Premium-periode loopt bijna af."
+    },
+    "founder_premium_expired": {
+      "title": "Amoria",
+      "body": "Je Founder-badge blijft permanent; de inbegrepen Premium-periode is beëindigd."
+    },
+    "premium_activated": {
+      "title": "Amoria",
+      "body": "Premium is actief."
+    },
+    "premium_restored": {
+      "title": "Amoria",
+      "body": "Premium is hersteld via Google Play."
+    },
+    "premium_billing_issue": {
+      "title": "Amoria",
+      "body": "Google Play meldde een factureringsprobleem. Beheer je abonnement om dit op te lossen."
+    },
+    "community_activity": {
+      "title": "Amoria",
+      "body": "Mensen in de buurt zoeken gezelschap voor een activiteit."
+    }
+  },
+  "sv": {
+    "direct_message": {
+      "title": "Amoria",
+      "body": "Du har ett nytt meddelande."
+    },
+    "together_match": {
+      "title": "Amoria",
+      "body": "En Together-deltagare har hittats åt dig."
+    },
+    "together_action": {
+      "title": "Amoria",
+      "body": "Ett Together-ögonblick kräver din uppmärksamhet."
+    },
+    "announcement": {
+      "title": "Amoria",
+      "body": "Det finns en viktig Amoria-uppdatering."
+    },
+    "founder_activated": {
+      "title": "Amoria",
+      "body": "Ditt permanenta Founder‑nummer är klart."
+    },
+    "founder_premium_started": {
+      "title": "Amoria",
+      "body": "Din inkluderade Founder‑Premiumperiod har startat."
+    },
+    "founder_premium_expiring": {
+      "title": "Amoria",
+      "body": "Din Founder‑Premiumperiod närmar sig slutet."
+    },
+    "founder_premium_expired": {
+      "title": "Amoria",
+      "body": "Ditt Founder‑märke förblir permanent; den inkluderade Premiumperioden har avslutats."
+    },
+    "premium_activated": {
+      "title": "Amoria",
+      "body": "Premium är aktiv."
+    },
+    "premium_restored": {
+      "title": "Amoria",
+      "body": "Premium återställdes från Google Play."
+    },
+    "premium_billing_issue": {
+      "title": "Amoria",
+      "body": "Google Play rapporterade ett faktureringsproblem. Hantera ditt abonnemang för att lösa det."
+    },
+    "community_activity": {
+      "title": "Amoria",
+      "body": "Personer i närheten söker sällskap för en aktivitet."
+    }
+  },
+  "no": {
+    "direct_message": {
+      "title": "Amoria",
+      "body": "Du har en ny melding."
+    },
+    "together_match": {
+      "title": "Amoria",
+      "body": "En Together deltaker ble funnet for deg."
+    },
+    "together_action": {
+      "title": "Amoria",
+      "body": "A Togetherøyeblikket trenger din oppmerksomhet."
+    },
+    "announcement": {
+      "title": "Amoria",
+      "body": "Det er en viktig oppdatering Amoria."
+    },
+    "founder_activated": {
+      "title": "Amoria",
+      "body": "Ditt permanente Founder‑nummer er klart."
+    },
+    "founder_premium_started": {
+      "title": "Amoria",
+      "body": "Din inkluderte Founder Premium‑periode har startet."
+    },
+    "founder_premium_expiring": {
+      "title": "Amoria",
+      "body": "Founder Premium‑perioden nærmer seg slutten."
+    },
+    "founder_premium_expired": {
+      "title": "Amoria",
+      "body": "Founder‑merket ditt forblir permanent; den inkluderte Premium‑perioden er avsluttet."
+    },
+    "premium_activated": {
+      "title": "Amoria",
+      "body": "Premium er aktiv."
+    },
+    "premium_restored": {
+      "title": "Amoria",
+      "body": "Premium ble gjenopprettet fra Google Play."
+    },
+    "premium_billing_issue": {
+      "title": "Amoria",
+      "body": "Google Play rapporterte et faktureringsproblem. Administrer abonnementet ditt for å løse det."
+    },
+    "community_activity": {
+      "title": "Amoria",
+      "body": "Folk i nærheten leter etter selskap til en aktivitet."
+    }
+  },
+  "da": {
+    "direct_message": {
+      "title": "Amoria",
+      "body": "Du har en ny besked."
+    },
+    "together_match": {
+      "title": "Amoria",
+      "body": "Der er fundet en deltager på Together for dig."
+    },
+    "together_action": {
+      "title": "Amoria",
+      "body": "Et øjeblik på Together har brug for din opmærksomhed."
+    },
+    "announcement": {
+      "title": "Amoria",
+      "body": "Der er en vigtig opdatering Amoria."
+    },
+    "founder_activated": {
+      "title": "Amoria",
+      "body": "Dit permanente grundlæggernummer er klar."
+    },
+    "founder_premium_started": {
+      "title": "Amoria",
+      "body": "Din inkluderede grundlægger periode Premium er begyndt."
+    },
+    "founder_premium_expiring": {
+      "title": "Amoria",
+      "body": "Din grundlægger Premium periode nærmer sig slutningen."
+    },
+    "founder_premium_expired": {
+      "title": "Amoria",
+      "body": "Dit grundlægger-mærke forbliver permanent.Premium- Det er afsluttet."
+    },
+    "premium_activated": {
+      "title": "Amoria",
+      "body": "Premium er aktiv."
+    },
+    "premium_restored": {
+      "title": "Amoria",
+      "body": "Premium blev genoprettet fra Google Play."
+    },
+    "premium_billing_issue": {
+      "title": "Amoria",
+      "body": "Google Play rapporterede et faktureringsproblem."
+    },
+    "community_activity": {
+      "title": "Amoria",
+      "body": "Folk i nærheden søger selskab til en aktivitet."
+    }
+  },
+  "fi": {
+    "direct_message": {
+      "title": "Amoria",
+      "body": "Sinulla on uusi viesti."
+    },
+    "together_match": {
+      "title": "Amoria",
+      "body": "- Löysimme Together osallistujan."
+    },
+    "together_action": {
+      "title": "Amoria",
+      "body": "Together hetki tarvitsee huomionne."
+    },
+    "announcement": {
+      "title": "Amoria",
+      "body": "On olemassa tärkeä päivitys Amoria."
+    },
+    "founder_activated": {
+      "title": "Amoria",
+      "body": "Perustajan numero on valmiina."
+    },
+    "founder_premium_started": {
+      "title": "Amoria",
+      "body": "- Säästäjäsi mukaan luettuna.Premium- Aika on alkanut."
+    },
+    "founder_premium_expiring": {
+      "title": "Amoria",
+      "body": "Perustajaasi.PremiumAika on lähdössä loppuihin."
+    },
+    "founder_premium_expired": {
+      "title": "Amoria",
+      "body": "Perustajan tunnusmerkki pysyy pysyvänä.Premium- Loppuvaika."
+    },
+    "premium_activated": {
+      "title": "Amoria",
+      "body": "Premium on aktiivinen."
+    },
+    "premium_restored": {
+      "title": "Amoria",
+      "body": "Premium palauttiin Google Play: stä."
+    },
+    "premium_billing_issue": {
+      "title": "Amoria",
+      "body": "Google Play ilmoitti laskutuksen ongelmasta."
+    },
+    "community_activity": {
+      "title": "Amoria",
+      "body": "Lähistöllä olevat ihmiset etsivät seuraa."
+    }
+  },
+  "cs": {
+    "direct_message": {
+      "title": "Amoria",
+      "body": "Máte novou zprávu."
+    },
+    "together_match": {
+      "title": "Amoria",
+      "body": "Našli jsme pro vás účastníka Together."
+    },
+    "together_action": {
+      "title": "Amoria",
+      "body": "Together okamžik potřebuje vaši pozornost."
+    },
+    "announcement": {
+      "title": "Amoria",
+      "body": "Je tu důležitá aktualizace Amoria."
+    },
+    "founder_activated": {
+      "title": "Amoria",
+      "body": "Váš trvalý zakladatelský číslo je připraven."
+    },
+    "founder_premium_started": {
+      "title": "Amoria",
+      "body": "Začal váš čas na zakladatele Premium."
+    },
+    "founder_premium_expiring": {
+      "title": "Amoria",
+      "body": "Vaše doba zakladatele Premium se blíží ke konci."
+    },
+    "founder_premium_expired": {
+      "title": "Amoria",
+      "body": "Vaše odznak zakladatele zůstává trvalý; zahrnutá doba Premium skončila."
+    },
+    "premium_activated": {
+      "title": "Amoria",
+      "body": "Premium je aktivní."
+    },
+    "premium_restored": {
+      "title": "Amoria",
+      "body": "Premium byl obnoven z Google Play."
+    },
+    "premium_billing_issue": {
+      "title": "Amoria",
+      "body": "Google Play hlásil problém s fakturací."
+    },
+    "community_activity": {
+      "title": "Amoria",
+      "body": "Lidé v okolí hledají společnost pro nějakou činnost."
+    }
+  },
+  "sk": {
+    "direct_message": {
+      "title": "Amoria",
+      "body": "Máte novú správu."
+    },
+    "together_match": {
+      "title": "Amoria",
+      "body": "Našiel som pre vás účastníka Together."
+    },
+    "together_action": {
+      "title": "Amoria",
+      "body": "Together moment potrebuje vašu pozornosť."
+    },
+    "announcement": {
+      "title": "Amoria",
+      "body": "Je tu dôležitá aktualizácia Amoria."
+    },
+    "founder_activated": {
+      "title": "Amoria",
+      "body": "Váš trvalý zakladateľský číslo je pripravený."
+    },
+    "founder_premium_started": {
+      "title": "Amoria",
+      "body": "Začal sa váš čas na zakladateľa Premium."
+    },
+    "founder_premium_expiring": {
+      "title": "Amoria",
+      "body": "Váš zakladateľ Premium obdobie sa blíži k koncu."
+    },
+    "founder_premium_expired": {
+      "title": "Amoria",
+      "body": "Vaša odznakka zakladateľa zostáva trvalá, zahrnutá doba Premium skončila."
+    },
+    "premium_activated": {
+      "title": "Amoria",
+      "body": "Premium je aktívny."
+    },
+    "premium_restored": {
+      "title": "Amoria",
+      "body": "Premium bol obnovený z Google Play."
+    },
+    "premium_billing_issue": {
+      "title": "Amoria",
+      "body": "Google Play hlásil problém s fakturáciou."
+    },
+    "community_activity": {
+      "title": "Amoria",
+      "body": "Ľudia v okolí hľadajú spoločnosť na niečo."
+    }
+  },
+  "sl": {
+    "direct_message": {
+      "title": "Amoria",
+      "body": "Imaš novo sporočilo."
+    },
+    "together_match": {
+      "title": "Amoria",
+      "body": "Našli smo udeležbo Together za vas."
+    },
+    "together_action": {
+      "title": "Amoria",
+      "body": "Together trenutek potrebuje vašo pozornost."
+    },
+    "announcement": {
+      "title": "Amoria",
+      "body": "Obstaja pomembna posodobitev Amoria."
+    },
+    "founder_activated": {
+      "title": "Amoria",
+      "body": "Vaš stalni številka ustanovitelja je pripravljena."
+    },
+    "founder_premium_started": {
+      "title": "Amoria",
+      "body": "Vaš ustanovitelj je vključen.PremiumZačelo se je."
+    },
+    "founder_premium_expiring": {
+      "title": "Amoria",
+      "body": "Vaš čas ustanovitelja Premium se približuje koncu."
+    },
+    "founder_premium_expired": {
+      "title": "Amoria",
+      "body": "Vaša odznakka za ustanovitelja ostaja trajna.Premiumzaključen čas."
+    },
+    "premium_activated": {
+      "title": "Amoria",
+      "body": "Premium je aktivna."
+    },
+    "premium_restored": {
+      "title": "Amoria",
+      "body": "Premium je bil obnovljen iz Google Play."
+    },
+    "premium_billing_issue": {
+      "title": "Amoria",
+      "body": "Google Play je poročal o problemu z obračunovanjem."
+    },
+    "community_activity": {
+      "title": "Amoria",
+      "body": "Ljudje v bližini iščejo družbo za dejavnost."
+    }
+  },
+  "sr": {
+    "direct_message": {
+      "title": "Amoria",
+      "body": "Imaš novu poruku."
+    },
+    "together_match": {
+      "title": "Amoria",
+      "body": "Otkrili su Together učesnika za vas."
+    },
+    "together_action": {
+      "title": "Amoria",
+      "body": "Together trenutak zahteva vašu pažnju."
+    },
+    "announcement": {
+      "title": "Amoria",
+      "body": "Postoji važna ažuriranja Amoria."
+    },
+    "founder_activated": {
+      "title": "Amoria",
+      "body": "Vaš stalni broj osnivača je spreman."
+    },
+    "founder_premium_started": {
+      "title": "Amoria",
+      "body": "Početnik Premium perioda započeo je."
+    },
+    "founder_premium_expiring": {
+      "title": "Amoria",
+      "body": "Vaš period osnivača Premium se približava kraju."
+    },
+    "founder_premium_expired": {
+      "title": "Amoria",
+      "body": "Vaš značok za osnivača ostaje trajan; uključen period Premium je završen."
+    },
+    "premium_activated": {
+      "title": "Amoria",
+      "body": "Premium je aktivna."
+    },
+    "premium_restored": {
+      "title": "Amoria",
+      "body": "Premium je restavriran iz Google Play."
+    },
+    "premium_billing_issue": {
+      "title": "Amoria",
+      "body": "Google Play prijavio problem sa fakturizacijom."
+    },
+    "community_activity": {
+      "title": "Amoria",
+      "body": "Ljudi u blizini traže društvo za aktivnost."
+    }
+  },
+  "bs": {
+    "direct_message": {
+      "title": "Amoria",
+      "body": "Imaš novu poruku."
+    },
+    "together_match": {
+      "title": "Amoria",
+      "body": "A TogetherUčesnik je pronađen za vas."
+    },
+    "together_action": {
+      "title": "Amoria",
+      "body": "Momentar Together treba vašu pažnju."
+    },
+    "announcement": {
+      "title": "Amoria",
+      "body": "Postoji važna ažuriranja Amoria."
+    },
+    "founder_activated": {
+      "title": "Amoria",
+      "body": "Vaš stalni broj osnivača je spreman."
+    },
+    "founder_premium_started": {
+      "title": "Amoria",
+      "body": "Počinje period osnivača Premium"
+    },
+    "founder_premium_expiring": {
+      "title": "Amoria",
+      "body": "Vaš period osnivača Premium se približava kraju."
+    },
+    "founder_premium_expired": {
+      "title": "Amoria",
+      "body": "Vaša značka osnivača ostaje trajna, uključen period Premium je završen."
+    },
+    "premium_activated": {
+      "title": "Amoria",
+      "body": "Premium je aktivno."
+    },
+    "premium_restored": {
+      "title": "Amoria",
+      "body": "Premium je obnovljen sa Google Play."
+    },
+    "premium_billing_issue": {
+      "title": "Amoria",
+      "body": "Google Play je prijavio problem sa računarstvom."
+    },
+    "community_activity": {
+      "title": "Amoria",
+      "body": "Ljudi u blizini traže društvo za aktivnost."
+    }
+  },
+  "ro": {
+    "direct_message": {
+      "title": "Amoria",
+      "body": "Ai un mesaj nou."
+    },
+    "together_match": {
+      "title": "Amoria",
+      "body": "Un participant Together a fost găsit pentru tine."
+    },
+    "together_action": {
+      "title": "Amoria",
+      "body": "Un moment Together are nevoie de atenţia ta."
+    },
+    "announcement": {
+      "title": "Amoria",
+      "body": "Există o actualizare importantă Amoria."
+    },
+    "founder_activated": {
+      "title": "Amoria",
+      "body": "Numărul permanent al Fondatorului este gata."
+    },
+    "founder_premium_started": {
+      "title": "Amoria",
+      "body": "Fondatorul tău inclus.PremiumA început perioada."
+    },
+    "founder_premium_expiring": {
+      "title": "Amoria",
+      "body": "perioada Fondatorului Premium se apropie de sfârşit."
+    },
+    "founder_premium_expired": {
+      "title": "Amoria",
+      "body": "Insignia Fondatorului va rămâne permanentă.Premiumperioada încheiată."
+    },
+    "premium_activated": {
+      "title": "Amoria",
+      "body": "Premium este activ."
+    },
+    "premium_restored": {
+      "title": "Amoria",
+      "body": "Premium a fost restaurat de la Google Play."
+    },
+    "premium_billing_issue": {
+      "title": "Amoria",
+      "body": "Google Play a raportat o problemă de facturare."
+    },
+    "community_activity": {
+      "title": "Amoria",
+      "body": "Oamenii din apropiere caută companie pentru o activitate."
+    }
+  },
+  "hu": {
+    "direct_message": {
+      "title": "Amoria",
+      "body": "Van egy új üzenete."
+    },
+    "together_match": {
+      "title": "Amoria",
+      "body": "Egy Together résztvevőt találtak."
+    },
+    "together_action": {
+      "title": "Amoria",
+      "body": "Egy Together pillanatnak szüksége van a figyelmére."
+    },
+    "announcement": {
+      "title": "Amoria",
+      "body": "Van egy fontos Amoria frissítés."
+    },
+    "founder_activated": {
+      "title": "Amoria",
+      "body": "A állandó Alapító számod készen áll."
+    },
+    "founder_premium_started": {
+      "title": "Amoria",
+      "body": "A felvett alapító Premium időszak kezdődött."
+    },
+    "founder_premium_expiring": {
+      "title": "Amoria",
+      "body": "Az alapító Premium időszakuk véget ér."
+    },
+    "founder_premium_expired": {
+      "title": "Amoria",
+      "body": "Az alapító jelvényed maradandó, a Premium-as időszaknak vége."
+    },
+    "premium_activated": {
+      "title": "Amoria",
+      "body": "Premium aktív."
+    },
+    "premium_restored": {
+      "title": "Amoria",
+      "body": "Premium helyreállt a Google Play-tól."
+    },
+    "premium_billing_issue": {
+      "title": "Amoria",
+      "body": "Google Play jelentett egy számlázási probléma."
+    },
+    "community_activity": {
+      "title": "Amoria",
+      "body": "A környékben élő emberek társaságot keresnek egy tevékenységre."
+    }
+  },
+  "el": {
+    "direct_message": {
+      "title": "Amoria",
+      "body": "Έχεις ένα νέο μήνυμα."
+    },
+    "together_match": {
+      "title": "Amoria",
+      "body": "Βρέθηκε ένας συμμετέχων Together για σας."
+    },
+    "together_action": {
+      "title": "Amoria",
+      "body": "Μια στιγμή Together χρειάζεται την προσοχή σας."
+    },
+    "announcement": {
+      "title": "Amoria",
+      "body": "Υπάρχει μια σημαντική ενημέρωση Amoria."
+    },
+    "founder_activated": {
+      "title": "Amoria",
+      "body": "Ο μόνιμος αριθμός του Ιδρυτή είναι έτοιμος."
+    },
+    "founder_premium_started": {
+      "title": "Amoria",
+      "body": "Ο ιδρυτής σας.PremiumΗ περίοδος έχει αρχίσει."
+    },
+    "founder_premium_expiring": {
+      "title": "Amoria",
+      "body": "Η περίοδος του Ιδρυτή σας Premium πλησιάζει στο τέλος της."
+    },
+    "founder_premium_expired": {
+      "title": "Amoria",
+      "body": "Το σήμα του Ιδρυτή σας παραμένει μόνιμο. Η περιόδου που περιλαμβάνεται στο Premium τελείωσε."
+    },
+    "premium_activated": {
+      "title": "Amoria",
+      "body": "Premium είναι ενεργός."
+    },
+    "premium_restored": {
+      "title": "Amoria",
+      "body": "Το Premium αποκαταστάθηκε από το Google Play."
+    },
+    "premium_billing_issue": {
+      "title": "Amoria",
+      "body": "Google Play αναφέρθηκε ένα πρόβλημα με το λογαριασμό."
+    },
+    "community_activity": {
+      "title": "Amoria",
+      "body": "Οι άνθρωποι που βρίσκονται κοντά ψάχνουν παρέα για μια δραστηριότητα."
+    }
+  },
+  "tr": {
+    "direct_message": {
+      "title": "Amoria",
+      "body": "Yeni bir mesajınız var."
+    },
+    "together_match": {
+      "title": "Amoria",
+      "body": "Sizin için Together katılımcı bulunmuş."
+    },
+    "together_action": {
+      "title": "Amoria",
+      "body": "Together an dikkatinizi gerektirir."
+    },
+    "announcement": {
+      "title": "Amoria",
+      "body": "Amoria'da önemli bir güncelleme var."
+    },
+    "founder_activated": {
+      "title": "Amoria",
+      "body": "Kalıcı Kurucu numaranız hazır."
+    },
+    "founder_premium_started": {
+      "title": "Amoria",
+      "body": "Kurucu'nun da dahil olduğu dönem Premium başladı."
+    },
+    "founder_premium_expiring": {
+      "title": "Amoria",
+      "body": "Kurucunuz Premium döneminin sonu yaklaştı."
+    },
+    "founder_premium_expired": {
+      "title": "Amoria",
+      "body": "Kuruluşcu simgesiniz kalıcı kalır. Premium dönem tamamlandı."
+    },
+    "premium_activated": {
+      "title": "Amoria",
+      "body": "Premium aktif."
+    },
+    "premium_restored": {
+      "title": "Amoria",
+      "body": "Premium Google Play ' dan geri döndü."
+    },
+    "premium_billing_issue": {
+      "title": "Amoria",
+      "body": "Google Play bir fatura sorunu bildirmişti."
+    },
+    "community_activity": {
+      "title": "Amoria",
+      "body": "Yakındaki insanlar bir aktivite için arkadaş arıyorlar."
+    }
+  }
+}

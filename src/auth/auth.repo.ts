@@ -45,6 +45,14 @@ export async function createUser(input: NewUserRow): Promise<UserRow> {
   return created;
 }
 
+export async function updateUserPreferredLocale(userId: string, preferredLocale: string): Promise<UserRow | undefined> {
+  const [updated] = await db.update(users)
+    .set({ preferredLocale, updatedAt: new Date() })
+    .where(eq(users.id, userId))
+    .returning();
+  return updated;
+}
+
 export async function createRefreshToken(
   input: NewRefreshTokenRow,
   expectedAuthVersion: number,
@@ -245,6 +253,7 @@ type LockedUserRow = {
   avatar_url: string | null;
   email_verified_at: Date | null;
   auth_version: number;
+  preferred_locale: string;
 };
 
 export type CreateChallengeResult =
@@ -263,6 +272,7 @@ function rowToUser(row: LockedUserRow): UserRow {
     id: row.id,
     email: row.email,
     emailVerifiedAt: row.email_verified_at,
+    preferredLocale: row.preferred_locale,
     passwordHash: row.password_hash,
     displayName: row.display_name,
     amoriaId: row.amoria_id,
@@ -314,7 +324,7 @@ export async function createOrReplaceEmailChallenge(input: {
       `${input.userId}:${input.purpose}`,
     ]);
     const userResult = await client.query<LockedUserRow>(
-      `SELECT id, email, password_hash, display_name, amoria_id, avatar_url, email_verified_at, auth_version
+      `SELECT id, email, password_hash, display_name, amoria_id, avatar_url, email_verified_at, auth_version, preferred_locale
        FROM users WHERE id = $1 FOR UPDATE`,
       [input.userId],
     );
@@ -422,7 +432,7 @@ async function consumeChallenge(input: {
       `${input.userId}:${input.purpose}`,
     ]);
     const userResult = await client.query<LockedUserRow>(
-      `SELECT id, email, password_hash, display_name, amoria_id, avatar_url, email_verified_at, auth_version
+      `SELECT id, email, password_hash, display_name, amoria_id, avatar_url, email_verified_at, auth_version, preferred_locale
        FROM users WHERE id = $1 FOR UPDATE`,
       [input.userId],
     );

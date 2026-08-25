@@ -14,6 +14,7 @@ export type RegisterBody = {
 export type LoginBody = {
   email: string;
   password: string;
+  locale?: string;
 };
 
 export type EmailCodeBody = {
@@ -50,6 +51,7 @@ export type AuthUserProfile = {
   displayName: string;
   amoriaId: string;
   avatarUrl: string | null;
+  preferredLocale: string;
 };
 
 export type AuthResponse = {
@@ -81,6 +83,7 @@ export function toAuthUserProfile(user: UserRow): AuthUserProfile {
     displayName: user.displayName,
     amoriaId: user.amoriaId,
     avatarUrl: user.avatarUrl,
+    preferredLocale: user.preferredLocale ?? "en",
   };
 }
 

@@ -15,6 +15,7 @@ import {
   PROFILE_PHOTOS_MAX_COUNT,
   PROFILE_URL_MAX_LENGTH,
 } from "../config/constants";
+import { APP_LOCALES } from "../i18n/app-locales";
 
 const profilePhotoSchema = {
   type: "object",
@@ -154,6 +155,7 @@ export const selfUserProfileSchema = {
   required: [
     "id",
     "email",
+    "preferredLocale",
     "displayName",
     "about",
     "amoriaId",
@@ -181,6 +183,7 @@ export const selfUserProfileSchema = {
   properties: {
     id: { type: "string", format: "uuid" },
     email: { type: "string", format: "email" },
+    preferredLocale: { type: "string", enum: APP_LOCALES },
     displayName: { type: "string" },
     about: { type: ["string", "null"] },
     amoriaId: { type: "string" },
@@ -288,6 +291,23 @@ const okSchema = {
 export const getMeRouteSchema = {
   response: {
     200: selfUserProfileSchema,
+  },
+} as const;
+
+export const updatePreferredLocaleRouteSchema = {
+  body: {
+    type: "object",
+    required: ["locale"],
+    additionalProperties: false,
+    properties: { locale: { type: "string", enum: APP_LOCALES } },
+  },
+  response: {
+    200: {
+      type: "object",
+      required: ["preferredLocale"],
+      additionalProperties: false,
+      properties: { preferredLocale: { type: "string", enum: APP_LOCALES } },
+    },
   },
 } as const;
 

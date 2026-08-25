@@ -1,0 +1,194 @@
+{
+  "en": {
+    "verificationSubject": "Verify your Amoria email",
+    "verificationIntro": "Use this code to verify your email address:",
+    "resetSubject": "Reset your Amoria password",
+    "resetIntro": "Use this code to reset your password:",
+    "expires": "This code expires in {minutes} minutes.",
+    "warning": "If you did not request this, you can safely ignore this email. Never share this code."
+  },
+  "ru": {
+    "verificationSubject": "Подтвердите ваш email Amoria",
+    "verificationIntro": "Используйте этот код для подтверждения вашего адреса электронной почты:",
+    "resetSubject": "Сбросьте пароль Amoria",
+    "resetIntro": "Используйте этот код для сброса пароля:",
+    "expires": "Срок действия кода истекает через {minutes} минут.",
+    "warning": "Если вы не запрашивали это, можете безопасно проигнорировать письмо. Никогда не передавайте этот код."
+  },
+  "hr": {
+    "verificationSubject": "Potvrdite svoj Amoria email",
+    "verificationIntro": "Upotrijebite ovaj kod za potvrdu svoje e‑mail adrese:",
+    "resetSubject": "Resetirajte svoju Amoria lozinku",
+    "resetIntro": "Upotrijebite ovaj kod za resetiranje lozinke:",
+    "expires": "Ovaj kod istječe za {minutes} minuta.",
+    "warning": "Ako niste zatražili ovu poruku, možete je sigurno ignorirati. Nikada ne dijelite ovaj kod."
+  },
+  "uk": {
+    "verificationSubject": "Підтвердіть свою електронну адресу Amoria",
+    "verificationIntro": "Використайте цей код, щоб підтвердити свою електронну адресу:",
+    "resetSubject": "Скидання пароля Amoria",
+    "resetIntro": "Використайте цей код, щоб скинути пароль:",
+    "expires": "Цей код діє {minutes} хвилин.",
+    "warning": "Якщо ви не надсилали запит, можете спокійно проігнорувати цей лист. Ніколи не розголошуйте цей код."
+  },
+  "pl": {
+    "verificationSubject": "Zweryfikuj swój adres e‑mail w Amoria",
+    "verificationIntro": "Użyj tego kodu, aby zweryfikować swój adres e‑mail:",
+    "resetSubject": "Zresetuj hasło w Amoria",
+    "resetIntro": "Użyj tego kodu, aby zresetować hasło:",
+    "expires": "Ten kod wygaśnie po {minutes} minutach.",
+    "warning": "Jeśli nie prosiłeś o to, możesz bezpiecznie zignorować tę wiadomość. Nigdy nie udostępniaj tego kodu."
+  },
+  "de": {
+    "verificationSubject": "Bestätigen Sie Ihre Amoria-E-Mail",
+    "verificationIntro": "Verwenden Sie diesen Code, um Ihre E-Mail-Adresse zu bestätigen:",
+    "resetSubject": "Setzen Sie Ihr Amoria-Passwort zurück",
+    "resetIntro": "Verwenden Sie diesen Code, um Ihr Passwort zurückzusetzen:",
+    "expires": "Dieser Code läuft in {minutes} Minuten ab.",
+    "warning": "Falls Sie diese E‑Mail nicht angefordert haben, können Sie sie bedenkenlos ignorieren. Teilen Sie diesen Code niemals mit anderen."
+  },
+  "fr": {
+    "verificationSubject": "Vérifiez votre adresse e‑mail Amoria",
+    "verificationIntro": "Utilisez ce code pour vérifier votre adresse e‑mail :",
+    "resetSubject": "Réinitialisez votre mot de passe Amoria",
+    "resetIntro": "Utilisez ce code pour réinitialiser votre mot de passe :",
+    "expires": "Ce code expire dans {minutes} minutes.",
+    "warning": "Si vous n'avez pas demandé cela, vous pouvez ignorer cet e‑mail en toute sécurité. Ne partagez jamais ce code."
+  },
+  "es": {
+    "verificationSubject": "Verifica tu correo electrónico de Amoria",
+    "verificationIntro": "Usa este código para verificar tu dirección de correo electrónico:",
+    "resetSubject": "Restablece tu contraseña de Amoria",
+    "resetIntro": "Usa este código para restablecer tu contraseña:",
+    "expires": "Este código expira en {minutes} minutos.",
+    "warning": "Si no solicitaste esto, puedes ignorar este correo de forma segura. Nunca compartas este código."
+  },
+  "it": {
+    "verificationSubject": "Verifica la tua email Amoria",
+    "verificationIntro": "Usa questo codice per verificare il tuo indirizzo email:",
+    "resetSubject": "Reimposta la tua password Amoria",
+    "resetIntro": "Usa questo codice per reimpostare la tua password:",
+    "expires": "Questo codice scade in {minutes} minuti.",
+    "warning": "Se non hai richiesto questa email, puoi ignorarla in tutta sicurezza. Non condividere mai questo codice."
+  },
+  "pt": {
+    "verificationSubject": "Verifique seu e‑mail da Amoria",
+    "verificationIntro": "Use este código para verificar seu endereço de e‑mail:",
+    "resetSubject": "Redefina sua senha da Amoria",
+    "resetIntro": "Use este código para redefinir sua senha:",
+    "expires": "Este código expira em {minutes} minutos.",
+    "warning": "Se você não solicitou isso, pode ignorar este e‑mail com segurança. Nunca compartilhe este código."
+  },
+  "nl": {
+    "verificationSubject": "Verifieer je Amoria e‑mail",
+    "verificationIntro": "Gebruik deze code om je e‑mailadres te verifiëren:",
+    "resetSubject": "Reset je Amoria-wachtwoord",
+    "resetIntro": "Gebruik deze code om je wachtwoord te resetten:",
+    "expires": "Deze code verloopt over {minutes} minuten.",
+    "warning": "Als je dit niet hebt aangevraagd, kun je deze e‑mail veilig negeren. Deel deze code nooit."
+  },
+  "sv": {
+    "verificationSubject": "Verifiera din Amoria-e-post",
+    "verificationIntro": "Använd den här koden för att verifiera din e‑postadress:",
+    "resetSubject": "Återställ ditt Amoria-lösenord",
+    "resetIntro": "Använd den här koden för att återställa ditt lösenord:",
+    "expires": "Den här koden går ut om {minutes} minuter.",
+    "warning": "Om du inte begärde detta kan du lugnt ignorera e‑posten. Dela aldrig den här koden."
+  },
+  "no": {
+    "verificationSubject": "Bekreft e-posten din hos Amoria",
+    "verificationIntro": "Bruk denne koden for å bekrefte e-postadressen din:",
+    "resetSubject": "Tilbakestill passordet ditt hos Amoria",
+    "resetIntro": "Bruk denne koden for å tilbakestille passordet ditt:",
+    "expires": "Koden utløper om {minutes} minutter.",
+    "warning": "Hvis du ikke har bedt om dette, kan du trygt ignorere denne e-posten. Del aldri denne koden."
+  },
+  "da": {
+    "verificationSubject": "Bekræft din Amoria e‑mailadresse",
+    "verificationIntro": "Brug denne kode til at bekræfte din e‑mailadresse:",
+    "resetSubject": "Nulstil din Amoria-adgangskode",
+    "resetIntro": "Brug denne kode til at nulstille din adgangskode:",
+    "expires": "Koden udløber om {minutes} minutter.",
+    "warning": "Hvis du ikke har anmodet om dette, kan du trygt ignorere denne e‑mail. Del aldrig denne kode."
+  },
+  "fi": {
+    "verificationSubject": "Vahvista Amoria-sähköpostisi",
+    "verificationIntro": "Käytä tätä koodia vahvistaaksesi sähköpostiosoitteesi:",
+    "resetSubject": "Nollaa Amoria-salasanasi",
+    "resetIntro": "Käytä tätä koodia salasanasi nollaamiseen:",
+    "expires": "Tämä koodi vanhenee {minutes} minuutin kuluttua.",
+    "warning": "Jos et pyytänyt tätä, voit turvallisesti jättää tämän sähköpostin huomiotta. Älä koskaan jaa tätä koodia."
+  },
+  "cs": {
+    "verificationSubject": "Ověřte svůj e‑mail v Amoria",
+    "verificationIntro": "Použijte tento kód k ověření své e‑mailové adresy:",
+    "resetSubject": "Obnovte své heslo v Amoria",
+    "resetIntro": "Použijte tento kód k obnovení svého hesla:",
+    "expires": "Tento kód vyprší za {minutes} minut.",
+    "warning": "Pokud jste o tento e‑mail nepožádali, můžete jej bezpečně ignorovat. Nikdy nesdílejte tento kód."
+  },
+  "sk": {
+    "verificationSubject": "Overte svoj e‑mail v Amoria",
+    "verificationIntro": "Použite tento kód na overenie vašej e‑mailovej adresy:",
+    "resetSubject": "Obnovte svoje heslo v Amoria",
+    "resetIntro": "Použite tento kód na obnovenie hesla:",
+    "expires": "Platnosť tohto kódu vyprší o {minutes} minút.",
+    "warning": "Ak ste o toto nežiadali, môžete tento e‑mail pokojne ignorovať. Nikdy nezdieľajte tento kód."
+  },
+  "sl": {
+    "verificationSubject": "Potrdite svoj Amoria e‑mail",
+    "verificationIntro": "Uporabite to kodo za potrditev svojega e‑mail naslova:",
+    "resetSubject": "Ponastavite svoje Amoria geslo",
+    "resetIntro": "Uporabite to kodo za ponastavitev gesla:",
+    "expires": "Koda poteče čez {minutes} minut.",
+    "warning": "Če tega niste zahtevali, lahko to sporočilo varno prezrete. Kode nikoli ne delite."
+  },
+  "sr": {
+    "verificationSubject": "Potvrdite svoj Amoria email",
+    "verificationIntro": "Koristite ovaj kod da potvrdite svoju email adresu:",
+    "resetSubject": "Resetujte svoju Amoria lozinku",
+    "resetIntro": "Koristite ovaj kod da resetujete lozinku:",
+    "expires": "Ovaj kod ističe za {minutes} minuta.",
+    "warning": "Ako niste tražili ovo, slobodno ignorišite ovaj email. Nikada ne delite ovaj kod."
+  },
+  "bs": {
+    "verificationSubject": "Potvrdite svoj Amoria email",
+    "verificationIntro": "Upotrijebite ovaj kod da potvrdite svoju e‑mail adresu:",
+    "resetSubject": "Resetujte svoju Amoria lozinku",
+    "resetIntro": "Upotrijebite ovaj kod za resetiranje lozinke:",
+    "expires": "Ovaj kod ističe za {minutes} minuta.",
+    "warning": "Ako niste tražili ovu poruku, možete je sigurno ignorisati. Nikada ne dijelite ovaj kod."
+  },
+  "ro": {
+    "verificationSubject": "Verificați adresa de email Amoria",
+    "verificationIntro": "Folosiți acest cod pentru a verifica adresa de email:",
+    "resetSubject": "Resetați parola Amoria",
+    "resetIntro": "Folosiți acest cod pentru a reseta parola:",
+    "expires": "Acest cod expiră în {minutes} minute.",
+    "warning": "Dacă nu ați solicitat acest mesaj, îl puteți ignora în siguranță. Nu împărtășiți niciodată acest cod."
+  },
+  "hu": {
+    "verificationSubject": "Erősítse meg az Amoria e‑mail címét",
+    "verificationIntro": "Használja ezt a kódot az e‑mail címe megerősítéséhez:",
+    "resetSubject": "Állítsa vissza az Amoria jelszavát",
+    "resetIntro": "Használja ezt a kódot a jelszó visszaállításához:",
+    "expires": "Ez a kód {minutes} perc múlva lejár.",
+    "warning": "Ha nem Ön kérte, nyugodtan figyelmen kívül hagyhatja ezt az e‑mailt. Soha ne ossza meg ezt a kódot."
+  },
+  "el": {
+    "verificationSubject": "Επαληθεύστε το email σας στο Amoria",
+    "verificationIntro": "Χρησιμοποιήστε αυτόν τον κωδικό για να επαληθεύσετε τη διεύθυνση email σας:",
+    "resetSubject": "Επαναφορά κωδικού πρόσβασης Amoria",
+    "resetIntro": "Χρησιμοποιήστε αυτόν τον κωδικό για να επαναφέρετε τον κωδικό πρόσβασής σας:",
+    "expires": "Αυτός ο κωδικός λήγει σε {minutes} λεπτά.",
+    "warning": "Αν δεν ζητήσατε αυτό, μπορείτε να αγνοήσετε με ασφάλεια αυτό το email. Ποτέ μην μοιραστείτε αυτόν τον κωδικό."
+  },
+  "tr": {
+    "verificationSubject": "Amoria e-posta adresinizi doğrulayın",
+    "verificationIntro": "E-posta adresinizi doğrulamak için bu kodu kullanın:",
+    "resetSubject": "Amoria şifrenizi sıfırlayın",
+    "resetIntro": "Şifrenizi sıfırlamak için bu kodu kullanın:",
+    "expires": "Bu kod {minutes} dakika içinde süresi dolacak.",
+    "warning": "Eğer bu isteği siz yapmadıysanız, bu e-postayı güvenle göz ardı edebilirsiniz. Bu kodu asla paylaşmayın."
+  }
+}

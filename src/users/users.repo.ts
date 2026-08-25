@@ -82,6 +82,14 @@ export async function updateUserProfile(
   return updated;
 }
 
+export async function updateUserPreferredLocale(userId: string, preferredLocale: string): Promise<UserRow | undefined> {
+  const [updated] = await db.update(users)
+    .set({ preferredLocale, updatedAt: new Date() })
+    .where(eq(users.id, userId))
+    .returning();
+  return updated;
+}
+
 export async function touchUserLastSeenAt(
   userId: string,
   seenAt = new Date(),

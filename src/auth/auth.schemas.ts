@@ -4,10 +4,11 @@ import {
   PASSWORD_MAX_LENGTH,
   PASSWORD_MIN_LENGTH,
 } from "../config/constants";
+import { APP_LOCALES } from "../i18n/app-locales";
 
 export const authUserProfileSchema = {
   type: "object",
-  required: ["id", "email", "displayName", "amoriaId", "avatarUrl"],
+  required: ["id", "email", "displayName", "amoriaId", "avatarUrl", "preferredLocale"],
   additionalProperties: false,
   properties: {
     id: { type: "string", format: "uuid" },
@@ -15,6 +16,7 @@ export const authUserProfileSchema = {
     displayName: { type: "string" },
     amoriaId: { type: "string" },
     avatarUrl: { type: ["string", "null"] },
+    preferredLocale: { type: "string", enum: APP_LOCALES },
   },
 } as const;
 
@@ -37,7 +39,8 @@ export const okResponseSchema = {
   properties: { ok: { type: "boolean", const: true } },
 } as const;
 
-const localeSchema = { type: "string", enum: ["en", "ru", "hr", "en-US", "ru-RU", "hr-HR"] } as const;
+const emailLocaleSchema = { type: "string", minLength: 2, maxLength: 35 } as const;
+const appLocaleSchema = { type: "string", enum: APP_LOCALES } as const;
 const emailSchema = { type: "string", format: "email", maxLength: 320 } as const;
 const codeSchema = { type: "string", pattern: "^[0-9]{6}$" } as const;
 const passwordSchema = {
@@ -66,7 +69,7 @@ export const registerRouteSchema = {
         minLength: DISPLAY_NAME_MIN_LENGTH,
         maxLength: DISPLAY_NAME_MAX_LENGTH,
       },
-      locale: localeSchema,
+      locale: emailLocaleSchema,
     },
   },
   response: {
@@ -89,7 +92,7 @@ export const loginRouteSchema = {
     type: "object",
     required: ["email", "password"],
     additionalProperties: false,
-    properties: { email: emailSchema, password: passwordSchema },
+    properties: { email: emailSchema, password: passwordSchema, locale: appLocaleSchema },
   },
   response: { 200: authResponseSchema },
 } as const;
@@ -109,7 +112,7 @@ export const resendVerificationRouteSchema = {
     type: "object",
     required: ["email"],
     additionalProperties: false,
-    properties: { email: emailSchema, locale: localeSchema },
+    properties: { email: emailSchema, locale: emailLocaleSchema },
   },
   response: {
     200: {

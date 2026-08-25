@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { APP_LOCALES } from "../i18n/app-locales";
 
 const notificationSchema = {
   type: "object",
@@ -42,6 +43,7 @@ export const registerPushTokenRouteSchema = {
       token: { type: "string", minLength: 20, maxLength: 256 },
       platform: { type: "string", enum: ["android", "ios"] },
       deviceId: { type: "string", minLength: 8, maxLength: 128 },
+      locale: { type: "string", enum: APP_LOCALES },
     },
   },
   response: { 200: { type: "object", required: ["ok"], additionalProperties: false, properties: { ok: { type: "boolean" } } } },
@@ -51,6 +53,7 @@ const pushTokenBody = z.object({
   token: z.string().trim().min(20).max(256).refine((value) => /^(Expo|Exponent)PushToken\[[A-Za-z0-9_-]+\]$/.test(value), "invalid Expo push token"),
   platform: z.enum(["android", "ios"]),
   deviceId: z.string().trim().min(8).max(128),
+  locale: z.enum(APP_LOCALES).optional(),
 }).strict();
 
 export function parsePushTokenBody(body: unknown) {

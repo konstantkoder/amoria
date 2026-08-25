@@ -82,7 +82,7 @@ async function immediatelyDeactivateAccount(client: PoolClient, userId: string, 
   const now = new Date();
   const tombstone = randomUUID().replaceAll("-", "").slice(0, 12).toUpperCase();
   await client.query(`UPDATE users SET email=$3,password_hash=$4,display_name='Deleted user',about=NULL,amoria_id=$5,avatar_url=NULL,photos='[]'::jsonb,
-    gender=NULL,preferred_genders='[]'::jsonb,goal=NULL,mood=NULL,interests='[]'::jsonb,flirt_enabled=false,allow_adult_mode=false,mystery_mode=false,
+    gender=NULL,preferred_genders='[]'::jsonb,goal=NULL,mood=NULL,interests='[]'::jsonb,flirt_enabled=false,allow_adult_mode=false,mystery_mode=false,preferred_locale='en',
     birth_date=NULL,preferred_age_min=18,preferred_age_max=NULL,account_status='deleting',auth_version=auth_version+1,deleted_at=$2,suspended_at=NULL,suspension_reason=NULL,
     suspended_by_admin_user_id=NULL,last_seen_at=NULL,updated_at=$2 WHERE id=$1`, [userId, now, `deleted-${tombstone.toLowerCase()}@deleted.invalid`, randomBytes(48).toString("base64url"), `DEL${tombstone}`.slice(0, 16)]);
   await client.query("DELETE FROM refresh_tokens WHERE user_id=$1", [userId]);
