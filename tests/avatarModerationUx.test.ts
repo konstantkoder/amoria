@@ -14,7 +14,7 @@ test("avatar upload remains pending until the server adopts it", () => {
 });
 
 test("avatar review confirmation exists in every release locale", () => {
-  for (const locale of ["en", "ru", "hr"]) {
+  for (const locale of ["en", "ru", "hr", "uk", "pl", "de", "fr", "es", "it", "pt", "nl", "sv", "no", "da", "fi", "cs", "sk", "sl", "sr", "bs", "ro", "hu", "el", "tr"]) {
     const messages = JSON.parse(
       fs.readFileSync(path.join(root, `src/i18n/locales/${locale}.json`), "utf8"),
     );

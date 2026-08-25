@@ -51,32 +51,23 @@ type MatchStatusKey =
   | "expired"
   | "error";
 
-type TranslateFn = (key: string, fallback: string, params?: Record<string, string>) => string;
+type TranslateFn = (key: string, params?: Record<string, string>) => string;
 type QueueStartReason = "initial" | "retry" | "expandRadius";
 
 const POLL_INTERVAL_MS = 2000;
 const DELAYED_MS = 90 * 1000;
 const POLL_FAILURE_REPORT_THRESHOLD = 3;
 
-function interpolateFallback(fallback: string, params?: Record<string, string>) {
-  let value = fallback;
-  if (!params) return value;
-  for (const [key, replacement] of Object.entries(params)) {
-    value = value.replaceAll(`{${key}}`, replacement);
-  }
-  return value;
-}
-
-function formatQueueExpiresAt(value: string) {
+function formatQueueExpiresAt(value: string, locale: string) {
   const timestamp = Date.parse(value);
   if (!Number.isFinite(timestamp)) {
     return "";
   }
 
-  return new Date(timestamp).toLocaleTimeString([], {
+  return new Intl.DateTimeFormat(locale, {
     hour: "2-digit",
     minute: "2-digit",
-  });
+  }).format(new Date(timestamp));
 }
 
 function queueStartedAtFromEntry(entry: TogetherQueueEntry) {
@@ -156,18 +147,18 @@ function geoModeForLocation(location?: TogetherQueueLocationInput) {
 
 function radiusLabelFor(radiusKm: TogetherRadiusKm, tt: TranslateFn) {
   if (radiusKm === null) {
-    return tt("together.geo.anywhere", "Без ограничения");
+    return tt("together.geo.anywhere");
   }
 
-  return tt(`together.geo.${radiusKm}km`, `${radiusKm} км`);
+  return tt(`together.geo.${radiusKm}km`);
 }
 
 function radiusSearchTextFor(radiusKm: TogetherRadiusKm, tt: TranslateFn) {
   if (radiusKm === null) {
-    return tt("play.match.searchingNoLimit", "Ищем без ограничения");
+    return tt("play.match.searchingNoLimit");
   }
 
-  return tt("play.match.searchingRadius", "Ищем в радиусе {radius}", {
+  return tt("play.match.searchingRadius", {
     radius: radiusLabelFor(radiusKm, tt),
   });
 }
@@ -183,21 +174,20 @@ function nextExpandedRadius(radiusKm: TogetherRadiusKm): TogetherRadiusKm {
 function getMatchStateMeta(statusKey: MatchStatusKey, tt: TranslateFn) {
   if (statusKey === "searching" || statusKey === "delayed") {
     return {
-      label: tt("play.match.state.searchingLabel", "Ищем"),
+      label: tt("play.match.state.searchingLabel"),
       hint:
         statusKey === "delayed"
-          ? tt("play.match.stillSearching", "Поиск продолжается. Можно подождать или остановить поиск.")
-          : tt("play.match.searchCanStayOpen", "Ищем человека... Можно подождать или остановить поиск."),
+          ? tt("play.match.stillSearching")
+          : tt("play.match.searchCanStayOpen"),
       tone: "live" as const,
     };
   }
 
   if (statusKey === "found") {
     return {
-      label: tt("play.match.state.foundLabel", "Найден"),
+      label: tt("play.match.state.foundLabel"),
       hint: tt(
-        "play.match.state.foundHint",
-        "Подключаем общий этап. Это займёт всего пару секунд."
+        "play.match.state.foundHint"
       ),
       tone: "ready" as const,
     };
@@ -205,18 +195,17 @@ function getMatchStateMeta(statusKey: MatchStatusKey, tt: TranslateFn) {
 
   if (statusKey === "expired") {
     return {
-      label: tt("play.match.state.retryLabel", "Повтор"),
-      hint: tt("play.match.notFoundTryAgain", "Время очереди истекло. Можно начать поиск заново."),
+      label: tt("play.match.state.retryLabel"),
+      hint: tt("play.match.notFoundTryAgain"),
       tone: "paused" as const,
     };
   }
 
   if (statusKey === "cancelled") {
     return {
-      label: tt("play.match.state.pausedLabel", "Пауза"),
+      label: tt("play.match.state.pausedLabel"),
       hint: tt(
-        "play.match.state.pausedHint",
-        "Поиск остановлен. Можно вернуться назад или запустить его снова позже."
+        "play.match.state.pausedHint"
       ),
       tone: "paused" as const,
     };
@@ -224,20 +213,18 @@ function getMatchStateMeta(statusKey: MatchStatusKey, tt: TranslateFn) {
 
   if (statusKey === "error") {
     return {
-      label: tt("play.match.state.retryLabel", "Повтор"),
+      label: tt("play.match.state.retryLabel"),
       hint: tt(
-        "play.match.state.retryHint",
-        "Проверьте подключение/GPS и попробуйте снова или вернитесь в меню."
+        "play.match.state.retryHint"
       ),
       tone: "error" as const,
     };
   }
 
   return {
-    label: tt("play.match.state.startLabel", "Старт"),
+    label: tt("play.match.state.startLabel"),
     hint: tt(
-      "play.match.state.startHint",
-      "Сейчас подготовим очередь и перейдём к общему холсту, как только найдётся человек."
+      "play.match.state.startHint"
     ),
     tone: "ready" as const,
   };
@@ -258,20 +245,20 @@ function getActivityStatusTitle(
       : "Draw";
   switch (statusKey) {
     case "searching":
-      return tt(`play.match.status.searching${suffix}Title`, "Ищем человека...");
+      return tt(`play.match.status.searching${suffix}Title`);
     case "delayed":
-      return tt(`play.match.status.delayed${suffix}Title`, "Ищем человека...");
+      return tt(`play.match.status.delayed${suffix}Title`);
     case "found":
-      return tt(`play.match.status.found${suffix}Title`, "Человек найден");
+      return tt(`play.match.status.found${suffix}Title`);
     case "cancelled":
-      return tt("play.match.status.cancelledTitle", "Поиск остановлен");
+      return tt("play.match.status.cancelledTitle");
     case "expired":
-      return tt("play.match.queueExpired", "Поиск завершился");
+      return tt("play.match.queueExpired");
     case "error":
-      return tt(`play.match.status.error${suffix}Title`, "Не получилось начать совместную сессию");
+      return tt(`play.match.status.error${suffix}Title`);
     case "preparing":
     default:
-      return tt(`play.match.status.preparing${suffix}Title`, "Готовим совместную сессию");
+      return tt(`play.match.status.preparing${suffix}Title`);
   }
 }
 
@@ -284,12 +271,9 @@ export default function PlayMatchScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"PlayMatch">>();
   const route = useRoute<PlayMatchRouteProp>();
   const { user: authUser } = useAuth();
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const tt = React.useCallback<TranslateFn>(
-    (key, fallback, params) => {
-      const value = t(key, params);
-      return value === key ? interpolateFallback(fallback, params) : value;
-    },
+    (key, params) => t(key, params),
     [t]
   );
 
@@ -398,10 +382,9 @@ export default function PlayMatchScreen() {
         },
       });
       Alert.alert(
-        tt("play.togetherExit.leaveFailedTitle", "Выходим в меню"),
+        tt("play.togetherExit.leaveFailedTitle"),
         tt(
-          "play.togetherExit.leaveFailedBody",
-          "Не удалось подтвердить выход на сервере. Мы вернём вас в основное меню, а сессию можно проверить позже."
+          "play.togetherExit.leaveFailedBody"
         )
       );
     }
@@ -427,8 +410,7 @@ export default function PlayMatchScreen() {
       setStatusKey("error");
       setErrorText(
         tt(
-          "together.geo.permissionDenied",
-          "Для совместного поиска нужна геолокация. Мы не показываем точную позицию другим людям."
+          "together.geo.permissionDenied"
         )
       );
       return null;
@@ -457,12 +439,10 @@ export default function PlayMatchScreen() {
     setErrorText(
       isDeviceLocationUnavailable
         ? tt(
-            "together.geo.deviceLocationUnavailable",
-            "Устройство не отдаёт координаты. Проверьте GPS/геолокацию. В эмуляторе BlueStacks установите местоположение и откройте Google Maps для проверки."
+            "together.geo.deviceLocationUnavailable"
           )
         : tt(
-            "together.geo.locationReadFailed",
-            "Не удалось получить геолокацию. Проверьте доступ и попробуйте ещё раз."
+            "together.geo.locationReadFailed"
           )
     );
     return null;
@@ -548,12 +528,10 @@ export default function PlayMatchScreen() {
       setErrorText(
         ageErrorKey
           ? tt(
-              ageErrorKey,
-              "Проверьте дату рождения в профиле и возрастной фильтр, затем попробуйте ещё раз."
+              ageErrorKey
             )
           : tt(
-              "play.match.queueNetworkError",
-              "Проверь подключение к интернету и попробуй ещё раз."
+              "play.match.queueNetworkError"
             )
       );
     } finally {
@@ -639,8 +617,7 @@ export default function PlayMatchScreen() {
         pollFailureCountRef.current += 1;
         setConnectionNotice(
           tt(
-            "play.match.pollRetrying",
-            "Проблема соединения, пробуем снова."
+            "play.match.pollRetrying"
           )
         );
         if (
@@ -723,15 +700,14 @@ export default function PlayMatchScreen() {
     };
 
     Alert.alert(
-      tt("play.match.expandRadiusConfirmTitle", "Расширить радиус?"),
+      tt("play.match.expandRadiusConfirmTitle"),
       tt(
-        "play.match.expandRadiusConfirmBody",
-        "Текущий поиск будет остановлен, затем начнётся новый поиск с большим радиусом."
+        "play.match.expandRadiusConfirmBody"
       ),
       [
-        { text: tt("common.cancel", "Отмена"), style: "cancel" },
+        { text: tt("common.cancel"), style: "cancel" },
         {
-          text: tt("play.match.expandRadius", "Расширить радиус"),
+          text: tt("play.match.expandRadius"),
           style: "destructive",
           onPress: runExpansion,
         },
@@ -748,19 +724,18 @@ export default function PlayMatchScreen() {
   }, [exitToMainTabs]);
 
   const blockedTitle = !uid
-    ? tt("play.match.blocked.authTitle", "Нужен вход в аккаунт")
-    : tt("play.match.blocked.activityTitle", "Старт не удалось подготовить");
+    ? tt("play.match.blocked.authTitle")
+    : tt("play.match.blocked.activityTitle");
   const blockedBody = !uid
-    ? tt("play.match.authRequired", "Нужно войти, чтобы начать общий рисунок.")
+    ? tt("play.match.authRequired")
     : tt(
-        "play.match.invalidActivity",
-        "Эта старая сессия больше недоступна в текущей версии."
+        "play.match.invalidActivity"
       );
 
   if (!uid || !activity) {
     return (
       <ScreenShell
-        title={tt("tabs.together", "Вместе")}
+        title={tt("tabs.together")}
         background="togetherSearchLighthouseV6"
         showBack
         onBack={handleBack}
@@ -772,7 +747,7 @@ export default function PlayMatchScreen() {
             <Text style={styles.body}>{blockedBody}</Text>
             <Pressable style={styles.primaryButton} onPress={goToTogether}>
               <Text style={styles.primaryButtonText}>
-                {tt("common.backToTogether", "Вернуться во Вместе")}
+                {tt("common.backToTogether")}
               </Text>
             </Pressable>
           </View>
@@ -796,17 +771,17 @@ export default function PlayMatchScreen() {
     expandedRadiusKm !== activeRadiusKm;
   const bodyText = errorText || connectionNotice || (
     canExpandRadius
-      ? tt("play.match.noMatchExpandRadius", "Поиск продолжается. Можно расширить радиус или остановить поиск.")
+      ? tt("play.match.noMatchExpandRadius")
       : meta.hint
   );
   const retryLabel =
     statusKey === "error" && !entryIdRef.current
-      ? tt("together.geo.retryLocation", "Попробовать снова")
-      : tt("play.match.restartSearch", "Остановить и начать заново");
+      ? tt("together.geo.retryLocation")
+      : tt("play.match.restartSearch");
 
   return (
     <ScreenShell
-      title={tt("tabs.together", "Вместе")}
+      title={tt("tabs.together")}
       background="togetherSearchLighthouseV6"
       showBack
       onBack={handleBack}
@@ -829,19 +804,19 @@ export default function PlayMatchScreen() {
           <Text style={styles.body}>{bodyText}</Text>
           {entry?.expiresAt ? (
             <Text style={styles.expiresText}>
-              {tt("play.match.queueExpiresAt", "Очередь активна до {time}", {
-                time: formatQueueExpiresAt(entry.expiresAt) || "—",
+              {tt("play.match.queueExpiresAt", {
+                time: formatQueueExpiresAt(entry.expiresAt, locale) || "—",
               })}
             </Text>
           ) : null}
           <Text style={styles.radiusText}>
-            {tt("play.match.radiusLabel", "Радиус поиска: {radius}", {
+            {tt("play.match.radiusLabel", {
               radius: activeRadiusLabel,
             })}
           </Text>
           <Text style={styles.radiusText}>
-            {tt("play.match.ageLabel", "Возраст: {age}", {
-              age: routeAgeLabel || tt("together.age.anyAdult", "любой 18+"),
+            {tt("play.match.ageLabel", {
+              age: routeAgeLabel || tt("together.age.anyAdult"),
             })}
           </Text>
           <Text style={styles.radiusModeText}>
@@ -849,8 +824,8 @@ export default function PlayMatchScreen() {
           </Text>
           <Text style={styles.locationReadyText}>
             {locationReady
-              ? tt("play.match.locationReady", "Геолокация готова")
-              : tt("play.match.locationNotReady", "Геолокация не готова")}
+              ? tt("play.match.locationReady")
+              : tt("play.match.locationNotReady")}
           </Text>
           <View style={styles.actions}>
             {isActiveSearch ? (
@@ -862,15 +837,15 @@ export default function PlayMatchScreen() {
               >
                 <Text style={styles.stopButtonText}>
                   {exiting
-                    ? tt("common.exiting", "Выходим…")
-                    : tt("play.match.stopSearch", "Остановить поиск")}
+                    ? tt("common.exiting")
+                    : tt("play.match.stopSearch")}
                 </Text>
               </Pressable>
             ) : null}
             {canExpandRadius ? (
               <Pressable style={styles.secondaryButton} onPress={expandRadius} disabled={busy}>
                 <Text style={styles.secondaryButtonText}>
-                  {tt("play.match.expandRadius", "Расширить радиус")}
+                  {tt("play.match.expandRadius")}
                 </Text>
               </Pressable>
             ) : null}
@@ -890,8 +865,8 @@ export default function PlayMatchScreen() {
               >
                 <Text style={styles.secondaryButtonText}>
                   {exiting
-                    ? tt("common.exiting", "Выходим…")
-                    : tt("common.backToMainTabs", "Вернуться в меню")}
+                    ? tt("common.exiting")
+                    : tt("common.backToMainTabs")}
                 </Text>
               </Pressable>
             ) : null}

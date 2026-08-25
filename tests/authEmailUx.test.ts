@@ -61,7 +61,7 @@ test("release locales contain all new authentication copy", () => {
     "auth.rateLimited",
     "auth.accountSuspended",
   ];
-  for (const locale of ["en", "ru", "hr"]) {
+  for (const locale of ["en", "ru", "hr", "uk", "pl", "de", "fr", "es", "it", "pt", "nl", "sv", "no", "da", "fi", "cs", "sk", "sl", "sr", "bs", "ro", "hu", "el", "tr"]) {
     const messages = JSON.parse(read(`src/i18n/locales/${locale}.json`)) as Record<string, string>;
     for (const key of keys) assert.equal(typeof messages[key], "string", `${locale} missing ${key}`);
   }

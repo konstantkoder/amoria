@@ -26,6 +26,7 @@ export default function NotificationsScreen() {
   const [refreshing, setRefreshing] = React.useState(false);
   const [error, setError] = React.useState(false);
   const [pushState, setPushState] = React.useState<"idle" | "working" | "registered" | "denied" | "device_required">("idle");
+  const pushBusyRef = React.useRef(false);
 
   const load = React.useCallback(async (refresh = false) => {
     if (refresh) setRefreshing(true); else setLoading(true);
@@ -55,12 +56,16 @@ export default function NotificationsScreen() {
   }, [navigation]);
 
   const enablePush = React.useCallback(async () => {
+    if (pushBusyRef.current) return;
+    pushBusyRef.current = true;
     setPushState("working");
     try {
       setPushState(await requestAndRegisterPush());
     } catch {
       setPushState("idle");
       setError(true);
+    } finally {
+      pushBusyRef.current = false;
     }
   }, []);
 

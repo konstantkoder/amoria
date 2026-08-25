@@ -44,8 +44,9 @@ test("free gates are contextual and backed by the authoritative snapshot", () =>
 
 test("invite attribution is privacy-bounded and app links are conditional", () => {
   const attribution = read("src/services/attribution.ts");
+  const attributionParsing = read("src/services/attributionParsing.ts");
   const config = read("app.config.js");
-  assert.match(attribution, /\^\[A-Z0-9\]\{6\}\$/);
+  assert.match(attributionParsing, /\^\[A-Z0-9\]\{6\}\$/);
   assert.match(attribution, /getInstallReferrerAsync/);
   assert.match(config, /EXPO_PUBLIC_APP_LINK_HOST/);
   assert.match(config, /pathPrefix: "\/i\/"/);

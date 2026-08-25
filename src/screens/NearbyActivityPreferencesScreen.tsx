@@ -15,7 +15,7 @@ import { useNavigation } from "@react-navigation/native";
 import ScreenShell from "@/components/ScreenShell";
 import { useLocale } from "@/contexts/LocaleContext";
 import type { RootStackNavigationProp } from "@/navigation/appRoutes";
-import { ApiError } from "@/services/api/apiClient";
+import { reportClientError, sanitizeErrorForReport } from "@/services/api/clientErrorsApi";
 import * as nearbyApi from "@/services/api/nearbyApi";
 import type {
   NearbyActivityCategory,
@@ -43,15 +43,6 @@ const ACTIVITY_CATEGORY_RANK = ACTIVITY_CATEGORY_ORDER.reduce(
   {} as Record<NearbyActivityCategory, number>
 );
 
-const ACTIVITY_CATEGORY_FALLBACK: Record<NearbyActivityCategory, string> = {
-  social: "Social / calm",
-  movement: "Movement",
-  team_sports: "Team sports",
-  nature_water: "Nature & water",
-  culture_events: "Culture & events",
-  hobbies: "Hobbies",
-};
-
 type ActivitySection = {
   category: NearbyActivityCategory;
   activities: NearbyActivityDefinition[];
@@ -60,27 +51,17 @@ type ActivitySection = {
 function copyOrFallback(
   t: (key: string, params?: Record<string, string>) => string,
   key: string,
-  fallback: string,
   params?: Record<string, string>
 ) {
-  const value = t(key, params);
-  if (value !== key) return value;
-  return Object.entries(params ?? {}).reduce(
-    (text, [paramKey, paramValue]) =>
-      text.replace(new RegExp(`\\{${paramKey}\\}`, "g"), paramValue),
-    fallback
-  );
+  return t(key, params);
 }
 
 function getErrorText(
   error: unknown,
   t: (key: string, params?: Record<string, string>) => string
 ) {
-  if (error instanceof ApiError) return error.message;
   return copyOrFallback(
-    t,
-    "nearby.activityPreferences.errorGeneric",
-    "Activity preferences are temporarily unavailable. Try again."
+    t, "nearby.activityPreferences.errorGeneric"
   );
 }
 
@@ -89,9 +70,7 @@ function getActivityLabel(
   t: (key: string, params?: Record<string, string>) => string
 ) {
   return copyOrFallback(
-    t,
-    `nearby.activityPreferences.activity.${activity.activityKey}`,
-    activity.title
+    t, `nearby.activityPreferences.activity.${activity.activityKey}`
   );
 }
 
@@ -100,9 +79,7 @@ function getCategoryLabel(
   t: (key: string, params?: Record<string, string>) => string
 ) {
   return copyOrFallback(
-    t,
-    `nearby.activityPreferences.category.${category}`,
-    ACTIVITY_CATEGORY_FALLBACK[category]
+    t, `nearby.activityPreferences.category.${category}`
   );
 }
 
@@ -158,7 +135,8 @@ function sameSelectedKeys(
 
 export default function NearbyActivityPreferencesScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"NearbyActivityPreferences">>();
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const numberFormatter = React.useMemo(() => new Intl.NumberFormat(locale), [locale]);
   const { width: screenWidth } = useWindowDimensions();
   const availableGridWidth = screenWidth - 34;
   const activityCardWidth =
@@ -175,6 +153,8 @@ export default function NearbyActivityPreferencesScreen() {
   const [saving, setSaving] = useState(false);
   const [errorText, setErrorText] = useState("");
   const [saved, setSaved] = useState(false);
+  const loadInFlightRef = useRef(false);
+  const saveInFlightRef = useRef(false);
 
   const applyResponse = useCallback((response: NearbyActivityPreferencesResponse) => {
     const activeKeys = getActivePreferenceKeys(response);
@@ -184,6 +164,8 @@ export default function NearbyActivityPreferencesScreen() {
   }, []);
 
   const loadPreferences = useCallback(async () => {
+    if (loadInFlightRef.current) return;
+    loadInFlightRef.current = true;
     setLoading(true);
     setErrorText("");
     setSaved(false);
@@ -193,11 +175,14 @@ export default function NearbyActivityPreferencesScreen() {
       applyResponse(response);
     } catch (error) {
       if (!mountedRef.current) return;
+      const safe = sanitizeErrorForReport(error);
+      void reportClientError({ screen: "NearbyActivityPreferences", action: "load", code: safe.code, message: safe.message, stack: safe.stack });
       setActivities([]);
       setSelectedKeys(new Set());
       setSavedKeys(new Set());
       setErrorText(getErrorText(error, t));
     } finally {
+      loadInFlightRef.current = false;
       if (mountedRef.current) {
         setLoading(false);
       }
@@ -236,7 +221,8 @@ export default function NearbyActivityPreferencesScreen() {
   }, []);
 
   const savePreferences = useCallback(async () => {
-    if (saving || loading || !hasChanges) return;
+    if (saveInFlightRef.current || saving || loading || !hasChanges) return;
+    saveInFlightRef.current = true;
     setSaving(true);
     setErrorText("");
     setSaved(false);
@@ -250,8 +236,11 @@ export default function NearbyActivityPreferencesScreen() {
       setSaved(true);
     } catch (error) {
       if (!mountedRef.current) return;
+      const safe = sanitizeErrorForReport(error);
+      void reportClientError({ screen: "NearbyActivityPreferences", action: "save", code: safe.code, message: safe.message, stack: safe.stack });
       setErrorText(getErrorText(error, t));
     } finally {
+      saveInFlightRef.current = false;
       if (mountedRef.current) {
         setSaving(false);
       }
@@ -275,20 +264,18 @@ export default function NearbyActivityPreferencesScreen() {
 
   const canSave = !loading && !saving && hasChanges;
   const primaryButtonText = saving
-    ? copyOrFallback(t, "nearby.activityPreferences.saving", "Saving…")
+    ? copyOrFallback(t, "nearby.activityPreferences.saving")
     : hasChanges
-    ? copyOrFallback(t, "nearby.activityPreferences.save", "Save")
-    : copyOrFallback(t, "nearby.activityPreferences.savedButton", "Saved ✓");
+    ? copyOrFallback(t, "nearby.activityPreferences.save")
+    : copyOrFallback(t, "nearby.activityPreferences.savedButton");
   const secondaryButtonText = hasChanges
-    ? copyOrFallback(t, "nearby.activityPreferences.cancelChanges", "Cancel")
-    : copyOrFallback(t, "nearby.activityPreferences.done", "Done");
+    ? copyOrFallback(t, "nearby.activityPreferences.cancelChanges")
+    : copyOrFallback(t, "nearby.activityPreferences.done");
 
   return (
     <ScreenShell
       title={copyOrFallback(
-        t,
-        "screen.nearbyActivityPreferences",
-        "Nearby activities"
+        t, "screen.nearbyActivityPreferences"
       )}
       titleNumberOfLines={2}
       background="nearbyHarborV6"
@@ -304,16 +291,12 @@ export default function NearbyActivityPreferencesScreen() {
           <View style={styles.introPanel}>
             <Text style={styles.title}>
               {copyOrFallback(
-                t,
-                "nearby.activityPreferences.title",
-                "Choose nearby activities"
+                t, "nearby.activityPreferences.title"
               )}
             </Text>
             <Text style={styles.body}>
               {copyOrFallback(
-                t,
-                "nearby.activityPreferences.body",
-                "Mark what you are interested in nearby. This is optional and does not change your people feed."
+                t, "nearby.activityPreferences.body"
               )}
             </Text>
           </View>
@@ -323,9 +306,7 @@ export default function NearbyActivityPreferencesScreen() {
               <ActivityIndicator color={theme.colors.textAccent} />
               <Text style={styles.stateText}>
                 {copyOrFallback(
-                  t,
-                  "nearby.activityPreferences.loading",
-                  "Loading activities..."
+                  t, "nearby.activityPreferences.loading"
                 )}
               </Text>
             </View>
@@ -338,7 +319,7 @@ export default function NearbyActivityPreferencesScreen() {
               {!activities.length ? (
                 <Pressable onPress={loadPreferences} style={styles.retryButton}>
                   <Text style={styles.retryButtonText}>
-                    {copyOrFallback(t, "common.retry", "Retry")}
+                    {copyOrFallback(t, "common.retry")}
                   </Text>
                 </Pressable>
               ) : null}
@@ -417,9 +398,7 @@ export default function NearbyActivityPreferencesScreen() {
             <View style={styles.statePanel}>
               <Text style={styles.stateText}>
                 {copyOrFallback(
-                  t,
-                  "nearby.activityPreferences.empty",
-                  "No activities are available yet."
+                  t, "nearby.activityPreferences.empty"
                 )}
               </Text>
             </View>
@@ -430,9 +409,7 @@ export default function NearbyActivityPreferencesScreen() {
               <Ionicons name="checkmark-circle-outline" size={18} color="#B9F6D2" />
               <Text style={styles.successBody}>
                 {copyOrFallback(
-                  t,
-                  "nearby.activityPreferences.savedReturnHint",
-                  "Saved. You can return to Nearby Activities."
+                  t, "nearby.activityPreferences.savedReturnHint"
                 )}
               </Text>
             </View>
@@ -443,10 +420,7 @@ export default function NearbyActivityPreferencesScreen() {
           <View style={styles.footerPanel}>
             <Text style={styles.selectedCountText}>
               {copyOrFallback(
-                t,
-                "nearby.activityPreferences.selectedCount",
-                "Selected: {count}",
-                { count: String(selectedCount) }
+                t, "nearby.activityPreferences.selectedCount", { count: numberFormatter.format(selectedCount) }
               )}
             </Text>
             <View style={styles.footerActions}>

@@ -35,11 +35,9 @@ import { theme } from "@/theme";
 
 function copyOrFallback(
   t: (key: string, params?: Record<string, string>) => string,
-  key: string,
-  fallback: string
+  key: string
 ) {
-  const value = t(key);
-  return value === key ? fallback : value;
+  return t(key);
 }
 
 function getPublishErrorCopy(
@@ -55,24 +53,18 @@ function getPublishErrorCopy(
   ) {
     return {
       title: copyOrFallback(
-        t,
-        "nearby.create.photoUploadErrorTitle",
-        "Фото не удалось загрузить"
+        t, "nearby.create.photoUploadErrorTitle"
       ),
       body: copyOrFallback(
-        t,
-        "nearby.create.photoUploadErrorBody",
-        "Фото не загрузилось. Попробуй выбрать другое изображение или опубликовать без фото."
+        t, "nearby.create.photoUploadErrorBody"
       ),
     };
   }
 
   return {
-    title: copyOrFallback(t, "nearby.create.errorTitle", "Не удалось опубликовать"),
+    title: copyOrFallback(t, "nearby.create.errorTitle"),
     body: copyOrFallback(
-      t,
-      "nearby.create.errorBody",
-      "Сервер не сохранил объявление. Попробуй ещё раз чуть позже."
+      t, "nearby.create.errorBody"
     ),
   };
 }
@@ -145,34 +137,30 @@ export default function CreateAnnouncementScreen() {
   const currentUid = authUser?.id ?? "";
   const authorDisplayName = authUser?.displayName?.trim() ?? "";
   const authorLabel =
-    authorDisplayName || copyOrFallback(t, "profile.amoriaUser", "Пользователь Amoria");
+    authorDisplayName || copyOrFallback(t, "profile.amoriaUser");
 
   const categoryLabels = React.useMemo(
     () => ({
-      walk: copyOrFallback(t, "nearby.announcements.category.walk", "Прогулка"),
-      trip: copyOrFallback(t, "nearby.announcements.category.trip", "Поездка"),
-      coffee: copyOrFallback(t, "nearby.announcements.category.coffee", "Кофе"),
-      activity: copyOrFallback(t, "nearby.announcements.category.activity", "Активность"),
-      sport: copyOrFallback(t, "nearby.announcements.category.sport", "Спорт"),
-      ride: copyOrFallback(t, "nearby.announcements.category.ride", "Вместе по пути"),
+      walk: copyOrFallback(t, "nearby.announcements.category.walk"),
+      trip: copyOrFallback(t, "nearby.announcements.category.trip"),
+      coffee: copyOrFallback(t, "nearby.announcements.category.coffee"),
+      activity: copyOrFallback(t, "nearby.announcements.category.activity"),
+      sport: copyOrFallback(t, "nearby.announcements.category.sport"),
+      ride: copyOrFallback(t, "nearby.announcements.category.ride"),
     }),
     [t]
   );
   const fallbackPlaceLabel = copyOrFallback(
-    t,
-    "nearby.placeFallback",
-    "Место не указано"
+    t, "nearby.placeFallback"
   );
   const trimmedPlaceLabel = placeLabel.trim();
   const previewTitle =
     title.trim() ||
-    copyOrFallback(t, "nearby.create.previewTitleFallback", "Announcement title");
+    copyOrFallback(t, "nearby.create.previewTitleFallback");
   const previewBody =
     description.trim() ||
     copyOrFallback(
-      t,
-      "nearby.create.previewBodyFallback",
-      "Здесь будет видно, кого ты ищешь, где это актуально и зачем откликаться."
+      t, "nearby.create.previewBodyFallback"
     );
   const previewPlace = trimmedPlaceLabel || fallbackPlaceLabel;
   const showPreview = Boolean(
@@ -201,11 +189,9 @@ export default function CreateAnnouncementScreen() {
     setPhotoUri("");
     setPhotoMimeType("");
     Alert.alert(
-      copyOrFallback(t, "photos.previewFailed", "Не удалось показать фото"),
+      copyOrFallback(t, "photos.previewFailed"),
       copyOrFallback(
-        t,
-        "photos.noAssetReturned",
-        "Не удалось получить фото. Попробуйте выбрать другое изображение."
+        t, "photos.noAssetReturned"
       )
     );
   }, [t]);
@@ -238,11 +224,9 @@ export default function CreateAnnouncementScreen() {
         status = permission.status;
       } catch {
         Alert.alert(
-          copyOrFallback(t, "photos.pickFailed", "Не удалось выбрать фото"),
+          copyOrFallback(t, "photos.pickFailed"),
           copyOrFallback(
-            t,
-            "photos.permissionBody",
-            "Разреши доступ к фото, чтобы добавить изображение."
+            t, "photos.permissionBody"
           )
         );
         return;
@@ -251,11 +235,9 @@ export default function CreateAnnouncementScreen() {
 
     if (status !== "granted") {
       Alert.alert(
-        copyOrFallback(t, "photos.permissionTitle", "Нужен доступ к галерее"),
+        copyOrFallback(t, "photos.permissionTitle"),
         copyOrFallback(
-          t,
-          "photos.permissionBody",
-          "Разреши доступ к фото, чтобы добавить изображение к объявлению."
+          t, "photos.permissionBody"
         )
       );
       return;
@@ -271,11 +253,9 @@ export default function CreateAnnouncementScreen() {
       });
     } catch {
       Alert.alert(
-        copyOrFallback(t, "photos.pickFailed", "Не удалось выбрать фото"),
+        copyOrFallback(t, "photos.pickFailed"),
         copyOrFallback(
-          t,
-          "photos.noAssetReturned",
-          "Не удалось получить фото. Попробуйте выбрать другое изображение."
+          t, "photos.noAssetReturned"
         )
       );
       return;
@@ -286,11 +266,9 @@ export default function CreateAnnouncementScreen() {
     const nextUri = asset?.uri?.trim() ?? "";
     if (!asset || !nextUri) {
       Alert.alert(
-        copyOrFallback(t, "photos.pickFailed", "Не удалось выбрать фото"),
+        copyOrFallback(t, "photos.pickFailed"),
         copyOrFallback(
-          t,
-          "photos.noAssetReturned",
-          "Не удалось получить фото. Попробуйте выбрать другое изображение."
+          t, "photos.noAssetReturned"
         )
       );
       return;
@@ -305,11 +283,9 @@ export default function CreateAnnouncementScreen() {
   const publish = React.useCallback(async () => {
     if (!currentUid) {
       Alert.alert(
-        copyOrFallback(t, "nearby.create.signInTitle", "Нужен вход"),
+        copyOrFallback(t, "nearby.create.signInTitle"),
         copyOrFallback(
-          t,
-          "nearby.create.signInBody",
-          "Чтобы опубликовать объявление с реальным автором и личным чатом, сначала войди в аккаунт."
+          t, "nearby.create.signInBody"
         )
       );
       return;
@@ -320,11 +296,9 @@ export default function CreateAnnouncementScreen() {
 
     if (!trimmedTitle || !trimmedDescription) {
       Alert.alert(
-        copyOrFallback(t, "nearby.create.fillTitle", "Нужно заполнить объявление"),
+        copyOrFallback(t, "nearby.create.fillTitle"),
         copyOrFallback(
-          t,
-          "nearby.create.fillBody",
-          "Добавь заголовок и короткое описание, чтобы объявление выглядело понятным."
+          t, "nearby.create.fillBody"
         )
       );
       return;
@@ -332,11 +306,9 @@ export default function CreateAnnouncementScreen() {
 
     if (containsUnsafeAnnouncementContent(trimmedTitle, trimmedDescription)) {
       Alert.alert(
-        copyOrFallback(t, "safety.unsafeAnnouncementTitle", "Такой текст нельзя публиковать"),
+        copyOrFallback(t, "safety.unsafeAnnouncementTitle"),
         copyOrFallback(
-          t,
-          "safety.unsafeAnnouncementBody",
-          "Объявления не могут предлагать сексуальные услуги или оплатные встречи."
+          t, "safety.unsafeAnnouncementBody"
         )
       );
       return;
@@ -347,8 +319,8 @@ export default function CreateAnnouncementScreen() {
       const publicDisplayName = authUser?.displayName?.trim();
       if (!publicDisplayName) {
         Alert.alert(
-          copyOrFallback(t, "profile.completeProfile", "Заполните профиль"),
-          copyOrFallback(t, "profile.completeProfileBody", "Чтобы продолжить, укажите имя")
+          copyOrFallback(t, "profile.completeProfile"),
+          copyOrFallback(t, "profile.completeProfileBody")
         );
         return;
       }
@@ -391,7 +363,7 @@ export default function CreateAnnouncementScreen() {
 
   return (
     <ScreenShell
-      title={copyOrFallback(t, "nearby.create.title", "Создать объявление")}
+      title={copyOrFallback(t, "nearby.create.title")}
       background="nearbyHarborV6"
       showBack
       onBack={handleBack}
@@ -405,16 +377,14 @@ export default function CreateAnnouncementScreen() {
       >
         <View style={styles.introCard}>
           <Text style={styles.introKicker}>
-            {copyOrFallback(t, "nearby.create.kicker", "Оформленный запрос")}
+            {copyOrFallback(t, "nearby.create.kicker")}
           </Text>
           <Text style={styles.introTitle}>
-            {copyOrFallback(t, "nearby.create.heroTitle", "Опубликуй понятное объявление")}
+            {copyOrFallback(t, "nearby.create.heroTitle")}
           </Text>
           <Text style={styles.introBody}>
             {copyOrFallback(
-              t,
-              "nearby.create.heroBody",
-              "Это оформленный запрос, а не быстрый статус из «Рядом». Коротко и понятно напиши, кого ищешь, где и какой формат нужен."
+              t, "nearby.create.heroBody"
             )}
           </Text>
         </View>
@@ -426,7 +396,7 @@ export default function CreateAnnouncementScreen() {
             }}
           >
             <Text style={styles.label}>
-              {copyOrFallback(t, "nearby.create.photoLabel", "Фото")}
+              {copyOrFallback(t, "nearby.create.photoLabel")}
             </Text>
             {photoUri ? (
               <View style={styles.photoPreviewWrap}>
@@ -434,9 +404,7 @@ export default function CreateAnnouncementScreen() {
                   <Ionicons name="checkmark-circle" size={14} color={theme.colors.success} />
                   <Text style={styles.photoAttachedBadgeText}>
                     {copyOrFallback(
-                      t,
-                      "nearby.create.photoAttachedBadge",
-                      "Фото прикреплено"
+                      t, "nearby.create.photoAttachedBadge"
                     )}
                   </Text>
                 </View>
@@ -447,9 +415,7 @@ export default function CreateAnnouncementScreen() {
                 />
                 <Text style={styles.photoAttachedHint}>
                   {copyOrFallback(
-                    t,
-                    "nearby.create.photoAttachedHint",
-                    "Фото будет загружено через сервер при публикации объявления."
+                    t, "nearby.create.photoAttachedHint"
                   )}
                 </Text>
                 <View style={styles.photoActions}>
@@ -459,7 +425,7 @@ export default function CreateAnnouncementScreen() {
                     style={styles.secondaryButton}
                   >
                     <Text style={styles.secondaryButtonText}>
-                      {copyOrFallback(t, "nearby.create.changePhoto", "Заменить фото")}
+                      {copyOrFallback(t, "nearby.create.changePhoto")}
                     </Text>
                   </Pressable>
                   <Pressable
@@ -471,7 +437,7 @@ export default function CreateAnnouncementScreen() {
                     style={styles.secondaryButton}
                   >
                     <Text style={styles.secondaryButtonText}>
-                      {copyOrFallback(t, "nearby.create.removePhoto", "Убрать фото")}
+                      {copyOrFallback(t, "nearby.create.removePhoto")}
                     </Text>
                   </Pressable>
                 </View>
@@ -482,13 +448,11 @@ export default function CreateAnnouncementScreen() {
                   <Ionicons name="image-outline" size={20} color={theme.colors.textAccent} />
                 </View>
                 <Text style={styles.photoPlaceholderTitle}>
-                  {copyOrFallback(t, "nearby.create.addPhoto", "Добавить фото")}
+                  {copyOrFallback(t, "nearby.create.addPhoto")}
                 </Text>
                 <Text style={styles.photoPlaceholderBody}>
                   {copyOrFallback(
-                    t,
-                    "nearby.create.photoBody",
-                    "Опционально. Объявление всё равно можно опубликовать без изображения."
+                    t, "nearby.create.photoBody"
                   )}
                 </Text>
               </Pressable>
@@ -496,7 +460,7 @@ export default function CreateAnnouncementScreen() {
           </View>
 
           <Text style={styles.label}>
-            {copyOrFallback(t, "nearby.create.categoryLabel", "Категория")}
+            {copyOrFallback(t, "nearby.create.categoryLabel")}
           </Text>
           <ScrollView
             horizontal
@@ -520,15 +484,13 @@ export default function CreateAnnouncementScreen() {
           </ScrollView>
 
           <Text style={styles.label}>
-            {copyOrFallback(t, "nearby.create.titleLabel", "Заголовок")}
+            {copyOrFallback(t, "nearby.create.titleLabel")}
           </Text>
           <TextInput
             value={title}
             onChangeText={setTitle}
             placeholder={copyOrFallback(
-              t,
-              "nearby.create.titlePlaceholder",
-              "Например: Прогулка вечером по центру"
+              t, "nearby.create.titlePlaceholder"
             )}
             placeholderTextColor="rgba(226,232,255,0.46)"
             style={styles.input}
@@ -536,15 +498,13 @@ export default function CreateAnnouncementScreen() {
           />
 
           <Text style={styles.label}>
-            {copyOrFallback(t, "nearby.create.descriptionLabel", "Описание")}
+            {copyOrFallback(t, "nearby.create.descriptionLabel")}
           </Text>
           <TextInput
             value={description}
             onChangeText={setDescription}
             placeholder={copyOrFallback(
-              t,
-              "nearby.create.descriptionPlaceholder",
-              "Что за план, кого ищешь и почему это звучит хорошо именно сейчас?"
+              t, "nearby.create.descriptionPlaceholder"
             )}
             placeholderTextColor="rgba(226,232,255,0.46)"
             style={[styles.input, styles.textArea]}
@@ -554,15 +514,13 @@ export default function CreateAnnouncementScreen() {
           />
 
           <Text style={styles.label}>
-            {copyOrFallback(t, "nearby.create.cityLabel", "Город или район")}
+            {copyOrFallback(t, "nearby.create.cityLabel")}
           </Text>
           <TextInput
             value={placeLabel}
             onChangeText={setPlaceLabel}
             placeholder={copyOrFallback(
-              t,
-              "nearby.create.cityPlaceholder",
-              "Например: Центр, Варшава или Mokotow"
+              t, "nearby.create.cityPlaceholder"
             )}
             placeholderTextColor="rgba(226,232,255,0.46)"
             style={styles.input}
@@ -580,16 +538,14 @@ export default function CreateAnnouncementScreen() {
             }}
           >
             <Text style={styles.previewKicker}>
-              {copyOrFallback(t, "nearby.create.previewKicker", "Как это будет выглядеть")}
+              {copyOrFallback(t, "nearby.create.previewKicker")}
             </Text>
             {photoUri ? (
               <View style={styles.previewPhotoNotice}>
                 <Ionicons name="checkmark-circle" size={16} color={theme.colors.success} />
                 <Text style={styles.previewPhotoNoticeText}>
                   {copyOrFallback(
-                    t,
-                    "nearby.create.previewPhotoNotice",
-                    "Фото выбрано для объявления. Публикация продолжится только после успешной загрузки."
+                    t, "nearby.create.previewPhotoNotice"
                   )}
                 </Text>
               </View>
@@ -628,8 +584,8 @@ export default function CreateAnnouncementScreen() {
                   )}
                   <Text style={styles.previewMediaText}>
                     {photoUri
-                      ? copyOrFallback(t, "nearby.announcements.photoYes", "С фото")
-                      : copyOrFallback(t, "nearby.announcements.photoNo", "Без фото")}
+                      ? copyOrFallback(t, "nearby.announcements.photoYes")
+                      : copyOrFallback(t, "nearby.announcements.photoNo")}
                   </Text>
                 </View>
               </View>
@@ -638,9 +594,7 @@ export default function CreateAnnouncementScreen() {
                 <Text style={styles.previewAuthor}>{authorLabel}</Text>
                 <Text style={styles.previewAuthorHint}>
                   {copyOrFallback(
-              t,
-              "nearby.create.previewFooter",
-              "После публикации карточка появится в разделе «Объявления» и откроется как обычная запись."
+              t, "nearby.create.previewFooter"
                   )}
                 </Text>
               </View>
@@ -660,28 +614,22 @@ export default function CreateAnnouncementScreen() {
             <Text style={styles.publishButtonText}>
               {saving
                 ? photoUri
-                  ? copyOrFallback(t, "photos.uploading", "Фото загружается...")
-                  : copyOrFallback(t, "nearby.create.publishing", "Публикуем...")
-                : copyOrFallback(t, "nearby.create.publish", "Опубликовать объявление")}
+                  ? copyOrFallback(t, "photos.uploading")
+                  : copyOrFallback(t, "nearby.create.publishing")
+                : copyOrFallback(t, "nearby.create.publish")}
             </Text>
           </Pressable>
           <Text style={styles.publishHint}>
             {!currentUid
               ? copyOrFallback(
-                  t,
-                  "nearby.create.signInBody",
-                  "Чтобы опубликовать объявление с реальным автором и личным чатом, сначала войди в аккаунт."
+                  t, "nearby.create.signInBody"
                 )
               : canPublish
               ? copyOrFallback(
-                  t,
-                  "nearby.create.publishReadyHint",
-                  "После публикации откроется созданное объявление."
+                  t, "nearby.create.publishReadyHint"
                 )
               : copyOrFallback(
-                  t,
-                  "nearby.create.publishHint",
-                  "Заполни заголовок и описание. Ниже видно, как объявление будет выглядеть в разделе."
+                  t, "nearby.create.publishHint"
                 )}
           </Text>
         </View>

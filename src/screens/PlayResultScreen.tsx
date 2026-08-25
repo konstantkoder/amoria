@@ -54,24 +54,24 @@ type RevealDecision = "open" | "skip" | "continue_story";
 
 function getRevealLabel(
   outcome: string,
-  tt: (key: string, fallback: string, params?: Record<string, string>) => string
+  tt: (key: string, params?: Record<string, string>) => string
 ) {
   switch (outcome) {
     case "open_open":
-      return tt("play.reveal.openOpenShort", "Чат открыт");
+      return tt("play.reveal.openOpenShort");
     case "open_skip":
-      return tt("play.reveal.openSkipShort", "Осталось историей");
+      return tt("play.reveal.openSkipShort");
     case "skip_skip":
-      return tt("play.reveal.skipSkipShort", "Без чата");
+      return tt("play.reveal.skipSkipShort");
     case "continue_story":
-      return tt("play.reveal.continueStoryShort", "История продолжается");
+      return tt("play.reveal.continueStoryShort");
     case "mixed_intent":
-      return tt("play.reveal.mixedIntentShort", "Без общего пути");
+      return tt("play.reveal.mixedIntentShort");
     case "blocked":
-      return tt("play.reveal.blockedShort", "Контакт недоступен");
+      return tt("play.reveal.blockedShort");
     case "pending":
     default:
-      return tt("play.reveal.waitingShort", "Ждём ответ");
+      return tt("play.reveal.waitingShort");
   }
 }
 
@@ -124,10 +124,7 @@ export default function PlayResultScreen() {
   const { user: authUser } = useAuth();
   const { locale, t } = useLocale();
   const tt = React.useCallback(
-    (key: string, fallback: string, params?: Record<string, string>) => {
-      const value = t(key, params);
-      return value === key ? fallback : value;
-    },
+    (key: string, params?: Record<string, string>) => t(key, params),
     [t]
   );
 
@@ -228,8 +225,7 @@ export default function PlayResultScreen() {
         if (!mountedRef.current) return;
         setLoadError(
           tt(
-            "play.result.loadError",
-            "Не удалось собрать итог этой совместной сессии. Попробуй открыть его еще раз."
+            "play.result.loadError"
           )
         );
         setLoading(false);
@@ -253,8 +249,8 @@ export default function PlayResultScreen() {
   const identityRevealed =
     !isTurnBased || Boolean(turnBasedMoment?.identityRevealed && sessionResponse?.identityRevealed);
   const peerName = identityRevealed
-    ? peer?.displayName?.trim() || tt("profile.amoriaUser", "Пользователь Amoria")
-    : tt("together.turnBased.anonymousPeer", "Другой участник");
+    ? peer?.displayName?.trim() || tt("profile.amoriaUser")
+    : tt("together.turnBased.anonymousPeer");
   const rawSessionActivity = session?.activity as string | undefined;
   const sessionActivity =
     rawSessionActivity === "story_sparks"
@@ -342,8 +338,7 @@ export default function PlayResultScreen() {
         });
         setActionError(
           tt(
-            "play.result.continueStoryNavigationFailed",
-            "История готова, но перейти к ней не получилось. Попробуй открыть итог ещё раз."
+            "play.result.continueStoryNavigationFailed"
           )
         );
       }
@@ -414,8 +409,7 @@ export default function PlayResultScreen() {
       });
       setActionError(
         tt(
-          "play.result.invalidContinuationOutcome",
-          "Продолжение ещё не готово на сервере. Подождём синхронизацию и попробуем обновить."
+          "play.result.invalidContinuationOutcome"
         )
       );
       return;
@@ -554,8 +548,7 @@ export default function PlayResultScreen() {
         }
         setActionError(
           tt(
-            "play.result.saveDecisionFailed",
-            "Не удалось сохранить выбор. Попробуй еще раз."
+            "play.result.saveDecisionFailed"
           )
         );
       } finally {
@@ -599,13 +592,17 @@ export default function PlayResultScreen() {
     try {
       const consent = await togetherApi.setShareConsent(sessionId, true);
       if (consent.shareMode === "neutral_amoria_card") {
-        Alert.alert(tt("share.waitingTitle", "Consent saved"), tt("share.waitingBody", "Until every participant consents, only a neutral Amoria card is shared."));
+        Alert.alert(tt("share.waitingTitle"), tt("share.waitingBody"));
       }
-      await Share.share({ message: tt("share.neutralText", "We created something together in Amoria.") });
-    } catch (error) { Alert.alert(tt("common.error", "Error"), sanitizeErrorForReport(error).message); }
+      await Share.share({ message: tt("share.neutralText") });
+    } catch (error) {
+      const safe = sanitizeErrorForReport(error);
+      void reportClientError({ screen: "PlayResultScreen", action: "shareTogether", code: safe.code, message: safe.message, stack: safe.stack });
+      Alert.alert(tt("common.error"), tt("share.failed"));
+    }
   }, [sessionId, tt]);
 
-  const screenTitle = tt("play.result.title", "Итог сессии");
+  const screenTitle = tt("play.result.title");
 
   if (!sessionId) {
     return (
@@ -613,13 +610,12 @@ export default function PlayResultScreen() {
         <View style={styles.centerState}>
           <CoreStateCard
             icon="alert-circle-outline"
-            title={tt("play.result.stateMissingTitle", "Сессия не найдена")}
+            title={tt("play.result.stateMissingTitle")}
             body={tt(
-              "play.result.stateMissingBody",
-              "Не удалось открыть итог без идентификатора совместной сессии."
+              "play.result.stateMissingBody"
             )}
-            primaryAction={{ label: tt("common.backToTogether", "Вернуться во Вместе"), onPress: goToTogether }}
-            secondaryAction={{ label: tt("common.back", "Назад"), onPress: handleBack }}
+            primaryAction={{ label: tt("common.backToTogether"), onPress: goToTogether }}
+            secondaryAction={{ label: tt("common.back"), onPress: handleBack }}
           />
         </View>
       </ScreenShell>
@@ -633,10 +629,9 @@ export default function PlayResultScreen() {
           <CoreStateCard
             loading
             icon="sparkles-outline"
-            title={tt("play.result.stateLoadingTitle", "Собираем итог")}
+            title={tt("play.result.stateLoadingTitle")}
             body={tt(
-              "play.result.stateLoadingBody",
-              "Еще пара секунд, и здесь появится результат вашей совместной сессии."
+              "play.result.stateLoadingBody"
             )}
           />
         </View>
@@ -650,13 +645,13 @@ export default function PlayResultScreen() {
         <View style={styles.centerState}>
           <CoreStateCard
             icon="cloud-offline-outline"
-            title={tt("play.result.stateErrorTitle", "Итог временно недоступен")}
-            body={loadError || tt("play.result.stateNotFoundBody", "Сессия уже исчезла или не успела сохраниться.")}
-            primaryAction={{ label: tt("common.retry", "Повторить"), onPress: () => navigation.replace("PlayResult", {
+            title={tt("play.result.stateErrorTitle")}
+            body={loadError || tt("play.result.stateNotFoundBody")}
+            primaryAction={{ label: tt("common.retry"), onPress: () => navigation.replace("PlayResult", {
               sessionId,
               ...(isTurnBased ? { mode: "turn_based", momentId } : {}),
             }) }}
-            secondaryAction={{ label: tt("common.back", "Назад"), onPress: handleBack }}
+            secondaryAction={{ label: tt("common.back"), onPress: handleBack }}
           />
         </View>
       </ScreenShell>
@@ -669,16 +664,15 @@ export default function PlayResultScreen() {
         <View style={styles.centerState}>
           <CoreStateCard
             icon="alert-circle-outline"
-            title={tt("play.unsupportedOldSessionTitle", "Сессия недоступна")}
+            title={tt("play.unsupportedOldSessionTitle")}
             body={tt(
-              "play.unsupportedOldSession",
-              "Эта старая сессия больше недоступна в текущей версии."
+              "play.unsupportedOldSession"
             )}
             primaryAction={{
-              label: tt("common.backToTogether", "Вернуться во Вместе"),
+              label: tt("common.backToTogether"),
               onPress: goToTogether,
             }}
-            secondaryAction={{ label: tt("common.back", "Назад"), onPress: handleBack }}
+            secondaryAction={{ label: tt("common.back"), onPress: handleBack }}
           />
         </View>
       </ScreenShell>
@@ -691,17 +685,16 @@ export default function PlayResultScreen() {
         <View style={styles.centerState}>
           <CoreStateCard
             icon="ban-outline"
-            title={tt("play.result.interruptedTitle", "Сессия была прервана")}
+            title={tt("play.result.interruptedTitle")}
             body={tt(
-              "play.result.interruptedBody",
-              "Чат по этой сессии недоступен, потому что совместная сессия не была завершена."
+              "play.result.interruptedBody"
             )}
             primaryAction={{
-              label: tt("common.backToTogether", "Вернуться во Вместе"),
+              label: tt("common.backToTogether"),
               onPress: goToTogether,
             }}
             secondaryAction={{
-              label: tt("playHistory.startNewSession", "Начать новую совместную сессию"),
+              label: tt("playHistory.startNewSession"),
               onPress: startNewSession,
             }}
           />
@@ -721,12 +714,12 @@ export default function PlayResultScreen() {
           <View style={styles.heroHeaderRow}>
             <View style={styles.heroHeaderText}>
               <Text style={styles.heroKicker}>
-                {tt("play.result.finishedKicker", "Сессия завершена")}
+                {tt("play.result.finishedKicker")}
               </Text>
               <Text style={styles.heroTitle}>
                 {sessionActivity === "story_sparks"
-                  ? tt("play.result.storySparksHeroTitle", "Ваша история на двоих готова")
-                  : tt("play.result.drawHeroTitle", "Ваш общий рисунок готов")}
+                  ? tt("play.result.storySparksHeroTitle")
+                  : tt("play.result.drawHeroTitle")}
               </Text>
             </View>
             <View style={styles.statusBadge}>
@@ -741,29 +734,27 @@ export default function PlayResultScreen() {
           <Text style={styles.heroSubtext}>
             {sessionActivity === "story_sparks"
               ? tt(
-                  "play.result.storySavedNote",
-                  "История уже сохранена как общий момент. Теперь можно решить, открывать ли личный разговор."
+                  "play.result.storySavedNote"
                 )
               : tt(
-                  "play.result.drawingSavedNote",
-                  "Рисунок уже сохранён как общий момент. Теперь можно решить, открывать ли личный разговор."
+                  "play.result.drawingSavedNote"
                 )}
           </Text>
           <View style={styles.metaGrid}>
             <View style={styles.metaItem}>
-              <Text style={styles.metaLabel}>{tt("playDetail.partner", "Партнёр")}</Text>
+              <Text style={styles.metaLabel}>{tt("playDetail.partner")}</Text>
               <Text style={styles.metaValue}>{peerName}</Text>
             </View>
             <View style={styles.metaItem}>
               <Text style={styles.metaLabel}>
                 {sessionActivity === "story_sparks"
-                  ? tt("play.result.storyRoundCount", "Раунды")
-                  : tt("play.metric.strokes", "Штрихов")}
+                  ? tt("play.result.storyRoundCount")
+                  : tt("play.metric.strokes")}
               </Text>
               <Text style={styles.metaValue}>
                 {sessionActivity === "story_sparks"
-                  ? String(storyArtifact?.rounds.length ?? 0)
-                  : String(strokes.length)}
+                  ? new Intl.NumberFormat(locale).format(storyArtifact?.rounds.length ?? 0)
+                  : new Intl.NumberFormat(locale).format(strokes.length)}
               </Text>
             </View>
           </View>
@@ -772,15 +763,15 @@ export default function PlayResultScreen() {
         <View style={styles.replayCard}>
           <Text style={styles.sectionTitle}>
             {sessionActivity === "story_sparks"
-              ? tt("play.result.storyArtifactTitle", "Story card")
-              : tt("play.result.replayTitle", "Replay")}
+              ? tt("play.result.storyArtifactTitle")
+              : tt("play.result.replayTitle")}
           </Text>
           {sessionActivity === "story_sparks" ? (
             hasStoryArtifact && storyArtifact ? (
               <StoryArtifactCard artifact={storyArtifact} locale={locale} />
             ) : (
               <Text style={styles.emptyText}>
-                {tt("play.result.storyEmpty", "Данные истории для этой сессии пока недоступны.")}
+                {tt("play.result.storyEmpty")}
               </Text>
             )
           ) : hasReplay ? (
@@ -790,8 +781,7 @@ export default function PlayResultScreen() {
           ) : (
             <Text style={styles.emptyText}>
               {tt(
-                "play.result.replayEmpty",
-                "Replay для этой истории пока недоступен."
+                "play.result.replayEmpty"
               )}
             </Text>
           )}
@@ -799,56 +789,45 @@ export default function PlayResultScreen() {
 
         <View style={styles.bridgeCard}>
           <Text style={styles.sectionTitle}>
-            {tt("play.result.bridgeDecisionTitle", "Решить, хочешь ли открыть контакт")}
+            {tt("play.result.bridgeDecisionTitle")}
           </Text>
           <Text style={styles.bridgeBody}>
             {outcome === "blocked"
               ? tt(
-                    "play.result.bridgeBlockedBody",
-                    "Контакт недоступен. Чат не может быть открыт из-за настроек безопасности."
+                    "play.result.bridgeBlockedBody"
                   )
               : outcome === "mixed_intent"
               ? tt(
-                  "play.result.bridgeMixedIntentBody",
-                  "Вы выбрали разные продолжения, поэтому чат не откроется и История на двоих не начнётся. Результат останется в общей истории."
+                  "play.result.bridgeMixedIntentBody"
                 )
               : outcome === "continue_story"
               ? tt(
-                  "play.result.bridgeContinueStoryReadyBody",
-                  "Вы оба выбрали продолжить историю. Открываем общий Story Sparks этап для этой пары."
+                  "play.result.bridgeContinueStoryReadyBody"
                 )
               : decision && outcome === "pending"
               ? decision === "continue_story"
                 ? tt(
-                    "play.result.bridgeWaitingAfterContinueStoryBody",
-                    "Ждём решение второго участника. История на двоих начнётся только если вы оба выберете продолжить."
+                    "play.result.bridgeWaitingAfterContinueStoryBody"
                   )
                 : decision === "open"
                 ? tt(
-                    "play.result.bridgeWaitingAfterOpenBody",
-                    "Твой ответ сохранён. Ждём второе решение; чат откроется только если второй человек тоже выберет открыть."
+                    "play.result.bridgeWaitingAfterOpenBody"
                   )
                 : tt(
-                    "play.result.bridgeWaitingAfterSkipBody",
-                    "Твой ответ сохранён. Ждём второе решение; чат по этой сессии не откроется, но история останется сохранённой."
+                    "play.result.bridgeWaitingAfterSkipBody"
                   )
               : decision
               ? outcome === "pending"
                 ? tt(
-                    "play.result.bridgeWaitingBody",
-                    "Твой ответ сохранён. Если второй человек тоже выберет открыть, появится чат."
+                    "play.result.bridgeWaitingBody"
                   )
                 : tt(
-                    "play.result.bridgeStoryOnlyBody",
-                    "Решение сохранено. Общий результат останется в истории."
+                    "play.result.bridgeStoryOnlyBody"
                   )
               : tt(
                   sessionActivity === "story_sparks"
                     ? "play.result.bridgeDecisionStoryNextBody"
-                    : "play.result.bridgeDecisionDrawingNextBody",
-                  sessionActivity === "story_sparks"
-                    ? "Если вы оба выберете открыть, история приведёт в чат. Если нет, она останется общей историей."
-                    : "Можно открыть чат, продолжить через Историю на двоих или оставить рисунок общей историей."
+                    : "play.result.bridgeDecisionDrawingNextBody"
                 )}
           </Text>
           {actionError ? <Text style={styles.errorText}>{actionError}</Text> : null}
@@ -866,10 +845,10 @@ export default function PlayResultScreen() {
               >
                 <Text style={styles.primaryButtonText}>
                   {canOpenExistingChat
-                    ? tt("play.result.chatReady", "Чат открыт")
+                    ? tt("play.result.chatReady")
                     : submitting
-                    ? tt("play.result.savingDecision", "Сохраняем…")
-                    : tt("play.result.primaryOpenChat", "Открыть чат")}
+                    ? tt("play.result.savingDecision")
+                    : tt("play.result.primaryOpenChat")}
                 </Text>
               </Pressable>
               {canRevealDecision ? (
@@ -885,7 +864,7 @@ export default function PlayResultScreen() {
                       disabled={submitting}
                     >
                       <Text style={styles.secondaryButtonText}>
-                        {tt("play.result.continueStory", "Продолжить историю")}
+                        {tt("play.result.continueStory")}
                       </Text>
                     </Pressable>
                   ) : null}
@@ -898,7 +877,7 @@ export default function PlayResultScreen() {
                     disabled={submitting}
                   >
                     <Text style={styles.secondaryButtonText}>
-                      {tt("play.result.skipChat", "Оставить историей")}
+                      {tt("play.result.skipChat")}
                     </Text>
                   </Pressable>
                 </>
@@ -909,18 +888,18 @@ export default function PlayResultScreen() {
 
         <View style={styles.bottomActions}>
           <Pressable style={styles.outlineButton} onPress={() => void shareTogether()}>
-            <Text style={styles.outlineButtonText}>{tt("share.together", "Share together")}</Text>
+            <Text style={styles.outlineButtonText}>{tt("share.together")}</Text>
           </Pressable>
           {false ? (
           <Pressable style={styles.outlineButton} onPress={startNewSession}>
             <Text style={styles.outlineButtonText}>
-              {tt("play.result.openSharedStory", "Открыть общую историю")}
+              {tt("play.result.openSharedStory")}
             </Text>
           </Pressable>
           ) : null}
           <Pressable style={styles.outlineButton} onPress={startNewSession}>
             <Text style={styles.outlineButtonText}>
-              {tt("playHistory.startNewSession", "Начать новую совместную сессию")}
+              {tt("playHistory.startNewSession")}
             </Text>
           </Pressable>
         </View>

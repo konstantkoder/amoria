@@ -50,38 +50,38 @@ type HydratedPeer = {
 };
 
 function buildReportReasonButtons(
-  tt: (key: string, fallback: string, params?: Record<string, string>) => string,
+  tt: (key: string, params?: Record<string, string>) => string,
   onSelect: (reason: SafetyReportReason) => void
 ): AlertButton[] {
   return makeAndroidSafeReportReasonButtons([
     {
-      text: tt("safety.reason.spam", "Спам"),
+      text: tt("safety.reason.spam"),
       onPress: () => onSelect("spam"),
     },
     {
-      text: tt("safety.reason.harassment", "Оскорбления или преследование"),
+      text: tt("safety.reason.harassment"),
       onPress: () => onSelect("harassment"),
     },
     {
-      text: tt("safety.reason.sexualServices", "Сексуальные услуги или оплатная встреча"),
+      text: tt("safety.reason.sexualServices"),
       onPress: () => onSelect("sexual_services"),
     },
     {
-      text: tt("safety.reason.scam", "Мошенничество"),
+      text: tt("safety.reason.scam"),
       onPress: () => onSelect("scam"),
     },
     {
-      text: tt("safety.reason.other", "Другое"),
+      text: tt("safety.reason.other"),
       onPress: () => onSelect("other"),
     },
     {
-      text: tt("common.cancel", "Отмена"),
+      text: tt("common.cancel"),
       style: "cancel",
     },
   ],
-  tt("safety.reportTitle", "Пожаловаться"),
-  tt("safety.reportBody", "Выбери причину жалобы."),
-  tt("safety.moreReasons", "Другие причины…"));
+  tt("safety.reportTitle"),
+  tt("safety.reportBody"),
+  tt("safety.moreReasons"));
 }
 
 function messageTime(value: string) {
@@ -156,10 +156,7 @@ export default function DMChatScreen() {
   const { user: authUser } = useAuth();
   const { t } = useLocale();
   const tt = useCallback(
-    (key: string, fallback: string, params?: Record<string, string>) => {
-      const value = t(key, params);
-      return value === key ? fallback : value;
-    },
+    (key: string, params?: Record<string, string>) => t(key, params),
     [t]
   );
 
@@ -190,7 +187,7 @@ export default function DMChatScreen() {
   const safetyInFlightRef = useRef(false);
   const peerHydratePromiseRef = useRef<Promise<HydratedPeer | null> | null>(null);
 
-  const amoriaUserLabel = tt("profile.amoriaUser", "Пользователь Amoria");
+  const amoriaUserLabel = tt("profile.amoriaUser");
   const peerId = routePeerId || hydratedPeer?.id || "";
   const peerDisplayName =
     routePeerName || hydratedPeer?.displayName?.trim() || amoriaUserLabel;
@@ -240,8 +237,7 @@ export default function DMChatScreen() {
     } catch (error) {
       setError(
         tt(
-          "dm.errorBody",
-          "Не удалось подключить этот разговор прямо сейчас. Попробуй ещё раз."
+          "dm.errorBody"
         )
       );
     } finally {
@@ -309,36 +305,36 @@ export default function DMChatScreen() {
 
   const sourceTitle = useMemo(() => {
     if (sourceContext?.source === "announcement") {
-      return tt("dm.sourceAnnouncement", "Вы начали разговор после объявления");
+      return tt("dm.sourceAnnouncement");
     }
     if (sourceContext?.source === "nearby") {
-      return tt("dm.sourceNearby", "Вы начали разговор из Рядом");
+      return tt("dm.sourceNearby");
     }
     if (isTogetherSource(sourceContext?.source)) {
       if (sourceTogetherActivity === "story_sparks") {
-        return tt("dm.sourceTogetherStorySparks", "Вы собрали историю на двоих");
+        return tt("dm.sourceTogetherStorySparks");
       }
-      return tt("dm.sourceTogether", "Вы начали разговор после Вместе");
+      return tt("dm.sourceTogether");
     }
     return "";
   }, [sourceContext?.source, sourceTogetherActivity, tt]);
 
   const headerSourceLabel = useMemo(() => {
     if (sourceContext?.source === "announcement") {
-      return tt("inbox.sourceAnnouncement", "После объявления");
+      return tt("inbox.sourceAnnouncement");
     }
     if (sourceContext?.source === "nearby") {
-      return tt("inbox.sourceNearby", "Из Рядом");
+      return tt("inbox.sourceNearby");
     }
     if (isTogetherSource(sourceContext?.source)) {
-      return tt("inbox.sourceTogether", "После Вместе");
+      return tt("inbox.sourceTogether");
     }
     return "";
   }, [sourceContext?.source, tt]);
 
   const screenTitle = peerDisplayName
     ? t("dm.title", { name: peerDisplayName })
-    : tt("dm.genericTitle", "Разговор");
+    : tt("dm.genericTitle");
 
   const handleBack = useCallback(() => {
     if (backTarget === "inbox") {
@@ -440,10 +436,9 @@ export default function DMChatScreen() {
 
   const showPeerProfileError = useCallback(() => {
     Alert.alert(
-      tt("dm.peerProfileUnavailableTitle", "Профиль недоступен"),
+      tt("dm.peerProfileUnavailableTitle"),
       tt(
-        "dm.peerProfileUnavailableBody",
-        "Не удалось открыть профиль собеседника из этого чата. Попробуй вернуться в «Чаты» и открыть разговор ещё раз."
+        "dm.peerProfileUnavailableBody"
       )
     );
   }, [tt]);
@@ -504,8 +499,8 @@ export default function DMChatScreen() {
       !isReleasePlayActivity(sourceTogetherActivityInput)
     ) {
       Alert.alert(
-        tt("together.lobby.startFailedTitle", "Не удалось открыть сценарий"),
-        tt("together.lobby.startFailedBody", "Формат этой совместной сессии не распознан.")
+        tt("together.lobby.startFailedTitle"),
+        tt("together.lobby.startFailedBody")
       );
       reportClientError({
         screen: "DMChatScreen",
@@ -525,8 +520,8 @@ export default function DMChatScreen() {
     } catch (error) {
       const safeError = sanitizeErrorForReport(error);
       Alert.alert(
-        tt("together.lobby.startFailedTitle", "Не удалось открыть сценарий"),
-        tt("together.lobby.startFailedBody", "Формат этой совместной сессии не распознан.")
+        tt("together.lobby.startFailedTitle"),
+        tt("together.lobby.startFailedBody")
       );
       reportClientError({
         screen: "DMChatScreen",
@@ -557,7 +552,7 @@ export default function DMChatScreen() {
       style={styles.chatHeader}
       activeOpacity={0.85}
       accessibilityRole="button"
-      accessibilityLabel={tt("dm.openPeerProfile", "Профиль собеседника")}
+      accessibilityLabel={tt("dm.openPeerProfile")}
     >
       <UserAvatar avatarUrl={peerAvatarUrl} label={peerDisplayName} size={34} />
       <View style={styles.chatHeaderCopy}>
@@ -566,7 +561,7 @@ export default function DMChatScreen() {
         </Text>
         {peerHydrating ? (
           <Text style={styles.chatHeaderSource} numberOfLines={1}>
-            {tt("dm.peerProfileHydrating", "Открываем профиль…")}
+            {tt("dm.peerProfileHydrating")}
           </Text>
         ) : headerSourceLabel ? (
           <Text style={styles.chatHeaderSource} numberOfLines={1}>
@@ -621,8 +616,8 @@ export default function DMChatScreen() {
       );
       if (error instanceof ApiError && error.code === "message_rate_limited") {
         Alert.alert(
-          tt("chat.rateLimitedTitle", "Please slow down"),
-          tt("chat.rateLimitedBody", "Too many messages were sent. Try again shortly.")
+          tt("chat.rateLimitedTitle"),
+          tt("chat.rateLimitedBody")
         );
       }
     } finally {
@@ -663,13 +658,13 @@ export default function DMChatScreen() {
           reason,
         });
         Alert.alert(
-          tt("safety.reportSentTitle", "Жалоба отправлена"),
-          tt("safety.reportSentBody", "Спасибо. Жалоба сохранена и будет доступна для проверки.")
+          tt("safety.reportSentTitle"),
+          tt("safety.reportSentBody")
         );
       } catch {
         Alert.alert(
-          tt("safety.reportErrorTitle", "Жалоба не отправилась"),
-          tt("safety.reportErrorBody", "Не удалось сохранить жалобу. Попробуй ещё раз позже.")
+          tt("safety.reportErrorTitle"),
+          tt("safety.reportErrorBody")
         );
       } finally {
         safetyInFlightRef.current = false;
@@ -681,8 +676,8 @@ export default function DMChatScreen() {
 
   const handleReportChat = useCallback(() => {
     Alert.alert(
-      tt("safety.reportTitle", "Пожаловаться"),
-      tt("safety.reportBody", "Выбери причину жалобы."),
+      tt("safety.reportTitle"),
+      tt("safety.reportBody"),
       buildReportReasonButtons(tt, (reason) => void reportChat(reason))
     );
   }, [reportChat, tt]);
@@ -690,8 +685,8 @@ export default function DMChatScreen() {
   const handleReportMessage = useCallback((message: MessageDto) => {
     if (message.fromUserId === myId) return;
     Alert.alert(
-      tt("safety.reportMessageTitle", "Report message"),
-      tt("safety.reportBody", "Choose a reason for the report."),
+      tt("safety.reportMessageTitle"),
+      tt("safety.reportBody"),
       buildReportReasonButtons(tt, (reason) => void reportChat(reason, message))
     );
   }, [myId, reportChat, tt]);
@@ -699,18 +694,17 @@ export default function DMChatScreen() {
   const handleBlockPeer = useCallback(() => {
     if (!peerId || peerId === myId) return;
     Alert.alert(
-      tt("safety.blockTitle", "Заблокировать пользователя?"),
+      tt("safety.blockTitle"),
       tt(
-        "safety.blockBody",
-        "Вы больше не будете видеть его объявления в обычном списке, а личные чаты будут скрыты из вкладки «Чаты»."
+        "safety.blockBody"
       ),
       [
         {
-          text: tt("common.cancel", "Отмена"),
+          text: tt("common.cancel"),
           style: "cancel",
         },
         {
-          text: tt("safety.blockConfirm", "Заблокировать"),
+          text: tt("safety.blockConfirm"),
           style: "destructive",
           onPress: () => {
             if (safetyInFlightRef.current) return;
@@ -725,8 +719,8 @@ export default function DMChatScreen() {
               })
               .catch(() => {
                 Alert.alert(
-                  tt("safety.blockErrorTitle", "Не удалось заблокировать"),
-                  tt("safety.blockErrorBody", "Попробуй ещё раз позже.")
+                  tt("safety.blockErrorTitle"),
+                  tt("safety.blockErrorBody")
                 );
               })
               .finally(() => {
@@ -744,15 +738,14 @@ export default function DMChatScreen() {
       sourceTitle ? (
         <View style={styles.sourceCard}>
           <Text style={styles.sourceEyebrow}>
-            {tt("dm.sourceEyebrow", "Контекст разговора")}
+            {tt("dm.sourceEyebrow")}
           </Text>
           <Text style={styles.sourceTitle}>{sourceTitle}</Text>
           <Text style={styles.sourceMeta}>
             {sourceTogetherActivity === "story_sparks" && sourceContext?.artworkSummary?.summary
               ? sourceContext.artworkSummary.summary
               : tt(
-                  "dm.contextReady",
-                  "Общий момент сохранён как контекст, а переписка продолжается здесь."
+                  "dm.contextReady"
                 )}
           </Text>
           {sourceTogetherActivity === "story_sparks" && sourceContext?.artworkSummary?.storyTitle ? (
@@ -768,8 +761,7 @@ export default function DMChatScreen() {
             >
               <Text style={styles.sourceActionText}>
                 {tt(
-                  "dm.startAnotherTogetherSession",
-                  "Начать ещё одну совместную сессию"
+                  "dm.startAnotherTogetherSession"
                 )}
               </Text>
             </TouchableOpacity>
@@ -793,18 +785,16 @@ export default function DMChatScreen() {
         <View style={styles.safetyCard}>
           <Text style={styles.safetyTitle}>
             {peerBlocked
-              ? tt("safety.chatBlockedTitle", "Пользователь заблокирован")
-              : tt("safety.chatSafetyTitle", "Безопасность разговора")}
+              ? tt("safety.chatBlockedTitle")
+              : tt("safety.chatSafetyTitle")}
           </Text>
           <Text style={styles.safetyBody}>
             {peerBlocked
               ? tt(
-                  "safety.cannotMessageBlockedUser",
-                  "Вы заблокировали этого пользователя. История разговора остаётся доступной, но новые сообщения отключены."
+                  "safety.cannotMessageBlockedUser"
                 )
               : tt(
-                  "safety.chatSafetyBody",
-                  "Можно пожаловаться на разговор или заблокировать пользователя."
+                  "safety.chatSafetyBody"
                 )}
           </Text>
           <View style={styles.safetyActions}>
@@ -815,7 +805,7 @@ export default function DMChatScreen() {
               activeOpacity={0.85}
             >
               <Text style={styles.safetyButtonText}>
-                {tt("safety.report", "Пожаловаться")}
+                {tt("safety.report")}
               </Text>
             </TouchableOpacity>
             {!peerBlocked && peerId !== myId ? (
@@ -826,7 +816,7 @@ export default function DMChatScreen() {
                 activeOpacity={0.85}
               >
                 <Text style={styles.safetyButtonText}>
-                  {tt("safety.blockUser", "Заблокировать пользователя")}
+                  {tt("safety.blockUser")}
                 </Text>
               </TouchableOpacity>
             ) : null}
@@ -860,13 +850,13 @@ export default function DMChatScreen() {
       const failed = item.failed === true;
       const pending = !failed && item.pending === true;
       const moderationLabel = item.moderationState === "held"
-        ? tt("chat.messageHeld", "Held — not delivered")
+        ? tt("chat.messageHeld")
         : item.moderationState === "needs_review"
-          ? tt("chat.messageUnderReview", "Under review — not delivered")
+          ? tt("chat.messageUnderReview")
           : item.moderationState === "restricted"
-            ? tt("chat.messageRestricted", "Message restricted")
+            ? tt("chat.messageRestricted")
             : item.moderationState === "removed"
-              ? tt("chat.messageRemoved", "Message removed")
+              ? tt("chat.messageRemoved")
               : "";
 
       return (
@@ -923,9 +913,9 @@ export default function DMChatScreen() {
         <View style={styles.centerState}>
           <CoreStateCard
             icon="alert-circle-outline"
-            title={tt("dm.unavailableTitle", "Разговор недоступен")}
-            body={tt("dm.unavailableBody", "Не удалось открыть чат без корректного идентификатора.")}
-            primaryAction={{ label: tt("common.back", "Назад"), onPress: handleBack }}
+            title={tt("dm.unavailableTitle")}
+            body={tt("dm.unavailableBody")}
+            primaryAction={{ label: tt("common.back"), onPress: handleBack }}
           />
         </View>
       </ScreenShell>
@@ -944,13 +934,13 @@ export default function DMChatScreen() {
         <View style={styles.centerState}>
           <CoreStateCard
             icon="person-circle-outline"
-            title={tt("dm.authRequiredTitle", "Чат доступен после входа")}
-            body={tt("dm.authRequiredBody", "Войди в аккаунт, чтобы открыть чат.")}
+            title={tt("dm.authRequiredTitle")}
+            body={tt("dm.authRequiredBody")}
             primaryAction={{
-              label: tt("common.openProfile", "Открыть профиль"),
+              label: tt("common.openProfile"),
               onPress: () => navigation.navigate("Profile"),
             }}
-            secondaryAction={{ label: tt("common.back", "Назад"), onPress: handleBack }}
+            secondaryAction={{ label: tt("common.back"), onPress: handleBack }}
           />
         </View>
       </ScreenShell>
@@ -971,17 +961,17 @@ export default function DMChatScreen() {
             loading
             icon="chatbubble-ellipses-outline"
             title={screenTitle}
-            body={tt("dm.loading", "Подключаем чат…")}
+            body={tt("dm.loading")}
           />
         </View>
       ) : error ? (
         <View style={styles.centerState}>
           <CoreStateCard
             icon="cloud-offline-outline"
-            title={tt("dm.errorTitle", "Разговор временно недоступен")}
+            title={tt("dm.errorTitle")}
             body={error}
-            primaryAction={{ label: tt("common.retry", "Повторить"), onPress: retry }}
-            secondaryAction={{ label: tt("common.back", "Назад"), onPress: handleBack }}
+            primaryAction={{ label: tt("common.retry"), onPress: retry }}
+            secondaryAction={{ label: tt("common.back"), onPress: handleBack }}
           />
         </View>
       ) : isEmpty ? (
@@ -996,21 +986,19 @@ export default function DMChatScreen() {
             icon="chatbubbles-outline"
             title={
               peerBlocked
-                ? tt("safety.chatBlockedTitle", "Пользователь заблокирован")
-                : tt("dm.emptyTitle", "Чат уже открыт")
+                ? tt("safety.chatBlockedTitle")
+                : tt("dm.emptyTitle")
             }
             body={
               peerBlocked
                 ? tt(
-                    "safety.cannotMessageBlockedUser",
-                    "Вы заблокировали этого пользователя. История разговора остаётся доступной, но новые сообщения отключены."
+                    "safety.cannotMessageBlockedUser"
                   )
                 : tt(
-                    "dm.emptyBodyCoreLoop",
-                    "Разговор уже открыт. Можно написать первым ниже."
+                    "dm.emptyBodyCoreLoop"
                   )
             }
-            primaryAction={{ label: tt("common.back", "Назад"), onPress: handleBack }}
+            primaryAction={{ label: tt("common.back"), onPress: handleBack }}
           />
         </ScrollView>
       ) : (

@@ -103,74 +103,18 @@ const AGE_FILTER_OPTIONS: Array<{
 function copyOrFallback(
   t: (key: string, params?: Record<string, string>) => string,
   key: string,
-  fallback: string,
   params?: Record<string, string>
 ) {
-  const value = t(key, params);
-  if (value !== key) return value;
-  return Object.entries(params ?? {}).reduce(
-    (text, [paramKey, paramValue]) => text.replace(new RegExp(`\\{${paramKey}\\}`, "g"), paramValue),
-    fallback
-  );
+  return t(key, params);
 }
 
-function getLanguageCode(locale: string) {
-  return locale.toLowerCase().split(/[-_]/)[0];
-}
-
-function getPeopleNearbyTitleFallback(locale: string) {
-  const language = getLanguageCode(locale);
-  if (language === "ru") return "Люди рядом";
-  if (language === "hr") return "Ljudi u blizini";
-  return "People nearby";
-}
-
-function getActivityConfigureFallback(locale: string) {
-  const language = getLanguageCode(locale);
-  if (language === "ru") return "Настроить";
-  if (language === "hr") return "Postavi";
-  return "Configure";
-}
-
-function getActivityButtonTitleFallback(locale: string) {
-  const language = getLanguageCode(locale);
-  if (language === "ru") return "Активности";
-  if (language === "hr") return "Aktivnosti";
-  return "Activities";
-}
-
-function getActivitiesSheetSubtitleFallback(locale: string) {
-  const language = getLanguageCode(locale);
-  if (language === "ru") return "Группы не занимают место в ленте людей.";
-  if (language === "hr") return "Grupe ostaju odvojene od liste ljudi.";
-  return "Groups stay separate from the people feed.";
-}
-
-function getActivitiesSheetEmptyFallback(locale: string) {
-  const language = getLanguageCode(locale);
-  if (language === "ru") return "Пока нет активностей рядом.";
-  if (language === "hr") return "Trenutno nema aktivnosti u blizini.";
-  return "No nearby activities right now.";
-}
-
-function getAgePreferenceLabel(
-  profile: UserProfile | null,
-  t: (key: string, params?: Record<string, string>) => string
+function localizedRoomTitle(
+  room: NearbyRoomCard,
+  t: (key: string, params?: Record<string, string>) => string,
 ) {
-  const min = profile?.preferredAgeMin ?? 18;
-  const max = profile?.preferredAgeMax ?? null;
-  if (min <= 18 && max == null) {
-    return copyOrFallback(t, "nearby.filterAgeAny", "Любой 18+");
-  }
-  if (max == null) {
-    return copyOrFallback(t, "nearby.filterAgeOpen", "{min}+", {
-      min: String(min),
-    });
-  }
-  return copyOrFallback(t, "nearby.filterAgeRange", "{min}-{max}", {
-    min: String(min),
-    max: String(max),
-  });
+  const key = `nearby.activityPreferences.activity.${room.typeKey}`;
+  const localized = t(key);
+  return localized === key ? t("nearby.rooms.activityFallback") : localized;
 }
 
 function getGenderFilter(profile: UserProfile | null): GenderFilter {
@@ -189,9 +133,9 @@ function getAgeFilterLabel(
   t: (key: string, params?: Record<string, string>) => string
 ) {
   if (id === "any") {
-    return copyOrFallback(t, "nearby.filterAgeAny", "Любой 18+");
+    return copyOrFallback(t, "nearby.filterAgeAny");
   }
-  return copyOrFallback(t, `nearby.age.${id}`, id);
+  return copyOrFallback(t, `nearby.age.${id}`);
 }
 
 function getMissingSafetyFieldLabels(
@@ -200,12 +144,12 @@ function getMissingSafetyFieldLabels(
 ) {
   return fields.map((field) => {
     if (field === "birthDate") {
-      return copyOrFallback(t, "profile.birthDateMissingBadge", "Birth date");
+      return copyOrFallback(t, "profile.birthDateMissingBadge");
     }
     if (field === "gender") {
-      return copyOrFallback(t, "profile.genderSummaryTitle", "Your gender");
+      return copyOrFallback(t, "profile.genderSummaryTitle");
     }
-    return copyOrFallback(t, "profile.lookingForSummaryTitle", "Preferred genders");
+    return copyOrFallback(t, "profile.lookingForSummaryTitle");
   });
 }
 
@@ -215,10 +159,7 @@ function getMissingSafetyFieldsBody(
 ) {
   const labels = getMissingSafetyFieldLabels(fields, t).join(", ");
   return copyOrFallback(
-    t,
-    "nearby.missingSafetyFieldsBody",
-    "Required before matching: {fields}. Exact birth date is not shown to other people.",
-    { fields: labels }
+    t, "nearby.missingSafetyFieldsBody", { fields: labels }
   );
 }
 
@@ -296,17 +237,13 @@ function getBackendErrorText(
       error.fields?.profile
     ) {
       return copyOrFallback(
-        t,
-        "nearby.errorProfileSetup",
-        "Заполните профиль, чтобы Рядом мог подобрать людей честно."
+        t, "nearby.errorProfileSetup"
       );
     }
-    return error.message;
+    return copyOrFallback(t, "nearby.errorGeneric");
   }
   return copyOrFallback(
-    t,
-    "nearby.errorGeneric",
-    "Рядом временно недоступен. Попробуйте ещё раз."
+    t, "nearby.errorGeneric"
   );
 }
 
@@ -319,12 +256,13 @@ function isNearbyActivityPreferenceRequiredError(error: unknown) {
 
 function getNearbySummaryLine(
   summary: NearbySummaryResponse,
-  t: (key: string, params?: Record<string, string>) => string
+  t: (key: string, params?: Record<string, string>) => string,
+  locale: string,
 ) {
-  const peopleLabel = copyOrFallback(t, "nearby.pulsePeople", "People");
-  const onlineLabel = copyOrFallback(t, "nearby.pulseOnline", "Online");
-  const nearbyLabel = copyOrFallback(t, "nearby.pulseNearby", "Nearby");
-  return `${peopleLabel}: ${formatPulseCount(summary.totalUsersCount, t)} \u00B7 ${onlineLabel}: ${formatPulseCount(summary.onlineNowCount, t)} \u00B7 ${nearbyLabel}: ${formatPulseCount(summary.activeNearbyCount, t)}`;
+  const peopleLabel = copyOrFallback(t, "nearby.pulsePeople");
+  const onlineLabel = copyOrFallback(t, "nearby.pulseOnline");
+  const nearbyLabel = copyOrFallback(t, "nearby.pulseNearby");
+  return `${peopleLabel}: ${formatPulseCount(summary.totalUsersCount, t, locale)} \u00B7 ${onlineLabel}: ${formatPulseCount(summary.onlineNowCount, t, locale)} \u00B7 ${nearbyLabel}: ${formatPulseCount(summary.activeNearbyCount, t, locale)}`;
 }
 
 export default function NearbyHubScreen() {
@@ -825,13 +763,11 @@ export default function NearbyHubScreen() {
   );
 
   const filterSummaryLabels = useMemo(() => {
-    const radiusLabel = copyOrFallback(t, "nearby.radiusKm", "{km} км", {
-      km: String(radiusKm),
+    const radiusLabel = copyOrFallback(t, "nearby.radiusKm", {
+      km: new Intl.NumberFormat(locale).format(radiusKm),
     });
     const genderLabel = copyOrFallback(
-      t,
-      `nearby.gender.${genderFilter}`,
-      genderFilter === "all" ? "Все" : genderFilter
+      t, `nearby.gender.${genderFilter}`
     );
     const ageLabel = getAgeFilterLabel(ageFilter, t);
     return buildNearbyFilterSummaryLabels(radiusLabel, genderLabel, ageLabel);
@@ -840,18 +776,14 @@ export default function NearbyHubScreen() {
   const activityButtonLabel = useMemo(() => {
     if (roomPreferenceGateVisible) {
       return copyOrFallback(
-        t,
-        "nearby.activityPreferences.requiredButton",
-        getActivityButtonTitleFallback(locale)
+        t, "nearby.activityPreferences.requiredButton"
       );
     }
 
     const title = copyOrFallback(
-      t,
-      "nearby.rooms.title",
-      getActivityButtonTitleFallback(locale)
+      t, "nearby.rooms.title"
     );
-    return rooms.length ? `${title} \u00B7 ${rooms.length}` : title;
+    return rooms.length ? `${title} \u00B7 ${new Intl.NumberFormat(locale).format(rooms.length)}` : title;
   }, [locale, roomPreferenceGateVisible, rooms.length, t]);
 
   const openFiltersSheet = useCallback(() => {
@@ -999,7 +931,7 @@ export default function NearbyHubScreen() {
         setActivitiesSheetVisible(false);
         navigation.navigate("NearbyRoomChat", {
           roomId: response.roomId,
-          title: response.title || room.title,
+          title: localizedRoomTitle(room, t),
         });
       } catch (error) {
         if (!mountedRef.current) return;
@@ -1025,7 +957,7 @@ export default function NearbyHubScreen() {
         <View style={styles.nearbyHeaderCard}>
           <View style={styles.headerTopRow}>
             <Text style={styles.title}>
-            {copyOrFallback(t, "nearby.title", "Рядом")}
+            {copyOrFallback(t, "nearby.title")}
             </Text>
             {toggleBusy ? (
               <ActivityIndicator color={ACCENT_COLOR} />
@@ -1043,14 +975,12 @@ export default function NearbyHubScreen() {
           </View>
           <Text style={styles.subtitle}>
             {copyOrFallback(
-              t,
-              "nearby.subtitle",
-              "Люди поблизости, которые открыты к знакомству."
+              t, "nearby.subtitle"
             )}
           </Text>
           {summary ? (
             <Text style={styles.headerCountsLine} numberOfLines={1}>
-              {getNearbySummaryLine(summary, t)}
+              {getNearbySummaryLine(summary, t, locale)}
             </Text>
           ) : null}
         </View>
@@ -1063,16 +993,12 @@ export default function NearbyHubScreen() {
             <View style={styles.toggleText}>
               <Text style={styles.sectionTitle}>
                 {copyOrFallback(
-                  t,
-                  "nearby.visibilityToggle",
-                  "Показывать меня в Рядом"
+                  t, "nearby.visibilityToggle"
                 )}
               </Text>
               <Text style={styles.privacyNote}>
                 {copyOrFallback(
-                  t,
-                  "nearby.privacyNote",
-                  "Точные координаты не показываются."
+                  t, "nearby.privacyNote"
                 )}
               </Text>
             </View>
@@ -1122,7 +1048,7 @@ export default function NearbyHubScreen() {
               >
                 <Ionicons name="options-outline" size={16} color={ACCENT_COLOR} />
                 <Text style={styles.filterSummaryButtonText}>
-                  {copyOrFallback(t, "nearby.filters.button", "Фильтры")}
+                  {copyOrFallback(t, "nearby.filters.button")}
                 </Text>
               </Pressable>
               {hasActivityContent ? (
@@ -1164,7 +1090,7 @@ export default function NearbyHubScreen() {
             </View>
             <View style={styles.completionCopy}>
               <Text style={styles.completionTitle}>
-                {copyOrFallback(t, "profile.completeProfile", "Complete profile")}
+                {copyOrFallback(t, "profile.completeProfile")}
               </Text>
               <Text style={styles.completionBody}>
                 {getMissingSafetyFieldsBody(missingSafetyFields, t)}
@@ -1179,7 +1105,7 @@ export default function NearbyHubScreen() {
               style={styles.completionButton}
             >
               <Text style={styles.completionButtonText}>
-                {copyOrFallback(t, "nearby.emptyProfileAction", "Fill profile")}
+                {copyOrFallback(t, "nearby.emptyProfileAction")}
               </Text>
             </Pressable>
           </View>
@@ -1198,7 +1124,7 @@ export default function NearbyHubScreen() {
               ]}
             >
               <Text style={styles.retryButtonText}>
-                {copyOrFallback(t, "nearby.retryAction", "Повторить")}
+                {copyOrFallback(t, "nearby.retryAction")}
               </Text>
             </Pressable>
           </View>
@@ -1235,22 +1161,20 @@ export default function NearbyHubScreen() {
     if (!profileReady) {
       return {
         icon: "person-add-outline" as const,
-        title: copyOrFallback(t, "nearby.emptyProfileTitle", "Заполните профиль"),
+        title: copyOrFallback(t, "nearby.emptyProfileTitle"),
         body: copyOrFallback(
-          t,
-          "nearby.emptyProfileBody",
-          "Для честного подбора нужен возрастной контекст. Точная дата рождения другим людям не показывается."
+          t, "nearby.emptyProfileBody"
         ),
         actions: [
           {
-            label: copyOrFallback(t, "nearby.emptyProfileAction", "Заполнить анкету"),
+            label: copyOrFallback(t, "nearby.emptyProfileAction"),
             onPress: goToProfileSetup,
             variant: "primary" as const,
           },
           ...(active
             ? [
                 {
-                  label: copyOrFallback(t, "nearby.refreshAction", "Обновить"),
+                  label: copyOrFallback(t, "nearby.refreshAction"),
                   onPress: refreshNearby,
                   variant: "secondary" as const,
                   disabled: refreshDisabled,
@@ -1264,22 +1188,20 @@ export default function NearbyHubScreen() {
     if (missingPreferenceField) {
       return {
         icon: "options-outline" as const,
-        title: copyOrFallback(t, "nearby.emptyPreferencesTitle", "Заполните анкету"),
+        title: copyOrFallback(t, "nearby.emptyPreferencesTitle"),
         body: copyOrFallback(
-          t,
-          "nearby.emptyPreferencesBody",
-          "Заполните, кого вы ищете, чтобы Рядом показывал подходящих людей."
+          t, "nearby.emptyPreferencesBody"
         ),
         actions: [
           {
-            label: copyOrFallback(t, "nearby.emptyPreferencesAction", "Заполнить анкету"),
+            label: copyOrFallback(t, "nearby.emptyPreferencesAction"),
             onPress: goToProfilePreferences,
             variant: "primary" as const,
           },
           ...(active
             ? [
                 {
-                  label: copyOrFallback(t, "nearby.refreshAction", "Обновить"),
+                  label: copyOrFallback(t, "nearby.refreshAction"),
                   onPress: refreshNearby,
                   variant: "secondary" as const,
                   disabled: refreshDisabled,
@@ -1293,15 +1215,13 @@ export default function NearbyHubScreen() {
     if (!active) {
       return {
         icon: "eye-off-outline" as const,
-        title: copyOrFallback(t, "nearby.emptyOffTitle", "Включите видимость"),
+        title: copyOrFallback(t, "nearby.emptyOffTitle"),
         body: copyOrFallback(
-          t,
-          "nearby.emptyOffBody",
-          "Пока видимость выключена, лента Рядом не показывает идентифицируемые профили."
+          t, "nearby.emptyOffBody"
         ),
         actions: [
           {
-            label: copyOrFallback(t, "nearby.emptyOffAction", "Показывать меня"),
+            label: copyOrFallback(t, "nearby.emptyOffAction"),
             onPress: enableVisibility,
             variant: "primary" as const,
             disabled: toggleBusy,
@@ -1315,18 +1235,14 @@ export default function NearbyHubScreen() {
       return {
         icon: "location-outline" as const,
         title: copyOrFallback(
-          t,
-          blocked ? "nearby.emptyLocationBlockedTitle" : "nearby.emptyLocationTitle",
-          "Нужна геолокация"
+          t, blocked ? "nearby.emptyLocationBlockedTitle" : "nearby.emptyLocationTitle"
         ),
         body: copyOrFallback(
-          t,
-          blocked ? "nearby.emptyLocationBlockedBody" : "nearby.emptyLocationBody",
-          "Разрешите геолокацию, чтобы обновить Рядом. Точные координаты не показываются."
+          t, blocked ? "nearby.emptyLocationBlockedBody" : "nearby.emptyLocationBody"
         ),
         actions: [
           {
-            label: copyOrFallback(t, "nearby.refreshAction", "Обновить"),
+            label: copyOrFallback(t, "nearby.refreshAction"),
             onPress: refreshNearby,
             variant: "primary" as const,
             disabled: refreshDisabled,
@@ -1337,22 +1253,18 @@ export default function NearbyHubScreen() {
 
     return {
       icon: "people-outline" as const,
-      title: copyOrFallback(t, "nearby.emptyPeopleTitle", "Пока рядом никого нет"),
+      title: copyOrFallback(t, "nearby.emptyPeopleTitle"),
       body:
         radiusKm < 250
           ? copyOrFallback(
-              t,
-              "nearby.emptyWidenBody",
-              "Попробуйте расширить радиус или обновить ленту позже."
+              t, "nearby.emptyWidenBody"
             )
           : copyOrFallback(
-              t,
-              "nearby.emptyPeopleBody",
-              "Люди появятся здесь, когда включат видимость и подойдут по взаимным настройкам."
+              t, "nearby.emptyPeopleBody"
             ),
       actions: [
         {
-          label: copyOrFallback(t, "nearby.refreshAction", "Обновить"),
+          label: copyOrFallback(t, "nearby.refreshAction"),
           onPress: refreshNearby,
           variant: "primary" as const,
           disabled: refreshDisabled,
@@ -1360,7 +1272,7 @@ export default function NearbyHubScreen() {
         ...(radiusKm < 250
           ? [
               {
-                label: copyOrFallback(t, "nearby.emptyWidenAction", "Расширить радиус"),
+                label: copyOrFallback(t, "nearby.emptyWidenAction"),
                 onPress: widenRadius,
                 variant: "secondary" as const,
                 disabled: refreshDisabled,
@@ -1394,7 +1306,7 @@ export default function NearbyHubScreen() {
         <View style={styles.emptyPanel}>
           <ActivityIndicator color={ACCENT_COLOR} />
           <Text style={styles.emptyTitle}>
-            {copyOrFallback(t, "nearby.loading", "Загружаем Рядом…")}
+            {copyOrFallback(t, "nearby.loading")}
           </Text>
         </View>
       );
@@ -1442,9 +1354,7 @@ export default function NearbyHubScreen() {
     () => (
       <Text style={styles.peopleSectionTitle}>
         {copyOrFallback(
-          t,
-          "nearby.people.title",
-          getPeopleNearbyTitleFallback(locale)
+          t, "nearby.people.title"
         )}
       </Text>
     ),
@@ -1465,7 +1375,7 @@ export default function NearbyHubScreen() {
 
   return (
     <ScreenShell
-      title={copyOrFallback(t, "tabs.nearby", "Рядом")}
+      title={copyOrFallback(t, "tabs.nearby")}
       background="nearbyHarborV6"
       blurRadius={0}
     >
@@ -1500,7 +1410,7 @@ export default function NearbyHubScreen() {
         <View style={styles.roomsShelfSection}>
           <View style={styles.roomsShelfHeader}>
             <Text style={styles.roomsShelfTitle}>
-              {copyOrFallback(t, "nearby.rooms.title", "Активности рядом")}
+              {copyOrFallback(t, "nearby.rooms.title")}
             </Text>
             <Pressable
               onPress={openActivitiesSheet}
@@ -1508,7 +1418,7 @@ export default function NearbyHubScreen() {
               accessibilityRole="button"
             >
               <Text style={styles.roomsShelfSeeAllText}>
-                {copyOrFallback(t, "nearby.rooms.seeAll", "Смотреть все")}
+                {copyOrFallback(t, "nearby.rooms.seeAll")}
               </Text>
             </Pressable>
           </View>
@@ -1534,9 +1444,7 @@ export default function NearbyHubScreen() {
             >
               <Text style={styles.roomsShelfStateText}>
                 {copyOrFallback(
-                  t,
-                  "nearby.activityPreferences.requiredBody",
-                  "Choose activities before joining a nearby activity."
+                  t, "nearby.activityPreferences.requiredBody"
                 )}
               </Text>
             </Pressable>
@@ -1573,7 +1481,7 @@ export default function NearbyHubScreen() {
                     />
                     <View style={styles.roomShelfCopy}>
                       <Text style={styles.roomShelfCardTitle} numberOfLines={2}>
-                        {room.title}
+                        {localizedRoomTitle(room, t)}
                       </Text>
                       <Text style={styles.roomShelfMeta} numberOfLines={2}>
                         {formatActivityRowMeta(room, t, locale)}
@@ -1586,7 +1494,7 @@ export default function NearbyHubScreen() {
           ) : (
             <View style={styles.roomsShelfState}>
               <Text style={styles.roomsShelfStateText}>
-                {getActivitiesSheetEmptyFallback(locale)}
+                {t("nearby.rooms.noneNearby")}
               </Text>
             </View>
           )}
@@ -1616,6 +1524,7 @@ export default function NearbyHubScreen() {
         onReset={resetDraftFilters}
         onClose={closeFiltersSheet}
         t={t}
+        locale={locale}
       />
       <NearbyActivitiesSheet
         visible={activitiesSheetVisible}
@@ -1636,69 +1545,6 @@ export default function NearbyHubScreen() {
   );
 }
 
-function NearbyStatsCards({
-  summary,
-  loading,
-  t,
-}: {
-  summary: NearbySummaryResponse | null;
-  loading: boolean;
-  t: (key: string, params?: Record<string, string>) => string;
-}) {
-  const metrics: Array<{
-    key: string;
-    label: string;
-    value: number | undefined;
-    icon: React.ComponentProps<typeof Ionicons>["name"];
-  }> = [
-    {
-      key: "people",
-      label: copyOrFallback(t, "nearby.pulsePeople", "Людей"),
-      value: summary?.totalUsersCount,
-      icon: "people-outline",
-    },
-    {
-      key: "online",
-      label: copyOrFallback(t, "nearby.pulseOnline", "Онлайн"),
-      value: summary?.onlineNowCount,
-      icon: "radio-outline",
-    },
-    {
-      key: "nearby",
-      label: copyOrFallback(t, "nearby.pulseNearby", "Рядом"),
-      value: summary?.activeNearbyCount,
-      icon: "location-outline",
-    },
-  ];
-
-  return (
-    <View style={styles.statsGrid}>
-      {metrics.map((metric) => (
-        <View
-          key={metric.key}
-          style={styles.statCard}
-        >
-          <View style={styles.statIconFrame}>
-            {loading && !summary ? (
-              <ActivityIndicator size="small" color={ACCENT_COLOR} />
-            ) : (
-              <Ionicons name={metric.icon} size={20} color={ACCENT_COLOR} />
-            )}
-          </View>
-          <View style={styles.statCopy}>
-            <Text style={styles.statLabel} numberOfLines={1} ellipsizeMode="tail">
-              {metric.label}
-            </Text>
-            <Text style={styles.statValue} numberOfLines={1} maxFontSizeMultiplier={1}>
-              {formatPulseCount(metric.value, t)}
-            </Text>
-          </View>
-        </View>
-      ))}
-    </View>
-  );
-}
-
 function NearbyFiltersSheet({
   visible,
   screenHeight,
@@ -1713,6 +1559,7 @@ function NearbyFiltersSheet({
   onReset,
   onClose,
   t,
+  locale,
 }: {
   visible: boolean;
   screenHeight: number;
@@ -1727,6 +1574,7 @@ function NearbyFiltersSheet({
   onReset: () => void;
   onClose: () => void;
   t: (key: string, params?: Record<string, string>) => string;
+  locale: string;
 }) {
   const sheetMaxHeight = Math.min(screenHeight * 0.72, 520);
 
@@ -1753,7 +1601,7 @@ function NearbyFiltersSheet({
             <Ionicons name="close" size={18} color="#FFFFFF" />
           </Pressable>
           <Text style={styles.filterSheetTitle}>
-            {copyOrFallback(t, "nearby.filters.title", "Фильтры Рядом")}
+            {copyOrFallback(t, "nearby.filters.title")}
           </Text>
 
           <ScrollView
@@ -1761,7 +1609,7 @@ function NearbyFiltersSheet({
             contentContainerStyle={styles.filterSheetContent}
           >
             <Text style={styles.filterSheetSectionLabel}>
-              {copyOrFallback(t, "nearby.filters.radius", "Радиус")}
+              {copyOrFallback(t, "nearby.filters.radius")}
             </Text>
             <View style={styles.filterSheetChipRow}>
               {RADIUS_OPTIONS.map((option) => {
@@ -1784,8 +1632,8 @@ function NearbyFiltersSheet({
                         active ? styles.filterSheetChipTextActive : null,
                       ]}
                     >
-                      {copyOrFallback(t, "nearby.radiusKm", "{km} км", {
-                        km: String(option),
+                      {copyOrFallback(t, "nearby.radiusKm", {
+                        km: new Intl.NumberFormat(locale).format(option),
                       })}
                     </Text>
                   </Pressable>
@@ -1794,7 +1642,7 @@ function NearbyFiltersSheet({
             </View>
 
             <Text style={styles.filterSheetSectionLabel}>
-              {copyOrFallback(t, "nearby.filters.who", "Кого показывать")}
+              {copyOrFallback(t, "nearby.filters.who")}
             </Text>
             <View style={styles.filterSheetChipRow}>
               {GENDER_FILTERS.map((option) => {
@@ -1818,9 +1666,7 @@ function NearbyFiltersSheet({
                       ]}
                     >
                       {copyOrFallback(
-                        t,
-                        `nearby.gender.${option}`,
-                        option === "all" ? "Все" : option
+                        t, `nearby.gender.${option}`
                       )}
                     </Text>
                   </Pressable>
@@ -1829,7 +1675,7 @@ function NearbyFiltersSheet({
             </View>
 
             <Text style={styles.filterSheetSectionLabel}>
-              {copyOrFallback(t, "nearby.filters.age", "Возраст")}
+              {copyOrFallback(t, "nearby.filters.age")}
             </Text>
             <View style={styles.filterSheetChipRow}>
               {AGE_FILTER_OPTIONS.map((option) => {
@@ -1871,7 +1717,7 @@ function NearbyFiltersSheet({
               accessibilityRole="button"
             >
               <Text style={styles.filterSheetApplyText}>
-                {copyOrFallback(t, "nearby.filters.apply", "Применить")}
+                {copyOrFallback(t, "nearby.filters.apply")}
               </Text>
             </Pressable>
             <Pressable
@@ -1884,7 +1730,7 @@ function NearbyFiltersSheet({
               accessibilityRole="button"
             >
               <Text style={styles.filterSheetResetText}>
-                {copyOrFallback(t, "nearby.filters.reset", "Сбросить")}
+                {copyOrFallback(t, "nearby.filters.reset")}
               </Text>
             </Pressable>
           </View>
@@ -1941,16 +1787,12 @@ function NearbyActivitiesSheet({
             <View style={styles.activitiesSheetTitleCopy}>
               <Text style={styles.activitiesSheetTitle}>
                 {copyOrFallback(
-                  t,
-                  "nearby.rooms.title",
-                  getActivityButtonTitleFallback(locale)
+                  t, "nearby.rooms.title"
                 )}
               </Text>
               <Text style={styles.activitiesSheetSubtitle}>
                 {copyOrFallback(
-                  t,
-                  "nearby.rooms.separateSubtitle",
-                  getActivitiesSheetSubtitleFallback(locale)
+                  t, "nearby.rooms.separateSubtitle"
                 )}
               </Text>
             </View>
@@ -1962,9 +1804,7 @@ function NearbyActivitiesSheet({
               >
                 <Text style={styles.activitiesSheetConfigureText}>
                   {copyOrFallback(
-                    t,
-                    "nearby.activityPreferences.configure",
-                    getActivityConfigureFallback(locale)
+                    t, "nearby.activityPreferences.configure"
                   )}
                 </Text>
               </Pressable>
@@ -1990,16 +1830,12 @@ function NearbyActivitiesSheet({
               <View style={styles.activityPreferenceGate}>
                 <Text style={styles.activityPreferenceGateTitle}>
                   {copyOrFallback(
-                    t,
-                    "nearby.activityPreferences.requiredTitle",
-                    "Choose nearby activities"
+                    t, "nearby.activityPreferences.requiredTitle"
                   )}
                 </Text>
                 <Text style={styles.activityPreferenceGateBody}>
                   {copyOrFallback(
-                    t,
-                    "nearby.activityPreferences.requiredBody",
-                    "Choose activities before joining a nearby activity."
+                    t, "nearby.activityPreferences.requiredBody"
                   )}
                 </Text>
                 <Pressable
@@ -2009,9 +1845,7 @@ function NearbyActivitiesSheet({
                 >
                   <Text style={styles.activityPreferenceGateButtonText}>
                     {copyOrFallback(
-                      t,
-                      "nearby.activityPreferences.requiredButton",
-                      "Choose activities"
+                      t, "nearby.activityPreferences.requiredButton"
                     )}
                   </Text>
                 </Pressable>
@@ -2046,7 +1880,7 @@ function NearbyActivitiesSheet({
 
             {showEmpty ? (
               <Text style={styles.activitiesSheetEmptyText}>
-                {getActivitiesSheetEmptyFallback(locale)}
+                {t("nearby.rooms.noneNearby")}
               </Text>
             ) : null}
           </ScrollView>
@@ -2087,7 +1921,7 @@ function ActivityExpandedRow({
       />
       <View style={styles.activityExpandedCopy}>
         <Text style={styles.activityExpandedTitle} numberOfLines={1}>
-          {room.title}
+          {localizedRoomTitle(room, t)}
         </Text>
         <Text style={styles.activityExpandedMeta} numberOfLines={1}>
           {meta}
@@ -2186,10 +2020,11 @@ function NearbyPeopleGrid({
 
 function formatPulseCount(
   value: number | null | undefined,
-  t: (key: string, params?: Record<string, string>) => string
+  t: (key: string, params?: Record<string, string>) => string,
+  locale: string,
 ) {
   if (typeof value === "number" && Number.isFinite(value)) {
-    return String(Math.max(0, Math.floor(value)));
+    return new Intl.NumberFormat(locale).format(Math.max(0, Math.floor(value)));
   }
 
   return t("nearby.summaryUnavailable");
@@ -2232,27 +2067,27 @@ function getNearbyRoomAction(
   if (room.canJoin) {
     return {
       kind: "join",
-      label: copyOrFallback(t, "nearby.rooms.join", "Присоединиться"),
+      label: copyOrFallback(t, "nearby.rooms.join"),
     };
   }
 
   if (room.canOpen) {
     return {
       kind: "open",
-      label: copyOrFallback(t, "nearby.rooms.open", "Открыть"),
+      label: copyOrFallback(t, "nearby.rooms.open"),
     };
   }
 
   if (room.status === "active") {
     return {
       kind: "open",
-      label: copyOrFallback(t, "nearby.rooms.continue", "Продолжить"),
+      label: copyOrFallback(t, "nearby.rooms.continue"),
     };
   }
 
   return {
     kind: "unavailable",
-    label: copyOrFallback(t, "nearby.rooms.unavailable", "Недоступно"),
+    label: copyOrFallback(t, "nearby.rooms.unavailable"),
   };
 }
 

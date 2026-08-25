@@ -85,40 +85,37 @@ function ageRangeForFilter(id: AgeFilterId): TogetherPreferredAgeRangeInput {
 
 function getMissingSafetyFieldLabels(
   fields: MatchingSafetyField[],
-  t: (key: string, fallback: string, params?: Record<string, string>) => string
+  t: (key: string, params?: Record<string, string>) => string
 ) {
   return fields.map((field) => {
     if (field === "birthDate") {
-      return t("profile.birthDateMissingBadge", "Дата рождения");
+      return t("profile.birthDateMissingBadge");
     }
     if (field === "gender") {
-      return t("profile.genderSummaryTitle", "Ваш пол");
+      return t("profile.genderSummaryTitle");
     }
-    return t("profile.lookingForSummaryTitle", "Кого искать");
+    return t("profile.lookingForSummaryTitle");
   });
 }
 
 function getMissingSafetyFieldsBody(
   fields: MatchingSafetyField[],
-  t: (key: string, fallback: string, params?: Record<string, string>) => string
+  t: (key: string, params?: Record<string, string>) => string
 ) {
   return t(
     "together.profileSafetyFieldsBody",
-    "Для «Вместе» нужна основная анкета профиля: {fields}. Анкета активностей рядом здесь не используется. Точная дата рождения не показывается другим людям.",
     { fields: getMissingSafetyFieldLabels(fields, t).join(", ") }
   );
 }
 
 export default function PlayLobbyScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"PlayMatch">>();
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const numberFormatter = React.useMemo(() => new Intl.NumberFormat(locale), [locale]);
   const { hasPremiumFeature } = useMonetization();
   const { height: screenHeight } = useWindowDimensions();
   const tt = React.useCallback(
-    (key: string, fallback: string, params?: Record<string, string>) => {
-      const value = t(key, params);
-      return value === key ? fallback : value;
-    },
+    (key: string, params?: Record<string, string>) => t(key, params),
     [t]
   );
   const [selectedRadiusKm, setSelectedRadiusKm] = React.useState<TogetherRadiusKm>(
@@ -204,23 +201,21 @@ export default function PlayLobbyScreen() {
   );
 
   const storySparksCopy = {
-    title: tt("together.lobby.storySparksTitle", "История на двоих"),
+    title: tt("together.lobby.storySparksTitle"),
     description: tt(
-      "together.lobby.storySparksContinuationBody",
-      "После рисунка можно продолжить историю, если вы оба этого захотите."
+      "together.lobby.storySparksContinuationBody"
     ),
     details: tt(
-      "together.lobby.storySparksDetails",
-      "Второй этап открывается после рисунка для той же пары."
+      "together.lobby.storySparksDetails"
     ),
   };
 
   const radiusLabel = React.useCallback(
     (radiusKm: TogetherRadiusKm) => {
       if (radiusKm === null) {
-        return tt("together.geo.anywhere", "Без ограничения");
+        return tt("together.geo.anywhere");
       }
-      return tt(`together.geo.${radiusKm}km`, `${radiusKm} км`);
+      return tt(`together.geo.${radiusKm}km`);
     },
     [tt]
   );
@@ -228,9 +223,9 @@ export default function PlayLobbyScreen() {
   const ageFilterLabel = React.useCallback(
     (id: AgeFilterId) => {
       if (id === "any") {
-        return tt("together.age.anyAdult", "Любой 18+");
+        return tt("together.age.anyAdult");
       }
-      return tt(`together.age.${id}`, id);
+      return tt(`together.age.${id}`);
     },
     [tt]
   );
@@ -244,9 +239,9 @@ export default function PlayLobbyScreen() {
 
   const selectAgeFilter = React.useCallback((id: AgeFilterId) => {
     if (id !== "any" && !hasPremiumFeature) {
-      Alert.alert(tt("premium.requiredTitle", "Premium"), tt("premium.filtersGate", "Advanced age filters are available with Premium."), [
-        { text: tt("common.cancel", "Cancel"), style: "cancel" },
-        { text: tt("premium.view", "View Premium"), onPress: () => navigation.navigate("Premium") },
+      Alert.alert(tt("premium.requiredTitle"), tt("premium.filtersGate"), [
+        { text: tt("common.cancel"), style: "cancel" },
+        { text: tt("premium.view"), onPress: () => navigation.navigate("Premium") },
       ]);
       return;
     }
@@ -281,13 +276,12 @@ export default function PlayLobbyScreen() {
 
     if (result.reason === "permissionDenied") {
       const message = tt(
-        "together.geo.permissionDenied",
-        "Для совместного поиска нужна геолокация. Мы не показываем точную позицию другим людям."
+        "together.geo.permissionDenied"
       );
       setLocationNotice(message);
-      Alert.alert(tt("together.geo.permissionTitle", "Нужна геолокация"), message, [
-        { text: tt("together.geo.retryLocation", "Попробовать снова") },
-        { text: tt("common.backToMainTabs", "Вернуться в меню"), style: "cancel" },
+      Alert.alert(tt("together.geo.permissionTitle"), message, [
+        { text: tt("together.geo.retryLocation") },
+        { text: tt("common.backToMainTabs"), style: "cancel" },
       ]);
       return null;
     }
@@ -296,12 +290,10 @@ export default function PlayLobbyScreen() {
     const isDeviceLocationUnavailable = result.permissionStatus === "granted";
     const message = isDeviceLocationUnavailable
       ? tt(
-          "together.geo.deviceLocationUnavailable",
-          "Устройство не отдаёт координаты. Проверьте GPS/геолокацию. В эмуляторе BlueStacks установите местоположение и откройте Google Maps для проверки."
+          "together.geo.deviceLocationUnavailable"
         )
       : tt(
-          "together.geo.locationReadFailed",
-          "Не удалось получить геолокацию. Проверьте доступ и попробуйте ещё раз."
+          "together.geo.locationReadFailed"
         );
     reportClientError({
       screen: "PlayLobbyScreen",
@@ -320,11 +312,11 @@ export default function PlayLobbyScreen() {
     });
     setLocationNotice(message);
     Alert.alert(
-      tt("together.geo.permissionTitle", "Нужна геолокация"),
+      tt("together.geo.permissionTitle"),
       message,
       [
-        { text: tt("together.geo.retryLocation", "Попробовать снова") },
-        { text: tt("common.backToMainTabs", "Вернуться в меню"), style: "cancel" },
+        { text: tt("together.geo.retryLocation") },
+        { text: tt("common.backToMainTabs"), style: "cancel" },
       ]
     );
     return null;
@@ -363,7 +355,7 @@ export default function PlayLobbyScreen() {
       }
     } catch (error) {
       Alert.alert(
-        tt("together.turnBased.errorTitle", "Could not start"),
+        tt("together.turnBased.errorTitle"),
         sanitizeErrorForReport(error).message
       );
     } finally {
@@ -381,8 +373,8 @@ export default function PlayLobbyScreen() {
       onError: () => {
         if (!routeAfterRefresh) return;
         Alert.alert(
-          tt("together.turnBased.errorTitle", "Could not refresh"),
-          tt("play.match.networkError", "Check your connection and try again.")
+          tt("together.turnBased.errorTitle"),
+          tt("play.match.networkError")
         );
       },
     });
@@ -415,7 +407,9 @@ export default function PlayLobbyScreen() {
       );
       setTurnBasedMoment(response.moment);
     } catch (error) {
-      Alert.alert(tt("together.turnBased.errorTitle", "Could not cancel"), sanitizeErrorForReport(error).message);
+      const safe = sanitizeErrorForReport(error);
+      void reportClientError({ screen: "PlayLobbyScreen", action: "cancelTurnBased", code: safe.code, message: safe.message, stack: safe.stack });
+      Alert.alert(tt("together.turnBased.errorTitle"), tt("together.turnBased.errorBody"));
     } finally {
       turnBasedMutationRef.current = false;
       setTurnBasedBusy(false);
@@ -430,7 +424,9 @@ export default function PlayLobbyScreen() {
       await togetherApi.dismissTurnBased(turnBasedMoment.id);
       setTurnBasedMoment(null);
     } catch (error) {
-      Alert.alert(tt("together.turnBased.errorTitle", "Could not close"), sanitizeErrorForReport(error).message);
+      const safe = sanitizeErrorForReport(error);
+      void reportClientError({ screen: "PlayLobbyScreen", action: "dismissTurnBased", code: safe.code, message: safe.message, stack: safe.stack });
+      Alert.alert(tt("together.turnBased.errorTitle"), tt("together.turnBased.errorBody"));
     } finally {
       turnBasedMutationRef.current = false;
       setTurnBasedBusy(false);
@@ -447,8 +443,8 @@ export default function PlayLobbyScreen() {
       const safeActivity = String(activity ?? "").trim();
       if (!isReleasePlayActivity(safeActivity)) {
         Alert.alert(
-          tt("together.lobby.startFailedTitle", "Не удалось открыть сценарий"),
-          tt("together.lobby.startFailedBody", "Формат этой совместной сессии не распознан.")
+          tt("together.lobby.startFailedTitle"),
+          tt("together.lobby.startFailedBody")
         );
         reportClientError({
           screen: "PlayLobbyScreen",
@@ -471,19 +467,17 @@ export default function PlayLobbyScreen() {
         if (missingFields.length) {
           Alert.alert(
             tt(
-              "together.profileSafetyTitle",
-              "Заполните основную анкету профиля"
+              "together.profileSafetyTitle"
             ),
             getMissingSafetyFieldsBody(missingFields, tt),
             [
               {
                 text: tt(
-                  "together.profileSafetyAction",
-                  "Открыть основную анкету"
+                  "together.profileSafetyAction"
                 ),
                 onPress: openProfileSafetyFields,
               },
-              { text: tt("common.cancel", "Отмена"), style: "cancel" },
+              { text: tt("common.cancel"), style: "cancel" },
             ]
           );
           return;
@@ -502,8 +496,8 @@ export default function PlayLobbyScreen() {
       } catch (error) {
         const safeError = sanitizeErrorForReport(error);
         Alert.alert(
-          tt("together.lobby.startFailedTitle", "Не удалось открыть сценарий"),
-          tt("together.lobby.startFailedBody", "Формат этой совместной сессии не распознан.")
+          tt("together.lobby.startFailedTitle"),
+          tt("together.lobby.startFailedBody")
         );
         reportClientError({
           screen: "PlayLobbyScreen",
@@ -550,15 +544,14 @@ export default function PlayLobbyScreen() {
         <View style={styles.hero}>
           <View style={styles.heroTop}>
             <Text style={styles.kicker}>
-              {tt("together.lobby.drawKicker", "Вместе")}
+              {tt("together.lobby.drawKicker")}
             </Text>
             <Text style={styles.heroTitle}>
-              {tt("together.lobby.drawHeroTitle", "Начните с общего момента")}
+              {tt("together.lobby.drawHeroTitle")}
             </Text>
             <Text style={styles.heroText}>
               {tt(
-                "together.lobby.drawHeroBody",
-                "Один короткий рисунок помогает почувствовать человека без лишних слов."
+                "together.lobby.drawHeroBody"
               )}
             </Text>
           </View>
@@ -568,8 +561,7 @@ export default function PlayLobbyScreen() {
               <View style={styles.completionPanel}>
                 <Text style={styles.completionTitle}>
                   {tt(
-                    "together.profileSafetyTitle",
-                    "Заполните основную анкету профиля"
+                    "together.profileSafetyTitle"
                   )}
                 </Text>
                 <Text style={styles.completionBody}>
@@ -582,8 +574,7 @@ export default function PlayLobbyScreen() {
                 >
                   <Text style={styles.completionButtonText}>
                     {tt(
-                      "together.profileSafetyAction",
-                      "Открыть основную анкету"
+                      "together.profileSafetyAction"
                     )}
                   </Text>
                 </Pressable>
@@ -593,8 +584,8 @@ export default function PlayLobbyScreen() {
             <PrimaryActionButton
               label={
                 locationBusy
-                  ? tt("together.geo.locationLoading", "Получаем геолокацию...")
-                  : tt("together.lobby.startDrawChallenge", "Начать")
+                  ? tt("together.geo.locationLoading")
+                  : tt("together.lobby.startDrawChallenge")
               }
               onPress={() => void openActivity("draw", "startDraw")}
               disabled={locationBusy}
@@ -605,8 +596,7 @@ export default function PlayLobbyScreen() {
             />
             <Text style={styles.primaryCtaHint}>
               {tt(
-                "together.lobby.startDrawHint",
-                "Сначала общий рисунок. Дальше - продолжение только по взаимности."
+                "together.lobby.startDrawHint"
               )}
             </Text>
 
@@ -639,9 +629,7 @@ export default function PlayLobbyScreen() {
                 ellipsizeMode="tail"
               >
                 {tt(
-                  "together.searchSettingsPill",
-                  "Поиск: {radius} · {age}",
-                  {
+                  "together.searchSettingsPill", {
                     radius: radiusLabel(selectedRadiusKm),
                     age: ageFilterLabel(selectedAgeFilter),
                   }
@@ -656,8 +644,8 @@ export default function PlayLobbyScreen() {
             >
               <Text style={styles.detailsToggleText}>
                 {detailsOpen
-                  ? tt("together.lobby.detailsHide", "Скрыть детали")
-                  : tt("together.lobby.detailsShow", "Как это работает")}
+                  ? tt("together.lobby.detailsHide")
+                  : tt("together.lobby.detailsShow")}
               </Text>
               <Text style={styles.detailsToggleIcon}>{detailsOpen ? "-" : "+"}</Text>
             </Pressable>
@@ -666,17 +654,16 @@ export default function PlayLobbyScreen() {
               <View style={styles.detailsPanel}>
                 <Text style={styles.detailsText}>
                   {tt(
-                    "together.lobby.coreLoopPlain",
-                    "Короткий рисунок помогает почувствовать совпадение. Если обоим хочется, дальше будет чат или история."
+                    "together.lobby.coreLoopPlain"
                   )}
                 </Text>
                 <View style={styles.detailSteps}>
                   {[
-                    tt("together.lobby.drawStepChallenge", "Творческий вызов"),
-                    tt("together.lobby.drawStepCanvas", "Общий холст"),
-                    tt("together.lobby.drawStepResult", "Совместный результат"),
-                    tt("together.lobby.drawStepStory", "История на двоих"),
-                    tt("together.lobby.drawStepChat", "Чат по взаимности"),
+                    tt("together.lobby.drawStepChallenge"),
+                    tt("together.lobby.drawStepCanvas"),
+                    tt("together.lobby.drawStepResult"),
+                    tt("together.lobby.drawStepStory"),
+                    tt("together.lobby.drawStepChat"),
                   ].map((item) => (
                     <View key={item} style={styles.detailStepChip}>
                       <Text style={styles.detailStepText}>{item}</Text>
@@ -688,12 +675,10 @@ export default function PlayLobbyScreen() {
                 <Text style={styles.detailsMuted}>{storySparksCopy.details}</Text>
                 <Text style={styles.detailsMuted}>
                   {tt(
-                    "together.profileSummary.body",
-                    "Радиус: {radius}. Возраст: {age}. Интересы в профиле: {count}.",
-                    {
+                    "together.profileSummary.body", {
                       radius: radiusLabel(selectedRadiusKm),
                       age: ageFilterLabel(selectedAgeFilter),
-                      count: profileInterestCount === null ? "-" : String(profileInterestCount),
+                      count: profileInterestCount === null ? "-" : numberFormatter.format(profileInterestCount),
                     }
                   )}
                 </Text>
@@ -704,17 +689,17 @@ export default function PlayLobbyScreen() {
 
         <View style={styles.turnBasedCard}>
           <Text style={styles.turnBasedTitle}>
-            {tt(turnBasedPresentation.titleKey, turnBasedPresentation.titleFallback)}
+            {tt(turnBasedPresentation.titleKey)}
           </Text>
           {turnBasedPresentation.bodyKey ? <Text style={styles.turnBasedBody}>
-            {tt(turnBasedPresentation.bodyKey, turnBasedPresentation.bodyFallback ?? "")}
+            {tt(turnBasedPresentation.bodyKey)}
           </Text> : null}
           {turnBasedRemaining ? <Text style={styles.turnBasedBody}>
-            {tt("together.turnBased.remaining", "Time remaining: {time}", { time: turnBasedRemaining })}
+            {tt("together.turnBased.remaining", { time: turnBasedRemaining })}
           </Text> : null}
           {turnBasedMoment && turnBasedPresentation.primaryKey ? (
             <PrimaryActionButton
-              label={tt(turnBasedPresentation.primaryKey, turnBasedPresentation.primaryFallback ?? "")}
+              label={tt(turnBasedPresentation.primaryKey)}
               onPress={() => openTurnBasedMoment(turnBasedMoment)}
               compact={false}
             />
@@ -726,8 +711,8 @@ export default function PlayLobbyScreen() {
             >
               <Text style={styles.turnBasedSecondaryText}>
                 {turnBasedBusy
-                  ? tt("common.loading", "Loading…")
-                  : tt("together.turnBased.start", "Start in turns")}
+                  ? tt("common.loading")
+                  : tt("together.turnBased.start")}
               </Text>
             </Pressable>
           ) : null}
@@ -736,10 +721,10 @@ export default function PlayLobbyScreen() {
             onPress={() => void refreshTurnBased(true)}
             disabled={turnBasedBusy}
           ><Text style={styles.turnBasedSecondaryText}>
-            {tt("together.turnBased.refresh", "Check progress")}
+            {tt("together.turnBased.refresh")}
           </Text></Pressable> : null}
           {turnBasedPresentation.startNew ? <PrimaryActionButton
-            label={tt("together.turnBased.startNew", "Start a new one")}
+            label={tt("together.turnBased.startNew")}
             onPress={() => void (async () => {
               await dismissCurrentTurnBased();
               await startTurnBased();
@@ -751,14 +736,14 @@ export default function PlayLobbyScreen() {
             onPress={() => void cancelCurrentTurnBased()}
             disabled={turnBasedBusy}
           ><Text style={styles.turnBasedSecondaryText}>
-            {tt("together.turnBased.cancel", "Cancel")}
+            {tt("together.turnBased.cancel")}
           </Text></Pressable> : null}
           {turnBasedPresentation.dismiss ? <Pressable
             style={styles.turnBasedSecondary}
             onPress={() => void dismissCurrentTurnBased()}
             disabled={turnBasedBusy}
           ><Text style={styles.turnBasedSecondaryText}>
-            {tt("together.turnBased.close", "Close")}
+            {tt("together.turnBased.close")}
           </Text></Pressable> : null}
         </View>
       </ScrollView>
@@ -776,12 +761,11 @@ export default function PlayLobbyScreen() {
             <View style={styles.filtersSheetHeader}>
               <View style={styles.filtersSheetTitleCopy}>
                 <Text style={styles.filtersSheetTitle}>
-                  {tt("together.searchSettingsTitle", "Настройки поиска")}
+                  {tt("together.searchSettingsTitle")}
                 </Text>
                 <Text style={styles.filtersSheetSubtitle}>
                   {tt(
-                    "together.searchSettingsSubtitle",
-                    "Это влияет только на поиск во «Вместе»."
+                    "together.searchSettingsSubtitle"
                   )}
                 </Text>
               </View>
@@ -804,7 +788,7 @@ export default function PlayLobbyScreen() {
             >
               <View style={styles.filterBlock}>
                 <Text style={styles.filterTitle}>
-                  {tt("together.geo.radiusTitle", "Радиус поиска")}
+                  {tt("together.geo.radiusTitle")}
                 </Text>
                 <View style={styles.optionRow}>
                   {TOGETHER_RADIUS_OPTIONS.map((radiusKm) => {
@@ -837,7 +821,7 @@ export default function PlayLobbyScreen() {
 
               <View style={styles.filterBlock}>
                 <Text style={styles.filterTitle}>
-                  {tt("together.age.title", "Кого искать")}
+                  {tt("together.age.title")}
                 </Text>
                 <View style={styles.optionRow}>
                   {AGE_FILTER_OPTIONS.map((option) => {
@@ -867,7 +851,7 @@ export default function PlayLobbyScreen() {
               </View>
 
               <PrimaryActionButton
-                label={tt("together.searchSettingsDone", "Готово")}
+                label={tt("together.searchSettingsDone")}
                 onPress={closeTogetherFiltersSheet}
                 compact
                 style={styles.sheetDoneButton}

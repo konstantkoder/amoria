@@ -46,11 +46,9 @@ type AnnouncementResponsePresentation = {
 
 function copyOrFallback(
   t: (key: string, params?: Record<string, string>) => string,
-  key: string,
-  fallback: string
+  key: string
 ) {
-  const value = t(key);
-  return value === key ? fallback : value;
+  return t(key);
 }
 
 function resolveAnnouncementResponseMode(params: {
@@ -83,50 +81,38 @@ function buildAnnouncementResponsePresentation(
   switch (mode) {
     case "own":
       return {
-        title: copyOrFallback(t, "nearby.detail.ownTitle", "Это ваше объявление"),
+        title: copyOrFallback(t, "nearby.detail.ownTitle"),
         body: copyOrFallback(
-          t,
-          "nearby.detail.ownBody",
-          "Это объявление уже опубликовано в разделе «Объявления». Его можно закрыть, когда запрос больше не актуален."
+          t, "nearby.detail.ownBody"
         ),
-        actionLabel: copyOrFallback(t, "common.close", "Закрыть"),
-        busyLabel: copyOrFallback(t, "common.close", "Закрыть"),
+        actionLabel: copyOrFallback(t, "common.close"),
+        busyLabel: copyOrFallback(t, "common.close"),
         buttonVariant: "secondary",
       };
     case "direct_dm":
       return {
         title: copyOrFallback(
-          t,
-          hasResponded ? "nearby.detail.chatReadyTitle" : "nearby.detail.chatTitle",
-          hasResponded ? "Личный чат уже доступен" : "Здесь откроется личный чат"
+          t, hasResponded ? "nearby.detail.chatReadyTitle" : "nearby.detail.chatTitle"
         ),
         body: copyOrFallback(
-          t,
-          hasResponded ? "nearby.detail.chatReadyBody" : "nearby.detail.chatBody",
-          hasResponded
-            ? "Интерес к объявлению уже отмечен. Можно сразу продолжить разговор с автором."
-            : "Это объявление связано с реальным автором. Кнопка ниже откроет личный чат с ним."
+          t, hasResponded ? "nearby.detail.chatReadyBody" : "nearby.detail.chatBody"
         ),
         actionLabel: hasResponded
-          ? copyOrFallback(t, "nearby.detail.openChat", "Открыть чат")
-          : copyOrFallback(t, "nearby.detail.messageAuthor", "Ответить"),
-        busyLabel: copyOrFallback(t, "nearby.detail.openingChat", "Открываем чат..."),
+          ? copyOrFallback(t, "nearby.detail.openChat")
+          : copyOrFallback(t, "nearby.detail.messageAuthor"),
+        busyLabel: copyOrFallback(t, "nearby.detail.openingChat"),
         buttonVariant: "primary",
       };
     case "unavailable":
       return {
         title: copyOrFallback(
-          t,
-          "nearby.detail.unavailableTitle",
-          "Личный отклик сейчас недоступен"
+          t, "nearby.detail.unavailableTitle"
         ),
         body: copyOrFallback(
-          t,
-          "nearby.detail.unavailableBody",
-          "Для этого объявления сейчас нет реального пути в личный чат. Можно вернуться к списку и открыть другое объявление."
+          t, "nearby.detail.unavailableBody"
         ),
-        actionLabel: copyOrFallback(t, "nearby.detail.backToList", "К объявлениям"),
-        busyLabel: copyOrFallback(t, "nearby.detail.backToList", "К объявлениям"),
+        actionLabel: copyOrFallback(t, "nearby.detail.backToList"),
+        busyLabel: copyOrFallback(t, "nearby.detail.backToList"),
         buttonVariant: "secondary",
       };
   }
@@ -138,37 +124,35 @@ function buildReportReasonButtons(
 ): AlertButton[] {
   return makeAndroidSafeReportReasonButtons([
     {
-      text: copyOrFallback(t, "safety.reason.spam", "Спам"),
+      text: copyOrFallback(t, "safety.reason.spam"),
       onPress: () => onSelect("spam"),
     },
     {
-      text: copyOrFallback(t, "safety.reason.harassment", "Оскорбления или преследование"),
+      text: copyOrFallback(t, "safety.reason.harassment"),
       onPress: () => onSelect("harassment"),
     },
     {
       text: copyOrFallback(
-        t,
-        "safety.reason.sexualServices",
-        "Сексуальные услуги или оплатная встреча"
+        t, "safety.reason.sexualServices"
       ),
       onPress: () => onSelect("sexual_services"),
     },
     {
-      text: copyOrFallback(t, "safety.reason.scam", "Мошенничество"),
+      text: copyOrFallback(t, "safety.reason.scam"),
       onPress: () => onSelect("scam"),
     },
     {
-      text: copyOrFallback(t, "safety.reason.other", "Другое"),
+      text: copyOrFallback(t, "safety.reason.other"),
       onPress: () => onSelect("other"),
     },
     {
-      text: copyOrFallback(t, "common.cancel", "Отмена"),
+      text: copyOrFallback(t, "common.cancel"),
       style: "cancel",
     },
   ],
-  copyOrFallback(t, "safety.reportTitle", "Пожаловаться"),
-  copyOrFallback(t, "safety.reportBody", "Выбери причину жалобы."),
-  copyOrFallback(t, "safety.moreReasons", "Другие причины…"));
+  copyOrFallback(t, "safety.reportTitle"),
+  copyOrFallback(t, "safety.reportBody"),
+  copyOrFallback(t, "safety.moreReasons"));
 }
 
 function getAnnouncementUnavailableCopy(
@@ -177,31 +161,25 @@ function getAnnouncementUnavailableCopy(
 ) {
   if (status === "closed") {
     return {
-      title: copyOrFallback(t, "nearby.detail.closedTitle", "Объявление закрыто"),
+      title: copyOrFallback(t, "nearby.detail.closedTitle"),
       body: copyOrFallback(
-        t,
-        "nearby.detail.closedBody",
-        "Автор закрыл это объявление. Оно больше не принимает отклики."
+        t, "nearby.detail.closedBody"
       ),
     };
   }
   if (status === "deleted") {
     return {
-      title: copyOrFallback(t, "nearby.detail.deletedTitle", "Объявление удалено"),
+      title: copyOrFallback(t, "nearby.detail.deletedTitle"),
       body: copyOrFallback(
-        t,
-        "nearby.detail.deletedBody",
-        "Это объявление больше не доступно в релизном списке."
+        t, "nearby.detail.deletedBody"
       ),
     };
   }
   if (status === "under_review") {
     return {
-      title: copyOrFallback(t, "nearby.detail.underReviewTitle", "Объявление на проверке"),
+      title: copyOrFallback(t, "nearby.detail.underReviewTitle"),
       body: copyOrFallback(
-        t,
-        "nearby.detail.underReviewBody",
-        "Это объявление временно скрыто, пока по нему идёт проверка."
+        t, "nearby.detail.underReviewBody"
       ),
     };
   }
@@ -305,9 +283,7 @@ export default function AnnouncementDetailScreen() {
 
           setLoadError(
             copyOrFallback(
-              t,
-              "nearby.detail.loadErrorBody",
-              "Не удалось загрузить это объявление с сервера. Попробуй ещё раз позже."
+              t, "nearby.detail.loadErrorBody"
             )
           );
         })
@@ -338,20 +314,18 @@ export default function AnnouncementDetailScreen() {
 
   const categoryLabels = React.useMemo(
     () => ({
-      walk: copyOrFallback(t, "nearby.announcements.category.walk", "Прогулка"),
-      trip: copyOrFallback(t, "nearby.announcements.category.trip", "Поездка"),
-      coffee: copyOrFallback(t, "nearby.announcements.category.coffee", "Кофе"),
-      activity: copyOrFallback(t, "nearby.announcements.category.activity", "Активность"),
-      sport: copyOrFallback(t, "nearby.announcements.category.sport", "Спорт"),
-      ride: copyOrFallback(t, "nearby.announcements.category.ride", "Вместе по пути"),
+      walk: copyOrFallback(t, "nearby.announcements.category.walk"),
+      trip: copyOrFallback(t, "nearby.announcements.category.trip"),
+      coffee: copyOrFallback(t, "nearby.announcements.category.coffee"),
+      activity: copyOrFallback(t, "nearby.announcements.category.activity"),
+      sport: copyOrFallback(t, "nearby.announcements.category.sport"),
+      ride: copyOrFallback(t, "nearby.announcements.category.ride"),
     }),
     [t]
   );
 
   const fallbackPlaceLabel = copyOrFallback(
-    t,
-    "nearby.placeFallback",
-    "Место не указано"
+    t, "nearby.placeFallback"
   );
   const announcementAuthorUid = String(announcement?.authorUid ?? "").trim();
   const hasResponded = hasRespondedOverride ?? Boolean(announcement?.hasResponded);
@@ -364,7 +338,7 @@ export default function AnnouncementDetailScreen() {
       }),
     [announcement, currentUid, responseModeOverride]
   );
-  const amoriaUserLabel = copyOrFallback(t, "profile.amoriaUser", "Пользователь Amoria");
+  const amoriaUserLabel = copyOrFallback(t, "profile.amoriaUser");
   const rawAnnouncementAuthorLabel =
     authorDisplayName || announcement?.authorName?.trim() || announcement?.authorLabel?.trim() || amoriaUserLabel;
   const announcementAuthorLabel =
@@ -404,9 +378,7 @@ export default function AnnouncementDetailScreen() {
     } catch {
       setResponseError(
         copyOrFallback(
-          t,
-          "common.tryAgainLater",
-          "Попробуй ещё раз позже."
+          t, "common.tryAgainLater"
         )
       );
     } finally {
@@ -455,9 +427,7 @@ export default function AnnouncementDetailScreen() {
         } catch {
           setResponseError(
             copyOrFallback(
-              t,
-              "nearby.detail.responseErrorBody",
-              "Не удалось отправить отклик и открыть чат. Попробуй ещё раз чуть позже."
+              t, "nearby.detail.responseErrorBody"
             )
           );
         } finally {
@@ -483,11 +453,9 @@ export default function AnnouncementDetailScreen() {
       if (!announcement || !currentUid || safetyBusy || safetyInFlightRef.current) {
         if (!currentUid) {
           Alert.alert(
-            copyOrFallback(t, "safety.signInRequiredTitle", "Нужен вход"),
+            copyOrFallback(t, "safety.signInRequiredTitle"),
             copyOrFallback(
-              t,
-              "safety.signInRequiredBody",
-              "Чтобы отправить жалобу или заблокировать пользователя, сначала войди в аккаунт."
+              t, "safety.signInRequiredBody"
             )
           );
         }
@@ -504,20 +472,16 @@ export default function AnnouncementDetailScreen() {
           reason,
         });
         Alert.alert(
-          copyOrFallback(t, "safety.reportSentTitle", "Жалоба отправлена"),
+          copyOrFallback(t, "safety.reportSentTitle"),
           copyOrFallback(
-            t,
-            "safety.reportSentBody",
-            "Спасибо. Жалоба сохранена и будет доступна для проверки."
+            t, "safety.reportSentBody"
           )
         );
       } catch {
         Alert.alert(
-          copyOrFallback(t, "safety.reportErrorTitle", "Жалоба не отправилась"),
+          copyOrFallback(t, "safety.reportErrorTitle"),
           copyOrFallback(
-            t,
-            "safety.reportErrorBody",
-            "Не удалось сохранить жалобу. Попробуй ещё раз позже."
+            t, "safety.reportErrorBody"
           )
         );
       } finally {
@@ -531,8 +495,8 @@ export default function AnnouncementDetailScreen() {
   const handleReportAnnouncement = React.useCallback(() => {
     if (!announcement) return;
     Alert.alert(
-      copyOrFallback(t, "safety.reportTitle", "Пожаловаться"),
-      copyOrFallback(t, "safety.reportBody", "Выбери причину жалобы."),
+      copyOrFallback(t, "safety.reportTitle"),
+      copyOrFallback(t, "safety.reportBody"),
       buildReportReasonButtons(t, (reason) => void reportAnnouncement(reason))
     );
   }, [announcement, reportAnnouncement, t]);
@@ -540,30 +504,26 @@ export default function AnnouncementDetailScreen() {
   const handleBlockAuthor = React.useCallback(() => {
     if (!currentUid) {
       Alert.alert(
-        copyOrFallback(t, "safety.signInRequiredTitle", "Нужен вход"),
+        copyOrFallback(t, "safety.signInRequiredTitle"),
         copyOrFallback(
-          t,
-          "safety.signInRequiredBody",
-          "Чтобы отправить жалобу или заблокировать пользователя, сначала войди в аккаунт."
+          t, "safety.signInRequiredBody"
         )
       );
       return;
     }
     if (!announcementAuthorUid || announcementAuthorUid === currentUid) return;
     Alert.alert(
-      copyOrFallback(t, "safety.blockTitle", "Заблокировать пользователя?"),
+      copyOrFallback(t, "safety.blockTitle"),
       copyOrFallback(
-        t,
-        "safety.blockBody",
-        "Вы больше не будете видеть его объявления в обычном списке, а личные чаты будут скрыты из вкладки «Чаты»."
+        t, "safety.blockBody"
       ),
       [
         {
-          text: copyOrFallback(t, "common.cancel", "Отмена"),
+          text: copyOrFallback(t, "common.cancel"),
           style: "cancel",
         },
         {
-          text: copyOrFallback(t, "safety.blockConfirm", "Заблокировать"),
+          text: copyOrFallback(t, "safety.blockConfirm"),
           style: "destructive",
           onPress: () => {
             if (safetyInFlightRef.current) return;
@@ -574,21 +534,17 @@ export default function AnnouncementDetailScreen() {
                 setAuthorBlocked(true);
                 setReloadKey((prev) => prev + 1);
                 Alert.alert(
-                  copyOrFallback(t, "safety.userBlockedTitle", "Пользователь заблокирован"),
+                  copyOrFallback(t, "safety.userBlockedTitle"),
                   copyOrFallback(
-                    t,
-                    "safety.userBlockedBody",
-                    "Этот пользователь скрыт из релизных списков на вашем аккаунте."
+                    t, "safety.userBlockedBody"
                   )
                 );
               })
               .catch(() => {
                 Alert.alert(
-                  copyOrFallback(t, "safety.blockErrorTitle", "Не удалось заблокировать"),
+                  copyOrFallback(t, "safety.blockErrorTitle"),
                   copyOrFallback(
-                    t,
-                    "safety.blockErrorBody",
-                    "Блокировка не сохранилась. Попробуй ещё раз позже."
+                    t, "safety.blockErrorBody"
                   )
                 );
               })
@@ -602,7 +558,7 @@ export default function AnnouncementDetailScreen() {
     );
   }, [announcementAuthorUid, currentUid, t]);
 
-  const screenTitle = copyOrFallback(t, "nearby.detail.title", "Объявление");
+  const screenTitle = copyOrFallback(t, "nearby.detail.title");
   const announcementPhotoUrl = String(
     announcement?.photoUrl?.startsWith("http")
       ? announcement.photoUrl
@@ -621,13 +577,11 @@ export default function AnnouncementDetailScreen() {
           <CoreStateCard
             icon="cloud-offline-outline"
             title={copyOrFallback(
-              t,
-              "nearby.detail.loadErrorTitle",
-              "Объявление временно недоступно"
+              t, "nearby.detail.loadErrorTitle"
             )}
             body={loadError}
             primaryAction={{
-              label: copyOrFallback(t, "nearby.detail.backToList", "К объявлениям"),
+              label: copyOrFallback(t, "nearby.detail.backToList"),
               onPress: handleBack,
             }}
           />
@@ -642,14 +596,12 @@ export default function AnnouncementDetailScreen() {
         <View style={styles.centerState}>
           <CoreStateCard
             icon="document-text-outline"
-            title={copyOrFallback(t, "nearby.detail.missingTitle", "Объявление недоступно")}
+            title={copyOrFallback(t, "nearby.detail.missingTitle")}
             body={copyOrFallback(
-              t,
-              "nearby.detail.missingBody",
-              "Не удалось открыть это объявление. Можно вернуться к списку объявлений."
+              t, "nearby.detail.missingBody"
             )}
             primaryAction={{
-              label: copyOrFallback(t, "nearby.detail.backToList", "К объявлениям"),
+              label: copyOrFallback(t, "nearby.detail.backToList"),
               onPress: handleBack,
             }}
           />
@@ -664,14 +616,12 @@ export default function AnnouncementDetailScreen() {
         <View style={styles.centerState}>
           <CoreStateCard
             icon="eye-off-outline"
-            title={copyOrFallback(t, "safety.blockedContentTitle", "Контент скрыт")}
+            title={copyOrFallback(t, "safety.blockedContentTitle")}
             body={copyOrFallback(
-              t,
-              "safety.blockedAnnouncementBody",
-              "Это объявление скрыто, потому что автор находится в вашем списке заблокированных пользователей."
+              t, "safety.blockedAnnouncementBody"
             )}
             primaryAction={{
-              label: copyOrFallback(t, "nearby.detail.backToList", "К объявлениям"),
+              label: copyOrFallback(t, "nearby.detail.backToList"),
               onPress: handleBack,
             }}
           />
@@ -689,7 +639,7 @@ export default function AnnouncementDetailScreen() {
             title={unavailableAnnouncementCopy.title}
             body={unavailableAnnouncementCopy.body}
             primaryAction={{
-              label: copyOrFallback(t, "nearby.detail.backToList", "К объявлениям"),
+              label: copyOrFallback(t, "nearby.detail.backToList"),
               onPress: handleBack,
             }}
           />
@@ -709,7 +659,7 @@ export default function AnnouncementDetailScreen() {
           <>
             <View style={styles.summaryCard}>
               <Text style={styles.summaryKicker}>
-                {copyOrFallback(t, "nearby.create.kicker", "Оформленный запрос")}
+                {copyOrFallback(t, "nearby.create.kicker")}
               </Text>
               <View style={styles.summaryMetaRow}>
                 <View style={styles.categoryPill}>
@@ -765,24 +715,20 @@ export default function AnnouncementDetailScreen() {
               </View>
               <View style={styles.mediaCopy}>
                 <Text style={styles.sectionLabel}>
-                  {copyOrFallback(t, "nearby.detail.photoLabel", "Формат")}
+                  {copyOrFallback(t, "nearby.detail.photoLabel")}
                 </Text>
                 <Text style={styles.mediaTitle}>
                   {announcement.hasPhoto || announcementPhotoUrl
-                    ? copyOrFallback(t, "nearby.detail.photoYes", "С фото")
-                    : copyOrFallback(t, "nearby.detail.photoNo", "Без фото")}
+                    ? copyOrFallback(t, "nearby.detail.photoYes")
+                    : copyOrFallback(t, "nearby.detail.photoNo")}
                 </Text>
                 <Text style={styles.mediaBody}>
                   {announcement.hasPhoto || announcementPhotoUrl
                     ? copyOrFallback(
-                        t,
-                        "nearby.detail.photoWithBody",
-                        "Фото помогает быстрее понять формат объявления и контекст встречи."
+                        t, "nearby.detail.photoWithBody"
                       )
                     : copyOrFallback(
-                        t,
-                        "nearby.detail.photoWithoutBody",
-                        "Это текстовое объявление. Весь смысл уже раскрыт в описании ниже."
+                        t, "nearby.detail.photoWithoutBody"
                       )}
                 </Text>
               </View>
@@ -790,25 +736,25 @@ export default function AnnouncementDetailScreen() {
 
             <View style={styles.detailsCard}>
               <Text style={styles.sectionLabel}>
-                {copyOrFallback(t, "nearby.detail.metaTitle", "Детали")}
+                {copyOrFallback(t, "nearby.detail.metaTitle")}
               </Text>
               <View style={styles.detailStack}>
                 <DetailRow
-                  label={copyOrFallback(t, "nearby.detail.categoryLabel", "Категория")}
+                  label={copyOrFallback(t, "nearby.detail.categoryLabel")}
                   value={categoryLabels[announcement.category]}
                 />
                 <DetailRow
-                  label={copyOrFallback(t, "nearby.detail.placeLabel", "Место")}
+                  label={copyOrFallback(t, "nearby.detail.placeLabel")}
                   value={announcement.placeLabel || fallbackPlaceLabel}
                 />
                 {announcement.proximityLabel ? (
                   <DetailRow
-                    label={copyOrFallback(t, "nearby.detail.distanceLabel", "Расстояние")}
+                    label={copyOrFallback(t, "nearby.detail.distanceLabel")}
                     value={announcement.proximityLabel}
                   />
                 ) : null}
                 <DetailRow
-                  label={copyOrFallback(t, "nearby.detail.authorLabel", "Автор")}
+                  label={copyOrFallback(t, "nearby.detail.authorLabel")}
                   value={announcementAuthorLabel}
                 />
               </View>
@@ -817,7 +763,7 @@ export default function AnnouncementDetailScreen() {
 
               <View style={styles.descriptionBlock}>
                 <Text style={styles.descriptionLabel}>
-                  {copyOrFallback(t, "nearby.detail.descriptionTitle", "Описание")}
+                  {copyOrFallback(t, "nearby.detail.descriptionTitle")}
                 </Text>
                 <Text style={styles.descriptionText}>{announcement.description}</Text>
               </View>
@@ -860,13 +806,11 @@ export default function AnnouncementDetailScreen() {
 
             <View style={styles.safetyCard}>
               <Text style={styles.safetyTitle}>
-                {copyOrFallback(t, "safety.announcementSafetyTitle", "Безопасность")}
+                {copyOrFallback(t, "safety.announcementSafetyTitle")}
               </Text>
               <Text style={styles.safetyBody}>
                 {copyOrFallback(
-                  t,
-                  "safety.announcementSafetyBody",
-                  "Если объявление нарушает правила или автор нежелателен, действие сохранится для проверки."
+                  t, "safety.announcementSafetyBody"
                 )}
               </Text>
               <View style={styles.safetyActions}>
@@ -876,7 +820,7 @@ export default function AnnouncementDetailScreen() {
                   style={[styles.safetyButton, safetyBusy ? styles.safetyButtonDisabled : null]}
                 >
                   <Text style={styles.safetyButtonText}>
-                    {copyOrFallback(t, "safety.report", "Пожаловаться")}
+                    {copyOrFallback(t, "safety.report")}
                   </Text>
                 </Pressable>
                 {announcementAuthorUid && announcementAuthorUid !== currentUid ? (
@@ -886,7 +830,7 @@ export default function AnnouncementDetailScreen() {
                     style={[styles.safetyButton, safetyBusy ? styles.safetyButtonDisabled : null]}
                   >
                     <Text style={styles.safetyButtonText}>
-                      {copyOrFallback(t, "safety.blockAuthor", "Заблокировать автора")}
+                      {copyOrFallback(t, "safety.blockAuthor")}
                     </Text>
                   </Pressable>
                 ) : null}
@@ -899,14 +843,10 @@ export default function AnnouncementDetailScreen() {
               loading
               icon="document-text-outline"
               title={copyOrFallback(
-                t,
-                "nearby.detail.loadingTitle",
-                "Подтягиваем объявление"
+                t, "nearby.detail.loadingTitle"
               )}
               body={copyOrFallback(
-                t,
-                "nearby.detail.loadingBody",
-                "Подтягиваем актуальные детали объявления и вернём действие сразу после загрузки."
+                t, "nearby.detail.loadingBody"
               )}
             />
           </View>

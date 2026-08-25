@@ -24,11 +24,9 @@ type Props = {
 
 function copyOrFallback(
   t: (key: string, params?: Record<string, string>) => string,
-  key: string,
-  fallback: string
+  key: string
 ) {
-  const value = t(key);
-  return value === key ? fallback : value;
+  return t(key);
 }
 
 export default function NearbyAnnouncementsSection({
@@ -40,25 +38,24 @@ export default function NearbyAnnouncementsSection({
   onOpen,
   onCreate,
 }: Props) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const numberFormatter = useMemo(() => new Intl.NumberFormat(locale), [locale]);
   const scrollRef = useRef<ScrollView | null>(null);
 
   const categoryLabels = useMemo(
     () => ({
-      all: copyOrFallback(t, "nearby.announcements.filterAll", "Все"),
-      walk: copyOrFallback(t, "nearby.announcements.category.walk", "Прогулка"),
-      trip: copyOrFallback(t, "nearby.announcements.category.trip", "Поездка"),
-      coffee: copyOrFallback(t, "nearby.announcements.category.coffee", "Кофе"),
-      activity: copyOrFallback(t, "nearby.announcements.category.activity", "Активность"),
-      sport: copyOrFallback(t, "nearby.announcements.category.sport", "Спорт"),
-      ride: copyOrFallback(t, "nearby.announcements.category.ride", "Вместе по пути"),
+      all: copyOrFallback(t, "nearby.announcements.filterAll"),
+      walk: copyOrFallback(t, "nearby.announcements.category.walk"),
+      trip: copyOrFallback(t, "nearby.announcements.category.trip"),
+      coffee: copyOrFallback(t, "nearby.announcements.category.coffee"),
+      activity: copyOrFallback(t, "nearby.announcements.category.activity"),
+      sport: copyOrFallback(t, "nearby.announcements.category.sport"),
+      ride: copyOrFallback(t, "nearby.announcements.category.ride"),
     }),
     [t]
   );
   const fallbackPlaceLabel = copyOrFallback(
-    t,
-    "nearby.placeFallback",
-    "Место не указано"
+    t, "nearby.placeFallback"
   );
   const visibleItems = useMemo(() => {
     const blocked = new Set(blockedUserIds);
@@ -68,30 +65,22 @@ export default function NearbyAnnouncementsSection({
     if (activeCategory === "all") {
       return {
         title: copyOrFallback(
-          t,
-          "nearby.announcements.emptyTitle",
-          "Пока нет оформленных объявлений"
+          t, "nearby.announcements.emptyTitle"
         ),
         body: copyOrFallback(
-          t,
-          "nearby.announcements.emptyBody",
-          "Объявления нужны для более понятного запроса: кого ты ищешь, где и на какой формат встречи рассчитываешь. Можно разместить первое и задать тон разделу."
+          t, "nearby.announcements.emptyBody"
         ),
       };
     }
 
     const categoryLabel = categoryLabels[activeCategory];
     const filteredTitle = copyOrFallback(
-      t,
-      "nearby.announcements.emptyFilteredTitle",
-      "В категории «{category}» пока пусто"
+      t, "nearby.announcements.emptyFilteredTitle"
     ).replace("{category}", categoryLabel);
     return {
       title: filteredTitle,
       body: copyOrFallback(
-        t,
-        "nearby.announcements.emptyFilteredBody",
-        "Попробуй другой фильтр или размести первое объявление в этом формате."
+        t, "nearby.announcements.emptyFilteredBody"
       ),
     };
   }, [activeCategory, categoryLabels, t]);
@@ -112,16 +101,14 @@ export default function NearbyAnnouncementsSection({
         <View style={styles.heroTop}>
           <View style={styles.heroCopy}>
             <Text style={styles.heroKicker}>
-              {copyOrFallback(t, "nearby.announcements.kicker", "Оформленные запросы")}
+              {copyOrFallback(t, "nearby.announcements.kicker")}
             </Text>
             <Text style={styles.heroTitle}>
-              {copyOrFallback(t, "nearby.announcements.title", "Объявления")}
+              {copyOrFallback(t, "nearby.announcements.title")}
             </Text>
             <Text style={styles.heroBody}>
               {copyOrFallback(
-                t,
-                "nearby.announcements.body",
-                "Это не быстрый статус рядом. Здесь остаются оформленные запросы: кого ты ищешь, где, для какого плана и на какой формат встречи рассчитываешь."
+                t, "nearby.announcements.body"
               )}
             </Text>
           </View>
@@ -130,15 +117,13 @@ export default function NearbyAnnouncementsSection({
           <View style={styles.heroCountPill}>
             <Text style={styles.heroCountText}>
               {copyOrFallback(
-                t,
-                "nearby.announcements.count",
-                "{count} requests"
-              ).replace("{count}", String(visibleItems.length))}
+                t, "nearby.announcements.count"
+              ).replace("{count}", numberFormatter.format(visibleItems.length))}
             </Text>
           </View>
           <Pressable onPress={onCreate} style={styles.primaryButton}>
             <Text style={styles.primaryButtonText}>
-              {copyOrFallback(t, "nearby.announcements.create", "Создать объявление")}
+              {copyOrFallback(t, "nearby.announcements.create")}
             </Text>
           </Pressable>
         </View>
@@ -184,7 +169,7 @@ export default function NearbyAnnouncementsSection({
           const rawAuthorLabel = item.authorName?.trim() || item.authorLabel;
           const authorLabel =
             rawAuthorLabel === "profile.amoriaUser"
-              ? copyOrFallback(t, "profile.amoriaUser", "Пользователь Amoria")
+              ? copyOrFallback(t, "profile.amoriaUser")
               : rawAuthorLabel;
           const facts = [authorLabel, item.placeLabel || fallbackPlaceLabel, item.proximityLabel]
             .filter((value): value is string => Boolean(value))
@@ -208,7 +193,7 @@ export default function NearbyAnnouncementsSection({
                     {highlighted ? (
                       <View style={styles.newBadge}>
                         <Text style={styles.newBadgeText}>
-                          {copyOrFallback(t, "nearby.announcements.newBadge", "Новое")}
+                          {copyOrFallback(t, "nearby.announcements.newBadge")}
                         </Text>
                       </View>
                     ) : null}
@@ -236,8 +221,8 @@ export default function NearbyAnnouncementsSection({
                   )}
                   <Text style={styles.mediaTileText}>
                     {item.hasPhoto
-                      ? copyOrFallback(t, "nearby.announcements.photoYes", "С фото")
-                      : copyOrFallback(t, "nearby.announcements.photoNo", "Без фото")}
+                      ? copyOrFallback(t, "nearby.announcements.photoYes")
+                      : copyOrFallback(t, "nearby.announcements.photoNo")}
                   </Text>
                 </View>
               </View>
@@ -249,7 +234,7 @@ export default function NearbyAnnouncementsSection({
                 </View>
                 <View style={styles.openButton}>
                   <Text style={styles.openButtonText}>
-                    {copyOrFallback(t, "nearby.announcements.open", "Открыть объявление")}
+                    {copyOrFallback(t, "nearby.announcements.open")}
                   </Text>
                   <Ionicons
                     name="chevron-forward-outline"
@@ -267,13 +252,13 @@ export default function NearbyAnnouncementsSection({
             <Ionicons name="compass-outline" size={22} color={theme.colors.accent} />
           </View>
           <Text style={styles.emptyKicker}>
-            {copyOrFallback(t, "nearby.announcements.kicker", "Оформленные запросы")}
+            {copyOrFallback(t, "nearby.announcements.kicker")}
           </Text>
           <Text style={styles.emptyTitle}>{emptyState.title}</Text>
           <Text style={styles.emptyBody}>{emptyState.body}</Text>
           <Pressable onPress={onCreate} style={styles.emptyButton}>
             <Text style={styles.emptyButtonText}>
-              {copyOrFallback(t, "nearby.announcements.create", "Создать объявление")}
+              {copyOrFallback(t, "nearby.announcements.create")}
             </Text>
           </Pressable>
         </View>

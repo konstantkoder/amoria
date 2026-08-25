@@ -19,7 +19,10 @@
     "dev:usb": "powershell -NoLogo -NonInteractive -ExecutionPolicy Bypass -File scripts\\dev_usb.ps1",
     "i18n:pack": "powershell -ExecutionPolicy Bypass -File scripts\\make-i18n-translation-pack.ps1",
     "i18n:audit": "node scripts/i18n_audit.js",
+    "i18n:check": "node scripts/i18n_check.js",
+    "hardcode:check": "node scripts/mobile_hardcoded_audit.js",
     "i18n:ui-risk": "node scripts/i18n_ui_risk.js",
+    "test": "node --test --import tsx tests/*.test.ts",
     "test:auth-email": "node --test --import tsx tests/authEmailUx.test.ts"
   },
   "dependencies": {

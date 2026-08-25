@@ -53,6 +53,8 @@ import * as wsClient from "@/services/realtime/wsClient";
 import { clearAccountLocalData } from "@/services/accountLocalData";
 import { deleteMyAccount } from "@/services/api/accountApi";
 import { unlinkPushToken } from "@/services/notifications";
+import { updatePreferredLocale } from "@/services/api/localeApi";
+import { getRuntimeLocale } from "@/i18n/translations";
 
 type AuthContextValue = {
   ready: boolean;
@@ -92,6 +94,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const mergedUser = await persistAuthResponse(response);
     setUser(mergedUser);
     setAccessTokenState(response.accessToken);
+    void updatePreferredLocale(getRuntimeLocale()).catch(() => undefined);
   }, []);
 
   const clearSessionState = useCallback(async () => {

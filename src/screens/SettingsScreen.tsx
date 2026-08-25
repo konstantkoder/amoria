@@ -28,11 +28,9 @@ import { type RootStackNavigationProp } from "@/navigation/appRoutes";
 
 function copyOrFallback(
   t: (key: string, params?: Record<string, string>) => string,
-  key: string,
-  fallback: string
+  key: string
 ) {
-  const value = t(key);
-  return value === key ? fallback : value;
+  return t(key);
 }
 
 export default function SettingsScreen() {
@@ -155,9 +153,7 @@ export default function SettingsScreen() {
         <View style={styles.content}>
           <Text style={styles.sectionTitle}>
             {copyOrFallback(
-              t,
-              "settings.sectionPrivacySecurity",
-              "Приватность и безопасность"
+              t, "settings.sectionPrivacySecurity"
             )}
           </Text>
           <View style={styles.card}>
@@ -178,13 +174,11 @@ export default function SettingsScreen() {
           </View>
 
           <Text style={styles.sectionTitle}>
-            {copyOrFallback(t, "settings.sectionGeolocation", "Геолокация")}
+            {copyOrFallback(t, "settings.sectionGeolocation")}
           </Text>
           <Text style={styles.sectionBody}>
             {copyOrFallback(
-              t,
-              "settings.geolocationBody",
-              "Геолокация используется для подбора и функций рядом. Мы не показываем точные координаты другим людям. Будущий «Рядом» сможет безопасно переиспользовать этот доступ после отдельного редизайна."
+              t, "settings.geolocationBody"
             )}
           </Text>
           <View style={styles.card}>
@@ -192,16 +186,12 @@ export default function SettingsScreen() {
               <View style={styles.rowCopy}>
                 <Text style={styles.label}>
                   {copyOrFallback(
-                    t,
-                    "settings.nearbyLocationPreview",
-                    "Доступ к геолокации"
+                    t, "settings.nearbyLocationPreview"
                   )}
                 </Text>
                 <Text style={styles.rowHelp}>
                   {copyOrFallback(
-                    t,
-                    "settings.nearbyLocationPreviewBody",
-                    "Управляет геолокацией для подбора и функций рядом. Можно выключить отдельно от Together."
+                    t, "settings.nearbyLocationPreviewBody"
                   )}
                 </Text>
               </View>
@@ -214,7 +204,7 @@ export default function SettingsScreen() {
           </View>
 
           <Text style={styles.sectionTitle}>
-            {copyOrFallback(t, "settings.sectionApp", "Приложение")}
+            {copyOrFallback(t, "settings.sectionApp")}
           </Text>
           <View style={styles.card}>
             <TouchableOpacity
@@ -266,7 +256,7 @@ export default function SettingsScreen() {
           </View>
 
           <Text style={styles.sectionTitle}>
-            {copyOrFallback(t, "settings.sectionAccount", "Аккаунт")}
+            {copyOrFallback(t, "settings.sectionAccount")}
           </Text>
           <View style={styles.card}>
             <TouchableOpacity onPress={handleLogout} style={styles.linkRow}>

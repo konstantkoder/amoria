@@ -4,20 +4,15 @@ export type CountTranslationBase =
   | "compatibility.badgeCount"
   | "nearby.rooms.members";
 
-export type CountForm = "one" | "few" | "many" | "other";
+export type CountForm = "one" | "two" | "few" | "many" | "other";
 
 export function getCountForm(locale: Locale, count: number): CountForm {
   const value = Math.max(0, Math.floor(count));
 
-  if (locale !== "ru" && locale !== "hr") {
-    return value === 1 ? "one" : "other";
-  }
-
-  const lastTwo = value % 100;
-  const last = value % 10;
-  if (last === 1 && lastTwo !== 11) return "one";
-  if (last >= 2 && last <= 4 && (lastTwo < 12 || lastTwo > 14)) return "few";
-  return "many";
+  const category = new Intl.PluralRules(locale).select(value);
+  return category === "one" || category === "two" || category === "few" || category === "many"
+    ? category
+    : "other";
 }
 
 export function getCountTranslationKey(
@@ -35,7 +30,7 @@ export function formatLocalizedCount(
   count: number
 ) {
   const value = Math.max(0, Math.floor(count));
-  return t(getCountTranslationKey(base, locale, value), { count: String(value) });
+  return t(getCountTranslationKey(base, locale, value), { count: new Intl.NumberFormat(locale).format(value) });
 }
 
 export function buildNearbyFilterSummaryLabels(

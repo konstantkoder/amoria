@@ -9,6 +9,7 @@ import { useMonetization } from "@/contexts/MonetizationContext";
 import * as monetizationApi from "@/services/api/monetizationApi";
 import * as growthApi from "@/services/api/growthApi";
 import { theme } from "@/theme";
+import { reportClientError, sanitizeErrorForReport } from "@/services/api/clientErrorsApi";
 
 const PACKAGE_NAME = "com.kostiantyndemidets.amoria";
 const FRAMES: monetizationApi.PremiumFrameStyle[] = ["NONE", "WARM_METALLIC", "BLACK_GLASS", "WARM_HALO"];
@@ -25,14 +26,35 @@ export default function PremiumScreen() {
   const [busy, setBusy] = React.useState(false);
   const [storeIssue, setStoreIssue] = React.useState("");
   const processed = React.useRef(new Set<string>());
+  const busyRef = React.useRef(false);
+  const setActionBusy = React.useCallback((value: boolean) => { busyRef.current = value; setBusy(value); }, []);
+  const showStoreIssue = React.useCallback((error: unknown, context: string) => {
+    setStoreIssue(t("premium.genericError"));
+    const safe = sanitizeErrorForReport(error);
+    void reportClientError({
+      screen: "PremiumScreen",
+      action: context,
+      code: safe.code,
+      message: safe.message,
+      stack: safe.stack,
+    });
+  }, [t]);
 
   React.useEffect(() => {
     void growthApi.recordEvent("premium_paywall_opened").catch(() => undefined);
   }, []);
 
-  const verifyAndFinish = React.useCallback(async (purchase: Purchase, origin: "purchase" | "restore") => {
+  const verifyAndFinish = React.useCallback(async (purchase: Purchase, origin: "purchase" | "restore", releaseBusy = true) => {
     const proof = googlePurchaseProof(purchase);
-    if (!proof || processed.current.has(proof.purchaseToken)) return;
+    if (!proof) {
+      if (releaseBusy) setActionBusy(false);
+      showStoreIssue(new Error("purchase_proof_missing"), "verify_purchase");
+      return;
+    }
+    if (processed.current.has(proof.purchaseToken)) {
+      if (releaseBusy) setActionBusy(false);
+      return;
+    }
     processed.current.add(proof.purchaseToken);
     try {
       await monetizationApi.verifyGooglePurchase({ ...proof, origin });
@@ -42,25 +64,25 @@ export default function PremiumScreen() {
       Alert.alert(t("premium.successTitle"), t(origin === "purchase" ? "premium.successBody" : "premium.restoreSuccess"));
     } catch (error) {
       processed.current.delete(proof.purchaseToken);
-      setStoreIssue(error instanceof Error ? error.message : t("premium.verifyFailed"));
-    } finally { setBusy(false); }
-  }, [refresh, t]);
+      showStoreIssue(error, "verify_purchase");
+    } finally { if (releaseBusy) setActionBusy(false); }
+  }, [refresh, setActionBusy, showStoreIssue, t]);
 
   const { connected, subscriptions, fetchProducts, requestPurchase } = useIAP({
     onPurchaseSuccess: (purchase) => { void verifyAndFinish(purchase, "purchase"); },
-    onPurchaseError: (error) => { setBusy(false); setStoreIssue(error.message); },
-    onError: (error) => setStoreIssue(error.message),
+    onPurchaseError: (error) => { setActionBusy(false); showStoreIssue(error, "purchase"); },
+    onError: (error) => { setActionBusy(false); showStoreIssue(error, "iap"); },
   });
   const product = subscriptions.find((item) => item.id === snapshot?.productId);
 
   React.useEffect(() => {
     if (!connected || !snapshot?.productId || !snapshot.billingConfigured) return;
-    void fetchProducts({ skus: [snapshot.productId], type: "subs" }).catch((error) => setStoreIssue(String(error)));
-  }, [connected, fetchProducts, snapshot?.billingConfigured, snapshot?.productId]);
+    void fetchProducts({ skus: [snapshot.productId], type: "subs" }).catch((error) => showStoreIssue(error, "fetch_products"));
+  }, [connected, fetchProducts, showStoreIssue, snapshot?.billingConfigured, snapshot?.productId]);
 
   const buy = React.useCallback(async () => {
-    if (!snapshot?.productId || !product || Platform.OS !== "android") return;
-    setBusy(true); setStoreIssue("");
+    if (busyRef.current || !snapshot?.productId || !product || Platform.OS !== "android") return;
+    setActionBusy(true); setStoreIssue("");
     const offerToken = product.platform === "android"
       ? product.subscriptionOffers.find((offer) => offer.offerTokenAndroid)?.offerTokenAndroid
       : null;
@@ -76,31 +98,34 @@ export default function PremiumScreen() {
           apple: { sku: snapshot.productId },
         },
       });
-    } catch (error) { setBusy(false); setStoreIssue(error instanceof Error ? error.message : t("premium.storeUnavailable")); }
-  }, [product, requestPurchase, snapshot?.productId, t]);
+    } catch (error) { setActionBusy(false); showStoreIssue(error, "request_purchase"); }
+  }, [product, requestPurchase, setActionBusy, showStoreIssue, snapshot?.productId]);
 
   const restore = React.useCallback(async () => {
-    if (!snapshot?.productId || Platform.OS !== "android") return;
-    setBusy(true); setStoreIssue("");
+    if (busyRef.current || !snapshot?.productId || Platform.OS !== "android") return;
+    setActionBusy(true); setStoreIssue("");
     try {
       const purchases = await getAvailablePurchases();
       const matches = purchases.filter((item) => item.productId === snapshot.productId);
-      if (!matches.length) { setBusy(false); Alert.alert(t("premium.restoreTitle"), t("premium.restoreEmpty")); return; }
-      for (const purchase of matches) await verifyAndFinish(purchase, "restore");
-    } catch (error) { setBusy(false); setStoreIssue(error instanceof Error ? error.message : t("premium.storeUnavailable")); }
-  }, [snapshot?.productId, t, verifyAndFinish]);
+      if (!matches.length) { setActionBusy(false); Alert.alert(t("premium.restoreTitle"), t("premium.restoreEmpty")); return; }
+      for (const purchase of matches) await verifyAndFinish(purchase, "restore", false);
+      setActionBusy(false);
+    } catch (error) { setActionBusy(false); showStoreIssue(error, "restore"); }
+  }, [setActionBusy, showStoreIssue, snapshot?.productId, t, verifyAndFinish]);
 
   const selectFrame = React.useCallback(async (frameStyle: monetizationApi.PremiumFrameStyle) => {
-    setBusy(true);
+    if (busyRef.current) return;
+    setActionBusy(true);
     try { await monetizationApi.setProfileFrame(frameStyle); await refresh(); }
-    catch (error) { setStoreIssue(error instanceof Error ? error.message : t("premium.frameFailed")); }
-    finally { setBusy(false); }
-  }, [refresh, t]);
+    catch (error) { showStoreIssue(error, "select_frame"); }
+    finally { setActionBusy(false); }
+  }, [refresh, setActionBusy, showStoreIssue]);
 
   const endLabel = snapshot?.entitlement?.endsAt
     ? new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(new Date(snapshot.entitlement.endsAt))
     : "";
   const canBuy = Boolean(snapshot?.purchaseAllowed && snapshot.billingConfigured && product && connected && Platform.OS === "android");
+  const showStoreActions = snapshot?.mode !== "OFF";
 
   return (
     <ScreenShell title={t("premium.title")} showBack background="profileArchGardenV6">
@@ -108,7 +133,7 @@ export default function PremiumScreen() {
         {loading && !snapshot ? <ActivityIndicator color={theme.colors.accent} /> : null}
         {snapshot?.founder?.number ? <FounderBadge number={snapshot.founder.number} large /> : null}
         <View style={styles.card}>
-          <Text style={styles.eyebrow}>{snapshot?.tier ?? "FREE"}</Text>
+          <Text style={styles.eyebrow}>{t(`premium.tier.${snapshot?.tier ?? "FREE"}`)}</Text>
           <Text style={styles.title}>{snapshot?.premiumActive ? t("premium.active") : t("premium.unlock")}</Text>
           {endLabel ? <Text style={styles.body}>{t("premium.until", { date: endLabel })}</Text> : null}
           <Text style={styles.body}>{t("premium.features")}</Text>
@@ -117,12 +142,12 @@ export default function PremiumScreen() {
         {snapshot?.mode === "TEST" && !snapshot.tester ? <Text style={styles.notice}>{t("premium.modeTest")}</Text> : null}
         {snapshot?.mode === "PAUSED" ? <Text style={styles.notice}>{t("premium.modePaused")}</Text> : null}
         {!snapshot?.billingHealthy && snapshot?.billingConfigured ? <Text style={styles.warning}>{t("premium.billingDegraded")}</Text> : null}
-        <Text style={styles.price}>{product?.displayPrice ?? (snapshot?.billingConfigured ? t("premium.loadingPrice") : t("premium.notConfigured"))}</Text>
+        {showStoreActions ? <><Text style={styles.price}>{product?.displayPrice ?? (snapshot?.billingConfigured ? t("premium.loadingPrice") : t("premium.notConfigured"))}</Text>
         <TouchableOpacity style={[styles.primary, !canBuy || busy ? styles.disabled : null]} disabled={!canBuy || busy} onPress={() => void buy()}>
           {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryText}>{t("premium.subscribe")}</Text>}
         </TouchableOpacity>
-        <TouchableOpacity style={styles.secondary} disabled={busy} onPress={() => void restore()}><Text style={styles.secondaryText}>{t("premium.restore")}</Text></TouchableOpacity>
-        {snapshot?.productId ? <TouchableOpacity onPress={() => void Linking.openURL(`https://play.google.com/store/account/subscriptions?sku=${encodeURIComponent(snapshot.productId!)}&package=${PACKAGE_NAME}`)}><Text style={styles.link}>{t("premium.manage")}</Text></TouchableOpacity> : null}
+        <TouchableOpacity style={[styles.secondary, busy || !snapshot?.productId || Platform.OS !== "android" ? styles.disabled : null]} disabled={busy || !snapshot?.productId || Platform.OS !== "android"} onPress={() => void restore()}><Text style={styles.secondaryText}>{t("premium.restore")}</Text></TouchableOpacity>
+        {snapshot?.productId ? <TouchableOpacity onPress={() => void Linking.openURL(`https://play.google.com/store/account/subscriptions?sku=${encodeURIComponent(snapshot.productId!)}&package=${PACKAGE_NAME}`).catch((error) => showStoreIssue(error, "manage_subscription"))}><Text style={styles.link}>{t("premium.manage")}</Text></TouchableOpacity> : null}</> : null}
         {storeIssue ? <TouchableOpacity onPress={() => { setStoreIssue(""); void refresh(); }}><Text style={styles.warning}>{storeIssue}{"\n"}{t("common.retry")}</Text></TouchableOpacity> : null}
         <View style={styles.card}>
           <Text style={styles.title}>{t("premium.frames")}</Text>

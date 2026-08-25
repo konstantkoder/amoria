@@ -22,7 +22,7 @@ assert(canvas.includes("submitTurnBasedDraw") && canvas.includes("renewTurnBased
 assert(story.includes("turnBasedMoment?.isMyTurn") && story.includes("if (isTurnBased || !readyToFinish)"), "Story Sparks remains server-authoritative and turn-gated");
 assert(result.includes('mode: "turn_based"'), "result keeps turn-based navigation mode");
 
-for (const locale of ["en", "ru", "hr"]) {
+for (const locale of ["en", "ru", "hr", "uk", "pl", "de", "fr", "es", "it", "pt", "nl", "sv", "no", "da", "fi", "cs", "sk", "sl", "sr", "bs", "ro", "hu", "el", "tr"]) {
   const dict = JSON.parse(read(`src/i18n/locales/${locale}.json`));
   for (const key of ["together.turnBased.title", "together.turnBased.start_draw.title", "together.turnBased.waiting_for_partner.title", "together.turnBased.completed.title"]) {
     assert(Boolean(dict[key]), `${locale} includes ${key}`);

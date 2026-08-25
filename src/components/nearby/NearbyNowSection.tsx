@@ -77,11 +77,9 @@ function distanceKm(
 
 function copyOrFallback(
   t: (key: string, params?: Record<string, string>) => string,
-  key: string,
-  fallback: string
+  key: string
 ) {
-  const value = t(key);
-  return value === key ? fallback : value;
+  return t(key);
 }
 
 function getNearbyNowLocationError(
@@ -138,7 +136,8 @@ export default function NearbyNowSection({
   const navigation = useNavigation<NearbyTabNavigationProp>();
   const { user: authUser } = useAuth();
   const currentUserId = authUser?.id ?? "";
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const numberFormatter = useMemo(() => new Intl.NumberFormat(locale), [locale]);
   const mountedRef = useRef(true);
   const sendResetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sendGuardRef = useRef(false);
@@ -571,75 +570,55 @@ export default function NearbyNowSection({
   const locationGateTitle = useMemo(() => {
     if (prefsLoading || posLoading) {
       return copyOrFallback(
-        t,
-        "nearby.now.locationLoadingTitle",
-        "Подготавливаем раздел «Рядом»"
+        t, "nearby.now.locationLoadingTitle"
       );
     }
     if (permissionBlocked) {
       return copyOrFallback(
-        t,
-        "nearby.now.locationBlockedTitle",
-        "Без геолокации «Рядом» не откроется честно"
+        t, "nearby.now.locationBlockedTitle"
       );
     }
     if (locationDeclined) {
       return copyOrFallback(
-        t,
-        "nearby.now.locationDeclinedTitle",
-        "Чтобы открыть «Рядом», включи геолокацию"
+        t, "nearby.now.locationDeclinedTitle"
       );
     }
     if (locationEnabled) {
       return copyOrFallback(
-        t,
-        "nearby.now.locationRetryTitle",
-        "Нужно обновить геолокацию"
+        t, "nearby.now.locationRetryTitle"
       );
     }
     return copyOrFallback(
-      t,
-      "nearby.now.locationPromptTitle",
-      "Включи геолокацию для людей рядом"
+      t, "nearby.now.locationPromptTitle"
     );
   }, [locationDeclined, locationEnabled, permissionBlocked, posLoading, prefsLoading, t]);
 
   const locationGateBody = useMemo(() => {
     if (prefsLoading || posLoading) {
       return copyOrFallback(
-        t,
-        "nearby.now.locationLoadingBody",
-        "Проверяем геолокацию. Без неё раздел не сможет честно показать людей рядом и не откроет отправку моментного статуса."
+        t, "nearby.now.locationLoadingBody"
       );
     }
     if (permissionBlocked) {
       return copyOrFallback(
-        t,
-        "nearby.now.locationBlockedBody",
-        "«Рядом» зависит от того, кто рядом в этот момент. Пока доступ к геолокации выключен, не будет ни ленты рядом, ни публикации твоего сигнала."
+        t, "nearby.now.locationBlockedBody"
       );
     }
     if (locationDeclined) {
       return copyOrFallback(
-        t,
-        "nearby.now.locationDeclinedBody",
-        "Без геолокации раздел не показывает людей рядом и не публикует моментный статус. После включения сразу откроются лента и отправка."
+        t, "nearby.now.locationDeclinedBody"
       );
     }
     if (locationEnabled) {
       return (
         locationError ??
         copyOrFallback(
-          t,
-          "nearby.now.locationRetryBody",
-          "Доступ уже включён, но координаты ещё не обновились. Пока лента рядом и отправка статуса остаются недоступны."
+          t, "nearby.now.locationRetryBody"
         )
       );
     }
     return copyOrFallback(
-      t,
-      "nearby.now.locationPromptBody",
-      "Это моментный сигнал вокруг твоего места. Без геолокации раздел не может честно показать людей рядом или принять твой статус."
+      t, "nearby.now.locationPromptBody"
     );
   }, [locationDeclined, locationEnabled, locationError, permissionBlocked, posLoading, prefsLoading, t]);
 
@@ -677,18 +656,14 @@ export default function NearbyNowSection({
           <View style={styles.locationGateFactPill}>
             <Text style={styles.locationGateFactText}>
               {copyOrFallback(
-                t,
-                "nearby.now.feedLocked",
-                "Сигналы рядом недоступны"
+                t, "nearby.now.feedLocked"
               )}
             </Text>
           </View>
           <View style={styles.locationGateFactPill}>
             <Text style={styles.locationGateFactText}>
               {copyOrFallback(
-                t,
-                "nearby.now.postLocked",
-                "Отправка сигнала недоступна"
+                t, "nearby.now.postLocked"
               )}
             </Text>
           </View>
@@ -789,7 +764,7 @@ export default function NearbyNowSection({
       {lastPublishedAt ? (
         <Text style={styles.publishSuccessText}>
           {t("now.publishSuccess", {
-            hours: String(Math.round(NEARBY_STATUS_TTL_MS / 3600000)),
+            hours: numberFormatter.format(Math.round(NEARBY_STATUS_TTL_MS / 3600000)),
           })}
         </Text>
       ) : null}
@@ -812,7 +787,7 @@ export default function NearbyNowSection({
               {t("common.radius")}:{" "}
               {radiusKm == null
                 ? t("now.radiusAll")
-                : t("now.radiusUpTo", { km: String(radiusKm) })}
+                : t("now.radiusUpTo", { km: numberFormatter.format(radiusKm) })}
             </Text>
           </View>
 
@@ -948,8 +923,8 @@ export default function NearbyNowSection({
             <View style={styles.emptyCard}>
               <Text style={styles.emptyTitle}>
                 {feedError
-                  ? copyOrFallback(t, "now.feedErrorTitle", "Лента временно недоступна")
-                  : copyOrFallback(t, "nearby.now.emptyTitle", "Пока рядом тихо")}
+                  ? copyOrFallback(t, "now.feedErrorTitle")
+                  : copyOrFallback(t, "nearby.now.emptyTitle")}
               </Text>
               <Text style={styles.emptyText}>
                 {feedError ?? t("now.noneNearby")}

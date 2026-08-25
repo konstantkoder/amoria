@@ -10,16 +10,17 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import {
   DEFAULT_LOCALE,
-  LEGACY_STORAGE_KEY,
-  STORAGE_KEY,
   getReleaseLocaleOrDefault,
   setRuntimeLocale,
   translate,
   type Locale,
-  isLocale,
   isReleaseLocale,
 } from "@/i18n/translations";
+import { loadPersistedLocale, persistSelectedLocale } from "@/i18n/localePersistence";
 import { startStartupSpan } from "@/services/startupDiagnostics";
+import { getAccessToken } from "@/services/session/tokenStore";
+import { updatePreferredLocale } from "@/services/api/localeApi";
+import { syncPushTokenIfGranted } from "@/services/notifications";
 
 type LocaleContextValue = {
   locale: Locale;
@@ -49,24 +50,10 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
       let nextLocale = DEFAULT_LOCALE;
       let shouldPrompt = false;
       try {
-        const stored = await AsyncStorage.getItem(STORAGE_KEY);
+        const persisted = await loadPersistedLocale(AsyncStorage);
         if (!alive) return;
-        if (stored && isLocale(stored)) {
-          if (isReleaseLocale(stored)) {
-            nextLocale = stored;
-          } else {
-            shouldPrompt = true;
-          }
-        } else {
-          const legacy = await AsyncStorage.getItem(LEGACY_STORAGE_KEY);
-          if (!alive) return;
-          if (legacy && isLocale(legacy) && isReleaseLocale(legacy)) {
-            nextLocale = legacy;
-            await AsyncStorage.setItem(STORAGE_KEY, legacy);
-          } else {
-            shouldPrompt = true;
-          }
-        }
+        nextLocale = persisted.locale;
+        shouldPrompt = persisted.shouldPrompt;
       } catch {
         if (alive) {
           shouldPrompt = true;
@@ -90,11 +77,15 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     setRuntimeLocale(locale);
-  }, [locale]);
+    if (ready && getAccessToken()) {
+      void updatePreferredLocale(locale).catch(() => undefined);
+      void syncPushTokenIfGranted().catch(() => undefined);
+    }
+  }, [locale, ready]);
 
   useEffect(() => {
     if (!ready || languagePickerMandatory) return;
-    AsyncStorage.setItem(STORAGE_KEY, locale).catch(() => {});
+    persistSelectedLocale(AsyncStorage, locale).catch(() => {});
   }, [locale, ready, languagePickerMandatory]);
 
   const setLocale = useCallback((next: Locale) => {

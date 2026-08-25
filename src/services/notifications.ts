@@ -4,6 +4,7 @@ import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
 import { getDeviceId } from "@/services/deviceId";
 import * as notificationsApi from "@/services/api/notificationsApi";
+import { getRuntimeLocale, translate } from "@/i18n/translations";
 
 const CHANNEL_ID = "amoria_updates";
 
@@ -25,7 +26,7 @@ function projectId(): string {
 async function ensureAndroidChannel() {
   if (Platform.OS !== "android") return;
   await Notifications.setNotificationChannelAsync(CHANNEL_ID, {
-    name: "Amoria updates",
+    name: translate(getRuntimeLocale(), "notifications.channel"),
     importance: Notifications.AndroidImportance.DEFAULT,
     vibrationPattern: [0, 250, 250, 250],
     lightColor: "#E6B976",
@@ -40,6 +41,7 @@ async function registerCurrentToken(devicePushToken?: Notifications.DevicePushTo
     token: token.data,
     platform: Platform.OS,
     deviceId: await getDeviceId(),
+    locale: getRuntimeLocale(),
   });
   return true;
 }

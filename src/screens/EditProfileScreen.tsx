@@ -18,9 +18,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import ScreenShell from "@/components/ScreenShell";
 import {
-  GOAL_LABEL_FALLBACKS,
   GOAL_LABEL_KEYS,
-  MOOD_LABEL_FALLBACKS,
   MOOD_LABEL_KEYS,
   PROFILE_GOAL_OPTIONS,
   PROFILE_INTERESTS_MAX_COUNT,
@@ -55,11 +53,9 @@ import { ApiError } from "@/services/api/apiClient";
 
 function translatedOptionLabel(
   t: (key: string) => string,
-  key: string,
-  fallback: string
+  key: string
 ) {
-  const value = t(key);
-  return value === key ? fallback : value;
+  return t(key);
 }
 
 const MIN_ADULT_AGE = 18;
@@ -222,11 +218,9 @@ function sameGenderPreference(
 function translatedWithFallback(
   t: TranslateFn,
   key: string,
-  fallback: string,
   params?: Record<string, string>
 ) {
-  const value = t(key, params);
-  return value === key ? fallback : value;
+  return t(key, params);
 }
 
 function getMatchingSafetyFieldLabels(
@@ -235,12 +229,12 @@ function getMatchingSafetyFieldLabels(
 ) {
   return fields.map((field) => {
     if (field === "birthDate") {
-      return translatedWithFallback(t, "profile.birthDateMissingBadge", "Дата рождения");
+      return translatedWithFallback(t, "profile.birthDateMissingBadge");
     }
     if (field === "gender") {
-      return translatedWithFallback(t, "profile.genderSummaryTitle", "Ваш пол");
+      return translatedWithFallback(t, "profile.genderSummaryTitle");
     }
-    return translatedWithFallback(t, "profile.lookingForSummaryTitle", "Кого искать");
+    return translatedWithFallback(t, "profile.lookingForSummaryTitle");
   });
 }
 
@@ -248,7 +242,8 @@ export default function EditProfileScreen() {
   const route = useRoute<EditProfileRouteProp>();
   const navigation = useNavigation<EditProfileNavigation>();
   const rootNavigation = navigation.getParent<RootStackNavigationProp>();
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const numberFormatter = React.useMemo(() => new Intl.NumberFormat(locale), [locale]);
   const { hasPremiumFeature } = useMonetization();
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
@@ -488,7 +483,7 @@ export default function EditProfileScreen() {
       if (normalized.length > PROFILE_INTEREST_MAX_LENGTH) {
         setInterestError(
           t("editProfile.interestTooLongError", {
-            max: String(PROFILE_INTEREST_MAX_LENGTH),
+            max: numberFormatter.format(PROFILE_INTEREST_MAX_LENGTH),
           })
         );
         return "";
@@ -496,7 +491,7 @@ export default function EditProfileScreen() {
       if (!current.includes(normalized) && current.length >= PROFILE_INTERESTS_MAX_COUNT) {
         setInterestError(
           t("editProfile.interestTooManyError", {
-            max: String(PROFILE_INTERESTS_MAX_COUNT),
+            max: numberFormatter.format(PROFILE_INTERESTS_MAX_COUNT),
           })
         );
         return "";
@@ -735,8 +730,8 @@ export default function EditProfileScreen() {
               <Text style={styles.label}>{t("editProfile.interestsLabel")}</Text>
               <Text style={styles.labelMeta}>
                 {t("editProfile.interestsCount", {
-                  count: String(interests.length),
-                  max: String(PROFILE_INTERESTS_MAX_COUNT),
+                  count: numberFormatter.format(interests.length),
+                  max: numberFormatter.format(PROFILE_INTERESTS_MAX_COUNT),
                 })}
               </Text>
             </View>
@@ -812,7 +807,7 @@ export default function EditProfileScreen() {
                         selected ? styles.suggestionTextSelected : null,
                       ]}
                     >
-                      {translatedOptionLabel(t, `profile.interest.${interest}`, interest)}
+                      {translatedOptionLabel(t, `profile.interest.${interest}`)}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -987,9 +982,7 @@ export default function EditProfileScreen() {
                       ]}
                     >
                       {translatedOptionLabel(
-                        t,
-                        GOAL_LABEL_KEYS[option],
-                        GOAL_LABEL_FALLBACKS[option]
+                        t, GOAL_LABEL_KEYS[option]
                       )}
                     </Text>
                   </TouchableOpacity>
@@ -1024,9 +1017,7 @@ export default function EditProfileScreen() {
                       ]}
                     >
                       {translatedOptionLabel(
-                        t,
-                        MOOD_LABEL_KEYS[option],
-                        MOOD_LABEL_FALLBACKS[option]
+                        t, MOOD_LABEL_KEYS[option]
                       )}
                     </Text>
                   </TouchableOpacity>

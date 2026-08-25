@@ -1,11 +1,14 @@
 import React from "react";
 import { Image, StyleSheet, Text, View } from "react-native";
+import { useLocale } from "@/contexts/LocaleContext";
 
 export default function FounderBadge({ number, large = false }: { number?: number | null; large?: boolean }) {
+  const { t, locale } = useLocale();
   if (!number) return null;
+  const localizedNumber = new Intl.NumberFormat(locale, { useGrouping: false }).format(number);
   const size = large ? 84 : 22;
   return (
-    <View style={[styles.row, large ? styles.large : null]} accessibilityLabel={`Founder number ${number}`}>
+    <View style={[styles.row, large ? styles.large : null]} accessibilityLabel={t("founder.badgeA11y", { number: localizedNumber })}>
       <Image
         source={large
           ? require("@/assets/founder/amoria_founder_badge_A_master_1024.png")
@@ -13,7 +16,7 @@ export default function FounderBadge({ number, large = false }: { number?: numbe
         style={{ width: size, height: size }}
         resizeMode="contain"
       />
-      <Text style={[styles.number, large ? styles.largeNumber : null]}>Founder #{number}</Text>
+      <Text style={[styles.number, large ? styles.largeNumber : null]}>{t("founder.badgeNumber", { number: localizedNumber })}</Text>
     </View>
   );
 }

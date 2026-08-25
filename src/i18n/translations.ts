@@ -50,7 +50,7 @@ export const LANGUAGE_CODES: Locale[] = [
   "ro","hu","el","tr",
 ];
 
-export const RELEASE_LANGUAGE_CODES: Locale[] = ["en", "ru", "hr"];
+export const RELEASE_LANGUAGE_CODES: Locale[] = [...LANGUAGE_CODES];
 
 export const LANGUAGE_LABELS: Record<Locale, string> = {
   en: "English",

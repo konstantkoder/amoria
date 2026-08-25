@@ -112,25 +112,14 @@ function isTerminalClosedStatus(status?: TogetherSessionStatus | string | null) 
   return status === "abandoned" || status === "cancelled";
 }
 
-function interpolateFallback(fallback: string, params?: Record<string, string>) {
-  if (!params) return fallback;
-  return Object.entries(params).reduce(
-    (value, [key, replacement]) =>
-      value.replace(new RegExp(`\\{${key}\\}`, "gi"), replacement),
-    fallback
-  );
-}
-
 export default function PlayCanvasScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"PlayCanvas">>();
   const route = useRoute<PlayCanvasRouteProp>();
   const { user: authUser } = useAuth();
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const numberFormatter = React.useMemo(() => new Intl.NumberFormat(locale), [locale]);
   const tt = React.useCallback(
-    (key: string, fallback: string, params?: Record<string, string>) => {
-      const value = t(key, params);
-      return value === key ? interpolateFallback(fallback, params) : value;
-    },
+    (key: string, params?: Record<string, string>) => t(key, params),
     [t]
   );
 
@@ -330,8 +319,7 @@ export default function PlayCanvasScreen() {
         if (response.session.activity !== "draw") {
           setLoadError(
             tt(
-              "play.unsupportedOldSession",
-              "Эта старая сессия больше недоступна в текущей версии."
+              "play.unsupportedOldSession"
             )
           );
           setLoading(false);
@@ -346,8 +334,7 @@ export default function PlayCanvasScreen() {
         reportCanvasFailure("sessionLoadFailed", "Failed to load Together draw session", error);
         setLoadError(
           tt(
-            "play.canvas.connectError",
-            "Не получилось подключить совместную сессию. Попробуй открыть её ещё раз."
+            "play.canvas.connectError"
           )
         );
         setLoading(false);
@@ -375,8 +362,8 @@ export default function PlayCanvasScreen() {
   const identityRevealed =
     !isTurnBased || Boolean(turnBasedMoment?.identityRevealed && sessionResponse?.identityRevealed);
   const peerName = identityRevealed
-    ? peer?.displayName?.trim() || tt("profile.amoriaUser", "Пользователь Amoria")
-    : tt("together.turnBased.anonymousPeer", "Другой участник");
+    ? peer?.displayName?.trim() || tt("profile.amoriaUser")
+    : tt("together.turnBased.anonymousPeer");
   const totalStrokeCount = strokes.length;
   const localizedPrompt = localizeTogetherPrompt(session, tt);
   const promptKey = getTogetherPromptKey(session);
@@ -384,15 +371,17 @@ export default function PlayCanvasScreen() {
   const promptHints = React.useMemo(() => {
     if (!promptKey) {
       return [
-        tt("play.canvas.hint.shape", "форма"),
-        tt("play.canvas.hint.place", "место"),
-        tt("play.canvas.hint.mood", "настроение"),
+        tt("play.canvas.hint.shape"),
+        tt("play.canvas.hint.place"),
+        tt("play.canvas.hint.mood"),
       ];
     }
 
-    return [0, 1, 2].map((index) =>
-      tt(`play.promptHint.${promptKey}.${index}`, tt("play.canvas.hint.free", "идея"))
-    );
+    return [0, 1, 2].map((index) => {
+      const key = `play.promptHint.${promptKey}.${index}`;
+      const localized = tt(key);
+      return localized === key ? tt("play.canvas.hint.free") : localized;
+    });
   }, [promptKey, tt]);
   const createdAtMs = session?.createdAt ? Date.parse(session.createdAt) : Date.now();
   const drawRemaining = React.useMemo(() => {
@@ -538,8 +527,7 @@ export default function PlayCanvasScreen() {
       reportCanvasFailure("finishSessionFailed", "Failed to finish Together draw session", error);
       setStrokeError(
         tt(
-          "play.canvas.finishFailed",
-          "Не удалось завершить сессию. Проверь подключение и попробуй ещё раз."
+          "play.canvas.finishFailed"
         )
       );
     });
@@ -581,10 +569,9 @@ export default function PlayCanvasScreen() {
         });
         if (mountedRef.current) {
           Alert.alert(
-            tt("play.togetherExit.leaveFailedTitle", "Выходим в меню"),
+            tt("play.togetherExit.leaveFailedTitle"),
             tt(
-              "play.togetherExit.leaveFailedBody",
-              "Не удалось подтвердить выход на сервере. Мы вернём вас в основное меню, а сессию можно проверить позже."
+              "play.togetherExit.leaveFailedBody"
             )
           );
         }
@@ -621,8 +608,7 @@ export default function PlayCanvasScreen() {
         if (!cancelled && mountedRef.current) {
           setStrokeError(
             tt(
-              "play.canvas.heartbeatFailed",
-              "Связь с совместной сессией нестабильна. Новые штрихи могут не сохраниться."
+              "play.canvas.heartbeatFailed"
             )
           );
         }
@@ -698,15 +684,14 @@ export default function PlayCanvasScreen() {
 
         event.preventDefault();
         Alert.alert(
-          tt("play.canvas.leaveTitle", "Выйти из сессии?"),
+          tt("play.canvas.leaveTitle"),
           tt(
-            "play.canvas.leaveBody",
-            "Если выйти сейчас, совместная сессия завершится для обоих."
+            "play.canvas.leaveBody"
           ),
           [
-            { text: tt("common.stay", "Остаться"), style: "cancel" },
+            { text: tt("common.stay"), style: "cancel" },
             {
-              text: tt("common.exit", "Выйти"),
+              text: tt("common.exit"),
               style: "destructive",
               onPress: () => {
                 void leaveSessionAndExit();
@@ -738,15 +723,14 @@ export default function PlayCanvasScreen() {
       return;
     }
     Alert.alert(
-      tt("play.canvas.leaveTitle", "Выйти из сессии?"),
+      tt("play.canvas.leaveTitle"),
       tt(
-        "play.canvas.leaveBody",
-        "Если выйти сейчас, совместная сессия завершится для обоих."
+        "play.canvas.leaveBody"
       ),
       [
-        { text: tt("common.stay", "Остаться"), style: "cancel" },
+        { text: tt("common.stay"), style: "cancel" },
         {
-          text: tt("common.exit", "Выйти"),
+          text: tt("common.exit"),
           style: "destructive",
           onPress: () => {
             void leaveSessionAndExit();
@@ -805,8 +789,7 @@ export default function PlayCanvasScreen() {
         setCanvasRevision((value) => value + 1);
         setStrokeError(
           tt(
-            "play.canvas.strokeFailed",
-            "Штрих не сохранился на сервере. Холст вернулся к последнему подтверждённому состоянию."
+            "play.canvas.strokeFailed"
           )
         );
       }
@@ -816,43 +799,42 @@ export default function PlayCanvasScreen() {
 
   const canvasToolLabels = React.useMemo(
     () => ({
-      tools: tt("play.canvas.toolTools", "Инструменты"),
-      brushTool: tt("play.canvas.toolBrushTool", "Кисть"),
-      eraserTool: tt("play.canvas.toolEraserTool", "Ластик"),
+      tools: tt("play.canvas.toolTools"),
+      brushTool: tt("play.canvas.toolBrushTool"),
+      eraserTool: tt("play.canvas.toolEraserTool"),
       toolsHint: tt(
-        "play.canvas.toolsHint",
-        "Одним пальцем рисуйте, двумя — двигайте и масштабируйте."
+        "play.canvas.toolsHint"
       ),
-      colors: tt("play.canvas.toolColors", "Цвета"),
-      brush: tt("play.canvas.toolBrush", "Толщина линии"),
-      eraser: tt("play.canvas.toolEraser", "Ластик"),
-      zoom: tt("play.canvas.toolZoom", "Масштаб"),
-      zoomIn: tt("play.canvas.zoomIn", "Увеличить"),
-      zoomOut: tt("play.canvas.zoomOut", "Уменьшить"),
+      colors: tt("play.canvas.toolColors"),
+      brush: tt("play.canvas.toolBrush"),
+      eraser: tt("play.canvas.toolEraser"),
+      zoom: tt("play.canvas.toolZoom"),
+      zoomIn: tt("play.canvas.zoomIn"),
+      zoomOut: tt("play.canvas.zoomOut"),
       colorNames: [
-        tt("play.canvas.toolColorRose", "Розовый"),
-        tt("play.canvas.toolColorOrange", "Оранжевый"),
-        tt("play.canvas.toolColorYellow", "Жёлтый"),
-        tt("play.canvas.toolColorGreen", "Зелёный"),
-        tt("play.canvas.toolColorBlue", "Голубой"),
-        tt("play.canvas.toolColorViolet", "Фиолетовый"),
-        tt("play.canvas.toolColorWhite", "Белый"),
-        tt("play.canvas.toolColorDark", "Тёмный"),
+        tt("play.canvas.toolColorRose"),
+        tt("play.canvas.toolColorOrange"),
+        tt("play.canvas.toolColorYellow"),
+        tt("play.canvas.toolColorGreen"),
+        tt("play.canvas.toolColorBlue"),
+        tt("play.canvas.toolColorViolet"),
+        tt("play.canvas.toolColorWhite"),
+        tt("play.canvas.toolColorDark"),
       ],
       brushSizes: [
-        tt("play.canvas.toolBrushSmall", "Тонко"),
-        tt("play.canvas.toolBrushMedium", "Средне"),
-        tt("play.canvas.toolBrushLarge", "Широко"),
+        tt("play.canvas.toolBrushSmall"),
+        tt("play.canvas.toolBrushMedium"),
+        tt("play.canvas.toolBrushLarge"),
       ],
       eraserSizes: [
-        tt("play.canvas.toolEraserSmall", "Малый"),
-        tt("play.canvas.toolEraserMedium", "Средний"),
-        tt("play.canvas.toolEraserLarge", "Большой"),
+        tt("play.canvas.toolEraserSmall"),
+        tt("play.canvas.toolEraserMedium"),
+        tt("play.canvas.toolEraserLarge"),
       ],
-      toolsShort: tt("play.canvas.toolsShort", "Инстр."),
-      hideToolsShort: tt("play.canvas.hideToolsShort", "Скрыть"),
-      exitFullscreenShort: tt("play.canvas.exitFullscreenShort", "Выйти"),
-      menuShort: tt("play.canvas.menuShort", "Меню"),
+      toolsShort: tt("play.canvas.toolsShort"),
+      hideToolsShort: tt("play.canvas.hideToolsShort"),
+      exitFullscreenShort: tt("play.canvas.exitFullscreenShort"),
+      menuShort: tt("play.canvas.menuShort"),
     }),
     [tt]
   );
@@ -860,7 +842,7 @@ export default function PlayCanvasScreen() {
   if (!uid || !sessionId) {
     return (
       <ScreenShell
-        title={tt("play.canvas.title", "Совместная сессия")}
+        title={tt("play.canvas.title")}
         background="togetherObservatoryV6"
         showBack
         onBack={handleSafeBack}
@@ -868,10 +850,10 @@ export default function PlayCanvasScreen() {
         <View style={styles.centerState}>
           <CoreStateCard
             icon="person-circle-outline"
-            title={tt("play.canvas.guardAuthTitle", "Не удалось открыть сессию")}
-            body={tt("play.canvas.guardAuthBody", "Чтобы войти в совместный холст, нужен активный аккаунт.")}
-            primaryAction={{ label: tt("common.openProfile", "Открыть профиль"), onPress: () => navigation.navigate("Profile") }}
-            secondaryAction={{ label: tt("common.back", "Назад"), onPress: handleSafeBack }}
+            title={tt("play.canvas.guardAuthTitle")}
+            body={tt("play.canvas.guardAuthBody")}
+            primaryAction={{ label: tt("common.openProfile"), onPress: () => navigation.navigate("Profile") }}
+            secondaryAction={{ label: tt("common.back"), onPress: handleSafeBack }}
           />
         </View>
       </ScreenShell>
@@ -881,7 +863,7 @@ export default function PlayCanvasScreen() {
   if (loading) {
     return (
       <ScreenShell
-        title={tt("play.canvas.title", "Совместная сессия")}
+        title={tt("play.canvas.title")}
         background="togetherObservatoryV6"
         showBack
         onBack={handleSafeBack}
@@ -890,10 +872,9 @@ export default function PlayCanvasScreen() {
           <CoreStateCard
             loading
             icon="brush-outline"
-            title={tt("play.canvas.loadingTitle", "Подключаем общий холст")}
+            title={tt("play.canvas.loadingTitle")}
             body={tt(
-              "play.canvas.loadingBody",
-              "Сессия уже готовится. Еще пара секунд, и вы окажетесь в одном пространстве."
+              "play.canvas.loadingBody"
             )}
           />
         </View>
@@ -904,7 +885,7 @@ export default function PlayCanvasScreen() {
   if (loadError || !session) {
     return (
       <ScreenShell
-        title={tt("play.canvas.title", "Совместная сессия")}
+        title={tt("play.canvas.title")}
         background="togetherObservatoryV6"
         showBack
         onBack={handleSafeBack}
@@ -912,10 +893,10 @@ export default function PlayCanvasScreen() {
         <View style={styles.centerState}>
           <CoreStateCard
             icon="cloud-offline-outline"
-            title={tt("play.canvas.guardErrorTitle", "Подключение прервалось")}
-            body={loadError || tt("play.canvas.guardNotFoundBody", "Сессия больше недоступна.")}
-            primaryAction={{ label: tt("common.retry", "Повторить"), onPress: retryCanvasEntry }}
-            secondaryAction={{ label: tt("common.backToTogether", "Вернуться во Вместе"), onPress: goToTogether }}
+            title={tt("play.canvas.guardErrorTitle")}
+            body={loadError || tt("play.canvas.guardNotFoundBody")}
+            primaryAction={{ label: tt("common.retry"), onPress: retryCanvasEntry }}
+            secondaryAction={{ label: tt("common.backToTogether"), onPress: goToTogether }}
           />
         </View>
       </ScreenShell>
@@ -926,7 +907,7 @@ export default function PlayCanvasScreen() {
     const closedByPartner = Boolean(closedActorUserId && closedActorUserId !== uid);
     return (
       <ScreenShell
-        title={tt("play.canvas.title", "Совместная сессия")}
+        title={tt("play.canvas.title")}
         background="togetherObservatoryV6"
         showBack
         onBack={goToTogether}
@@ -936,19 +917,18 @@ export default function PlayCanvasScreen() {
             icon="exit-outline"
             title={
               closedByPartner
-                ? tt("play.canvas.partnerLeftTitle", "Партнёр вышел из сессии")
-                : tt("play.canvas.sessionInterruptedTitle", "Сессия была прервана")
+                ? tt("play.canvas.partnerLeftTitle")
+                : tt("play.canvas.sessionInterruptedTitle")
             }
             body={tt(
-              "play.canvas.sessionInterruptedBody",
-              "Совместная сессия завершена. Итог и чат по этой сессии недоступны."
+              "play.canvas.sessionInterruptedBody"
             )}
             primaryAction={{
-              label: tt("common.backToTogether", "Вернуться во Вместе"),
+              label: tt("common.backToTogether"),
               onPress: goToTogether,
             }}
             secondaryAction={{
-              label: tt("play.canvas.findNewPartner", "Найти нового партнёра"),
+              label: tt("play.canvas.findNewPartner"),
               onPress: startNewSession,
             }}
           />
@@ -960,7 +940,7 @@ export default function PlayCanvasScreen() {
   if (canvasLoadFailed) {
     return (
       <ScreenShell
-        title={tt("play.canvas.title", "Совместная сессия")}
+        title={tt("play.canvas.title")}
         background="togetherObservatoryV6"
         showBack
         onBack={() => void leaveSessionAndExit()}
@@ -968,17 +948,16 @@ export default function PlayCanvasScreen() {
         <View style={styles.centerState}>
           <CoreStateCard
             icon="warning-outline"
-            title={tt("play.canvas.webviewFailedTitle", "Холст не загрузился")}
+            title={tt("play.canvas.webviewFailedTitle")}
             body={tt(
-              "play.canvas.webviewFailedBody",
-              "Вернуться в меню / Повторить позже"
+              "play.canvas.webviewFailedBody"
             )}
             primaryAction={{
-              label: tt("common.backToMainTabs", "Вернуться в меню"),
+              label: tt("common.backToMainTabs"),
               onPress: () => void leaveSessionAndExit(),
             }}
             secondaryAction={{
-              label: tt("play.canvas.retryLater", "Повторить позже"),
+              label: tt("play.canvas.retryLater"),
               onPress: () => void leaveSessionAndExit(),
             }}
           />
@@ -990,7 +969,7 @@ export default function PlayCanvasScreen() {
   if (!drawingStarted && session.status === "active") {
     return (
       <ScreenShell
-        title={tt("play.canvas.title", "Совместная сессия")}
+        title={tt("play.canvas.title")}
         background="togetherObservatoryV6"
         showBack
         onBack={handleCanvasBack}
@@ -1011,15 +990,14 @@ export default function PlayCanvasScreen() {
             </View>
             <View style={styles.previewCopy}>
               <Text style={styles.previewEyebrow}>
-                {tt("play.canvas.previewEyebrow", "Вызов")}
+                {tt("play.canvas.previewEyebrow")}
               </Text>
               <Text style={styles.previewTitle} numberOfLines={4}>
                 {localizedPrompt}
               </Text>
               <Text style={styles.previewBody}>
                 {tt(
-                  "play.canvas.previewBody",
-                  "Посмотрите на задание. Холст откроется чистым, а рисунок останется вашим общим ответом."
+                  "play.canvas.previewBody"
                 )}
               </Text>
               <View style={styles.hintRow}>
@@ -1036,10 +1014,10 @@ export default function PlayCanvasScreen() {
             <Ionicons name="people-outline" size={22} color="#FFE0B8" />
             <View style={styles.sessionCardText}>
               <Text style={styles.sessionCardTitle}>
-                {tt("play.canvas.partnerTitle", "Вы рисуете вместе")}
+                {tt("play.canvas.partnerTitle")}
               </Text>
               <Text style={styles.sessionCardBody}>
-                {tt("play.canvas.partnerBody", "Партнёр: {name}", { name: peerName })}
+                {tt("play.canvas.partnerBody", { name: peerName })}
               </Text>
             </View>
           </View>
@@ -1051,7 +1029,7 @@ export default function PlayCanvasScreen() {
             onPress={() => setDrawingStarted(true)}
           >
             <Text style={styles.primaryButtonText}>
-              {tt("play.canvas.openCanvas", "Открыть холст")}
+              {tt("play.canvas.openCanvas")}
             </Text>
           </Pressable>
           <Pressable
@@ -1062,8 +1040,8 @@ export default function PlayCanvasScreen() {
           >
             <Text style={styles.exitButtonText}>
               {leaving
-                ? tt("common.exiting", "Выходим…")
-                : tt("common.backToMainTabs", "Вернуться в меню")}
+                ? tt("common.exiting")
+                : tt("common.backToMainTabs")}
             </Text>
           </Pressable>
         </ScrollView>
@@ -1076,7 +1054,7 @@ export default function PlayCanvasScreen() {
 
   return (
     <ScreenShell
-      title={tt("play.canvas.title", "Совместная сессия")}
+      title={tt("play.canvas.title")}
       background="togetherObservatoryV6"
       showHeader={!focusMode}
       showBack
@@ -1087,7 +1065,7 @@ export default function PlayCanvasScreen() {
           <View style={styles.focusTopBar}>
             <View style={styles.focusTimerPill}>
               <Text style={styles.timerLabel}>
-                {tt("play.canvas.timerRemaining", "Осталось")}
+                {tt("play.canvas.timerRemaining")}
               </Text>
               <Text style={styles.timerValue}>{timerValue}</Text>
             </View>
@@ -1104,8 +1082,8 @@ export default function PlayCanvasScreen() {
                 accessibilityRole="button"
                 accessibilityLabel={
                   toolPaletteVisible
-                    ? tt("play.canvas.hideTools", "Скрыть инструменты")
-                    : tt("play.canvas.showTools", "Показать инструменты")
+                    ? tt("play.canvas.hideTools")
+                    : tt("play.canvas.showTools")
                 }
               >
                 <Ionicons
@@ -1115,19 +1093,19 @@ export default function PlayCanvasScreen() {
                 />
                 <Text style={styles.focusToolText} numberOfLines={1}>
                   {toolPaletteVisible
-                    ? tt("play.canvas.hideToolsShort", "Скрыть")
-                    : tt("play.canvas.toolsShort", "Инстр.")}
+                    ? tt("play.canvas.hideToolsShort")
+                    : tt("play.canvas.toolsShort")}
                 </Text>
               </Pressable>
               <Pressable
                 style={styles.focusActionButton}
                 onPress={exitFocusMode}
                 accessibilityRole="button"
-                accessibilityLabel={tt("play.canvas.exitFullscreen", "Выйти из полного экрана")}
+                accessibilityLabel={tt("play.canvas.exitFullscreen")}
               >
                 <Ionicons name="contract-outline" size={15} color="#FFFFFF" />
                 <Text style={styles.focusActionText} numberOfLines={1}>
-                  {tt("play.canvas.exitFullscreenShort", "Выйти")}
+                  {tt("play.canvas.exitFullscreenShort")}
                 </Text>
               </Pressable>
               <Pressable
@@ -1135,11 +1113,11 @@ export default function PlayCanvasScreen() {
                 onPress={() => void leaveSessionAndExit()}
                 disabled={finishing || leaving}
                 accessibilityRole="button"
-                accessibilityLabel={tt("common.backToMainTabs", "Вернуться в меню")}
+                accessibilityLabel={tt("common.backToMainTabs")}
               >
                 <Ionicons name="menu-outline" size={15} color={theme.colors.text} />
                 <Text style={styles.focusLeaveText} numberOfLines={1}>
-                  {leaving ? tt("common.exiting", "Выходим…") : tt("play.canvas.menuShort", "Меню")}
+                  {leaving ? tt("common.exiting") : tt("play.canvas.menuShort")}
                 </Text>
               </Pressable>
             </ScrollView>
@@ -1148,21 +1126,21 @@ export default function PlayCanvasScreen() {
           <View style={styles.fullscreenHeader}>
             <View style={styles.headerTextWrap}>
               <Text style={styles.headerKicker}>
-                {tt("play.canvas.challengeStripLabel", "Вызов")}
+                {tt("play.canvas.challengeStripLabel")}
               </Text>
               <Text style={styles.headerTitle} numberOfLines={2}>
                 {localizedPrompt}
               </Text>
               <Text style={styles.headerPeer} numberOfLines={1}>
                 {participants.length > 1
-                  ? tt("play.canvas.partnerBody", "Партнёр: {name}", { name: peerName })
-                  : tt("play.canvas.waitingPeer", "Партнёр подключается")}
+                  ? tt("play.canvas.partnerBody", { name: peerName })
+                  : tt("play.canvas.waitingPeer")}
               </Text>
             </View>
             <View style={styles.headerActions}>
               <View style={styles.timerPill}>
                 <Text style={styles.timerLabel}>
-                  {tt("play.canvas.timerRemaining", "Осталось")}
+                  {tt("play.canvas.timerRemaining")}
                 </Text>
                 <Text style={styles.timerValue}>{timerValue}</Text>
               </View>
@@ -1172,14 +1150,14 @@ export default function PlayCanvasScreen() {
                 accessibilityRole="button"
                 accessibilityLabel={
                   toolPaletteVisible
-                    ? tt("play.canvas.hideTools", "Скрыть инструменты")
-                    : tt("play.canvas.showTools", "Показать инструменты")
+                    ? tt("play.canvas.hideTools")
+                    : tt("play.canvas.showTools")
                 }
               >
                 <Text style={styles.fullscreenButtonText}>
                   {toolPaletteVisible
-                    ? tt("play.canvas.hideTools", "Скрыть инструменты")
-                    : tt("play.canvas.tools", "Инструменты")}
+                    ? tt("play.canvas.hideTools")
+                    : tt("play.canvas.tools")}
                 </Text>
               </Pressable>
               <Pressable
@@ -1188,7 +1166,7 @@ export default function PlayCanvasScreen() {
                 accessibilityRole="button"
               >
                 <Text style={styles.fullscreenButtonText}>
-                  {tt("play.canvas.fullscreen", "На весь экран")}
+                  {tt("play.canvas.fullscreen")}
                 </Text>
               </Pressable>
             </View>
@@ -1227,12 +1205,12 @@ export default function PlayCanvasScreen() {
           disabled={canvasDisabled}
           disabledTitle={
             finishing || leaving
-              ? tt("play.canvas.disabledFinishingTitle", "Завершаем сессию")
-              : tt("play.canvas.disabledClosedTitle", "Холст закрыт")
+              ? tt("play.canvas.disabledFinishingTitle")
+              : tt("play.canvas.disabledClosedTitle")
           }
           disabledBody={
             finishing || leaving
-              ? tt("play.canvas.disabledFinishingBody", "Сейчас сохраняем состояние совместной сессии.")
+              ? tt("play.canvas.disabledFinishingBody")
               : undefined
           }
           fullscreen
@@ -1244,12 +1222,12 @@ export default function PlayCanvasScreen() {
         <View style={styles.footerBar}>
           <View style={styles.footerTextWrap}>
             <Text style={styles.footerText}>
-              {tt("play.canvas.strokeCount", "Штрихов: {count}", {
-                count: String(totalStrokeCount),
+              {tt("play.canvas.strokeCount", {
+                count: numberFormatter.format(totalStrokeCount),
               })}
             </Text>
             <Text style={styles.footerHint}>
-              {tt("play.canvas.toolsHint", "Ластик и масштаб помогут рисовать точнее.")}
+              {tt("play.canvas.toolsHint")}
             </Text>
             {strokeError ? <Text style={styles.footerError}>{strokeError}</Text> : null}
           </View>
@@ -1261,14 +1239,14 @@ export default function PlayCanvasScreen() {
             >
               <Text style={styles.finishButtonText}>
                 {finishing
-                  ? tt("play.canvas.finishing", "Завершаем…")
+                  ? tt("play.canvas.finishing")
                   : leaving
-                    ? tt("common.exiting", "Выходим…")
+                    ? tt("common.exiting")
                   : isTurnBased && turnBasedMoment?.role === "starter"
-                    ? tt("play.canvas.turnBasedStarterSubmit", "Оставить для продолжения")
+                    ? tt("play.canvas.turnBasedStarterSubmit")
                     : isTurnBased && turnBasedMoment?.role === "partner"
-                      ? tt("play.canvas.turnBasedPartnerSubmit", "Завершить рисунок")
-                      : tt("common.finish", "Завершить")}
+                      ? tt("play.canvas.turnBasedPartnerSubmit")
+                      : tt("common.finish")}
               </Text>
             </Pressable>
             <Pressable
@@ -1278,7 +1256,7 @@ export default function PlayCanvasScreen() {
               accessibilityRole="button"
             >
               <Text style={styles.footerExitButtonText}>
-                {tt("common.backToMainTabs", "Вернуться в меню")}
+                {tt("common.backToMainTabs")}
               </Text>
             </Pressable>
           </View>

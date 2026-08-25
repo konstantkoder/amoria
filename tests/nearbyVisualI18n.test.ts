@@ -28,7 +28,7 @@ const counts = [0, 1, 2, 4, 5, 11, 21];
 const expectedForms = {
   en: ["other", "one", "other", "other", "other", "other", "other"],
   ru: ["many", "one", "few", "few", "many", "many", "one"],
-  hr: ["many", "one", "few", "few", "many", "many", "one"],
+  hr: ["other", "one", "few", "few", "other", "other", "one"],
 } as const;
 
 for (const locale of ["en", "ru", "hr"] as const) {

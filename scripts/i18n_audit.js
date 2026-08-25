@@ -7,7 +7,7 @@ const ROOT = process.cwd();
 const SRC_DIR = path.join(ROOT, "src");
 const DIR = path.join(SRC_DIR, "i18n", "locales");
 const BASE_LOCALE = "en";
-const RELEASE_LOCALES = ["en", "ru", "hr"];
+const RELEASE_LOCALES = ["en", "ru", "hr", "uk", "pl", "de", "fr", "es", "it", "pt", "nl", "sv", "no", "da", "fi", "cs", "sk", "sl", "sr", "bs", "ro", "hu", "el", "tr"];
 const RESULT_METRIC_LABEL_KEYS = ["play.metric.strokes"];
 
 function readJson(p) {

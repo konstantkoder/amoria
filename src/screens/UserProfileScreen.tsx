@@ -18,9 +18,7 @@ import { Ionicons } from "@expo/vector-icons";
 
 import CoreStateCard from "@/components/CoreStateCard";
 import {
-  GOAL_LABEL_FALLBACKS,
   GOAL_LABEL_KEYS,
-  MOOD_LABEL_FALLBACKS,
   MOOD_LABEL_KEYS,
 } from "@/config/profileFields";
 import ScreenShell from "@/components/ScreenShell";
@@ -55,38 +53,38 @@ import { theme } from "@/theme";
 import { makeAndroidSafeReportReasonButtons } from "@/utils/safetyReportReasonAlert";
 
 function buildReportReasonButtons(
-  tt: (key: string, fallback: string, params?: Record<string, string>) => string,
+  tt: (key: string, params?: Record<string, string>) => string,
   onSelect: (reason: SafetyReportReason) => void
 ): AlertButton[] {
   return makeAndroidSafeReportReasonButtons([
     {
-      text: tt("safety.reason.spam", "Спам"),
+      text: tt("safety.reason.spam"),
       onPress: () => onSelect("spam"),
     },
     {
-      text: tt("safety.reason.harassment", "Оскорбления или преследование"),
+      text: tt("safety.reason.harassment"),
       onPress: () => onSelect("harassment"),
     },
     {
-      text: tt("safety.reason.sexualServices", "Сексуальные услуги или оплатная встреча"),
+      text: tt("safety.reason.sexualServices"),
       onPress: () => onSelect("sexual_services"),
     },
     {
-      text: tt("safety.reason.scam", "Мошенничество"),
+      text: tt("safety.reason.scam"),
       onPress: () => onSelect("scam"),
     },
     {
-      text: tt("safety.reason.other", "Другое"),
+      text: tt("safety.reason.other"),
       onPress: () => onSelect("other"),
     },
     {
-      text: tt("common.cancel", "Отмена"),
+      text: tt("common.cancel"),
       style: "cancel",
     },
   ],
-  tt("safety.reportTitle", "Пожаловаться"),
-  tt("safety.reportBody", "Выбери причину жалобы."),
-  tt("safety.moreReasons", "Другие причины…"));
+  tt("safety.reportTitle"),
+  tt("safety.reportBody"),
+  tt("safety.moreReasons"));
 }
 
 function isTogetherSource(source: unknown): boolean {
@@ -95,11 +93,9 @@ function isTogetherSource(source: unknown): boolean {
 
 function translatedProfileOptionLabel(
   t: (key: string) => string,
-  key: string,
-  fallback: string
+  key: string
 ) {
-  const value = t(key);
-  return value === key ? fallback : value;
+  return t(key);
 }
 
 type ProfileLoadState = "loading" | "ready" | "blocked" | "not_found" | "network";
@@ -205,12 +201,10 @@ export default function UserProfileScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"UserProfile">>();
   const route = useRoute<UserProfileRouteProp>();
   const { user: authUser, accessToken } = useAuth();
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const numberFormatter = React.useMemo(() => new Intl.NumberFormat(locale), [locale]);
   const tt = useCallback(
-    (key: string, fallback: string, params?: Record<string, string>) => {
-      const value = t(key, params);
-      return value === key ? fallback : value;
-    },
+    (key: string, params?: Record<string, string>) => t(key, params),
     [t]
   );
 
@@ -363,8 +357,8 @@ export default function UserProfileScreen() {
           }
 
           if (sourceContext.artworkSummary?.strokeCount != null) {
-            return tt("dm.sourceDrawingStrokeContext", "Общий рисунок: {count} штрихов", {
-              count: String(sourceContext.artworkSummary.strokeCount),
+            return tt("dm.sourceDrawingStrokeContext", {
+              count: numberFormatter.format(sourceContext.artworkSummary.strokeCount),
             });
           }
 
@@ -394,31 +388,29 @@ export default function UserProfileScreen() {
     return () => {
       alive = false;
     };
-  }, [sourceContext?.artworkSummary?.strokeCount, sourceContext?.source, sourceSessionId, tt]);
+  }, [numberFormatter, sourceContext?.artworkSummary?.strokeCount, sourceContext?.source, sourceSessionId, tt]);
 
   const displayName =
     profile?.displayName?.trim() ||
     routePeerName ||
-    tt("profile.amoriaUser", "Пользователь Amoria");
+    tt("profile.amoriaUser");
   const avatarUrl = profile?.avatarUrl ?? "";
   const photos = profile?.photos ?? [];
   const lockedGallery = profile?.lockedGallery;
   const lockedGalleryAvailable = Boolean(
     lockedGallery?.enabled && (lockedGallery.count ?? 0) > 0
   );
-  const about = profile?.about?.trim() || tt("profile.publicNoDescription", "Описание пока не добавлено.");
+  const about = profile?.about?.trim() || tt("profile.publicNoDescription");
   const goalLabel = profile?.goal
     ? translatedProfileOptionLabel(
         t,
-        GOAL_LABEL_KEYS[profile.goal as Goal],
-        GOAL_LABEL_FALLBACKS[profile.goal as Goal]
+        GOAL_LABEL_KEYS[profile.goal as Goal]
       )
     : "";
   const moodLabel = profile?.mood
     ? translatedProfileOptionLabel(
         t,
-        MOOD_LABEL_KEYS[profile.mood as Mood],
-        MOOD_LABEL_FALLBACKS[profile.mood as Mood]
+        MOOD_LABEL_KEYS[profile.mood as Mood]
       )
     : "";
   const compatibility = useMemo(
@@ -430,38 +422,35 @@ export default function UserProfileScreen() {
       if (reason.kind === "goal" && reason.value) {
         const value = translatedProfileOptionLabel(
           t,
-          GOAL_LABEL_KEYS[reason.value as Goal],
-          GOAL_LABEL_FALLBACKS[reason.value as Goal]
+          GOAL_LABEL_KEYS[reason.value as Goal]
         );
-        return tt("compatibility.reasonGoal", "Одинаковая цель: {value}", { value });
+        return tt("compatibility.reasonGoal", { value });
       }
       if (reason.kind === "mood" && reason.value) {
         const value = translatedProfileOptionLabel(
           t,
-          MOOD_LABEL_KEYS[reason.value as Mood],
-          MOOD_LABEL_FALLBACKS[reason.value as Mood]
+          MOOD_LABEL_KEYS[reason.value as Mood]
         );
-        return tt("compatibility.reasonMood", "Похожее настроение: {value}", { value });
+        return tt("compatibility.reasonMood", { value });
       }
       if (reason.kind === "interest" && reason.value) {
-        return tt("compatibility.reasonInterest", "Общий интерес: {value}", {
+        return tt("compatibility.reasonInterest", {
           value: reason.value,
         });
       }
       return tt(
-        "compatibility.reasonAge",
-        "Подходит по возрастному фильтру"
+        "compatibility.reasonAge"
       );
     },
     [t, tt]
   );
   const publicAgeLabel = typeof profile?.age === "number" && Number.isInteger(profile.age)
-    ? tt("profile.publicAgeGroup", "Возраст: {group}", { group: String(profile.age) })
+    ? tt("profile.publicAgeGroup", { group: String(profile.age) })
     : "";
   const profileFacts = [
     publicAgeLabel,
-    goalLabel ? tt("profile.publicGoal", "Цель: {goal}", { goal: goalLabel }) : "",
-    moodLabel ? tt("profile.publicMood", "Настроение: {mood}", { mood: moodLabel }) : "",
+    goalLabel ? tt("profile.publicGoal", { goal: goalLabel }) : "",
+    moodLabel ? tt("profile.publicMood", { mood: moodLabel }) : "",
   ].filter(Boolean);
   const isBlocked = Boolean(userId && blockedUserIds.includes(userId));
   const profileUnavailable = isBlocked || profileLoadState === "blocked";
@@ -568,33 +557,31 @@ export default function UserProfileScreen() {
 
   const sourceTitle = useMemo(() => {
     if (sourceContext?.source === "announcement") {
-      return tt("profile.sourceAnnouncement", "Вы начали разговор после объявления");
+      return tt("profile.sourceAnnouncement");
     }
     if (sourceContext?.source === "nearby") {
-      return tt("profile.sourceNearby", "Вы начали разговор из Рядом");
+      return tt("profile.sourceNearby");
     }
     if (!isTogetherSource(sourceContext?.source)) return "";
     if (sourceContext.artworkSummary?.activity === "story_sparks") {
-      return tt("profile.sourceStorySparks", "Вы познакомились через историю на двоих");
+      return tt("profile.sourceStorySparks");
     }
-    return tt("profile.sourceSharedDrawing", "Вы познакомились через общий рисунок");
+    return tt("profile.sourceSharedDrawing");
   }, [sourceContext?.artworkSummary?.activity, sourceContext?.source, tt]);
 
   const sourceBody = useMemo(() => {
     if (sourceDetailText) {
-      return tt("profile.sourceDetail", "Контекст: {context}", {
+      return tt("profile.sourceDetail", {
         context: sourceDetailText,
       });
     }
     if (isTogetherSource(sourceContext?.source) && sourceSessionId) {
       return tt(
-        "profile.sourceSharedStoryBody",
-        "Общая история связана с этим чатом и доступна, когда сохранённая сессия загружена."
+        "profile.sourceSharedStoryBody"
       );
     }
     return tt(
-      "profile.sourceFallbackBody",
-      "Контекст знакомства сохранён в этом чате."
+      "profile.sourceFallbackBody"
     );
   }, [sourceContext?.source, sourceDetailText, sourceSessionId, tt]);
 
@@ -630,10 +617,9 @@ export default function UserProfileScreen() {
       });
     } catch {
       Alert.alert(
-        tt("now.chatFailedTitle", "Не удалось открыть чат"),
+        tt("now.chatFailedTitle"),
         tt(
-          "now.chatFailedBody",
-          "Не удалось открыть реальный личный чат из этого статуса рядом. Попробуй позже."
+          "now.chatFailedBody"
         )
       );
     } finally {
@@ -682,8 +668,7 @@ export default function UserProfileScreen() {
       if (activeUserIdRef.current !== targetUserId) return;
       setLockedGalleryError(
         tt(
-          "profile.lockedGalleryUnlockError",
-          "Пароль не подошёл или доступ недоступен."
+          "profile.lockedGalleryUnlockError"
         )
       );
     } finally {
@@ -712,15 +697,14 @@ export default function UserProfileScreen() {
           reason,
         });
         Alert.alert(
-          tt("safety.reportSentTitle", "Жалоба отправлена"),
-          tt("safety.reportSentBody", "Спасибо. Жалоба сохранена и будет доступна для проверки.")
+          tt("safety.reportSentTitle"),
+          tt("safety.reportSentBody")
         );
       } catch {
         Alert.alert(
-          tt("safety.reportErrorTitle", "Жалоба не отправилась"),
+          tt("safety.reportErrorTitle"),
           tt(
-            "safety.reportErrorBody",
-            "Не удалось сохранить жалобу. Попробуй ещё раз позже."
+            "safety.reportErrorBody"
           )
         );
       } finally {
@@ -733,8 +717,8 @@ export default function UserProfileScreen() {
 
   const handleReportUser = useCallback(() => {
     Alert.alert(
-      tt("safety.reportTitle", "Пожаловаться"),
-      tt("safety.reportBody", "Выбери причину жалобы."),
+      tt("safety.reportTitle"),
+      tt("safety.reportBody"),
       buildReportReasonButtons(tt, (reason) => void reportUser(reason))
     );
   }, [reportUser, tt]);
@@ -742,18 +726,17 @@ export default function UserProfileScreen() {
   const handleBlockUser = useCallback(() => {
     if (!userId || userId === myId) return;
     Alert.alert(
-      tt("safety.blockTitle", "Заблокировать пользователя?"),
+      tt("safety.blockTitle"),
       tt(
-        "safety.blockBody",
-        "Вы больше не будете видеть его объявления в обычном списке, а личные чаты будут скрыты из вкладки «Чаты»."
+        "safety.blockBody"
       ),
       [
         {
-          text: tt("common.cancel", "Отмена"),
+          text: tt("common.cancel"),
           style: "cancel",
         },
         {
-          text: tt("safety.blockConfirm", "Заблокировать"),
+          text: tt("safety.blockConfirm"),
           style: "destructive",
           onPress: () => {
             if (safetyInFlightRef.current) return;
@@ -766,19 +749,17 @@ export default function UserProfileScreen() {
                 );
                 setReloadKey((prev) => prev + 1);
                 Alert.alert(
-                  tt("safety.userBlockedTitle", "Пользователь заблокирован"),
+                  tt("safety.userBlockedTitle"),
                   tt(
-                    "safety.userBlockedBody",
-                    "Этот пользователь скрыт из релизных списков на вашем аккаунте."
+                    "safety.userBlockedBody"
                   )
                 );
               })
               .catch(() => {
                 Alert.alert(
-                  tt("safety.blockErrorTitle", "Не удалось заблокировать"),
+                  tt("safety.blockErrorTitle"),
                   tt(
-                    "safety.blockErrorBody",
-                    "Блокировка не сохранилась. Попробуй ещё раз позже."
+                    "safety.blockErrorBody"
                   )
                 );
               })
@@ -795,19 +776,18 @@ export default function UserProfileScreen() {
   if (!userId) {
     return (
       <ScreenShell
-        title={tt("profile.peerTitle", "Профиль собеседника")}
+        title={tt("profile.peerTitle")}
         background="profileArchGardenV6"
         showBack
       >
         <View style={styles.centerState}>
           <CoreStateCard
             icon="person-circle-outline"
-            title={tt("profile.peerUnavailableTitle", "Профиль недоступен")}
+            title={tt("profile.peerUnavailableTitle")}
             body={tt(
-              "profile.peerUnavailableBody",
-              "Не удалось открыть профиль без идентификатора пользователя."
+              "profile.peerUnavailableBody"
             )}
-            primaryAction={{ label: tt("common.back", "Назад"), onPress: () => navigation.goBack() }}
+            primaryAction={{ label: tt("common.back"), onPress: () => navigation.goBack() }}
           />
         </View>
       </ScreenShell>
@@ -817,19 +797,18 @@ export default function UserProfileScreen() {
   if (profileUnavailable) {
     return (
       <ScreenShell
-        title={tt("profile.peerTitle", "Профиль собеседника")}
+        title={tt("profile.peerTitle")}
         background="profileArchGardenV6"
         showBack
       >
         <View style={styles.centerState}>
           <CoreStateCard
             icon="lock-closed-outline"
-            title={tt("profile.blockedUnavailableTitle", "Профиль недоступен")}
+            title={tt("profile.blockedUnavailableTitle")}
             body={tt(
-              "profile.blockedUnavailableBody",
-              "Вы не можете просматривать профиль этого пользователя."
+              "profile.blockedUnavailableBody"
             )}
-            primaryAction={{ label: tt("common.back", "Назад"), onPress: () => navigation.goBack() }}
+            primaryAction={{ label: tt("common.back"), onPress: () => navigation.goBack() }}
           />
         </View>
       </ScreenShell>
@@ -839,15 +818,15 @@ export default function UserProfileScreen() {
   if (profileLoadState === "loading") {
     return (
       <ScreenShell
-        title={tt("profile.peerTitle", "Профиль собеседника")}
+        title={tt("profile.peerTitle")}
         background="profileArchGardenV6"
         showBack
       >
         <View style={styles.centerState}>
           <CoreStateCard
             loading
-            title={tt("profile.peerLoadingTitle", "Загружаем профиль")}
-            body={tt("profile.peerLoading", "Загружаем профиль…")}
+            title={tt("profile.peerLoadingTitle")}
+            body={tt("profile.peerLoading")}
           />
         </View>
       </ScreenShell>
@@ -857,20 +836,19 @@ export default function UserProfileScreen() {
   if (profileLoadState === "network") {
     return (
       <ScreenShell
-        title={tt("profile.peerTitle", "Профиль собеседника")}
+        title={tt("profile.peerTitle")}
         background="profileArchGardenV6"
         showBack
       >
         <View style={styles.centerState}>
           <CoreStateCard
             icon="cloud-offline-outline"
-            title={tt("profile.loadFailedTitle", "Не удалось загрузить профиль")}
+            title={tt("profile.loadFailedTitle")}
             body={tt(
-              "profile.loadFailedBody",
-              "Проверь соединение и попробуй ещё раз."
+              "profile.loadFailedBody"
             )}
-            primaryAction={{ label: tt("common.retry", "Повторить"), onPress: () => setReloadKey((prev) => prev + 1) }}
-            secondaryAction={{ label: tt("common.back", "Назад"), onPress: () => navigation.goBack() }}
+            primaryAction={{ label: tt("common.retry"), onPress: () => setReloadKey((prev) => prev + 1) }}
+            secondaryAction={{ label: tt("common.back"), onPress: () => navigation.goBack() }}
           />
         </View>
       </ScreenShell>
@@ -880,16 +858,16 @@ export default function UserProfileScreen() {
   if (profileLoadState === "not_found" || !profile) {
     return (
       <ScreenShell
-        title={tt("profile.peerTitle", "Профиль собеседника")}
+        title={tt("profile.peerTitle")}
         background="profileArchGardenV6"
         showBack
       >
         <View style={styles.centerState}>
           <CoreStateCard
             icon="person-circle-outline"
-            title={tt("profile.notFoundTitle", "Профиль не найден")}
-            body={tt("profile.notFoundBody", "Этот профиль больше недоступен.")}
-            primaryAction={{ label: tt("common.back", "Назад"), onPress: () => navigation.goBack() }}
+            title={tt("profile.notFoundTitle")}
+            body={tt("profile.notFoundBody")}
+            primaryAction={{ label: tt("common.back"), onPress: () => navigation.goBack() }}
           />
         </View>
       </ScreenShell>
@@ -898,7 +876,7 @@ export default function UserProfileScreen() {
 
   return (
     <ScreenShell
-      title={tt("profile.peerTitle", "Профиль собеседника")}
+      title={tt("profile.peerTitle")}
       background="profileArchGardenV6"
       showBack
     >
@@ -922,7 +900,7 @@ export default function UserProfileScreen() {
             />
             <View style={styles.avatarCopy}>
               <Text style={styles.kicker}>
-                {tt("profile.peerTitle", "Профиль собеседника")}
+                {tt("profile.peerTitle")}
               </Text>
               <Text style={styles.displayName}>{displayName}</Text>
               <FounderBadge number={profile.founderNumber} />
@@ -931,10 +909,10 @@ export default function UserProfileScreen() {
               ))}
               <Text style={styles.avatarHint}>
                 {avatarLoadFailed
-                  ? tt("profile.peerMediaLoadFailed", "Фото не загрузилось. Мы уже сохранили ошибку для проверки.")
+                  ? tt("profile.peerMediaLoadFailed")
                   : avatarUrl
-                  ? tt("profile.avatarAvailable", "Фото профиля загружено")
-                  : tt("photos.avatarPlaceholder", "Пока без фото профиля")}
+                  ? tt("profile.avatarAvailable")
+                  : tt("photos.avatarPlaceholder")}
               </Text>
             </View>
           </View>
@@ -956,13 +934,12 @@ export default function UserProfileScreen() {
             <View style={styles.compatibilityHeader}>
               <Ionicons name="sparkles-outline" size={18} color={theme.colors.textAccent} />
               <Text style={styles.cardTitle}>
-                {tt("compatibility.cardTitle", "Почему вы можете подойти")}
+                {tt("compatibility.cardTitle")}
               </Text>
             </View>
             <Text style={styles.cardText}>
               {tt(
-                "compatibility.cardBody",
-                "Это не рейтинг, а реальные совпадения из открытой анкеты."
+                "compatibility.cardBody"
               )}
             </Text>
             <View style={styles.compatibilityReasons}>
@@ -979,7 +956,7 @@ export default function UserProfileScreen() {
 
         {sourceTitle ? (
           <View style={styles.card}>
-            <Text style={styles.cardKicker}>{tt("profile.sourceKicker", "Контекст знакомства")}</Text>
+            <Text style={styles.cardKicker}>{tt("profile.sourceKicker")}</Text>
             <Text style={styles.cardTitle}>{sourceTitle}</Text>
             <Text style={styles.cardText}>{sourceBody}</Text>
           </View>
@@ -987,14 +964,13 @@ export default function UserProfileScreen() {
 
         {false && sharedStoryAvailable && sourceSessionId ? (
           <View style={styles.card}>
-            <Text style={styles.cardKicker}>{tt("profile.sharedStoryKicker", "Общая история")}</Text>
+            <Text style={styles.cardKicker}>{tt("profile.sharedStoryKicker")}</Text>
             <Text style={styles.cardTitle}>
-              {tt("profile.sharedStoryTitle", "Общая история сохранена")}
+              {tt("profile.sharedStoryTitle")}
             </Text>
             <Text style={styles.cardText}>
               {tt(
-                "profile.sharedStoryBody",
-                "Можно открыть сохранённую общую историю, если хочется вернуться к контексту знакомства."
+                "profile.sharedStoryBody"
               )}
             </Text>
             <TouchableOpacity
@@ -1003,14 +979,14 @@ export default function UserProfileScreen() {
               activeOpacity={0.85}
             >
               <Text style={styles.secondaryButtonText}>
-                {tt("play.result.openSharedStory", "Открыть общую историю")}
+                {tt("play.result.openSharedStory")}
               </Text>
             </TouchableOpacity>
           </View>
         ) : null}
 
         <View style={styles.galleryCard}>
-          <Text style={styles.cardTitle}>{tt("profile.publicPhotos", "Фото")}</Text>
+          <Text style={styles.cardTitle}>{tt("profile.publicPhotos")}</Text>
           {photos.length ? (
             <View style={styles.galleryGrid}>
               {photos.map((photo, index) => (
@@ -1019,14 +995,14 @@ export default function UserProfileScreen() {
                   photo={photo}
                   index={index}
                   failed={failedPublicPhotoIds.includes(photo.mediaId)}
-                  failedLabel={tt("profile.peerMediaLoadFailedShort", "Фото не загрузилось")}
+                  failedLabel={tt("profile.peerMediaLoadFailedShort")}
                   onLoadFailed={markPublicPhotoFailed}
                 />
               ))}
             </View>
           ) : (
             <Text style={styles.cardText}>
-              {tt("profile.publicPhotosEmpty", "Публичные фото пока не добавлены")}
+              {tt("profile.publicPhotosEmpty")}
             </Text>
           )}
         </View>
@@ -1043,13 +1019,11 @@ export default function UserProfileScreen() {
               </View>
               <View style={styles.lockedFolderCopy}>
                 <Text style={styles.lockedFolderTitle}>
-                  {tt("profile.lockedGalleryFolderTitle", "Закрытая папка")}
+                  {tt("profile.lockedGalleryFolderTitle")}
                 </Text>
                 <Text style={styles.cardText}>
                   {tt(
-                    "profile.lockedGalleryFolderBody",
-                    "{count} приватных фото. Открывается только если владелец дал пароль.",
-                    { count: String(lockedGallery?.count ?? 0) }
+                    "profile.lockedGalleryFolderBody", { count: numberFormatter.format(lockedGallery?.count ?? 0) }
                   )}
                 </Text>
               </View>
@@ -1061,7 +1035,7 @@ export default function UserProfileScreen() {
                 activeOpacity={0.85}
               >
                 <Text style={styles.lockedFolderButtonText}>
-                  {tt("profile.lockedGalleryOpenWithPassword", "Открыть по паролю")}
+                  {tt("profile.lockedGalleryOpenWithPassword")}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -1071,17 +1045,15 @@ export default function UserProfileScreen() {
         {lockedGalleryOpened ? (
           <View style={[styles.galleryCard, styles.lockedGalleryOpenedCard]}>
             <Text style={styles.cardTitle}>
-              {tt("profile.lockedGalleryOpenedTitle", "Закрытая папка открыта")}
+              {tt("profile.lockedGalleryOpenedTitle")}
             </Text>
             <Text style={styles.cardText}>
               {unlockedLockedPhotos.length
                 ? tt(
-                    "profile.lockedGalleryOpenedBody",
-                    "Фото доступны в этом просмотре."
+                    "profile.lockedGalleryOpenedBody"
                   )
                 : tt(
-                    "profile.lockedGalleryOpenedEmpty",
-                    "Папка открыта, но фото сейчас недоступны."
+                    "profile.lockedGalleryOpenedEmpty"
                   )}
             </Text>
             {unlockedLockedPhotos.length ? (
@@ -1093,8 +1065,7 @@ export default function UserProfileScreen() {
                     index={index}
                     failed={failedLockedPhotoIds.includes(photo.mediaId)}
                     failedLabel={tt(
-                      "profile.lockedPhotoLoadFailed",
-                      "Это закрытое фото не загрузилось."
+                      "profile.lockedPhotoLoadFailed"
                     )}
                     onLoadFailed={markLockedPhotoFailed}
                     requestHeaders={lockedGalleryImageHeaders}
@@ -1110,8 +1081,8 @@ export default function UserProfileScreen() {
             <Pressable onPress={openChat} style={styles.primaryButton}>
               <Text style={styles.primaryButtonText}>
                 {navigation.canGoBack()
-                  ? tt("profile.backToChat", "Вернуться в чат")
-                  : tt("common.openChat", "Открыть чат")}
+                  ? tt("profile.backToChat")
+                  : tt("common.openChat")}
               </Text>
             </Pressable>
           ) : null}
@@ -1124,8 +1095,8 @@ export default function UserProfileScreen() {
             >
               <Text style={styles.primaryButtonText}>
                 {nearbyChatOpening
-                  ? tt("nearby.detail.openingChat", "Открываем чат...")
-                  : tt("nearby.message", "Написать")}
+                  ? tt("nearby.detail.openingChat")
+                  : tt("nearby.message")}
               </Text>
             </Pressable>
           ) : null}
@@ -1138,7 +1109,7 @@ export default function UserProfileScreen() {
               activeOpacity={0.85}
             >
               <Text style={styles.safetyButtonText}>
-                {tt("safety.report", "Пожаловаться")}
+                {tt("safety.report")}
               </Text>
             </TouchableOpacity>
             {!isBlocked && userId !== myId ? (
@@ -1149,7 +1120,7 @@ export default function UserProfileScreen() {
                 activeOpacity={0.85}
               >
                 <Text style={styles.safetyButtonText}>
-                  {tt("safety.blockUser", "Заблокировать пользователя")}
+                  {tt("safety.blockUser")}
                 </Text>
               </TouchableOpacity>
             ) : null}
@@ -1170,12 +1141,11 @@ export default function UserProfileScreen() {
           <View style={styles.lockedGallerySheet}>
             <View style={styles.lockedGallerySheetHandle} />
             <Text style={styles.lockedGallerySheetTitle}>
-              {tt("profile.lockedGalleryModalTitle", "Открыть закрытую папку")}
+              {tt("profile.lockedGalleryModalTitle")}
             </Text>
             <Text style={styles.lockedGallerySheetBody}>
               {tt(
-                "profile.lockedGalleryModalBody",
-                "Введите пароль, который владелец профиля дал вам лично."
+                "profile.lockedGalleryModalBody"
               )}
             </Text>
             <TextInput
@@ -1188,7 +1158,7 @@ export default function UserProfileScreen() {
               autoCapitalize="none"
               autoCorrect={false}
               editable={!lockedGalleryUnlocking}
-              placeholder={tt("profile.lockedGalleryPasswordPlaceholder", "Пароль")}
+              placeholder={tt("profile.lockedGalleryPasswordPlaceholder")}
               placeholderTextColor="rgba(226,232,255,0.46)"
               style={styles.lockedGalleryInput}
               returnKeyType="done"
@@ -1204,7 +1174,7 @@ export default function UserProfileScreen() {
                 activeOpacity={0.85}
               >
                 <Text style={styles.lockedGalleryCancelText}>
-                  {tt("profile.lockedGalleryUnlockCancel", "Отмена")}
+                  {tt("profile.lockedGalleryUnlockCancel")}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -1218,8 +1188,8 @@ export default function UserProfileScreen() {
               >
                 <Text style={styles.lockedGalleryUnlockText}>
                   {lockedGalleryUnlocking
-                    ? tt("profile.lockedGalleryUnlocking", "Проверяем...")
-                    : tt("profile.lockedGalleryUnlockAction", "Открыть")}
+                    ? tt("profile.lockedGalleryUnlocking")
+                    : tt("profile.lockedGalleryUnlockAction")}
                 </Text>
               </TouchableOpacity>
             </View>

@@ -3,7 +3,7 @@ type PromptSource = {
   promptText?: string | null;
 };
 
-type TranslateFn = (key: string, fallback: string, params?: Record<string, string>) => string;
+type TranslateFn = (key: string, params?: Record<string, string>) => string;
 
 const DRAW_PROMPT_TEXT_TO_KEY: Record<string, string> = {
   "Draw a tiny place you would both want to visit.": "draw.tinyPlace",
@@ -35,5 +35,7 @@ export function localizeTogetherPrompt(
     return promptText;
   }
 
-  return tt(`play.prompt.${promptKey}`, promptText);
+  const key = `play.prompt.${promptKey}`;
+  const localized = tt(key);
+  return localized === key ? promptText : localized;
 }

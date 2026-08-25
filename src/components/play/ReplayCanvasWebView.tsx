@@ -267,7 +267,8 @@ export default function ReplayCanvasWebView({
   showControls = true,
   onReplayEnd,
 }: Props) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const numberFormatter = React.useMemo(() => new Intl.NumberFormat(locale), [locale]);
   const ref = useRef<WebView>(null);
   const [ready, setReady] = useState(false);
   const [canvasSize, setCanvasSize] = useState({ width: 1, height: 1 });
@@ -418,7 +419,7 @@ export default function ReplayCanvasWebView({
           </Pressable>
           <View style={styles.progressPill}>
             <Text style={styles.progressText}>
-              {Math.min(visibleCount, normalizedStrokes.length)}/{normalizedStrokes.length}
+              {numberFormatter.format(Math.min(visibleCount, normalizedStrokes.length))}/{numberFormatter.format(normalizedStrokes.length)}
             </Text>
           </View>
         </View>

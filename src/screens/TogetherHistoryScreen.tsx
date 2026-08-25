@@ -16,11 +16,14 @@ export default function TogetherHistoryScreen() {
   const [items, setItems] = React.useState<TogetherHistoryItemDto[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [failed, setFailed] = React.useState(false);
+  const loadBusyRef = React.useRef(false);
   const load = React.useCallback(async () => {
+    if (loadBusyRef.current) return;
+    loadBusyRef.current = true;
     setLoading(true); setFailed(false);
     try { setItems((await togetherApi.getHistory(50)).items); }
     catch { setFailed(true); }
-    finally { setLoading(false); }
+    finally { loadBusyRef.current = false; setLoading(false); }
   }, []);
   React.useEffect(() => { void load(); }, [load]);
 

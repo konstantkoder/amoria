@@ -244,23 +244,23 @@ export function getPlaySessionActivitySignal(
 
 export function formatActivitySignalLabel(
   signal: ActivitySignal,
-  translate: (key: string, fallback: string) => string
+  translate: (key: string) => string
 ) {
   if (!signal) return "";
 
   switch (signal.kind) {
     case "new_message":
-      return translate("activitySignals.newMessage", "Новое");
+      return translate("activitySignals.newMessage");
     case "fresh_contact":
       return signal.tone === "fresh"
-        ? translate("activitySignals.freshContact", "Свежий контакт")
-        : translate("activitySignals.recent", "Недавно");
+        ? translate("activitySignals.freshContact")
+        : translate("activitySignals.recent");
     case "recent_active":
-      return translate("activitySignals.recentActive", "Недавно активен");
+      return translate("activitySignals.recentActive");
     case "new_story":
-      return translate("activitySignals.newStory", "Новое");
+      return translate("activitySignals.newStory");
     case "recent_story":
-      return translate("activitySignals.recentStory", "Недавно");
+      return translate("activitySignals.recentStory");
     default:
       return "";
   }

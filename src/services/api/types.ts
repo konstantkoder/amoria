@@ -67,6 +67,7 @@ export type SelfUserProfileDto = {
   avatarUrl: string | null;
   createdAt: string;
   updatedAt: string;
+  preferredLocale?: string;
 } & BackendProfileFields;
 
 export type AuthUserDto = {
@@ -75,6 +76,7 @@ export type AuthUserDto = {
   displayName: string;
   amoriaId: string;
   avatarUrl: string | null;
+  preferredLocale?: string;
   about?: string | null;
   createdAt?: string;
   updatedAt?: string;
@@ -172,6 +174,7 @@ export type UnlockLockedGalleryResponse = {
 export type LoginRequest = {
   email: string;
   password: string;
+  locale?: string;
 };
 
 export type AuthResponse = {

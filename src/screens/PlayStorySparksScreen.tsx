@@ -84,10 +84,7 @@ export default function PlayStorySparksScreen() {
   const { user: authUser } = useAuth();
   const { locale, t } = useLocale();
   const tt = React.useCallback(
-    (key: string, fallback: string, params?: Record<string, string>) => {
-      const value = t(key, params);
-      return value === key ? fallback : value;
-    },
+    (key: string, params?: Record<string, string>) => t(key, params),
     [t]
   );
 
@@ -231,8 +228,7 @@ export default function PlayStorySparksScreen() {
           }
           setLoadError(
             tt(
-              "play.storySparks.invalidPackBody",
-              "Не удалось загрузить карточки истории с сервера. Попробуйте начать новую сессию позже."
+              "play.storySparks.invalidPackBody"
             )
           );
           setLoading(false);
@@ -248,8 +244,7 @@ export default function PlayStorySparksScreen() {
         reportStoryFailure("peerEventHydrateFailure", "Failed to hydrate Story Sparks session or events", error);
         setLoadError(
           tt(
-            "play.storySparks.guardOfflineBody",
-            "Не удалось подготовить соединение для этой истории. Вернитесь назад или попробуйте позже."
+            "play.storySparks.guardOfflineBody"
           )
         );
         setLoading(false);
@@ -358,8 +353,8 @@ export default function PlayStorySparksScreen() {
   const identityRevealed =
     !isTurnBased || Boolean(turnBasedMoment?.identityRevealed && sessionResponse?.identityRevealed);
   const peerName = identityRevealed
-    ? peer?.displayName?.trim() || tt("profile.amoriaUser", "Пользователь Amoria")
-    : tt("together.turnBased.anonymousPeer", "Другой участник");
+    ? peer?.displayName?.trim() || tt("profile.amoriaUser")
+    : tt("together.turnBased.anonymousPeer");
   const choices = React.useMemo(
     () => (pack ? buildStoryChoicesFromEvents(events, pack) : []),
     [events, pack]
@@ -401,8 +396,7 @@ export default function PlayStorySparksScreen() {
         });
         setActionError(
           tt(
-            "play.storySparks.finishFailed",
-            "Не удалось завершить историю. Проверьте подключение и попробуйте ещё раз."
+            "play.storySparks.finishFailed"
           )
         );
       })
@@ -477,8 +471,7 @@ export default function PlayStorySparksScreen() {
         });
         setActionError(
           tt(
-            "play.storySparks.saveFailed",
-            "Не удалось сохранить выбор. Попробуйте ещё раз."
+            "play.storySparks.saveFailed"
           )
         );
       } finally {
@@ -526,10 +519,9 @@ export default function PlayStorySparksScreen() {
       });
       if (mountedRef.current) {
         Alert.alert(
-          tt("play.togetherExit.leaveFailedTitle", "Выходим в меню"),
+          tt("play.togetherExit.leaveFailedTitle"),
           tt(
-            "play.togetherExit.leaveFailedBody",
-            "Не удалось подтвердить выход на сервере. Мы вернём вас в основное меню, а сессию можно проверить позже."
+            "play.togetherExit.leaveFailedBody"
           )
         );
       }
@@ -550,15 +542,14 @@ export default function PlayStorySparksScreen() {
     }
 
     Alert.alert(
-      tt("play.storySparks.leaveTitle", "Завершить историю?"),
+      tt("play.storySparks.leaveTitle"),
       tt(
-        "play.storySparks.leaveDraftBody",
-        "Если выйти сейчас, совместная история завершится для обоих без результата."
+        "play.storySparks.leaveDraftBody"
       ),
       [
-        { text: tt("common.stay", "Остаться"), style: "cancel" },
+        { text: tt("common.stay"), style: "cancel" },
         {
-          text: tt("common.exit", "Выйти"),
+          text: tt("common.exit"),
           style: "destructive",
           onPress: () => {
             void leaveSession();
@@ -568,7 +559,7 @@ export default function PlayStorySparksScreen() {
     );
   }, [goToTogether, isTurnBased, leaveSession, session?.status, tt]);
 
-  const screenTitle = tt("play.storySparks.title", "История на двоих");
+  const screenTitle = tt("play.storySparks.title");
 
   if (!uid || !sessionId) {
     return (
@@ -576,10 +567,10 @@ export default function PlayStorySparksScreen() {
         <View style={styles.centerState}>
           <CoreStateCard
             icon="person-circle-outline"
-            title={tt("play.storySparks.guardAuthTitle", "Не удалось открыть историю")}
-            body={tt("play.storySparks.guardAuthBody", "Чтобы собрать историю на двоих, нужен активный аккаунт.")}
-            primaryAction={{ label: tt("common.openProfile", "Открыть профиль"), onPress: () => navigation.navigate("Profile") }}
-            secondaryAction={{ label: tt("common.backToTogether", "Вернуться во Вместе"), onPress: goToTogether }}
+            title={tt("play.storySparks.guardAuthTitle")}
+            body={tt("play.storySparks.guardAuthBody")}
+            primaryAction={{ label: tt("common.openProfile"), onPress: () => navigation.navigate("Profile") }}
+            secondaryAction={{ label: tt("common.backToTogether"), onPress: goToTogether }}
           />
         </View>
       </ScreenShell>
@@ -593,10 +584,9 @@ export default function PlayStorySparksScreen() {
           <CoreStateCard
             loading
             icon="book-outline"
-            title={tt("play.storySparks.loadingTitle", "Подключаем историю")}
+            title={tt("play.storySparks.loadingTitle")}
             body={tt(
-              "play.storySparks.loadingBody",
-              "Загружаем карточки и последние выборы с сервера."
+              "play.storySparks.loadingBody"
             )}
           />
         </View>
@@ -610,13 +600,13 @@ export default function PlayStorySparksScreen() {
         <View style={styles.centerState}>
           <CoreStateCard
             icon="cloud-offline-outline"
-            title={tt("play.storySparks.guardErrorTitle", "История временно недоступна")}
-            body={loadError || tt("play.storySparks.guardNotFoundBody", "Сессия больше недоступна.")}
-            primaryAction={{ label: tt("common.retry", "Повторить"), onPress: () => navigation.replace("PlayStorySparks", {
+            title={tt("play.storySparks.guardErrorTitle")}
+            body={loadError || tt("play.storySparks.guardNotFoundBody")}
+            primaryAction={{ label: tt("common.retry"), onPress: () => navigation.replace("PlayStorySparks", {
               sessionId,
               ...(isTurnBased ? { mode: "turn_based", momentId } : {}),
             }) }}
-            secondaryAction={{ label: tt("common.backToTogether", "Вернуться во Вместе"), onPress: goToTogether }}
+            secondaryAction={{ label: tt("common.backToTogether"), onPress: goToTogether }}
           />
         </View>
       </ScreenShell>
@@ -629,17 +619,16 @@ export default function PlayStorySparksScreen() {
         <View style={styles.centerState}>
           <CoreStateCard
             icon="ban-outline"
-            title={tt("play.storySparks.interruptedTitle", "Сессия была прервана")}
+            title={tt("play.storySparks.interruptedTitle")}
             body={tt(
-              "play.storySparks.interruptedBody",
-              "История не была завершена, поэтому reveal и чат по этой сессии недоступны."
+              "play.storySparks.interruptedBody"
             )}
             primaryAction={{
-              label: tt("common.backToTogether", "Вернуться во Вместе"),
+              label: tt("common.backToTogether"),
               onPress: goToTogether,
             }}
             secondaryAction={{
-              label: tt("playHistory.startNewSession", "Начать новую совместную сессию"),
+              label: tt("playHistory.startNewSession"),
               onPress: () => navigation.navigate("PlayMatch", { activity: "story_sparks" }),
             }}
           />
@@ -656,28 +645,27 @@ export default function PlayStorySparksScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.heroCard}>
-          <Text style={styles.kicker}>{tt("play.storySparks.kicker", "Story Sparks")}</Text>
+          <Text style={styles.kicker}>{tt("play.storySparks.kicker")}</Text>
           <Text style={styles.title}>
-            {tt("play.storySparks.roundCounter", "Раунд {current} из {total}", {
-              current: String(currentRoundIndex + 1),
-              total: String(pack.rounds.length),
+            {tt("play.storySparks.roundCounter", {
+              current: new Intl.NumberFormat(locale).format(currentRoundIndex + 1),
+              total: new Intl.NumberFormat(locale).format(pack.rounds.length),
             })}
           </Text>
           <Text style={styles.body}>
             {tt(
-              "play.storySparks.phasePickBody",
-              "Выберите одну карточку. Когда второй человек выберет свою, вы увидите оба выбора и перейдёте дальше."
+              "play.storySparks.phasePickBody"
             )}
           </Text>
           <View style={styles.metaRow}>
             <View style={styles.metaItem}>
-              <Text style={styles.metaLabel}>{tt("playDetail.partner", "Партнёр")}</Text>
+              <Text style={styles.metaLabel}>{tt("playDetail.partner")}</Text>
               <Text style={styles.metaValue}>{peerName}</Text>
             </View>
             <View style={styles.metaItem}>
-              <Text style={styles.metaLabel}>{tt("play.storySparks.metaProgress", "Готово")}</Text>
+              <Text style={styles.metaLabel}>{tt("play.storySparks.metaProgress")}</Text>
               <Text style={styles.metaValue}>
-                {completedRoundCount}/{pack.rounds.length}
+                {new Intl.NumberFormat(locale).format(completedRoundCount)}/{new Intl.NumberFormat(locale).format(pack.rounds.length)}
               </Text>
             </View>
           </View>
@@ -688,7 +676,7 @@ export default function PlayStorySparksScreen() {
             {localizeStoryText(currentRound.title, locale)}
           </Text>
           <Text style={styles.sectionTitle}>
-            {tt(`play.storySparks.round.${currentRound.id}`, localizeStoryText(currentRound.title, locale))}
+            {tt(`play.storySparks.round.${currentRound.id}`)}
           </Text>
           <View style={styles.cardGrid}>
             {currentRound.cards.map((card) => {
@@ -733,21 +721,21 @@ export default function PlayStorySparksScreen() {
           <Text style={styles.hintText}>
             {myChoice
               ? currentRoundRevealed
-                ? tt("play.storySparks.phaseRevealBody", "Оба выбора сохранены. История переходит к следующему раунду.")
-                : tt("play.storySparks.phaseWaitingBody", "Ваш выбор сохранён. Ждём второй выбор.")
-              : tt("play.storySparks.cardsBackendHint", "Карточки загружены с сервера и сохраняются только после ответа backend.")}
+                ? tt("play.storySparks.phaseRevealBody")
+                : tt("play.storySparks.phaseWaitingBody")
+              : tt("play.storySparks.cardsBackendHint")}
           </Text>
           {actionError ? <Text style={styles.errorText}>{actionError}</Text> : null}
         </View>
 
         <View style={styles.sharedCard}>
-          <Text style={styles.sectionTitle}>{tt("play.storySparks.sharedChoicesTitle", "Выборы раунда")}</Text>
+          <Text style={styles.sectionTitle}>{tt("play.storySparks.sharedChoicesTitle")}</Text>
           <View style={styles.choiceRow}>
             <ChoicePill
-              label={tt("common.you", "ты")}
+              label={tt("common.you")}
               title={myChoice ? localizeStoryText(myChoice.card.title, locale) : null}
               emoji={myChoice?.card.emoji}
-              emptyText={tt("play.storySparks.waitingMine", "Выберите карточку")}
+              emptyText={tt("play.storySparks.waitingMine")}
             />
             <ChoicePill
               label={peerName}
@@ -755,14 +743,14 @@ export default function PlayStorySparksScreen() {
               emoji={currentRoundRevealed ? peerChoice?.card.emoji : undefined}
               emptyText={
                 peerChoice
-                  ? tt("play.storySparks.peerChoiceLocked", "Выбор сохранён")
-                  : tt("play.storySparks.waitingPeer", "Ждём выбор")
+                  ? tt("play.storySparks.peerChoiceLocked")
+                  : tt("play.storySparks.waitingPeer")
               }
             />
           </View>
           {readyToFinish ? (
             <Text style={styles.hintText}>
-              {tt("play.storySparks.phaseDoneBody", "История собрана. Открываем итог.")}
+              {tt("play.storySparks.phaseDoneBody")}
             </Text>
           ) : null}
           <Pressable
@@ -773,8 +761,8 @@ export default function PlayStorySparksScreen() {
           >
             <Text style={styles.secondaryButtonText}>
               {leaving
-                ? tt("common.exiting", "Выходим…")
-                : tt("common.backToMainTabs", "Вернуться в меню")}
+                ? tt("common.exiting")
+                : tt("common.backToMainTabs")}
             </Text>
           </Pressable>
         </View>

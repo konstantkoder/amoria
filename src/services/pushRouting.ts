@@ -1,14 +1,25 @@
-import * as chatApi from "@/services/api/chatApi";
-import * as togetherApi from "@/services/api/togetherApi";
 import type { RootStackParamList } from "@/navigation/appRoutes";
 
 export type PushRoute = { [K in keyof RootStackParamList]: { name: K; params: RootStackParamList[K] } }[keyof RootStackParamList];
+export type PushRoutingDeps = {
+  findInboxThreadById: (threadId: string) => Promise<null | { id: string; peer: { id: string; displayName: string } }>;
+  getSession: (sessionId: string) => Promise<{ session: { status: string; activity: string; mode: "live" | "turn_based" } }>;
+};
 
-export async function resolvePushRoute(data: Record<string, unknown>): Promise<PushRoute | null> {
+async function loadDefaultDeps(): Promise<PushRoutingDeps> {
+  const [chatApi, togetherApi] = await Promise.all([
+    import("@/services/api/chatApi"),
+    import("@/services/api/togetherApi"),
+  ]);
+  return { findInboxThreadById: chatApi.findInboxThreadById, getSession: togetherApi.getSession };
+}
+
+export async function resolvePushRoute(data: Record<string, unknown>, providedDeps?: PushRoutingDeps): Promise<PushRoute | null> {
+  const deps = providedDeps ?? await loadDefaultDeps();
   const type = typeof data.type === "string" ? data.type : "";
   if (type === "direct_message") {
     const threadId = typeof data.threadId === "string" ? data.threadId : "";
-    const thread = threadId ? await chatApi.findInboxThreadById(threadId) : null;
+    const thread = threadId ? await deps.findInboxThreadById(threadId) : null;
     if (!thread) return { name: "Tabs", params: { screen: "Inbox" } };
     return { name: "DMChat", params: { threadId: thread.id, peerId: thread.peer.id, peerName: thread.peer.displayName } };
   }
@@ -16,7 +27,7 @@ export async function resolvePushRoute(data: Record<string, unknown>): Promise<P
     const sessionId = typeof data.sessionId === "string" ? data.sessionId : "";
     if (!sessionId) return { name: "Tabs", params: { screen: "Together" } };
     try {
-      const response = await togetherApi.getSession(sessionId);
+      const response = await deps.getSession(sessionId);
       if (response.session.status !== "active") return { name: "PlayResult", params: { sessionId, mode: response.session.mode } };
       return response.session.activity === "story_sparks"
         ? { name: "PlayStorySparks", params: { sessionId, mode: response.session.mode, ...(typeof data.momentId === "string" ? { momentId: data.momentId } : {}) } }

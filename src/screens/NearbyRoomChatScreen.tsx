@@ -23,6 +23,7 @@ import {
 } from "@/navigation/appRoutes";
 import * as nearbyApi from "@/services/api/nearbyApi";
 import { ApiError } from "@/services/api/apiClient";
+import { reportClientError, sanitizeErrorForReport } from "@/services/api/clientErrorsApi";
 import type { NearbyRoomMessage } from "@/services/api/types";
 import { theme } from "@/theme";
 
@@ -31,15 +32,9 @@ type RenderRoomMessage = NearbyRoomMessage;
 function tt(
   t: (key: string, params?: Record<string, string>) => string,
   key: string,
-  fallback: string,
   params?: Record<string, string>
 ) {
-  const value = t(key, params);
-  if (value !== key) return value;
-  return Object.entries(params ?? {}).reduce(
-    (text, [paramKey, paramValue]) => text.replace(new RegExp(`\\{${paramKey}\\}`, "g"), paramValue),
-    fallback
-  );
+  return t(key, params);
 }
 
 function messageTime(value: string) {
@@ -77,13 +72,13 @@ function createClientMessageId(roomId: string) {
   ].join(":");
 }
 
-function formatMessageTime(value: string) {
+function formatMessageTime(value: string, locale: string) {
   const timestamp = Date.parse(String(value ?? ""));
   if (!Number.isFinite(timestamp)) return "";
-  return new Date(timestamp).toLocaleTimeString([], {
+  return new Intl.DateTimeFormat(locale, {
     hour: "2-digit",
     minute: "2-digit",
-  });
+  }).format(new Date(timestamp));
 }
 
 function formatSenderLabel(
@@ -92,12 +87,12 @@ function formatSenderLabel(
   t: (key: string, params?: Record<string, string>) => string
 ) {
   if (fromUserId && fromUserId === myId) {
-    return tt(t, "common.you", "Вы");
+    return tt(t, "common.you");
   }
 
   const safeId = String(fromUserId ?? "").trim();
   const shortId = safeId ? safeId.slice(0, 8) : "";
-  return tt(t, "nearby.rooms.sender", "Участник {id}", {
+  return tt(t, "nearby.rooms.sender", {
     id: shortId || "room",
   });
 }
@@ -106,14 +101,15 @@ export default function NearbyRoomChatScreen() {
   const navigation = useNavigation<RootStackNavigationProp<"NearbyRoomChat">>();
   const route = useRoute<NearbyRoomChatRouteProp>();
   const { user } = useAuth();
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const myId = String(user?.id ?? "").trim();
   const roomId = String(route.params?.roomId ?? "").trim();
   const title = String(route.params?.title ?? "").trim();
-  const screenTitle = title || tt(t, "nearby.rooms.title", "Активности рядом");
+  const screenTitle = title || tt(t, "nearby.rooms.title");
 
   const mountedRef = useRef(true);
   const sendInFlightRef = useRef(false);
+  const loadInFlightRef = useRef(false);
   const inputRef = useRef<TextInput>(null);
   const [messages, setMessages] = useState<RenderRoomMessage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -131,6 +127,7 @@ export default function NearbyRoomChatScreen() {
 
   const loadMessages = useCallback(
     async (mode: "initial" | "refresh" = "initial") => {
+      if (loadInFlightRef.current) return;
       if (!roomId) {
         setMessages([]);
         setLoading(false);
@@ -139,6 +136,7 @@ export default function NearbyRoomChatScreen() {
         return;
       }
 
+      loadInFlightRef.current = true;
       if (mode === "refresh") {
         setRefreshing(true);
       } else {
@@ -152,16 +150,11 @@ export default function NearbyRoomChatScreen() {
         setMessages(mergeMessages([], response.items ?? []));
       } catch (error) {
         if (!mountedRef.current) return;
-        setErrorText(
-          error instanceof Error
-            ? error.message
-            : tt(
-                t,
-                "nearby.rooms.loadFailed",
-                "Не удалось загрузить сообщения чата активности."
-              )
-        );
+        const safe = sanitizeErrorForReport(error);
+        void reportClientError({ screen: "NearbyRoomChat", action: "load", code: safe.code, message: safe.message, stack: safe.stack });
+        setErrorText(tt(t, "nearby.rooms.loadFailed"));
       } finally {
+        loadInFlightRef.current = false;
         if (!mountedRef.current) return;
         setLoading(false);
         setRefreshing(false);
@@ -202,12 +195,12 @@ export default function NearbyRoomChatScreen() {
       Keyboard.dismiss();
     } catch (error) {
       if (!mountedRef.current) return;
+      const safe = sanitizeErrorForReport(error);
+      void reportClientError({ screen: "NearbyRoomChat", action: "send", code: safe.code, message: safe.message, stack: safe.stack });
       setErrorText(
         error instanceof ApiError && error.code === "message_rate_limited"
-          ? tt(t, "chat.rateLimitedBody", "Too many messages were sent. Try again shortly.")
-          : error instanceof Error
-          ? error.message
-          : tt(t, "nearby.rooms.sendFailed", "Не удалось отправить сообщение.")
+          ? tt(t, "chat.rateLimitedBody")
+          : tt(t, "nearby.rooms.sendFailed")
       );
     } finally {
       sendInFlightRef.current = false;
@@ -225,13 +218,13 @@ export default function NearbyRoomChatScreen() {
     ({ item }: { item: RenderRoomMessage }) => {
       const own = Boolean(myId && item.fromUserId === myId);
       const moderationLabel = item.moderationState === "held"
-        ? tt(t, "chat.messageHeld", "Held — not delivered")
+        ? tt(t, "chat.messageHeld")
         : item.moderationState === "needs_review"
-          ? tt(t, "chat.messageUnderReview", "Under review — not delivered")
+          ? tt(t, "chat.messageUnderReview")
           : item.moderationState === "restricted"
-            ? tt(t, "chat.messageRestricted", "Message restricted")
+            ? tt(t, "chat.messageRestricted")
             : item.moderationState === "removed"
-              ? tt(t, "chat.messageRemoved", "Message removed")
+              ? tt(t, "chat.messageRemoved")
               : "";
       return (
         <View style={[styles.messageWrap, own ? styles.messageWrapOwn : null]}>
@@ -241,7 +234,7 @@ export default function NearbyRoomChatScreen() {
             </Text>
             <Text style={styles.messageText}>{item.text}</Text>
             <Text style={[styles.messageTime, own ? styles.messageTimeOwn : null]}>
-              {formatMessageTime(item.createdAt)}
+              {formatMessageTime(item.createdAt, locale)}
             </Text>
             {moderationLabel ? (
               <Text style={[styles.messageTime, own ? styles.messageTimeOwn : null]}>
@@ -268,7 +261,7 @@ export default function NearbyRoomChatScreen() {
             {screenTitle}
           </Text>
           <Text style={styles.headerSubtitle} numberOfLines={1}>
-            {tt(t, "nearby.rooms.collectiveChat", "Чат активности")}
+            {tt(t, "nearby.rooms.collectiveChat")}
           </Text>
         </View>
       </View>
@@ -288,13 +281,11 @@ export default function NearbyRoomChatScreen() {
         <View style={styles.centerState}>
           <CoreStateCard
             icon="alert-circle-outline"
-            title={tt(t, "nearby.rooms.unavailableTitle", "Активность недоступна")}
+            title={tt(t, "nearby.rooms.unavailableTitle")}
             body={tt(
-              t,
-              "nearby.rooms.missingRoomId",
-              "Не удалось открыть активность без корректного идентификатора."
+              t, "nearby.rooms.missingRoomId"
             )}
-            primaryAction={{ label: tt(t, "common.back", "Назад"), onPress: handleBack }}
+            primaryAction={{ label: tt(t, "common.back"), onPress: handleBack }}
           />
         </View>
       </ScreenShell>
@@ -319,31 +310,29 @@ export default function NearbyRoomChatScreen() {
             loading
             icon="chatbubble-ellipses-outline"
             title={screenTitle}
-            body={tt(t, "nearby.rooms.loadingMessages", "Загружаем сообщения...")}
+            body={tt(t, "nearby.rooms.loadingMessages")}
           />
         </View>
       ) : errorText ? (
         <View style={styles.centerState}>
           <CoreStateCard
             icon="cloud-offline-outline"
-            title={tt(t, "nearby.rooms.errorTitle", "Чат временно недоступен")}
+            title={tt(t, "nearby.rooms.errorTitle")}
             body={errorText}
             primaryAction={{
-              label: tt(t, "common.retry", "Повторить"),
+              label: tt(t, "common.retry"),
               onPress: () => void loadMessages("initial"),
             }}
-            secondaryAction={{ label: tt(t, "common.back", "Назад"), onPress: handleBack }}
+            secondaryAction={{ label: tt(t, "common.back"), onPress: handleBack }}
           />
         </View>
       ) : isEmpty ? (
         <View style={styles.centerState}>
           <CoreStateCard
             icon="chatbubbles-outline"
-            title={tt(t, "nearby.rooms.emptyTitle", "Сообщений пока нет")}
+            title={tt(t, "nearby.rooms.emptyTitle")}
             body={tt(
-              t,
-              "nearby.rooms.emptyBody",
-              "Напишите первым в чат активности."
+              t, "nearby.rooms.emptyBody"
             )}
           />
         </View>
@@ -370,7 +359,7 @@ export default function NearbyRoomChatScreen() {
               ref={inputRef}
               value={text}
               onChangeText={setText}
-              placeholder={tt(t, "nearby.rooms.messagePlaceholder", "Сообщение в чат активности")}
+              placeholder={tt(t, "nearby.rooms.messagePlaceholder")}
               placeholderTextColor="rgba(226,232,255,0.46)"
               style={styles.input}
               multiline
@@ -382,13 +371,13 @@ export default function NearbyRoomChatScreen() {
               activeOpacity={0.86}
               style={[styles.sendButton, !canSend ? styles.sendButtonDisabled : null]}
               accessibilityRole="button"
-              accessibilityLabel={tt(t, "common.send", "Отправить")}
+              accessibilityLabel={tt(t, "common.send")}
             >
               {sending ? (
                 <ActivityIndicator size="small" color={theme.colors.primaryActionText} />
               ) : (
                 <Text style={[styles.sendText, !canSend ? styles.sendTextDisabled : null]}>
-                  {tt(t, "common.send", "Отправить")}
+                  {tt(t, "common.send")}
                 </Text>
               )}
             </TouchableOpacity>

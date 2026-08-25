@@ -27,7 +27,7 @@ assert(app.includes("isSignedIn") && app.includes("pendingPushData"), "signed-ou
 assert(notifications.includes("shouldShowBanner: false") && notifications.includes("shouldShowList: false"), "foreground push banners are suppressed to avoid WS/UI duplication");
 assert(app.includes("addNotificationReceivedListener") && app.includes("foregroundNotice"), "foreground notifications use the in-app banner rather than a duplicate OS banner");
 
-for (const locale of ["en", "ru", "hr"]) {
+for (const locale of ["en", "ru", "hr", "uk", "pl", "de", "fr", "es", "it", "pt", "nl", "sv", "no", "da", "fi", "cs", "sk", "sl", "sr", "bs", "ro", "hu", "el", "tr"]) {
   const dictionary = JSON.parse(read(`src/i18n/locales/${locale}.json`));
   for (const key of ["notifications.title", "notifications.enablePush", "notifications.body.direct_message", "notifications.body.together_action"]) assert(Boolean(dictionary[key]), `${locale} includes ${key}`);
 }

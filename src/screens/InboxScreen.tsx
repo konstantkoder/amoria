@@ -18,19 +18,19 @@ import { theme } from "@/theme";
 
 type InboxSourceKey = "together" | "announcement" | "nearby" | "direct";
 
-function formatThreadDate(value: string | null | undefined) {
+function formatThreadDate(value: string | null | undefined, locale: string) {
   const timestamp = Date.parse(String(value ?? ""));
   if (!Number.isFinite(timestamp)) return "";
 
   try {
-    return new Intl.DateTimeFormat(undefined, {
+    return new Intl.DateTimeFormat(locale, {
       day: "2-digit",
       month: "short",
       hour: "2-digit",
       minute: "2-digit",
     }).format(new Date(timestamp));
   } catch {
-    return new Date(timestamp).toLocaleString();
+    return new Intl.DateTimeFormat(locale).format(new Date(timestamp));
   }
 }
 
@@ -49,12 +49,10 @@ export default function InboxScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<RootStackNavigationProp>();
   const { user: authUser } = useAuth();
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const numberFormatter = React.useMemo(() => new Intl.NumberFormat(locale), [locale]);
   const tt = useCallback(
-    (key: string, fallback: string, params?: Record<string, string>) => {
-      const value = t(key, params);
-      return value === key ? fallback : value;
-    },
+    (key: string, params?: Record<string, string>) => t(key, params),
     [t]
   );
   const uid = authUser?.id ?? "";
@@ -86,8 +84,7 @@ export default function InboxScreen() {
     } catch {
       setError(
         tt(
-          "inbox.errorBody",
-          "Не удалось подключить ваши личные разговоры прямо сейчас. Попробуй ещё раз."
+          "inbox.errorBody"
         )
       );
     } finally {
@@ -129,10 +126,10 @@ export default function InboxScreen() {
 
   const sourceLabels = useMemo(
     () => ({
-      together: tt("inbox.sourceTogether", "После Вместе"),
-      announcement: tt("inbox.sourceAnnouncement", "После объявления"),
-      nearby: tt("inbox.sourceNearby", "Из Рядом"),
-      direct: tt("inbox.sourceDefault", "Личный чат"),
+      together: tt("inbox.sourceTogether"),
+      announcement: tt("inbox.sourceAnnouncement"),
+      nearby: tt("inbox.sourceNearby"),
+      direct: tt("inbox.sourceDefault"),
     }),
     [tt]
   );
@@ -160,14 +157,13 @@ export default function InboxScreen() {
     <View style={styles.heroCard}>
       <View style={styles.heroHeaderRow}>
         <Text style={styles.heroTitle}>
-          {tt("inbox.activeTitleCoreLoop", "Чаты")}
+          {tt("inbox.activeTitleCoreLoop")}
         </Text>
-        <Text style={styles.heroCount}>{cards.length}</Text>
+        <Text style={styles.heroCount}>{numberFormatter.format(cards.length)}</Text>
       </View>
       <Text style={styles.heroText}>
         {tt(
-          "inbox.subheaderCoreLoop",
-          "Здесь собираются личные переписки после «Вместе», Объявлений и Рядом."
+          "inbox.subheaderCoreLoop"
         )}
       </Text>
     </View>
@@ -179,18 +175,17 @@ export default function InboxScreen() {
         <Ionicons name="chatbubble-ellipses-outline" size={22} color={theme.colors.textAccent} />
       </View>
       <Text style={styles.emptyStateTitle}>
-        {tt("inbox.emptyTitleCoreLoop", "Здесь появятся ваши личные разговоры")}
+        {tt("inbox.emptyTitleCoreLoop")}
       </Text>
       <Text style={styles.emptyStateText}>
         {tt(
-          "inbox.emptyBodyCoreLoop",
-          "Здесь появятся личные разговоры после Вместе, Объявлений и Рядом."
+          "inbox.emptyBodyCoreLoop"
         )}
       </Text>
       <View style={styles.emptyActions}>
         <Pressable onPress={goToTogether} style={styles.emptyPrimaryButton}>
           <Text style={styles.emptyPrimaryButtonText}>
-            {tt("inbox.goToTogether", "Во Вместе")}
+            {tt("inbox.goToTogether")}
           </Text>
         </Pressable>
       </View>
@@ -202,10 +197,10 @@ export default function InboxScreen() {
       const sourceKey = getSourceKey(item);
       const peerName =
         item.peer.displayName?.trim() ||
-        tt("profile.amoriaUser", "Пользователь Amoria");
+        tt("profile.amoriaUser");
       const previewText =
         item.lastMessage?.text?.trim() ||
-        tt("inbox.previewFallbackCoreLoop", "Разговор уже открыт. Можно написать первым.");
+        tt("inbox.previewFallbackCoreLoop");
 
       return (
         <Pressable
@@ -242,11 +237,11 @@ export default function InboxScreen() {
             </View>
             <View style={styles.threadMeta}>
               <Text style={styles.dateLabel}>
-                {formatThreadDate(item.lastMessage?.createdAt)}
+                {formatThreadDate(item.lastMessage?.createdAt, locale)}
               </Text>
               {item.unreadCount > 0 ? (
                 <View style={styles.unreadBadge}>
-                  <Text style={styles.unreadBadgeText}>{item.unreadCount}</Text>
+                  <Text style={styles.unreadBadgeText}>{numberFormatter.format(item.unreadCount)}</Text>
                 </View>
               ) : null}
             </View>
@@ -272,16 +267,15 @@ export default function InboxScreen() {
         <View style={styles.centerState}>
           <CoreStateCard
             icon="person-circle-outline"
-            title={tt("inbox.authRequiredTitle", "Чаты доступны после входа")}
+            title={tt("inbox.authRequiredTitle")}
             body={tt(
-              "inbox.authRequiredBodyCoreLoop",
-              "Войдите, чтобы увидеть свои личные разговоры."
+              "inbox.authRequiredBodyCoreLoop"
             )}
             primaryAction={{
               label: t("menu.profile"),
               onPress: () => navigation.navigate("Profile"),
             }}
-            secondaryAction={{ label: tt("inbox.goToTogether", "Во Вместе"), onPress: goToTogether }}
+            secondaryAction={{ label: tt("inbox.goToTogether"), onPress: goToTogether }}
           />
         </View>
       </ScreenShell>
@@ -299,18 +293,18 @@ export default function InboxScreen() {
               loading
               icon="chatbubbles-outline"
               title={t("tabs.chats")}
-              body={tt("inbox.loading", "Подключаем ваши личные разговоры…")}
+              body={tt("inbox.loading")}
             />
           </View>
         ) : error ? (
           <View style={styles.centerState}>
             <CoreStateCard
               icon="cloud-offline-outline"
-              title={tt("inbox.errorTitle", "Чаты временно недоступны")}
+              title={tt("inbox.errorTitle")}
               body={error}
-              primaryAction={{ label: tt("common.retry", "Повторить"), onPress: retry }}
+              primaryAction={{ label: tt("common.retry"), onPress: retry }}
               secondaryAction={{
-                label: tt("inbox.goToTogether", "Во Вместе"),
+                label: tt("inbox.goToTogether"),
                 onPress: goToTogether,
               }}
             />

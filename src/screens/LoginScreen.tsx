@@ -264,6 +264,7 @@ export default function LoginScreen() {
       await auth.login({
         email: trimmedEmail,
         password,
+        locale,
       });
       blurAuthInputs();
       Keyboard.dismiss();

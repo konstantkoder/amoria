@@ -1,4 +1,5 @@
 import { apiRequest } from "@/services/api/apiClient";
+import type { Locale } from "@/i18n/translations";
 
 export type NotificationType = "direct_message" | "together_match" | "together_action" | "announcement"
   | "founder_activated" | "founder_premium_started" | "founder_premium_expiring" | "founder_premium_expired"
@@ -20,7 +21,7 @@ export function markNotificationRead(id: string): Promise<{ ok: true }> {
   return apiRequest(`/notifications/${encodeURIComponent(id)}/read`, { method: "POST" });
 }
 
-export function registerPushToken(input: { token: string; platform: "android" | "ios"; deviceId: string }): Promise<{ ok: true }> {
+export function registerPushToken(input: { token: string; platform: "android" | "ios"; deviceId: string; locale: Locale }): Promise<{ ok: true }> {
   return apiRequest("/push/token", { method: "PUT", body: input });
 }
 

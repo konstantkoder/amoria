@@ -81,7 +81,8 @@ function isValidCrop(crop: NormalizedMediaCrop) {
 }
 
 export default function PhotoManagerScreen() {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const numberFormatter = React.useMemo(() => new Intl.NumberFormat(locale), [locale]);
   const navigation = useNavigation<any>();
   const { hasPremiumFeature } = useMonetization();
   const openPremium = React.useCallback(() => navigation.getParent()?.navigate("Premium"), [navigation]);
@@ -90,10 +91,7 @@ export default function PhotoManagerScreen() {
     [{ text: t("common.cancel"), style: "cancel" }, { text: t("premium.view"), onPress: openPremium }],
   ), [openPremium, t]);
   const tt = React.useCallback(
-    (key: string, fallback: string) => {
-      const value = t(key);
-      return value === key ? fallback : value;
-    },
+    (key: string) => t(key),
     [t]
   );
   const [loading, setLoading] = React.useState(true);
@@ -164,18 +162,16 @@ export default function PhotoManagerScreen() {
 
   function minVisibleMessage() {
     return tt(
-      "photos.lockedGalleryMinVisible",
-      "Чтобы включить закрытую папку, оставьте минимум 3 открытых изображения."
+      "photos.lockedGalleryMinVisible"
     );
   }
 
   function handleApiError(error: unknown, fallbackTitle: string, fallbackBody: string) {
     if (error instanceof Error && error.message === "photos.unsupportedImageType") {
       Alert.alert(
-        tt("photos.unsupportedImageTypeTitle", "Формат фото не поддерживается"),
+        tt("photos.unsupportedImageTypeTitle"),
         tt(
-          "photos.unsupportedImageTypeBody",
-          "Выберите JPEG, PNG или WebP. Фото не было загружено."
+          "photos.unsupportedImageTypeBody"
         )
       );
       return;
@@ -184,49 +180,53 @@ export default function PhotoManagerScreen() {
     if (error instanceof ApiError) {
       if (error.code === "min_visible_required") {
         Alert.alert(
-          tt("photos.lockedGalleryCannotMoveTitle", "Нельзя скрыть фото"),
+          tt("photos.lockedGalleryCannotMoveTitle"),
           minVisibleMessage()
         );
         return;
       }
       if (error.code === "profile_gallery_limit_reached") {
         Alert.alert(
-          tt("photos.galleryLimitReachedTitle", "Лимит фото достигнут"),
+          tt("photos.galleryLimitReachedTitle"),
           tt(
-            "photos.galleryLimitReached",
-            "Достигнут лимит фото. Удалите старые фото, чтобы добавить новые."
+            "photos.galleryLimitReached"
           )
         );
         return;
       }
       if (error.code === "locked_gallery_limit_reached") {
         Alert.alert(
-          tt("photos.lockedGalleryLimitReachedTitle", "Лимит закрытой папки"),
-          tt("photos.lockedGalleryLimitReached", "В закрытой папке уже максимум фото.")
+          tt("photos.lockedGalleryLimitReachedTitle"),
+          tt("photos.lockedGalleryLimitReached")
         );
         return;
       }
       if (error.code === "locked_gallery_password_required") {
         Alert.alert(
-          tt("photos.lockedGalleryPasswordRequiredTitle", "Нужен пароль"),
-          tt("photos.lockedGalleryPasswordRequired", "Сначала задайте пароль закрытой папки")
+          tt("photos.lockedGalleryPasswordRequiredTitle"),
+          tt("photos.lockedGalleryPasswordRequired")
         );
         setPasswordMode("set");
         return;
       }
       if (error.code === "invalid_credentials") {
         Alert.alert(
-          tt("photos.accountPasswordInvalidTitle", "Пароль не подошёл"),
-          tt("photos.accountPasswordInvalid", "Проверьте пароль от аккаунта и попробуйте ещё раз.")
+          tt("photos.accountPasswordInvalidTitle"),
+          tt("photos.accountPasswordInvalid")
         );
         return;
       }
     }
 
-    const diagnosticBody = error instanceof ApiError && error.code
-      ? `${fallbackBody}\n${error.code}`
-      : fallbackBody;
-    Alert.alert(fallbackTitle, diagnosticBody);
+    const safeError = sanitizeErrorForReport(error);
+    void reportClientError({
+      screen: "PhotoManagerScreen",
+      action: "gallery_api_error",
+      code: safeError.code,
+      message: safeError.message,
+      stack: safeError.stack,
+    });
+    Alert.alert(fallbackTitle, fallbackBody);
   }
 
   function handleDeleteError() {
@@ -244,10 +244,9 @@ export default function PhotoManagerScreen() {
     }
     if (galleryLimitReached) {
       Alert.alert(
-        tt("photos.galleryLimitReachedTitle", "Лимит фото достигнут"),
+        tt("photos.galleryLimitReachedTitle"),
         tt(
-          "photos.galleryLimitReached",
-          "Достигнут лимит фото. Удалите старые фото, чтобы добавить новые."
+          "photos.galleryLimitReached"
         )
       );
       return;
@@ -462,8 +461,8 @@ export default function PhotoManagerScreen() {
       if (error instanceof ApiError && error.status === 404) {
         await refreshGallery().catch(() => undefined);
         Alert.alert(
-          tt("photos.alreadyRemovedTitle", "Фото уже удалено"),
-          tt("photos.alreadyRemovedBody", "Мы обновили галерею с сервера.")
+          tt("photos.alreadyRemovedTitle"),
+          tt("photos.alreadyRemovedBody")
         );
         return;
       }
@@ -505,16 +504,16 @@ export default function PhotoManagerScreen() {
     }
     if (visibility === "locked" && !gallery?.lockedFolderEnabled) {
       Alert.alert(
-        tt("photos.lockedGalleryPasswordRequiredTitle", "Нужен пароль"),
-        tt("photos.lockedGalleryPasswordRequired", "Сначала задайте пароль закрытой папки")
+        tt("photos.lockedGalleryPasswordRequiredTitle"),
+        tt("photos.lockedGalleryPasswordRequired")
       );
       setPasswordMode("set");
       return;
     }
     if (visibility === "locked" && lockedLimitReached) {
       Alert.alert(
-        tt("photos.lockedGalleryLimitReachedTitle", "Лимит закрытой папки"),
-        tt("photos.lockedGalleryLimitReached", "В закрытой папке уже максимум фото.")
+        tt("photos.lockedGalleryLimitReachedTitle"),
+        tt("photos.lockedGalleryLimitReached")
       );
       return;
     }
@@ -529,8 +528,8 @@ export default function PhotoManagerScreen() {
     } catch (error) {
       handleApiError(
         error,
-        tt("photos.saveFailed", "Не удалось сохранить"),
-        tt("photos.uploadErrorBody", "Попробуйте ещё раз позже.")
+        tt("photos.saveFailed"),
+        tt("photos.uploadErrorBody")
       );
     } finally {
       mutationInFlightRef.current = false;
@@ -542,8 +541,8 @@ export default function PhotoManagerScreen() {
     if (!currentAccountPassword.trim() || passwordBusy || passwordMutationInFlightRef.current) return;
     if (passwordMode === "set" && newFolderPassword.length < 8) {
       Alert.alert(
-        tt("photos.lockedGalleryPasswordTooShortTitle", "Пароль слишком короткий"),
-        tt("photos.lockedGalleryPasswordTooShort", "Пароль закрытой папки должен быть не короче 8 символов.")
+        tt("photos.lockedGalleryPasswordTooShortTitle"),
+        tt("photos.lockedGalleryPasswordTooShort")
       );
       return;
     }
@@ -569,12 +568,12 @@ export default function PhotoManagerScreen() {
       newFolderPasswordInputRef.current?.blur();
       Keyboard.dismiss();
       await refreshGallery();
-      Alert.alert(t("common.done"), tt("photos.lockedGalleryPasswordSaved", "Настройки закрытой папки сохранены."));
+      Alert.alert(t("common.done"), tt("photos.lockedGalleryPasswordSaved"));
     } catch (error) {
       handleApiError(
         error,
-        tt("photos.saveFailed", "Не удалось сохранить"),
-        tt("photos.lockedGalleryPasswordSaveFailed", "Проверьте пароль от аккаунта и попробуйте ещё раз.")
+        tt("photos.saveFailed"),
+        tt("photos.lockedGalleryPasswordSaveFailed")
       );
     } finally {
       passwordMutationInFlightRef.current = false;
@@ -622,10 +621,10 @@ export default function PhotoManagerScreen() {
           {imageFailed ? (
             <View style={styles.photoImageError}>
               <Text style={styles.photoImageErrorTitle}>
-                {tt("photos.previewFailed", "Фото не открылось")}
+                {tt("photos.previewFailed")}
               </Text>
               <Text style={styles.photoImageErrorText}>
-                {tt("photos.brokenPhotoCanRemove", "Можно удалить это фото и загрузить новое.")}
+                {tt("photos.brokenPhotoCanRemove")}
               </Text>
             </View>
           ) : null}
@@ -642,8 +641,8 @@ export default function PhotoManagerScreen() {
           >
             <Text style={styles.photoActionText}>
               {moveTarget === "locked"
-                ? tt("photos.moveToLocked", "В закрытую")
-                : tt("photos.moveToPublic", "В открытые")}
+                ? tt("photos.moveToLocked")
+                : tt("photos.moveToPublic")}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -687,24 +686,23 @@ export default function PhotoManagerScreen() {
       >
         <View style={styles.summaryCard}>
           <Text style={styles.summaryTitle}>
-            {tt("photos.lockedGalleryTitle", "Закрытая папка")}
+            {tt("photos.lockedGalleryTitle")}
           </Text>
           <Text style={styles.summaryText}>
-            {tt("photos.photoLimitCount", "Фото: {count} из {max}")
-              .replace("{count}", String(totalPhotos))
+            {tt("photos.photoLimitCount")
+              .replace("{count}", numberFormatter.format(totalPhotos))
               .replace("{max}", String(maxProfileGalleryPhotos))}
           </Text>
           <Text style={styles.summaryText}>
-            {tt("photos.lockedPhotoLimitCount", "Закрытая папка: {count} из {max}")
-              .replace("{count}", String(lockedPhotos.length))
+            {tt("photos.lockedPhotoLimitCount")
+              .replace("{count}", numberFormatter.format(lockedPhotos.length))
               .replace("{max}", String(maxLockedProfilePhotos))}
           </Text>
           <Text style={styles.summaryText}>
             {tt(
-              "photos.visibleCountWithMinimum",
-              "Открытых изображений: {count} из {min} минимум"
+              "photos.visibleCountWithMinimum"
             )
-              .replace("{count}", String(gallery?.visibleImagesCount ?? 0))
+              .replace("{count}", numberFormatter.format(gallery?.visibleImagesCount ?? 0))
               .replace("{min}", String(minVisibleImagesRequired))}
           </Text>
           <Text style={styles.summaryText}>{minVisibleMessage()}</Text>
@@ -717,8 +715,8 @@ export default function PhotoManagerScreen() {
             >
               <Text style={styles.smallButtonText}>
                 {gallery?.lockedFolderEnabled
-                  ? tt("photos.changeLockedPassword", "Сменить пароль")
-                  : tt("photos.setLockedPassword", "Задать пароль")}
+                  ? tt("photos.changeLockedPassword")
+                  : tt("photos.setLockedPassword")}
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -728,14 +726,13 @@ export default function PhotoManagerScreen() {
               activeOpacity={0.86}
             >
               <Text style={styles.smallButtonText}>
-                {tt("photos.resetLockedPassword", "Сбросить пароль")}
+                {tt("photos.resetLockedPassword")}
               </Text>
             </TouchableOpacity>
           </View>
           <Text style={styles.helpText}>
             {tt(
-              "photos.lockedGalleryForgotHelp",
-              "Если вы забыли пароль закрытой папки, сбросьте его, подтвердив пароль от аккаунта."
+              "photos.lockedGalleryForgotHelp"
             )}
           </Text>
         </View>
@@ -744,15 +741,15 @@ export default function PhotoManagerScreen() {
           <View style={styles.passwordCard}>
             <Text style={styles.summaryTitle}>
               {passwordMode === "set"
-                ? tt("photos.setLockedPassword", "Задать пароль")
-                : tt("photos.resetLockedPassword", "Сбросить пароль")}
+                ? tt("photos.setLockedPassword")
+                : tt("photos.resetLockedPassword")}
             </Text>
             <TextInput
               ref={currentPasswordInputRef}
               value={currentAccountPassword}
               onChangeText={setCurrentAccountPassword}
               secureTextEntry
-              placeholder={tt("photos.accountPasswordPlaceholder", "Пароль от аккаунта")}
+              placeholder={tt("photos.accountPasswordPlaceholder")}
               placeholderTextColor="rgba(226,232,255,0.46)"
               style={styles.input}
               autoCapitalize="none"
@@ -772,7 +769,7 @@ export default function PhotoManagerScreen() {
                 value={newFolderPassword}
                 onChangeText={setNewFolderPassword}
                 secureTextEntry
-                placeholder={tt("photos.lockedFolderPasswordPlaceholder", "Новый пароль папки")}
+                placeholder={tt("photos.lockedFolderPasswordPlaceholder")}
                 placeholderTextColor="rgba(226,232,255,0.46)"
                 style={styles.input}
                 autoCapitalize="none"
@@ -783,8 +780,7 @@ export default function PhotoManagerScreen() {
             ) : (
               <Text style={styles.helpText}>
                 {tt(
-                  "photos.lockedGalleryResetKeepsPhotos",
-                  "Закрытые фото останутся закрытыми и не откроются, пока вы не зададите новый пароль."
+                  "photos.lockedGalleryResetKeepsPhotos"
                 )}
               </Text>
             )}
@@ -833,15 +829,14 @@ export default function PhotoManagerScreen() {
             {busy
               ? t("common.saving")
               : galleryLimitReached
-                ? tt("photos.galleryLimitReachedTitle", "Лимит фото достигнут")
+                ? tt("photos.galleryLimitReachedTitle")
                 : t("photos.add")}
           </Text>
         </TouchableOpacity>
         {galleryLimitReached ? (
           <Text style={styles.limitText}>
             {tt(
-              "photos.galleryLimitReached",
-              "Достигнут лимит фото. Удалите старые фото, чтобы добавить новые."
+              "photos.galleryLimitReached"
             )}
           </Text>
         ) : null}
@@ -867,7 +862,7 @@ export default function PhotoManagerScreen() {
             <Text style={styles.pendingText}>
               {busy
                 ? t("photos.uploading")
-                : tt("photos.previewReady", "Проверьте фото перед загрузкой.")}
+                : tt("photos.previewReady")}
             </Text>
             <View style={styles.pendingActions}>
               <TouchableOpacity
@@ -903,10 +898,9 @@ export default function PhotoManagerScreen() {
         <ImageCropper
           visible={Boolean(croppingPhoto)}
           source={croppingPhoto}
-          title={tt("photos.cropProfileTitle", "Обрезка фото")}
+          title={tt("photos.cropProfileTitle")}
           helpText={tt(
-            "photos.cropHelp",
-            "Одним пальцем перемещайте фото, двумя — изменяйте масштаб."
+            "photos.cropHelp"
           )}
           doneLabel={t("common.done")}
           cancelLabel={t("photos.cropCancel")}
@@ -921,7 +915,7 @@ export default function PhotoManagerScreen() {
         />
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{tt("photos.publicSection", "Открытые фото")}</Text>
+          <Text style={styles.sectionTitle}>{tt("photos.publicSection")}</Text>
           {publicPhotos.length ? (
             <View style={styles.grid}>
               {publicPhotos.map((photo) => renderPhoto(photo, "public"))}
@@ -933,7 +927,7 @@ export default function PhotoManagerScreen() {
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>
-            {tt("photos.lockedSection", "Закрытая папка")}
+            {tt("photos.lockedSection")}
           </Text>
           {lockedPhotos.length ? (
             <View style={styles.grid}>
@@ -941,7 +935,7 @@ export default function PhotoManagerScreen() {
             </View>
           ) : (
             <Text style={styles.emptyText}>
-              {tt("photos.lockedEmpty", "Закрытых фото пока нет.")}
+              {tt("photos.lockedEmpty")}
             </Text>
           )}
         </View>

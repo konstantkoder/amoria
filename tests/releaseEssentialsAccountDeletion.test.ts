@@ -21,7 +21,7 @@ assert(auth.includes("wsClient.resetForSession()"), "WebSocket state resets on d
 for (const key of ["amoria_location_consent_v1", "amoria_nearby_enabled", "amoria:together:radiusKm:v2", "amoria:together:ageFilter:v1"]) assert(localData.includes(key), `${key} is account-scoped and removed`);
 assert(!localData.includes("amoria.locale") && !localData.includes("amoria.installId.v1"), "locale and installation identity are not incorrectly treated as profile caches");
 
-for (const locale of ["en", "ru", "hr"]) {
+for (const locale of ["en", "ru", "hr", "uk", "pl", "de", "fr", "es", "it", "pt", "nl", "sv", "no", "da", "fi", "cs", "sk", "sl", "sr", "bs", "ro", "hu", "el", "tr"]) {
   const dictionary = JSON.parse(read(`src/i18n/locales/${locale}.json`));
   for (const key of ["accountDeletion.title", "accountDeletion.warningBody", "accountDeletion.confirmLabel", "accountDeletion.wrongPassword", "accountDeletion.failed"]) assert(Boolean(dictionary[key]), `${locale} includes ${key}`);
 }

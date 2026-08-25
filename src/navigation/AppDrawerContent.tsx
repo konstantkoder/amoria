@@ -24,11 +24,9 @@ type Props = {
 
 function copyOrFallback(
   t: (key: string, params?: Record<string, string>) => string,
-  key: string,
-  fallback: string
+  key: string
 ) {
-  const value = t(key);
-  return value === key ? fallback : value;
+  return t(key);
 }
 
 type DrawerSection =
@@ -184,7 +182,7 @@ export default function AppDrawerContent({ onClose }: Props) {
               <Text style={styles.title}>{t("menu.title")}</Text>
             </View>
             <Text style={styles.subtitle}>
-              {copyOrFallback(t, "menu.subtitle", "Быстрый доступ")}
+              {copyOrFallback(t, "menu.subtitle")}
             </Text>
           </View>
           <TouchableOpacity
@@ -201,7 +199,7 @@ export default function AppDrawerContent({ onClose }: Props) {
           showsVerticalScrollIndicator={false}
         >
           <Text style={styles.sectionLabel}>
-            {copyOrFallback(t, "menu.sectionAccount", "Аккаунт")}
+            {copyOrFallback(t, "menu.sectionAccount")}
           </Text>
           {renderButton({
             section: "profile",
@@ -241,7 +239,7 @@ export default function AppDrawerContent({ onClose }: Props) {
           {renderButton({
             section: "privacy",
             icon: "document-text-outline",
-            label: copyOrFallback(t, "menu.privacy", "Политика"),
+            label: copyOrFallback(t, "menu.privacy"),
             onPress: handleOpenPrivacyPolicy,
           })}
           {renderButton({

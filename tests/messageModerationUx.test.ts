@@ -32,7 +32,7 @@ test("API message contracts expose state without classifier internals", () => {
 });
 
 test("release locales include moderation and rate-limit copy", () => {
-  for (const locale of ["en", "ru", "hr"]) {
+  for (const locale of ["en", "ru", "hr", "uk", "pl", "de", "fr", "es", "it", "pt", "nl", "sv", "no", "da", "fi", "cs", "sk", "sl", "sr", "bs", "ro", "hu", "el", "tr"]) {
     const translations = JSON.parse(readFileSync(`src/i18n/locales/${locale}.json`, "utf8"));
     for (const key of [
       "chat.messageHeld",

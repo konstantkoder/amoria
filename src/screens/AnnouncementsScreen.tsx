@@ -22,11 +22,9 @@ import { listBlockedUserIds } from "@/services/api/safetyApi";
 
 function copyOrFallback(
   t: (key: string, params?: Record<string, string>) => string,
-  key: string,
-  fallback: string
+  key: string
 ) {
-  const value = t(key);
-  return value === key ? fallback : value;
+  return t(key);
 }
 
 export default function AnnouncementsScreen() {
@@ -47,9 +45,7 @@ export default function AnnouncementsScreen() {
   const getLoadError = React.useCallback(
     () =>
       copyOrFallback(
-        t,
-        "nearby.announcements.loadErrorBody",
-        "Не удалось загрузить объявления с сервера. Попробуй ещё раз позже."
+        t, "nearby.announcements.loadErrorBody"
       ),
     [t]
   );
@@ -104,7 +100,7 @@ export default function AnnouncementsScreen() {
 
   return (
     <ScreenShell
-      title={copyOrFallback(t, "tabs.announcements", "Announcements")}
+      title={copyOrFallback(t, "tabs.announcements")}
       background="nearbyHarborV6"
       blurRadius={0}
     >
@@ -114,11 +110,9 @@ export default function AnnouncementsScreen() {
             <CoreStateCard
               loading
               icon="document-text-outline"
-              title={copyOrFallback(t, "nearby.announcements.loadingTitle", "Загружаем объявления")}
+              title={copyOrFallback(t, "nearby.announcements.loadingTitle")}
               body={copyOrFallback(
-                t,
-                "nearby.announcements.loadingBody",
-                "Загружаем общий список объявлений с сервера."
+                t, "nearby.announcements.loadingBody"
               )}
             />
           </View>
@@ -127,13 +121,11 @@ export default function AnnouncementsScreen() {
             <CoreStateCard
               icon="cloud-offline-outline"
               title={copyOrFallback(
-                t,
-                "nearby.announcements.loadErrorTitle",
-                "Объявления временно недоступны"
+                t, "nearby.announcements.loadErrorTitle"
               )}
               body={loadError}
               primaryAction={{
-                label: copyOrFallback(t, "common.retry", "Повторить"),
+                label: copyOrFallback(t, "common.retry"),
                 onPress: () => void loadAnnouncements(),
               }}
             />

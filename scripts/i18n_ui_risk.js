@@ -6,7 +6,10 @@ const path = require("path");
 const LOCALES_DIR = path.join(process.cwd(), "src", "i18n", "locales");
 const BASE_FILE = "en.json";
 const OUTPUT_FILE = path.join(process.cwd(), "i18n_ui_risk.txt");
-const RELEASE_LOCALES = ["en", "ru", "hr"];
+const RELEASE_LOCALES = [
+  "en", "ru", "hr", "uk", "pl", "de", "fr", "es", "it", "pt", "nl", "sv",
+  "no", "da", "fi", "cs", "sk", "sl", "sr", "bs", "ro", "hu", "el", "tr",
+];
 
 const PREFIXES = [
   "auth.",

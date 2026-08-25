@@ -22,9 +22,7 @@ import ImageCropper, {
   type NormalizedMediaCrop,
 } from "@/components/media/ImageCropper";
 import {
-  GOAL_LABEL_FALLBACKS,
   GOAL_LABEL_KEYS,
-  MOOD_LABEL_FALLBACKS,
   MOOD_LABEL_KEYS,
 } from "@/config/profileFields";
 import ScreenShell from "@/components/ScreenShell";
@@ -97,11 +95,9 @@ function isValidCrop(crop: NormalizedMediaCrop) {
 
 function translatedOptionLabel(
   t: (key: string) => string,
-  key: string,
-  fallback: string
+  key: string
 ) {
-  const value = t(key);
-  return value === key ? fallback : value;
+  return t(key);
 }
 
 function formatOwnAgeLabel(
@@ -125,19 +121,20 @@ function formatOwnAgeLabel(
 
 function formatSearchAgePreference(
   profile: UserProfile | null,
-  t: (key: string, params?: Record<string, string>) => string
+  t: (key: string, params?: Record<string, string>) => string,
+  locale: string,
 ) {
   const min = profile?.preferredAgeMin;
   const max = profile?.preferredAgeMax;
   if (typeof min === "number" && typeof max === "number") {
     const value = t("profile.searchAgePreferenceRange", {
-      min: String(min),
-      max: String(max),
+      min: new Intl.NumberFormat(locale).format(min),
+      max: new Intl.NumberFormat(locale).format(max),
     });
     return value === "profile.searchAgePreferenceRange" ? `${min}-${max}` : value;
   }
   if (typeof min === "number" && max === null) {
-    const value = t("profile.searchAgePreferenceOpen", { min: String(min) });
+    const value = t("profile.searchAgePreferenceOpen", { min: new Intl.NumberFormat(locale).format(min) });
     return value === "profile.searchAgePreferenceOpen" ? `${min}+` : value;
   }
   return t("profile.searchAgePreferenceDefault");
@@ -262,7 +259,7 @@ function ProfilePublicPhoto({
 export default function ProfileScreen() {
   const navigation = useNavigation<ProfileNav>();
   const rootNavigation = navigation.getParent<RootStackNavigationProp>();
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const { snapshot } = useMonetization();
   const [profile, setProfile] = React.useState<UserProfile | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -315,17 +312,17 @@ export default function ProfileScreen() {
   );
   const avatarPreviewUri = pendingAvatar?.uri ?? "";
   const goalLabel = profile?.goal
-    ? translatedOptionLabel(t, GOAL_LABEL_KEYS[profile.goal], GOAL_LABEL_FALLBACKS[profile.goal])
+    ? translatedOptionLabel(t, GOAL_LABEL_KEYS[profile.goal])
     : t("profile.goal.unknown");
   const moodLabel = profile?.mood
-    ? translatedOptionLabel(t, MOOD_LABEL_KEYS[profile.mood], MOOD_LABEL_FALLBACKS[profile.mood])
+    ? translatedOptionLabel(t, MOOD_LABEL_KEYS[profile.mood])
     : t("profile.mood.unknown");
   const about = profile?.about?.trim() ? profile.about : t("profile.noDescription");
   const displayName = profile?.displayName || t("profile.amoriaUser");
   const amoriaId = profile?.amoriaId ?? "";
   const needsName = Boolean(getDisplayNameValidationErrorKey(profile?.displayName ?? ""));
   const ageLabel = formatOwnAgeLabel(profile, t);
-  const searchAgePreference = formatSearchAgePreference(profile, t);
+  const searchAgePreference = formatSearchAgePreference(profile, t, locale);
   const ownGenderLabel = formatOwnGender(profile, t);
   const lookingForLabel = formatLookingForPreference(profile, t);
   const missingOwnGender = Boolean(profile && !profile.gender);
