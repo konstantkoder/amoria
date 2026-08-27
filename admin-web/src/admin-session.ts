@@ -35,7 +35,7 @@ export class AdminSessionClient {
 
   constructor(
     private readonly apiBaseUrl: string,
-    private readonly fetchImplementation: FetchImplementation = fetch,
+    private readonly fetchImplementation: FetchImplementation = globalThis.fetch.bind(globalThis),
   ) {}
 
   clearLegacyStorage(storage: LegacyStorage): void {

@@ -235,6 +235,81 @@ test("Admin Web password, enrollment, MFA, recovery, and step-up stages keep acc
   ]);
 });
 
+test("Admin Web default fetch keeps the browser global receiver across session requests", async () => {
+  const { AdminSessionClient } = await import("../admin-web/src/admin-session.js");
+  const originalFetch = globalThis.fetch;
+  const receivers: unknown[] = [];
+  const requests: Array<{ path: string; credentials?: RequestInit["credentials"]; sessionHeader: string | null; authorization: string | null }> = [];
+  const responses = [
+    jsonResponse({ state: "enrollment_required", enrollment: { manualKey: "TESTONLY", otpauthUri: "otpauth://totp/test" } }),
+    jsonResponse({
+      accessToken: "admin-access-after-enrollment",
+      accessTokenExpiresAt: "2026-08-21T01:00:00.000Z",
+      user: testAdminUser(),
+      recoveryCodes: ["TEST-RECOVERY-CODE"],
+      recoveryUsed: false,
+      remainingRecoveryCodes: 10,
+    }),
+    jsonResponse({ ok: true, expiresAt: "2026-08-21T00:10:00.000Z" }),
+    jsonResponse({
+      accessToken: "refreshed-admin-access",
+      accessTokenExpiresAt: "2026-08-21T02:00:00.000Z",
+      user: testAdminUser(),
+    }),
+    jsonResponse({ state: "mfa_required" }),
+    jsonResponse({
+      accessToken: "admin-access-after-mfa",
+      accessTokenExpiresAt: "2026-08-21T03:00:00.000Z",
+      user: testAdminUser(),
+      recoveryUsed: false,
+      remainingRecoveryCodes: 10,
+    }),
+  ];
+
+  globalThis.fetch = async function receiverSensitiveFetch(this: unknown, input, init) {
+    receivers.push(this);
+    if (this !== globalThis) {
+      throw new TypeError("Failed to execute 'fetch' on 'Window': Illegal invocation");
+    }
+    const headers = new Headers(init?.headers);
+    requests.push({
+      path: String(input),
+      credentials: init?.credentials,
+      sessionHeader: headers.get("x-amoria-admin-session"),
+      authorization: headers.get("authorization"),
+    });
+    const response = responses.shift();
+    assert.ok(response);
+    return response;
+  } as typeof fetch;
+
+  try {
+    const client = new AdminSessionClient("https://api.example.test");
+    assert.equal((await client.login("owner@example.test", "password-stage-only")).state, "enrollment_required");
+    await client.confirmEnrollment("123456");
+    await client.stepUp("654321");
+    assert.equal(await client.refresh(), true);
+    assert.equal((await client.login("owner@example.test", "password-stage-only")).state, "mfa_required");
+    await client.verifyMfa("totp", "123456");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+
+  assert.equal(receivers.length, 6);
+  assert.equal(receivers.every((receiver) => receiver === globalThis), true);
+  assert.equal(requests.every((request) => request.credentials === "include" && request.sessionHeader === "1"), true);
+  assert.deepEqual(requests.map((request) => request.path), [
+    "https://api.example.test/admin/session/login",
+    "https://api.example.test/admin/session/mfa/enroll/confirm",
+    "https://api.example.test/admin/session/step-up",
+    "https://api.example.test/admin/session/refresh",
+    "https://api.example.test/admin/session/login",
+    "https://api.example.test/admin/session/mfa/verify",
+  ]);
+  assert.equal(requests[2]?.authorization, "Bearer admin-access-after-enrollment");
+  assert.equal(requests.filter((request) => request.authorization !== null).length, 1);
+});
+
 test("Admin Web restore handles valid, expired, disabled, and generic auth responses without stale access", async () => {
   const { AdminSessionClient } = await import("../admin-web/src/admin-session.js");
   const responses = [
