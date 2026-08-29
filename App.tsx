@@ -2,7 +2,7 @@ import "react-native-gesture-handler";
 import "react-native-reanimated";
 
 import React from "react";
-import { AppState, Linking, LogBox, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { AppState, Linking, LogBox, Platform, StatusBar, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import type { AppStateStatus } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
@@ -401,7 +401,7 @@ function AuthGate() {
 function AppBootstrap() {
   const { ready } = useLocale();
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureHandlerRootView style={appStyles.root}>
       {!ready ? (
         <StartupScreen />
       ) : (
@@ -414,21 +414,29 @@ function AppBootstrap() {
 }
 
 const appStyles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: theme.colors.background },
   toast: { position: "absolute", top: 54, left: 16, right: 16, zIndex: 1000, flexDirection: "row", padding: 14, borderRadius: 16, backgroundColor: "rgba(20,18,30,.97)", borderWidth: 1, borderColor: "rgba(230,185,118,.55)", elevation: 12 },
   toastCopy: { flex: 1, gap: 3 }, toastTitle: { color: "#F3C98B", fontWeight: "900" }, toastBody: { color: "#E5E7EB", fontSize: 13 }, toastClose: { color: "#E5E7EB", fontSize: 22, paddingHorizontal: 6 },
 });
 
 export default function App() {
   return (
-    <KeyboardProvider
-      statusBarTranslucent={false}
-      navigationBarTranslucent={false}
-    >
-      <SafeAreaProvider>
-        <LocaleProvider>
-          <AppBootstrap />
-        </LocaleProvider>
-      </SafeAreaProvider>
-    </KeyboardProvider>
+    <View style={appStyles.root}>
+      <StatusBar
+        barStyle="light-content"
+        backgroundColor={theme.colors.background}
+        translucent={false}
+      />
+      <KeyboardProvider
+        statusBarTranslucent={false}
+        navigationBarTranslucent={false}
+      >
+        <SafeAreaProvider>
+          <LocaleProvider>
+            <AppBootstrap />
+          </LocaleProvider>
+        </SafeAreaProvider>
+      </KeyboardProvider>
+    </View>
   );
 }
