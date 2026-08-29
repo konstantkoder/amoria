@@ -54,6 +54,7 @@ export default function LanguagePickerModal({
         <View style={styles.card}>
           <Text style={styles.title}>{t("modal.language.title")}</Text>
           <FlatList
+            style={styles.languageList}
             data={locales}
             keyExtractor={(item) => item}
             showsVerticalScrollIndicator={false}
@@ -124,6 +125,9 @@ const styles = StyleSheet.create({
   listContent: {
     gap: 10,
     paddingBottom: 8,
+  },
+  languageList: {
+    flexShrink: 1,
   },
   languageButton: {
     minHeight: visualSystem.buttons.chip.minHeight,

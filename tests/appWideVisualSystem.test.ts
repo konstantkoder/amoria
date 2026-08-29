@@ -49,6 +49,7 @@ for (const [file, variant] of mappings) assert(read(file).includes(`\"${variant}
 const navigator = read("src/navigation/AppNavigator.tsx");
 const app = read("App.tsx");
 const nearbyHub = read("src/screens/NearbyHubScreen.tsx");
+const languagePicker = read("src/components/LanguagePickerModal.tsx");
 const expoConfig = JSON.parse(read("app.json")).expo;
 assert(app.includes('<StatusBar') && app.includes('barStyle="light-content"'), "the release shell keeps system status icons legible on dark screens");
 assert(/root:\s*\{\s*flex: 1,\s*backgroundColor: theme\.colors\.background\s*\}/s.test(app), "the release shell paints behind the transparent Android status bar");
@@ -56,6 +57,7 @@ assert(expoConfig.backgroundColor === visualSystem.colors.background && expoConf
 const tabRoutes = Array.from(navigator.matchAll(/<Tab\.Screen\s+name="([^"]+)"/g), (match) => match[1]);
 assert(JSON.stringify(tabRoutes) === JSON.stringify(["Together", "Nearby", "Inbox"]), "bottom-tab routes and order remain stable");
 assert(nearbyHub.includes('t, "now.peopleNearby"') && !nearbyHub.includes('"nearby.people.title"'), "Nearby keeps a translated people-section heading instead of exposing a raw key");
+assert(languagePicker.includes("style={styles.languageList}") && /languageList:\s*\{\s*flexShrink: 1/s.test(languagePicker), "the 24-language list remains constrained and scrollable inside its modal");
 for (const route of ["Settings", "Notifications", "AccountDeletion", "PrivacyPolicy", "LocationInfo"]) {
   assert(navigator.includes(`name="${route}"`), `${route} remains on the signed-in release surface`);
 }
