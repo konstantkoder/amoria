@@ -1354,7 +1354,7 @@ export default function NearbyHubScreen() {
     () => (
       <Text style={styles.peopleSectionTitle}>
         {copyOrFallback(
-          t, "nearby.people.title"
+          t, "now.peopleNearby"
         )}
       </Text>
     ),
